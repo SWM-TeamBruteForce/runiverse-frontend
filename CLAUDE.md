@@ -14,7 +14,7 @@
 
 ## Architecture
 
-- 저장소 루트 = Flutter 루트 = `frontend/`. 기획·디자인 문서는 저장소 **밖** `../Docs/`, `../design system/`
+- 저장소 루트 = Flutter 루트 = `frontend/`. 기획·디자인 문서는 저장소 **밖** `../Docs/`, `../design_system/`
 - `lib/app/router/` - go_router 설정, 라우트 상수, 딥링크
 - `lib/core/` - 기능 무관 공통: `config` `network` `storage` `theme/tokens` `theme/extensions` `strings` `utils` `widgets`
 - `lib/features/<name>/` - `onboarding` `auth` `home` `matching` `session` `record` `color` `profile` `feed` `competition`
@@ -98,7 +98,7 @@
 |---|---|
 | 화면 구조·범위 | `../Docs/IA/Runiverse_IA설계md.md` |
 | 기능 요구사항 | `../Docs/기능명세서/Runiverse_기능명세서(최종).md` |
-| 디자인 토큰 | `../design system/Runiverse 디자인 시스템 v1 — 파운데이션.md` |
+| 디자인 토큰 | `../design_system/Runiverse 디자인 시스템 v1.1 - 파운데이션.md` |
 | 화면 레이아웃 | `../Docs/UI화면설계_md/Runiverse_와이어프레임_수정(1).md` |
 | 구현 제약·백엔드 요구사항 | `../Docs/UI화면설계_md/Runiverse_와이어프레임_FE노트.md` |
 
