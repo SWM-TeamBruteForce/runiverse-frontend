@@ -1,0 +1,23 @@
+# 줄바꿈은 저장소 안에서 항상 LF로 통일한다.
+# 없으면 Windows(팀원 A)와 macOS/Linux·CI(팀원 B) 사이에서 diff 전체가 뒤집힌다.
+* text=auto eol=lf
+
+# 바이너리 — 절대 변환하지 않는다.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+*.jks   binary
+*.keystore binary
+*.drawio binary
+*.xlsx  binary
+
+# Windows 배치 파일은 CRLF여야 동작한다.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+gradlew.bat text eol=crlf
