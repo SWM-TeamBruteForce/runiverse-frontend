@@ -4,6 +4,8 @@ import 'package:runiverse/app/router/app_shell.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/coming_soon_page.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
+import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page.dart';
+import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
 
@@ -33,8 +35,20 @@ import 'package:runiverse/features/record/presentation/record_page.dart';
 GoRouter createAppRouter() {
   return GoRouter(
     // 플랫폼이 넘겨주는 기본 경로 `/`를 이 값으로 대체한다.
-    initialLocation: AppRoutes.home,
+    initialLocation: AppRoutes.splash,
     routes: [
+      // ── 탭 셸 밖 ─────────────────────────────────────────────
+      //
+      // 셸 밖이라 하단 탭이 뜨지 않는다. 온보딩은 탭으로 오갈 대상이 아니다.
+      GoRoute(
+        path: AppRoutes.splash,
+        builder: (context, state) => const SplashPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.onboardingIntro,
+        builder: (context, state) => const OnboardingIntroPage(),
+      ),
+
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             AppShell(navigationShell: navigationShell),

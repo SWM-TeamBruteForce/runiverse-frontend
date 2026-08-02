@@ -29,4 +29,35 @@ abstract final class AppStrings {
 
   static const comingSoonTitle = '준비 중이에요';
   static const comingSoonBody = '다음 업데이트에서 만날 수 있어요.';
+
+  // ── 브랜드 ───────────────────────────────────────────────────
+
+  /// 워드마크. 로고 에셋이 없어 타입으로만 쓴다.
+  static const brandName = 'Runiverse';
+
+  static const brandTagline = '혼자 뛰지만, 함께 뛰는 러닝';
+
+  // ── 온보딩 소개 (S02) ────────────────────────────────────────
+  //
+  // 카드 3장의 순서는 "무엇을 하는 앱인가 → 무엇을 얻는가 → 어떻게 남는가"다.
+  // 기능 나열이 아니라 동기를 쌓는 순서라 바꾸지 않는다.
+
+  /// 우상단 이탈 경로. 최우선으로 노출한다.
+  static const onboardingSkip = '건너뛰기';
+
+  static const onboardingNext = '다음';
+
+  /// 마지막 카드에서 [onboardingNext] 대신 쓴다.
+  static const onboardingStart = '시작하기';
+
+  static const onboardingCard1Title = '같은 시각에\n함께 달려요';
+  static const onboardingCard1Body =
+      '서로 다른 장소에 있어도 30분 슬롯으로 매칭돼요.\n2~4명이 같은 시각에 함께 출발해요.';
+
+  static const onboardingCard2Title = '달린 만큼\n색이 쌓여요';
+  static const onboardingCard2Body =
+      '거리·페이스·꾸준함이 각자의 색이 돼요.\n함께 달린 사람들의 색과 섞이기도 해요.';
+
+  static const onboardingCard3Title = '달린 날만\n남겨요';
+  static const onboardingCard3Body = '빠진 날을 세지 않아요.\n달린 날에 얻은 색만 기록에 남아요.';
 }
