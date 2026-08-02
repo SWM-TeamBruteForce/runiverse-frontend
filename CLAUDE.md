@@ -7,7 +7,8 @@
 
 - [Flutter](https://flutter.dev) + [fvm](https://fvm.app)으로 SDK 고정 (전역 flutter 금지)
 - [Riverpod](https://riverpod.dev) 3 — 코드 생성 방식 `@riverpod`
-- [go_router](https://pub.dev/packages/go_router) · **(미도입)** [dio](https://pub.dev/packages/dio) + WebSocket / [freezed](https://pub.dev/packages/freezed) / riverpod 코드생성(`riverpod_annotation` `build_runner`)
+- [go_router](https://pub.dev/packages/go_router) · [lucide_icons_flutter](https://pub.dev/packages/lucide_icons_flutter) — 아이콘은 **Lucide만** 쓴다. `Icons.*`(Material) 혼용 금지
+- **(미도입)** [dio](https://pub.dev/packages/dio) + WebSocket / [freezed](https://pub.dev/packages/freezed) / riverpod 코드생성(`riverpod_annotation` `build_runner`)
 - Android 우선, iOS는 이후 전환 · Windows + Android Studio 에뮬레이터 · 인프라 AWS
 
 **(미도입)** 표시된 것은 아직 `pubspec.yaml`에 없다. 필요해지는 시점에 승인을 받고 추가한다.
@@ -99,7 +100,10 @@
 | 화면 구조·범위 | `../Docs/IA/Runiverse_IA설계md.md` |
 | 기능 요구사항 | `../Docs/기능명세서/Runiverse_기능명세서(최종).md` |
 | 디자인 토큰 | `../design_system/Runiverse 디자인 시스템 v1.1 - 파운데이션.md` |
-| 화면 레이아웃 | `../Docs/UI화면설계_md/Runiverse_와이어프레임_수정(1).md` |
+| **화면 레이아웃 (정본)** | `../Docs/UI화면설계_md/Runiverse_와이어프레임_최종.md` |
+| **화면 시각 정본** | Figma `Runiverse — Design System & Screens` (파일 키 `Ds2URinGrgXo43wC5OFQ8x`) |
 | 구현 제약·백엔드 요구사항 | `../Docs/UI화면설계_md/Runiverse_와이어프레임_FE노트.md` |
 
-**화면 작업을 시작하기 전에 `docs/implementation-notes.md`에서 해당 화면 항목만 확인한다.** 와이어프레임은 컬러 시스템 기획 전에 작성되어 S15·S20·S21이 낡았고, 색 시스템·Riverpod·라우팅의 실전 함정이 거기 모여 있다.
+**화면은 `와이어프레임_최종.md` + Figma 두 가지를 근거로 만든다.** 같은 폴더의 `와이어프레임.md` · `와이어프레임_수정(1).md` · `와이어프레임_디자인리뷰.md`는 **낡았다. 보지 않는다.**
+
+**화면 작업을 시작하기 전에** `와이어프레임_최종.md`의 해당 화면 절과 `docs/implementation-notes.md`의 해당 항목을 확인한다. 색 시스템·Riverpod·라우팅의 실전 함정이 후자에 모여 있다.
