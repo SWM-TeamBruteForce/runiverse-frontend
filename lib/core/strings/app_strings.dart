@@ -126,9 +126,10 @@ abstract final class AppStrings {
   static const profileGenderLabel = '성별';
   static const profileGenderQuestion = '성별을 알려주세요';
   static const profileGenderWhy = '기록 계산에만 써요.';
+  // 남성·여성 둘뿐이다. 칼로리·페이스 계산식이 이분법을 전제해서인데,
+  // 그 계산이 필요 없는 곳(프로필 공개 정보 등)까지 이 값을 끌어다 쓰면 안 된다.
   static const profileGenderMale = '남성';
   static const profileGenderFemale = '여성';
-  static const profileGenderUndisclosed = '선택 안 함';
 
   // 키·몸무게
   static const profileBodyLabel = '키 · 몸무게';

@@ -335,7 +335,6 @@ class _ProfileSetupPageState extends State<ProfileSetupPage>
         options: const [
           AppStrings.profileGenderMale,
           AppStrings.profileGenderFemale,
-          AppStrings.profileGenderUndisclosed,
         ],
         selected: _gender,
         onPick: (value) {
@@ -619,7 +618,15 @@ class _PickerRow extends StatelessWidget {
   }
 }
 
-/// 단일 선택 칩 줄. 고르면 곧바로 다음 질문으로 넘어간다.
+/// 단일 선택 칩. 고르면 곧바로 다음 질문으로 넘어간다.
+///
+/// ## 2열 격자인 이유
+///
+/// 칩을 글자 크기대로 늘어놓으면 왼쪽으로 쏠려 보인다. 그렇다고 페이스 4개를
+/// **한 줄에 균등 배치하면 칸이 87px밖에 안 나와** `잘 몰라요`가 잘린다.
+///
+/// 2열로 두면 칸이 182px로 넉넉하고, 무엇보다 **성별(2개)과 페이스(4개)의 칩 크기가
+/// 같아진다.** 질문이 바뀔 때 버튼 크기가 출렁이지 않는다.
 class _ChipRow extends StatelessWidget {
   const _ChipRow({
     required this.options,
@@ -627,22 +634,47 @@ class _ChipRow extends StatelessWidget {
     required this.onPick,
   });
 
+  static const _columns = 2;
+
   final List<String> options;
   final String? selected;
   final ValueChanged<String> onPick;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: AppSpacing.space2,
-      runSpacing: AppSpacing.space2,
+    final rows = <Widget>[];
+
+    for (var start = 0; start < options.length; start += _columns) {
+      final slice = options.skip(start).take(_columns).toList();
+      rows.add(
+        Row(
+          children: [
+            for (var i = 0; i < _columns; i++) ...[
+              if (i > 0) const SizedBox(width: AppSpacing.space2),
+              // 홀수 개로 끝나면 마지막 칸을 빈 자리로 채운다.
+              // 남은 하나가 폭을 다 먹으면 옆줄과 크기가 어긋난다.
+              Expanded(
+                child: i < slice.length
+                    ? PresetChip(
+                        label: slice[i],
+                        selected: slice[i] == selected,
+                        onTap: () => onPick(slice[i]),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final option in options)
-          PresetChip(
-            label: option,
-            selected: option == selected,
-            onTap: () => onPick(option),
-          ),
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0) const SizedBox(height: AppSpacing.space2),
+          rows[i],
+        ],
       ],
     );
   }

@@ -59,16 +59,24 @@ class PresetChip extends StatelessWidget {
               ),
               // `alignment`를 쓰지 않는다. alignment가 있는 Container는 주어진 제약을
               // **끝까지 채워서**, Wrap 안에서 칩 하나가 한 줄을 다 먹는다.
-              // 세로 가운데 정렬은 Row가 대신하고, 가로 크기는 글자에 맞춘다.
+              // 정렬은 Row가 대신한다 — 부모가 너비를 정해주면(Expanded 안) 가운데로,
+              // 정해주지 않으면 글자 크기만큼만 차지한다.
               child: Row(
                 mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    label,
-                    style: AppTypography.body.copyWith(
-                      color: selected
-                          ? colors.textPrimary
-                          : colors.textSecondary,
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      // 좁은 칸에 긴 라벨이 들어와도 넘치는 대신 줄인다.
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: AppTypography.body.copyWith(
+                        color: selected
+                            ? colors.textPrimary
+                            : colors.textSecondary,
+                      ),
                     ),
                   ),
                 ],
