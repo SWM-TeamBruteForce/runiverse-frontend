@@ -15,6 +15,18 @@
 /// 모든 탭을 `/이름` 형태로 맞췄다. 플랫폼이 넘겨주는 기본 경로 `/`는
 /// go_router가 `initialLocation`([home])으로 대체한다.
 abstract final class AppRoutes {
+  // ── 온보딩 — 탭 셸 밖이다 ────────────────────────────────────
+  //
+  // 하단 탭이 없는 화면들이다. 셸 안에 넣으면 탭 바가 같이 뜬다.
+
+  /// 스플래시 (S01). 앱의 첫 화면.
+  static const splash = '/splash';
+
+  /// 온보딩 소개 3장 (S02)
+  static const onboardingIntro = '/onboarding';
+
+  // ── 탭 셸 안 ────────────────────────────────────────────────
+
   /// 홈 (S05)
   static const home = '/home';
 
