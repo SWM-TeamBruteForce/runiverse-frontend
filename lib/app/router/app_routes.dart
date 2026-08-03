@@ -31,6 +31,11 @@ abstract final class AppRoutes {
   /// 지금은 S02에서 곧장 여기로 온다.
   static const terms = '/onboarding/terms';
 
+  /// 프로필 등록 (S04)
+  ///
+  /// 다음은 시그니처 컬러 리빌(S04.5)이다. 그 화면이 생기기 전까지 홈으로 간다.
+  static const profileSetup = '/onboarding/profile';
+
   // ── 탭 셸 안 ────────────────────────────────────────────────
 
   /// 홈 (S05)

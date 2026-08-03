@@ -86,4 +86,66 @@ abstract final class AppStrings {
 
   /// 3항목 전부 동의해야 눌린다.
   static const termsCta = '동의하고 계속';
+
+  // ── 프로필 등록 (S04) ────────────────────────────────────────
+  //
+  // 질문을 한 번에 하나씩 던진다. 답하면 다음이 아래에 붙고, 답한 것은 위에 쌓인다.
+  // 그래서 문구가 라벨(`닉네임`)과 질문(`뭐라고 부를까요`) 두 벌로 나뉜다 —
+  // 질문은 묻는 동안, 라벨은 쌓인 뒤에 쓴다.
+
+  static const profileTitle = '프로필을 만들어요';
+
+  /// 답한 줄을 눌러 되돌아갈 수 있다는 것을 스크린리더에 알린다.
+  static const profileEditHint = '고치기';
+
+  static const profileNext = '다음';
+
+  // 닉네임
+  static const profileNicknameLabel = '닉네임';
+  static const profileNicknameQuestion = '뭐라고 부를까요';
+  static const profileNicknameWhy = '함께 달리는 러너에게 보이는 이름이에요.';
+  static const profileNicknameHint = '러너42';
+  static const profileNicknameGuide = '2~12자로 지어주세요';
+  static const profileNicknameTooShort = '2자 이상이어야 해요';
+
+  /// 상한에서 막혔을 때 잠깐 떴다 사라진다.
+  static const profileNicknameTooLong = '12자까지 쓸 수 있어요';
+
+  static const profileNicknameOk = '쓸 수 있는 이름이에요';
+  static const profileNicknameConfirm = '확인';
+
+  // 생년월일
+  static const profileBirthLabel = '생년월일';
+  static const profileBirthQuestion = '언제 태어났나요';
+  static const profileBirthWhy = '기록을 계산하는 데만 써요. 다른 러너에게 보이지 않아요.';
+  static const profileUnitYear = '년';
+  static const profileUnitMonth = '월';
+  static const profileUnitDay = '일';
+
+  // 성별
+  static const profileGenderLabel = '성별';
+  static const profileGenderQuestion = '성별을 알려주세요';
+  static const profileGenderWhy = '기록 계산에만 써요.';
+  static const profileGenderMale = '남성';
+  static const profileGenderFemale = '여성';
+  static const profileGenderUndisclosed = '선택 안 함';
+
+  // 키·몸무게
+  static const profileBodyLabel = '키 · 몸무게';
+  static const profileBodyQuestion = '키와 몸무게는요';
+  static const profileBodyWhy = '칼로리를 셈하는 데만 써요.';
+  static const profileUnitHeight = 'cm';
+  static const profileUnitWeight = 'kg';
+
+  // 페이스 수준
+  static const profilePaceLabel = '페이스';
+  static const profilePaceQuestion = '지금 어느 정도 뛰나요';
+  static const profilePaceWhy = "고르기 어려우면 '잘 몰라요'도 괜찮아요. 달리면서 맞춰집니다.";
+  static const profilePaceBeginner = '입문';
+  static const profilePaceMid = '중급';
+  static const profilePaceAdvanced = '숙련';
+  static const profilePaceUnknown = '잘 몰라요';
+
+  /// 시트를 열기 전 자리 표시.
+  static const profileTapToPick = '탭해서 고르기';
 }
