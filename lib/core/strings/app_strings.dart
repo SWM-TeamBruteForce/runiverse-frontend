@@ -60,4 +60,30 @@ abstract final class AppStrings {
 
   static const onboardingCard3Title = '달린 날만\n남겨요';
   static const onboardingCard3Body = '빠진 날을 세지 않아요.\n달린 날에 얻은 색만 기록에 남아요.';
+
+  // ── 약관 동의 (S03) ──────────────────────────────────────────
+  //
+  // 마케팅 정보 수신은 뺐다. 그래서 남은 3항목이 전부 필수다.
+  // `[선택]` 항목이 다시 생기면 [termsOptional]을 여기 추가한다.
+
+  static const termsTitle = '약관에\n동의해주세요';
+  static const termsSubtitle = '매칭과 기록 분석에 필요한\n최소 정보만 받아요';
+
+  /// 카드형 일괄 토글. 3번 탭할 것을 1번으로 줄인다.
+  static const termsAgreeAll = '전체 동의';
+
+  /// 배지 문구. 대괄호나 알약 같은 **모양은 위젯이 정한다.**
+  /// 문자열에 `[]`를 넣으면 배지 디자인이 바뀔 때 여기까지 고쳐야 한다.
+  static const termsRequired = '필수';
+
+  static const termsService = '서비스 이용약관';
+  static const termsPrivacy = '개인정보 수집·이용';
+  static const termsHealth = '생체·운동 정보';
+
+  /// 위치 권한을 지금 묻지 않는 이유를 미리 알린다.
+  /// 권한 요청은 실제로 필요한 맥락(매칭 등록)에서 해야 수락률이 높다.
+  static const termsLocationNotice = '위치 권한은 매칭을\n시작할 때 여쭤봐요';
+
+  /// 3항목 전부 동의해야 눌린다.
+  static const termsCta = '동의하고 계속';
 }

@@ -2,9 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
+import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.dart';
 
 /// 온보딩 흐름의 상태 전이 — 스플래시에서 소개를 거쳐 앱 본체로 들어가는가.
 ///
@@ -56,7 +56,7 @@ void main() {
     expect(find.text(AppStrings.onboardingStart), findsOneWidget);
   });
 
-  testWidgets('건너뛰기는 카드를 다 보지 않고 앱으로 들어간다', (tester) async {
+  testWidgets('건너뛰기는 카드를 다 보지 않고 약관으로 넘어간다', (tester) async {
     await pumpApp(tester);
     await tester.tap(find.byType(SplashPage));
     await tester.pumpAndSettle();
@@ -64,6 +64,7 @@ void main() {
     await tester.tap(find.text(AppStrings.onboardingSkip));
     await tester.pumpAndSettle();
 
-    expect(find.byType(HomePage), findsOneWidget);
+    // 소개는 건너뛸 수 있어도 약관은 건너뛸 수 없다.
+    expect(find.byType(TermsAgreementPage), findsOneWidget);
   });
 }

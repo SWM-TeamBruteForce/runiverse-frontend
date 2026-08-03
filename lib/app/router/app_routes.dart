@@ -25,6 +25,12 @@ abstract final class AppRoutes {
   /// 온보딩 소개 3장 (S02)
   static const onboardingIntro = '/onboarding';
 
+  /// 약관 동의 (S03)
+  ///
+  /// 원래 순서는 S02 → S02.5 로그인 → S03이다. 로그인 화면이 아직 없어
+  /// 지금은 S02에서 곧장 여기로 온다.
+  static const terms = '/onboarding/terms';
+
   // ── 탭 셸 안 ────────────────────────────────────────────────
 
   /// 홈 (S05)

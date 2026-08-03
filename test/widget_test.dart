@@ -16,7 +16,8 @@ void main() {
   /// 앱을 띄우고 온보딩을 지나 탭 셸까지 들어간다.
   ///
   /// 앱의 첫 화면은 스플래시(S01)라 곧장 홈이 뜨지 않는다.
-  /// 스플래시를 눌러 넘기고, 온보딩 소개에서 건너뛰기를 누른다.
+  /// 스플래시를 눌러 넘기고, 소개에서 건너뛰기를 누르고, 약관에 동의한다.
+  /// **약관은 건너뛸 수 없다** — 전체 동의를 눌러야 CTA가 활성된다.
   Future<void> pumpApp(WidgetTester tester) async {
     await tester.pumpWidget(const ProviderScope(child: RuniverseApp()));
     await tester.pumpAndSettle();
@@ -25,6 +26,11 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text(AppStrings.onboardingSkip));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.termsAgreeAll));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.termsCta));
     await tester.pumpAndSettle();
   }
 
