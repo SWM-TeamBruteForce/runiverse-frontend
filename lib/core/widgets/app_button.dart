@@ -92,16 +92,26 @@ class AppButton extends StatelessWidget {
                 ? null
                 : Border.all(color: style.border!),
           ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTypography.bodyLg.copyWith(
-              color: style.foreground,
-              fontWeight: FontWeight.w600,
-            ),
+          // `alignment`를 쓰지 않는다. alignment가 있는 Container는 주어진 제약을
+          // **끝까지 채워서** [expand]가 false여도 가로를 다 먹는다.
+          // 정렬은 Row가 맡는다 — 채울 때는 max, 아닐 때는 글자 크기만큼.
+          child: Row(
+            mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodyLg.copyWith(
+                    color: style.foreground,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

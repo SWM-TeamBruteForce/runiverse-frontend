@@ -152,11 +152,15 @@ abstract final class AppStrings {
   /// 답한 줄에 붙는 단위. `5'42" /km`
   static const profilePacePerKm = '/km';
 
-  /// 아직 재본 적 없는 사람의 출구. 이걸 막으면 입문자가 아무 값이나 찍고 넘어간다.
-  static const profilePaceUnknown = '아직 몰라요';
+  /// 건너뛰기 버튼 위 눈썹 문구. **누구를 위한 출구인지** 먼저 밝힌다.
+  /// 이게 없으면 페이스를 아는 사람도 건너뛰기를 편한 길로 여긴다.
+  static const profilePaceSkipEyebrow = '러닝이 처음이라면';
 
-  /// 위 버튼 아래 안내. 측정이 어디서 이뤄지는지 미리 알린다.
-  static const profilePaceUnknownWhy = '홈에서 혼자 연습하며 재보면 그때 채워져요.';
+  /// 아직 재본 적 없는 사람의 출구. 이걸 막으면 입문자가 아무 값이나 찍고 넘어간다.
+  static const profilePaceSkip = '건너뛰기';
+
+  /// 버튼 아래 안내. 측정이 어디서 이뤄지는지 미리 알린다.
+  static const profilePaceSkipWhy = '홈에서 혼자 연습하며 재보면 그때 채워져요.';
 
   /// 미측정 상태로 쌓인 줄에 보이는 값.
   static const profilePaceUnmeasured = '측정 전';

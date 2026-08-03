@@ -413,18 +413,37 @@ class _ProfileSetupPageState extends State<ProfileSetupPage>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _PickerRow(value: _paceLabel, onTap: _pickPace),
-          const SizedBox(height: AppSpacing.space4),
+          const SizedBox(height: AppSpacing.space6),
 
           // 재본 적 없는 사람의 출구. 이게 없으면 입문자가 아무 값이나 찍고 넘어가고,
           // 그 값이 그대로 시그니처 컬러가 된다.
-          AppButton(
-            label: AppStrings.profilePaceUnknown,
-            variant: AppButtonVariant.ghost,
-            onPressed: _skipPace,
+          //
+          // 눈썹 문구가 **먼저** 온다. 누구를 위한 길인지 밝히지 않으면
+          // 페이스를 아는 사람도 이쪽을 편한 길로 여긴다.
+          Text(
+            AppStrings.profilePaceSkipEyebrow,
+            textAlign: TextAlign.center,
+            style: AppTypography.micro.copyWith(
+              color: context.appColors.textTertiary,
+            ),
           ),
           const SizedBox(height: AppSpacing.space2),
+
+          // secondary는 테두리만 있고 배경이 없다. 버튼으로 보이면서도
+          // 하단의 primary CTA와 무게가 겹치지 않는다.
+          // 가로를 채우지 않는 것도 같은 이유다 — 채우면 두 번째 CTA처럼 읽힌다.
+          Align(
+            child: AppButton(
+              label: AppStrings.profilePaceSkip,
+              variant: AppButtonVariant.secondary,
+              size: AppButtonSize.md,
+              expand: false,
+              onPressed: _skipPace,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.space3),
           Text(
-            AppStrings.profilePaceUnknownWhy,
+            AppStrings.profilePaceSkipWhy,
             textAlign: TextAlign.center,
             style: AppTypography.caption.copyWith(
               color: context.appColors.textTertiary,
