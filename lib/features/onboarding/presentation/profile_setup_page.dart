@@ -18,6 +18,15 @@ import 'package:runiverse/core/widgets/preset_chip.dart';
 import 'package:runiverse/core/widgets/wheel_picker_sheet.dart';
 import 'package:runiverse/features/onboarding/domain/nickname_rule.dart';
 
+/// 답한 줄과 시트를 여는 줄의 공통 높이.
+///
+/// 44px는 **눌리는 최소 크기**지 보기 좋은 크기가 아니다. 이 화면은 답이 다섯 줄까지만
+/// 쌓여 아래가 크게 비는데, 줄마다 조금씩 키우면 그 여백이 줄고 줄 사이도 읽기 쉬워진다.
+///
+/// 두 줄이 **같은 값을 쓰는 것이 중요하다** — 답한 줄과 아직 안 채운 줄의 높이가 다르면
+/// 목록이 들쭉날쭉해 보인다. 56은 토큰이 아니라 `터치 최소 + space3`으로 만든 값이다.
+const _rowHeight = AppSizes.touchDefault + AppSpacing.space3; // 56
+
 /// 프로필 등록 (S04).
 ///
 /// ## 한 번에 하나만 묻는다
@@ -472,7 +481,7 @@ class _AnsweredRow extends StatelessWidget {
           borderRadius: AppRadius.sm,
           splashFactory: InkSparkle.splashFactory,
           child: Container(
-            constraints: const BoxConstraints(minHeight: AppSizes.touchDefault),
+            constraints: const BoxConstraints(minHeight: _rowHeight),
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space1),
             decoration: BoxDecoration(
               border: Border(bottom: BorderSide(color: colors.borderDefault)),
@@ -579,7 +588,7 @@ class _PickerRow extends StatelessWidget {
         borderRadius: AppRadius.md,
         splashFactory: InkSparkle.splashFactory,
         child: Container(
-          constraints: const BoxConstraints(minHeight: AppSizes.touchDefault),
+          constraints: const BoxConstraints(minHeight: _rowHeight),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
           decoration: BoxDecoration(
             color: colors.bgSurface,
