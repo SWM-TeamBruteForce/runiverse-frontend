@@ -69,9 +69,9 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
   }
 
   void _finish() {
-    // ⚠️ 원래는 로그인(S02.5)으로 간다. 그 화면이 아직 없어 홈으로 보낸다.
-    // S02.5가 생기면 여기만 바꾸면 된다.
-    context.go(AppRoutes.home);
+    // ⚠️ 원래는 로그인(S02.5)을 거쳐 약관으로 간다. 로그인 화면이 아직 없어
+    // 곧장 약관(S03)으로 보낸다. S02.5가 생기면 여기만 바꾸면 된다.
+    context.go(AppRoutes.terms);
   }
 
   @override

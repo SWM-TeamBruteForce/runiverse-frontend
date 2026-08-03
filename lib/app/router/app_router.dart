@@ -6,6 +6,7 @@ import 'package:runiverse/core/widgets/coming_soon_page.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
+import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
 
@@ -47,6 +48,10 @@ GoRouter createAppRouter() {
       GoRoute(
         path: AppRoutes.onboardingIntro,
         builder: (context, state) => const OnboardingIntroPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.terms,
+        builder: (context, state) => const TermsAgreementPage(),
       ),
 
       StatefulShellRoute.indexedStack(
