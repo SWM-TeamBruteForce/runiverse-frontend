@@ -138,14 +138,28 @@ abstract final class AppStrings {
   static const profileUnitHeight = 'cm';
   static const profileUnitWeight = 'kg';
 
-  // 페이스 수준
+  // 페이스 — 5km 기준 1km당 분·초
+  //
+  // 등급을 고르게 하지 않고 숫자를 받는다. '중급'이 무엇인지는 사람마다 다르지만
+  // "1km를 6분에 뛴다"는 누구에게나 같은 값이다.
   static const profilePaceLabel = '페이스';
-  static const profilePaceQuestion = '지금 어느 정도 뛰나요';
-  static const profilePaceWhy = "고르기 어려우면 '잘 몰라요'도 괜찮아요. 달리면서 맞춰집니다.";
-  static const profilePaceBeginner = '입문';
-  static const profilePaceMid = '중급';
-  static const profilePaceAdvanced = '숙련';
-  static const profilePaceUnknown = '잘 몰라요';
+  static const profilePaceQuestion = '5km를 뛰면 어느 정도인가요';
+  static const profilePaceWhy = '1km를 몇 분에 뛰는지 알려주세요. 시그니처 컬러를 정하는 데 써요.';
+  static const profilePaceSheetTitle = '1km당 페이스';
+  static const profileUnitMinute = '분';
+  static const profileUnitSecond = '초';
+
+  /// 답한 줄에 붙는 단위. `5'42" /km`
+  static const profilePacePerKm = '/km';
+
+  /// 아직 재본 적 없는 사람의 출구. 이걸 막으면 입문자가 아무 값이나 찍고 넘어간다.
+  static const profilePaceUnknown = '아직 몰라요';
+
+  /// 위 버튼 아래 안내. 측정이 어디서 이뤄지는지 미리 알린다.
+  static const profilePaceUnknownWhy = '홈에서 혼자 연습하며 재보면 그때 채워져요.';
+
+  /// 미측정 상태로 쌓인 줄에 보이는 값.
+  static const profilePaceUnmeasured = '측정 전';
 
   /// 시트를 열기 전 자리 표시.
   static const profileTapToPick = '탭해서 고르기';

@@ -17,6 +17,7 @@ import 'package:runiverse/core/widgets/app_input.dart';
 import 'package:runiverse/core/widgets/preset_chip.dart';
 import 'package:runiverse/core/widgets/wheel_picker_sheet.dart';
 import 'package:runiverse/features/onboarding/domain/nickname_rule.dart';
+import 'package:runiverse/features/onboarding/domain/pace_level.dart';
 
 /// 답한 줄과 시트를 여는 줄의 공통 높이.
 ///
@@ -78,7 +79,10 @@ class _ProfileSetupPageState extends State<ProfileSetupPage>
   String? _gender;
   int? _height;
   int? _weight;
-  String? _pace;
+
+  /// 1km당 초. **`null`은 '미측정'이지 '아직 안 물어봄'이 아니다** —
+  /// 물어봤는지는 [_step]이 안다.
+  int? _paceSeconds;
 
   /// 상한에서 막힌 직후 잠깐 켜진다. 켜져 있는 동안 helper가 경고로 덮인다.
   bool _limitHit = false;
@@ -212,9 +216,50 @@ class _ProfileSetupPageState extends State<ProfileSetupPage>
     _advance();
   }
 
+  Future<void> _pickPace() async {
+    final current = _paceSeconds ?? PaceRule.intermediateBelow;
+
+    final picked = await showWheelPickerSheet(
+      context,
+      title: AppStrings.profilePaceSheetTitle,
+      columns: [
+        WheelColumn(
+          unit: AppStrings.profileUnitMinute,
+          values: [
+            for (var m = PaceRule.minMinutes; m <= PaceRule.maxMinutes; m++) m,
+          ],
+          initial: current ~/ 60,
+        ),
+        WheelColumn(
+          unit: AppStrings.profileUnitSecond,
+          // 5초 단위. 스스로 신고하는 값에 1초 정확도는 의미가 없고,
+          // 59칸을 굴리게 하면 고르기가 일이 된다.
+          values: [for (var s = 0; s < 60; s += PaceRule.secondStep) s],
+          initial: (current % 60) ~/ PaceRule.secondStep * PaceRule.secondStep,
+        ),
+      ],
+    );
+    if (picked == null) return;
+
+    setState(() => _paceSeconds = PaceRule.toSeconds(picked[0], picked[1]));
+    _advance();
+  }
+
+  /// 아직 재본 적 없다. **아무 값도 넣지 않고** 다음으로 간다.
+  ///
+  /// 기본값을 몰래 채우면 그 숫자가 그대로 시그니처 컬러가 되고, 사용자는
+  /// 자기가 고르지 않은 색을 갖게 된다. 미측정은 미측정으로 남긴다.
+  void _skipPace() {
+    setState(() => _paceSeconds = null);
+    _advance();
+  }
+
   void _finish() {
     // ⚠️ 원래는 시그니처 컬러 리빌(S04.5)로 간다. 그 화면이 아직 없어 홈으로 보낸다.
     // 프로필을 서버로 보내는 것도 API가 생긴 뒤다.
+    //
+    // 리빌과 홈이 생기면 PaceRule.levelOf(_paceSeconds)를 넘긴다.
+    // 그 값의 needsPracticeNudge가 홈의 '혼자 연습하기' 유도를 켠다.
     context.go(AppRoutes.home);
   }
 
@@ -233,8 +278,16 @@ class _ProfileSetupPageState extends State<ProfileSetupPage>
     _stepGender => _gender!,
     _stepBody =>
       '$_height ${AppStrings.profileUnitHeight} · $_weight ${AppStrings.profileUnitWeight}',
-    _ => _pace!,
+    _ => _paceLabel ?? AppStrings.profilePaceUnmeasured,
   };
+
+  /// `5'42" /km` 형태. 미측정이면 `null`.
+  String? get _paceLabel {
+    final total = _paceSeconds;
+    if (total == null) return null;
+    final seconds = (total % 60).toString().padLeft(2, '0');
+    return "${total ~/ 60}'$seconds\" ${AppStrings.profilePacePerKm}";
+  }
 
   String _labelOf(int step) => switch (step) {
     _stepNickname => AppStrings.profileNicknameLabel,
@@ -356,18 +409,28 @@ class _ProfileSetupPageState extends State<ProfileSetupPage>
       key: const ValueKey(_stepPace),
       question: AppStrings.profilePaceQuestion,
       why: AppStrings.profilePaceWhy,
-      child: _ChipRow(
-        options: const [
-          AppStrings.profilePaceBeginner,
-          AppStrings.profilePaceMid,
-          AppStrings.profilePaceAdvanced,
-          AppStrings.profilePaceUnknown,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PickerRow(value: _paceLabel, onTap: _pickPace),
+          const SizedBox(height: AppSpacing.space4),
+
+          // 재본 적 없는 사람의 출구. 이게 없으면 입문자가 아무 값이나 찍고 넘어가고,
+          // 그 값이 그대로 시그니처 컬러가 된다.
+          AppButton(
+            label: AppStrings.profilePaceUnknown,
+            variant: AppButtonVariant.ghost,
+            onPressed: _skipPace,
+          ),
+          const SizedBox(height: AppSpacing.space2),
+          Text(
+            AppStrings.profilePaceUnknownWhy,
+            textAlign: TextAlign.center,
+            style: AppTypography.caption.copyWith(
+              color: context.appColors.textTertiary,
+            ),
+          ),
         ],
-        selected: _pace,
-        onPick: (value) {
-          setState(() => _pace = value);
-          _advance();
-        },
       ),
     ),
   };
