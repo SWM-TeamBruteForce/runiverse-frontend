@@ -57,6 +57,8 @@
 - 브랜치: `<type>/<domain>` 소문자 kebab-case (`feat/oauth-login`)
 - **PR의 base는 `dev`.** GitHub가 `main`으로 잡아두므로 열 때마다 확인한다
 - 한 커밋에 논리적 변경 하나만. 각 커밋이 그 시점에 빌드되는지 본다
+- **AI를 공동 작성자로 넣지 않는다.** `Co-Authored-By: Claude` 트레일러도, `🤖 Generated with` 푸터도 붙이지 않는다. GitHub 기여자 목록은 사람만 남긴다
+- PR 본문은 `.github/pull_request_template.md`의 6개 절을 채운다. 그중 **💬 리뷰 포인트**에 확신이 없었던 선택과 디자인 확인이 필요한 값을 적는다
 
 ## Do
 
