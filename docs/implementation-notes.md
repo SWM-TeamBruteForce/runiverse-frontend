@@ -212,8 +212,13 @@
 | `assets/` 파일 추가 | `pubspec.yaml`의 `assets:` / `fonts:` 블록 (선언 없이는 번들되지 않는다) |
 | 앱 식별자(org) | `android/app/build.gradle.kts`와 iOS `Runner.xcodeproj/project.pbxproj` **양쪽** |
 | `pubspec.yaml` 의존성 | 이 문서 / `CLAUDE.md`의 Tech Stack |
+| **비밀번호 규칙** (백엔드 `SignUpRequest`의 `@Size`·`@Pattern`) | `lib/features/auth/domain/password_rule.dart` + `AppStrings.authPasswordGuide` 등 문구 4개 |
+| `PasswordRule`의 규칙 | `FakeAuthRepository.seedPassword` — 씨앗 계정이 자기 규칙에 걸리면 로그인 시험을 못 한다 |
 
 `lib/` 밖에서 앱이 쓰는 것은 `assets/fonts/`(Pretendard) 하나다.
+
+비밀번호 규칙은 **물어볼 API가 없어서** 앱과 서버 두 곳에 같은 값이 있다.
+서버가 바꾸면 증상은 **"앱은 통과시켰는데 서버가 400"**이다.
 
 ---
 
@@ -223,3 +228,63 @@
 - 소셜 로그인 시크릿은 **서버 보관이 원칙.** 클라이언트에 두지 않는다.
 - 인증 순서: 이메일 인증 기반 로컬 로그인 → 소셜(구글·카카오).
 - **기술 리스크 1순위는 백그라운드 GPS 추적과 다중 사용자 실시간 동기화다.** 다른 화면보다 먼저 프로토타입으로 검증한다.
+
+---
+
+## 9. 인증 — 로그인·가입
+
+설계 근거 전문은 `docs/specs/2026-08-04-local-auth-design.md`, 백엔드와 주고받을 것은
+`Runiverse_인증_협업문서.md`에 있다. 여기에는 **나중에 사고가 되는 것**만 적는다.
+
+### 9-1. S02.5에 이메일 입력 화면을 새로 만들었다 `[정본 이탈]`
+
+**정본:** 와이어프레임 S02.5는 카카오·애플·이메일 **버튼 셋과 하단 링크**뿐이다.
+이메일·비밀번호를 입력받는 화면은 정본에 없다.
+
+**실제:** `/auth`(방식 선택) → `/auth/sign-in`(로그인) → `/auth/sign-up`(가입) 세 화면이다.
+
+**왜:** 백엔드가 이미 `POST /auth/signup` · `POST /auth/login`을 이메일·비밀번호로 받고 있다.
+그 방식을 쓰려면 입력 화면이 필요하다.
+
+**카카오·애플 버튼은 지우지 않았다.** 눌리고, "아직 준비 중이에요"를 띄운다.
+회색으로 잠그면 앱이 미완성으로 읽힌다 — 피드·대회일정 탭과 같은 원칙이다.
+
+⚠️ **로그인·가입 두 화면은 Figma에 없다.** 여백·타이포는 확인받지 않은 값이다.
+
+### 9-2. 가입한 사람만 약관·프로필을 지나간다
+
+**서버는 사용자가 온보딩을 마쳤는지 모른다.** `User` 애그리거트에 이메일·비밀번호·provider뿐이고
+닉네임도 약관 동의 기록도 없다.
+
+그래서 서버 없이 쓸 수 있는 유일한 단서를 쓴다 — **가입한 사람은 신규, 로그인한 사람은 기존.**
+
+- 가입 성공 → S03 약관 → S04 프로필 → 홈
+- 로그인 성공 → 홈
+
+⚠️ **앱을 지웠다 깔면 기존 사용자도 프로필 화면을 다시 본다.**
+`LoginResponse`에 `profileCompleted`가 생기거나 `GET /users/me`가 생기면 서버 응답으로 갈라야 한다.
+백엔드에 요청해 둔 상태다.
+
+### 9-3. 지금은 서버에 붙지 않는다
+
+`AuthRepository`(도메인 인터페이스)에 답하는 것은 `FakeAuthRepository`다 — 메모리에 계정을 들고 있고
+씨앗 계정 `test@runiverse.app` / `runi123!` 하나가 미리 들어 있다.
+토큰도 `InMemoryTokenStore`라 **앱을 끄면 사라진다. 그래서 자동 로그인이 실제로는 동작하지 않는다.**
+
+바꿔 끼우는 곳은 `auth_provider.dart`의 두 줄이다.
+
+| 지금 | 나중 |
+|---|---|
+| `authRepositoryProvider` → `FakeAuthRepository()` | dio를 쓰는 `AuthRepositoryImpl` |
+| `tokenStoreProvider` → `InMemoryTokenStore()` | `flutter_secure_storage`를 쓰는 구현 |
+
+### 9-4. 401 재시도를 붙일 때 반드시 막아야 하는 것 셋
+
+아직 만들지 않았다. `core/network/`에 인터셉터를 넣는 시점에 본다.
+
+1. **`/auth/login`의 401은 재시도하지 않는다.** 로그인 실패가 401이라, 그냥 두면
+   비밀번호를 틀릴 때마다 refresh를 부른다. `signup` `login` `refresh` 세 경로를 건너뛴다.
+2. **refresh를 동시에 두 번 부르지 않는다.** 백엔드 `ReissueHandler`가 해시 불일치를
+   **탈취로 보고 리프레시 토큰을 지운다.** 401이 동시에 여러 개 나면 두 번째 호출이 이미 회전된
+   토큰을 보내고, **잘못 없는 사용자가 로그아웃된다.** `Future<bool>?` 하나를 공유해 한 번만 부른다.
+3. **재시도한 요청이 또 401이면 멈춘다.** 아니면 무한 루프다.
