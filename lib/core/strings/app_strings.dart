@@ -220,6 +220,10 @@ abstract final class AppStrings {
   static const authPasswordTooShort = '6자 이상이어야 해요';
   static const authPasswordTooLong = '16자까지 쓸 수 있어요';
   static const authPasswordMissingKind = '영문·숫자·특수문자를 각각 하나씩 넣어주세요';
+
+  /// 한글이 섞였을 때. **한/영을 깜빡한 사람에게 길이부터 말하지 않는다** —
+  /// 그러면 한글을 더 치게 된다.
+  static const authPasswordDisallowedChar = '영문·숫자·특수문자만 쓸 수 있어요';
   static const authPasswordOk = '쓸 수 있는 비밀번호예요';
 
   /// 두 화면을 오가는 링크. 물음표로 끝내 조사 문제를 피한다.

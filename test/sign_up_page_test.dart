@@ -87,25 +87,22 @@ void main() {
     expect(find.text(AppStrings.authEmailInvalid), findsOneWidget);
   });
 
-  testWidgets('한글만 친 비밀번호는 규칙 문구가 뜨고 버튼이 잠긴다', (tester) async {
+  testWidgets('한글만 친 비밀번호는 버튼이 잠긴다', (tester) async {
     await pumpSignUp(tester);
     await fill(tester, email: 'new@example.com', password: '러너러너러너');
 
     expect(ctaEnabled(tester), isFalse);
-    expect(find.text(AppStrings.authPasswordMissingKind), findsOneWidget);
+    // 길이가 아니라 **쓸 수 있는 글자**를 먼저 알린다.
+    expect(find.text(AppStrings.authPasswordDisallowedChar), findsOneWidget);
   });
 
-  testWidgets('한글이 섞인 비밀번호로도 가입할 수 있다', (tester) async {
+  testWidgets('한글이 한 글자만 섞여도 가입할 수 없다', (tester) async {
     await pumpSignUp(tester);
-    // 백엔드 정규식이 한글을 막지 않는다. 앱만 막으면 서버가 받는 값을 못 만든다.
+    // 나머지가 규칙을 다 채워도 소용없다.
     await fill(tester, email: 'new@example.com', password: '러너abc12!');
 
-    expect(ctaEnabled(tester), isTrue);
-
-    await tester.tap(find.text(AppStrings.authSignUpCta));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(TermsAgreementPage), findsOneWidget);
+    expect(ctaEnabled(tester), isFalse);
+    expect(find.text(AppStrings.authPasswordDisallowedChar), findsOneWidget);
   });
 
   testWidgets('가입에 성공하면 약관으로 간다', (tester) async {

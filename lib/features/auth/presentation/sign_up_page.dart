@@ -220,6 +220,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
   /// 비어 있을 때는 **규칙 전체**를 보여준다. 무엇을 쳐야 하는지 미리 알린다.
   String _helperOf(PasswordStatus status) => switch (status) {
     PasswordStatus.empty => AppStrings.authPasswordGuide,
+    PasswordStatus.disallowedChar => AppStrings.authPasswordDisallowedChar,
     PasswordStatus.tooShort => AppStrings.authPasswordTooShort,
     PasswordStatus.tooLong => AppStrings.authPasswordTooLong,
     PasswordStatus.missingKind => AppStrings.authPasswordMissingKind,
