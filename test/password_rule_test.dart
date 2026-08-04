@@ -47,4 +47,28 @@ void main() {
     // 백엔드 문자 집합에 공백이 없다. 앱이 통과시키면 서버에서 400이 난다.
     expect(PasswordRule.of('abc12 '), PasswordStatus.missingKind);
   });
+
+  // ── 한글 ────────────────────────────────────────────────────
+  //
+  // 한/영을 깜빡하고 친 입력이 어떻게 판정되는지 고정한다.
+  // 비밀번호는 이메일과 달리 **한글을 막지 않는다** — 백엔드 정규식도 `.{6,16}`이라
+  // 한글을 허용하기 때문이다. 두 쪽 판정이 갈리면 앱이 통과시킨 값을 서버가 거절한다.
+
+  test('한글만으로는 통과하지 못한다', () {
+    // 영문·숫자·특수문자가 하나도 없다. 한/영을 깜빡한 입력이 여기서 걸린다.
+    expect(PasswordRule.of('러너러너러너'), PasswordStatus.missingKind);
+    expect(PasswordRule.of('ㄱㅕㅜㅜㄷㄱ'), PasswordStatus.missingKind);
+  });
+
+  test('한글이 섞여도 영문·숫자·특수문자가 있으면 통과한다', () {
+    // 막지 않는다. 서버가 받는 값을 앱이 거절하면 쓸 수 있는 비밀번호를 못 만든다.
+    expect(PasswordRule.of('러너abc12!'), PasswordStatus.valid);
+  });
+
+  test('한글 한 글자를 1자로 센다', () {
+    // 서버 `@Size`는 Java `String.length()`(UTF-16 코드 단위)를 센다.
+    // 한글 음절은 BMP 안에 있어 양쪽 모두 1이다 — 길이 판정이 갈리지 않는다.
+    expect(PasswordRule.of('러너a1!'), PasswordStatus.tooShort); // 5자
+    expect(PasswordRule.of('러너남a1!'), PasswordStatus.valid); // 6자
+  });
 }

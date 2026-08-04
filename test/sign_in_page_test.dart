@@ -91,6 +91,20 @@ void main() {
     expect(ctaEnabled(tester), isTrue);
   });
 
+  testWidgets('한글 비밀번호는 제출까지 가고 서버 판정으로 막힌다', (tester) async {
+    await pumpSignIn(tester);
+    // 로그인 화면은 비밀번호 규칙을 따지지 않는다. 그래서 한글도 버튼이 열리고,
+    // 저장된 값과 다르다는 이유로 막힌다 — "형식이 틀렸다"가 아니라 "안 맞는다"여야 한다.
+    await fill(tester, email: FakeAuthRepository.seedEmail, password: '러너러너러너');
+    expect(ctaEnabled(tester), isTrue);
+
+    await tester.tap(find.text(AppStrings.authSignInCta));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.authFailedCredentials), findsOneWidget);
+    expect(find.byType(HomePage), findsNothing);
+  });
+
   testWidgets('비밀번호가 틀리면 실패 문구가 뜬다', (tester) async {
     await pumpSignIn(tester);
     await fill(
