@@ -29,9 +29,12 @@ import 'package:runiverse/features/auth/presentation/password_field.dart';
 /// 서버까지 갔다 와서 거절당하는 것보다 치는 동안 알려주는 편이 빠르다.
 /// **대신 규칙이 두 곳에 존재한다** — 서버가 바꾸면 여기도 바꿔야 한다.
 ///
-/// ## 가입하면 약관으로 간다
+/// ## 가입 흐름의 두 번째 화면이다
 ///
-/// 가입한 사람은 신규다. 로그인한 사람은 기존이라 곧장 홈으로 간다.
+/// 약관 동의(S03)를 지나온 사람만 여기 온다. 성공하면 **자동으로 로그인된 상태**가 되고
+/// 프로필 등록(S04)으로 넘어간다.
+///
+/// 로그인한 사람은 기존 사용자라 곧장 홈으로 간다 —
 /// 서버가 온보딩 완료 여부를 알려주지 않아서 쓰는 방법이다.
 class SignUpPage extends ConsumerStatefulWidget {
   const SignUpPage({super.key});
@@ -83,7 +86,12 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
     });
 
     if (failure == null) {
-      context.go(AppRoutes.terms);
+      // 가입에 성공하면 **이미 로그인된 상태**다(`AuthController`가 토큰을 저장했다).
+      // 약관은 앞에서 받았으므로 남은 것은 프로필뿐이다.
+      //
+      // go라 스택이 통째로 갈린다. 프로필에서 뒤로 눌러 가입 화면으로
+      // 돌아가면 이미 만들어진 계정을 또 만들려 하게 된다.
+      context.go(AppRoutes.profileSetup);
     }
   }
 
@@ -170,8 +178,9 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                       label: AppStrings.authToSignIn,
                       variant: AppButtonVariant.ghost,
                       size: AppButtonSize.md,
-                      onPressed: () =>
-                          context.pushReplacement(AppRoutes.signIn),
+                      // 로그인은 이 스택의 **맨 아래**에 있다. 새로 쌓지 않고 거기로 되돌린다.
+                      // push를 쓰면 로그인 화면이 두 장이 되고 뒤로가기가 이상해진다.
+                      onPressed: () => context.go(AppRoutes.signIn),
                     ),
                   ],
                 ),

@@ -5,7 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_sizes.dart';
+import 'package:runiverse/core/theme/tokens/app_radius.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
@@ -15,9 +15,17 @@ import 'package:runiverse/features/auth/domain/email_rule.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/password_field.dart';
 
-/// 이메일 로그인.
+/// 로그인 (S02.5).
 ///
-/// **정본 와이어프레임에 없는 화면이다.** 백엔드가 이메일·비밀번호 방식을 요구해 만들었다.
+/// **정본 와이어프레임의 S02.5는 소셜 버튼 셋과 하단 링크뿐이다.**
+/// 백엔드가 이메일·비밀번호 방식을 요구해 입력칸을 이 화면에 합쳤다.
+/// 방식 선택 화면을 따로 두면 탭이 한 번 더 필요한데, 실제로 고를 것은 셋뿐이라
+/// 한 화면에 다 보이는 편이 짧다.
+///
+/// ## 뒤로가기 버튼이 없다
+///
+/// 온보딩 소개에서 `go`로 들어와 스택이 비어 있다. 되돌아갈 곳이 없다.
+/// 가입 흐름(약관 → 정보 입력)은 `push`로 쌓이므로 그쪽에는 뒤로가기가 있다.
 ///
 /// ## 비밀번호 규칙을 검사하지 않는다
 ///
@@ -97,28 +105,11 @@ class _SignInPageState extends ConsumerState<SignInPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: IconButton(
-                onPressed: () => context.pop(),
-                tooltip: AppStrings.authBack,
-                constraints: const BoxConstraints(
-                  minWidth: AppSizes.touchDefault,
-                  minHeight: AppSizes.touchDefault,
-                ),
-                icon: Icon(
-                  LucideIcons.arrowLeft,
-                  size: AppSpacing.space6,
-                  color: colors.textSecondary,
-                ),
-              ),
-            ),
-
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.space5,
-                  AppSpacing.space4,
+                  AppSpacing.space8,
                   AppSpacing.space5,
                   AppSpacing.space4,
                 ),
@@ -165,49 +156,108 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                     ],
 
                     const SizedBox(height: AppSpacing.space6),
+                    // 높이를 고정해 로딩 중에 아래 버튼들이 밀려 올라가지 않게 한다.
+                    SizedBox(
+                      height: AppButtonSize.lg.height,
+                      child: _busy
+                          ? Center(
+                              child: SizedBox.square(
+                                dimension: AppSpacing.space6,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: colors.primary,
+                                ),
+                              ),
+                            )
+                          : AppButton(
+                              label: AppStrings.authSignInCta,
+                              onPressed: _canSubmit ? _submit : null,
+                            ),
+                    ),
+
+                    const SizedBox(height: AppSpacing.space6),
+                    const _OrDivider(),
+                    const SizedBox(height: AppSpacing.space6),
+
+                    // 카카오·애플을 지우지 않는다. 정본에 셋 다 있고, 나중에 붙일 때
+                    // 레이아웃을 다시 잡지 않아도 된다. **회색으로 잠그지도 않는다** —
+                    // 잠긴 버튼이 둘이면 앱이 미완성으로 읽힌다. 눌리고, 준비 중임을 알린다.
+                    AppButton(
+                      label: AppStrings.authKakao,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: () => _notReady(context),
+                    ),
+                    const SizedBox(height: AppSpacing.space3),
+                    AppButton(
+                      label: AppStrings.authApple,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: () => _notReady(context),
+                    ),
+
+                    const SizedBox(height: AppSpacing.space6),
                     AppButton(
                       label: AppStrings.authToSignUp,
                       variant: AppButtonVariant.ghost,
                       size: AppButtonSize.md,
-                      // pushReplacement라 로그인↔가입을 오가도 스택이 깊어지지 않는다.
-                      // push를 쓰면 뒤로가기를 여러 번 눌러야 S02.5로 돌아간다.
-                      onPressed: () =>
-                          context.pushReplacement(AppRoutes.signUp),
+                      // 가입은 **약관 동의부터** 시작한다. 동의를 받기 전에
+                      // 이메일·비밀번호를 받아두면 동의 없이 개인정보를 쥐게 된다.
+                      //
+                      // push라 뒤로가기 한 번에 로그인으로 돌아온다.
+                      onPressed: () => context.push(AppRoutes.terms),
                     ),
                   ],
                 ),
               ),
             ),
-
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.space4,
-                0,
-                AppSpacing.space4,
-                AppSpacing.space4,
-              ),
-              // 높이를 고정해 로딩 중에 화면이 튀지 않게 한다.
-              child: SizedBox(
-                height: AppButtonSize.lg.height,
-                child: _busy
-                    ? Center(
-                        child: SizedBox.square(
-                          dimension: AppSpacing.space6,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: colors.primary,
-                          ),
-                        ),
-                      )
-                    : AppButton(
-                        label: AppStrings.authSignInCta,
-                        onPressed: _canSubmit ? _submit : null,
-                      ),
-              ),
-            ),
           ],
         ),
       ),
+    );
+  }
+
+  void _notReady(BuildContext context) {
+    final colors = context.appColors;
+
+    // 이전 안내가 남아 있으면 겹쳐서 쌓인다. 하나만 띄운다.
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            AppStrings.authSocialComingSoon,
+            style: AppTypography.body.copyWith(color: colors.textPrimary),
+          ),
+          backgroundColor: colors.bgElevated,
+          behavior: SnackBarBehavior.floating,
+          shape: const RoundedRectangleBorder(borderRadius: AppRadius.md),
+        ),
+      );
+  }
+}
+
+/// `───── 또는 ─────`
+///
+/// 이메일 로그인과 소셜 로그인이 **대등한 선택지**임을 보인다.
+/// 구분선이 없으면 카카오·애플 버튼이 이메일 로그인의 하위 단계처럼 읽힌다.
+class _OrDivider extends StatelessWidget {
+  const _OrDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return Row(
+      children: [
+        Expanded(child: Divider(color: colors.borderDefault, height: 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space3),
+          child: Text(
+            AppStrings.authOr,
+            style: AppTypography.caption.copyWith(color: colors.textTertiary),
+          ),
+        ),
+        Expanded(child: Divider(color: colors.borderDefault, height: 1)),
+      ],
     );
   }
 }

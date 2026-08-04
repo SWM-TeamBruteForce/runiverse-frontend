@@ -69,9 +69,11 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
   }
 
   void _finish() {
-    // 소개가 끝나면 시작 방식을 고른다(S02.5). 약관(S03)은 **가입한 사람만** 지나간다 —
+    // 소개가 끝나면 로그인(S02.5)이다. 약관(S03)은 **가입하는 사람만** 지나간다 —
     // 이미 계정이 있는 사람에게 약관을 다시 받으면 로그인 길이 두 배로 길어진다.
-    context.go(AppRoutes.authIntro);
+    //
+    // go라 소개로 되돌아가지 않는다. 그래서 로그인 화면에는 뒤로가기가 없다.
+    context.go(AppRoutes.signIn);
   }
 
   @override

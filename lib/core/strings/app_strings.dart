@@ -171,15 +171,14 @@ abstract final class AppStrings {
   // ── 로그인 (S02.5) ───────────────────────────────────────────
   //
   // 정본 와이어프레임의 S02.5는 소셜 버튼 셋과 하단 링크뿐이다.
-  // 이메일·비밀번호를 입력받는 화면은 정본에 없고, 백엔드가 그 방식을 요구해 새로 만들었다.
+  // 이메일·비밀번호 입력은 정본에 없고, 백엔드가 그 방식을 요구해 한 화면에 합쳤다.
   // (`docs/implementation-notes.md` 참조)
-
-  static const authIntroTitle = '어떻게 시작할까요';
-  static const authIntroSubtitle = '계정이 있으면 로그인하고,\n없으면 새로 만들어요';
 
   static const authKakao = '카카오로 계속하기';
   static const authApple = 'Apple로 계속하기';
-  static const authEmail = '이메일로 계속하기';
+
+  /// 이메일 로그인과 소셜 버튼 사이의 구분선.
+  static const authOr = '또는';
 
   /// 카카오·애플을 눌렀을 때. 버튼을 회색으로 잠그지 않는 이유는
   /// 피드·대회일정 탭과 같다 — 눌리고, 준비 중임을 알린다.

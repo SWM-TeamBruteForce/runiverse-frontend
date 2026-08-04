@@ -7,9 +7,11 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
-import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.dart';
+import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 
-/// 가입 화면 — 규칙에 맞아야 버튼이 열리고, 성공하면 약관으로 간다.
+/// 가입 2 · 정보 입력 — 규칙에 맞아야 버튼이 열리고, 성공하면 프로필로 간다.
+///
+/// 약관 동의는 이 화면 **앞**에 있다. 여기 온 사람은 이미 동의한 사람이다.
 void main() {
   Future<void> pumpSignUp(WidgetTester tester) async {
     await tester.pumpWidget(
@@ -105,14 +107,14 @@ void main() {
     expect(find.text(AppStrings.authPasswordDisallowedChar), findsOneWidget);
   });
 
-  testWidgets('가입에 성공하면 약관으로 간다', (tester) async {
+  testWidgets('가입에 성공하면 프로필 등록으로 간다', (tester) async {
     await pumpSignUp(tester);
     await fill(tester, email: 'new@example.com', password: 'runi123!');
 
     await tester.tap(find.text(AppStrings.authSignUpCta));
     await tester.pumpAndSettle();
 
-    // 가입한 사람은 신규다. 약관 → 프로필을 거쳐야 홈에 닿는다.
-    expect(find.byType(TermsAgreementPage), findsOneWidget);
+    // 약관은 앞에서 받았다. 남은 것은 프로필뿐이다.
+    expect(find.byType(ProfileSetupPage), findsOneWidget);
   });
 }
