@@ -32,6 +32,8 @@ class AppInput extends StatelessWidget {
     this.textInputAction,
     this.onChanged,
     this.onSubmitted,
+    this.obscureText = false,
+    this.suffix,
     this.autofocus = false,
     super.key,
   });
@@ -56,6 +58,18 @@ class AppInput extends StatelessWidget {
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
+
+  /// 입력을 가린다. 비밀번호용.
+  ///
+  /// 보기 토글은 **화면이 [suffix]로 넣는다.** 토글 상태를 이 위젯이 들면
+  /// "상태는 화면이 든다"는 이 파일의 규칙이 깨진다.
+  final bool obscureText;
+
+  /// 필드 오른쪽 끝에 붙는 위젯. 보기 토글 같은 인라인 액션용.
+  ///
+  /// 누를 수 있는 것을 넣을 때는 44px 터치 타깃을 지킨다 — [IconButton]은 기본이 48px다.
+  final Widget? suffix;
+
   final bool autofocus;
 
   @override
@@ -92,11 +106,13 @@ class AppInput extends StatelessWidget {
           textInputAction: textInputAction,
           onChanged: onChanged,
           onSubmitted: onSubmitted,
+          obscureText: obscureText,
           style: AppTypography.body.copyWith(color: colors.textPrimary),
           cursorColor: colors.primary,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: AppTypography.body.copyWith(color: colors.textDisabled),
+            suffixIcon: suffix,
             filled: true,
             fillColor: colors.bgSurface,
             // 44px는 패딩이 아니라 min-height로 지킨다. 패딩만 주면
