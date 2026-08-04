@@ -5,6 +5,7 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/coming_soon_page.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page.dart';
+import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
 import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
@@ -33,10 +34,10 @@ import 'package:runiverse/features/record/presentation/record_page.dart';
 ///   `refreshListenable`을 쓴다 (`docs/implementation-notes.md` §5-2).
 /// - **탭 바를 덮는 전체 화면** — 러닝 중 화면(S11~S13)은 탭 바 위를 덮어야 한다.
 ///   그때 루트 `navigatorKey`를 만들고 해당 `GoRoute`에 `parentNavigatorKey`로 넘긴다.
-GoRouter createAppRouter() {
+GoRouter createAppRouter({String? initialLocation}) {
   return GoRouter(
     // 플랫폼이 넘겨주는 기본 경로 `/`를 이 값으로 대체한다.
-    initialLocation: AppRoutes.splash,
+    initialLocation: initialLocation ?? AppRoutes.splash,
     routes: [
       // ── 탭 셸 밖 ─────────────────────────────────────────────
       //
@@ -52,6 +53,10 @@ GoRouter createAppRouter() {
       GoRoute(
         path: AppRoutes.terms,
         builder: (context, state) => const TermsAgreementPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.profileSetup,
+        builder: (context, state) => const ProfileSetupPage(),
       ),
 
       StatefulShellRoute.indexedStack(

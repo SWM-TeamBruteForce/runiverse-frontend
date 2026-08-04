@@ -4,33 +4,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/coming_soon_page.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
-import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
 import 'package:runiverse/app/app.dart';
+import 'package:runiverse/app/router/app_routes.dart';
 
 /// 탭 셸의 상태 전이 — 탭을 누르면 그 branch가 열리는가.
 ///
 /// 화면 내용은 아직 뼈대라 검증할 게 없다. 여기서 보는 건 **라우터 배선**이다.
 /// branch 순서와 탭 순서가 어긋나면(가장 흔한 실수) 이 테스트가 잡는다.
 void main() {
-  /// 앱을 띄우고 온보딩을 지나 탭 셸까지 들어간다.
+  /// 탭 셸부터 띄운다. 온보딩은 지나오지 않는다.
   ///
-  /// 앱의 첫 화면은 스플래시(S01)라 곧장 홈이 뜨지 않는다.
-  /// 스플래시를 눌러 넘기고, 소개에서 건너뛰기를 누르고, 약관에 동의한다.
-  /// **약관은 건너뛸 수 없다** — 전체 동의를 눌러야 CTA가 활성된다.
+  /// 예전에는 스플래시부터 눌러가며 들어왔는데, 온보딩에 화면이 하나 늘 때마다
+  /// **탭과 무관한 이 테스트가 깨졌다.** 온보딩 흐름 자체는
+  /// `onboarding_flow_test.dart`가 따로 본다.
   Future<void> pumpApp(WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: RuniverseApp()));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byType(SplashPage));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text(AppStrings.onboardingSkip));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text(AppStrings.termsAgreeAll));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.termsCta));
+    await tester.pumpWidget(
+      const ProviderScope(child: RuniverseApp(initialLocation: AppRoutes.home)),
+    );
     await tester.pumpAndSettle();
   }
 

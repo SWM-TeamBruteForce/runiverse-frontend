@@ -68,9 +68,8 @@ class _TermsAgreementPageState extends State<TermsAgreementPage> {
   }
 
   void _submit() {
-    // ⚠️ 원래는 프로필 등록(S04)으로 간다. 그 화면이 아직 없어 홈으로 보낸다.
-    // 동의 결과를 서버에 보내는 것도 API가 생긴 뒤다.
-    context.go(AppRoutes.home);
+    // 동의 결과를 서버에 보내는 것은 API가 생긴 뒤다.
+    context.go(AppRoutes.profileSetup);
   }
 
   @override
@@ -263,12 +262,8 @@ class _TermRow extends StatelessWidget {
           overlayColor: _pressOverlay(colors),
           child: Container(
             // 글자는 작지만 누르는 영역은 44px를 지킨다.
-            constraints: const BoxConstraints(
-              minHeight: AppSizes.touchDefault,
-            ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.space4,
-            ),
+            constraints: const BoxConstraints(minHeight: AppSizes.touchDefault),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
             child: Row(
               children: [
                 _CheckMark(checked: checked, filled: false),

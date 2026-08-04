@@ -86,4 +86,85 @@ abstract final class AppStrings {
 
   /// 3항목 전부 동의해야 눌린다.
   static const termsCta = '동의하고 계속';
+
+  // ── 프로필 등록 (S04) ────────────────────────────────────────
+  //
+  // 질문을 한 번에 하나씩 던진다. 답하면 다음이 아래에 붙고, 답한 것은 위에 쌓인다.
+  // 그래서 문구가 라벨(`닉네임`)과 질문(`뭐라고 부를까요`) 두 벌로 나뉜다 —
+  // 질문은 묻는 동안, 라벨은 쌓인 뒤에 쓴다.
+
+  static const profileTitle = '프로필을 만들어요';
+
+  /// 답한 줄을 눌러 되돌아갈 수 있다는 것을 스크린리더에 알린다.
+  static const profileEditHint = '고치기';
+
+  static const profileNext = '다음';
+
+  // 닉네임
+  static const profileNicknameLabel = '닉네임';
+  static const profileNicknameQuestion = '뭐라고 부를까요';
+  static const profileNicknameWhy = '함께 달리는 러너에게 보이는 이름이에요.';
+  static const profileNicknameHint = '러너42';
+  static const profileNicknameGuide = '2~12자로 지어주세요';
+  static const profileNicknameTooShort = '2자 이상이어야 해요';
+
+  /// 상한에서 막혔을 때 잠깐 떴다 사라진다.
+  static const profileNicknameTooLong = '12자까지 쓸 수 있어요';
+
+  static const profileNicknameOk = '쓸 수 있는 이름이에요';
+  static const profileNicknameConfirm = '확인';
+
+  // 생년월일
+  static const profileBirthLabel = '생년월일';
+  static const profileBirthQuestion = '언제 태어났나요';
+  static const profileBirthWhy = '기록을 계산하는 데만 써요. 다른 러너에게 보이지 않아요.';
+  static const profileUnitYear = '년';
+  static const profileUnitMonth = '월';
+  static const profileUnitDay = '일';
+
+  // 성별
+  static const profileGenderLabel = '성별';
+  static const profileGenderQuestion = '성별을 알려주세요';
+  static const profileGenderWhy = '기록 계산에만 써요.';
+  // 남성·여성 둘뿐이다. 칼로리·페이스 계산식이 이분법을 전제해서인데,
+  // 그 계산이 필요 없는 곳(프로필 공개 정보 등)까지 이 값을 끌어다 쓰면 안 된다.
+  static const profileGenderMale = '남성';
+  static const profileGenderFemale = '여성';
+
+  // 키·몸무게
+  static const profileBodyLabel = '키 · 몸무게';
+  static const profileBodyQuestion = '키와 몸무게는요';
+  static const profileBodyWhy = '칼로리를 셈하는 데만 써요.';
+  static const profileUnitHeight = 'cm';
+  static const profileUnitWeight = 'kg';
+
+  // 페이스 — 5km 기준 1km당 분·초
+  //
+  // 등급을 고르게 하지 않고 숫자를 받는다. '중급'이 무엇인지는 사람마다 다르지만
+  // "1km를 6분에 뛴다"는 누구에게나 같은 값이다.
+  static const profilePaceLabel = '페이스';
+  static const profilePaceQuestion = '5km를 뛰면 어느 정도인가요';
+  static const profilePaceWhy = '1km를 몇 분에 뛰는지 알려주세요. 시그니처 컬러를 정하는 데 써요.';
+  static const profilePaceSheetTitle = '1km당 페이스';
+  static const profileUnitMinute = '분';
+  static const profileUnitSecond = '초';
+
+  /// 답한 줄에 붙는 단위. `5'42" /km`
+  static const profilePacePerKm = '/km';
+
+  /// 건너뛰기 버튼 위 눈썹 문구. **누구를 위한 출구인지** 먼저 밝힌다.
+  /// 이게 없으면 페이스를 아는 사람도 건너뛰기를 편한 길로 여긴다.
+  static const profilePaceSkipEyebrow = '러닝이 처음이라면';
+
+  /// 아직 재본 적 없는 사람의 출구. 이걸 막으면 입문자가 아무 값이나 찍고 넘어간다.
+  static const profilePaceSkip = '건너뛰기';
+
+  /// 버튼 아래 안내. 측정이 어디서 이뤄지는지 미리 알린다.
+  static const profilePaceSkipWhy = '홈에서 혼자 연습하며 재보면 그때 채워져요.';
+
+  /// 미측정 상태로 쌓인 줄에 보이는 값.
+  static const profilePaceUnmeasured = '측정 전';
+
+  /// 시트를 열기 전 자리 표시.
+  static const profileTapToPick = '탭해서 고르기';
 }

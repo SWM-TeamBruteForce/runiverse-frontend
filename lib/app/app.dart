@@ -19,14 +19,23 @@ import 'package:runiverse/core/theme/app_theme.dart';
 /// 라우터를 `build` 안에서 만들면 리빌드할 때마다 새 라우터가 생겨 현재 위치를
 /// 잃는다. [State]에 한 번만 만들어 들고 있는다.
 class RuniverseApp extends StatefulWidget {
-  const RuniverseApp({super.key});
+  const RuniverseApp({this.initialLocation, super.key});
+
+  /// 앱이 처음 열 화면. 비우면 스플래시(S01)에서 시작한다.
+  ///
+  /// 온보딩을 거치지 않고 특정 화면을 바로 띄우고 싶을 때 쓴다.
+  /// 탭 셸 테스트가 온보딩 흐름에 묶이면, 온보딩에 화면을 하나 넣을 때마다
+  /// 관계없는 테스트가 깨진다.
+  final String? initialLocation;
 
   @override
   State<RuniverseApp> createState() => _RuniverseAppState();
 }
 
 class _RuniverseAppState extends State<RuniverseApp> {
-  late final GoRouter _router = createAppRouter();
+  late final GoRouter _router = createAppRouter(
+    initialLocation: widget.initialLocation,
+  );
 
   @override
   void dispose() {
