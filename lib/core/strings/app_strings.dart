@@ -167,4 +167,45 @@ abstract final class AppStrings {
 
   /// 시트를 열기 전 자리 표시.
   static const profileTapToPick = '탭해서 고르기';
+
+  // ── 로그인 (S02.5) ───────────────────────────────────────────
+  //
+  // 정본 와이어프레임의 S02.5는 소셜 버튼 셋과 하단 링크뿐이다.
+  // 이메일·비밀번호를 입력받는 화면은 정본에 없고, 백엔드가 그 방식을 요구해 새로 만들었다.
+  // (`docs/implementation-notes.md` 참조)
+
+  static const authIntroTitle = '어떻게 시작할까요';
+  static const authIntroSubtitle = '계정이 있으면 로그인하고,\n없으면 새로 만들어요';
+
+  static const authKakao = '카카오로 계속하기';
+  static const authApple = 'Apple로 계속하기';
+  static const authEmail = '이메일로 계속하기';
+
+  /// 카카오·애플을 눌렀을 때. 버튼을 회색으로 잠그지 않는 이유는
+  /// 피드·대회일정 탭과 같다 — 눌리고, 준비 중임을 알린다.
+  static const authSocialComingSoon = '아직 준비 중이에요';
+
+  static const authSignInTitle = '로그인';
+
+  static const authBack = '뒤로';
+
+  static const authEmailLabel = '이메일';
+  static const authEmailHint = 'runner@example.com';
+  static const authEmailInvalid = '이메일 형식이 아니에요';
+
+  static const authPasswordLabel = '비밀번호';
+  static const authPasswordShow = '비밀번호 보기';
+  static const authPasswordHide = '비밀번호 가리기';
+
+  /// 제목([authSignInTitle])과 **글자가 달라야 한다.** 같으면 `find.text('로그인')`이
+  /// 화면에서 둘을 찾아 위젯 테스트가 "여러 개를 찾았다"로 죽는다.
+  static const authSignInCta = '로그인하기';
+
+  // 실패 문구 — **서버가 준 message를 쓰지 않는다.**
+  // 서버는 습니다체고 앱은 해요체다. 서버가 주는 code로 여기서 문구를 고른다.
+
+  static const authFailedCredentials = '이메일이나 비밀번호가 맞지 않아요';
+  static const authFailedNetwork = '인터넷 연결을 확인해주세요';
+  static const authFailedServer = '잠시 후 다시 시도해주세요';
+  static const authFailedUnknown = '로그인하지 못했어요. 다시 시도해주세요';
 }
