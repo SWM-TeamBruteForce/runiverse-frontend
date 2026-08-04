@@ -49,9 +49,11 @@ abstract final class PasswordRule {
     if (raw.length < min) return PasswordStatus.tooShort;
     if (raw.length > max) return PasswordStatus.tooLong;
 
+    final hasSpecial = raw.split('').any(specials.contains);
+
     if (!_letter.hasMatch(raw)) return PasswordStatus.missingKind;
     if (!_digit.hasMatch(raw)) return PasswordStatus.missingKind;
-    if (!raw.split('').any(specials.contains)) return PasswordStatus.missingKind;
+    if (!hasSpecial) return PasswordStatus.missingKind;
 
     return PasswordStatus.valid;
   }
