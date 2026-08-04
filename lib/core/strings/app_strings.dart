@@ -208,4 +208,23 @@ abstract final class AppStrings {
   static const authFailedNetwork = '인터넷 연결을 확인해주세요';
   static const authFailedServer = '잠시 후 다시 시도해주세요';
   static const authFailedUnknown = '로그인하지 못했어요. 다시 시도해주세요';
+
+  // ── 회원가입 ─────────────────────────────────────────────────
+
+  static const authSignUpTitle = '가입하기';
+  static const authSignUpCta = '가입하고 시작하기';
+
+  /// 규칙을 미리 보여준다. 서버가 막기 전에 화면이 먼저 알려준다.
+  /// ⚠️ 이 문구는 `PasswordRule`의 값과 같아야 한다. 규칙을 바꾸면 함께 고친다.
+  static const authPasswordGuide = '6~16자, 영문·숫자·특수문자를 각각 하나씩';
+  static const authPasswordTooShort = '6자 이상이어야 해요';
+  static const authPasswordTooLong = '16자까지 쓸 수 있어요';
+  static const authPasswordMissingKind = '영문·숫자·특수문자를 각각 하나씩 넣어주세요';
+  static const authPasswordOk = '쓸 수 있는 비밀번호예요';
+
+  /// 두 화면을 오가는 링크. 물음표로 끝내 조사 문제를 피한다.
+  static const authToSignUp = '계정이 없나요? 가입하기';
+  static const authToSignIn = '이미 계정이 있나요? 로그인';
+
+  static const authFailedEmailTaken = '이미 가입한 이메일이에요';
 }
