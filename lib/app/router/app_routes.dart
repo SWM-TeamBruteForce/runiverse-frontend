@@ -25,10 +25,18 @@ abstract final class AppRoutes {
   /// 온보딩 소개 3장 (S02)
   static const onboardingIntro = '/onboarding';
 
+  /// 시작 방식 선택 (S02.5) — 카카오 · 애플 · 이메일
+  static const authIntro = '/auth';
+
+  /// 이메일 로그인
+  ///
+  /// **정본 와이어프레임에 없는 화면이다.** 백엔드가 이메일·비밀번호 방식을 요구해
+  /// 새로 만들었다 (`docs/implementation-notes.md`).
+  static const signIn = '/auth/sign-in';
+
   /// 약관 동의 (S03)
   ///
-  /// 원래 순서는 S02 → S02.5 로그인 → S03이다. 로그인 화면이 아직 없어
-  /// 지금은 S02에서 곧장 여기로 온다.
+  /// 가입한 사람만 지나간다. 이미 계정이 있는 사람은 로그인에서 곧장 홈으로 간다.
   static const terms = '/onboarding/terms';
 
   /// 프로필 등록 (S04)
