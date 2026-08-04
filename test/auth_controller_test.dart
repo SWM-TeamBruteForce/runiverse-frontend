@@ -92,10 +92,20 @@ void main() {
 
   test('가입하면 곧바로 로그인 상태가 된다', () async {
     final container = makeContainer();
+    final controller = container.read(authControllerProvider.notifier);
 
-    final failure = await container
-        .read(authControllerProvider.notifier)
-        .signUp(email: 'new@example.com', password: 'runi123!');
+    // 가입은 **인증된 이메일로만** 된다. 인증 자체의 규칙은
+    // `email_verification_test.dart`가 따로 본다.
+    await controller.sendVerificationCode('new@example.com');
+    await controller.verifyCode(
+      email: 'new@example.com',
+      code: FakeAuthRepository.mockCode,
+    );
+
+    final failure = await controller.signUp(
+      email: 'new@example.com',
+      password: 'runi123!',
+    );
 
     expect(failure, isNull);
     expect(container.read(authControllerProvider), isA<AuthSignedIn>());

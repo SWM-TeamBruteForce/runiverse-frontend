@@ -59,6 +59,18 @@ class AuthController extends Notifier<AuthState> {
   }) =>
       _authenticate(() => _repository.signIn(email: email, password: password));
 
+  /// 이메일로 인증번호를 보낸다. 성공하면 `null`.
+  ///
+  /// 로그인 상태를 바꾸지 않는다 — 아직 계정이 없다.
+  Future<AuthFailure?> sendVerificationCode(String email) =>
+      _guard(() => _repository.sendVerificationCode(email));
+
+  /// 인증번호를 확인한다. 성공하면 `null`.
+  Future<AuthFailure?> verifyCode({
+    required String email,
+    required String code,
+  }) => _guard(() => _repository.verifyCode(email: email, code: code));
+
   /// 성공하면 `null`.
   Future<AuthFailure?> signUp({
     required String email,
@@ -76,6 +88,16 @@ class AuthController extends Notifier<AuthState> {
     }
     await _store.clear();
     state = const AuthSignedOut();
+  }
+
+  /// 상태를 바꾸지 않는 호출을 감싼다. 실패 이유만 돌려준다.
+  Future<AuthFailure?> _guard(Future<void> Function() call) async {
+    try {
+      await call();
+      return null;
+    } on AuthException catch (error) {
+      return error.failure;
+    }
   }
 
   Future<AuthFailure?> _authenticate(

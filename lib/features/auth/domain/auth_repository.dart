@@ -13,7 +13,21 @@ abstract interface class AuthRepository {
   /// 실패 시 `AuthException(AuthFailure.invalidCredentials)`.
   Future<AuthSession> signIn({required String email, required String password});
 
+  /// 이메일로 인증번호를 보낸다.
+  ///
+  /// 이미 가입된 이메일이면 `AuthException(AuthFailure.emailAlreadyExists)`.
+  /// **가입 여부를 여기서 먼저 알려준다** — 인증번호를 다 치고 나서 "이미 가입됐다"고
+  /// 하면 사용자는 한 일이 통째로 버려진다.
+  Future<void> sendVerificationCode(String email);
+
+  /// 인증번호를 확인한다. 성공하면 그 이메일이 **인증된 상태**가 된다.
+  ///
+  /// 틀리면 `AuthFailure.invalidCode`, 5분이 지났으면 `AuthFailure.codeExpired`.
+  Future<void> verifyCode({required String email, required String code});
+
   /// 실패 시 `AuthException(AuthFailure.emailAlreadyExists)`.
+  ///
+  /// **인증된 이메일로만 부를 수 있다.** 아니면 `AuthFailure.emailNotVerified`.
   ///
   /// **가입 결과로 세션까지 돌려준다.** 서버 `POST /auth/signup`은 `userId`만 주지만,
   /// 가입하자마자 로그인 화면으로 되돌리는 것은 사용자에게 같은 일을 두 번 시키는 셈이다.

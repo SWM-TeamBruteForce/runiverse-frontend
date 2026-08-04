@@ -276,9 +276,12 @@ class _FailureNotice extends StatelessWidget {
     AuthFailure.invalidCredentials => AppStrings.authFailedCredentials,
     AuthFailure.network => AppStrings.authFailedNetwork,
     AuthFailure.server => AppStrings.authFailedServer,
-    // 가입 전용 실패다. 로그인 화면에 올 일이 없지만 sealed가 아닌 enum이라
-    // 컴파일러가 빠짐을 잡아주지 않는다. 뭉뚱그린 문구로 받는다.
+    // 가입 전용 실패들이다. 로그인 화면에 올 일이 없지만 **와일드카드를 쓰지 않는다** —
+    // 실패 종류가 늘 때 컴파일러가 여기를 짚어주는 편이 낫다.
     AuthFailure.emailAlreadyExists ||
+    AuthFailure.invalidCode ||
+    AuthFailure.codeExpired ||
+    AuthFailure.emailNotVerified ||
     AuthFailure.unknown => AppStrings.authFailedUnknown,
   };
 
