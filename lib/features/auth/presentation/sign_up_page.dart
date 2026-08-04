@@ -12,32 +12,35 @@ import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/core/widgets/app_input.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/email_rule.dart';
+import 'package:runiverse/features/auth/domain/password_rule.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/password_field.dart';
 
-/// 이메일 로그인.
+/// 이메일 회원가입.
 ///
-/// **정본 와이어프레임에 없는 화면이다.** 백엔드가 이메일·비밀번호 방식을 요구해 만들었다.
+/// ## 비밀번호 확인 칸이 없다
 ///
-/// ## 비밀번호 규칙을 검사하지 않는다
+/// 서버가 확인값을 받지 않고, 칸이 하나 늘면 화면이 그만큼 길어진다.
+/// 오타는 [PasswordField]의 눈 아이콘으로 막는다.
 ///
-/// 규칙(6~16자, 3종 혼합)은 **가입할 때만** 본다. 로그인에서 들이대면, 규칙이 바뀌기 전에
-/// 만든 계정의 주인이 자기 비밀번호를 정확히 치고도 막힌다.
-/// 비어 있지 않은지만 본다.
+/// ## 규칙을 화면이 다시 검사한다
 ///
-/// ## 로딩·실패를 provider에 올리지 않는다
+/// 서버 `SignUpRequest`와 같은 규칙을 [PasswordRule]에 옮겨 뒀다.
+/// 서버까지 갔다 와서 거절당하는 것보다 치는 동안 알려주는 편이 빠르다.
+/// **대신 규칙이 두 곳에 존재한다** — 서버가 바꾸면 여기도 바꿔야 한다.
 ///
-/// "버튼이 도는 중"은 이 화면이 떠 있는 동안만 의미 있는 값이다.
-/// 앱 전체의 인증 상태(`authControllerProvider`)와 섞으면, 로그인 실패가
-/// 앱을 로그아웃시키는 식의 사고가 난다.
-class SignInPage extends ConsumerStatefulWidget {
-  const SignInPage({super.key});
+/// ## 가입하면 약관으로 간다
+///
+/// 가입한 사람은 신규다. 로그인한 사람은 기존이라 곧장 홈으로 간다.
+/// 서버가 온보딩 완료 여부를 알려주지 않아서 쓰는 방법이다.
+class SignUpPage extends ConsumerStatefulWidget {
+  const SignUpPage({super.key});
 
   @override
-  ConsumerState<SignInPage> createState() => _SignInPageState();
+  ConsumerState<SignUpPage> createState() => _SignUpPageState();
 }
 
-class _SignInPageState extends ConsumerState<SignInPage> {
+class _SignUpPageState extends ConsumerState<SignUpPage> {
   final _email = TextEditingController();
   final _password = TextEditingController();
 
@@ -46,17 +49,16 @@ class _SignInPageState extends ConsumerState<SignInPage> {
 
   @override
   void dispose() {
-    // 컨트롤러를 버리지 않으면 화면을 떠난 뒤에도 메모리에 남는다.
     _email.dispose();
     _password.dispose();
     super.dispose();
   }
 
   bool get _canSubmit =>
-      !_busy && EmailRule.of(_email.text).isValid && _password.text.isNotEmpty;
+      !_busy &&
+      EmailRule.of(_email.text).isValid &&
+      PasswordRule.of(_password.text).isValid;
 
-  /// 입력이 바뀌면 이전 실패 문구를 지운다.
-  /// 고치는 중에도 빨간 글씨가 남아 있으면 무엇이 반영됐는지 알 수 없다.
   void _onChanged(String _) {
     setState(() => _failure = null);
   }
@@ -71,9 +73,8 @@ class _SignInPageState extends ConsumerState<SignInPage> {
 
     final failure = await ref
         .read(authControllerProvider.notifier)
-        .signIn(email: _email.text.trim(), password: _password.text);
+        .signUp(email: _email.text.trim(), password: _password.text);
 
-    // await 사이에 화면이 사라졌을 수 있다. setState나 context를 쓰기 전에 반드시 본다.
     if (!mounted) return;
 
     setState(() {
@@ -82,8 +83,7 @@ class _SignInPageState extends ConsumerState<SignInPage> {
     });
 
     if (failure == null) {
-      // go는 스택을 통째로 갈아치운다. 홈에서 뒤로 눌러 로그인으로 돌아가면 안 된다.
-      context.go(AppRoutes.home);
+      context.go(AppRoutes.terms);
     }
   }
 
@@ -91,6 +91,7 @@ class _SignInPageState extends ConsumerState<SignInPage> {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final emailStatus = EmailRule.of(_email.text);
+    final passwordStatus = PasswordRule.of(_password.text);
 
     return Scaffold(
       body: SafeArea(
@@ -126,7 +127,7 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      AppStrings.authSignInTitle,
+                      AppStrings.authSignUpTitle,
                       style: AppTypography.h1.copyWith(
                         color: colors.textPrimary,
                       ),
@@ -140,8 +141,6 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
                       onChanged: _onChanged,
-                      // 입력하는 도중에 "형식이 아니에요"가 뜨면 안 된다.
-                      // 아직 다 치지 않았을 뿐이다. 빈 칸도 오류가 아니다.
                       tone: emailStatus == EmailStatus.invalid
                           ? AppInputTone.error
                           : AppInputTone.neutral,
@@ -157,6 +156,8 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                       textInputAction: TextInputAction.done,
                       onChanged: _onChanged,
                       onSubmitted: (_) => _submit(),
+                      tone: _toneOf(passwordStatus),
+                      helper: _helperOf(passwordStatus),
                     ),
 
                     if (_failure != null) ...[
@@ -166,13 +167,11 @@ class _SignInPageState extends ConsumerState<SignInPage> {
 
                     const SizedBox(height: AppSpacing.space6),
                     AppButton(
-                      label: AppStrings.authToSignUp,
+                      label: AppStrings.authToSignIn,
                       variant: AppButtonVariant.ghost,
                       size: AppButtonSize.md,
-                      // pushReplacement라 로그인↔가입을 오가도 스택이 깊어지지 않는다.
-                      // push를 쓰면 뒤로가기를 여러 번 눌러야 S02.5로 돌아간다.
                       onPressed: () =>
-                          context.pushReplacement(AppRoutes.signUp),
+                          context.pushReplacement(AppRoutes.signIn),
                     ),
                   ],
                 ),
@@ -186,7 +185,6 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                 AppSpacing.space4,
                 AppSpacing.space4,
               ),
-              // 높이를 고정해 로딩 중에 화면이 튀지 않게 한다.
               child: SizedBox(
                 height: AppButtonSize.lg.height,
                 child: _busy
@@ -200,7 +198,7 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                         ),
                       )
                     : AppButton(
-                        label: AppStrings.authSignInCta,
+                        label: AppStrings.authSignUpCta,
                         onPressed: _canSubmit ? _submit : null,
                       ),
               ),
@@ -210,25 +208,36 @@ class _SignInPageState extends ConsumerState<SignInPage> {
       ),
     );
   }
+
+  /// 아직 아무것도 안 쳤을 때는 중립이다. 화면을 열자마자 빨간 글씨가 뜨면
+  /// 시작도 전에 혼난 것처럼 보인다.
+  AppInputTone _toneOf(PasswordStatus status) => switch (status) {
+    PasswordStatus.empty => AppInputTone.neutral,
+    PasswordStatus.valid => AppInputTone.success,
+    _ => AppInputTone.error,
+  };
+
+  /// 비어 있을 때는 **규칙 전체**를 보여준다. 무엇을 쳐야 하는지 미리 알린다.
+  String _helperOf(PasswordStatus status) => switch (status) {
+    PasswordStatus.empty => AppStrings.authPasswordGuide,
+    PasswordStatus.tooShort => AppStrings.authPasswordTooShort,
+    PasswordStatus.tooLong => AppStrings.authPasswordTooLong,
+    PasswordStatus.missingKind => AppStrings.authPasswordMissingKind,
+    PasswordStatus.valid => AppStrings.authPasswordOk,
+  };
 }
 
-/// 실패 안내 — 아이콘 + 문구.
-///
-/// **색만으로 알리지 않는다.** 빨간 테두리만 남으면 색을 구분하지 못하는 사용자에게는
-/// 아무 정보가 아니다 (디자인 시스템 §1-5).
+/// 실패 안내 — 아이콘 + 문구. 색만으로 알리지 않는다.
 class _FailureNotice extends StatelessWidget {
   const _FailureNotice({required this.failure});
 
   final AuthFailure failure;
 
-  /// 서버 `message`를 쓰지 않는다. 서버는 습니다체, 앱은 해요체다.
   String get _message => switch (failure) {
-    AuthFailure.invalidCredentials => AppStrings.authFailedCredentials,
+    AuthFailure.emailAlreadyExists => AppStrings.authFailedEmailTaken,
     AuthFailure.network => AppStrings.authFailedNetwork,
     AuthFailure.server => AppStrings.authFailedServer,
-    // 가입 전용 실패다. 로그인 화면에 올 일이 없지만 sealed가 아닌 enum이라
-    // 컴파일러가 빠짐을 잡아주지 않는다. 뭉뚱그린 문구로 받는다.
-    AuthFailure.emailAlreadyExists ||
+    AuthFailure.invalidCredentials ||
     AuthFailure.unknown => AppStrings.authFailedUnknown,
   };
 

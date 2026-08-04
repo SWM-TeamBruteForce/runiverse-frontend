@@ -34,6 +34,15 @@ abstract final class AppRoutes {
   /// 새로 만들었다 (`docs/implementation-notes.md`).
   static const signIn = '/auth/sign-in';
 
+  /// 이메일 회원가입
+  ///
+  /// 가입에 성공한 사람은 **신규**다. 약관(S03) → 프로필(S04)을 거쳐 홈으로 간다.
+  /// 로그인한 사람은 기존이므로 곧장 홈으로 간다.
+  ///
+  /// ⚠️ 서버가 "이 사람이 온보딩을 마쳤는가"를 알려주지 않아서 쓰는 방법이다.
+  /// 앱을 지웠다 깔면 기존 사용자도 프로필 화면을 다시 본다.
+  static const signUp = '/auth/sign-up';
+
   /// 약관 동의 (S03)
   ///
   /// 가입한 사람만 지나간다. 이미 계정이 있는 사람은 로그인에서 곧장 홈으로 간다.

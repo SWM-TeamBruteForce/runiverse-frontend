@@ -5,6 +5,7 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/coming_soon_page.dart';
 import 'package:runiverse/features/auth/presentation/auth_intro_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_in_page.dart';
+import 'package:runiverse/features/auth/presentation/sign_up_page.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
@@ -59,6 +60,10 @@ GoRouter createAppRouter({String? initialLocation}) {
       GoRoute(
         path: AppRoutes.signIn,
         builder: (context, state) => const SignInPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.signUp,
+        builder: (context, state) => const SignUpPage(),
       ),
       GoRoute(
         path: AppRoutes.terms,
