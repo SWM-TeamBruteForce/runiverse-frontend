@@ -389,16 +389,6 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                               onPressed: _canSubmit ? _submit : null,
                             ),
                     ),
-
-                    const SizedBox(height: AppSpacing.space6),
-                    AppButton(
-                      label: AppStrings.authToSignIn,
-                      variant: AppButtonVariant.ghost,
-                      size: AppButtonSize.md,
-                      // 로그인은 이 스택의 **맨 아래**에 있다. 새로 쌓지 않고 거기로 되돌린다.
-                      // push를 쓰면 로그인 화면이 두 장이 되고 뒤로가기가 이상해진다.
-                      onPressed: () => context.go(AppRoutes.signIn),
-                    ),
                   ],
                 ),
               ),

@@ -225,9 +225,12 @@ abstract final class AppStrings {
   static const authPasswordDisallowedChar = '영문·숫자·특수문자만 쓸 수 있어요';
   static const authPasswordOk = '쓸 수 있는 비밀번호예요';
 
-  /// 두 화면을 오가는 링크. 물음표로 끝내 조사 문제를 피한다.
+  /// 로그인 → 가입으로 들어가는 유일한 문. 물음표로 끝내 조사 문제를 피한다.
+  ///
+  /// **반대 방향(가입 → 로그인) 링크는 두지 않는다.** 가입은 로그인의 자식이라
+  /// 뒤로가기로 돌아갈 수 있고, 그 링크는 `go`라 입력한 것을 전부 날린다.
+  /// 하필 가입 버튼 바로 아래에 있어 실수로 누르기 쉬웠다.
   static const authToSignUp = '계정이 없나요? 가입하기';
-  static const authToSignIn = '이미 계정이 있나요? 로그인';
 
   static const authFailedEmailTaken = '이미 가입한 이메일이에요';
 
