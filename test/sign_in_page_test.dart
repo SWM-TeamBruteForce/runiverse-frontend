@@ -72,6 +72,16 @@ void main() {
     expect(ctaEnabled(tester), isTrue);
   });
 
+  testWidgets('한영 변환을 깜빡한 이메일은 버튼이 열리지 않는다', (tester) async {
+    await pumpSignIn(tester);
+    // `runner`를 한글 자판으로 치면 이런 것이 들어간다.
+    // 통과시키면 버튼이 켜지고, 눌러본 뒤에야 틀린 것을 알게 된다.
+    await fill(tester, email: 'ㄱㅕㅜㅜㄷㄱ@example.com', password: 'runi123!');
+
+    expect(ctaEnabled(tester), isFalse);
+    expect(find.text(AppStrings.authEmailInvalid), findsOneWidget);
+  });
+
   testWidgets('로그인 화면은 비밀번호 규칙을 따지지 않는다', (tester) async {
     await pumpSignIn(tester);
     // 규칙이 바뀌기 전에 만든 계정은 지금 규칙을 통과하지 못할 수 있다.
