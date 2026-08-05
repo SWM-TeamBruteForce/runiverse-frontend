@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
@@ -9,6 +10,8 @@ import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/theme/tokens/run_palette.dart';
 import 'package:runiverse/core/widgets/color/aura_orb.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 
 /// 스플래시 (S01).
 ///
@@ -21,16 +24,24 @@ import 'package:runiverse/core/widgets/color/aura_orb.dart';
 /// 1.6초 뒤 자동으로 넘어가고, 그 전에 화면을 누르면 즉시 넘어간다.
 /// **기다림을 강요하지 않는다.**
 ///
-/// ⚠️ 인증이 붙으면 여기서 갈라진다 — 로그인 상태면 홈 직행, 아니면 온보딩.
-/// 지금은 인증이 없어 항상 온보딩으로 간다.
-class SplashPage extends StatefulWidget {
+/// ## 자동 로그인
+///
+/// 화면이 떠 있는 1.6초 동안 저장된 토큰을 읽는다. 다 읽고 나서 갈림길을 정한다 —
+/// **로그인 상태면 홈, 아니면 온보딩.**
+///
+/// 읽기가 1.6초보다 오래 걸리거나 사용자가 먼저 화면을 누르면 그 순간 기다린다.
+/// 확인하지 않은 채로 온보딩에 보내면 로그인한 사람이 다시 로그인하게 된다.
+///
+/// ⚠️ 지금 저장소는 메모리라 앱을 끄면 비워진다. 그래서 실제로는 항상 온보딩으로 간다.
+/// `flutter_secure_storage` 구현이 들어오면 이 코드가 그대로 살아난다.
+class SplashPage extends ConsumerStatefulWidget {
   const SplashPage({super.key});
 
   @override
-  State<SplashPage> createState() => _SplashPageState();
+  ConsumerState<SplashPage> createState() => _SplashPageState();
 }
 
-class _SplashPageState extends State<SplashPage> {
+class _SplashPageState extends ConsumerState<SplashPage> {
   /// 와이어프레임이 정한 체류 시간.
   static const _dwell = Duration(milliseconds: 1600);
 
@@ -44,9 +55,16 @@ class _SplashPageState extends State<SplashPage> {
 
   Timer? _timer;
 
+  /// 토큰 확인이 끝났는지. 타이머와 탭 어느 쪽이 먼저 와도 이것을 기다린다.
+  late final Future<void> _restored;
+
+  /// 두 번 이동하는 것을 막는다. 타이머와 탭이 거의 동시에 올 수 있다.
+  bool _leaving = false;
+
   @override
   void initState() {
     super.initState();
+    _restored = ref.read(authControllerProvider.notifier).restore();
     _timer = Timer(_dwell, _goNext);
   }
 
@@ -57,10 +75,16 @@ class _SplashPageState extends State<SplashPage> {
     super.dispose();
   }
 
-  void _goNext() {
+  Future<void> _goNext() async {
+    if (_leaving) return;
+    _leaving = true;
     _timer?.cancel();
+
+    await _restored;
     if (!mounted) return;
-    context.go(AppRoutes.onboardingIntro);
+
+    final signedIn = ref.read(authControllerProvider) is AuthSignedIn;
+    context.go(signedIn ? AppRoutes.home : AppRoutes.onboardingIntro);
   }
 
   @override

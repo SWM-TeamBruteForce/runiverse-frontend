@@ -11,7 +11,12 @@ import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 
-/// 약관 동의 (S03).
+/// 가입 1 · 약관 동의 (S03).
+///
+/// **가입 흐름의 첫 화면이다.** 이메일·비밀번호를 받기 전에 동의를 먼저 받는다 —
+/// 순서가 반대면 동의를 묻기도 전에 개인정보가 서버에 저장된다.
+///
+/// 로그인 화면에서 `push`로 들어온다. 그래서 뒤로가기로 로그인으로 돌아갈 수 있다.
 ///
 /// ## 전부 필수다
 ///
@@ -69,7 +74,10 @@ class _TermsAgreementPageState extends State<TermsAgreementPage> {
 
   void _submit() {
     // 동의 결과를 서버에 보내는 것은 API가 생긴 뒤다.
-    context.go(AppRoutes.profileSetup);
+    //
+    // push라 정보 입력 화면에서 뒤로가기를 누르면 여기로 돌아온다.
+    // 동의한 것을 잃지 않는다 — 이 화면이 살아 있어 상태가 남는다.
+    context.push(AppRoutes.signUp);
   }
 
   @override
@@ -81,11 +89,28 @@ class _TermsAgreementPageState extends State<TermsAgreementPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                onPressed: () => context.pop(),
+                tooltip: AppStrings.authBack,
+                constraints: const BoxConstraints(
+                  minWidth: AppSizes.touchDefault,
+                  minHeight: AppSizes.touchDefault,
+                ),
+                icon: Icon(
+                  LucideIcons.arrowLeft,
+                  size: AppSpacing.space6,
+                  color: colors.textSecondary,
+                ),
+              ),
+            ),
+
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.space5,
-                  AppSpacing.space8,
+                  AppSpacing.space4,
                   AppSpacing.space5,
                   AppSpacing.space4,
                 ),

@@ -27,4 +27,43 @@ void main() {
     expect(EmailRule.of('run ner@example.com'), EmailStatus.invalid);
     expect(EmailRule.of('a@b@example.com'), EmailStatus.invalid);
   });
+
+  test('2글자 TLD는 통과한다', () {
+    // `.co`(콜롬비아) `.io` `.me` `.kr`은 전부 실재한다.
+    // 3글자를 요구하면 진짜 주소를 가진 사람이 가입하지 못한다.
+    expect(EmailRule.of('runner@example.co'), EmailStatus.valid);
+    expect(EmailRule.of('runner@example.io'), EmailStatus.valid);
+    expect(EmailRule.of('runner@example.co.kr'), EmailStatus.valid);
+  });
+
+  test('1글자 TLD는 막는다', () {
+    // 실재하지 않는다. `.com`을 치다 만 상태다.
+    expect(EmailRule.of('runner@example.c'), EmailStatus.invalid);
+  });
+
+  test('점이 연속이거나 끝에 붙으면 막는다', () {
+    expect(EmailRule.of('runner@example..com'), EmailStatus.invalid);
+    expect(EmailRule.of('runner@example.com.'), EmailStatus.invalid);
+  });
+
+  test('도메인이 하이픈으로 시작하거나 끝나면 막는다', () {
+    expect(EmailRule.of('runner@-example.com'), EmailStatus.invalid);
+    expect(EmailRule.of('runner@example-.com'), EmailStatus.invalid);
+  });
+
+  test('한글이 섞이면 막는다', () {
+    // 한/영을 깜빡하고 친 입력이 여기서 걸린다.
+    // 통과시키면 로그인 버튼이 켜지고, 눌러본 뒤에야 틀린 것을 알게 된다.
+    expect(EmailRule.of('러너@example.com'), EmailStatus.invalid);
+    expect(EmailRule.of('ㄱㅕㅜㅜㄷㄱ@example.com'), EmailStatus.invalid);
+    expect(EmailRule.of('runner@네이버.com'), EmailStatus.invalid);
+    expect(EmailRule.of('runner@example.한국'), EmailStatus.invalid);
+  });
+
+  test('실제로 쓰는 형태는 계속 통과한다', () {
+    // 규칙을 조일 때 이것들이 막히면 조인 것이 지나친 것이다.
+    expect(EmailRule.of('run.ner+tag@example.com'), EmailStatus.valid);
+    expect(EmailRule.of('Runner@Example.COM'), EmailStatus.valid);
+    expect(EmailRule.of('runner_42@my-domain.com'), EmailStatus.valid);
+  });
 }
