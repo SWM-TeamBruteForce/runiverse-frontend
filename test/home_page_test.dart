@@ -1,5 +1,3 @@
-// flutter_test는 material을 재수출하지 않는다.
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
