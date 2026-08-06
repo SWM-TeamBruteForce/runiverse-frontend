@@ -230,4 +230,37 @@ abstract final class AppStrings {
   static const authToSignIn = '이미 계정이 있나요? 로그인';
 
   static const authFailedEmailTaken = '이미 가입한 이메일이에요';
+
+  // ── 홈 (S05) ─────────────────────────────────────────────────
+
+  /// 시간대 인사. 이름을 부르지 않는다 — 닉네임을 저장하는 곳이 아직 없다.
+  ///
+  /// 정본 S05는 `좋은 저녁이에요, 러너42 님`이다. 프로필이 서버에 붙으면
+  /// 이름을 붙인 형태로 바꾼다.
+  static const homeGreetingMorning = '좋은 아침이에요';
+  static const homeGreetingAfternoon = '좋은 오후예요';
+  static const homeGreetingEvening = '좋은 저녁이에요';
+  static const homeGreetingNight = '늦은 밤이네요';
+
+  /// 히어로 문구. 줄바꿈 위치를 고정해 두 줄로 읽히게 한다.
+  static const homeHeroPrompt = '오늘도 누군가와\n같은 시간에 뛰어볼까요?';
+
+  static const homeMatchCta = '지금 매칭하기';
+  static const homeSoloCta = '혼자 달리기';
+
+  /// 매칭은 아직 서버가 없다. 카카오·애플 버튼과 같은 처리다.
+  static const homeMatchComingSoon = '매칭은 아직 준비 중이에요';
+
+  /// ⚠️ **한시적이다.** 러닝 화면이 붙는 PR에서 지운다.
+  /// 그전까지 버튼이 아무 반응도 없으면 고장으로 읽힌다.
+  static const homeSoloPending = '러닝 화면을 준비하고 있어요';
+
+  static const homeSectionCompetition = '다가오는 대회';
+  static const homeSectionRecentRun = '최근 러닝';
+
+  static const homeEmptyCompetition = '등록된 대회가 없어요';
+  static const homeEmptyRecentRun = '아직 달린 기록이 없어요';
+
+  /// 빈 상태에 붙는 한 줄. 무엇을 하면 채워지는지 알려준다.
+  static const homeEmptyRecentRunHint = '혼자 달리기로 첫 기록을 남겨보세요';
 }
