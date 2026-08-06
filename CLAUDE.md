@@ -8,7 +8,8 @@
 - [Flutter](https://flutter.dev) + [fvm](https://fvm.app)으로 SDK 고정 (전역 flutter 금지)
 - [Riverpod](https://riverpod.dev) 3 — 코드 생성 방식 `@riverpod`
 - [go_router](https://pub.dev/packages/go_router) · [lucide_icons_flutter](https://pub.dev/packages/lucide_icons_flutter) — 아이콘은 **Lucide만** 쓴다. `Icons.*`(Material) 혼용 금지
-- **(미도입)** [dio](https://pub.dev/packages/dio) + WebSocket / [freezed](https://pub.dev/packages/freezed) / riverpod 코드생성(`riverpod_annotation` `build_runner`)
+- [dio](https://pub.dev/packages/dio) — HTTP 클라이언트. 생성은 `core/network/dio_client.dart`
+- **(미도입)** WebSocket / [freezed](https://pub.dev/packages/freezed) / riverpod 코드생성(`riverpod_annotation` `build_runner`)
 - Android 우선, iOS는 이후 전환 · Windows + Android Studio 에뮬레이터 · 인프라 AWS
 
 **(미도입)** 표시된 것은 아직 `pubspec.yaml`에 없다. 필요해지는 시점에 승인을 받고 추가한다.
