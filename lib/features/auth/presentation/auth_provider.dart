@@ -1,6 +1,8 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/network/dio_client.dart';
 import 'package:runiverse/core/storage/token_store.dart';
-import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
+import 'package:runiverse/features/auth/data/http_auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_session.dart';
@@ -11,16 +13,28 @@ import 'package:runiverse/features/auth/presentation/auth_state.dart';
 /// `flutter_secure_storage`가 들어오면 **이 한 줄만 바꾼다.**
 final tokenStoreProvider = Provider<TokenStore>((ref) => InMemoryTokenStore());
 
-/// 누가 인증에 답할 것인가. 지금은 가짜다.
+/// 서버를 부를 [Dio] 하나.
 ///
-/// 서버를 부르는 구현이 생기면 **이 한 줄만 바꾼다.**
-/// 타입이 [AuthRepository](인터페이스)라서 화면은 바뀐 줄도 모른다.
+/// 앱이 사는 동안 하나만 쓴다 — 요청마다 새로 만들면 연결을 매번 새로 연다.
+final dioProvider = Provider<Dio>((ref) {
+  final dio = createDio();
+  ref.onDispose(dio.close);
+  return dio;
+});
+
+/// 누가 인증에 답할 것인가. 이제 진짜 서버다.
+///
+/// **바뀐 것은 이 한 줄뿐이다.** 화면도 `AuthController`도 손대지 않았다 —
+/// 타입이 [AuthRepository](인터페이스)라서 누가 답하는지 알지 못한다.
+/// 인터페이스를 먼저 둔 값이 여기서 나온다.
+///
+/// `FakeAuthRepository`는 지우지 않았다. 서버 없이 도는 테스트가 계속 쓴다.
 ///
 /// ⚠️ **이 파일은 `presentation`에 있으면서 `data`를 import한다.** 의존 방향
 /// (`presentation → domain ← data`)의 예외인데, 구현체를 고르는 일은 어딘가에서
 /// 반드시 해야 하고 그 자리가 여기다. 화면 파일은 여전히 `data`를 모른다.
 final authRepositoryProvider = Provider<AuthRepository>(
-  (ref) => FakeAuthRepository(),
+  (ref) => HttpAuthRepository(ref.watch(dioProvider)),
 );
 
 final authControllerProvider = NotifierProvider<AuthController, AuthState>(
