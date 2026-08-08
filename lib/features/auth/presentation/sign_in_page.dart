@@ -13,6 +13,7 @@ import 'package:runiverse/core/widgets/app_input.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/email_rule.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/auth/presentation/password_field.dart';
 
 /// 로그인 (S02.5).
@@ -90,8 +91,15 @@ class _SignInPageState extends ConsumerState<SignInPage> {
     });
 
     if (failure == null) {
+      // 프로필을 아직 안 채운 사람은 홈이 아니라 그 자리로 보낸다.
+      //
+      // **스플래시와 같은 기준을 써야 한다.** 여기서 무조건 홈으로 보내면
+      // 로그인 직후에는 홈, 앱을 껐다 켜면 프로필 등록으로 가는 어긋남이 생긴다.
+      final signedIn = ref.read(authControllerProvider);
+      final onboarded = signedIn is AuthSignedIn && signedIn.isOnboarded;
+
       // go는 스택을 통째로 갈아치운다. 홈에서 뒤로 눌러 로그인으로 돌아가면 안 된다.
-      context.go(AppRoutes.home);
+      context.go(onboarded ? AppRoutes.home : AppRoutes.profileSetup);
     }
   }
 
@@ -276,9 +284,12 @@ class _FailureNotice extends StatelessWidget {
     AuthFailure.invalidCredentials => AppStrings.authFailedCredentials,
     AuthFailure.network => AppStrings.authFailedNetwork,
     AuthFailure.server => AppStrings.authFailedServer,
-    // 가입 전용 실패다. 로그인 화면에 올 일이 없지만 sealed가 아닌 enum이라
-    // 컴파일러가 빠짐을 잡아주지 않는다. 뭉뚱그린 문구로 받는다.
+    // 앱의 EmailRule·PasswordRule이 못 막은 값이 서버까지 갔다.
+    AuthFailure.validation => AppStrings.authFailedValidation,
+    // 가입 전용 실패와 갱신 전용 실패다. 이 화면에 올 일이 없지만 enum이라
+    // 컴파일러가 빠짐을 잡아준다. 뭉뚱그린 문구로 받는다.
     AuthFailure.emailAlreadyExists ||
+    AuthFailure.sessionExpired ||
     AuthFailure.unknown => AppStrings.authFailedUnknown,
   };
 

@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_session.dart';
+import 'package:runiverse/features/auth/domain/auth_tokens.dart';
 
 /// 진짜 서버를 부르는 [AuthRepository].
 ///
@@ -20,6 +22,13 @@ class HttpAuthRepository implements AuthRepository {
 
   static const _loginPath = '/api/v1/auth/login';
   static const _signUpPath = '/api/v1/auth/signup';
+  static const _refreshPath = '/api/v1/auth/refresh';
+
+  /// 갱신에만 짧은 시간 제한을 건다.
+  ///
+  /// 이 호출은 **스플래시가 기다리는 유일한 요청**이다. dio 기본값(10초)을 그대로
+  /// 쓰면 연결이 나쁜 곳에서 앱이 10초 멈춘 것처럼 보인다.
+  static const _refreshTimeout = Duration(seconds: 5);
 
   @override
   Future<AuthSession> signIn({
@@ -60,6 +69,34 @@ class HttpAuthRepository implements AuthRepository {
   @override
   Future<void> signOut() async {}
 
+  @override
+  Future<AuthTokens> refresh(String refreshToken) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _refreshPath,
+        data: {'refreshToken': refreshToken},
+        options: Options(
+          sendTimeout: _refreshTimeout,
+          receiveTimeout: _refreshTimeout,
+        ),
+      );
+      return _tokensOf(response.data);
+    } on DioException catch (error) {
+      throw AuthException(_failureOf(error));
+    }
+  }
+
+  /// 200을 받아도 몸통이 기대와 다를 수 있다. 못 읽으면 만들지 않는다.
+  AuthTokens _tokensOf(Map<String, dynamic>? body) {
+    final accessToken = body?['accessToken'];
+    final refreshToken = body?['refreshToken'];
+
+    if (accessToken is! String || refreshToken is! String) {
+      throw const AuthException(AuthFailure.unknown);
+    }
+    return AuthTokens(accessToken: accessToken, refreshToken: refreshToken);
+  }
+
   Future<AuthSession> _login({
     required String email,
     required String password,
@@ -85,16 +122,19 @@ class HttpAuthRepository implements AuthRepository {
     final accessToken = body?['accessToken'];
     final refreshToken = body?['refreshToken'];
 
-    if (userId is! String || accessToken is! String || refreshToken is! String) {
+    if (userId is! String ||
+        accessToken is! String ||
+        refreshToken is! String) {
       throw const AuthException(AuthFailure.unknown);
     }
 
-    // 서버는 `isOnboarded`도 준다. 온보딩 화면으로 보낼지 정하는 값인데
-    // 지금 `AuthSession`에 자리가 없어 버린다. 온보딩 분기를 붙일 때 담는다.
     return AuthSession(
       userId: userId,
       accessToken: accessToken,
       refreshToken: refreshToken,
+      // 값이 없거나 타입이 다르면 false로 본다. 온보딩을 한 번 더 묻는 쪽이
+      // 프로필 없는 사용자를 홈에 들이는 것보다 낫다.
+      isOnboarded: body?['isOnboarded'] == true,
     );
   }
 
@@ -115,9 +155,21 @@ class HttpAuthRepository implements AuthRepository {
 
     final body = response?.data;
     final code = body is Map ? body['code'] : null;
+
+    if (code == 'VALIDATION_FAILED') {
+      // 앱이 먼저 막았어야 할 값이 서버까지 갔다. 사유는 `message`에만 있는데
+      // 그것을 갈라 읽으면 서버가 문구를 고칠 때 조용히 깨진다.
+      // 화면에는 앱 문구를 쓰고, 여기서는 구멍을 찾을 단서만 남긴다.
+      if (kDebugMode) {
+        debugPrint('[api] 검증 거절: ${body is Map ? body['message'] : ''}');
+      }
+      return AuthFailure.validation;
+    }
+
     return switch (code) {
       'INVALID_CREDENTIALS' => AuthFailure.invalidCredentials,
       'EMAIL_ALREADY_EXISTS' => AuthFailure.emailAlreadyExists,
+      'INVALID_REFRESH_TOKEN' => AuthFailure.sessionExpired,
       _ => AuthFailure.unknown,
     };
   }

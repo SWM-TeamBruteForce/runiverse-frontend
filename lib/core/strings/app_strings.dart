@@ -37,6 +37,18 @@ abstract final class AppStrings {
 
   static const brandTagline = '혼자 뛰지만, 함께 뛰는 러닝';
 
+  // ── 스플래시 (S01) ──────────────────────────────────────────
+  //
+  // 서버에 닿지 못하면 앱에 들어가지 못한다. **오프라인은 허용하지 않는다** —
+  // 저장된 값을 믿고 들여보내면 "연결이 끊긴 것"과 "토큰이 살아 있는 것"을
+  // 같이 취급하게 된다.
+
+  static const splashOffline = '연결할 수 없어요';
+
+  static const splashOfflineHint = '인터넷 연결을 확인하고 다시 시도해주세요';
+
+  static const splashRetry = '다시 시도';
+
   // ── 온보딩 소개 (S02) ────────────────────────────────────────
   //
   // 카드 3장의 순서는 "무엇을 하는 앱인가 → 무엇을 얻는가 → 어떻게 남는가"다.
@@ -207,6 +219,13 @@ abstract final class AppStrings {
   static const authFailedNetwork = '인터넷 연결을 확인해주세요';
   static const authFailedServer = '잠시 후 다시 시도해주세요';
   static const authFailedUnknown = '로그인하지 못했어요. 다시 시도해주세요';
+
+  /// 서버가 형식을 거절했다 (400 `VALIDATION_FAILED`).
+  ///
+  /// 사유는 서버 `message`에만 있는데 그것을 화면에 옮기지 않는다 — 문구가 바뀌면
+  /// 앱이 따라 바뀐다. **여기까지 왔다는 것은 앱 검증에 구멍이 있다는 뜻**이라
+  /// 정확한 사유는 `kDebugMode` 로그에서 찾는다.
+  static const authFailedValidation = '입력한 내용을 다시 확인해주세요';
 
   // ── 회원가입 ─────────────────────────────────────────────────
 

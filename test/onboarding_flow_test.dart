@@ -1,20 +1,44 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
+import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/auth/presentation/sign_in_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_up_page.dart';
 import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.dart';
+import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
+import 'package:runiverse/features/home/presentation/home_page.dart';
+import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 
 /// 온보딩 흐름의 상태 전이 — 스플래시에서 소개를 거쳐 앱 본체로 들어가는가.
 ///
 /// 화면의 생김새는 보지 않는다. 여기서 보는 건 **어디로 가느냐**다.
 void main() {
-  Future<void> pumpApp(WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: RuniverseApp()));
+  /// [repository]를 받는 것이 중요하다. `FakeAuthRepository`는 **자기가 발급한**
+  /// 리프레시 토큰만 갱신해 준다. 저장소를 채운 인스턴스와 앱이 쓰는 인스턴스가
+  /// 다르면 갱신이 만료로 답해서 엉뚱한 화면을 보게 된다.
+  Future<void> pumpApp(
+    WidgetTester tester, {
+    TokenStore? store,
+    FakeAuthRepository? repository,
+  }) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          // 앱은 SecureTokenStore를 쓰는데 그것은 플랫폼 채널을 부른다.
+          // 테스트에는 채널이 없어 스플래시가 갈림길을 정하지 못하고 멈춘다.
+          tokenStoreProvider.overrideWithValue(store ?? InMemoryTokenStore()),
+          authRepositoryProvider.overrideWithValue(
+            repository ?? FakeAuthRepository(latency: Duration.zero),
+          ),
+        ],
+        child: const RuniverseApp(),
+      ),
+    );
     await tester.pumpAndSettle();
   }
 
@@ -140,5 +164,72 @@ void main() {
       find.widgetWithText(AppButton, AppStrings.termsCta),
     );
     expect(cta.onPressed, isNotNull);
+  });
+
+  group('스플래시 갈림길', () {
+    /// 이미 로그인해 둔 상태를 만든다.
+    ///
+    /// **저장소와 저장소 구현을 짝으로 돌려준다.** `FakeAuthRepository`는 자기가
+    /// 발급한 토큰만 갱신해 주므로 같은 인스턴스를 앱에 넣어야 한다.
+    /// ⚠️ `signIn()`을 쓰면 안 된다. `testWidgets`는 가짜 시간 위에서 도는데
+    /// `pumpWidget` 전에 `Future.delayed`를 기다리면 시간을 진행시킬 `pump`가
+    /// 없어 **테스트가 영원히 멈춘다.** `issueSession()`은 기다리지 않는다.
+    Future<(TokenStore, FakeAuthRepository)> signedIn({
+      required bool isOnboarded,
+    }) async {
+      final store = InMemoryTokenStore();
+      final repository = FakeAuthRepository(latency: Duration.zero);
+      // 씨앗 계정은 온보딩을 마친 것으로, 그 밖의 계정은 안 마친 것으로 발급된다.
+      final session = repository.issueSession(
+        email: isOnboarded ? FakeAuthRepository.seedEmail : 'new@example.com',
+      );
+      await store.saveSession(
+        userId: session.userId,
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        isOnboarded: session.isOnboarded,
+      );
+      return (store, repository);
+    }
+
+    testWidgets('토큰이 살아 있고 온보딩을 마쳤으면 홈으로 간다', (tester) async {
+      final (store, repository) = await signedIn(isOnboarded: true);
+
+      await pumpApp(tester, store: store, repository: repository);
+      await tester.tap(find.byType(SplashPage));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(HomePage), findsOneWidget);
+    });
+
+    testWidgets('온보딩을 안 마쳤으면 프로필 등록으로 간다', (tester) async {
+      final (store, repository) = await signedIn(isOnboarded: false);
+
+      await pumpApp(tester, store: store, repository: repository);
+      await tester.tap(find.byType(SplashPage));
+      await tester.pumpAndSettle();
+
+      // 프로필을 채우다 앱을 껐던 사람은 홈이 아니라 그 자리로 돌아간다.
+      expect(find.byType(ProfileSetupPage), findsOneWidget);
+    });
+
+    testWidgets('토큰이 만료됐으면 소개를 건너뛰고 로그인으로 간다', (tester) async {
+      final store = InMemoryTokenStore();
+      // 가짜 저장소가 발급한 적 없는 토큰이다. 갱신이 만료로 답한다.
+      await store.saveSession(
+        userId: 'u-1',
+        accessToken: 'stale',
+        refreshToken: 'stale',
+        isOnboarded: true,
+      );
+
+      await pumpApp(tester, store: store);
+      await tester.tap(find.byType(SplashPage));
+      await tester.pumpAndSettle();
+
+      // 이 사람은 처음 온 것이 아니다. 소개를 다시 보여주지 않는다.
+      expect(find.byType(SignInPage), findsOneWidget);
+      expect(find.byType(OnboardingIntroPage), findsNothing);
+    });
   });
 }

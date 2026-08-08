@@ -1,17 +1,21 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/network/dio_client.dart';
+import 'package:runiverse/core/storage/secure_token_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/http_auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_session.dart';
+import 'package:runiverse/features/auth/domain/auth_tokens.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 
-/// 토큰을 어디에 넣을 것인가. 지금은 메모리다.
+/// 토큰을 어디에 넣을 것인가. 안드로이드 Keystore · iOS Keychain이다.
 ///
-/// `flutter_secure_storage`가 들어오면 **이 한 줄만 바꾼다.**
-final tokenStoreProvider = Provider<TokenStore>((ref) => InMemoryTokenStore());
+/// ⚠️ **위젯 테스트는 이것을 override해야 한다.** 플랫폼 채널을 부르는데
+/// 테스트 환경에는 채널이 없어 `MissingPluginException`이 난다.
+/// `InMemoryTokenStore`를 넣으면 된다.
+final tokenStoreProvider = Provider<TokenStore>((ref) => SecureTokenStore());
 
 /// 서버를 부를 [Dio] 하나.
 ///
@@ -60,10 +64,70 @@ class AuthController extends Notifier<AuthState> {
   TokenStore get _store => ref.read(tokenStoreProvider);
   AuthRepository get _repository => ref.read(authRepositoryProvider);
 
-  /// 저장된 토큰을 읽어 상태를 정한다. 앱이 켜질 때 한 번 부른다.
+  /// 저장된 토큰으로 세션을 되살린다. 앱이 켜질 때 한 번, 재시도할 때 다시 부른다.
+  ///
+  /// ## 갈림길
+  ///
+  /// ```
+  /// refreshToken 있음 → 갱신 → 성공 : 로그인 상태 (isOnboarded가 홈/프로필을 가른다)
+  ///                            401  : 토큰만 지우고 로그인 화면
+  ///                            그 밖 : 판정 불가 — AuthUnknown에 머문다
+  /// refreshToken 없음 → userId 있으면 로그인 화면, 없으면 온보딩 소개
+  /// ```
+  ///
+  /// **판정에 실패하면 상태를 바꾸지 않는다.** 저장된 값을 믿고 들여보내면
+  /// "네트워크가 끊긴 것"과 "토큰이 살아 있는 것"을 같이 취급하게 된다.
+  /// 화면은 상태가 [AuthUnknown]에 머무는 것을 보고 재시도를 띄운다.
   Future<void> restore() async {
-    final userId = await _store.readUserId();
-    state = userId == null ? const AuthSignedOut() : AuthSignedIn(userId);
+    final stored = await _store.read();
+
+    if (stored.refreshToken == null) {
+      // 저장된 것이 아예 없으면 처음 온 사람이고, userId만 남았으면
+      // 만료됐거나 로그아웃한 사람이다. 후자에게 소개를 다시 보이지 않는다.
+      state = AuthSignedOut(returning: stored.userId != null);
+      return;
+    }
+
+    final userId = stored.userId;
+    if (userId == null) {
+      // 토큰은 있는데 누구인지 모른다. 저장소가 어긋난 상태라 되살릴 수 없다.
+      // 빈 문자열로 채우면 로그인된 것처럼 보이고 다음 API 호출부터 깨진다.
+      await _store.clear();
+      state = const AuthSignedOut(returning: false);
+      return;
+    }
+
+    try {
+      final tokens = await _refreshWithRetry(stored.refreshToken!);
+      // ⚠️ 회전된 refreshToken을 반드시 덮어쓴다. 안 하면 다음 갱신이 401로 죽는다.
+      await _store.saveTokens(
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      );
+      state = AuthSignedIn(userId, isOnboarded: stored.isOnboarded);
+    } on AuthException catch (error) {
+      if (error.failure == AuthFailure.sessionExpired) {
+        // userId·isOnboarded는 남긴다. 이 사람은 처음 온 것이 아니다.
+        await _store.clearTokens();
+        state = const AuthSignedOut(returning: true);
+        return;
+      }
+      // 네트워크·5xx — 판정에 실패했다. 상태를 바꾸지 않는다.
+    }
+  }
+
+  /// 한 번 더 시도한다. 터널이나 엘리베이터처럼 **순간 끊김**을 흡수한다.
+  ///
+  /// 무한 재시도는 하지 않는다 — 비행기 모드인 기기에서는 배터리만 쓴다.
+  /// 그 뒤로는 사용자가 화면에서 눌러 [restore]를 다시 부른다.
+  Future<AuthTokens> _refreshWithRetry(String refreshToken) async {
+    try {
+      return await _repository.refresh(refreshToken);
+    } on AuthException catch (error) {
+      // 만료는 다시 시도해도 결과가 같다. 기다릴 이유가 없다.
+      if (error.failure == AuthFailure.sessionExpired) rethrow;
+      return _repository.refresh(refreshToken);
+    }
   }
 
   /// 성공하면 `null`.
@@ -89,7 +153,8 @@ class AuthController extends Notifier<AuthState> {
       // 무시한다. 서버 세션은 만료되면 어차피 죽는다.
     }
     await _store.clear();
-    state = const AuthSignedOut();
+    // 로그아웃한 사람은 처음 온 사람이 아니다. 소개를 다시 보여주지 않는다.
+    state = const AuthSignedOut(returning: true);
   }
 
   Future<AuthFailure?> _authenticate(
@@ -97,12 +162,13 @@ class AuthController extends Notifier<AuthState> {
   ) async {
     try {
       final session = await call();
-      await _store.save(
+      await _store.saveSession(
         userId: session.userId,
         accessToken: session.accessToken,
         refreshToken: session.refreshToken,
+        isOnboarded: session.isOnboarded,
       );
-      state = AuthSignedIn(session.userId);
+      state = AuthSignedIn(session.userId, isOnboarded: session.isOnboarded);
       return null;
     } on AuthException catch (error) {
       return error.failure;

@@ -9,6 +9,7 @@ import 'package:runiverse/core/theme/extensions/app_colors.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/theme/tokens/run_palette.dart';
+import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/core/widgets/color/aura_orb.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
@@ -26,14 +27,24 @@ import 'package:runiverse/features/auth/presentation/auth_state.dart';
 ///
 /// ## 자동 로그인
 ///
-/// 화면이 떠 있는 1.6초 동안 저장된 토큰을 읽는다. 다 읽고 나서 갈림길을 정한다 —
-/// **로그인 상태면 홈, 아니면 온보딩.**
+/// 화면이 떠 있는 1.6초 동안 저장된 토큰으로 세션을 되살린다.
+/// 다 읽고 나서 갈림길을 정한다.
+///
+/// ```
+/// 토큰이 살아 있다  → 온보딩을 마쳤으면 홈, 아니면 프로필 등록
+/// 토큰이 만료됐다   → 로그인 (소개는 건너뛴다. 처음 온 사람이 아니다)
+/// 저장된 것이 없다  → 온보딩 소개
+/// 판정하지 못했다   → 이 화면에 머물며 재시도
+/// ```
 ///
 /// 읽기가 1.6초보다 오래 걸리거나 사용자가 먼저 화면을 누르면 그 순간 기다린다.
 /// 확인하지 않은 채로 온보딩에 보내면 로그인한 사람이 다시 로그인하게 된다.
 ///
-/// ⚠️ 지금 저장소는 메모리라 앱을 끄면 비워진다. 그래서 실제로는 항상 온보딩으로 간다.
-/// `flutter_secure_storage` 구현이 들어오면 이 코드가 그대로 살아난다.
+/// ## 오프라인은 허용하지 않는다
+///
+/// 서버에 닿지 못하면 앱에 들어가지 못한다. **판정에 실패한 것과 판정에 성공한 것은
+/// 다른 상태다** — 저장된 값을 믿고 들여보내면 둘을 같이 취급하게 된다.
+/// 상태가 [AuthUnknown]에 머무는 것이 곧 "아직 못 정했다"이므로 상태를 더 만들지 않는다.
 class SplashPage extends ConsumerStatefulWidget {
   const SplashPage({super.key});
 
@@ -56,10 +67,14 @@ class _SplashPageState extends ConsumerState<SplashPage> {
   Timer? _timer;
 
   /// 토큰 확인이 끝났는지. 타이머와 탭 어느 쪽이 먼저 와도 이것을 기다린다.
-  late final Future<void> _restored;
+  /// 재시도하면 새 Future로 갈아 끼운다.
+  late Future<void> _restored;
 
   /// 두 번 이동하는 것을 막는다. 타이머와 탭이 거의 동시에 올 수 있다.
   bool _leaving = false;
+
+  /// 판정에 실패했다. 확인이 끝났는데도 상태가 정해지지 않은 경우다.
+  bool _offline = false;
 
   @override
   void initState() {
@@ -83,8 +98,29 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     await _restored;
     if (!mounted) return;
 
-    final signedIn = ref.read(authControllerProvider) is AuthSignedIn;
-    context.go(signedIn ? AppRoutes.home : AppRoutes.onboardingIntro);
+    switch (ref.read(authControllerProvider)) {
+      case AuthSignedIn(:final isOnboarded):
+        // 프로필을 채우다 앱을 껐던 사람은 홈이 아니라 그 자리로 돌아간다.
+        context.go(isOnboarded ? AppRoutes.home : AppRoutes.profileSetup);
+      case AuthSignedOut(:final returning):
+        // 로그인했던 적이 있으면 소개를 건너뛴다.
+        context.go(returning ? AppRoutes.signIn : AppRoutes.onboardingIntro);
+      case AuthUnknown():
+        // 서버에 닿지 못했다. 이 화면에 머물며 다시 시도할 길을 준다.
+        setState(() {
+          _offline = true;
+          _leaving = false;
+        });
+    }
+  }
+
+  /// 재시도. 화면을 떠나지 않고 갱신을 다시 부른다.
+  Future<void> _retry() async {
+    setState(() {
+      _offline = false;
+      _restored = ref.read(authControllerProvider.notifier).restore();
+    });
+    await _goNext();
   }
 
   @override
@@ -94,8 +130,10 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     return Scaffold(
       body: GestureDetector(
         // 아무 데나 눌러도 넘어간다. 버튼을 따로 두지 않는다.
+        // 판정에 실패했을 때만 막는다 — 갈 곳이 없는데 탭을 받으면 아무 일도
+        // 일어나지 않아 고장난 것으로 읽힌다. 그때는 재시도 버튼이 유일한 길이다.
         behavior: HitTestBehavior.opaque,
-        onTap: _goNext,
+        onTap: _offline ? null : _goNext,
         child: Center(
           child: SizedBox.square(
             dimension: _auraSize,
@@ -144,6 +182,32 @@ class _SplashPageState extends ConsumerState<SplashPage> {
                         color: colors.textSecondary,
                       ),
                     ),
+
+                    if (_offline) ...[
+                      const SizedBox(height: AppSpacing.space6),
+                      Text(
+                        AppStrings.splashOffline,
+                        style: AppTypography.body.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.space1),
+                      Text(
+                        AppStrings.splashOfflineHint,
+                        textAlign: TextAlign.center,
+                        style: AppTypography.caption.copyWith(
+                          color: colors.textTertiary,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.space4),
+                      AppButton(
+                        label: AppStrings.splashRetry,
+                        variant: AppButtonVariant.secondary,
+                        size: AppButtonSize.md,
+                        expand: false,
+                        onPressed: _retry,
+                      ),
+                    ],
                   ],
                 ),
               ],

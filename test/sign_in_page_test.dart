@@ -4,24 +4,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
+import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 
 /// 로그인 화면 — 언제 버튼이 열리고, 실패했을 때 무엇이 보이는가.
 ///
 /// 라우터를 태워서 띄운다. 성공했을 때 **홈으로 가는지**까지가 이 화면의 계약이라
 /// 화면만 떼어놓으면 그 절반을 볼 수 없다.
 void main() {
-  Future<void> pumpSignIn(WidgetTester tester) async {
+  Future<void> pumpSignIn(
+    WidgetTester tester, {
+    FakeAuthRepository? repository,
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          // 앱은 SecureTokenStore를 쓰는데 그것은 플랫폼 채널을 부른다.
+          // 로그인에 성공하면 토큰을 저장하므로 여기서도 갈아끼워야 한다.
+          tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
           // 지연이 있으면 pumpAndSettle이 실제로 기다린다. 테스트에서는 뺀다.
           authRepositoryProvider.overrideWithValue(
-            FakeAuthRepository(latency: Duration.zero),
+            repository ?? FakeAuthRepository(latency: Duration.zero),
           ),
         ],
         child: const RuniverseApp(initialLocation: AppRoutes.signIn),
@@ -133,6 +141,26 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(HomePage), findsOneWidget);
+  });
+
+  testWidgets('프로필을 아직 안 채웠으면 홈이 아니라 프로필 등록으로 간다', (tester) async {
+    final repository = FakeAuthRepository(latency: Duration.zero);
+    // 가입은 했지만 프로필을 안 채운 계정. isOnboarded가 false로 온다.
+    //
+    // ⚠️ signUp()을 쓰면 안 된다. testWidgets는 가짜 시간 위에서 도는데
+    // pumpWidget 전에 Future를 기다리면 시간을 진행시킬 pump가 없어 멈춘다.
+    repository.seedAccount(email: 'new@example.com', password: 'runi123!');
+
+    await pumpSignIn(tester, repository: repository);
+    await fill(tester, email: 'new@example.com', password: 'runi123!');
+
+    await tester.tap(find.text(AppStrings.authSignInCta));
+    await tester.pumpAndSettle();
+
+    // 이 화면이 스플래시와 다른 기준을 쓰면, 로그인 직후에는 홈이고
+    // 앱을 껐다 켜면 프로필로 가는 어긋남이 생긴다.
+    expect(find.byType(ProfileSetupPage), findsOneWidget);
+    expect(find.byType(HomePage), findsNothing);
   });
 
   testWidgets('다시 입력하면 이전 실패 문구가 사라진다', (tester) async {
