@@ -293,4 +293,16 @@ abstract final class AppStrings {
 
   /// 빈 상태에 붙는 한 줄. 무엇을 하면 채워지는지 알려준다.
   static const homeEmptyRecentRunHint = '혼자 달리기로 첫 기록을 남겨보세요';
+
+  // ── 프로필 유도 (S05) ────────────────────────────────────────
+  //
+  // 정본 S05에 없는 카드다. 온보딩을 마치지 않은 사람을 프로필 등록으로
+  // 강제 이동시키는 대신 여기서 만난다(설계 문서 2-9).
+
+  static const homeProfilePromptTitle = '프로필을 완성해주세요';
+
+  /// **왜 필요한지를 말한다.** "완성해주세요"만으로는 미룰 이유밖에 안 준다.
+  static const homeProfilePromptBody = '매칭과 칼로리 계산에 필요해요';
+
+  static const homeProfilePromptCta = '완성하기';
 }
