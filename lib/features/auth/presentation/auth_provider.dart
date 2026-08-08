@@ -67,8 +67,8 @@ class AuthController extends Notifier<AuthState> {
   Future<void> restore() async {
     final stored = await _store.read();
     state = stored.userId == null
-        ? const AuthSignedOut()
-        : AuthSignedIn(stored.userId!);
+        ? const AuthSignedOut(returning: false)
+        : AuthSignedIn(stored.userId!, isOnboarded: stored.isOnboarded);
   }
 
   /// 성공하면 `null`.
@@ -94,7 +94,8 @@ class AuthController extends Notifier<AuthState> {
       // 무시한다. 서버 세션은 만료되면 어차피 죽는다.
     }
     await _store.clear();
-    state = const AuthSignedOut();
+    // 로그아웃한 사람은 처음 온 사람이 아니다. 소개를 다시 보여주지 않는다.
+    state = const AuthSignedOut(returning: true);
   }
 
   Future<AuthFailure?> _authenticate(
@@ -108,7 +109,7 @@ class AuthController extends Notifier<AuthState> {
         refreshToken: session.refreshToken,
         isOnboarded: session.isOnboarded,
       );
-      state = AuthSignedIn(session.userId);
+      state = AuthSignedIn(session.userId, isOnboarded: session.isOnboarded);
       return null;
     } on AuthException catch (error) {
       return error.failure;

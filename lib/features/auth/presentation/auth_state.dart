@@ -16,12 +16,25 @@ final class AuthUnknown extends AuthState {
   const AuthUnknown();
 }
 
+/// 로그인되어 있지 않다.
+///
+/// [returning]이 이 앱을 **처음 켠 사람**과 **로그인했다가 만료된 사람**을 가른다.
+/// 이 구분이 없으면 만료된 사용자가 온보딩 소개를 처음부터 다시 보게 된다.
+///
+/// 별도 상태로 쪼개지 않고 필드로 둔 이유는 **이 값으로 갈리는 곳이 스플래시
+/// 한 군데**여서다. `sealed`로 나눠 얻는 `switch` 망라성이 쓰일 자리가 없다.
 final class AuthSignedOut extends AuthState {
-  const AuthSignedOut();
+  const AuthSignedOut({required this.returning});
+
+  /// `true`면 로그인 화면으로, `false`면 온보딩 소개로.
+  final bool returning;
 }
 
 final class AuthSignedIn extends AuthState {
-  const AuthSignedIn(this.userId);
+  const AuthSignedIn(this.userId, {required this.isOnboarded});
 
   final String userId;
+
+  /// 프로필 등록(S04)을 마쳤는가. `false`면 홈이 아니라 프로필로 보낸다.
+  final bool isOnboarded;
 }
