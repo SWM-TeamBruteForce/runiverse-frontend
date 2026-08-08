@@ -448,9 +448,11 @@ class SecureTokenStore implements TokenStore {
     : _storage =
           storage ??
           const FlutterSecureStorage(
-            // Keystore가 감싼 EncryptedSharedPreferences를 쓴다.
-            aOptions: AndroidOptions(encryptedSharedPreferences: true),
-            // 기기 밖으로 백업되지 않고, 재부팅 후 첫 잠금해제 전에는 읽히지 않는다.
+            // 안드로이드 옵션은 지정하지 않는다. 11.x의 기본값이 이미
+            // Keystore가 감싼 RSA-OAEP 키 래핑 + AES-GCM이다.
+            // (9.x의 `encryptedSharedPreferences` 플래그는 없어졌다.)
+            //
+            // iOS는 기본값이 기기 밖으로 백업되므로 바꾼다.
             iOptions: IOSOptions(
               accessibility: KeychainAccessibility.first_unlock_this_device,
             ),
@@ -552,7 +554,21 @@ import를 추가한다: `package:runiverse/core/storage/secure_token_store.dart`
 & ".fvm\flutter_sdk\bin\flutter.bat" test
 ```
 
-⚠️ **`onboarding_flow_test.dart`가 여기서 깨진다.** 스플래시가 `SecureTokenStore`를 부르는데 테스트에 플랫폼 채널이 없다. **Task 8이 고친다 — 지금은 깨진 채로 둔다.** analyze만 0개면 된다.
+⚠️ **테스트 네 파일이 여기서 깨진다.** Task 8로 미루지 말고 지금 고친다 — 커밋 시점마다 초록불을 유지하는 편이 낫다.
+
+| 파일 | 증상 |
+|---|---|
+| `auth_controller_test.dart` | 순수 `test()`라 `ServicesBinding`이 없다 → "Binding has not yet been initialized" |
+| `onboarding_flow_test.dart` | 스플래시가 갈림길을 정하지 못하고 멈춘다 |
+| `sign_in_page_test.dart` · `sign_up_page_test.dart` | 로그인·가입이 토큰을 저장하려다 죽는다 |
+
+각 파일의 `overrides:` 맨 앞에 한 줄을 넣고 `token_store.dart`를 import한다.
+
+```dart
+          tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
+```
+
+⚠️ **`testWidgets()`는 조용히 통과할 수도 있다.** 바인딩이 있으면 등록되지 않은 채널이 `null`을 돌려주기 때문이다. **저장이 안 되는데 초록불이 뜨는 상태**라 더 위험하다. 저장소를 건드리는 테스트는 예외 없이 override한다.
 
 - [ ] **Step 6: 커밋**
 
@@ -1618,42 +1634,18 @@ git commit -m "📍 Feat: 스플래시가 저장된 세션에 따라 갈라진�
 
 ## Task 8: 남은 테스트를 고치고 전체를 통과시킨다
 
-**Files:**
-- Modify: `test/sign_in_page_test.dart:21` · `test/sign_up_page_test.dart:19`
+**Files:** 없음 — 테스트 override는 **Task 2에서 이미 처리했다.**
 
-**어느 테스트가 깨지는지는 미리 알 수 있다.** `tokenStoreProvider`를 건드리는 것은 `AuthController`뿐이고, 그것이 만들어지는 경로는 둘이다.
-
-| 경로 | 해당 파일 |
-|---|---|
-| 스플래시가 `restore()`를 부른다 | `onboarding_flow_test.dart` — **Task 7에서 이미 고쳤다** |
-| 화면이 로그인·가입을 수행한다 | `sign_in_page_test.dart` · `sign_up_page_test.dart` |
-
-`home_page_test.dart`와 `widget_test.dart`는 `initialLocation`으로 스플래시를 건너뛰고 인증을 수행하지 않는다. Riverpod provider는 lazy라 `tokenStoreProvider`가 아예 만들어지지 않는다.
+`home_page_test.dart`와 `widget_test.dart`는 `initialLocation`으로 스플래시를 건너뛰고 인증을 수행하지 않는다. Riverpod provider는 lazy라 `tokenStoreProvider`가 아예 만들어지지 않으므로 손댈 것이 없다.
 
 - [ ] **Step 1: 전체를 돌려 확인한다**
 
 ```powershell
 & ".fvm\flutter_sdk\bin\flutter.bat" test
 ```
-기대: `sign_in_page_test` · `sign_up_page_test`에서 `MissingPluginException(No implementation found for method write ...)`
+기대: 전부 통과
 
-- [ ] **Step 2: 두 파일에 override를 더한다**
-
-각 파일의 `overrides:` 배열 맨 앞에 한 줄을 넣는다.
-
-```dart
-        overrides: [
-          // SecureTokenStore는 플랫폼 채널을 부른다. 테스트에는 채널이 없다.
-          tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
-          authRepositoryProvider.overrideWithValue(
-            // 이 줄은 이미 있다. 위 한 줄만 더한다.
-            FakeAuthRepository(latency: Duration.zero),
-          ),
-        ],
-```
-
-import를 더한다: `package:runiverse/core/storage/token_store.dart`
-(`authRepositoryProvider`를 이미 쓰므로 `auth_provider.dart` import는 있다.)
+- [ ] **Step 2: (Task 2에서 완료)**
 
 - [ ] **Step 3: 전체 통과와 경고 0개를 확인한다**
 
