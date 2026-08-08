@@ -299,6 +299,39 @@ void main() {
     );
   });
 
+  test('온보딩을 마치면 상태와 저장소가 함께 켜진다', () async {
+    final container = makeContainer();
+    final controller = container.read(authControllerProvider.notifier);
+
+    await controller.signUp(email: 'new@example.com', password: 'runi123!');
+    // 가입 직후에는 아직 안 마친 상태다.
+    expect(
+      (container.read(authControllerProvider) as AuthSignedIn).isOnboarded,
+      isFalse,
+    );
+
+    await controller.markOnboarded();
+
+    // 상태만 켜고 저장소를 두면 앱을 껐다 켤 때 다시 프로필로 간다.
+    expect(
+      (container.read(authControllerProvider) as AuthSignedIn).isOnboarded,
+      isTrue,
+    );
+    expect(
+      (await container.read(tokenStoreProvider).read()).isOnboarded,
+      isTrue,
+    );
+  });
+
+  test('로그인 상태가 아니면 온보딩 완료가 상태를 만들지 않는다', () async {
+    final container = makeContainer();
+
+    await container.read(authControllerProvider.notifier).markOnboarded();
+
+    // 로그인하지 않았는데 AuthSignedIn이 생기면 홈에 들어가진다.
+    expect(container.read(authControllerProvider), isNot(isA<AuthSignedIn>()));
+  });
+
   test('로그아웃하면 상태와 저장소가 함께 비워진다', () async {
     final container = makeContainer();
     final controller = container.read(authControllerProvider.notifier);

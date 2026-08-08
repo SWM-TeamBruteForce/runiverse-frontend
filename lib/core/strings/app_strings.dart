@@ -112,6 +112,13 @@ abstract final class AppStrings {
 
   static const profileNext = '다음';
 
+  /// 프로필 전송이 실패했을 때. **입력은 화면에 그대로 남는다** —
+  /// 다섯 개를 다시 채우게 하지 않는다.
+  static const profileSubmitFailed = '저장하지 못했어요. 다시 시도해주세요';
+
+  /// 세션이 끊겨 다시 로그인해야 할 때. 사용자는 아무것도 틀리지 않았다.
+  static const profileSubmitExpired = '로그인이 만료됐어요. 다시 로그인해주세요';
+
   // 닉네임
   static const profileNicknameLabel = '닉네임';
   static const profileNicknameQuestion = '뭐라고 부를까요';
@@ -122,6 +129,10 @@ abstract final class AppStrings {
 
   /// 상한에서 막혔을 때 잠깐 떴다 사라진다.
   static const profileNicknameTooLong = '12자까지 쓸 수 있어요';
+
+  /// 서버 정규식(`^[가-힣a-zA-Z0-9_]+$`)에 걸리는 문자를 썼을 때.
+  /// **무엇이 되는지**를 말한다 — 안 되는 것을 나열하면 길고 외우기 어렵다.
+  static const profileNicknameInvalidChars = '한글, 영문, 숫자, _만 쓸 수 있어요';
 
   static const profileNicknameOk = '쓸 수 있는 이름이에요';
   static const profileNicknameConfirm = '확인';

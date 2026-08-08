@@ -8,6 +8,10 @@ enum NicknameStatus {
 
   tooShort,
   tooLong,
+
+  /// 쓸 수 없는 문자가 들어 있다. 서버 정규식과 같은 기준이다.
+  invalidChars,
+
   valid;
 
   bool get isValid => this == NicknameStatus.valid;
@@ -32,11 +36,22 @@ abstract final class NicknameRule {
   static const min = 2;
   static const max = 12;
 
-  /// [length]는 **앞뒤 공백을 제외한 자소 개수**다.
-  static NicknameStatus of(int length) {
+  /// 서버 `OnboardRequest`와 **같은 정규식**이다.
+  ///
+  /// ⚠️ 백엔드가 이 규칙을 바꾸면 앱이 어긋난다. 증상은 "앱은 통과시켰는데 서버가 400"이고,
+  /// 비밀번호에서 이미 겪은 문제다.
+  static final _allowed = RegExp(r'^[가-힣a-zA-Z0-9_]+$');
+
+  /// [length]는 **앞뒤 공백을 제외한 자소 개수**, [value]는 그 원문이다.
+  ///
+  /// 길이를 밖에서 받는 이유는 위 문단과 같다 — 자소 단위 계산은 화면의 몫이다.
+  /// [value]는 정규식 검사에만 쓴다.
+  static NicknameStatus of(int length, String value) {
     if (length == 0) return NicknameStatus.empty;
     if (length < min) return NicknameStatus.tooShort;
     if (length > max) return NicknameStatus.tooLong;
+    // 길이를 먼저 본다. 둘 다 틀렸을 때 길이가 고치기 쉽다.
+    if (!_allowed.hasMatch(value)) return NicknameStatus.invalidChars;
     return NicknameStatus.valid;
   }
 }
