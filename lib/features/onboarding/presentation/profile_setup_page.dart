@@ -115,7 +115,8 @@ class _ProfileSetupPageState extends State<ProfileSetupPage>
   /// 입력을 자르는 [LengthLimitingTextInputFormatter]와 같은 기준이다.
   int get _nicknameLength => _nickname.text.trim().characters.length;
 
-  NicknameStatus get _nicknameStatus => NicknameRule.of(_nicknameLength);
+  NicknameStatus get _nicknameStatus =>
+      NicknameRule.of(_nicknameLength, _nickname.text.trim());
 
   /// 12자를 넘겨 치려 한 순간. 잘라내기만 하면 고장난 것으로 읽힌다.
   void _onNicknameRejected() {
@@ -472,6 +473,10 @@ class _ProfileSetupPageState extends State<ProfileSetupPage>
             ),
             NicknameStatus.tooLong => (
               AppStrings.profileNicknameTooLong,
+              AppInputTone.error,
+            ),
+            NicknameStatus.invalidChars => (
+              AppStrings.profileNicknameInvalidChars,
               AppInputTone.error,
             ),
             NicknameStatus.valid => (

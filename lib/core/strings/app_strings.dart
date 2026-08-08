@@ -123,6 +123,10 @@ abstract final class AppStrings {
   /// 상한에서 막혔을 때 잠깐 떴다 사라진다.
   static const profileNicknameTooLong = '12자까지 쓸 수 있어요';
 
+  /// 서버 정규식(`^[가-힣a-zA-Z0-9_]+$`)에 걸리는 문자를 썼을 때.
+  /// **무엇이 되는지**를 말한다 — 안 되는 것을 나열하면 길고 외우기 어렵다.
+  static const profileNicknameInvalidChars = '한글, 영문, 숫자, _만 쓸 수 있어요';
+
   static const profileNicknameOk = '쓸 수 있는 이름이에요';
   static const profileNicknameConfirm = '확인';
 
