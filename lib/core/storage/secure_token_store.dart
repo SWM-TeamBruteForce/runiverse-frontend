@@ -24,13 +24,12 @@ class SecureTokenStore implements TokenStore {
     : _storage =
           storage ??
           const FlutterSecureStorage(
-            // 안드로이드 옵션은 지정하지 않는다. 11.x의 기본값이 이미
-            // Keystore가 감싼 RSA-OAEP 키 래핑 + AES-GCM이다.
-            // (9.x의 `encryptedSharedPreferences` 플래그는 없어졌다.)
+            // 안드로이드 옵션은 지정하지 않는다. 10.3.1부터 기본이
+            // Keystore 기반 cipher다 — 예전 `encryptedSharedPreferences` 플래그는
+            // deprecated이고 **넘겨도 무시된다**(Jetpack Security가 폐기됐다).
             //
-            // iOS는 기본값이 기기 밖으로 백업되므로 바꾼다.
-            // `first_unlock_this_device` — 백업에 포함되지 않고,
-            // 재부팅 후 첫 잠금해제 전에는 읽히지 않는다.
+            // iOS 기본값은 기기 밖으로 백업된다. `first_unlock_this_device`는
+            // 백업에 포함되지 않고, 재부팅 후 첫 잠금해제 전에는 읽히지 않는다.
             iOptions: IOSOptions(
               accessibility: KeychainAccessibility.first_unlock_this_device,
             ),

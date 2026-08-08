@@ -39,7 +39,10 @@ dependencies:
   lucide_icons_flutter: ^3.1.15
   geolocator: ^14.0.3
   dio: ^5.11.0
-  flutter_secure_storage: ^11.0.0
+  # 11.x로 올리지 않는다. 11.0.0은 compileSdk 37을 요구하는데 AGP가 찾는
+  # `android-37`이 SDK에 없다 (설치된 것은 `android-37.0`뿐이라 인식되지 않는다).
+  # 안드로이드 SDK나 AGP를 손대는 일은 이 변경의 범위를 넘는다.
+  flutter_secure_storage: ^10.3.1
 
 dev_dependencies:
   flutter_test:

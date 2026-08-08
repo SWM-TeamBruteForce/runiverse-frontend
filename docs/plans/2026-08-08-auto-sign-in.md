@@ -416,8 +416,13 @@ git commit -m "🤖 Refactor: 토큰 저장소를 한 번 읽기로 바꾸고 �
 - [ ] **Step 1: 패키지를 추가한다**
 
 ```powershell
-& ".fvm\flutter_sdk\bin\flutter.bat" pub add flutter_secure_storage
+& ".fvm\flutter_sdk\bin\flutter.bat" pub add flutter_secure_storage:^10.3.1
 ```
+
+⚠️ **버전을 고정한다.** 최신인 11.0.0은 `compileSdk 37`을 요구하는데 AGP가 찾는
+`android-37`이 SDK에 없다 (설치된 것은 `android-37.0`뿐이라 인식되지 않는다).
+**`flutter test`와 `analyze`는 통과하고 `flutter build apk`에서만 드러난다** —
+이 태스크에서 반드시 빌드까지 돌려야 하는 이유다.
 
 - [ ] **Step 2: `secure_token_store.dart`를 만든다**
 
@@ -448,9 +453,9 @@ class SecureTokenStore implements TokenStore {
     : _storage =
           storage ??
           const FlutterSecureStorage(
-            // 안드로이드 옵션은 지정하지 않는다. 11.x의 기본값이 이미
-            // Keystore가 감싼 RSA-OAEP 키 래핑 + AES-GCM이다.
-            // (9.x의 `encryptedSharedPreferences` 플래그는 없어졌다.)
+            // 안드로이드 옵션은 지정하지 않는다. 10.3.1부터 기본이
+            // Keystore 기반 cipher다 — 예전 `encryptedSharedPreferences` 플래그는
+            // deprecated이고 **넘겨도 무시된다**(Jetpack Security가 폐기됐다).
             //
             // iOS는 기본값이 기기 밖으로 백업되므로 바꾼다.
             iOptions: IOSOptions(
@@ -1656,7 +1661,17 @@ git commit -m "📍 Feat: 스플래시가 저장된 세션에 따라 갈라진�
 ```
 기대: 전체 PASS · 경고 0개
 
-- [ ] **Step 4: 에뮬레이터에서 눈으로 확인한다**
+- [ ] **Step 4: 빌드가 되는지 확인한다**
+
+```powershell
+& ".fvm\flutter_sdk\bin\flutter.bat" build apk --debug
+```
+
+**`test`와 `analyze`가 통과해도 여기서 죽을 수 있다.** 네이티브 의존성(패키지가 요구하는
+`compileSdk`·`minSdk`)은 Gradle이 병합할 때만 검사되기 때문이다. 서버 없이 확인 가능한
+유일한 네이티브 검증이라 반드시 돌린다.
+
+- [ ] **Step 5: 에뮬레이터에서 눈으로 확인한다**
 
 자동 테스트는 `InMemoryTokenStore`를 쓰므로 **`SecureTokenStore`가 실제로 도는지는 여기서만 알 수 있다.**
 
