@@ -16,6 +16,7 @@ import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/core/widgets/app_input.dart';
 import 'package:runiverse/core/widgets/preset_chip.dart';
 import 'package:runiverse/core/widgets/wheel_picker_sheet.dart';
+import 'package:runiverse/features/onboarding/domain/gender.dart';
 import 'package:runiverse/features/onboarding/domain/nickname_rule.dart';
 import 'package:runiverse/features/onboarding/domain/pace_level.dart';
 
@@ -76,7 +77,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage>
   int _step = 0;
 
   DateTime? _birth;
-  String? _gender;
+  Gender? _gender;
   int? _height;
   int? _weight;
 
@@ -276,7 +277,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage>
   String _answerOf(int step) => switch (step) {
     _stepNickname => _nickname.text.trim(),
     _stepBirth => _birthLabel,
-    _stepGender => _gender!,
+    _stepGender => _genderLabel(_gender!),
     _stepBody =>
       '$_height ${AppStrings.profileUnitHeight} · $_weight ${AppStrings.profileUnitWeight}',
     _ => _paceLabel ?? AppStrings.profilePaceUnmeasured,
@@ -289,6 +290,13 @@ class _ProfileSetupPageState extends State<ProfileSetupPage>
     final seconds = (total % 60).toString().padLeft(2, '0');
     return "${total ~/ 60}'$seconds\" ${AppStrings.profilePacePerKm}";
   }
+
+  /// [Gender]를 화면 문구로. **변환을 여기 한 곳에만 둔다** —
+  /// 칩 목록과 답한 줄이 각자 변환하면 언젠가 둘이 갈린다.
+  String _genderLabel(Gender gender) => switch (gender) {
+    Gender.male => AppStrings.profileGenderMale,
+    Gender.female => AppStrings.profileGenderFemale,
+  };
 
   String _labelOf(int step) => switch (step) {
     _stepNickname => AppStrings.profileNicknameLabel,
@@ -390,9 +398,13 @@ class _ProfileSetupPageState extends State<ProfileSetupPage>
           AppStrings.profileGenderMale,
           AppStrings.profileGenderFemale,
         ],
-        selected: _gender,
+        selected: _gender == null ? null : _genderLabel(_gender!),
         onPick: (value) {
-          setState(() => _gender = value);
+          setState(() {
+            _gender = value == AppStrings.profileGenderMale
+                ? Gender.male
+                : Gender.female;
+          });
           _advance();
         },
       ),
