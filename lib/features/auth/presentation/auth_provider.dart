@@ -144,6 +144,20 @@ class AuthController extends Notifier<AuthState> {
   }) =>
       _authenticate(() => _repository.signUp(email: email, password: password));
 
+  /// 프로필 등록을 마쳤다. **저장소와 상태를 함께** 켠다.
+  ///
+  /// 상태만 켜면 앱을 껐다 켰을 때 저장소가 여전히 `false`라 프로필로 다시 간다.
+  /// 저장소만 켜면 지금 화면이 홈으로 넘어가지 않는다.
+  Future<void> markOnboarded() async {
+    await _store.markOnboarded();
+    final current = state;
+    // 로그인 상태가 아니면 상태를 만들지 않는다. 여기서 AuthSignedIn을 새로
+    // 만들면 로그인하지 않은 사람이 홈에 들어간다.
+    if (current is AuthSignedIn) {
+      state = AuthSignedIn(current.userId, isOnboarded: true);
+    }
+  }
+
   Future<void> signOut() async {
     // 서버 호출이 실패해도 로컬은 반드시 비운다. 안 비우면 사용자는
     // "로그아웃을 눌렀는데 여전히 로그인 상태"인 앱을 보게 된다.

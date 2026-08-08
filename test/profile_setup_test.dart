@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/onboarding/data/fake_onboarding_repository.dart';
+import 'package:runiverse/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
@@ -14,9 +19,25 @@ import 'package:runiverse/features/onboarding/presentation/profile_setup_page.da
 /// 휠 시트는 여기서 다루지 않는다. 시트 안 동작은 별개 위젯의 몫이고,
 /// 여기서 볼 것은 화면이 단계를 어떻게 넘기느냐다.
 void main() {
-  Future<void> pumpPage(WidgetTester tester) async {
+  Future<void> pumpPage(
+    WidgetTester tester, {
+    FakeOnboardingRepository? onboarding,
+  }) async {
     await tester.pumpWidget(
-      MaterialApp(theme: AppTheme.dark(), home: const ProfileSetupPage()),
+      ProviderScope(
+        overrides: [
+          // 앱은 SecureTokenStore를 쓰는데 그것은 플랫폼 채널을 부른다.
+          // 테스트에는 채널이 없다.
+          tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
+          onboardingRepositoryProvider.overrideWithValue(
+            onboarding ?? FakeOnboardingRepository(latency: Duration.zero),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(),
+          home: const ProfileSetupPage(),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
   }

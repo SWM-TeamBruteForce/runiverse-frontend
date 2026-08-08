@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
@@ -16,8 +17,12 @@ import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/core/widgets/app_input.dart';
 import 'package:runiverse/core/widgets/preset_chip.dart';
 import 'package:runiverse/core/widgets/wheel_picker_sheet.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/onboarding/domain/gender.dart';
 import 'package:runiverse/features/onboarding/domain/nickname_rule.dart';
+import 'package:runiverse/features/onboarding/domain/onboarding_failure.dart';
+import 'package:runiverse/features/onboarding/domain/onboarding_profile.dart';
+import 'package:runiverse/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:runiverse/features/onboarding/domain/pace_level.dart';
 
 /// 답한 줄과 시트를 여는 줄의 공통 높이.
@@ -53,14 +58,14 @@ const _rowHeight = AppSizes.touchDefault + AppSpacing.space3; // 56
 ///
 /// 프로필을 보낼 API가 아직 없다. 화면 밖에서 이 값을 알 필요가 없고 화면을 떠나면
 /// 버려도 되는 상태다. 서버 전송이 붙는 시점에 provider로 올린다.
-class ProfileSetupPage extends StatefulWidget {
+class ProfileSetupPage extends ConsumerStatefulWidget {
   const ProfileSetupPage({super.key});
 
   @override
-  State<ProfileSetupPage> createState() => _ProfileSetupPageState();
+  ConsumerState<ProfileSetupPage> createState() => _ProfileSetupPageState();
 }
 
-class _ProfileSetupPageState extends State<ProfileSetupPage>
+class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
     with SingleTickerProviderStateMixin {
   /// 질문 순서. 쉬운 것(이름) → 민감한 것(몸) → 흥미로운 것(페이스) 순이다.
   static const _stepCount = 5;
@@ -84,6 +89,12 @@ class _ProfileSetupPageState extends State<ProfileSetupPage>
   /// 1km당 초. **`null`은 '미측정'이지 '아직 안 물어봄'이 아니다** —
   /// 물어봤는지는 [_step]이 안다.
   int? _paceSeconds;
+
+  /// 전송 중. 버튼이 두 번 눌리는 것을 막는다.
+  bool _submitting = false;
+
+  /// 전송이 실패한 이유. 성공하면 화면을 떠나므로 `null`로 되돌릴 일이 없다.
+  OnboardingFailure? _submitFailure;
 
   /// 상한에서 막힌 직후 잠깐 켜진다. 켜져 있는 동안 helper가 경고로 덮인다.
   bool _limitHit = false;
@@ -256,11 +267,46 @@ class _ProfileSetupPageState extends State<ProfileSetupPage>
     _advance();
   }
 
-  void _finish() {
+  Future<void> _finish() async {
+    if (_submitting) return;
+    setState(() {
+      _submitting = true;
+      _submitFailure = null;
+    });
+
+    final profile = OnboardingProfile(
+      nickname: _nickname.text.trim(),
+      gender: _gender!,
+      birthday: _birth!,
+      paceSecondsPerKm: _paceSeconds,
+      heightCm: _height!,
+      weightKg: _weight!,
+    );
+
+    OnboardingFailure? failure;
+    try {
+      await ref.read(onboardingRepositoryProvider).submit(profile);
+      // 저장소와 상태를 함께 켠다. 이게 없으면 앱을 껐다 켤 때 다시 여기로 온다.
+      await ref.read(authControllerProvider.notifier).markOnboarded();
+    } on OnboardingException catch (error) {
+      failure = error.failure;
+    }
+
+    // await 사이에 화면이 사라졌을 수 있다. setState나 context를 쓰기 전에 반드시 본다.
+    if (!mounted) return;
+
+    if (failure != null) {
+      // 입력은 그대로 둔다. 다섯 개를 다시 채우게 하지 않는다.
+      setState(() {
+        _submitting = false;
+        _submitFailure = failure;
+      });
+      return;
+    }
+
     // ⚠️ 원래는 시그니처 컬러 리빌(S04.5)로 간다. 그 화면이 아직 없어 홈으로 보낸다.
-    // 프로필을 서버로 보내는 것도 API가 생긴 뒤다.
     //
-    // 리빌과 홈이 생기면 PaceRule.levelOf(_paceSeconds)를 넘긴다.
+    // 리빌이 생기면 PaceRule.levelOf(_paceSeconds)를 넘긴다.
     // 그 값의 needsPracticeNudge가 홈의 '혼자 연습하기' 유도를 켠다.
     context.go(AppRoutes.home);
   }
@@ -360,11 +406,29 @@ class _ProfileSetupPageState extends State<ProfileSetupPage>
                 AppSpacing.space4,
                 AppSpacing.space4,
               ),
-              child: AppButton(
-                label: AppStrings.profileNext,
-                // 마지막 답까지 채워야 열린다. 중간에 누를 일이 없으므로
-                // '무엇이 남았는지' 안내는 두지 않았다 — 남은 건 늘 바로 아래 하나다.
-                onPressed: done ? _finish : null,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_submitFailure != null) ...[
+                    Text(
+                      _submitFailure == OnboardingFailure.sessionExpired
+                          ? AppStrings.profileSubmitExpired
+                          : AppStrings.profileSubmitFailed,
+                      textAlign: TextAlign.center,
+                      style: AppTypography.caption.copyWith(color: colors.error),
+                    ),
+                    const SizedBox(height: AppSpacing.space3),
+                  ],
+                  AppButton(
+                    label: AppStrings.profileNext,
+                    // 마지막 답까지 채워야 열린다. 중간에 누를 일이 없으므로
+                    // '무엇이 남았는지' 안내는 두지 않았다 — 남은 건 늘 바로 아래 하나다.
+                    //
+                    // 전송 중에도 잠근다. 두 번 누르면 요청이 두 번 나간다.
+                    onPressed: (done && !_submitting) ? _finish : null,
+                  ),
+                ],
               ),
             ),
           ],

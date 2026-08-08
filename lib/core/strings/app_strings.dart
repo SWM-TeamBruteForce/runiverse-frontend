@@ -112,6 +112,13 @@ abstract final class AppStrings {
 
   static const profileNext = '다음';
 
+  /// 프로필 전송이 실패했을 때. **입력은 화면에 그대로 남는다** —
+  /// 다섯 개를 다시 채우게 하지 않는다.
+  static const profileSubmitFailed = '저장하지 못했어요. 다시 시도해주세요';
+
+  /// 세션이 끊겨 다시 로그인해야 할 때. 사용자는 아무것도 틀리지 않았다.
+  static const profileSubmitExpired = '로그인이 만료됐어요. 다시 로그인해주세요';
+
   // 닉네임
   static const profileNicknameLabel = '닉네임';
   static const profileNicknameQuestion = '뭐라고 부를까요';
