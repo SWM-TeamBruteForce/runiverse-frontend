@@ -122,7 +122,9 @@ class HttpAuthRepository implements AuthRepository {
     final accessToken = body?['accessToken'];
     final refreshToken = body?['refreshToken'];
 
-    if (userId is! String || accessToken is! String || refreshToken is! String) {
+    if (userId is! String ||
+        accessToken is! String ||
+        refreshToken is! String) {
       throw const AuthException(AuthFailure.unknown);
     }
 
