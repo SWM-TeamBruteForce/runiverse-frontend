@@ -112,6 +112,13 @@ abstract final class AppStrings {
 
   static const profileNext = '다음';
 
+  /// 프로필을 지금 채우지 않고 나가는 문.
+  ///
+  /// **가입 직후 화면은 `go`로 열려 스택에 이것 하나만 남는다** — 뒤로가기를 누르면
+  /// 앱이 꺼진다. 사용자가 의도한 동작이 아니므로 출구를 눈에 보이게 둔다.
+  /// 홈의 유도 카드에서 언제든 돌아올 수 있다.
+  static const profileSkipForNow = '나중에 하기';
+
   /// 프로필 전송이 실패했을 때. **입력은 화면에 그대로 남는다** —
   /// 다섯 개를 다시 채우게 하지 않는다.
   static const profileSubmitFailed = '저장하지 못했어요. 다시 시도해주세요';

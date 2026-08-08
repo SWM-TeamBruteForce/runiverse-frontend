@@ -131,4 +131,17 @@ void main() {
 
     expect(nextEnabled(tester), isFalse);
   });
+
+  testWidgets('아무것도 안 채워도 나중에 하기는 열려 있다', (tester) async {
+    await pumpPage(tester);
+
+    // 하단 CTA는 잠겨 있어도 나가는 문은 항상 열려 있어야 한다.
+    // 가입 직후 이 화면은 `go`로 열려 뒤로가기를 누르면 앱이 꺼진다.
+    final skip = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, AppStrings.profileSkipForNow),
+    );
+
+    expect(nextEnabled(tester), isFalse);
+    expect(skip.onPressed, isNotNull);
+  });
 }
