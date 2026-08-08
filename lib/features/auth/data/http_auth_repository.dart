@@ -89,12 +89,13 @@ class HttpAuthRepository implements AuthRepository {
       throw const AuthException(AuthFailure.unknown);
     }
 
-    // 서버는 `isOnboarded`도 준다. 온보딩 화면으로 보낼지 정하는 값인데
-    // 지금 `AuthSession`에 자리가 없어 버린다. 온보딩 분기를 붙일 때 담는다.
     return AuthSession(
       userId: userId,
       accessToken: accessToken,
       refreshToken: refreshToken,
+      // 값이 없거나 타입이 다르면 false로 본다. 온보딩을 한 번 더 묻는 쪽이
+      // 프로필 없는 사용자를 홈에 들이는 것보다 낫다.
+      isOnboarded: body?['isOnboarded'] == true,
     );
   }
 

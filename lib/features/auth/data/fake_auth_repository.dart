@@ -32,6 +32,12 @@ class FakeAuthRepository implements AuthRepository {
 
   final Map<String, String> _accounts = {seedEmail: seedPassword};
 
+  /// 온보딩(프로필 등록)을 마친 계정.
+  ///
+  /// 씨앗 계정은 마친 것으로 시작한다. 그래야 **기존 사용자가 로그인하면 홈으로**와
+  /// **새로 가입한 사람은 프로필로** 두 갈래를 서버 없이 시험할 수 있다.
+  final Set<String> _onboarded = {seedEmail};
+
   @override
   Future<AuthSession> signIn({
     required String email,
@@ -76,5 +82,6 @@ class FakeAuthRepository implements AuthRepository {
     userId: 'fake-${email.hashCode.toRadixString(16)}',
     accessToken: 'fake-access-$email',
     refreshToken: 'fake-refresh-$email',
+    isOnboarded: _onboarded.contains(email),
   );
 }

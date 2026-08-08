@@ -106,8 +106,7 @@ class AuthController extends Notifier<AuthState> {
         userId: session.userId,
         accessToken: session.accessToken,
         refreshToken: session.refreshToken,
-        // ⚠️ Task 3에서 session.isOnboarded로 바꾼다. 지금은 AuthSession에 자리가 없다.
-        isOnboarded: false,
+        isOnboarded: session.isOnboarded,
       );
       state = AuthSignedIn(session.userId);
       return null;

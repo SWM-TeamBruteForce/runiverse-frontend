@@ -12,9 +12,16 @@ class AuthSession {
     required this.userId,
     required this.accessToken,
     required this.refreshToken,
+    required this.isOnboarded,
   });
 
   final String userId;
   final String accessToken;
   final String refreshToken;
+
+  /// 프로필 등록(S04)을 마쳤는가. 서버 로그인 응답이 알려준다.
+  ///
+  /// **갱신 응답(`POST /auth/refresh`)에는 이 값이 없다.** 그래서 로그인할 때
+  /// 받은 값을 저장해 두고, 자동 로그인 경로에서는 저장된 값을 읽는다.
+  final bool isOnboarded;
 }

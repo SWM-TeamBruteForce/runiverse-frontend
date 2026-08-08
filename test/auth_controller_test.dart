@@ -133,6 +133,36 @@ void main() {
     expect(container.read(authControllerProvider), isA<AuthSignedIn>());
   });
 
+  test('씨앗 계정으로 로그인하면 온보딩을 마친 상태로 저장된다', () async {
+    final container = makeContainer();
+
+    await container
+        .read(authControllerProvider.notifier)
+        .signIn(
+          email: FakeAuthRepository.seedEmail,
+          password: FakeAuthRepository.seedPassword,
+        );
+
+    expect(
+      (await container.read(tokenStoreProvider).read()).isOnboarded,
+      isTrue,
+    );
+  });
+
+  test('새로 가입하면 온보딩을 마치지 않은 상태로 저장된다', () async {
+    final container = makeContainer();
+
+    await container
+        .read(authControllerProvider.notifier)
+        .signUp(email: 'new@example.com', password: 'runi123!');
+
+    // 이 값이 false여야 스플래시가 홈이 아니라 프로필 등록으로 보낸다.
+    expect(
+      (await container.read(tokenStoreProvider).read()).isOnboarded,
+      isFalse,
+    );
+  });
+
   test('로그아웃하면 상태와 저장소가 함께 비워진다', () async {
     final container = makeContainer();
     final controller = container.read(authControllerProvider.notifier);
