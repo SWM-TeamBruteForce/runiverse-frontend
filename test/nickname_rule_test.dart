@@ -29,10 +29,7 @@ void main() {
 
   test('짧아서 막힌 것과 길어서 막힌 것을 구분한다', () {
     // 화면이 서로 다른 문구를 띄워야 하므로 둘을 뭉뚱그리면 안 된다.
-    expect(
-      NicknameRule.of(1, '가'),
-      isNot(NicknameRule.of(13, '가' * 13)),
-    );
+    expect(NicknameRule.of(1, '가'), isNot(NicknameRule.of(13, '가' * 13)));
   });
 
   test('공백이 들어가면 막힌다', () {

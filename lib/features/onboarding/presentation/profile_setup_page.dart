@@ -22,8 +22,8 @@ import 'package:runiverse/features/onboarding/domain/gender.dart';
 import 'package:runiverse/features/onboarding/domain/nickname_rule.dart';
 import 'package:runiverse/features/onboarding/domain/onboarding_failure.dart';
 import 'package:runiverse/features/onboarding/domain/onboarding_profile.dart';
-import 'package:runiverse/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:runiverse/features/onboarding/domain/pace_level.dart';
+import 'package:runiverse/features/onboarding/presentation/onboarding_provider.dart';
 
 /// 답한 줄과 시트를 여는 줄의 공통 높이.
 ///
@@ -54,10 +54,14 @@ const _rowHeight = AppSizes.touchDefault + AppSpacing.space3; // 56
 /// 성별·페이스는 시트를 쓰지 않는다. 선택지가 3~4개뿐이라 시트를 열면
 /// `열기 → 고르기`로 **탭이 하나 늘어난다.** 인라인 칩이 1탭이다.
 ///
-/// ## 상태를 provider로 올리지 않은 이유
+/// ## 상태를 provider로 올리지 않는다
 ///
-/// 프로필을 보낼 API가 아직 없다. 화면 밖에서 이 값을 알 필요가 없고 화면을 떠나면
-/// 버려도 되는 상태다. 서버 전송이 붙는 시점에 provider로 올린다.
+/// 서버 전송이 붙었지만 **화면 밖에서 이 값을 알 필요가 여전히 없다.**
+/// 여기서 모아 한 번 보내고 화면을 떠나면 버리는 값이다.
+/// provider에서 가져오는 것은 값이 아니라 **보낼 곳**(`onboardingRepositoryProvider`)뿐이다.
+///
+/// 전송 중·실패 상태(`_submitting` · `_submitFailure`)도 화면이 들고 있다 —
+/// "버튼이 도는 중"은 화면의 상태지 앱 전체의 상태가 아니다(`auth_provider.dart`와 같은 규칙).
 class ProfileSetupPage extends ConsumerStatefulWidget {
   const ProfileSetupPage({super.key});
 
@@ -416,7 +420,9 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
                           ? AppStrings.profileSubmitExpired
                           : AppStrings.profileSubmitFailed,
                       textAlign: TextAlign.center,
-                      style: AppTypography.caption.copyWith(color: colors.error),
+                      style: AppTypography.caption.copyWith(
+                        color: colors.error,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.space3),
                   ],
