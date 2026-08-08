@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
@@ -17,6 +18,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          // 앱은 SecureTokenStore를 쓰는데 그것은 플랫폼 채널을 부른다.
+          // 가입에 성공하면 토큰을 저장하므로 여기서도 갈아끼워야 한다.
+          tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
           authRepositoryProvider.overrideWithValue(
             FakeAuthRepository(latency: Duration.zero),
           ),

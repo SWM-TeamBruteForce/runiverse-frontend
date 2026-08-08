@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/network/dio_client.dart';
+import 'package:runiverse/core/storage/secure_token_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/http_auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
@@ -8,10 +9,12 @@ import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 
-/// 토큰을 어디에 넣을 것인가. 지금은 메모리다.
+/// 토큰을 어디에 넣을 것인가. 안드로이드 Keystore · iOS Keychain이다.
 ///
-/// `flutter_secure_storage`가 들어오면 **이 한 줄만 바꾼다.**
-final tokenStoreProvider = Provider<TokenStore>((ref) => InMemoryTokenStore());
+/// ⚠️ **위젯 테스트는 이것을 override해야 한다.** 플랫폼 채널을 부르는데
+/// 테스트 환경에는 채널이 없어 `MissingPluginException`이 난다.
+/// `InMemoryTokenStore`를 넣으면 된다.
+final tokenStoreProvider = Provider<TokenStore>((ref) => SecureTokenStore());
 
 /// 서버를 부를 [Dio] 하나.
 ///

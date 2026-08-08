@@ -12,10 +12,19 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
+    <!--
+      백업을 끈다 — 토큰이 클라우드로 나가지 않게 한다.
+
+      Keystore 키는 백업되지 않아 복호화는 어차피 안 되지만, 암호문을 올릴
+      이유가 없다. 지금 저장하는 로컬 데이터가 로그인 토큰뿐이라 통째로 끄는
+      편이 단순하다. 백업할 것이 생기면 dataExtractionRules로 토큰만 제외하도록
+      나눈다.
+    -->
     <application
         android:label="runiverse"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"

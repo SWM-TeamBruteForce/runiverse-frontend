@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
@@ -15,6 +16,11 @@ import 'package:runiverse/features/auth/presentation/auth_state.dart';
 void main() {
   ProviderContainer makeContainer() => ProviderContainer.test(
     overrides: [
+      // 앱은 SecureTokenStore를 쓰는데 그것은 플랫폼 채널을 부른다.
+      // 테스트에는 채널이 없다 — 순수 test()는 바인딩조차 없어 그 자리에서 죽고,
+      // testWidgets()는 조용히 null을 돌려줘 **저장이 안 되는데 통과한다.**
+      // 후자가 더 위험하므로 저장소를 쓰는 테스트는 반드시 이것을 갈아끼운다.
+      tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
       authRepositoryProvider.overrideWithValue(
         FakeAuthRepository(latency: Duration.zero),
       ),

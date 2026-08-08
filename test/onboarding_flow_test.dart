@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
+import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
@@ -14,7 +16,16 @@ import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.
 /// 화면의 생김새는 보지 않는다. 여기서 보는 건 **어디로 가느냐**다.
 void main() {
   Future<void> pumpApp(WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: RuniverseApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          // 앱은 SecureTokenStore를 쓰는데 그것은 플랫폼 채널을 부른다.
+          // 테스트에는 채널이 없어 스플래시가 갈림길을 정하지 못하고 멈춘다.
+          tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
+        ],
+        child: const RuniverseApp(),
+      ),
+    );
     await tester.pumpAndSettle();
   }
 
