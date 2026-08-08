@@ -104,6 +104,17 @@ class FakeAuthRepository implements AuthRepository {
     );
   }
 
+  /// **기다리지 않고** 세션을 발급한다. 이미 로그인해 둔 상태를 만들 때 쓴다.
+  ///
+  /// [signIn]을 쓰면 될 것 같지만 그럴 수 없다. `testWidgets`는 가짜 시간 위에서
+  /// 도는데, [latency]의 `Future.delayed`는 그 가짜 타이머를 쓴다.
+  /// **`pumpWidget` 전에 그것을 기다리면 시간을 진행시킬 `pump`가 없어 영원히 멈춘다.**
+  ///
+  /// 발급한 리프레시 토큰은 [refresh]가 받아준다 — 그래야 자동 로그인 경로를
+  /// 시험할 수 있다.
+  AuthSession issueSession({String email = seedEmail}) =>
+      _sessionFor(_normalize(email));
+
   /// 이메일은 대소문자를 가리지 않는다. `Runner@`와 `runner@`가 다른 계정이 되면
   /// 사용자는 왜 로그인이 안 되는지 알 수 없다.
   String _normalize(String email) => email.trim().toLowerCase();
