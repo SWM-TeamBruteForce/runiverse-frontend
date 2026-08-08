@@ -1,4 +1,5 @@
 import 'package:runiverse/features/auth/domain/auth_session.dart';
+import 'package:runiverse/features/auth/domain/auth_tokens.dart';
 
 /// 인증 저장소 — **인터페이스만 있다.**
 ///
@@ -19,6 +20,13 @@ abstract interface class AuthRepository {
   /// 가입하자마자 로그인 화면으로 되돌리는 것은 사용자에게 같은 일을 두 번 시키는 셈이다.
   /// 실제 구현은 signup 뒤에 login을 이어 부른다.
   Future<AuthSession> signUp({required String email, required String password});
+
+  /// 저장된 리프레시 토큰으로 새 토큰 쌍을 받는다.
+  ///
+  /// 실패 시 `AuthException(AuthFailure.sessionExpired)` — 다시 로그인해야 한다.
+  ///
+  /// **돌려받은 두 값을 모두 저장해야 한다.** 서버가 리프레시 토큰을 회전시킨다.
+  Future<AuthTokens> refresh(String refreshToken);
 
   /// 서버 세션을 끊는다. 로컬 토큰을 지우는 것은 호출자 몫이다.
   Future<void> signOut();

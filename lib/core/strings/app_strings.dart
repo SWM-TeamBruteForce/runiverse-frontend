@@ -208,6 +208,13 @@ abstract final class AppStrings {
   static const authFailedServer = '잠시 후 다시 시도해주세요';
   static const authFailedUnknown = '로그인하지 못했어요. 다시 시도해주세요';
 
+  /// 서버가 형식을 거절했다 (400 `VALIDATION_FAILED`).
+  ///
+  /// 사유는 서버 `message`에만 있는데 그것을 화면에 옮기지 않는다 — 문구가 바뀌면
+  /// 앱이 따라 바뀐다. **여기까지 왔다는 것은 앱 검증에 구멍이 있다는 뜻**이라
+  /// 정확한 사유는 `kDebugMode` 로그에서 찾는다.
+  static const authFailedValidation = '입력한 내용을 다시 확인해주세요';
+
   // ── 회원가입 ─────────────────────────────────────────────────
 
   static const authSignUpTitle = '가입하기';

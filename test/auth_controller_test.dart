@@ -163,6 +163,36 @@ void main() {
     );
   });
 
+  test('가짜 저장소는 발급했던 토큰만 갱신해 준다', () async {
+    final repository = FakeAuthRepository(latency: Duration.zero);
+
+    final session = await repository.signIn(
+      email: FakeAuthRepository.seedEmail,
+      password: FakeAuthRepository.seedPassword,
+    );
+    final tokens = await repository.refresh(session.refreshToken);
+
+    // 서버가 회전시키므로 새 값이 와야 한다. 같은 값을 돌려주는 가짜를 쓰면
+    // "덮어쓰기를 잊어도 통과하는" 테스트가 되어 버그를 숨긴다.
+    expect(tokens.accessToken, isNot(session.accessToken));
+    expect(tokens.refreshToken, isNot(session.refreshToken));
+  });
+
+  test('모르는 리프레시 토큰은 세션 만료다', () async {
+    final repository = FakeAuthRepository(latency: Duration.zero);
+
+    expect(
+      () => repository.refresh('nonsense'),
+      throwsA(
+        isA<AuthException>().having(
+          (e) => e.failure,
+          'failure',
+          AuthFailure.sessionExpired,
+        ),
+      ),
+    );
+  });
+
   test('로그아웃하면 상태와 저장소가 함께 비워진다', () async {
     final container = makeContainer();
     final controller = container.read(authControllerProvider.notifier);

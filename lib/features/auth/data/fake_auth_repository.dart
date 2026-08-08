@@ -1,6 +1,7 @@
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_session.dart';
+import 'package:runiverse/features/auth/domain/auth_tokens.dart';
 
 /// 서버 없이 로그인 흐름을 돌려보기 위한 가짜 저장소.
 ///
@@ -38,6 +39,12 @@ class FakeAuthRepository implements AuthRepository {
   /// **새로 가입한 사람은 프로필로** 두 갈래를 서버 없이 시험할 수 있다.
   final Set<String> _onboarded = {seedEmail};
 
+  /// 발급해 준 리프레시 토큰. 모르는 값이 오면 만료로 답한다.
+  final Set<String> _issuedRefreshTokens = {};
+
+  /// 갱신할 때마다 값을 바꾸기 위한 번호. 회전을 흉내 낸다.
+  int _rotation = 0;
+
   @override
   Future<AuthSession> signIn({
     required String email,
@@ -72,16 +79,46 @@ class FakeAuthRepository implements AuthRepository {
   @override
   Future<void> signOut() => Future<void>.delayed(latency);
 
+  /// 발급했던 토큰만 받아준다.
+  ///
+  /// **새 값을 돌려주는 것이 중요하다.** 같은 값을 주면 "저장을 잊어도 동작하는"
+  /// 가짜가 되어, 회전을 처리하지 않은 버그를 테스트가 놓친다.
+  @override
+  Future<AuthTokens> refresh(String refreshToken) async {
+    await Future<void>.delayed(latency);
+
+    if (!_issuedRefreshTokens.contains(refreshToken)) {
+      throw const AuthException(AuthFailure.sessionExpired);
+    }
+
+    _rotation++;
+    final rotated = '$refreshToken-r$_rotation';
+    // 옛 토큰은 무효가 된다. 서버가 회전 후 무효화한다면 이 동작이 같다.
+    _issuedRefreshTokens
+      ..remove(refreshToken)
+      ..add(rotated);
+
+    return AuthTokens(
+      accessToken: 'fake-access-r$_rotation',
+      refreshToken: rotated,
+    );
+  }
+
   /// 이메일은 대소문자를 가리지 않는다. `Runner@`와 `runner@`가 다른 계정이 되면
   /// 사용자는 왜 로그인이 안 되는지 알 수 없다.
   String _normalize(String email) => email.trim().toLowerCase();
 
   /// 같은 이메일이면 항상 같은 `userId`가 나오게 이메일에서 만든다.
   /// 매번 새 번호를 매기면 로그인할 때마다 다른 사람이 된다.
-  AuthSession _sessionFor(String email) => AuthSession(
-    userId: 'fake-${email.hashCode.toRadixString(16)}',
-    accessToken: 'fake-access-$email',
-    refreshToken: 'fake-refresh-$email',
-    isOnboarded: _onboarded.contains(email),
-  );
+  AuthSession _sessionFor(String email) {
+    final session = AuthSession(
+      userId: 'fake-${email.hashCode.toRadixString(16)}',
+      accessToken: 'fake-access-$email',
+      refreshToken: 'fake-refresh-$email',
+      isOnboarded: _onboarded.contains(email),
+    );
+    // 이 토큰만 갱신해 준다. 기억하지 않으면 자동 로그인 경로를 시험할 수 없다.
+    _issuedRefreshTokens.add(session.refreshToken);
+    return session;
+  }
 }
