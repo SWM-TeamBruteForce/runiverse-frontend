@@ -284,18 +284,51 @@ S01 스플래시 ─┬─ 로그인 상태 ────────────
 `LoginResponse`에 `profileCompleted`가 생기거나 `GET /users/me`가 생기면 서버 응답으로 갈라야 한다.
 백엔드에 요청해 둔 상태다.
 
-### 9-4. 지금은 서버에 붙지 않는다
+### 9-4. 서버에 붙었다 — 다만 토큰은 아직 메모리다
 
-`AuthRepository`(도메인 인터페이스)에 답하는 것은 `FakeAuthRepository`다 — 메모리에 계정을 들고 있고
-씨앗 계정 `test@runiverse.app` / `runi123!` 하나가 미리 들어 있다.
-토큰도 `InMemoryTokenStore`라 **앱을 끄면 사라진다. 그래서 자동 로그인이 실제로는 동작하지 않는다.**
+`AuthRepository`(도메인 인터페이스)에 답하는 것은 `HttpAuthRepository`다. dio로 실제 서버를 부른다.
+바꾼 곳은 `auth_provider.dart` **한 줄**이고, 화면과 `AuthController`는 손대지 않았다.
 
-바꿔 끼우는 곳은 `auth_provider.dart`의 두 줄이다.
+`FakeAuthRepository`는 지우지 않았다 — 서버 없이 도는 테스트가 계속 쓴다.
+⚠️ **씨앗 계정 `test@runiverse.app` / `runi123!`은 이제 테스트 안에서만 유효하다.**
+앱에서 그 계정으로 로그인하면 서버에 없으므로 실패한다.
 
 | 지금 | 나중 |
 |---|---|
-| `authRepositoryProvider` → `FakeAuthRepository()` | dio를 쓰는 `AuthRepositoryImpl` |
+| `authRepositoryProvider` → `HttpAuthRepository` | — |
 | `tokenStoreProvider` → `InMemoryTokenStore()` | `flutter_secure_storage`를 쓰는 구현 |
+
+⚠️ **토큰은 여전히 메모리라 앱을 끄면 사라진다. 자동 로그인은 아직 동작하지 않는다.**
+로그아웃 UI도 없어서, 로그인 화면으로 돌아가려면 앱을 다시 띄우는 수밖에 없다.
+
+⚠️ **`signOut`은 서버를 부르지 않는다.** 저장소가 `accessToken`을 들고 있지 않아 실을 자리가 없다.
+로컬 토큰은 지워지지만 **서버 `refreshToken`은 만료까지 살아 있다** — 기기를 잃어버렸을 때 끊을 방법이 없다.
+
+#### 붙일 때 반드시 걸리는 것 셋
+
+**서버 주소를 안 넘기면 앱이 멈춘다.** `--dart-define=API_BASE_URL=...` 없이 빌드하면
+네트워크 계층이 `StateError`로 죽는다. 기본값을 두지 않았다 — 기본값은 결국 소스에 적힌 주소다.
+`String.fromEnvironment`는 `const`라 **핫 리로드로는 안 바뀐다.**
+주소를 고쳤는데 그대로면 이것부터 의심한다.
+
+**에뮬레이터 안의 `localhost`는 에뮬레이터 자신이다.** 개발 PC는 따로 정해진 주소로 불러야 한다.
+이걸 모르면 서버가 멀쩡한데 연결 거부만 보이고, **앱 코드를 아무리 봐도 원인이 안 나온다.**
+
+**Android는 API 28부터 평문 HTTP를 막는다.** 개발 서버에 TLS가 없으면 코드가 맞아도 요청이 안 나간다.
+허용은 `android/app/src/debug/AndroidManifest.xml`에만 뒀다 —
+`src/main`에 넣으면 **릴리스 빌드의 보호까지 사라진다.**
+
+#### 통신 로그에 본문을 찍지 않는다
+
+dio의 `LogInterceptor`는 요청·응답 본문을 통째로 찍는다.
+요청에는 **비밀번호**가, 응답에는 **`refreshToken`**이 들어 있다.
+대신 method·경로·상태 코드만 남기는 인터셉터를 달았고, 디버그 빌드에서만 돈다.
+
+```
+[api] → POST /api/v1/auth/login
+[api] ← 200 /api/v1/auth/login
+[api] x badResponse 401 /api/v1/auth/login
+```
 
 ### 9-5. 비밀번호 허용 문자는 앱이 서버보다 좁다
 

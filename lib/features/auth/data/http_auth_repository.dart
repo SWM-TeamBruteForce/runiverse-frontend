@@ -1,0 +1,124 @@
+import 'package:dio/dio.dart';
+import 'package:runiverse/features/auth/domain/auth_failure.dart';
+import 'package:runiverse/features/auth/domain/auth_repository.dart';
+import 'package:runiverse/features/auth/domain/auth_session.dart';
+
+/// 진짜 서버를 부르는 [AuthRepository].
+///
+/// `FakeAuthRepository`와 같은 인터페이스를 구현한다. 어느 쪽이 답하는지는
+/// `auth_provider.dart`가 정하고, 화면은 둘을 구분하지 못한다.
+///
+/// ## dio를 밖으로 흘리지 않는다
+///
+/// 이 클래스 밖으로 나가는 실패는 전부 [AuthException]이다. [DioException]이
+/// 새어 나가면 화면이 dio를 알아야 하고, 나중에 클라이언트를 바꿀 때
+/// 화면까지 따라 고쳐야 한다.
+class HttpAuthRepository implements AuthRepository {
+  HttpAuthRepository(this._dio);
+
+  final Dio _dio;
+
+  static const _loginPath = '/api/v1/auth/login';
+  static const _signUpPath = '/api/v1/auth/signup';
+
+  @override
+  Future<AuthSession> signIn({
+    required String email,
+    required String password,
+  }) => _login(email: email, password: password);
+
+  /// 가입한 뒤 곧바로 로그인해서 세션까지 만들어 돌려준다.
+  ///
+  /// **서버의 가입 응답에는 토큰이 없다** — `userId`만 준다. 여기서 멈추면
+  /// 사용자는 가입하자마자 로그인 화면에서 같은 이메일과 비밀번호를 또 쳐야 한다.
+  /// 인터페이스가 세션을 요구하는 이유가 이것이다.
+  @override
+  Future<AuthSession> signUp({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      await _dio.post<Object?>(
+        _signUpPath,
+        data: {'email': email, 'password': password},
+      );
+    } on DioException catch (error) {
+      throw AuthException(_failureOf(error));
+    }
+    return _login(email: email, password: password);
+  }
+
+  /// 서버를 부르지 않는다.
+  ///
+  /// 서버 세션을 끊으려면 `accessToken`을 헤더에 실어야 하는데 이 저장소는
+  /// 토큰을 들고 있지 않다 — 보관은 `TokenStore`의 몫이다. 인터페이스에 토큰을
+  /// 받는 자리를 뚫는 일은 이 변경의 범위를 넘어선다.
+  ///
+  /// 호출자가 로컬 토큰을 지우므로 앱은 로그아웃된다. 다만 **서버 쪽
+  /// `refreshToken`은 만료될 때까지 살아 있다.** 기기를 잃어버렸을 때
+  /// 세션을 끊을 방법이 없다는 뜻이라, 토큰을 실어 보내는 일은 따로 해야 한다.
+  @override
+  Future<void> signOut() async {}
+
+  Future<AuthSession> _login({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _loginPath,
+        data: {'email': email, 'password': password},
+      );
+      return _sessionOf(response.data);
+    } on DioException catch (error) {
+      throw AuthException(_failureOf(error));
+    }
+  }
+
+  /// 서버가 200을 줬어도 몸통이 기대와 다를 수 있다.
+  ///
+  /// 필드를 하나라도 못 읽으면 세션을 만들지 않는다. 빈 문자열로 채워두면
+  /// 로그인은 성공한 것처럼 보이고 **그다음 API 호출부터 인증이 깨진다** —
+  /// 원인에서 한참 떨어진 곳에서 증상이 나온다.
+  AuthSession _sessionOf(Map<String, dynamic>? body) {
+    final userId = body?['userId'];
+    final accessToken = body?['accessToken'];
+    final refreshToken = body?['refreshToken'];
+
+    if (userId is! String || accessToken is! String || refreshToken is! String) {
+      throw const AuthException(AuthFailure.unknown);
+    }
+
+    // 서버는 `isOnboarded`도 준다. 온보딩 화면으로 보낼지 정하는 값인데
+    // 지금 `AuthSession`에 자리가 없어 버린다. 온보딩 분기를 붙일 때 담는다.
+    return AuthSession(
+      userId: userId,
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+    );
+  }
+
+  /// 서버가 준 `code`를 앱의 실패 이유로 옮긴다.
+  ///
+  /// **`message`는 쓰지 않는다.** 서버 문구는 습니다체고 앱은 해요체다.
+  /// 그대로 화면에 얹으면 톤이 깨지고, 서버가 문구를 고치면 앱 화면이 같이 바뀐다.
+  AuthFailure _failureOf(DioException error) {
+    // 응답 자체가 없는 경우 — 연결 실패, 시간 초과. 서버까지 닿지 못했다.
+    if (error.type != DioExceptionType.badResponse) {
+      return AuthFailure.network;
+    }
+
+    final response = error.response;
+    if ((response?.statusCode ?? 0) >= 500) {
+      return AuthFailure.server;
+    }
+
+    final body = response?.data;
+    final code = body is Map ? body['code'] : null;
+    return switch (code) {
+      'INVALID_CREDENTIALS' => AuthFailure.invalidCredentials,
+      'EMAIL_ALREADY_EXISTS' => AuthFailure.emailAlreadyExists,
+      _ => AuthFailure.unknown,
+    };
+  }
+}
