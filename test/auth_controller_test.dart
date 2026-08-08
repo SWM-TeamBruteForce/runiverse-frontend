@@ -61,10 +61,10 @@ void main() {
           password: FakeAuthRepository.seedPassword,
         );
 
-    final store = container.read(tokenStoreProvider);
-    expect(await store.readUserId(), isNotNull);
-    expect(await store.readAccessToken(), isNotNull);
-    expect(await store.readRefreshToken(), isNotNull);
+    final stored = await container.read(tokenStoreProvider).read();
+    expect(stored.userId, isNotNull);
+    expect(stored.accessToken, isNotNull);
+    expect(stored.refreshToken, isNotNull);
   });
 
   test('비밀번호가 틀리면 이유를 돌려주고 상태는 그대로다', () async {
@@ -139,6 +139,6 @@ void main() {
 
     expect(container.read(authControllerProvider), isA<AuthSignedOut>());
     // 상태만 바꾸고 토큰을 남기면 다음 실행에서 되살아난다.
-    expect(await container.read(tokenStoreProvider).readUserId(), isNull);
+    expect((await container.read(tokenStoreProvider).read()).userId, isNull);
   });
 }

@@ -62,8 +62,10 @@ class AuthController extends Notifier<AuthState> {
 
   /// 저장된 토큰을 읽어 상태를 정한다. 앱이 켜질 때 한 번 부른다.
   Future<void> restore() async {
-    final userId = await _store.readUserId();
-    state = userId == null ? const AuthSignedOut() : AuthSignedIn(userId);
+    final stored = await _store.read();
+    state = stored.userId == null
+        ? const AuthSignedOut()
+        : AuthSignedIn(stored.userId!);
   }
 
   /// 성공하면 `null`.
@@ -97,10 +99,12 @@ class AuthController extends Notifier<AuthState> {
   ) async {
     try {
       final session = await call();
-      await _store.save(
+      await _store.saveSession(
         userId: session.userId,
         accessToken: session.accessToken,
         refreshToken: session.refreshToken,
+        // ⚠️ Task 3에서 session.isOnboarded로 바꾼다. 지금은 AuthSession에 자리가 없다.
+        isOnboarded: false,
       );
       state = AuthSignedIn(session.userId);
       return null;
