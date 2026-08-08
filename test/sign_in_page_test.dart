@@ -143,7 +143,7 @@ void main() {
     expect(find.byType(HomePage), findsOneWidget);
   });
 
-  testWidgets('프로필을 아직 안 채웠으면 홈이 아니라 프로필 등록으로 간다', (tester) async {
+  testWidgets('프로필을 아직 안 채웠어도 홈으로 간다', (tester) async {
     final repository = FakeAuthRepository(latency: Duration.zero);
     // 가입은 했지만 프로필을 안 채운 계정. isOnboarded가 false로 온다.
     //
@@ -157,10 +157,10 @@ void main() {
     await tester.tap(find.text(AppStrings.authSignInCta));
     await tester.pumpAndSettle();
 
-    // 이 화면이 스플래시와 다른 기준을 쓰면, 로그인 직후에는 홈이고
-    // 앱을 껐다 켜면 프로필로 가는 어긋남이 생긴다.
-    expect(find.byType(ProfileSetupPage), findsOneWidget);
-    expect(find.byType(HomePage), findsNothing);
+    // 돌아온 사람을 폼으로 가로막지 않는다(설계 문서 2-9).
+    // 스플래시와 같은 기준이라 어느 쪽으로 들어와도 도착지가 같다.
+    expect(find.byType(HomePage), findsOneWidget);
+    expect(find.byType(ProfileSetupPage), findsNothing);
   });
 
   testWidgets('다시 입력하면 이전 실패 문구가 사라진다', (tester) async {

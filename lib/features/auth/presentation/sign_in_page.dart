@@ -13,7 +13,6 @@ import 'package:runiverse/core/widgets/app_input.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/email_rule.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
-import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/auth/presentation/password_field.dart';
 
 /// 로그인 (S02.5).
@@ -91,15 +90,12 @@ class _SignInPageState extends ConsumerState<SignInPage> {
     });
 
     if (failure == null) {
-      // 프로필을 아직 안 채운 사람은 홈이 아니라 그 자리로 보낸다.
+      // isOnboarded를 보지 않는다. **돌아온 사람을 폼으로 가로막지 않는다** —
+      // 프로필은 홈의 유도 카드에서 만난다(설계 문서 2-9).
       //
-      // **스플래시와 같은 기준을 써야 한다.** 여기서 무조건 홈으로 보내면
-      // 로그인 직후에는 홈, 앱을 껐다 켜면 프로필 등록으로 가는 어긋남이 생긴다.
-      final signedIn = ref.read(authControllerProvider);
-      final onboarded = signedIn is AuthSignedIn && signedIn.isOnboarded;
-
+      // 스플래시와 같은 기준이라 어느 쪽으로 들어와도 도착지가 같다.
       // go는 스택을 통째로 갈아치운다. 홈에서 뒤로 눌러 로그인으로 돌아가면 안 된다.
-      context.go(onboarded ? AppRoutes.home : AppRoutes.profileSetup);
+      context.go(AppRoutes.home);
     }
   }
 
