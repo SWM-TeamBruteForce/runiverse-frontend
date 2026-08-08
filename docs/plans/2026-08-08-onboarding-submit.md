@@ -73,7 +73,7 @@ POST /api/v1/users/onboarding      Authorization: Bearer <accessToken> 필요
 
 | 상태 | code | 앱 |
 |---|---|---|
-| 400 | `VALIDATION_FAILED` | `OnboardingFailure.validation` |
+| 400 | `INVALID_REQUEST` · `MALFORMED_REQUEST_BODY` | `OnboardingFailure.validation` — **code가 인증 API와 다르므로 상태 코드로 판단한다** |
 | 401 | — | 갱신 1회 후 재시도. 갱신도 실패하면 `sessionExpired` |
 | 409 | `ALREADY_ONBOARD` | **성공으로 흡수** |
 | 5xx | — | `server` |

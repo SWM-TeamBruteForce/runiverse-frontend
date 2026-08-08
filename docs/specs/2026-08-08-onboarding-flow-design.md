@@ -316,7 +316,8 @@ abstract interface class TokenStore {
 |---|---|---|
 | refresh 만료·무효 | 401 `INVALID_REFRESH_TOKEN` | `sessionExpired` → `clearTokens()` → 로그인 화면 |
 | 로그인 실패 | 401 `INVALID_CREDENTIALS` | `invalidCredentials` (그대로) |
-| 형식 오류 | 400 `VALIDATION_FAILED` | `validation` — 2-8 |
+| 형식 오류 (인증) | 400 `VALIDATION_FAILED` | `validation` — 2-8 |
+| 형식 오류 (온보딩) | 400 `INVALID_REQUEST` · `MALFORMED_REQUEST_BODY` | `validation` — **code가 API마다 다르다** |
 | access 만료 (온보딩 전송) | 401 | **refresh 1회 → 재시도.** 입력을 날리지 않는다 |
 | 이미 온보딩 | 409 `ALREADY_ONBOARD` | repository가 성공으로 흡수 — 2-7 |
 | 5xx | | `server` |
