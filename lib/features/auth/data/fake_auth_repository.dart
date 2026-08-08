@@ -115,6 +115,19 @@ class FakeAuthRepository implements AuthRepository {
   AuthSession issueSession({String email = seedEmail}) =>
       _sessionFor(_normalize(email));
 
+  /// **기다리지 않고** 계정을 심는다. [issueSession]과 같은 이유로 동기다.
+  ///
+  /// [isOnboarded]를 `false`로 두면 "가입은 했지만 프로필을 안 채운 사람"이 된다.
+  void seedAccount({
+    required String email,
+    required String password,
+    bool isOnboarded = false,
+  }) {
+    final key = _normalize(email);
+    _accounts[key] = password;
+    if (isOnboarded) _onboarded.add(key);
+  }
+
   /// 이메일은 대소문자를 가리지 않는다. `Runner@`와 `runner@`가 다른 계정이 되면
   /// 사용자는 왜 로그인이 안 되는지 알 수 없다.
   String _normalize(String email) => email.trim().toLowerCase();
