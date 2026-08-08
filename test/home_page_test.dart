@@ -18,7 +18,9 @@ void main() {
       ProviderScope(
         overrides: [
           if (auth != null)
-            authControllerProvider.overrideWith(() => _StubAuthController(auth)),
+            authControllerProvider.overrideWith(
+              () => _StubAuthController(auth),
+            ),
         ],
         child: const RuniverseApp(initialLocation: AppRoutes.home),
       ),
