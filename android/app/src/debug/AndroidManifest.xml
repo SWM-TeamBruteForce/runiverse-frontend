@@ -4,4 +4,11 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Android 9(API 28)부터 평문 HTTP는 기본으로 막힌다. 개발 서버가 아직
+         TLS를 쓰지 않으므로 디버그 빌드에서만 열어준다.
+
+         이 파일은 디버그 빌드에만 병합된다 — 릴리스 빌드는 평문 차단이
+         그대로 남는다. main 쪽 매니페스트에 넣으면 그 보호가 사라진다. -->
+    <application android:usesCleartextTraffic="true"/>
 </manifest>
