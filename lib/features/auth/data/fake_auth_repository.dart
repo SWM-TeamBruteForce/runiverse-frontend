@@ -2,6 +2,8 @@ import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/domain/auth_tokens.dart';
+import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
+import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 
 /// 서버 없이 로그인 흐름을 돌려보기 위한 가짜 저장소.
 ///
@@ -95,6 +97,40 @@ class FakeAuthRepository implements AuthRepository {
     }
     _accounts[email] = password;
     return _sessionFor(email);
+  }
+
+  /// 인가 코드 → 이메일. 서버의 `(provider, providerId)` 조회를 흉내 낸다.
+  final Map<String, String> _oauthAccounts = {};
+
+  /// [signInWithOauth]가 몇 번 불렸는가.
+  ///
+  /// **취소했을 때 서버를 부르지 않는지** 확인하는 데 쓴다.
+  var oauthCallCount = 0;
+
+  @override
+  Future<AuthSession> signInWithOauth({
+    required OauthProvider provider,
+    required OauthAuthorization authorization,
+  }) async {
+    oauthCallCount++;
+    await Future<void>.delayed(latency);
+
+    // 심어 두지 않았으면 처음 오는 사람이다. 인가 코드에서 이메일을 만들어
+    // **매번 같은 계정이 나오게** 한다.
+    final email =
+        _oauthAccounts[authorization.authorizationCode] ??
+        'kakao-${authorization.authorizationCode}@example.com';
+
+    // 같은 이메일의 로컬 계정이 있으면 서버가 자동 연동하지 않는다.
+    if (_accounts.containsKey(email)) {
+      throw const AuthException(AuthFailure.emailAlreadyExists);
+    }
+    return _sessionFor(email);
+  }
+
+  /// 어느 인가 코드가 어느 이메일에 대응하는지 심는다. **기다리지 않는다.**
+  void seedOauthAccount({required String code, required String email}) {
+    _oauthAccounts[code] = _normalize(email);
   }
 
   @override

@@ -1,5 +1,7 @@
 import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/domain/auth_tokens.dart';
+import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
+import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 
 /// 인증 저장소 — **인터페이스만 있다.**
 ///
@@ -13,6 +15,20 @@ import 'package:runiverse/features/auth/domain/auth_tokens.dart';
 abstract interface class AuthRepository {
   /// 실패 시 `AuthException(AuthFailure.invalidCredentials)`.
   Future<AuthSession> signIn({required String email, required String password});
+
+  /// 소셜 인가 코드로 로그인한다.
+  ///
+  /// **계정이 없으면 서버가 만든다** — 이메일 가입과 달리 별도 절차가 없다.
+  /// 그래서 이름이 `signIn`이지만 첫 호출은 가입이기도 하다.
+  ///
+  /// 인가 코드와 검증값은 [OauthAuthorization]으로 묶여 온다. 짝이 어긋나면
+  /// 서버의 토큰 교환이 카카오에 거부당한다.
+  ///
+  /// 실패: `oauthFailed` · `oauthEmailMissing` · `emailAlreadyExists`
+  Future<AuthSession> signInWithOauth({
+    required OauthProvider provider,
+    required OauthAuthorization authorization,
+  });
 
   /// 이메일로 인증번호를 보낸다.
   ///

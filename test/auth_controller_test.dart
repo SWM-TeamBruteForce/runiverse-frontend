@@ -6,6 +6,8 @@ import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/domain/auth_tokens.dart';
+import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
+import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 
@@ -475,6 +477,12 @@ class _OfflineAuthRepository implements AuthRepository {
     required String password,
   }) =>
       inner.signUp(verificationTicket: verificationTicket, password: password);
+
+  @override
+  Future<AuthSession> signInWithOauth({
+    required OauthProvider provider,
+    required OauthAuthorization authorization,
+  }) => inner.signInWithOauth(provider: provider, authorization: authorization);
 
   @override
   Future<void> sendVerificationCode(String email) =>

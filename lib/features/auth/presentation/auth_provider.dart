@@ -4,10 +4,14 @@ import 'package:runiverse/core/network/dio_client.dart';
 import 'package:runiverse/core/storage/secure_token_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/http_auth_repository.dart';
+import 'package:runiverse/features/auth/data/kakao_code_source.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/domain/auth_tokens.dart';
+import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
+import 'package:runiverse/features/auth/domain/oauth_code_source.dart';
+import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 
 /// 토큰을 어디에 넣을 것인가. 안드로이드 Keystore · iOS Keychain이다.
@@ -39,6 +43,14 @@ final dioProvider = Provider<Dio>((ref) {
 /// 반드시 해야 하고 그 자리가 여기다. 화면 파일은 여전히 `data`를 모른다.
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => HttpAuthRepository(ref.watch(dioProvider)),
+);
+
+/// 소셜 인가 코드를 어디서 얻는가.
+///
+/// ⚠️ **테스트는 이것을 override해야 한다.** 카카오 SDK는 플랫폼 채널을 부르는데
+/// 테스트 환경에는 채널이 없다. `FakeOauthCodeSource`를 넣으면 된다.
+final oauthCodeSourceProvider = Provider<OauthCodeSource>(
+  (ref) => const KakaoCodeSource(),
 );
 
 final authControllerProvider = NotifierProvider<AuthController, AuthState>(
@@ -150,6 +162,32 @@ class AuthController extends Notifier<AuthState> {
       password: password,
     ),
   );
+
+  /// 성공하면 `null`.
+  ///
+  /// **두 단계를 여기서 잇는다** — ① 카카오에서 인가 코드를 받고 ② 서버에 넘긴다.
+  /// 화면은 둘을 알 필요가 없고, 어느 쪽이 실패해도 이유 하나로 돌아온다.
+  ///
+  /// ⚠️ **인가에 실패하면 서버를 부르지 않는다.** 취소한 사람 때문에 요청이
+  /// 나가면, 서버는 빈 코드로 카카오에 교환을 시도하게 된다.
+  Future<AuthFailure?> signInWithOauth(OauthProvider provider) async {
+    final OauthAuthorization authorization;
+    try {
+      authorization = await ref
+          .read(oauthCodeSourceProvider)
+          .authorize(provider);
+    } on AuthException catch (error) {
+      // 취소도 여기로 온다. 그대로 돌려주고 상태는 건드리지 않는다.
+      return error.failure;
+    }
+
+    return _authenticate(
+      () => _repository.signInWithOauth(
+        provider: provider,
+        authorization: authorization,
+      ),
+    );
+  }
 
   /// 성공하면 `null`. **상태를 바꾸지 않는다.**
   Future<AuthFailure?> sendVerificationCode(String email) async {

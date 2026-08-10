@@ -4,6 +4,8 @@ import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/domain/auth_tokens.dart';
+import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
+import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 
 /// 진짜 서버를 부르는 [AuthRepository].
 ///
@@ -23,6 +25,8 @@ class HttpAuthRepository implements AuthRepository {
   static const _loginPath = '/api/v1/auth/login';
   static const _signUpPath = '/api/v1/auth/signup';
   static const _refreshPath = '/api/v1/auth/refresh';
+  /// provider가 뒤에 붙는다 — `/auth/oauth/kakao`.
+  static const _oauthPath = '/api/v1/auth/oauth';
   static const _sendCodePath = '/api/v1/auth/email/verifications';
   static const _verifyCodePath = '/api/v1/auth/email/verifications/confirm';
 
@@ -51,6 +55,28 @@ class HttpAuthRepository implements AuthRepository {
       final response = await _dio.post<Map<String, dynamic>>(
         _signUpPath,
         data: {'verificationTicket': verificationTicket, 'password': password},
+      );
+      return _sessionOf(response.data);
+    } on DioException catch (error) {
+      throw AuthException(_failureOf(error));
+    }
+  }
+
+  /// 응답 몸통이 로그인과 같아 [_sessionOf]를 그대로 쓴다.
+  ///
+  /// **계정이 없으면 서버가 만들고**, 그때 `isOnboarded`는 `false`로 온다.
+  @override
+  Future<AuthSession> signInWithOauth({
+    required OauthProvider provider,
+    required OauthAuthorization authorization,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '$_oauthPath/${provider.path}',
+        data: {
+          'authorizationCode': authorization.authorizationCode,
+          'codeVerifier': authorization.codeVerifier,
+        },
       );
       return _sessionOf(response.data);
     } on DioException catch (error) {
@@ -202,6 +228,11 @@ class HttpAuthRepository implements AuthRepository {
       'EMAIL_VERIFICATION_DAILY_LIMIT_EXCEEDED' => AuthFailure.sendDailyLimit,
       'EMAIL_SEND_FAILED' => AuthFailure.sendFailed,
       'EMAIL_NOT_VERIFIED' => AuthFailure.emailNotVerified,
+      'OAUTH_CODE_EXCHANGE_FAILED' => AuthFailure.oauthFailed,
+      'OAUTH_EMAIL_NOT_PROVIDED' => AuthFailure.oauthEmailMissing,
+      // 서버가 모르는 provider다. 앱이 enum으로 보내므로 정상 경로에서는
+      // 나오지 않는다 — 나온다면 서버에 그 구현이 아직 없는 것이다.
+      'UNSUPPORTED_PROVIDER' => AuthFailure.oauthFailed,
       _ => null,
     };
     if (known != null) return known;
