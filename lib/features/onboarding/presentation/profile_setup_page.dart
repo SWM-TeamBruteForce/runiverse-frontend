@@ -434,6 +434,26 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
                     // 전송 중에도 잠근다. 두 번 누르면 요청이 두 번 나간다.
                     onPressed: (done && !_submitting) ? _finish : null,
                   ),
+                  const SizedBox(height: AppSpacing.space2),
+
+                  // 지금 채우지 않고 나가는 문.
+                  //
+                  // **`AppButton`을 쓰지 않는다.** 이 화면에는 이미 버튼이 여럿이고
+                  // (하단 CTA · 닉네임 확인 · 페이스 건너뛰기), 여기에 하나 더 두면
+                  // 나가는 문이 채우는 길과 같은 무게가 된다. 가장 낮은 위계를 준다.
+                  Align(
+                    child: TextButton(
+                      onPressed: _submitting
+                          ? null
+                          : () => context.go(AppRoutes.home),
+                      child: Text(
+                        AppStrings.profileSkipForNow,
+                        style: AppTypography.caption.copyWith(
+                          color: colors.textTertiary,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

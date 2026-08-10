@@ -31,7 +31,7 @@ import 'package:runiverse/features/auth/presentation/auth_state.dart';
 /// 다 읽고 나서 갈림길을 정한다.
 ///
 /// ```
-/// 토큰이 살아 있다  → 온보딩을 마쳤으면 홈, 아니면 프로필 등록
+/// 토큰이 살아 있다  → 홈 (프로필을 안 채웠으면 홈의 유도 카드가 알린다)
 /// 토큰이 만료됐다   → 로그인 (소개는 건너뛴다. 처음 온 사람이 아니다)
 /// 저장된 것이 없다  → 온보딩 소개
 /// 판정하지 못했다   → 이 화면에 머물며 재시도
@@ -99,9 +99,10 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     if (!mounted) return;
 
     switch (ref.read(authControllerProvider)) {
-      case AuthSignedIn(:final isOnboarded):
-        // 프로필을 채우다 앱을 껐던 사람은 홈이 아니라 그 자리로 돌아간다.
-        context.go(isOnboarded ? AppRoutes.home : AppRoutes.profileSetup);
+      case AuthSignedIn():
+        // isOnboarded를 보지 않는다. 프로필을 안 채웠어도 홈으로 보내고,
+        // 홈의 유도 카드가 그것을 알린다(설계 문서 2-9).
+        context.go(AppRoutes.home);
       case AuthSignedOut(:final returning):
         // 로그인했던 적이 있으면 소개를 건너뛴다.
         context.go(returning ? AppRoutes.signIn : AppRoutes.onboardingIntro);

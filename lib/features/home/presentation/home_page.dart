@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/widgets/empty_state_card.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/home/domain/greeting.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
+import 'package:runiverse/features/home/presentation/profile_prompt_card.dart';
 
 /// 홈 (S05).
 ///
@@ -18,12 +24,23 @@ import 'package:runiverse/features/home/presentation/home_hero.dart';
 ///
 /// 매칭 상태가 생기면 홈이 그것을 소유하지 않는다. 스티키 배너와 같은 provider를
 /// 구독해야 하고, 탭을 옮겨도 살아있어야 한다(`docs/implementation-notes.md` §5-1).
-class HomePage extends StatelessWidget {
+class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
+
+    // 필요한 것은 bool 하나다. 상태 전체를 watch하면 관계없는 변화에도
+    // 홈이 통째로 다시 그려진다(CLAUDE.md).
+    //
+    // AuthUnknown이면 **띄우지 않는다.** 모르는 상태에서 카드를 보이면
+    // 이미 프로필을 채운 사람에게도 잠깐 보인다.
+    final needsProfile = ref.watch(
+      authControllerProvider.select(
+        (state) => state is AuthSignedIn && !state.isOnboarded,
+      ),
+    );
 
     return Scaffold(
       body: SafeArea(
@@ -40,6 +57,16 @@ class HomePage extends StatelessWidget {
               onMatch: () => _notReady(context, AppStrings.homeMatchComingSoon),
               onSolo: () => _notReady(context, AppStrings.homeSoloPending),
             ),
+
+            // 매칭 버튼 **바로 아래**에 둔다. "이 버튼을 쓰려면 저게 필요하다"가
+            // 눈으로 이어진다.
+            if (needsProfile) ...[
+              const SizedBox(height: AppSpacing.space4),
+              ProfilePromptCard(
+                // push다. 강제가 아니므로 뒤로가기로 나올 수 있어야 한다.
+                onTap: () => context.push(AppRoutes.profileSetup),
+              ),
+            ],
             const SizedBox(height: AppSpacing.space7),
 
             _SectionLabel(AppStrings.homeSectionCompetition),

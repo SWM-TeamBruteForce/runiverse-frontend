@@ -112,6 +112,13 @@ abstract final class AppStrings {
 
   static const profileNext = '다음';
 
+  /// 프로필을 지금 채우지 않고 나가는 문.
+  ///
+  /// **가입 직후 화면은 `go`로 열려 스택에 이것 하나만 남는다** — 뒤로가기를 누르면
+  /// 앱이 꺼진다. 사용자가 의도한 동작이 아니므로 출구를 눈에 보이게 둔다.
+  /// 홈의 유도 카드에서 언제든 돌아올 수 있다.
+  static const profileSkipForNow = '나중에 하기';
+
   /// 프로필 전송이 실패했을 때. **입력은 화면에 그대로 남는다** —
   /// 다섯 개를 다시 채우게 하지 않는다.
   static const profileSubmitFailed = '저장하지 못했어요. 다시 시도해주세요';
@@ -293,4 +300,16 @@ abstract final class AppStrings {
 
   /// 빈 상태에 붙는 한 줄. 무엇을 하면 채워지는지 알려준다.
   static const homeEmptyRecentRunHint = '혼자 달리기로 첫 기록을 남겨보세요';
+
+  // ── 프로필 유도 (S05) ────────────────────────────────────────
+  //
+  // 정본 S05에 없는 카드다. 온보딩을 마치지 않은 사람을 프로필 등록으로
+  // 강제 이동시키는 대신 여기서 만난다(설계 문서 2-9).
+
+  static const homeProfilePromptTitle = '프로필을 완성해주세요';
+
+  /// **왜 필요한지를 말한다.** "완성해주세요"만으로는 미룰 이유밖에 안 준다.
+  static const homeProfilePromptBody = '매칭과 칼로리 계산에 필요해요';
+
+  static const homeProfilePromptCta = '완성하기';
 }
