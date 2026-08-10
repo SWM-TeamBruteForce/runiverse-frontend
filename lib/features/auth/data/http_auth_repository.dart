@@ -50,10 +50,7 @@ class HttpAuthRepository implements AuthRepository {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
         _signUpPath,
-        data: {
-          'verificationTicket': verificationTicket,
-          'password': password,
-        },
+        data: {'verificationTicket': verificationTicket, 'password': password},
       );
       return _sessionOf(response.data);
     } on DioException catch (error) {

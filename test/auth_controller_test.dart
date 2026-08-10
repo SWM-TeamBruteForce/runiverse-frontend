@@ -235,7 +235,10 @@ void main() {
         .signUp(
           // 인증은 통과했는데 그 사이 계정이 이미 있는 경우다.
           // 서버는 티켓을 먼저 소비한 뒤에 이 실패를 낸다.
-          verificationTicket: ticketFor(container, FakeAuthRepository.seedEmail),
+          verificationTicket: ticketFor(
+            container,
+            FakeAuthRepository.seedEmail,
+          ),
           password: FakeAuthRepository.seedPassword,
         );
 
@@ -470,10 +473,8 @@ class _OfflineAuthRepository implements AuthRepository {
   Future<AuthSession> signUp({
     required String verificationTicket,
     required String password,
-  }) => inner.signUp(
-    verificationTicket: verificationTicket,
-    password: password,
-  );
+  }) =>
+      inner.signUp(verificationTicket: verificationTicket, password: password);
 
   @override
   Future<void> sendVerificationCode(String email) =>
