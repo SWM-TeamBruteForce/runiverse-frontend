@@ -12,6 +12,7 @@ import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/core/widgets/app_input.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/email_rule.dart';
+import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/password_field.dart';
 
@@ -189,7 +190,7 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                     AppButton(
                       label: AppStrings.authKakao,
                       variant: AppButtonVariant.secondary,
-                      onPressed: () => _notReady(context),
+                      onPressed: _busy ? null : _signInWithKakao,
                     ),
                     const SizedBox(height: AppSpacing.space3),
                     AppButton(
@@ -217,6 +218,38 @@ class _SignInPageState extends ConsumerState<SignInPage> {
         ),
       ),
     );
+  }
+
+  /// 카카오로 로그인한다.
+  ///
+  /// ## 취소는 화면에 남기지 않는다
+  ///
+  /// 사용자가 인가 화면에서 뒤로 가면 실패 이유가 돌아오지만, **그것을 그리면
+  /// 스스로 그만둔 사람에게 오류를 보여주는 셈**이다. 여기서 걸러낸다.
+  Future<void> _signInWithKakao() async {
+    setState(() {
+      _busy = true;
+      _failure = null;
+    });
+
+    final failure = await ref
+        .read(authControllerProvider.notifier)
+        .signInWithOauth(OauthProvider.kakao);
+
+    if (!mounted) return;
+
+    setState(() {
+      _busy = false;
+      _failure = failure == AuthFailure.oauthCancelled ? null : failure;
+    });
+
+    if (failure == null) {
+      // 이메일 로그인과 같은 자리로 보낸다. isOnboarded를 보지 않는다 —
+      // 프로필은 홈의 유도 카드에서 만난다(설계 문서 2-9).
+      //
+      // go는 스택을 통째로 갈아치운다. 홈에서 뒤로 눌러 로그인으로 돌아가면 안 된다.
+      context.go(AppRoutes.home);
+    }
   }
 
   void _notReady(BuildContext context) {

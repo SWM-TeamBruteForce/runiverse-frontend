@@ -8,6 +8,8 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
+import 'package:runiverse/features/auth/data/fake_oauth_code_source.dart';
+import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
@@ -20,6 +22,7 @@ void main() {
   Future<void> pumpSignIn(
     WidgetTester tester, {
     FakeAuthRepository? repository,
+    FakeOauthCodeSource? codeSource,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -30,6 +33,11 @@ void main() {
           // 지연이 있으면 pumpAndSettle이 실제로 기다린다. 테스트에서는 뺀다.
           authRepositoryProvider.overrideWithValue(
             repository ?? FakeAuthRepository(latency: Duration.zero),
+          ),
+          // 카카오 SDK도 플랫폼 채널을 부른다. 이것 없이는 카카오 버튼을
+          // 누르는 순간 테스트가 죽는다.
+          oauthCodeSourceProvider.overrideWithValue(
+            codeSource ?? FakeOauthCodeSource(),
           ),
         ],
         child: const RuniverseApp(initialLocation: AppRoutes.signIn),
@@ -181,5 +189,63 @@ void main() {
     );
 
     expect(find.text(AppStrings.authFailedCredentials), findsNothing);
+  });
+
+  group('카카오 로그인', () {
+    testWidgets('성공하면 홈으로 간다', (tester) async {
+      await pumpSignIn(tester);
+
+      await tester.tap(find.widgetWithText(AppButton, AppStrings.authKakao));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(HomePage), findsOneWidget);
+    });
+
+    testWidgets('취소하면 아무 문구도 뜨지 않는다', (tester) async {
+      // ⚠️ 이 화면에서 가장 중요한 동작이다. 스스로 그만둔 사람에게 오류를
+      // 보여주면 무언가 잘못된 것처럼 읽힌다.
+      await pumpSignIn(
+        tester,
+        codeSource: FakeOauthCodeSource(failure: AuthFailure.oauthCancelled),
+      );
+
+      await tester.tap(find.widgetWithText(AppButton, AppStrings.authKakao));
+      await tester.pumpAndSettle();
+
+      // 로그인 화면에 그대로 머문다.
+      expect(find.byType(HomePage), findsNothing);
+      // 실패 문구가 하나도 없어야 한다.
+      expect(find.text(AppStrings.authFailedOauth), findsNothing);
+      expect(find.text(AppStrings.authFailedUnknown), findsNothing);
+    });
+
+    testWidgets('인가에 실패하면 이유를 알린다', (tester) async {
+      await pumpSignIn(
+        tester,
+        codeSource: FakeOauthCodeSource(failure: AuthFailure.oauthFailed),
+      );
+
+      await tester.tap(find.widgetWithText(AppButton, AppStrings.authKakao));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.authFailedOauth), findsOneWidget);
+    });
+
+    testWidgets('이메일이 겹치면 이메일 로그인으로 안내한다', (tester) async {
+      // 서버가 자동 연동하지 않는다. "이미 가입했다"만으로는 갈 곳을 모른다.
+      final repository = FakeAuthRepository(latency: Duration.zero);
+      repository.seedAccount(email: 'taken@example.com', password: 'runi123!');
+      repository.seedOauthAccount(
+        code: 'fake-code',
+        email: 'taken@example.com',
+      );
+
+      await pumpSignIn(tester, repository: repository);
+
+      await tester.tap(find.widgetWithText(AppButton, AppStrings.authKakao));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.authFailedOauthEmailTaken), findsOneWidget);
+    });
   });
 }
