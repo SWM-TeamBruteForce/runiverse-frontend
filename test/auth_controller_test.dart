@@ -30,6 +30,14 @@ void main() {
     ],
   );
 
+  /// 인증을 마친 상태를 세우고 티켓을 돌려준다.
+  ///
+  /// 가입은 이제 이메일이 아니라 **티켓**을 받는다. 인증 3단계를 매번 밟는 대신
+  /// 티켓만 발급해 쓴다 — 여기서 보려는 것은 가입 이후의 상태 전이다.
+  String ticketFor(ProviderContainer container, String email) =>
+      (container.read(authRepositoryProvider) as FakeAuthRepository)
+          .issueTicket(email);
+
   test('처음에는 로그인 상태를 모른다', () {
     final container = makeContainer();
 
@@ -74,7 +82,10 @@ void main() {
     final container = makeContainer();
     final controller = container.read(authControllerProvider.notifier);
 
-    await controller.signUp(email: 'new@example.com', password: 'runi123!');
+    await controller.signUp(
+      verificationTicket: ticketFor(container, 'new@example.com'),
+      password: 'runi123!',
+    );
     await controller.restore();
 
     final state = container.read(authControllerProvider);
@@ -207,7 +218,10 @@ void main() {
 
     final failure = await container
         .read(authControllerProvider.notifier)
-        .signUp(email: 'new@example.com', password: 'runi123!');
+        .signUp(
+          verificationTicket: ticketFor(container, 'new@example.com'),
+          password: 'runi123!',
+        );
 
     expect(failure, isNull);
     expect(container.read(authControllerProvider), isA<AuthSignedIn>());
@@ -219,7 +233,12 @@ void main() {
     final failure = await container
         .read(authControllerProvider.notifier)
         .signUp(
-          email: FakeAuthRepository.seedEmail,
+          // 인증은 통과했는데 그 사이 계정이 이미 있는 경우다.
+          // 서버는 티켓을 먼저 소비한 뒤에 이 실패를 낸다.
+          verificationTicket: ticketFor(
+            container,
+            FakeAuthRepository.seedEmail,
+          ),
           password: FakeAuthRepository.seedPassword,
         );
 
@@ -260,7 +279,10 @@ void main() {
 
     await container
         .read(authControllerProvider.notifier)
-        .signUp(email: 'new@example.com', password: 'runi123!');
+        .signUp(
+          verificationTicket: ticketFor(container, 'new@example.com'),
+          password: 'runi123!',
+        );
 
     // 이 값이 false여야 스플래시가 홈이 아니라 프로필 등록으로 보낸다.
     expect(
@@ -303,7 +325,10 @@ void main() {
     final container = makeContainer();
     final controller = container.read(authControllerProvider.notifier);
 
-    await controller.signUp(email: 'new@example.com', password: 'runi123!');
+    await controller.signUp(
+      verificationTicket: ticketFor(container, 'new@example.com'),
+      password: 'runi123!',
+    );
     // 가입 직후에는 아직 안 마친 상태다.
     expect(
       (container.read(authControllerProvider) as AuthSignedIn).isOnboarded,
@@ -446,9 +471,10 @@ class _OfflineAuthRepository implements AuthRepository {
 
   @override
   Future<AuthSession> signUp({
-    required String email,
+    required String verificationTicket,
     required String password,
-  }) => inner.signUp(email: email, password: password);
+  }) =>
+      inner.signUp(verificationTicket: verificationTicket, password: password);
 
   @override
   Future<void> sendVerificationCode(String email) =>

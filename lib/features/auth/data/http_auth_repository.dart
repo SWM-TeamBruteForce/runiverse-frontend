@@ -38,25 +38,24 @@ class HttpAuthRepository implements AuthRepository {
     required String password,
   }) => _login(email: email, password: password);
 
-  /// 가입한 뒤 곧바로 로그인해서 세션까지 만들어 돌려준다.
+  /// 가입 응답이 **토큰까지 준다.** 이어서 로그인할 필요가 없다.
   ///
-  /// **서버의 가입 응답에는 토큰이 없다** — `userId`만 준다. 여기서 멈추면
-  /// 사용자는 가입하자마자 로그인 화면에서 같은 이메일과 비밀번호를 또 쳐야 한다.
-  /// 인터페이스가 세션을 요구하는 이유가 이것이다.
+  /// 몸통의 필드 이름이 로그인 응답과 같아 [_sessionOf]를 그대로 쓴다.
+  /// `isOnboarded`는 방금 만든 계정이라 서버가 항상 `false`를 준다.
   @override
   Future<AuthSession> signUp({
-    required String email,
+    required String verificationTicket,
     required String password,
   }) async {
     try {
-      await _dio.post<Object?>(
+      final response = await _dio.post<Map<String, dynamic>>(
         _signUpPath,
-        data: {'email': email, 'password': password},
+        data: {'verificationTicket': verificationTicket, 'password': password},
       );
+      return _sessionOf(response.data);
     } on DioException catch (error) {
       throw AuthException(_failureOf(error));
     }
-    return _login(email: email, password: password);
   }
 
   @override
@@ -207,7 +206,11 @@ class HttpAuthRepository implements AuthRepository {
     };
     if (known != null) return known;
 
-    if (code == 'VALIDATION_FAILED') {
+    // 형식 거절은 **코드가 두 가지**다. 로그인·가입은 `VALIDATION_FAILED`인데
+    // 이메일 인증 두 경로는 `INVALID_REQUEST`를 준다 — 같은 `/auth` 아래인데도
+    // 다르다(2026-08-10 서버 응답으로 확인). 하나만 보면 나머지가 `unknown`으로
+    // 떨어져 "로그인하지 못했어요"라는 엉뚱한 문구가 뜬다.
+    if (code == 'VALIDATION_FAILED' || code == 'INVALID_REQUEST') {
       // 앱이 먼저 막았어야 할 값이 서버까지 갔다. 사유는 `message`에만 있는데
       // 그것을 갈라 읽으면 서버가 문구를 고칠 때 조용히 깨진다.
       // 화면에는 앱 문구를 쓰고, 여기서는 구멍을 찾을 단서만 남긴다.

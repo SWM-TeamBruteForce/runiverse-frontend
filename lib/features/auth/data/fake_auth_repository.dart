@@ -77,17 +77,24 @@ class FakeAuthRepository implements AuthRepository {
 
   @override
   Future<AuthSession> signUp({
-    required String email,
+    required String verificationTicket,
     required String password,
   }) async {
     await Future<void>.delayed(latency);
 
-    final key = _normalize(email);
-    if (_accounts.containsKey(key)) {
+    // ⚠️ 서버와 같은 순서다 — 티켓을 **먼저** 소비하고 계정을 만든다.
+    // 순서를 바꾸면 실패했을 때 티켓이 남아, 실제 서버에선 안 되는 재시도가
+    // 테스트에서만 통과한다.
+    final email = consumeTicket(verificationTicket);
+    if (email == null) {
+      throw const AuthException(AuthFailure.emailNotVerified);
+    }
+
+    if (_accounts.containsKey(email)) {
       throw const AuthException(AuthFailure.emailAlreadyExists);
     }
-    _accounts[key] = password;
-    return _sessionFor(key);
+    _accounts[email] = password;
+    return _sessionFor(email);
   }
 
   @override
