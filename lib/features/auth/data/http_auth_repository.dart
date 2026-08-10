@@ -25,6 +25,7 @@ class HttpAuthRepository implements AuthRepository {
   static const _loginPath = '/api/v1/auth/login';
   static const _signUpPath = '/api/v1/auth/signup';
   static const _refreshPath = '/api/v1/auth/refresh';
+
   /// provider가 뒤에 붙는다 — `/auth/oauth/kakao`.
   static const _oauthPath = '/api/v1/auth/oauth';
   static const _sendCodePath = '/api/v1/auth/email/verifications';
