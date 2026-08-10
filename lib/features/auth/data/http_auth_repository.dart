@@ -38,25 +38,27 @@ class HttpAuthRepository implements AuthRepository {
     required String password,
   }) => _login(email: email, password: password);
 
-  /// 가입한 뒤 곧바로 로그인해서 세션까지 만들어 돌려준다.
+  /// 가입 응답이 **토큰까지 준다.** 이어서 로그인할 필요가 없다.
   ///
-  /// **서버의 가입 응답에는 토큰이 없다** — `userId`만 준다. 여기서 멈추면
-  /// 사용자는 가입하자마자 로그인 화면에서 같은 이메일과 비밀번호를 또 쳐야 한다.
-  /// 인터페이스가 세션을 요구하는 이유가 이것이다.
+  /// 몸통의 필드 이름이 로그인 응답과 같아 [_sessionOf]를 그대로 쓴다.
+  /// `isOnboarded`는 방금 만든 계정이라 서버가 항상 `false`를 준다.
   @override
   Future<AuthSession> signUp({
-    required String email,
+    required String verificationTicket,
     required String password,
   }) async {
     try {
-      await _dio.post<Object?>(
+      final response = await _dio.post<Map<String, dynamic>>(
         _signUpPath,
-        data: {'email': email, 'password': password},
+        data: {
+          'verificationTicket': verificationTicket,
+          'password': password,
+        },
       );
+      return _sessionOf(response.data);
     } on DioException catch (error) {
       throw AuthException(_failureOf(error));
     }
-    return _login(email: email, password: password);
   }
 
   @override

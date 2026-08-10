@@ -34,12 +34,22 @@ abstract interface class AuthRepository {
   /// 실패: `invalidCode` · `codeExpired` · `tooManyCodeAttempts`
   Future<String> verifyCode({required String email, required String code});
 
-  /// 실패 시 `AuthException(AuthFailure.emailAlreadyExists)`.
+  /// 인증을 마치고 받은 티켓으로 가입한다.
   ///
-  /// **가입 결과로 세션까지 돌려준다.** 서버 `POST /auth/signup`은 `userId`만 주지만,
-  /// 가입하자마자 로그인 화면으로 되돌리는 것은 사용자에게 같은 일을 두 번 시키는 셈이다.
-  /// 실제 구현은 signup 뒤에 login을 이어 부른다.
-  Future<AuthSession> signUp({required String email, required String password});
+  /// **이메일을 받지 않는다** — 티켓 안에 들어 있고 서버가 거기서 꺼내 쓴다.
+  ///
+  /// ## ⚠️ 티켓은 실패해도 소비된다
+  ///
+  /// 서버는 티켓을 **먼저** 소비하고 계정을 만든다. `emailAlreadyExists`로
+  /// 실패하면 그 티켓은 이미 없다. 화면은 실패를 받으면 티켓을 버리고 인증
+  /// 단계를 다시 열어야 한다 — 같은 티켓으로 재시도하면 반드시
+  /// `emailNotVerified`가 나온다.
+  ///
+  /// 실패: `emailNotVerified` · `emailAlreadyExists` · `validation`
+  Future<AuthSession> signUp({
+    required String verificationTicket,
+    required String password,
+  });
 
   /// 저장된 리프레시 토큰으로 새 토큰 쌍을 받는다.
   ///

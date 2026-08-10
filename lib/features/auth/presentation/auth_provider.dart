@@ -138,11 +138,18 @@ class AuthController extends Notifier<AuthState> {
       _authenticate(() => _repository.signIn(email: email, password: password));
 
   /// 성공하면 `null`.
+  ///
+  /// ⚠️ **실패하면 티켓은 이미 소비됐다.** 화면은 티켓을 버리고 인증 단계로
+  /// 되돌아가야 한다 — 같은 티켓으로 다시 부르면 `emailNotVerified`가 나온다.
   Future<AuthFailure?> signUp({
-    required String email,
+    required String verificationTicket,
     required String password,
-  }) =>
-      _authenticate(() => _repository.signUp(email: email, password: password));
+  }) => _authenticate(
+    () => _repository.signUp(
+      verificationTicket: verificationTicket,
+      password: password,
+    ),
+  );
 
   /// 성공하면 `null`. **상태를 바꾸지 않는다.**
   Future<AuthFailure?> sendVerificationCode(String email) async {
