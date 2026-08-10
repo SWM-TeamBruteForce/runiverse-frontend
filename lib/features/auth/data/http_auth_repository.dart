@@ -206,7 +206,11 @@ class HttpAuthRepository implements AuthRepository {
     };
     if (known != null) return known;
 
-    if (code == 'VALIDATION_FAILED') {
+    // 형식 거절은 **코드가 두 가지**다. 로그인·가입은 `VALIDATION_FAILED`인데
+    // 이메일 인증 두 경로는 `INVALID_REQUEST`를 준다 — 같은 `/auth` 아래인데도
+    // 다르다(2026-08-10 서버 응답으로 확인). 하나만 보면 나머지가 `unknown`으로
+    // 떨어져 "로그인하지 못했어요"라는 엉뚱한 문구가 뜬다.
+    if (code == 'VALIDATION_FAILED' || code == 'INVALID_REQUEST') {
       // 앱이 먼저 막았어야 할 값이 서버까지 갔다. 사유는 `message`에만 있는데
       // 그것을 갈라 읽으면 서버가 문구를 고칠 때 조용히 깨진다.
       // 화면에는 앱 문구를 쓰고, 여기서는 구멍을 찾을 단서만 남긴다.

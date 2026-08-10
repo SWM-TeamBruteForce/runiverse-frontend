@@ -303,9 +303,15 @@ S01 스플래시 ─┬─ 로그인 상태 ────────────
 | API | 400일 때 `code` |
 |---|---|
 | `POST /auth/login` · `/auth/refresh` | `VALIDATION_FAILED` |
+| `POST /auth/email/verifications` · `.../confirm` | **`INVALID_REQUEST`** |
 | `POST /users/onboarding` | `INVALID_REQUEST` · 몸통이 깨지면 `MALFORMED_REQUEST_BODY` |
 
 `code`로만 갈랐다면 온보딩 400이 전부 `unknown`으로 떨어졌을 것이다.
+
+⚠️ **같은 `/auth` 아래에서도 갈린다.** 이메일 인증 두 경로는 `VALIDATION_FAILED`가
+아니라 `INVALID_REQUEST`다 — 2026-08-10 서버 응답으로 확인했다. 그래서
+`HttpAuthRepository._failureOf`는 **두 코드를 함께** 본다. 하나만 보면 나머지가
+`unknown`이 되어 "로그인하지 못했어요"라는 엉뚱한 문구가 뜬다.
 
 ### 9-3-2. 정본에 없는 것 둘 — 홈 유도 카드와 "나중에 하기"
 
