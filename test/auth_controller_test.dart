@@ -401,10 +401,9 @@ void _emailVerificationGroup() {
     test('이미 가입된 이메일은 발송에서 막힌다', () async {
       final container = makeContainer();
       final controller = container.read(authControllerProvider.notifier);
-      repositoryOf(container).seedAccount(
-        email: 'taken@example.com',
-        password: 'runi123!',
-      );
+      repositoryOf(
+        container,
+      ).seedAccount(email: 'taken@example.com', password: 'runi123!');
 
       final failure = await controller.sendVerificationCode(
         'taken@example.com',

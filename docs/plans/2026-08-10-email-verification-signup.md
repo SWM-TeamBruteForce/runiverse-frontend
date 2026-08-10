@@ -591,6 +591,11 @@ git commit -m "📍 Feat: 가짜 저장소가 이메일 인증을 흉내 낸다"
 
 ## Task A4: 서버 호출
 
+> **실행 중 발견:** A3과 **한 커밋으로 묶었다.** 인터페이스에 메서드를 더하는
+> 순간 `HttpAuthRepository`와 `auth_controller_test`의 `_OfflineAuthRepository`가
+> 함께 깨진다 — A3만 커밋하면 그 시점에 빌드되지 않는다.
+> `sign_in_page.dart`의 `switch`도 A2에서 함께 고쳐야 했다(계획에 없었다).
+
 **Files:**
 - Modify: `lib/features/auth/data/http_auth_repository.dart`
 
