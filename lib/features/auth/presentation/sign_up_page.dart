@@ -251,6 +251,14 @@ class _FailureNotice extends StatelessWidget {
     AuthFailure.validation => AppStrings.authFailedValidation,
     AuthFailure.invalidCredentials ||
     AuthFailure.sessionExpired ||
+    // 이 화면에 아직 인증 단계가 없다. 붙일 때 각자 문구를 받는다.
+    AuthFailure.invalidCode ||
+    AuthFailure.codeExpired ||
+    AuthFailure.tooManyCodeAttempts ||
+    AuthFailure.sendCooldown ||
+    AuthFailure.sendDailyLimit ||
+    AuthFailure.sendFailed ||
+    AuthFailure.emailNotVerified ||
     AuthFailure.unknown => AppStrings.authFailedUnknown,
   };
 

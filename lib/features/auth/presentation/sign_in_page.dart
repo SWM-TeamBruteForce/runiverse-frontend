@@ -282,9 +282,16 @@ class _FailureNotice extends StatelessWidget {
     AuthFailure.server => AppStrings.authFailedServer,
     // 앱의 EmailRule·PasswordRule이 못 막은 값이 서버까지 갔다.
     AuthFailure.validation => AppStrings.authFailedValidation,
-    // 가입 전용 실패와 갱신 전용 실패다. 이 화면에 올 일이 없지만 enum이라
+    // 가입·인증·갱신 전용 실패다. 이 화면에 올 일이 없지만 enum이라
     // 컴파일러가 빠짐을 잡아준다. 뭉뚱그린 문구로 받는다.
     AuthFailure.emailAlreadyExists ||
+    AuthFailure.invalidCode ||
+    AuthFailure.codeExpired ||
+    AuthFailure.tooManyCodeAttempts ||
+    AuthFailure.sendCooldown ||
+    AuthFailure.sendDailyLimit ||
+    AuthFailure.sendFailed ||
+    AuthFailure.emailNotVerified ||
     AuthFailure.sessionExpired ||
     AuthFailure.unknown => AppStrings.authFailedUnknown,
   };
