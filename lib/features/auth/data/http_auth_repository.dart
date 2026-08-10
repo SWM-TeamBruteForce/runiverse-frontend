@@ -23,6 +23,8 @@ class HttpAuthRepository implements AuthRepository {
   static const _loginPath = '/api/v1/auth/login';
   static const _signUpPath = '/api/v1/auth/signup';
   static const _refreshPath = '/api/v1/auth/refresh';
+  static const _sendCodePath = '/api/v1/auth/email/verifications';
+  static const _verifyCodePath = '/api/v1/auth/email/verifications/confirm';
 
   /// 갱신에만 짧은 시간 제한을 건다.
   ///
@@ -55,6 +57,38 @@ class HttpAuthRepository implements AuthRepository {
       throw AuthException(_failureOf(error));
     }
     return _login(email: email, password: password);
+  }
+
+  @override
+  Future<void> sendVerificationCode(String email) async {
+    try {
+      // 204라 몸통이 없다. 읽을 것이 없으니 타입을 세우지 않는다.
+      await _dio.post<void>(_sendCodePath, data: {'email': email});
+    } on DioException catch (error) {
+      throw AuthException(_failureOf(error));
+    }
+  }
+
+  @override
+  Future<String> verifyCode({
+    required String email,
+    required String code,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _verifyCodePath,
+        data: {'email': email, 'code': code},
+      );
+      final ticket = response.data?['verificationTicket'];
+      // 200을 받아도 티켓이 없으면 가입을 시작할 수 없다. 빈 문자열로 넘기면
+      // 가입 단계에서 403이 나고, 원인에서 한참 떨어진 곳에 증상이 남는다.
+      if (ticket is! String || ticket.isEmpty) {
+        throw const AuthException(AuthFailure.unknown);
+      }
+      return ticket;
+    } on DioException catch (error) {
+      throw AuthException(_failureOf(error));
+    }
   }
 
   /// 서버를 부르지 않는다.
@@ -142,6 +176,12 @@ class HttpAuthRepository implements AuthRepository {
   ///
   /// **`message`는 쓰지 않는다.** 서버 문구는 습니다체고 앱은 해요체다.
   /// 그대로 화면에 얹으면 톤이 깨지고, 서버가 문구를 고치면 앱 화면이 같이 바뀐다.
+  ///
+  /// ## ⚠️ `code`를 상태 코드보다 먼저 본다
+  ///
+  /// `EMAIL_SEND_FAILED`가 **503**이다. 5xx를 먼저 [AuthFailure.server]로
+  /// 잘라내면 그 사유가 영영 나오지 않는다. 상태 코드는 **아는 `code`가 없을 때만**
+  /// 쓰는 마지막 수단이다.
   AuthFailure _failureOf(DioException error) {
     // 응답 자체가 없는 경우 — 연결 실패, 시간 초과. 서버까지 닿지 못했다.
     if (error.type != DioExceptionType.badResponse) {
@@ -149,12 +189,23 @@ class HttpAuthRepository implements AuthRepository {
     }
 
     final response = error.response;
-    if ((response?.statusCode ?? 0) >= 500) {
-      return AuthFailure.server;
-    }
-
     final body = response?.data;
     final code = body is Map ? body['code'] : null;
+
+    final known = switch (code) {
+      'INVALID_CREDENTIALS' => AuthFailure.invalidCredentials,
+      'EMAIL_ALREADY_EXISTS' => AuthFailure.emailAlreadyExists,
+      'INVALID_REFRESH_TOKEN' => AuthFailure.sessionExpired,
+      'INVALID_VERIFICATION_CODE' => AuthFailure.invalidCode,
+      'EMAIL_VERIFICATION_NOT_FOUND' => AuthFailure.codeExpired,
+      'TOO_MANY_VERIFICATION_ATTEMPTS' => AuthFailure.tooManyCodeAttempts,
+      'EMAIL_VERIFICATION_COOLDOWN' => AuthFailure.sendCooldown,
+      'EMAIL_VERIFICATION_DAILY_LIMIT_EXCEEDED' => AuthFailure.sendDailyLimit,
+      'EMAIL_SEND_FAILED' => AuthFailure.sendFailed,
+      'EMAIL_NOT_VERIFIED' => AuthFailure.emailNotVerified,
+      _ => null,
+    };
+    if (known != null) return known;
 
     if (code == 'VALIDATION_FAILED') {
       // 앱이 먼저 막았어야 할 값이 서버까지 갔다. 사유는 `message`에만 있는데
@@ -166,11 +217,8 @@ class HttpAuthRepository implements AuthRepository {
       return AuthFailure.validation;
     }
 
-    return switch (code) {
-      'INVALID_CREDENTIALS' => AuthFailure.invalidCredentials,
-      'EMAIL_ALREADY_EXISTS' => AuthFailure.emailAlreadyExists,
-      'INVALID_REFRESH_TOKEN' => AuthFailure.sessionExpired,
-      _ => AuthFailure.unknown,
-    };
+    // 아는 `code`가 없을 때만 상태 코드로 판단한다.
+    if ((response?.statusCode ?? 0) >= 500) return AuthFailure.server;
+    return AuthFailure.unknown;
   }
 }

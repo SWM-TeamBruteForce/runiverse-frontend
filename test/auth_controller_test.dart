@@ -374,5 +374,13 @@ class _OfflineAuthRepository implements AuthRepository {
   }) => inner.signUp(email: email, password: password);
 
   @override
+  Future<void> sendVerificationCode(String email) =>
+      inner.sendVerificationCode(email);
+
+  @override
+  Future<String> verifyCode({required String email, required String code}) =>
+      inner.verifyCode(email: email, code: code);
+
+  @override
   Future<void> signOut() => inner.signOut();
 }
