@@ -27,4 +27,25 @@ class AppConfig {
 
   /// 주소가 주입됐는가.
   static bool get hasApiBaseUrl => apiBaseUrl.isNotEmpty;
+
+  /// 카카오 네이티브 앱 키.
+  ///
+  /// 앱 바이너리에 박히는 값이라 시크릿은 아니지만, 주소와 같은 이유로 소스에
+  /// 적지 않는다 — 앱이 바뀔 때마다 커밋이 하나씩 생긴다.
+  ///
+  /// ⚠️ **REST API 키와 다른 값이다.** REST API 키와 Client Secret은 서버가
+  /// 카카오와 토큰을 교환할 때 쓰고, **앱에는 들어가지 않는다.**
+  ///
+  /// ⚠️ **안드로이드 매니페스트에도 같은 값이 필요하다.** 리다이렉트 스킴이
+  /// `kakao<앱키>`라서인데, 매니페스트는 `--dart-define`을 읽지 못한다.
+  /// Gradle 프로퍼티(`-PKAKAO_NATIVE_APP_KEY=...`)로 따로 넘긴다.
+  static const kakaoNativeAppKey = String.fromEnvironment(
+    'KAKAO_NATIVE_APP_KEY',
+  );
+
+  /// 카카오 로그인을 걸어도 되는가.
+  ///
+  /// 키가 없으면 SDK를 초기화하지 않는다 — 빈 키로 초기화하면 버튼을 눌렀을 때
+  /// 원인을 알기 어려운 오류가 난다.
+  static bool get hasKakaoNativeAppKey => kakaoNativeAppKey.isNotEmpty;
 }

@@ -75,11 +75,16 @@ Future<String> authorize({required String redirectUri, ..., String? codeVerifier
 |---|---|
 | 카카오 콘솔 Redirect URI | `kakao{네이티브앱키}://oauth` |
 | 서버 `oauth.kakao.redirect-uri` | 같은 값 |
-| 앱 `authorize(redirectUri:)` | 같은 값 |
+| 앱 `authorize(redirectUri:)` | **`KakaoSdk.redirectUri`를 그대로 쓴다** |
 
 하나라도 다르면 **서버의 토큰 교환이 카카오에 거부당하고** `OAUTH_CODE_EXCHANGE_FAILED`가 온다. 증상이 앱이 아니라 서버에서 나므로 원인을 찾기 어렵다.
 
 ⚠️ 현재 서버 설정은 `http://localhost:5173`(웹 개발용)이다. **앱은 이 주소로 돌아올 수 없다.** 백엔드가 바꿔야 한다.
+
+> **실행 중 확인:** 앱에서는 **다른 값을 쓸 방법이 아예 없다.**
+> `auth_platform_native.dart`가 `redirectUri != KakaoSdk.redirectUri`면
+> `ClientErrorCause.notSupported`로 거절한다. 그래서 앱은 `AppConfig`에서
+> 주소를 조립하지 않고 `KakaoSdk.redirectUri`를 그대로 쓴다 — 오타가 생길 자리가 없다.
 
 ### ③ 카카오 SDK를 테스트에서 부를 수 없다
 
@@ -201,10 +206,20 @@ Future<String> authorize({required String redirectUri, ..., String? codeVerifier
 
 빌드할 때 `-PKAKAO_NATIVE_APP_KEY=...`로 넘긴다.
 
-⚠️ **액티비티 클래스명은 SDK 버전에 따라 다르다.** 2.x에서
-`com.kakao.sdk.flutter.AuthCodeCustomTabsActivity`인지 확인하고, 틀리면
-`~/.pub-cache/hosted/pub.dev/kakao_flutter_sdk_common-*/android/`에서 실제 이름을 찾는다.
-**문서보다 설치된 패키지가 정본이다.**
+> **실행 중 정정 셋** — 계획을 세울 때 문서만 보고 쓴 것이 실제와 달랐다.
+> **설치된 패키지가 정본이다.**
+>
+> 1. 클래스명은 `com.kakao.sdk.flutter.auth.AuthCodeHandlerActivity`다
+>    (`AuthCodeCustomTabsActivity`가 아니다).
+> 2. **액티비티 선언은 SDK가 이미 갖고 있다** (`kakao_flutter_sdk_auth`의
+>    `AndroidManifest.xml`). 우리가 더하는 것은 `intent-filter`뿐이고,
+>    매니페스트 병합이 같은 액티비티에 붙여준다.
+> 3. **`<queries>`(카카오톡 패키지 탐지)도 SDK에 있다.** 따로 넣지 않는다.
+>
+> 병합 결과는 `build/app/intermediates/merged_manifest/.../AndroidManifest.xml`에서 확인한다.
+
+⚠️ **XML 주석 안에 붙임표 둘(`--`)을 쓰지 않는다.** 파서가 주석의 끝으로 읽어
+`ManifestMerger2$MergeFailureException`이 난다. `--dart-define`을 주석에 적다가 실제로 겪었다.
 
 - [ ] **Step 4: SDK를 초기화한다**
 
