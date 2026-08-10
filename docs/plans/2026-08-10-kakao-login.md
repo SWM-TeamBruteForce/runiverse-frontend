@@ -73,9 +73,28 @@ Future<String> authorize({required String redirectUri, ..., String? codeVerifier
 
 | 어디 | 값 |
 |---|---|
-| 카카오 콘솔 Redirect URI | `kakao{네이티브앱키}://oauth` |
-| 서버 `oauth.kakao.redirect-uri` | 같은 값 |
+| 서버 `oauth.kakao.redirect-uri` | `kakao{네이티브앱키}://oauth` |
 | 앱 `authorize(redirectUri:)` | **`KakaoSdk.redirectUri`를 그대로 쓴다** |
+| 카카오 콘솔 Redirect URI | **등록하지 않아도 된다** (아래) |
+
+**콘솔에는 등록하지 않는다.** 네이티브 앱은 커스텀 URL 스킴을 쓰므로, 플랫폼(Android/iOS)만
+등록하면 SDK가 처리한다. 콘솔의 Redirect URI 목록은 웹(REST API) 용이다.
+
+**그래도 서버 설정은 필요하다.** 인가 요청에 `redirect_uri`가 실제로 실리기 때문이다 —
+`auth_platform_native.dart`의 `_createAuthorizeUrl`에서 확인했다.
+
+```dart
+Constants.clientId: KakaoSdk.appKey,        // 네이티브 앱 키
+Constants.redirectUri: redirectUri,          // kakao{앱키}://oauth
+Constants.codeChallenge: pkce?.codeChallenge,
+```
+
+OAuth 2.0은 인가 요청에 `redirect_uri`가 있었으면 토큰 요청에도 **같은 값**을 요구하고,
+서버 `KakaoOauthClient`가 그것을 보낸다. 두 값이 다르면 카카오가 거부한다.
+
+⚠️ **확인되지 않은 것 하나** — 인가는 **네이티브 앱 키**로 시작하는데 서버는
+**REST API 키**로 토큰을 교환한다. 카카오가 같은 앱의 다른 키를 받아주는지는 코드로 알 수
+없다. 거부하면 서버 `client_id`를 네이티브 앱 키로 바꿔야 한다. **Task 7에서 드러난다.**
 
 하나라도 다르면 **서버의 토큰 교환이 카카오에 거부당하고** `OAUTH_CODE_EXCHANGE_FAILED`가 온다. 증상이 앱이 아니라 서버에서 나므로 원인을 찾기 어렵다.
 
@@ -796,7 +815,6 @@ gh pr create --repo SWM-TeamBruteForce/runiverse-frontend --base dev \
 | 콘솔 | 네이티브 앱 키 | 앱 키 화면 (REST API 키와 다르다) |
 | 콘솔 | Android 플랫폼 등록 | 패키지 `com.swmaestro.runiverse` + 키 해시 |
 | 콘솔 | 카카오 로그인 활성화 | 기본이 꺼져 있다 |
-| 콘솔 | Redirect URI 등록 | `kakao{앱키}://oauth` |
 | 콘솔 | **동의항목 `이메일` ON** | ⚠️ 비즈니스 앱 전환이 필요할 수 있다 |
 | 서버 | `oauth.kakao.redirect-uri` | 지금 `http://localhost:5173`이라 앱이 못 받는다 |
 | 서버 | Client Secret | 노출됐으므로 재발급 |
