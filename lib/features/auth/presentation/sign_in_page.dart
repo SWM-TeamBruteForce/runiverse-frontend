@@ -282,9 +282,19 @@ class _FailureNotice extends StatelessWidget {
     AuthFailure.server => AppStrings.authFailedServer,
     // 앱의 EmailRule·PasswordRule이 못 막은 값이 서버까지 갔다.
     AuthFailure.validation => AppStrings.authFailedValidation,
+
+    // 소셜 로그인 — 이 화면에서 실제로 난다.
+    AuthFailure.oauthFailed => AppStrings.authFailedOauth,
+    AuthFailure.oauthEmailMissing => AppStrings.authFailedOauthEmail,
+    // 카카오 계정의 이메일로 이미 가입한 사람이다. 서버가 자동 연동하지 않으므로
+    // **이메일 로그인으로 안내한다** — "이미 가입했다"만으로는 갈 곳을 모른다.
+    AuthFailure.emailAlreadyExists => AppStrings.authFailedOauthEmailTaken,
+    // 취소는 `_signInWithKakao`가 걸러내 여기까지 오지 않는다.
+    // enum이라 자리는 있어야 하고, 빈 문구가 그 사실을 드러낸다.
+    AuthFailure.oauthCancelled => '',
+
     // 가입·인증·갱신 전용 실패다. 이 화면에 올 일이 없지만 enum이라
     // 컴파일러가 빠짐을 잡아준다. 뭉뚱그린 문구로 받는다.
-    AuthFailure.emailAlreadyExists ||
     AuthFailure.invalidCode ||
     AuthFailure.codeExpired ||
     AuthFailure.tooManyCodeAttempts ||
