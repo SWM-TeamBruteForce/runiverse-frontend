@@ -346,6 +346,83 @@ void main() {
     // 상태만 바꾸고 토큰을 남기면 다음 실행에서 되살아난다.
     expect((await container.read(tokenStoreProvider).read()).userId, isNull);
   });
+
+  _emailVerificationGroup();
+}
+
+/// 인증번호 발송·확인 — **상태를 바꾸지 않는 것**이 핵심이다.
+void _emailVerificationGroup() {
+  ProviderContainer makeContainer() => ProviderContainer.test(
+    overrides: [
+      tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
+      authRepositoryProvider.overrideWithValue(
+        FakeAuthRepository(latency: Duration.zero),
+      ),
+    ],
+  );
+
+  /// 저장소를 컨테이너에서 꺼낸다. 메일함을 열 수 없으니 `lastCode`가 필요하다.
+  FakeAuthRepository repositoryOf(ProviderContainer container) =>
+      container.read(authRepositoryProvider) as FakeAuthRepository;
+
+  group('이메일 인증', () {
+    test('인증번호를 확인해도 로그인 상태가 되지 않는다', () async {
+      final container = makeContainer();
+      final controller = container.read(authControllerProvider.notifier);
+      final repository = repositoryOf(container);
+
+      await controller.sendVerificationCode('new@example.com');
+      final result = await controller.verifyCode(
+        email: 'new@example.com',
+        code: repository.lastCode!,
+      );
+
+      expect(result.ticket, isNotNull);
+      expect(result.failure, isNull);
+      // 인증은 신원 확인일 뿐 로그인이 아니다. 여기서 AuthSignedIn이 되면
+      // 비밀번호도 정하지 않은 사람이 홈에 들어간다.
+      expect(container.read(authControllerProvider), isA<AuthUnknown>());
+    });
+
+    test('확인에 실패하면 이유를 돌려주고 티켓은 없다', () async {
+      final container = makeContainer();
+      final controller = container.read(authControllerProvider.notifier);
+
+      await controller.sendVerificationCode('new@example.com');
+      final result = await controller.verifyCode(
+        email: 'new@example.com',
+        code: '000000',
+      );
+
+      expect(result.ticket, isNull);
+      expect(result.failure, AuthFailure.invalidCode);
+    });
+
+    test('이미 가입된 이메일은 발송에서 막힌다', () async {
+      final container = makeContainer();
+      final controller = container.read(authControllerProvider.notifier);
+      repositoryOf(
+        container,
+      ).seedAccount(email: 'taken@example.com', password: 'runi123!');
+
+      final failure = await controller.sendVerificationCode(
+        'taken@example.com',
+      );
+
+      expect(failure, AuthFailure.emailAlreadyExists);
+    });
+
+    test('발송에 성공하면 null을 돌려준다', () async {
+      final container = makeContainer();
+
+      final failure = await container
+          .read(authControllerProvider.notifier)
+          .sendVerificationCode('new@example.com');
+
+      expect(failure, isNull);
+      expect(container.read(authControllerProvider), isA<AuthUnknown>());
+    });
+  });
 }
 
 /// 갱신만 네트워크 오류로 답하는 저장소. 나머지는 [inner]에 맡긴다.
@@ -372,6 +449,14 @@ class _OfflineAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) => inner.signUp(email: email, password: password);
+
+  @override
+  Future<void> sendVerificationCode(String email) =>
+      inner.sendVerificationCode(email);
+
+  @override
+  Future<String> verifyCode({required String email, required String code}) =>
+      inner.verifyCode(email: email, code: code);
 
   @override
   Future<void> signOut() => inner.signOut();

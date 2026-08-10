@@ -266,7 +266,46 @@ abstract final class AppStrings {
   static const authToSignUp = '계정이 없나요? 가입하기';
   static const authToSignIn = '이미 계정이 있나요? 로그인';
 
+  /// **인증번호를 받기 전에** 나온다. 서버가 발송 단계에서 중복을 막기 때문이다.
+  /// 바로 아래의 [authToSignIn]이 갈 곳을 알려준다.
   static const authFailedEmailTaken = '이미 가입한 이메일이에요';
+
+  // ── 이메일 인증 ──────────────────────────────────────────────
+  //
+  // 이메일 → 인증번호 → 비밀번호 순으로 한 화면에서 열린다.
+  // 앞 단계를 마쳐야 다음 칸이 나타난다.
+
+  static const authVerifySend = '인증번호 받기';
+  static const authVerifyResend = '다시 받기';
+
+  static const authVerifyLabel = '인증번호';
+  static const authVerifyHint = '메일로 보낸 6자리 숫자';
+  static const authVerifyConfirm = '확인';
+
+  /// 전송 직후 안내. 메일함을 열어보라고 말해주지 않으면 화면에서 기다린다.
+  static const authVerifySent = '메일을 보냈어요. 받은 편지함을 확인해주세요';
+
+  static const authVerifyIncomplete = '숫자 6자리를 입력해주세요';
+
+  /// 인증을 마친 뒤. 이 줄이 없으면 됐는지 안 됐는지 알 수 없다.
+  static const authVerifyDone = '인증됐어요';
+
+  /// 이메일을 고쳐서 인증이 풀렸을 때. **왜 풀렸는지**를 밝힌다.
+  static const authVerifyReset = '이메일이 바뀌어서 인증을 다시 받아야 해요';
+
+  static const authFailedInvalidCode = '인증번호가 맞지 않아요';
+  static const authFailedCodeExpired = '인증번호가 만료됐어요. 다시 받아주세요';
+  static const authFailedTooManyAttempts = '인증 시도가 많아요. 인증번호를 다시 받아주세요';
+  static const authFailedSendFailed = '메일을 보내지 못했어요. 잠시 후 다시 시도해주세요';
+
+  /// 티켓이 만료돼 처음부터 다시 해야 한다. **"다시 받아주세요"로는 부족하다** —
+  /// 티켓은 1회용이라 인증 단계로 돌아가야 한다.
+  static const authFailedNotVerified = '인증이 만료됐어요. 인증번호를 다시 받아주세요';
+
+  /// ⚠️ 아래 둘은 **서버 문구를 그대로 쓴다**(요청받은 값).
+  /// 다른 문구가 해요체인 것과 달리 습니다체다 — 톤을 맞출지는 리뷰에서 정한다.
+  static const authFailedSendCooldown = '인증 메일을 방금 보냈습니다. 잠시 후 다시 시도해 주세요.';
+  static const authFailedSendDailyLimit = '하루 인증 메일 발송 횟수를 초과했습니다.';
 
   // ── 홈 (S05) ─────────────────────────────────────────────────
 

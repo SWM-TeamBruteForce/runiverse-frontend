@@ -16,6 +16,42 @@ enum AuthFailure {
   /// 새어 나간다. 서버도 같은 이유로 두 코드를 노출 목록에서 빼놨다.
   invalidCredentials,
 
+  /// 인증번호 확인: 번호가 맞지 않다. 서버 `INVALID_VERIFICATION_CODE` (400)
+  invalidCode,
+
+  /// 인증번호 확인: 발급된 번호가 없다 — 만료됐거나 받은 적이 없다.
+  /// 서버 `EMAIL_VERIFICATION_NOT_FOUND` (400)
+  ///
+  /// [invalidCode]와 나눈 이유는 **사용자가 할 행동이 다르기** 때문이다.
+  /// 이쪽은 다시 받아야 하고, 저쪽은 메일을 다시 보고 치면 된다.
+  codeExpired,
+
+  /// 인증번호 확인: 시도 횟수를 다 썼다. 서버 `TOO_MANY_VERIFICATION_ATTEMPTS` (429)
+  ///
+  /// 번호를 다시 받아야 풀린다 — 서버가 시도 횟수를 번호에 매달아 두기 때문이다.
+  tooManyCodeAttempts,
+
+  /// 발송: 방금 보냈다. 서버 `EMAIL_VERIFICATION_COOLDOWN` (429)
+  sendCooldown,
+
+  /// 발송: 하루 한도를 넘겼다. 서버 `EMAIL_VERIFICATION_DAILY_LIMIT_EXCEEDED` (429)
+  ///
+  /// [sendCooldown]과 달리 **오늘 안에는 풀리지 않는다.** 기다리라고 하면 안 된다.
+  sendDailyLimit,
+
+  /// 발송: 메일 서버가 받지 못했다. 서버 `EMAIL_SEND_FAILED` (503)
+  ///
+  /// ⚠️ 5xx지만 [server]로 흡수하지 않는다. 사용자가 한 일(이메일 입력)은
+  /// 멀쩡하고 다시 눌러 볼 수 있다 — 화면이 할 말이 다르다.
+  sendFailed,
+
+  /// 가입: 티켓이 없거나 만료됐다. 서버 `EMAIL_NOT_VERIFIED` (403)
+  ///
+  /// **인증을 마치고 비밀번호를 오래 고민하면 여기 온다.** 티켓에도 유효기간이 있다.
+  /// 가입에 한 번 실패한 뒤 같은 티켓으로 다시 눌러도 이것이 나온다 —
+  /// 서버가 티켓을 먼저 소비하기 때문이다.
+  emailNotVerified,
+
   /// 갱신: 리프레시 토큰이 만료됐거나 무효다. 서버 `INVALID_REFRESH_TOKEN` (401)
   ///
   /// [invalidCredentials]와 나눠 둔다. 화면이 다르게 말해야 한다 —

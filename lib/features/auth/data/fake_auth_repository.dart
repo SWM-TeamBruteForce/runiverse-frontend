@@ -45,6 +45,20 @@ class FakeAuthRepository implements AuthRepository {
   /// 갱신할 때마다 값을 바꾸기 위한 번호. 회전을 흉내 낸다.
   int _rotation = 0;
 
+  /// 보낸 인증번호. 이메일 하나당 하나만 산다 — 새로 보내면 옛것은 죽는다.
+  final Map<String, String> _codes = {};
+
+  /// 마지막으로 보낸 번호. **테스트가 메일함을 열 수 없으니** 여기서 꺼내 쓴다.
+  String? lastCode;
+
+  /// 발급한 티켓 → 이메일. 서버가 Redis에 두는 것과 같은 역할이다.
+  final Map<String, String> _tickets = {};
+
+  /// 방금 보낸 이메일. 쿨다운을 흉내 낸다.
+  final Set<String> _cooldown = {};
+
+  int _ticketSeq = 0;
+
   @override
   Future<AuthSession> signIn({
     required String email,
@@ -74,6 +88,53 @@ class FakeAuthRepository implements AuthRepository {
     }
     _accounts[key] = password;
     return _sessionFor(key);
+  }
+
+  @override
+  Future<void> sendVerificationCode(String email) async {
+    await Future<void>.delayed(latency);
+
+    final key = _normalize(email);
+    // ⚠️ 중복을 **쿨다운보다 먼저** 본다. 뒤에 두면 이미 가입된 이메일로
+    // 두 번 눌렀을 때 두 번째가 sendCooldown이 되어, 같은 조작에 다른 이유가
+    // 나온다. 사용자는 무엇이 문제인지 알 수 없다.
+    if (_accounts.containsKey(key)) {
+      throw const AuthException(AuthFailure.emailAlreadyExists);
+    }
+    if (!_cooldown.add(key)) {
+      throw const AuthException(AuthFailure.sendCooldown);
+    }
+
+    // 고정값이다. 무작위로 만들면 테스트가 번호를 알 수 없다.
+    const code = '123456';
+    _codes[key] = code;
+    lastCode = code;
+  }
+
+  @override
+  Future<String> verifyCode({
+    required String email,
+    required String code,
+  }) async {
+    await Future<void>.delayed(latency);
+
+    final key = _normalize(email);
+    final issued = _codes[key];
+    // 보낸 적이 없는 것과 만료된 것을 서버가 같은 코드로 답한다. 여기도 같게 둔다.
+    if (issued == null) {
+      throw const AuthException(AuthFailure.codeExpired);
+    }
+    if (issued != code) {
+      throw const AuthException(AuthFailure.invalidCode);
+    }
+
+    // 맞은 번호는 지운다. 같은 번호로 티켓을 여러 장 받으면 한 번의 인증으로
+    // 계정을 여러 개 만들 수 있다.
+    _codes.remove(key);
+    // 쿨다운도 푼다. 가입에 실패해 인증부터 다시 해야 할 때 막히면 안 된다.
+    _cooldown.remove(key);
+
+    return issueTicket(key);
   }
 
   @override
@@ -127,6 +188,23 @@ class FakeAuthRepository implements AuthRepository {
     _accounts[key] = password;
     if (isOnboarded) _onboarded.add(key);
   }
+
+  /// **기다리지 않고** 티켓을 만든다. 인증을 마친 상태를 세울 때 쓴다.
+  ///
+  /// [issueSession]과 같은 이유로 동기다 — `testWidgets`는 가짜 시간 위에서 돌고,
+  /// `pumpWidget` 전에 `Future`를 기다리면 시간을 진행시킬 `pump`가 없어 멈춘다.
+  String issueTicket(String email) {
+    _ticketSeq++;
+    final ticket = 'fake-ticket-$_ticketSeq';
+    _tickets[ticket] = _normalize(email);
+    return ticket;
+  }
+
+  /// 티켓을 **소비하고** 그 이메일을 돌려준다. 없으면 `null`.
+  ///
+  /// 서버 `SignUpHandler`가 하는 일과 같다 — 한 번 쓰면 사라지고,
+  /// **그 뒤 가입이 실패해도 돌아오지 않는다.**
+  String? consumeTicket(String ticket) => _tickets.remove(ticket);
 
   /// 이메일은 대소문자를 가리지 않는다. `Runner@`와 `runner@`가 다른 계정이 되면
   /// 사용자는 왜 로그인이 안 되는지 알 수 없다.

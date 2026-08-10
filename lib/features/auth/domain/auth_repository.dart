@@ -14,6 +14,26 @@ abstract interface class AuthRepository {
   /// 실패 시 `AuthException(AuthFailure.invalidCredentials)`.
   Future<AuthSession> signIn({required String email, required String password});
 
+  /// 이메일로 인증번호를 보낸다.
+  ///
+  /// **이미 가입된 이메일이면 여기서 `emailAlreadyExists`가 난다.** 인증번호를
+  /// 치기도 전에 알려주는 것이 중요하다 — 다 치고 나서 알려주면 사용자가 한 일이
+  /// 통째로 버려진다.
+  ///
+  /// 실패: `emailAlreadyExists` · `sendCooldown` · `sendDailyLimit` · `sendFailed`
+  Future<void> sendVerificationCode(String email);
+
+  /// 인증번호를 확인하고 **티켓을 받는다.**
+  ///
+  /// 이 티켓이 "이 사람은 이 이메일을 인증했다"는 증거고, [signUp]에 넘긴다.
+  /// **서버는 티켓을 한 번만 받아준다** — 저장하지 말고 그 화면에서만 들고 있는다.
+  ///
+  /// 티켓은 URL-safe base64 문자열이다. 앱은 **모양을 검사하지 않는다** —
+  /// 서버가 형식을 바꿔도 앱이 깨지지 않아야 한다.
+  ///
+  /// 실패: `invalidCode` · `codeExpired` · `tooManyCodeAttempts`
+  Future<String> verifyCode({required String email, required String code});
+
   /// 실패 시 `AuthException(AuthFailure.emailAlreadyExists)`.
   ///
   /// **가입 결과로 세션까지 돌려준다.** 서버 `POST /auth/signup`은 `userId`만 주지만,

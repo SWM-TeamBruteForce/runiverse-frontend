@@ -144,6 +144,39 @@ class AuthController extends Notifier<AuthState> {
   }) =>
       _authenticate(() => _repository.signUp(email: email, password: password));
 
+  /// 성공하면 `null`. **상태를 바꾸지 않는다.**
+  Future<AuthFailure?> sendVerificationCode(String email) async {
+    try {
+      await _repository.sendVerificationCode(email);
+      return null;
+    } on AuthException catch (error) {
+      return error.failure;
+    }
+  }
+
+  /// 성공하면 `ticket`, 실패하면 `failure`. **둘 중 하나만 채워진다.**
+  ///
+  /// ## 왜 상태를 바꾸지 않는가
+  ///
+  /// 인증은 **신원 확인이지 로그인이 아니다.** 여기서 [AuthSignedIn]으로 만들면
+  /// 비밀번호도 정하지 않은 사람이 홈에 들어간다. 토큰이 생기는 곳은 [signUp]뿐이다.
+  ///
+  /// ## 티켓을 저장하지 않는다
+  ///
+  /// 가입 화면이 받아서 들고 있다가 [signUp]에 넘긴다. 저장소에 넣으면 지울
+  /// 자리를 따로 찾아야 하고, 앱을 껐다 켠 사람에게 남아 있을 이유가 없다.
+  Future<({String? ticket, AuthFailure? failure})> verifyCode({
+    required String email,
+    required String code,
+  }) async {
+    try {
+      final ticket = await _repository.verifyCode(email: email, code: code);
+      return (ticket: ticket, failure: null);
+    } on AuthException catch (error) {
+      return (ticket: null, failure: error.failure);
+    }
+  }
+
   /// 프로필 등록을 마쳤다. **저장소와 상태를 함께** 켠다.
   ///
   /// 상태만 켜면 앱을 껐다 켰을 때 저장소가 여전히 `false`라 프로필로 다시 간다.
