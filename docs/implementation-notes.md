@@ -552,3 +552,23 @@ flutter build apk -PKAKAO_NATIVE_APP_KEY=... --dart-define=KAKAO_NATIVE_APP_KEY=
 `OauthUserResolver.register`가 `EMAIL_ALREADY_EXISTS`(409)를 던진다. 로그인하려는
 사람이 그 계정의 주인인지 확인할 방법이 없어서다. 화면은 **이메일 로그인으로
 안내한다** — "이미 가입했다"만으로는 갈 곳을 알 수 없다.
+
+#### ⚠️ 취소는 `PlatformException`으로 온다 — 테스트가 못 잡는다
+
+에뮬레이터에서 브라우저를 닫아보니 실제로 오는 것은 이것이었다.
+
+```
+PlatformException(CANCELED, User canceled login., null, null)
+```
+
+네이티브 `CustomTabsActivity`가 `sendError("CANCELED", ...)`를 보내고 pigeon이 그대로
+넘긴다. **`KakaoClientException`이 아니다** — 그것은 SDK가 Dart에서 던지는 경우다
+(리다이렉트 주소 불일치 등).
+
+처음에 `KakaoClientException`만 잡았더니 취소가 `oauthFailed`로 떨어져
+**"카카오 로그인을 마치지 못했어요"가 떴다.** 스스로 그만둔 사람에게 오류를 보인 것이다.
+
+⚠️ **위젯 테스트로는 절대 못 잡는다.** `FakeOauthCodeSource`는 `AuthFailure`를 직접
+던지므로, 그 변환이 맞는지는 시험 대상이 아니다. **SDK 경계의 예외 매핑은 실기기·
+에뮬레이터에서만 확인된다** — 그래서 `KakaoCodeSource`가 무엇을 잡았는지
+`kDebugMode` 로그로 남긴다. 로그가 없으면 취소인지 오류인지도 구분할 수 없다.
