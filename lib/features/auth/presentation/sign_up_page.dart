@@ -554,9 +554,12 @@ class _FailureNotice extends StatelessWidget {
     AuthFailure.server => AppStrings.authFailedServer,
     // 앱의 EmailRule·PasswordRule이 못 막은 값이 서버까지 갔다.
     AuthFailure.validation => AppStrings.authFailedValidation,
-    // 로그인·갱신 전용이라 이 화면에 올 일이 없다.
+    // 로그인·갱신·소셜 전용이라 이 화면에 올 일이 없다.
     AuthFailure.invalidCredentials ||
     AuthFailure.sessionExpired ||
+    AuthFailure.oauthCancelled ||
+    AuthFailure.oauthFailed ||
+    AuthFailure.oauthEmailMissing ||
     AuthFailure.unknown => AppStrings.authFailedUnknown,
   };
 

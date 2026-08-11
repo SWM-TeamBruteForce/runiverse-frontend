@@ -47,6 +47,36 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!--
+          카카오 로그인이 끝나고 돌아오는 문.
+
+          액티비티 자체는 SDK가 자기 매니페스트에 선언해 뒀다(kakao_flutter_sdk_auth).
+          여기서 더하는 것은 **어떤 주소로 돌아올지**뿐이고, 매니페스트 병합으로
+          같은 액티비티에 이 intent-filter가 붙는다.
+
+          ⚠️ scheme의 앱 키는 Gradle이 채운다. 매니페스트는 dart-define을 읽지
+          못해서다 — build.gradle.kts의 manifestPlaceholders를 함께 본다.
+
+          (XML 주석 안에는 붙임표 둘을 나란히 쓸 수 없다. 파서가 주석의 끝으로
+          읽어 빌드가 깨진다.)
+
+          ⚠️ 이 주소는 **카카오 콘솔의 Redirect URI, 서버 `oauth.kakao.redirect-uri`와
+          문자 하나까지 같아야 한다.** 다르면 서버의 토큰 교환이 카카오에 거부당하는데,
+          증상이 앱이 아니라 서버에서 나므로 원인을 찾기 어렵다.
+        -->
+        <activity
+            android:name="com.kakao.sdk.flutter.auth.AuthCodeHandlerActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="kakao${KAKAO_NATIVE_APP_KEY}"
+                    android:host="oauth" />
+            </intent-filter>
+        </activity>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

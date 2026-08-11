@@ -12,6 +12,7 @@ import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/core/widgets/app_input.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/email_rule.dart';
+import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/password_field.dart';
 
@@ -189,7 +190,7 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                     AppButton(
                       label: AppStrings.authKakao,
                       variant: AppButtonVariant.secondary,
-                      onPressed: () => _notReady(context),
+                      onPressed: _busy ? null : _signInWithKakao,
                     ),
                     const SizedBox(height: AppSpacing.space3),
                     AppButton(
@@ -217,6 +218,38 @@ class _SignInPageState extends ConsumerState<SignInPage> {
         ),
       ),
     );
+  }
+
+  /// 카카오로 로그인한다.
+  ///
+  /// ## 취소는 화면에 남기지 않는다
+  ///
+  /// 사용자가 인가 화면에서 뒤로 가면 실패 이유가 돌아오지만, **그것을 그리면
+  /// 스스로 그만둔 사람에게 오류를 보여주는 셈**이다. 여기서 걸러낸다.
+  Future<void> _signInWithKakao() async {
+    setState(() {
+      _busy = true;
+      _failure = null;
+    });
+
+    final failure = await ref
+        .read(authControllerProvider.notifier)
+        .signInWithOauth(OauthProvider.kakao);
+
+    if (!mounted) return;
+
+    setState(() {
+      _busy = false;
+      _failure = failure == AuthFailure.oauthCancelled ? null : failure;
+    });
+
+    if (failure == null) {
+      // 이메일 로그인과 같은 자리로 보낸다. isOnboarded를 보지 않는다 —
+      // 프로필은 홈의 유도 카드에서 만난다(설계 문서 2-9).
+      //
+      // go는 스택을 통째로 갈아치운다. 홈에서 뒤로 눌러 로그인으로 돌아가면 안 된다.
+      context.go(AppRoutes.home);
+    }
   }
 
   void _notReady(BuildContext context) {
@@ -282,9 +315,19 @@ class _FailureNotice extends StatelessWidget {
     AuthFailure.server => AppStrings.authFailedServer,
     // 앱의 EmailRule·PasswordRule이 못 막은 값이 서버까지 갔다.
     AuthFailure.validation => AppStrings.authFailedValidation,
+
+    // 소셜 로그인 — 이 화면에서 실제로 난다.
+    AuthFailure.oauthFailed => AppStrings.authFailedOauth,
+    AuthFailure.oauthEmailMissing => AppStrings.authFailedOauthEmail,
+    // 카카오 계정의 이메일로 이미 가입한 사람이다. 서버가 자동 연동하지 않으므로
+    // **이메일 로그인으로 안내한다** — "이미 가입했다"만으로는 갈 곳을 모른다.
+    AuthFailure.emailAlreadyExists => AppStrings.authFailedOauthEmailTaken,
+    // 취소는 `_signInWithKakao`가 걸러내 여기까지 오지 않는다.
+    // enum이라 자리는 있어야 하고, 빈 문구가 그 사실을 드러낸다.
+    AuthFailure.oauthCancelled => '',
+
     // 가입·인증·갱신 전용 실패다. 이 화면에 올 일이 없지만 enum이라
     // 컴파일러가 빠짐을 잡아준다. 뭉뚱그린 문구로 받는다.
-    AuthFailure.emailAlreadyExists ||
     AuthFailure.invalidCode ||
     AuthFailure.codeExpired ||
     AuthFailure.tooManyCodeAttempts ||

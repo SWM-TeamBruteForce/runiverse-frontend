@@ -480,3 +480,75 @@ dio의 `LogInterceptor`는 요청·응답 본문을 통째로 찍는다.
 `_submitting`이 `true`로 남는다. 스피너가 영원히 돌아 `pumpAndSettle`이 끝나지
 않는다. **실패 경로는 저장소를 부르지 않아 멀쩡히 통과하므로** 원인을 찾기 어렵다.
 
+
+### 9-8. 카카오 로그인 — 앱은 토큰을 만지지 않는다
+
+앱이 하는 일은 둘뿐이다. **① 인가 코드와 `codeVerifier`를 얻고 ② 서버에 넘긴다.**
+토큰 교환도 프로필 조회도 서버(`KakaoOauthClient`)가 한다.
+
+```
+POST /api/v1/auth/oauth/kakao
+{"authorizationCode": "...", "codeVerifier": "..."}
+→ 200 {userId, accessToken, refreshToken, isOnboarded}
+```
+
+⚠️ **흔한 예제를 그대로 쓰면 안 된다.** `UserApi.instance.loginWithKakaoTalk()`은
+**액세스 토큰을 앱이 받는다** — 이 서버와 맞지 않는다. 써야 하는 것은
+`AuthCodeClient.authorize()`이고, 그것은 인가 코드만 돌려준다.
+
+#### ⚠️ `redirect_uri`는 앱이 고를 수 없다
+
+`auth_platform_native.dart`가 `redirectUri != KakaoSdk.redirectUri`면
+`ClientErrorCause.notSupported`로 거절한다. 그래서 앱은 주소를 조립하지 않고
+`KakaoSdk.redirectUri`(`kakao<네이티브앱키>://oauth`)를 그대로 쓴다.
+
+**서버 `oauth.kakao.redirect-uri`가 같은 값이어야 한다.** 인가 요청에 `redirect_uri`가
+실려 나가고(`_createAuthorizeUrl`), OAuth 2.0은 토큰 요청에도 같은 값을 요구한다.
+다르면 카카오가 교환을 거부하는데 **증상이 앱이 아니라 서버에서 난다.**
+
+콘솔의 Redirect URI 목록에는 **등록하지 않는다.** 네이티브는 커스텀 URL 스킴을 쓰고,
+그 목록은 웹(REST API)용이다.
+
+#### ⚠️ 취소 경로가 둘이다
+
+| 어디서 취소 | 예외 | 값 |
+|---|---|---|
+| 브라우저를 닫음 | `KakaoClientException` | `reason == ClientErrorCause.cancelled` |
+| 동의 화면에서 취소 | `KakaoAuthException` | `error == AuthErrorCause.accessDenied` |
+
+**둘 다 잡지 않으면 한쪽 취소에서 빨간 문구가 뜬다.** 그리고 취소는 오류가 아니므로
+화면이 아무 문구도 띄우지 않는다 — `AuthFailure.oauthCancelled`를 따로 둔 이유다.
+`_signInWithKakao`가 그 값을 걸러낸다.
+
+#### 앱 키가 두 경로로 들어간다
+
+`--dart-define`은 Dart 코드만 본다. **매니페스트의 리다이렉트 스킴은 읽지 못한다.**
+그래서 Gradle 프로퍼티로 한 번 더 넘긴다.
+
+```
+flutter build apk -PKAKAO_NATIVE_APP_KEY=... --dart-define=KAKAO_NATIVE_APP_KEY=...
+```
+
+키가 없으면 스킴이 `kakao://oauth`가 되지만, `main.dart`가 SDK를 아예 초기화하지 않아
+그 상태로 로그인이 시도되지는 않는다.
+
+#### 매니페스트에는 intent-filter만 더한다
+
+액티비티(`com.kakao.sdk.flutter.auth.AuthCodeHandlerActivity`)와 카카오톡 탐지용
+`<queries>`는 **SDK가 자기 매니페스트에 이미 선언해 뒀다.** 병합 결과는
+`build/app/intermediates/merged_manifest/.../AndroidManifest.xml`에서 확인한다.
+
+⚠️ **XML 주석 안에 붙임표 둘(`--`)을 쓰지 않는다.** 파서가 주석의 끝으로 읽어
+`ManifestMerger2$MergeFailureException`이 난다. `--dart-define`을 주석에 적다가 겪었다.
+
+#### 이메일 동의가 없으면 로그인이 항상 실패한다
+
+서버 `toProfile`이 이메일이 없으면 `OauthEmailNotProvidedException`(403)을 던진다.
+**카카오는 이메일 수집에 비즈니스 앱 전환을 요구한다.** 콘솔에서 동의항목이 켜져
+있는지가 앱 코드보다 먼저다.
+
+#### 이메일이 겹치면 서버가 자동 연동하지 않는다
+
+`OauthUserResolver.register`가 `EMAIL_ALREADY_EXISTS`(409)를 던진다. 로그인하려는
+사람이 그 계정의 주인인지 확인할 방법이 없어서다. 화면은 **이메일 로그인으로
+안내한다** — "이미 가입했다"만으로는 갈 곳을 알 수 없다.
