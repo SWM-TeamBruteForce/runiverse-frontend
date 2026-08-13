@@ -99,10 +99,13 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     if (!mounted) return;
 
     switch (ref.read(authControllerProvider)) {
-      case AuthSignedIn():
-        // isOnboarded를 보지 않는다. 프로필을 안 채웠어도 홈으로 보내고,
-        // 홈의 유도 카드가 그것을 알린다(설계 문서 2-9).
-        context.go(AppRoutes.home);
+      case AuthSignedIn(:final isOnboarded):
+        // 프로필은 **있어야 쓸 수 있다.** 매칭도 기록도 이 값들 위에 선다.
+        //
+        // 건너뛴 사람은 다음에 앱을 열 때 폼을 다시 본다. 기기에 "한 번 보여줬다"를
+        // 남기면 피할 수 있지만, 그러면 재설치·기기 변경마다 어긋나고 기기에
+        // 계정 식별자가 쌓인다. **다시 묻는 쪽을 택했다.**
+        context.go(isOnboarded ? AppRoutes.home : AppRoutes.profileSetup);
       case AuthSignedOut(:final returning):
         // 로그인했던 적이 있으면 소개를 건너뛴다.
         context.go(returning ? AppRoutes.signIn : AppRoutes.onboardingIntro);

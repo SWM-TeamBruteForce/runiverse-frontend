@@ -10,7 +10,7 @@ import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/data/fake_oauth_code_source.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/sign_in_page.dart';
-import 'package:runiverse/features/home/presentation/home_page.dart';
+import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.dart';
 
 /// 카카오 로그인 앞에 약관이 서는가 — **이 PR의 이유 전부.**
@@ -70,10 +70,10 @@ void main() {
     // 여기가 깨지면 동의를 묻는 사이에 이미 계정이 만들어진다.
     // 약관 화면이 보이는 것만으로는 부족하다 — 인가가 함께 나갔을 수 있다.
     expect(app.kakao.callCount, 0);
-    expect(find.byType(HomePage), findsNothing);
+    expect(find.byType(ProfileSetupPage), findsNothing);
   });
 
-  testWidgets('동의를 마치면 인가가 시작되고 홈으로 간다', (tester) async {
+  testWidgets('동의를 마치면 인가가 시작되고 프로필 폼으로 간다', (tester) async {
     final app = await pumpSignIn(tester, agreed: false);
     await tapKakao(tester);
 
@@ -83,7 +83,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(app.kakao.callCount, 1);
-    expect(find.byType(HomePage), findsOneWidget);
+    // 카카오 첫 로그인은 가입이다. 프로필을 채워야 앱을 쓸 수 있다.
+    expect(find.byType(ProfileSetupPage), findsOneWidget);
   });
 
   testWidgets('약관에서 뒤로 나오면 인가하지 않는다', (tester) async {
@@ -106,7 +107,8 @@ void main() {
     // 같은 것을 두 번 묻지 않는다.
     expect(find.byType(TermsAgreementPage), findsNothing);
     expect(app.kakao.callCount, 1);
-    expect(find.byType(HomePage), findsOneWidget);
+    // 카카오 첫 로그인은 가입이다. 프로필을 채워야 앱을 쓸 수 있다.
+    expect(find.byType(ProfileSetupPage), findsOneWidget);
   });
 
   testWidgets('동의하면 기록이 남아 다음부터 묻지 않는다', (tester) async {
@@ -151,6 +153,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(app.kakao.callCount, 1);
-    expect(find.byType(HomePage), findsOneWidget);
+    // 카카오 첫 로그인은 가입이다. 프로필을 채워야 앱을 쓸 수 있다.
+    expect(find.byType(ProfileSetupPage), findsOneWidget);
   });
 }

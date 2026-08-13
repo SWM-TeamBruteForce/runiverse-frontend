@@ -207,17 +207,17 @@ void main() {
       expect(find.byType(HomePage), findsOneWidget);
     });
 
-    testWidgets('온보딩을 안 마쳤어도 홈으로 간다', (tester) async {
+    testWidgets('온보딩을 안 마쳤으면 프로필 폼으로 간다', (tester) async {
       final (store, repository) = await signedIn(isOnboarded: false);
 
       await pumpApp(tester, store: store, repository: repository);
       await tester.tap(find.byType(SplashPage));
       await tester.pumpAndSettle();
 
-      // 앱을 열자마자 폼이 뜨는 것이 당황스럽다(설계 문서 2-9).
-      // 프로필은 홈의 유도 카드에서 만난다.
-      expect(find.byType(HomePage), findsOneWidget);
-      expect(find.byType(ProfileSetupPage), findsNothing);
+      // 프로필은 **있어야 쓸 수 있다.** 매칭도 기록도 그 값들 위에 선다.
+      // 로그인 화면 셋(이메일·카카오·스플래시)이 같은 기준을 쓴다.
+      expect(find.byType(ProfileSetupPage), findsOneWidget);
+      expect(find.byType(HomePage), findsNothing);
     });
 
     testWidgets('토큰이 만료됐으면 소개를 건너뛰고 로그인으로 간다', (tester) async {

@@ -129,8 +129,18 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   /// 어느 인가 코드가 어느 이메일에 대응하는지 심는다. **기다리지 않는다.**
-  void seedOauthAccount({required String code, required String email}) {
-    _oauthAccounts[code] = _normalize(email);
+  ///
+  /// [isOnboarded]는 **프로필까지 채운 카카오 계정**을 만든다. 로컬 계정을 심어
+  /// 대신할 수 없다 — 같은 이메일의 로컬 계정이 있으면 [signInWithOauth]가
+  /// `emailAlreadyExists`로 막는다. 그래서 여기서만 만들 수 있다.
+  void seedOauthAccount({
+    required String code,
+    required String email,
+    bool isOnboarded = false,
+  }) {
+    final key = _normalize(email);
+    _oauthAccounts[code] = key;
+    if (isOnboarded) _onboarded.add(key);
   }
 
   @override

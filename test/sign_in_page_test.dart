@@ -159,7 +159,7 @@ void main() {
     expect(find.byType(HomePage), findsOneWidget);
   });
 
-  testWidgets('프로필을 아직 안 채웠어도 홈으로 간다', (tester) async {
+  testWidgets('프로필을 안 채웠으면 홈이 아니라 폼으로 간다', (tester) async {
     final repository = FakeAuthRepository(latency: Duration.zero);
     // 가입은 했지만 프로필을 안 채운 계정. isOnboarded가 false로 온다.
     //
@@ -173,10 +173,11 @@ void main() {
     await tester.tap(find.text(AppStrings.authSignInCta));
     await tester.pumpAndSettle();
 
-    // 돌아온 사람을 폼으로 가로막지 않는다(설계 문서 2-9).
-    // 스플래시와 같은 기준이라 어느 쪽으로 들어와도 도착지가 같다.
-    expect(find.byType(HomePage), findsOneWidget);
-    expect(find.byType(ProfileSetupPage), findsNothing);
+    // 프로필은 **있어야 쓸 수 있다.** 매칭도 기록도 그 값들 위에 선다.
+    // 건너뛴 사람이 다음 로그인에 폼을 다시 보는 것은 받아들인 결과다 —
+    // 기기에 "한 번 보여줬다"를 남기지 않기로 했다.
+    expect(find.byType(ProfileSetupPage), findsOneWidget);
+    expect(find.byType(HomePage), findsNothing);
   });
 
   testWidgets('다시 입력하면 이전 실패 문구가 사라진다', (tester) async {
@@ -200,8 +201,27 @@ void main() {
   });
 
   group('카카오 로그인', () {
-    testWidgets('성공하면 홈으로 간다', (tester) async {
+    testWidgets('처음 들어오면 프로필 폼으로 간다', (tester) async {
+      // 카카오는 **가입과 로그인이 한 경로다.** 계정이 없으면 서버가 그 자리에서
+      // 만들고 isOnboarded=false로 답한다. 그러니 첫 로그인은 이메일의 *가입*이다.
       await pumpSignIn(tester);
+
+      await tester.tap(find.widgetWithText(AppButton, AppStrings.authKakao));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProfileSetupPage), findsOneWidget);
+    });
+
+    testWidgets('프로필을 채운 계정이면 홈으로 간다', (tester) async {
+      final repository = FakeAuthRepository(latency: Duration.zero);
+      // 예전에 카카오로 들어와 프로필까지 채운 사람이다.
+      repository.seedOauthAccount(
+        code: 'fake-code',
+        email: 'kakao-done@example.com',
+        isOnboarded: true,
+      );
+
+      await pumpSignIn(tester, repository: repository);
 
       await tester.tap(find.widgetWithText(AppButton, AppStrings.authKakao));
       await tester.pumpAndSettle();
