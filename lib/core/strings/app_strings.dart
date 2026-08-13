@@ -355,26 +355,16 @@ abstract final class AppStrings {
   /// 빈 상태에 붙는 한 줄. 무엇을 하면 채워지는지 알려준다.
   static const homeEmptyRecentRunHint = '혼자 달리기로 첫 기록을 남겨보세요';
 
-  // ── 프로필 유도 (S05) ────────────────────────────────────────
-  //
-  // 정본 S05에 없는 카드다. 온보딩을 마치지 않은 사람을 프로필 등록으로
-  // 강제 이동시키는 대신 여기서 만난다(설계 문서 2-9).
-
-  static const homeProfilePromptTitle = '프로필을 완성해주세요';
-
-  /// **왜 필요한지를 말한다.** "완성해주세요"만으로는 미룰 이유밖에 안 준다.
-  static const homeProfilePromptBody = '매칭과 칼로리 계산에 필요해요';
-
-  static const homeProfilePromptCta = '완성하기';
-
   // ── 프로필 탭 (S22, 본인) ────────────────────────────────────
   //
   // ⚠️ **S22가 본인, S20이 타인**이다. Figma 페이지 이름이 `S20–S21`이라
   // 헷갈리기 쉽다 — 정본은 `와이어프레임_최종.md`다.
 
-  /// 닉네임 자리. 아직 프로필을 안 채운 사람이라 **홈의 유도 카드와 같은 말**을 한다.
-  /// 다른 말을 쓰면 같은 상태에 이름이 둘 생긴다.
-  static const profileNicknameEmpty = homeProfilePromptTitle;
+  /// 닉네임 자리. 아직 프로필을 안 채운 사람에게 보인다.
+  ///
+  /// ⚠️ 실제로는 거의 보이지 않는다 — 프로필이 없으면 홈에서 [profileSheetTitle]이
+  /// 막아서기 때문이다. 딥링크처럼 그 관문을 지나치는 길에 대비해 남긴다.
+  static const profileNicknameEmpty = '프로필을 완성해주세요';
 
   static const profileSignatureLabel = '시그니처 컬러';
 
@@ -418,19 +408,20 @@ abstract final class AppStrings {
   static const hueCompany = '동행';
   static const hueAdversity = '악조건';
 
-  // ── 프로필 유도 바텀시트 (S22) ───────────────────────────────
+  // ── 프로필 유도 바텀시트 ─────────────────────────────────────
   //
-  // 프로필 탭은 값이 없으면 **거의 빈 화면**이다. 그래서 홈의 카드보다
-  // 한 발 더 나아가 시트로 띄운다. ⚠️ 닫을 수 있어야 한다 —
-  // 닫히지 않는 안내는 안내가 아니라 벽이다.
+  // ⚠️ **닫히지 않는다.** 프로필 없이는 매칭도 기록도 돌아가지 않아서
+  // 앱을 쓸 수 없다. 그래서 안내가 아니라 **관문**이다.
+  //
+  // 닫히지 않는 것을 화면이 스스로 밝혀야 한다 — 닫으려다 안 되는 것과
+  // 처음부터 닫히지 않는다고 아는 것은 다르다.
 
-  static const profileSheetTitle = '프로필을 채우면\n달리기가 시작돼요';
+  /// **막아선 이유를 먼저 말한다.** "완성해주세요"는 미룰 이유밖에 안 준다.
+  static const profileSheetTitle = '프로필이 있어야\n달릴 수 있어요';
 
-  /// **무엇이 열리는지 셋을 든다.** "필요해요"만으로는 미룰 이유밖에 안 준다.
-  static const profileSheetBody = '닉네임과 페이스를 알려주시면\n매칭과 색 수집을 시작할 수 있어요';
+  /// 무엇이 열리는지와 **왜 필수인지**를 함께 든다.
+  static const profileSheetBody =
+      '닉네임과 페이스로 상대를 찾고 기록을 계산해요.\n비워두면 매칭을 시작할 수 없어요';
 
   static const profileSheetCta = '프로필 입력하기';
-
-  /// 닫는 문. **눈에 보이게 둔다** — 스크림만으로는 닫히는지 알 수 없다.
-  static const profileSheetDismiss = '나중에';
 }

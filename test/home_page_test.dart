@@ -8,7 +8,6 @@ import 'package:runiverse/core/widgets/empty_state_card.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
-import 'package:runiverse/features/home/presentation/profile_prompt_card.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 
 /// 홈 (S05 상태 1) — 무엇이 보이고, 아직 없는 화면으로 가는 버튼이 무엇을 하는가.
@@ -109,44 +108,59 @@ void main() {
     });
   });
 
-  group('프로필 유도 카드', () {
-    testWidgets('온보딩을 안 마쳤으면 카드가 보인다', (tester) async {
+  group('프로필 관문', () {
+    testWidgets('⚠️ 온보딩을 안 마쳤으면 관문이 막아선다', (tester) async {
       await pumpHome(
         tester,
         auth: const AuthSignedIn('u-1', isOnboarded: false),
       );
 
-      expect(find.byType(ProfilePromptCard), findsOneWidget);
-      expect(find.text(AppStrings.homeProfilePromptTitle), findsOneWidget);
+      // 유도 카드를 대신한 것이다. 카드는 지나칠 수 있었지만 이것은 아니다 —
+      // 프로필 없이는 매칭도 기록도 돌아가지 않는다.
+      expect(find.text(AppStrings.profileSheetCta), findsOneWidget);
     });
 
-    testWidgets('온보딩을 마쳤으면 카드가 없다', (tester) async {
+    testWidgets('온보딩을 마쳤으면 막아서지 않는다', (tester) async {
       await pumpHome(
         tester,
         auth: const AuthSignedIn('u-1', isOnboarded: true),
       );
 
-      expect(find.byType(ProfilePromptCard), findsNothing);
+      expect(find.text(AppStrings.profileSheetCta), findsNothing);
     });
 
-    testWidgets('로그인 상태를 모를 때도 카드가 없다', (tester) async {
-      // 스플래시를 거치지 않고 홈에 바로 온 경우다. 모르는 상태에서 카드를 띄우면
-      // 이미 프로필을 채운 사람에게도 잠깐 보인다.
+    testWidgets('로그인 상태를 모를 때도 막아서지 않는다', (tester) async {
+      // 스플래시를 거치지 않고 홈에 바로 온 경우다. 모르는 상태에서 막아서면
+      // 이미 프로필을 채운 사람도 잠깐 갇힌다.
       await pumpHome(tester, auth: const AuthUnknown());
 
-      expect(find.byType(ProfilePromptCard), findsNothing);
+      expect(find.text(AppStrings.profileSheetCta), findsNothing);
     });
 
-    testWidgets('카드를 누르면 프로필 등록으로 간다', (tester) async {
+    testWidgets('관문의 CTA는 프로필 등록으로 간다', (tester) async {
       await pumpHome(
         tester,
         auth: const AuthSignedIn('u-1', isOnboarded: false),
       );
 
-      await tester.tap(find.text(AppStrings.homeProfilePromptCta));
+      await tester.tap(find.text(AppStrings.profileSheetCta));
       await tester.pumpAndSettle();
 
       expect(find.byType(ProfileSetupPage), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 스크림을 눌러도 닫히지 않는다', (tester) async {
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: false),
+      );
+
+      // 화면 맨 위(시트 밖)를 누른다. 보통 바텀시트는 여기서 닫힌다.
+      await tester.tapAt(const Offset(200, 40));
+      await tester.pumpAndSettle();
+
+      // 닫히면 프로필 없는 사람이 앱을 그냥 쓰게 된다.
+      expect(find.text(AppStrings.profileSheetCta), findsOneWidget);
     });
   });
 }

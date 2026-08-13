@@ -136,17 +136,19 @@ void main() {
     expect(find.byType(ProfilePage, skipOffstage: false), findsOneWidget);
   });
 
-  testWidgets('시트는 닫을 수 있고 닫으면 다시 뜨지 않는다', (tester) async {
+  testWidgets('⚠️ 폼에서 채우지 않고 돌아오면 관문이 다시 선다', (tester) async {
     await pumpProfile(tester, onboarded: false);
+    await tester.tap(find.text(AppStrings.profileSheetCta));
+    await tester.pumpAndSettle();
+    expect(find.byType(ProfileSetupPage), findsOneWidget);
 
-    await tester.tap(find.text(AppStrings.profileSheetDismiss));
+    // 안드로이드 뒤로가기로 폼에서 나온다.
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
 
-    // 닫히지 않는 안내는 안내가 아니라 벽이다.
-    expect(find.text(AppStrings.profileSheetCta), findsNothing);
-    // 다시 그려져도 되살아나지 않는다 — `build`는 한 번만 불리는 자리가 아니다.
-    await tester.pump();
-    expect(find.text(AppStrings.profileSheetCta), findsNothing);
+    // 여기가 깨지면 **뒤로가기 한 번으로 관문이 뚫린다.**
+    expect(find.byType(ProfileSetupPage), findsNothing);
+    expect(find.text(AppStrings.profileSheetCta), findsOneWidget);
   });
 
   testWidgets('컬렉션 10범주가 전부 잠긴 채로 선다', (tester) async {

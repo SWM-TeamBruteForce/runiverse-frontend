@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/run_palette.dart';
@@ -11,7 +9,6 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/profile/presentation/basic_collection.dart';
 import 'package:runiverse/features/profile/presentation/profile_header.dart';
-import 'package:runiverse/features/profile/presentation/profile_prompt_sheet.dart';
 
 /// 프로필 탭 (S22, 본인).
 ///
@@ -25,55 +22,18 @@ import 'package:runiverse/features/profile/presentation/profile_prompt_sheet.dar
 /// 그 답을 [AuthSignedIn.user]에 담아 둔다(`docs/implementation-notes.md` §9-3-2).
 /// **여기서 또 부르면 같은 요청이 두 번 나가고, 두 값이 어긋날 자리가 생긴다.**
 ///
-/// ## 프로필이 없으면 시트가 뜬다
+/// ## 프로필이 없으면 여기까지 오지 못한다
 ///
-/// [AuthSignedIn.isOnboarded]가 `false`면 유도 시트를 한 번 띄운다.
-/// 닫으면 다시 띄우지 않는다 — 같은 화면에서 두 번 막아서면 안내가 아니라 벽이다.
-class ProfilePage extends ConsumerStatefulWidget {
+/// `AppShell`이 관문으로 막아선다. 그래서 이 화면의 빈 상태는 **거의 보이지
+/// 않는다** — 딥링크처럼 관문을 지나치는 길에 대비해 남겨 둔 것이다.
+class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
 
   @override
-  ConsumerState<ProfilePage> createState() => _ProfilePageState();
-}
-
-class _ProfilePageState extends ConsumerState<ProfilePage> {
-  /// 이번 방문에 시트를 이미 띄웠는가.
-  ///
-  /// 없으면 화면이 다시 그려질 때마다 시트가 쌓인다 — `build`는 한 번만 불리는
-  /// 자리가 아니다.
-  bool _promptShown = false;
-
-  /// 아직 프로필이 없으면 유도 시트를 띄운다.
-  ///
-  /// `build` 중에 `showModalBottomSheet`를 부를 수 없다(그리는 도중에 트리를
-  /// 바꾸는 셈이다). 첫 프레임이 끝난 뒤로 미룬다.
-  void _promptIfNeeded(bool isOnboarded) {
-    if (isOnboarded || _promptShown) return;
-    _promptShown = true;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      showProfilePromptSheet(
-        context,
-        // **첫 로그인 때와 같은 화면**을 연다. 프로필을 받는 곳이 둘이면
-        // 규칙도 둘이 되고, 한쪽만 고치는 사고가 난다.
-        //
-        // `push`라 뒤로가기로 프로필 탭에 돌아온다. 인증 직후에는 `go`로
-        // 열리지만 그때는 돌아갈 곳이 없다 — 같은 화면, 다른 진입이다.
-        onStart: () => context.push(AppRoutes.profileSetup),
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authControllerProvider);
     final signedIn = auth is AuthSignedIn ? auth : null;
     final user = signedIn?.user;
-
-    // ⚠️ `AuthUnknown`이면 띄우지 않는다. 모르는 상태에서 띄우면 이미 프로필을
-    // 채운 사람에게도 잠깐 뜬다 — 홈의 유도 카드와 같은 규칙이다.
-    if (signedIn != null) _promptIfNeeded(signedIn.isOnboarded);
 
     return Scaffold(
       body: SafeArea(
