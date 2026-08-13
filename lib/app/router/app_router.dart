@@ -62,7 +62,14 @@ GoRouter createAppRouter({String? initialLocation}) {
       ),
       GoRoute(
         path: AppRoutes.terms,
-        builder: (context, state) => const TermsAgreementPage(),
+        builder: (context, state) {
+          // `extra`는 `Object?`라 무엇이든 올 수 있다. 타입을 확인하고 아니면
+          // 기본값으로 간다 — 딥링크로 들어오면 아무것도 실려 오지 않는다.
+          final extra = state.extra;
+          return TermsAgreementPage(
+            next: extra is TermsNext ? extra : TermsNext.signUp,
+          );
+        },
       ),
       GoRoute(
         path: AppRoutes.profileSetup,

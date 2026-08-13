@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
@@ -10,6 +11,9 @@ import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
+// 저장소를 고르는 provider는 auth에 모여 있다. `onboarding_provider.dart`가
+// `tokenStoreProvider`를 가져다 쓰는 것과 같은 규칙이다 — 화면이 아니라 인프라다.
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 
 /// 가입 1 · 약관 동의 (S03).
 ///
@@ -18,41 +22,53 @@ import 'package:runiverse/core/widgets/app_button.dart';
 ///
 /// 로그인 화면에서 `push`로 들어온다. 그래서 뒤로가기로 로그인으로 돌아갈 수 있다.
 ///
-/// ## 전부 필수다
+/// **카카오도 여기를 지난다.** 카카오 화면의 동의는 *카카오가 우리에게 이메일을
+/// 넘기는 것*에 대한 동의라 우리 약관을 갈음하지 못한다. 다음에 갈 곳은
+/// [TermsNext]로 밖에서 정한다.
 ///
-/// 마케팅 정보 수신을 뺐다. 남은 3항목은 모두 필수라 `[선택]` 항목이 없다.
-/// 그래서 `isRequired` 같은 필드를 두지 않았다 — 항상 `true`인 값은 분기를 만들지 않는다.
-/// 선택 항목이 다시 생기면 그때 [_Term]에 필드를 추가한다.
+/// ## 필수와 선택
+///
+/// 마케팅 수신이 선택 항목이다. ⚠️ **선택은 CTA를 막지 않는다** — 막으면 그것은
+/// 선택이 아니다. 그래서 [_allAgreed](전체 동의 카드)와 [_canContinue](CTA)를 나눈다.
 ///
 /// ## 상태를 provider로 올리지 않은 이유
 ///
-/// 동의 결과를 보낼 API가 아직 없다. 화면 밖에서 이 값을 알 필요가 없고,
+/// 마케팅 동의를 보낼 API가 아직 없다. 화면 밖에서 이 값을 알 필요가 없고,
 /// 화면을 떠나면 버려도 되는 상태라 [StatefulWidget]으로 둔다.
 /// 서버 전송이 붙는 시점에 provider로 올린다.
-class TermsAgreementPage extends StatefulWidget {
-  const TermsAgreementPage({super.key});
+class TermsAgreementPage extends ConsumerStatefulWidget {
+  const TermsAgreementPage({super.key, this.next = TermsNext.signUp});
+
+  /// 동의를 마치면 무엇을 할 것인가. 기본값이 [TermsNext.signUp]인 이유는
+  /// **딥링크로 이 화면에 바로 와도** 기존 동작이 유지되게 하기 위해서다.
+  final TermsNext next;
 
   @override
-  State<TermsAgreementPage> createState() => _TermsAgreementPageState();
+  ConsumerState<TermsAgreementPage> createState() => _TermsAgreementPageState();
 }
 
-class _TermsAgreementPageState extends State<TermsAgreementPage> {
-  /// 항목 순서는 **법적 무게 순**이다. 이용약관 → 개인정보 → 민감정보.
+class _TermsAgreementPageState extends ConsumerState<TermsAgreementPage> {
+  /// 항목 순서는 **법적 무게 순**이다. 이용약관 → 개인정보 → 민감정보 → 선택.
   static const _terms = [
     _Term(AppStrings.termsService),
     _Term(AppStrings.termsPrivacy),
     _Term(AppStrings.termsHealth),
+    _Term(AppStrings.termsMarketing, isRequired: false),
   ];
 
   /// 동의한 항목의 인덱스. [_terms]와 길이가 같은 `List<bool>` 대신 [Set]을 쓴 이유는
   /// 항목이 늘거나 순서가 바뀌어도 초기화 코드를 고칠 필요가 없어서다.
   final _agreed = <int>{};
 
+  /// 전체 동의 카드의 체크 상태. **선택까지 전부** 켜져야 켜진다.
   bool get _allAgreed => _agreed.length == _terms.length;
 
-  /// 전부 필수라 CTA 활성 조건과 전체 동의 상태가 같은 값이 된다.
-  /// 선택 항목이 생기면 이 둘이 갈라지므로 지금부터 이름을 나눠 둔다.
-  bool get _canContinue => _allAgreed;
+  /// CTA 활성 조건. **필수만** 본다.
+  ///
+  /// ⚠️ [_allAgreed]와 섞으면 마케팅에 동의하지 않은 사람이 가입할 수 없게 된다.
+  bool get _canContinue => _terms.indexed
+      .where((entry) => entry.$2.isRequired)
+      .every((entry) => _agreed.contains(entry.$1));
 
   void _toggleAll() {
     setState(() {
@@ -72,12 +88,26 @@ class _TermsAgreementPageState extends State<TermsAgreementPage> {
     });
   }
 
-  void _submit() {
-    // 동의 결과를 서버에 보내는 것은 API가 생긴 뒤다.
+  Future<void> _submit() async {
+    // 동의를 받은 화면이 기록까지 맡는다. 부르는 쪽에 맡기면 흐름이 늘 때
+    // **한 곳이 빠뜨린다** — 그러면 동의 없이 지나가는 길이 생긴다.
     //
-    // push라 정보 입력 화면에서 뒤로가기를 누르면 여기로 돌아온다.
-    // 동의한 것을 잃지 않는다 — 이 화면이 살아 있어 상태가 남는다.
-    context.push(AppRoutes.signUp);
+    // ⚠️ 마케팅 동의는 기록하지 않는다. 서버로 갈 값인데 보낼 곳이 없어
+    // 로컬에 남기면 "저장했으니 반영됐다"고 오해할 자리가 생긴다.
+    await ref.read(consentStoreProvider).markTermsAgreed();
+    if (!mounted) return;
+
+    switch (widget.next) {
+      // push라 정보 입력 화면에서 뒤로가기를 누르면 여기로 돌아온다.
+      // 동의한 것을 잃지 않는다 — 이 화면이 살아 있어 상태가 남는다.
+      case TermsNext.signUp:
+        context.push(AppRoutes.signUp);
+
+      // 카카오 SDK를 여기서 부르지 않는다. 부르면 온보딩이 auth의 구현을 알게 된다.
+      // **동의했다는 사실만 돌려주고** 인가는 로그인 화면이 시작한다.
+      case TermsNext.kakao:
+        context.pop(true);
+    }
   }
 
   @override
@@ -137,7 +167,7 @@ class _TermsAgreementPageState extends State<TermsAgreementPage> {
 
                     for (var i = 0; i < _terms.length; i++)
                       _TermRow(
-                        label: _terms[i].label,
+                        term: _terms[i],
                         checked: _agreed.contains(i),
                         onTap: () => _toggle(i),
                       ),
@@ -170,11 +200,14 @@ class _TermsAgreementPageState extends State<TermsAgreementPage> {
   }
 }
 
-/// 약관 한 건. 지금은 라벨뿐이지만, 약관 전문 URL이 정해지면 여기 붙는다.
+/// 약관 한 건. 약관 전문 URL이 정해지면 여기 붙는다.
 class _Term {
-  const _Term(this.label);
+  const _Term(this.label, {this.isRequired = true});
 
   final String label;
+
+  /// 선택 항목은 **CTA를 막지 않는다.** 막으면 그것은 선택이 아니다.
+  final bool isRequired;
 }
 
 /// 누름 피드백 색.
@@ -258,21 +291,24 @@ class _AgreeAllCard extends StatelessWidget {
   }
 }
 
-/// 개별 약관 한 줄. 체크 + `필수` 배지 + 라벨.
+/// 개별 약관 한 줄. 체크 + `필수`/`선택` 배지 + 라벨.
 class _TermRow extends StatelessWidget {
   const _TermRow({
-    required this.label,
+    required this.term,
     required this.checked,
     required this.onTap,
   });
 
-  final String label;
+  final _Term term;
   final bool checked;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    // 배지 색을 나눈다. 둘 다 primary면 눈으로 구분되지 않아
+    // **글자를 읽어야만** 필수인지 알 수 있다.
+    final badgeColor = term.isRequired ? colors.primary : colors.textTertiary;
 
     return Semantics(
       checked: checked,
@@ -294,13 +330,15 @@ class _TermRow extends StatelessWidget {
                 _CheckMark(checked: checked, filled: false),
                 const SizedBox(width: AppSpacing.space3),
                 Text(
-                  AppStrings.termsRequired,
-                  style: AppTypography.caption.copyWith(color: colors.primary),
+                  term.isRequired
+                      ? AppStrings.termsRequired
+                      : AppStrings.termsOptional,
+                  style: AppTypography.caption.copyWith(color: badgeColor),
                 ),
                 const SizedBox(width: AppSpacing.space2),
                 Expanded(
                   child: Text(
-                    label,
+                    term.label,
                     style: AppTypography.body.copyWith(
                       color: colors.textSecondary,
                     ),
