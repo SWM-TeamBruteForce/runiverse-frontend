@@ -87,7 +87,15 @@ class SecureTokenStore implements TokenStore {
   }
 
   @override
-  Future<void> clear() => _storage.deleteAll();
+  Future<void> clear() async {
+    // ⚠️ `deleteAll()`을 부르지 않는다. 이 저장소에는 `auth.*` 말고
+    // `consent.*`도 산다 — 로그아웃했다고 약관 동의까지 지우면 같은 사람에게
+    // 같은 것을 두 번 묻게 된다. **지울 키를 지정한다.**
+    await _storage.delete(key: _keyUserId);
+    await _storage.delete(key: _keyAccessToken);
+    await _storage.delete(key: _keyRefreshToken);
+    await _storage.delete(key: _keyIsOnboarded);
+  }
 }
 
 /// 빈 문자열을 `null`로 바꾼다.
