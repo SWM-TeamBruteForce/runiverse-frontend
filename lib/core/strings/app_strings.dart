@@ -366,4 +366,71 @@ abstract final class AppStrings {
   static const homeProfilePromptBody = '매칭과 칼로리 계산에 필요해요';
 
   static const homeProfilePromptCta = '완성하기';
+
+  // ── 프로필 탭 (S22, 본인) ────────────────────────────────────
+  //
+  // ⚠️ **S22가 본인, S20이 타인**이다. Figma 페이지 이름이 `S20–S21`이라
+  // 헷갈리기 쉽다 — 정본은 `와이어프레임_최종.md`다.
+
+  /// 닉네임 자리. 아직 프로필을 안 채운 사람이라 **홈의 유도 카드와 같은 말**을 한다.
+  /// 다른 말을 쓰면 같은 상태에 이름이 둘 생긴다.
+  static const profileNicknameEmpty = homeProfilePromptTitle;
+
+  static const profileSignatureLabel = '시그니처 컬러';
+
+  /// 시그니처 컬러가 아직 없을 때. **"없어요"라고 하지 않는다** —
+  /// 결핍이 아니라 무엇을 하면 생기는지를 말한다.
+  static const profileSignatureEmpty = '함께 달리면 색이 생겨요';
+
+  static const profileFollowers = '팔로워';
+  static const profileFollowing = '팔로잉';
+
+  static const profileBasicCollection = '기본 컬렉션';
+  static const profileBlendCollection = '블렌드 컬렉션';
+  static const profileFeed = '피드';
+
+  /// 컬렉션 진행. `17/30` 꼴로 채운다.
+  static String profileCollected(int owned, int total) => '$owned/$total';
+
+  /// 블렌드 개수. `2개` 꼴.
+  static String profileBlendCount(int count) => '$count개';
+
+  static const profileBlendEmpty = '아직 블렌드가 없어요';
+  static const profileBlendEmptyHint = '다른 러너와 함께 달리면 섞여요';
+  static const profileFeedEmpty = '아직 올린 기록이 없어요';
+
+  /// 잠긴 컬렉션 격자 위 안내. **무엇을 모으는지** 알려준다.
+  static const profileCollectionHint = '함께 달리며 30색을 모아요';
+
+  // ── 러닝 색 10범주 ───────────────────────────────────────────
+  //
+  // `RunHue`의 이름을 화면에 쓰는 말로 옮긴다. enum에 붙이지 않는 이유는
+  // **`domain`이 순수 Dart여야 하고 UI 문구는 여기 모여야** 하기 때문이다.
+
+  static const hueDistance = '거리';
+  static const hueSpeed = '속도';
+  static const hueEndurance = '지구력';
+  static const hueConsistency = '꾸준함';
+  static const hueCadence = '케이던스';
+  static const hueInterval = '인터벌';
+  static const hueHills = '언덕';
+  static const hueRecovery = '회복';
+  static const hueCompany = '동행';
+  static const hueAdversity = '악조건';
+
+  // ── 프로필 유도 바텀시트 (S22) ───────────────────────────────
+  //
+  // 프로필 탭은 값이 없으면 **거의 빈 화면**이다. 그래서 홈의 카드보다
+  // 한 발 더 나아가 시트로 띄운다. ⚠️ 닫을 수 있어야 한다 —
+  // 닫히지 않는 안내는 안내가 아니라 벽이다.
+
+  static const profileSheetTitle = '프로필을 채우면\n달리기가 시작돼요';
+
+  /// **무엇이 열리는지 셋을 든다.** "필요해요"만으로는 미룰 이유밖에 안 준다.
+  static const profileSheetBody = '닉네임과 페이스를 알려주시면\n매칭과 색 수집을 시작할 수 있어요';
+
+  static const profileSheetCta = '프로필 입력하기';
+
+  /// 닫는 문. **눈에 보이게 둔다** — 스크림만으로는 닫히는지 알 수 없다.
+  static const profileSheetDismiss = '나중에';
 }

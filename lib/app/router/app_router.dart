@@ -123,7 +123,10 @@ GoRouter createAppRouter({String? initialLocation}) {
             ],
           ),
 
-          // 4 · 프로필 (S20)
+          // 4 · 프로필 (S22 — 본인)
+          //
+          // ⚠️ **S20은 타인 프로필이다.** Figma 페이지 이름이 `S20–S21`이라
+          // 헷갈리기 쉽다. 정본은 `와이어프레임_최종.md`다.
           StatefulShellBranch(
             routes: [
               GoRoute(
