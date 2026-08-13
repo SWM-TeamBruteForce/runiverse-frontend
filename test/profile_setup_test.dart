@@ -132,16 +132,15 @@ void main() {
     expect(nextEnabled(tester), isFalse);
   });
 
-  testWidgets('아무것도 안 채워도 나중에 하기는 열려 있다', (tester) async {
+  testWidgets('⚠️ 채우지 않고 나가는 문이 없다', (tester) async {
     await pumpPage(tester);
 
-    // 하단 CTA는 잠겨 있어도 나가는 문은 항상 열려 있어야 한다.
-    // 가입 직후 이 화면은 `go`로 열려 뒤로가기를 누르면 앱이 꺼진다.
-    final skip = tester.widget<TextButton>(
-      find.widgetWithText(TextButton, AppStrings.profileSkipForNow),
-    );
-
+    // **인증 직후에는 채우고 지나간다.** 나가는 문을 눈에 보이게 두면 대부분
+    // 그것을 누르고, 매칭도 기록도 쓸 수 없는 사람이 늘어난다.
+    //
+    // 갇히지는 않는다 — 앱을 끄고 다시 열면 자동 로그인이 홈으로 보내고
+    // 거기서 `ProfilePromptCard`가 이어받는다. 그 경로는 이 화면 밖의 일이다.
+    expect(find.byType(TextButton), findsNothing);
     expect(nextEnabled(tester), isFalse);
-    expect(skip.onPressed, isNotNull);
   });
 }
