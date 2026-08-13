@@ -127,7 +127,11 @@ class AuthController extends Notifier<AuthState> {
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
       );
+      // 저장된 값으로 먼저 세운다. `/me`가 실패해도 앱을 쓸 수 있어야 한다.
       state = AuthSignedIn(userId, isOnboarded: stored.isOnboarded);
+      // **여기가 진실을 맞추는 자리다.** 다른 기기에서 프로필을 채웠으면
+      // 저장값은 낡았고, 이 호출이 그것을 바로잡는다.
+      await _loadCurrentUser(tokens.accessToken);
     } on AuthException catch (error) {
       if (error.failure == AuthFailure.sessionExpired) {
         // userId·isOnboarded는 남긴다. 이 사람은 처음 온 것이 아니다.
@@ -272,9 +276,41 @@ class AuthController extends Notifier<AuthState> {
         isOnboarded: session.isOnboarded,
       );
       state = AuthSignedIn(session.userId, isOnboarded: session.isOnboarded);
+      // 로그인 응답에도 isOnboarded가 실려 오지만 **/me를 진실로 삼는다.**
+      // 값이 갈리는 곳을 둘로 두면 나중에 어긋났을 때 원인을 찾기 어렵다.
+      await _loadCurrentUser(session.accessToken);
       return null;
     } on AuthException catch (error) {
       return error.failure;
+    }
+  }
+
+  /// `GET /users/me`로 상태를 서버 값에 맞춘다.
+  ///
+  /// ## ⚠️ 실패해도 로그인을 되돌리지 않는다
+  ///
+  /// 인증은 이미 성공했다. 부가 요청 하나가 실패했다고 사람을 로그인 화면으로
+  /// 돌려보내면, **네트워크가 잠깐 끊긴 것**과 **비밀번호가 틀린 것**이 같은
+  /// 결과가 된다. 그때는 로그인 응답으로 세운 상태를 그대로 둔다.
+  ///
+  /// 자동 로그인 경로에서는 [restore]가 이것을 부르고, 실패하면 저장된 값으로
+  /// 홈에 들어간다 — 유도 카드가 잠깐 어긋날 뿐 앱은 쓸 수 있다.
+  Future<void> _loadCurrentUser(String accessToken) async {
+    final current = state;
+    if (current is! AuthSignedIn) return;
+
+    try {
+      final user = await _repository.fetchCurrentUser(accessToken);
+      state = AuthSignedIn(
+        user.userId,
+        isOnboarded: user.isOnboarded,
+        user: user,
+      );
+      // 다음 실행의 첫 화면이 이 값을 쓴다. 저장해 두지 않으면 /me가 늦게 오는
+      // 동안 유도 카드가 깜빡인다.
+      if (user.isOnboarded) await _store.markOnboarded();
+    } on AuthException {
+      // 위 주석대로 삼킨다. 상태는 로그인 응답으로 세운 것이 남는다.
     }
   }
 }

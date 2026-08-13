@@ -99,13 +99,15 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     if (!mounted) return;
 
     switch (ref.read(authControllerProvider)) {
-      case AuthSignedIn(:final isOnboarded):
-        // 프로필은 **있어야 쓸 수 있다.** 매칭도 기록도 이 값들 위에 선다.
+      case AuthSignedIn():
+        // **자동 로그인은 폼으로 밀지 않는다.** 앱을 열자마자 입력 폼이 뜨는 것이
+        // 당황스럽고, 돌아온 사람은 자기 계획이 있는데 폼이 그것을 가로막는다.
         //
-        // 건너뛴 사람은 다음에 앱을 열 때 폼을 다시 본다. 기기에 "한 번 보여줬다"를
-        // 남기면 피할 수 있지만, 그러면 재설치·기기 변경마다 어긋나고 기기에
-        // 계정 식별자가 쌓인다. **다시 묻는 쪽을 택했다.**
-        context.go(isOnboarded ? AppRoutes.home : AppRoutes.profileSetup);
+        // 프로필을 안 채운 사람은 홈의 유도 카드가 맡는다. 카드를 켜는 값은
+        // `restore()`가 부른 `/users/me`에서 온다 — 저장된 값이 아니다.
+        //
+        // 폼으로 보내는 것은 **인증 직후**(가입 · 이메일 로그인 · 카카오)뿐이다.
+        context.go(AppRoutes.home);
       case AuthSignedOut(:final returning):
         // 로그인했던 적이 있으면 소개를 건너뛴다.
         context.go(returning ? AppRoutes.signIn : AppRoutes.onboardingIntro);
