@@ -157,6 +157,16 @@ class FakeAuthRepository implements AuthRepository {
     );
   }
 
+  /// 서버가 프로필을 받아 **온보딩을 마친 것으로 표시한다.**
+  ///
+  /// 실제로는 `POST /users/onboarding`이 하는 일이고, 그것은 이 저장소가 아니라
+  /// `OnboardingRepository`가 부른다. 그래서 인증만 시험하는 테스트에서는
+  /// **여기서 대신 불러줘야** 한다.
+  ///
+  /// ⚠️ 안 부르면 `/users/me`가 여전히 `false`를 답해서, 앱이 로컬에 켠 값을
+  /// 도로 끄는 것처럼 보인다. 그것은 버그가 아니라 **서버가 모르는 상태**다.
+  void completeOnboarding(String email) => _onboarded.add(_normalize(email));
+
   /// 어느 인가 코드가 어느 이메일에 대응하는지 심는다. **기다리지 않는다.**
   ///
   /// [isOnboarded]는 **프로필까지 채운 카카오 계정**을 만든다. 로컬 계정을 심어

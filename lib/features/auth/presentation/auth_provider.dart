@@ -241,14 +241,21 @@ class AuthController extends Notifier<AuthState> {
   ///
   /// 상태만 켜면 앱을 껐다 켰을 때 저장소가 여전히 `false`라 프로필로 다시 간다.
   /// 저장소만 켜면 지금 화면이 홈으로 넘어가지 않는다.
+  ///
+  /// ⚠️ **`user`를 떨어뜨리지 않는다.** 새 [AuthSignedIn]을 만들면서 빠뜨리면
+  /// 방금 입력한 닉네임이 화면에서 사라진다 — 프로필 탭이 자리표시자만 그린다.
   Future<void> markOnboarded() async {
     await _store.markOnboarded();
     final current = state;
     // 로그인 상태가 아니면 상태를 만들지 않는다. 여기서 AuthSignedIn을 새로
     // 만들면 로그인하지 않은 사람이 홈에 들어간다.
-    if (current is AuthSignedIn) {
-      state = AuthSignedIn(current.userId, isOnboarded: true);
-    }
+    if (current is! AuthSignedIn) return;
+    state = AuthSignedIn(current.userId, isOnboarded: true, user: current.user);
+
+    // **방금 서버에 닉네임이 생긴 순간이다.** 그 값을 여기서 받아온다 —
+    // 다시 묻지 않으면 앱을 껐다 켤 때까지 이름이 비어 있다.
+    final accessToken = (await _store.read()).accessToken;
+    if (accessToken != null) await _loadCurrentUser(accessToken);
   }
 
   Future<void> signOut() async {

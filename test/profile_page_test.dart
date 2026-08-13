@@ -123,6 +123,19 @@ void main() {
     expect(find.byType(ProfileSetupPage), findsOneWidget);
   });
 
+  testWidgets('⚠️ 시트에서 연 프로필 등록은 프로필 탭 위에 쌓인다', (tester) async {
+    await pumpProfile(tester, onboarded: false);
+
+    await tester.tap(find.text(AppStrings.profileSheetCta));
+    await tester.pumpAndSettle();
+
+    // **`push`라 프로필 탭이 아래에 남아 있다.** `go`였다면 사라진다 —
+    // 그러면 다 채우고 나서 돌아올 자리가 없어 홈으로 던져진다.
+    // 마쳤을 때 `pop`으로 이 자리에 돌아오는 것이 그 위에 선다.
+    expect(find.byType(ProfileSetupPage), findsOneWidget);
+    expect(find.byType(ProfilePage, skipOffstage: false), findsOneWidget);
+  });
+
   testWidgets('시트는 닫을 수 있고 닫으면 다시 뜨지 않는다', (tester) async {
     await pumpProfile(tester, onboarded: false);
 

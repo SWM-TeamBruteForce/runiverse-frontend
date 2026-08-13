@@ -308,11 +308,22 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
       return;
     }
 
-    // ⚠️ 원래는 시그니처 컬러 리빌(S04.5)로 간다. 그 화면이 아직 없어 홈으로 보낸다.
+    // ⚠️ 원래는 시그니처 컬러 리빌(S04.5)로 간다. 그 화면이 아직 없어 여기서 끝난다.
     //
     // 리빌이 생기면 PaceRule.levelOf(_paceSeconds)를 넘긴다.
     // 그 값의 needsPracticeNudge가 홈의 '혼자 연습하기' 유도를 켠다.
-    context.go(AppRoutes.home);
+    //
+    // **왔던 자리로 돌려보낸다.** 프로필 탭의 유도 시트에서 시작했으면 그 탭으로
+    // 돌아가 방금 채운 이름이 그 자리에 뜬다. 홈으로 던지면 "내가 쓴 게 어디 갔지"
+    // 하고 다시 찾아가야 한다.
+    //
+    // 인증 직후에는 `go`로 열려 스택에 이 화면뿐이다 — 돌아갈 곳이 없으므로
+    // 그때만 홈이다. 처음 온 사람이 볼 것은 자기 프로필이 아니라 매칭이다.
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(AppRoutes.home);
+    }
   }
 
   // ── 그리기 ────────────────────────────────────────────────
