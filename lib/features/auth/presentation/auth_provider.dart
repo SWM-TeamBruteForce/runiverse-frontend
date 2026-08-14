@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/network/dio_client.dart';
+import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/secure_token_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/http_auth_repository.dart';
@@ -20,6 +21,16 @@ import 'package:runiverse/features/auth/presentation/auth_state.dart';
 /// 테스트 환경에는 채널이 없어 `MissingPluginException`이 난다.
 /// `InMemoryTokenStore`를 넣으면 된다.
 final tokenStoreProvider = Provider<TokenStore>((ref) => SecureTokenStore());
+
+/// 약관 동의 기록을 어디에 넣을 것인가.
+///
+/// [tokenStoreProvider]와 나란히 두는 이유는 성격이 같아서다 — 둘 다 화면이 아니라
+/// 저장소를 고르는 일이다. **수명은 다르다**: 로그아웃이 토큰만 지우고 이것은 남긴다.
+///
+/// ⚠️ 위젯 테스트는 이것도 override해야 한다. `InMemoryConsentStore`를 넣으면 된다.
+final consentStoreProvider = Provider<ConsentStore>(
+  (ref) => SecureConsentStore(),
+);
 
 /// 서버를 부를 [Dio] 하나.
 ///

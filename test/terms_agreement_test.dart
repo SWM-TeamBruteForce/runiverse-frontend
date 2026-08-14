@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.dart';
 
 /// 약관 동의(S03)의 상태 전이 — 무엇을 눌렀을 때 계속하기가 열리는가.
@@ -11,11 +14,20 @@ import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.
 /// 동의 없이 개인정보를 수집하는 셈이 된다. 그 규칙만 본다.
 ///
 /// 라우터를 태우지 않고 화면만 띄운다. 여기서 검증할 것은 이 화면 안의 규칙이고,
-/// 화면 간 이동은 `onboarding_flow_test.dart`가 본다.
+/// 화면 간 이동은 `onboarding_flow_test.dart`와 `kakao_terms_test.dart`가 본다.
 void main() {
   Future<void> pumpPage(WidgetTester tester) async {
     await tester.pumpWidget(
-      MaterialApp(theme: AppTheme.dark(), home: const TermsAgreementPage()),
+      ProviderScope(
+        // 실제 구현은 플랫폼 채널을 부른다. 테스트 환경에는 채널이 없다.
+        overrides: [
+          consentStoreProvider.overrideWithValue(InMemoryConsentStore()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(),
+          home: const TermsAgreementPage(),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
   }
@@ -50,7 +62,7 @@ void main() {
     expect(ctaEnabled(tester), isFalse);
   });
 
-  testWidgets('개별 항목을 전부 동의해도 계속할 수 있다', (tester) async {
+  testWidgets('필수 항목을 전부 동의하면 계속할 수 있다', (tester) async {
     await pumpPage(tester);
 
     await tap(tester, AppStrings.termsService);
@@ -59,8 +71,44 @@ void main() {
     await tap(tester, AppStrings.termsPrivacy);
     expect(ctaEnabled(tester), isFalse);
 
-    // 마지막 하나가 채워지는 순간 열린다.
+    // 마지막 **필수** 하나가 채워지는 순간 열린다.
+    // ⚠️ 선택 항목(마케팅)은 아직 꺼져 있다. 그래도 열려야 선택이다.
     await tap(tester, AppStrings.termsHealth);
+    expect(ctaEnabled(tester), isTrue);
+  });
+
+  testWidgets('선택 항목은 CTA를 막지 않는다', (tester) async {
+    await pumpPage(tester);
+    await tap(tester, AppStrings.termsService);
+    await tap(tester, AppStrings.termsPrivacy);
+    await tap(tester, AppStrings.termsHealth);
+
+    // 켜도 꺼도 열린 채다. 여기가 깨지면 그것은 선택 항목이 아니다.
+    await tap(tester, AppStrings.termsMarketing);
+    expect(ctaEnabled(tester), isTrue);
+
+    await tap(tester, AppStrings.termsMarketing);
+    expect(ctaEnabled(tester), isTrue);
+  });
+
+  testWidgets('선택 항목만 동의하면 계속할 수 없다', (tester) async {
+    await pumpPage(tester);
+
+    await tap(tester, AppStrings.termsMarketing);
+
+    expect(ctaEnabled(tester), isFalse);
+  });
+
+  testWidgets('필수만 켜면 전체 동의는 켜지지 않는다', (tester) async {
+    await pumpPage(tester);
+    await tap(tester, AppStrings.termsService);
+    await tap(tester, AppStrings.termsPrivacy);
+    await tap(tester, AppStrings.termsHealth);
+
+    // 전체 동의가 이미 켜져 있었다면 이 탭은 **전부 해제**로 동작해 CTA가 닫힌다.
+    // 꺼져 있었으므로 '전부 채우기'가 되어 열린 채로 남는다.
+    await tap(tester, AppStrings.termsAgreeAll);
+
     expect(ctaEnabled(tester), isTrue);
   });
 

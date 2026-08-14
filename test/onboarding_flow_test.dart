@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
+import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
@@ -32,6 +33,10 @@ void main() {
           // 앱은 SecureTokenStore를 쓰는데 그것은 플랫폼 채널을 부른다.
           // 테스트에는 채널이 없어 스플래시가 갈림길을 정하지 못하고 멈춘다.
           tokenStoreProvider.overrideWithValue(store ?? InMemoryTokenStore()),
+          // 약관 CTA가 동의를 기록한다. 이것을 빼면 **동의 화면을 지나는
+          // 테스트만** MissingPluginException으로 죽는다 — 다른 경로는 저장소를
+          // 건드리지 않아 멀쩡해 보인다.
+          consentStoreProvider.overrideWithValue(InMemoryConsentStore()),
           authRepositoryProvider.overrideWithValue(
             repository ?? FakeAuthRepository(latency: Duration.zero),
           ),

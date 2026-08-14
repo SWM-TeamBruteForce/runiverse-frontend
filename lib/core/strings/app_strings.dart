@@ -75,8 +75,8 @@ abstract final class AppStrings {
 
   // ── 약관 동의 (S03) ──────────────────────────────────────────
   //
-  // 마케팅 정보 수신은 뺐다. 그래서 남은 3항목이 전부 필수다.
-  // `[선택]` 항목이 다시 생기면 [termsOptional]을 여기 추가한다.
+  // 필수 3항목 + 선택 1항목(마케팅)이다.
+  // ⚠️ 선택 항목은 **서버로 가지 않는다** — 받을 API가 아직 없다.
 
   static const termsTitle = '약관에\n동의해주세요';
   static const termsSubtitle = '매칭과 기록 분석에 필요한\n최소 정보만 받아요';
@@ -88,15 +88,23 @@ abstract final class AppStrings {
   /// 문자열에 `[]`를 넣으면 배지 디자인이 바뀔 때 여기까지 고쳐야 한다.
   static const termsRequired = '필수';
 
+  /// `필수`와 나란히 서므로 **같은 두 글자**로 맞춘다.
+  /// 길이가 다르면 라벨의 시작 위치가 줄마다 어긋난다.
+  static const termsOptional = '선택';
+
   static const termsService = '서비스 이용약관';
   static const termsPrivacy = '개인정보 수집·이용';
   static const termsHealth = '생체·운동 정보';
+
+  /// 마케팅 수신 동의. **무엇을 보내는지** 밝힌다 —
+  /// "마케팅 정보 수신"만으로는 무엇에 동의하는지 알 수 없다.
+  static const termsMarketing = '매칭 소식과 이벤트 알림';
 
   /// 위치 권한을 지금 묻지 않는 이유를 미리 알린다.
   /// 권한 요청은 실제로 필요한 맥락(매칭 등록)에서 해야 수락률이 높다.
   static const termsLocationNotice = '위치 권한은 매칭을\n시작할 때 여쭤봐요';
 
-  /// 3항목 전부 동의해야 눌린다.
+  /// **필수** 3항목을 전부 동의해야 눌린다. 선택은 막지 않는다.
   static const termsCta = '동의하고 계속';
 
   // ── 프로필 등록 (S04) ────────────────────────────────────────

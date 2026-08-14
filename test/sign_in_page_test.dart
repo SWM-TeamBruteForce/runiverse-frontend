@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
@@ -24,12 +25,19 @@ void main() {
     FakeAuthRepository? repository,
     FakeOauthCodeSource? codeSource,
   }) async {
+    // 이미 약관에 동의한 기기로 시작한다. 카카오 버튼이 인가 전에 약관을 끼우므로,
+    // 동의가 없으면 아래 테스트들이 전부 약관 화면에서 멈춘다.
+    // **그 갈림길 자체는 `kakao_terms_test.dart`가 본다.**
+    final consent = InMemoryConsentStore();
+    await consent.markTermsAgreed();
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           // 앱은 SecureTokenStore를 쓰는데 그것은 플랫폼 채널을 부른다.
           // 로그인에 성공하면 토큰을 저장하므로 여기서도 갈아끼워야 한다.
           tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
+          consentStoreProvider.overrideWithValue(consent),
           // 지연이 있으면 pumpAndSettle이 실제로 기다린다. 테스트에서는 뺀다.
           authRepositoryProvider.overrideWithValue(
             repository ?? FakeAuthRepository(latency: Duration.zero),

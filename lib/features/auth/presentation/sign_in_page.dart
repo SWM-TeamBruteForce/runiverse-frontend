@@ -190,7 +190,7 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                     AppButton(
                       label: AppStrings.authKakao,
                       variant: AppButtonVariant.secondary,
-                      onPressed: _busy ? null : _signInWithKakao,
+                      onPressed: _busy ? null : _startKakao,
                     ),
                     const SizedBox(height: AppSpacing.space3),
                     AppButton(
@@ -220,7 +220,39 @@ class _SignInPageState extends ConsumerState<SignInPage> {
     );
   }
 
-  /// 카카오로 로그인한다.
+  /// 카카오 버튼이 부르는 첫 걸음. **인가보다 약관이 먼저다.**
+  ///
+  /// 카카오 화면에서 받는 동의는 *카카오가 우리에게 이메일을 넘기는 것*에 대한
+  /// 동의다. 우리가 서비스를 제공하고 개인정보를 수집하는 것에 대한 동의는 아니다.
+  ///
+  /// ⚠️ **순서를 바꾸면 안 된다.** 인가가 끝나면 서버가 곧바로 계정을 만들고
+  /// 이메일을 저장한다. 그 뒤에 약관을 보이면 이미 수집한 뒤다.
+  ///
+  /// 한 번 동의하면 기기에 남아 다음부터 건너뛴다. 기기 단위라 재설치하면 다시
+  /// 묻는데, 서버가 `termsAgreed`를 저장하면 그 한계가 사라진다.
+  Future<void> _startKakao() async {
+    final agreedBefore = await ref.read(consentStoreProvider).hasAgreedTerms();
+    if (!mounted) return;
+
+    if (agreedBefore) {
+      await _signInWithKakao();
+      return;
+    }
+
+    // 약관 화면은 **동의를 기록하고 `true`를 돌려주기만 한다.** 카카오 SDK를
+    // 거기서 부르면 온보딩 화면이 auth의 구현을 알게 된다. 인가는 이쪽 몫이다.
+    //
+    // 뒤로가기로 나오면 `null`이 온다 — 그때는 인가하지 않는다.
+    final agreed = await context.push<bool>(
+      AppRoutes.terms,
+      extra: TermsNext.kakao,
+    );
+    if (!mounted || agreed != true) return;
+
+    await _signInWithKakao();
+  }
+
+  /// 카카오로 로그인한다. **[_startKakao]를 거쳐서만 들어온다.**
   ///
   /// ## 취소는 화면에 남기지 않는다
   ///
