@@ -346,6 +346,65 @@ void main() {
     );
   });
 
+  group('서버가 isOnboarded를 말하지 않을 때', () {
+    // 서버가 2026-08-17 로그인·가입·소셜 응답에서 이 값을 뺐다. 대신 보라는
+    // `GET /users/me`는 아직 없다. 그래서 지금 실서버는 늘 이 상태다.
+
+    /// 저장소에 [userId]로 프로필을 채운 흔적을 남긴 컨테이너.
+    Future<ProviderContainer> containerRemembering(String userId) async {
+      final container = makeContainer(
+        repository: _SilentAboutOnboarding(
+          FakeAuthRepository(latency: Duration.zero),
+        ),
+      );
+      await container
+          .read(tokenStoreProvider)
+          .saveSession(
+            userId: userId,
+            accessToken: 'old-access',
+            refreshToken: 'old-refresh',
+            isOnboarded: true,
+          );
+      return container;
+    }
+
+    test('⚠️ 같은 사람이면 저장된 값을 지킨다', () async {
+      // `false`로 떨어뜨리면 이미 프로필을 채운 사람이 로그인할 때마다
+      // 폼으로 끌려간다. 관문이 닫히지 않으므로 앱을 쓸 수 없다.
+      final seedUserId = FakeAuthRepository(
+        latency: Duration.zero,
+      ).issueSession().userId;
+      final container = await containerRemembering(seedUserId);
+
+      await container
+          .read(authControllerProvider.notifier)
+          .signIn(
+            email: FakeAuthRepository.seedEmail,
+            password: FakeAuthRepository.seedPassword,
+          );
+
+      final state = container.read(authControllerProvider);
+      expect(state, isA<AuthSignedIn>());
+      expect((state as AuthSignedIn).isOnboarded, isTrue);
+    });
+
+    test('⚠️ 다른 사람이면 저장된 값을 물려주지 않는다', () async {
+      // 한 기기에 여러 계정이 로그인한다. `userId`를 보지 않으면 **앞사람이
+      // 채웠다는 이유로** 프로필 없는 새 사람이 홈에 들어간다.
+      final container = await containerRemembering('someone-else');
+
+      await container
+          .read(authControllerProvider.notifier)
+          .signIn(
+            email: FakeAuthRepository.seedEmail,
+            password: FakeAuthRepository.seedPassword,
+          );
+
+      final state = container.read(authControllerProvider);
+      expect((state as AuthSignedIn).isOnboarded, isFalse);
+    });
+  });
+
   test('새로 가입하면 온보딩을 마치지 않은 상태로 저장된다', () async {
     final container = makeContainer();
 
@@ -635,6 +694,68 @@ class _MeFailsAuthRepository implements AuthRepository {
     required OauthProvider provider,
     required OauthAuthorization authorization,
   }) => inner.signInWithOauth(provider: provider, authorization: authorization);
+
+  @override
+  Future<void> sendVerificationCode(String email) =>
+      inner.sendVerificationCode(email);
+
+  @override
+  Future<String> verifyCode({required String email, required String code}) =>
+      inner.verifyCode(email: email, code: code);
+
+  @override
+  Future<void> signOut() => inner.signOut();
+}
+
+/// 서버가 `isOnboarded`를 **말하지 않고**, `/users/me`도 **없는** 상태.
+///
+/// 2026-08-17 이후 실서버가 정확히 이렇다 — 인증 응답에서 그 필드를 뺐는데
+/// 대신 보라던 `GET /users/me`는 아직 구현되지 않았다.
+///
+/// 두 가지를 함께 흉내 내야 한다. `/me`만 살려두면 그 답이 상태를 덮어써서
+/// **저장값을 지키는지 아닌지가 화면에 드러나지 않는다.**
+class _SilentAboutOnboarding implements AuthRepository {
+  _SilentAboutOnboarding(this.inner);
+
+  final AuthRepository inner;
+
+  /// 서버가 말하지 않은 것으로 만든다.
+  AuthSession _silenced(AuthSession session) => AuthSession(
+    userId: session.userId,
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken,
+    isOnboarded: null,
+  );
+
+  @override
+  Future<CurrentUser> fetchCurrentUser(String accessToken) =>
+      throw const AuthException(AuthFailure.server);
+
+  @override
+  Future<AuthTokens> refresh(String refreshToken) =>
+      inner.refresh(refreshToken);
+
+  @override
+  Future<AuthSession> signIn({
+    required String email,
+    required String password,
+  }) => inner.signIn(email: email, password: password).then(_silenced);
+
+  @override
+  Future<AuthSession> signUp({
+    required String verificationTicket,
+    required String password,
+  }) => inner
+      .signUp(verificationTicket: verificationTicket, password: password)
+      .then(_silenced);
+
+  @override
+  Future<AuthSession> signInWithOauth({
+    required OauthProvider provider,
+    required OauthAuthorization authorization,
+  }) => inner
+      .signInWithOauth(provider: provider, authorization: authorization)
+      .then(_silenced);
 
   @override
   Future<void> sendVerificationCode(String email) =>

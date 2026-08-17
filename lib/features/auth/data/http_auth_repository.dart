@@ -243,9 +243,14 @@ class HttpAuthRepository implements AuthRepository {
       userId: userId,
       accessToken: accessToken,
       refreshToken: refreshToken,
-      // 값이 없거나 타입이 다르면 false로 본다. 온보딩을 한 번 더 묻는 쪽이
-      // 프로필 없는 사용자를 홈에 들이는 것보다 낫다.
-      isOnboarded: body?['isOnboarded'] == true,
+      // ⚠️ **없으면 `null`이다. `false`가 아니다.**
+      //
+      // 서버가 2026-08-17 이 필드를 응답에서 뺐다. `false`로 떨어뜨리면
+      // 이미 프로필을 채운 사람이 로그인할 때마다 폼으로 끌려간다.
+      // 모르는 것은 모르는 채로 넘기고, 판단은 `AuthController`가 한다.
+      isOnboarded: body?['isOnboarded'] is bool
+          ? body!['isOnboarded'] as bool
+          : null,
     );
   }
 

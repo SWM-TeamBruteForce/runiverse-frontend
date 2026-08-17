@@ -26,6 +26,9 @@ import 'package:runiverse/features/onboarding/domain/onboarding_repository.dart'
 ///
 /// [_post]가 `validateStatus`로 409를 통과시킨다. 예외로 받으면 "이미 온보딩됨"을
 /// 흡수하는 흐름과 "access 만료라 갱신" 흐름이 **한 `catch` 안에 섞인다.**
+///
+/// ⚠️ 통과시킨다고 성공은 아니다. 409의 뜻은 [_resolveConflict]가 `code`로 가른다 —
+/// **닉네임 중복도 409로 온다.**
 class HttpOnboardingRepository implements OnboardingRepository {
   HttpOnboardingRepository(this._dio, this._store, this._auth);
 
@@ -34,6 +37,10 @@ class HttpOnboardingRepository implements OnboardingRepository {
   final AuthRepository _auth;
 
   static const _path = '/api/v1/users/onboarding';
+
+  /// ⚠️ **토큰을 붙이지 않는다.** 서버가 이 경로만 공개로 열어 뒀다
+  /// (`SecurityConfig.PUBLIC_ENDPOINTS`). 그래서 만료·갱신을 다룰 것이 없다.
+  static const _availabilityPath = '/api/v1/users/nickname/availability';
 
   @override
   Future<void> submit(OnboardingProfile profile) async {
@@ -62,18 +69,61 @@ class HttpOnboardingRepository implements OnboardingRepository {
     }
   }
 
-  /// 409는 성공으로 흡수하므로 dio가 예외로 만들지 않게 한다.
-  Future<void> _post(Map<String, dynamic> body, String accessToken) => _dio
-      .post<Object?>(
-        _path,
-        data: body,
-        options: Options(
-          headers: {'Authorization': 'Bearer $accessToken'},
-          validateStatus: (status) =>
-              status != null && (status < 400 || status == 409),
-        ),
-      )
-      .then((_) {});
+  @override
+  Future<bool> isNicknameAvailable(String nickname) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _availabilityPath,
+        data: {'nickname': nickname},
+      );
+      final available = response.data?['available'];
+      if (available is! bool) {
+        // 200인데 몸통이 다르다. `false`로 떨어뜨리면 멀쩡한 이름이 거절된다.
+        throw const OnboardingException(OnboardingFailure.unknown);
+      }
+      return available;
+    } on DioException catch (error) {
+      // ⚠️ 형식이 틀려도 400이 온다. 앱이 먼저 막고 있으니 정상 경로에서는
+      // 나오지 않지만, 나온다면 앱 규칙이 서버와 어긋난 것이다.
+      throw OnboardingException(_failureOf(error));
+    }
+  }
+
+  /// 409는 예외로 만들지 않고 받아서 [_resolveConflict]에 넘긴다.
+  Future<void> _post(Map<String, dynamic> body, String accessToken) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      _path,
+      data: body,
+      options: Options(
+        headers: {'Authorization': 'Bearer $accessToken'},
+        validateStatus: (status) =>
+            status != null && (status < 400 || status == 409),
+      ),
+    );
+    if (response.statusCode == 409) _resolveConflict(response.data);
+  }
+
+  /// 409가 무엇을 뜻하는지 `code`로 가른다.
+  ///
+  /// ## ⚠️ 아는 코드 하나만 성공으로 흡수한다
+  ///
+  /// 서버는 **이미 온보딩됨**과 **닉네임 중복**을 같은 409로 던진다.
+  /// 예전처럼 409를 통째로 흡수하면 닉네임이 겹친 사람이 "성공"으로 홈에 들어가고,
+  /// 그 사람의 프로필은 서버에 없다. 화면에는 아무 문제도 보이지 않는다.
+  ///
+  /// 모르는 409도 실패로 본다. **409는 성공의 증거가 아니다** — 판단할 수 없으면
+  /// 다시 시도하게 하는 쪽이, 저장되지 않은 프로필로 앱을 쓰게 하는 것보다 낫다.
+  void _resolveConflict(Map<String, dynamic>? body) {
+    switch (body?['code']) {
+      // 도메인상 성공이다. 이미 채운 사람이 폼을 한 번 더 지났을 뿐이다.
+      case 'ALREADY_ONBOARDED':
+        return;
+      case 'NICKNAME_ALREADY_EXISTS':
+        throw const OnboardingException(OnboardingFailure.nicknameTaken);
+      default:
+        throw const OnboardingException(OnboardingFailure.unknown);
+    }
+  }
 
   /// 새 access 토큰을 받아 저장하고 돌려준다.
   ///

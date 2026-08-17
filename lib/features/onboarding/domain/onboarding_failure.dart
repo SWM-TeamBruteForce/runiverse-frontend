@@ -5,7 +5,19 @@
 ///
 /// **`alreadyOnboarded`가 없는 것은 의도다.** 서버가 409로 "이미 했다"고 하면
 /// 그것은 도메인상 성공이므로 저장소가 흡수한다.
+///
+/// ## ⚠️ 409는 두 가지다
+///
+/// 서버가 `ALREADY_ONBOARDED`와 [nicknameTaken]을 **같은 409로** 던진다
+/// (`CompleteOnboardingHandler` 2·4단계). 상태 코드만 보고 흡수하면
+/// **닉네임이 겹쳐 저장되지 않은 사람이 홈에 들어간다.**
 enum OnboardingFailure {
+  /// 그 닉네임을 이미 누가 쓰고 있다. 409 `NICKNAME_ALREADY_EXISTS`
+  ///
+  /// 다른 실패와 달리 **사용자가 고칠 수 있고, 고칠 자리가 정해져 있다** —
+  /// 화면은 이 이유를 받으면 닉네임 단계로 되돌린다.
+  nicknameTaken,
+
   /// 서버가 형식을 거절했다. 400
   ///
   /// ⚠️ **온보딩의 `code`는 인증 API와 다르다** — 측정해 보니 `INVALID_REQUEST`고,
