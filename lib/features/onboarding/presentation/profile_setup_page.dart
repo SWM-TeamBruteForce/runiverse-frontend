@@ -304,6 +304,9 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
       setState(() {
         _submitting = false;
         _submitFailure = failure;
+        // 닉네임 중복만 **고칠 자리가 정해져 있다.** 마지막 화면에 세워두면
+        // 어디를 고쳐야 하는지 스스로 찾아야 한다.
+        if (failure == OnboardingFailure.nicknameTaken) _step = _stepNickname;
       });
       return;
     }
@@ -425,7 +428,10 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (_submitFailure != null) ...[
+                  // 닉네임 중복은 여기 쓰지 않는다. **고칠 입력칸 바로 아래**에
+                  // 띄운다 — 화면 맨 아래에 두면 무엇을 고치라는 말인지 멀다.
+                  if (_submitFailure != null &&
+                      _submitFailure != OnboardingFailure.nicknameTaken) ...[
                     Text(
                       _submitFailure == OnboardingFailure.sessionExpired
                           ? AppStrings.profileSubmitExpired
@@ -564,6 +570,10 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
     // 안 그러면 경고가 뜨자마자 '쓸 수 있는 이름이에요'로 지워진다.
     final (String helper, AppInputTone tone) = _limitHit
         ? (AppStrings.profileNicknameTooLong, AppInputTone.error)
+        // 서버가 거절한 이름이다. 형식은 멀쩡하므로 아래 switch는
+        // '쓸 수 있는 이름이에요'라고 답한다 — 그것을 덮는다.
+        : _submitFailure == OnboardingFailure.nicknameTaken
+        ? (AppStrings.profileNicknameTaken, AppInputTone.error)
         : switch (status) {
             NicknameStatus.empty => (
               AppStrings.profileNicknameGuide,
@@ -605,7 +615,12 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
             tone: tone,
             textInputAction: TextInputAction.done,
             inputFormatters: [_NicknameLimiter(_onNicknameRejected)],
-            onChanged: (_) => setState(() {}),
+            // 이름을 고치는 순간 서버의 거절은 낡은 말이 된다.
+            onChanged: (_) => setState(() {
+              if (_submitFailure == OnboardingFailure.nicknameTaken) {
+                _submitFailure = null;
+              }
+            }),
             onSubmitted: (_) => _submitNickname(),
           ),
         ),

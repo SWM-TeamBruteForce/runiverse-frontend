@@ -145,6 +145,12 @@ abstract final class AppStrings {
   static const profileNicknameOk = '쓸 수 있는 이름이에요';
   static const profileNicknameConfirm = '확인';
 
+  /// 서버가 이미 누가 쓰고 있다고 답했다.
+  ///
+  /// **"중복"이라 쓰지 않는다** — 무엇을 해야 하는지 말해주는 쪽이 낫다.
+  /// [profileNicknameOk]와 같은 자리에 반대 톤으로 뜬다.
+  static const profileNicknameTaken = '이미 누가 쓰고 있어요. 다른 이름을 지어주세요';
+
   // 생년월일
   static const profileBirthLabel = '생년월일';
   static const profileBirthQuestion = '언제 태어났나요';
