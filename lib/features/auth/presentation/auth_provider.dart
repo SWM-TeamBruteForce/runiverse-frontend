@@ -276,13 +276,14 @@ class AuthController extends Notifier<AuthState> {
   ) async {
     try {
       final session = await call();
+      final isOnboarded = await _onboardedOf(session);
       await _store.saveSession(
         userId: session.userId,
         accessToken: session.accessToken,
         refreshToken: session.refreshToken,
-        isOnboarded: session.isOnboarded,
+        isOnboarded: isOnboarded,
       );
-      state = AuthSignedIn(session.userId, isOnboarded: session.isOnboarded);
+      state = AuthSignedIn(session.userId, isOnboarded: isOnboarded);
       // 로그인 응답에도 isOnboarded가 실려 오지만 **/me를 진실로 삼는다.**
       // 값이 갈리는 곳을 둘로 두면 나중에 어긋났을 때 원인을 찾기 어렵다.
       await _loadCurrentUser(session.accessToken);
@@ -290,6 +291,26 @@ class AuthController extends Notifier<AuthState> {
     } on AuthException catch (error) {
       return error.failure;
     }
+  }
+
+  /// 이 사람이 프로필을 채웠는가. **서버가 말하지 않으면 저장된 값을 쓴다.**
+  ///
+  /// ## ⚠️ 저장값은 같은 사람의 것일 때만 믿는다
+  ///
+  /// 한 기기에 여러 계정이 로그인할 수 있다. `userId`를 보지 않고 저장값을 쓰면
+  /// **앞사람이 프로필을 채웠다는 이유로 새 사람이 홈에 들어간다.** 그 사람은
+  /// 프로필이 없는데 매칭도 기록도 그 값들 위에 선다.
+  ///
+  /// 다른 사람이면 `false`다 — 한 번 더 묻는 쪽이 안전하다.
+  ///
+  /// 이 우회로는 `GET /users/me`가 올라오면 걷어낸다. 그때는 서버가 매번
+  /// 진실을 말해주므로 저장값을 볼 이유가 없다.
+  Future<bool> _onboardedOf(AuthSession session) async {
+    final answered = session.isOnboarded;
+    if (answered != null) return answered;
+
+    final stored = await _store.read();
+    return stored.userId == session.userId && stored.isOnboarded;
   }
 
   /// `GET /users/me`로 상태를 서버 값에 맞춘다.

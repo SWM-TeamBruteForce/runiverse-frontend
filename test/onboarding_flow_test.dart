@@ -192,7 +192,9 @@ void main() {
         userId: session.userId,
         accessToken: session.accessToken,
         refreshToken: session.refreshToken,
-        isOnboarded: session.isOnboarded,
+        // 가짜 저장소는 값을 준다. 진짜 서버는 이제 주지 않아 `null`이 오는데,
+        // 그 경우를 다루는 것은 `AuthController._onboardedOf`의 몫이다.
+        isOnboarded: session.isOnboarded ?? false,
       );
       return (store, repository);
     }
