@@ -407,6 +407,11 @@ void main() {
       isFalse,
     );
 
+    // 실제 흐름에서는 프로필 전송(`POST /users/onboarding`)이 먼저 성공한다.
+    // 그것을 흉내 내지 않으면 뒤이은 `/me`가 아직 false를 답한다.
+    (container.read(authRepositoryProvider) as FakeAuthRepository)
+        .completeOnboarding('new@example.com');
+
     await controller.markOnboarded();
 
     // 상태만 켜고 저장소를 두면 앱을 껐다 켤 때 다시 프로필로 간다.
@@ -417,6 +422,31 @@ void main() {
     expect(
       (await container.read(tokenStoreProvider).read()).isOnboarded,
       isTrue,
+    );
+  });
+
+  test('⚠️ 온보딩을 마치면 방금 입력한 닉네임이 상태에 들어온다', () async {
+    // 여기가 깨지면 프로필 탭이 자리표시자만 그린다 — 방금 이름을 썼는데
+    // 화면에는 안 나온다. `markOnboarded`가 `user`를 떨어뜨려서 겪었다.
+    final container = makeContainer();
+    final controller = container.read(authControllerProvider.notifier);
+    await controller.signUp(
+      verificationTicket: ticketFor(container, 'new@example.com'),
+      password: 'runi123!',
+    );
+    expect(
+      (container.read(authControllerProvider) as AuthSignedIn).user?.nickname,
+      isNull,
+    );
+
+    (container.read(authRepositoryProvider) as FakeAuthRepository)
+        .completeOnboarding('new@example.com');
+    await controller.markOnboarded();
+
+    // 마치는 순간이 **서버에 닉네임이 생긴 순간**이다. 그때 다시 물어야 한다.
+    expect(
+      (container.read(authControllerProvider) as AuthSignedIn).user?.nickname,
+      isNotNull,
     );
   });
 

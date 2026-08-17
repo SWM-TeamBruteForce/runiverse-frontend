@@ -120,13 +120,6 @@ abstract final class AppStrings {
 
   static const profileNext = '다음';
 
-  /// 프로필을 지금 채우지 않고 나가는 문.
-  ///
-  /// **가입 직후 화면은 `go`로 열려 스택에 이것 하나만 남는다** — 뒤로가기를 누르면
-  /// 앱이 꺼진다. 사용자가 의도한 동작이 아니므로 출구를 눈에 보이게 둔다.
-  /// 홈의 유도 카드에서 언제든 돌아올 수 있다.
-  static const profileSkipForNow = '나중에 하기';
-
   /// 프로필 전송이 실패했을 때. **입력은 화면에 그대로 남는다** —
   /// 다섯 개를 다시 채우게 하지 않는다.
   static const profileSubmitFailed = '저장하지 못했어요. 다시 시도해주세요';
@@ -362,15 +355,73 @@ abstract final class AppStrings {
   /// 빈 상태에 붙는 한 줄. 무엇을 하면 채워지는지 알려준다.
   static const homeEmptyRecentRunHint = '혼자 달리기로 첫 기록을 남겨보세요';
 
-  // ── 프로필 유도 (S05) ────────────────────────────────────────
+  // ── 프로필 탭 (S22, 본인) ────────────────────────────────────
   //
-  // 정본 S05에 없는 카드다. 온보딩을 마치지 않은 사람을 프로필 등록으로
-  // 강제 이동시키는 대신 여기서 만난다(설계 문서 2-9).
+  // ⚠️ **S22가 본인, S20이 타인**이다. Figma 페이지 이름이 `S20–S21`이라
+  // 헷갈리기 쉽다 — 정본은 `와이어프레임_최종.md`다.
 
-  static const homeProfilePromptTitle = '프로필을 완성해주세요';
+  /// 닉네임 자리. 아직 프로필을 안 채운 사람에게 보인다.
+  ///
+  /// ⚠️ 실제로는 거의 보이지 않는다 — 프로필이 없으면 홈에서 [profileSheetTitle]이
+  /// 막아서기 때문이다. 딥링크처럼 그 관문을 지나치는 길에 대비해 남긴다.
+  static const profileNicknameEmpty = '프로필을 완성해주세요';
 
-  /// **왜 필요한지를 말한다.** "완성해주세요"만으로는 미룰 이유밖에 안 준다.
-  static const homeProfilePromptBody = '매칭과 칼로리 계산에 필요해요';
+  static const profileSignatureLabel = '시그니처 컬러';
 
-  static const homeProfilePromptCta = '완성하기';
+  /// 시그니처 컬러가 아직 없을 때. **"없어요"라고 하지 않는다** —
+  /// 결핍이 아니라 무엇을 하면 생기는지를 말한다.
+  static const profileSignatureEmpty = '함께 달리면 색이 생겨요';
+
+  static const profileFollowers = '팔로워';
+  static const profileFollowing = '팔로잉';
+
+  static const profileBasicCollection = '기본 컬렉션';
+  static const profileBlendCollection = '블렌드 컬렉션';
+  static const profileFeed = '피드';
+
+  /// 컬렉션 진행. `17/30` 꼴로 채운다.
+  static String profileCollected(int owned, int total) => '$owned/$total';
+
+  /// 블렌드 개수. `2개` 꼴.
+  static String profileBlendCount(int count) => '$count개';
+
+  static const profileBlendEmpty = '아직 블렌드가 없어요';
+  static const profileBlendEmptyHint = '다른 러너와 함께 달리면 섞여요';
+  static const profileFeedEmpty = '아직 올린 기록이 없어요';
+
+  /// 잠긴 컬렉션 격자 위 안내. **무엇을 모으는지** 알려준다.
+  static const profileCollectionHint = '함께 달리며 30색을 모아요';
+
+  // ── 러닝 색 10범주 ───────────────────────────────────────────
+  //
+  // `RunHue`의 이름을 화면에 쓰는 말로 옮긴다. enum에 붙이지 않는 이유는
+  // **`domain`이 순수 Dart여야 하고 UI 문구는 여기 모여야** 하기 때문이다.
+
+  static const hueDistance = '거리';
+  static const hueSpeed = '속도';
+  static const hueEndurance = '지구력';
+  static const hueConsistency = '꾸준함';
+  static const hueCadence = '케이던스';
+  static const hueInterval = '인터벌';
+  static const hueHills = '언덕';
+  static const hueRecovery = '회복';
+  static const hueCompany = '동행';
+  static const hueAdversity = '악조건';
+
+  // ── 프로필 유도 바텀시트 ─────────────────────────────────────
+  //
+  // ⚠️ **닫히지 않는다.** 프로필 없이는 매칭도 기록도 돌아가지 않아서
+  // 앱을 쓸 수 없다. 그래서 안내가 아니라 **관문**이다.
+  //
+  // 닫히지 않는 것을 화면이 스스로 밝혀야 한다 — 닫으려다 안 되는 것과
+  // 처음부터 닫히지 않는다고 아는 것은 다르다.
+
+  /// **막아선 이유를 먼저 말한다.** "완성해주세요"는 미룰 이유밖에 안 준다.
+  static const profileSheetTitle = '프로필이 있어야\n달릴 수 있어요';
+
+  /// 무엇이 열리는지와 **왜 필수인지**를 함께 든다.
+  static const profileSheetBody =
+      '닉네임과 페이스로 상대를 찾고 기록을 계산해요.\n비워두면 매칭을 시작할 수 없어요';
+
+  static const profileSheetCta = '프로필 입력하기';
 }

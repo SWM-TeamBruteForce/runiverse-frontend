@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/core/widgets/profile_prompt_sheet.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 
 /// 하단 탭 셸 — 5개 탭의 공통 껍데기.
 ///
@@ -18,10 +23,56 @@ import 'package:runiverse/core/theme/tokens/app_typography.dart';
 /// (`docs/implementation-notes.md` §5-1).
 ///
 /// 글로벌 매칭 스티키 배너도 나중에 **여기 한 곳에만** 붙인다. 화면마다 복붙하지 않는다.
-class AppShell extends StatelessWidget {
+///
+/// ## 프로필 관문도 여기 하나뿐이다
+///
+/// 프로필이 없으면 [showProfilePromptSheet]가 막아선다. **탭마다 두지 않는다** —
+/// `StatefulShellRoute.indexedStack`은 한 번 열린 탭을 살려두므로, 탭마다 띄우면
+/// 시트가 겹쳐 쌓인다.
+///
+/// 여기 두면 다섯 탭 전부가 같은 관문을 지난다. 그것이 "프로필 없이는 앱을 쓸 수
+/// 없다"는 규칙과도 맞는다 — 홈만 막으면 다른 탭으로 돌아 들어갈 수 있다.
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({required this.navigationShell, super.key});
 
   final StatefulNavigationShell navigationShell;
+
+  @override
+  ConsumerState<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends ConsumerState<AppShell> {
+  /// 관문을 지금 세워 뒀는가. 없으면 화면이 다시 그려질 때마다 시트가 쌓인다 —
+  /// `build`는 한 번만 불리는 자리가 아니다.
+  bool _gateUp = false;
+
+  /// 프로필이 없으면 관문을 세운다.
+  ///
+  /// `build` 중에 `showModalBottomSheet`를 부를 수 없다(그리는 도중에 트리를
+  /// 바꾸는 셈이다). 첫 프레임이 끝난 뒤로 미룬다.
+  void _gateIfNeeded(bool isOnboarded) {
+    if (isOnboarded || _gateUp) return;
+    _gateUp = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showProfilePromptSheet(
+        context,
+        onStart: () async {
+          // **첫 로그인 때와 같은 화면**을 연다. 프로필을 받는 곳이 둘이면
+          // 규칙도 둘이 되고, 한쪽만 고치는 사고가 난다.
+          await context.push(AppRoutes.profileSetup);
+          if (!mounted) return;
+
+          // ⚠️ 채우지 않고 돌아왔을 수 있다. 그때 관문을 다시 세우지 않으면
+          // **뒤로가기 한 번으로 관문이 뚫린다.**
+          //
+          // 채웠으면 `markOnboarded`가 상태를 바꿔 아래 `build`가 건너뛴다.
+          setState(() => _gateUp = false);
+        },
+      );
+    });
+  }
 
   /// 탭 바 항목. 순서가 곧 라우터의 branch 순서이고, 어긋나면 엉뚱한 탭이 열린다.
   ///
@@ -37,11 +88,11 @@ class AppShell extends StatelessWidget {
   ];
 
   void _onDestinationSelected(int index) {
-    navigationShell.goBranch(
+    widget.navigationShell.goBranch(
       index,
       // 이미 열려 있는 탭을 다시 누르면 그 탭의 첫 화면으로 돌아간다.
       // (기록 상세를 3단계 파고들었다가 기록 탭을 누르면 캘린더로 복귀)
-      initialLocation: index == navigationShell.currentIndex,
+      initialLocation: index == widget.navigationShell.currentIndex,
     );
   }
 
@@ -49,15 +100,20 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColors;
 
+    // ⚠️ `AuthUnknown`이면 세우지 않는다. 모르는 상태에서 막아서면 이미 프로필을
+    // 채운 사람도 잠깐 갇힌다.
+    final auth = ref.watch(authControllerProvider);
+    if (auth is AuthSignedIn) _gateIfNeeded(auth.isOnboarded);
+
     return Scaffold(
-      body: navigationShell,
+      body: widget.navigationShell,
       bottomNavigationBar: DecoratedBox(
         // 탭 바와 본문 사이 경계선. NavigationBar 자체에는 테두리 옵션이 없다.
         decoration: BoxDecoration(
           border: Border(top: BorderSide(color: colors.borderDefault)),
         ),
         child: NavigationBar(
-          selectedIndex: navigationShell.currentIndex,
+          selectedIndex: widget.navigationShell.currentIndex,
           onDestinationSelected: _onDestinationSelected,
           backgroundColor: colors.bgSurface,
           // 다크에서는 그림자 대신 면 밝기로 높이를 표현한다. M3 기본 틴트도 함께 꺼진다.
