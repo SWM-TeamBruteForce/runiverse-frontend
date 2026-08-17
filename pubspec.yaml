@@ -44,6 +44,10 @@ dependencies:
   # 안드로이드 SDK나 AGP를 손대는 일은 이 변경의 범위를 넘는다.
   flutter_secure_storage: ^10.3.1
   kakao_flutter_sdk: ^2.0.0+1
+  # 프로필 사진을 앨범에서 고른다. 안드로이드 13+에서는 시스템 사진 선택기를 쓰므로
+  # **저장소 권한을 요구하지 않는다** — 매니페스트에 추가할 것이 없다.
+  # 크기를 줄이지는 못한다. 10MB 제한은 앱이 검사해서 막는다.
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:
