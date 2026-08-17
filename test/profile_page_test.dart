@@ -17,6 +17,12 @@ import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
+import 'package:runiverse/features/profile/data/fake_profile_image_repository.dart';
+import 'package:runiverse/features/profile/domain/photo_picker.dart';
+import 'package:runiverse/features/profile/domain/picked_image.dart';
+import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
+import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
+import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
 
 /// 프로필 탭(S22) — 서버 값이 화면에 닿는가, 없을 때 무엇을 하는가.
@@ -28,10 +34,16 @@ void main() {
   ///
   /// [onboarded]가 프로필을 채운 사람인지다. 값은 `GET /users/me`에서 오고,
   /// 가짜 저장소가 그 답을 흉내 낸다.
+  ///
+  /// ⚠️ [photos]를 반드시 끼운다. 안 끼우면 아바타가 `HttpProfileImageRepository`를
+  /// 만들고, 그것이 `createDio()`를 부르는데 테스트에는 `API_BASE_URL`이 없어
+  /// `StateError`로 죽는다 — **화면과 상관없는 테스트까지 전부 무너진다.**
   Future<void> pumpProfile(
     WidgetTester tester, {
     required bool onboarded,
     bool meFails = false,
+    FakeProfileImageRepository? photos,
+    PhotoPicker? picker,
   }) async {
     final repository = FakeAuthRepository(latency: Duration.zero);
     const email = 'runner@example.com';
@@ -57,6 +69,10 @@ void main() {
           authRepositoryProvider.overrideWithValue(
             meFails ? _MeFailsRepository(repository) : repository,
           ),
+          profileImageRepositoryProvider.overrideWithValue(
+            photos ?? FakeProfileImageRepository(latency: Duration.zero),
+          ),
+          if (picker != null) photoPickerProvider.overrideWithValue(picker),
         ],
         child: const RuniverseApp(initialLocation: AppRoutes.profile),
       ),
@@ -194,6 +210,121 @@ void main() {
       findsNothing,
     );
   });
+
+  // ── 프로필 사진 ─────────────────────────────────────────────
+  //
+  // 서버가 지금 열어 준 것은 사진뿐이다. 닉네임·소개를 고치는 API가 없어
+  // 정본의 편집 화면(S22.1)을 만들 수 없고, 그래서 아바타를 직접 누르게 했다.
+
+  /// 아바타를 눌러 시트를 연다.
+  Future<void> openSheet(WidgetTester tester) async {
+    await tester.tap(find.byType(ProfileAvatar));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('사진이 없으면 시트에 지우는 항목이 없다', (tester) async {
+    await pumpProfile(tester, onboarded: true);
+    await openSheet(tester);
+
+    expect(find.text(AppStrings.profilePhotoPick), findsOneWidget);
+    // 이미 기본 이미지인 사람에게 `기본 이미지로`를 보이면 눌러도 아무 일이 없다.
+    expect(find.text(AppStrings.profilePhotoReset), findsNothing);
+  });
+
+  testWidgets('사진이 있으면 지울 수 있다', (tester) async {
+    final photos = FakeProfileImageRepository(
+      latency: Duration.zero,
+      url: 'https://example.invalid/a.png',
+    );
+    await pumpProfile(tester, onboarded: true, photos: photos);
+    await openSheet(tester);
+
+    await tester.tap(find.text(AppStrings.profilePhotoReset));
+    await tester.pumpAndSettle();
+
+    expect(photos.url, isNull);
+  });
+
+  testWidgets('앨범에서 고르면 올라간다', (tester) async {
+    final photos = FakeProfileImageRepository(latency: Duration.zero);
+    final picker = _FakePicker(
+      image: PickedImage.validated(path: '/a/b.png', sizeBytes: 1024),
+    );
+    await pumpProfile(tester, onboarded: true, photos: photos, picker: picker);
+    await openSheet(tester);
+
+    await tester.tap(find.text(AppStrings.profilePhotoPick));
+    await tester.pumpAndSettle();
+
+    expect(photos.uploaded?.mimeType, 'image/png');
+    expect(photos.uploaded?.sizeBytes, 1024);
+  });
+
+  testWidgets('⚠️ 앨범에서 취소하면 아무 일도 일어나지 않는다', (tester) async {
+    // 취소를 실패로 다루면 "사진을 바꾸지 못했어요"가 뜬다. 그 사람은
+    // 올릴 생각을 접었을 뿐이다.
+    final photos = FakeProfileImageRepository(latency: Duration.zero);
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      photos: photos,
+      picker: _FakePicker(),
+    );
+    await openSheet(tester);
+
+    await tester.tap(find.text(AppStrings.profilePhotoPick));
+    await tester.pumpAndSettle();
+
+    expect(photos.uploaded, isNull);
+    expect(find.text(AppStrings.profilePhotoFailed), findsNothing);
+  });
+
+  testWidgets('⚠️ 올릴 수 없는 형식은 무엇이 문제인지 말해준다', (tester) async {
+    // 서버까지 보내면 400 하나로 뭉뚱그려져 형식인지 크기인지 알 수 없다.
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      picker: _FakePicker(failure: ProfileImageFailure.unsupportedFormat),
+    );
+    await openSheet(tester);
+
+    await tester.tap(find.text(AppStrings.profilePhotoPick));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.profilePhotoUnsupported), findsOneWidget);
+  });
+
+  testWidgets('올리다 실패해도 원래 사진이 남는다', (tester) async {
+    // 잠깐 끊긴 것 때문에 멀쩡한 사진이 사라지면 사용자는 지워진 줄 안다.
+    final photos = FakeProfileImageRepository(
+      latency: Duration.zero,
+      url: 'https://example.invalid/a.png',
+      failWith: ProfileImageFailure.network,
+    );
+    await pumpProfile(tester, onboarded: true, photos: photos);
+
+    // 조회부터 실패하므로 시트에는 지우는 항목이 없다. 그래도 화면은 선다.
+    await openSheet(tester);
+    expect(find.text(AppStrings.profilePhotoPick), findsOneWidget);
+  });
+}
+
+/// 앨범을 여는 척한다. 실제 구현은 플랫폼 채널이라 테스트에서 부를 수 없다.
+class _FakePicker implements PhotoPicker {
+  _FakePicker({this.image, this.failure});
+
+  /// `null`이면 사용자가 취소한 것이다.
+  final PickedImage? image;
+
+  /// 형식·크기가 조건에 맞지 않은 경우.
+  final ProfileImageFailure? failure;
+
+  @override
+  Future<PickedImage?> pick() async {
+    final failure = this.failure;
+    if (failure != null) throw ProfileImageException(failure);
+    return image;
+  }
 }
 
 /// `/users/me`만 실패하는 저장소. 나머지는 [inner]에 맡긴다.

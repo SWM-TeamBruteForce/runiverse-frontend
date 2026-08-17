@@ -392,6 +392,25 @@ abstract final class AppStrings {
   /// 잠긴 컬렉션 격자 위 안내. **무엇을 모으는지** 알려준다.
   static const profileCollectionHint = '함께 달리며 30색을 모아요';
 
+  // ── 프로필 사진 ─────────────────────────────────────────────
+
+  /// 아바타를 눌렀을 때 뜨는 시트의 제목.
+  static const profilePhotoSheetTitle = '프로필 사진';
+  static const profilePhotoPick = '앨범에서 선택';
+
+  /// 지우기. **"삭제"라 쓰지 않는다** — 돌아가는 자리가 있다는 것을 말해준다.
+  static const profilePhotoReset = '기본 이미지로';
+
+  /// 아바타의 접근성 라벨. 눌러서 무엇을 하는지 화면 낭독기에 알린다.
+  static const profilePhotoChangeLabel = '프로필 사진 바꾸기';
+
+  static const profilePhotoUnsupported = 'jpg, png, webp만 올릴 수 있어요';
+  static const profilePhotoTooLarge = '10MB보다 작은 사진을 골라주세요';
+
+  /// 사진을 다루다 실패했다. **어디서 막혔는지는 말하지 않는다** —
+  /// 사용자가 할 수 있는 일이 "다시 해보기" 하나라서 갈라 말할 이유가 없다.
+  static const profilePhotoFailed = '사진을 바꾸지 못했어요. 다시 시도해주세요';
+
   // ── 러닝 색 10범주 ───────────────────────────────────────────
   //
   // `RunHue`의 이름을 화면에 쓰는 말로 옮긴다. enum에 붙이지 않는 이유는
