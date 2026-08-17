@@ -38,6 +38,10 @@ class HttpOnboardingRepository implements OnboardingRepository {
 
   static const _path = '/api/v1/users/onboarding';
 
+  /// ⚠️ **토큰을 붙이지 않는다.** 서버가 이 경로만 공개로 열어 뒀다
+  /// (`SecurityConfig.PUBLIC_ENDPOINTS`). 그래서 만료·갱신을 다룰 것이 없다.
+  static const _availabilityPath = '/api/v1/users/nickname/availability';
+
   @override
   Future<void> submit(OnboardingProfile profile) async {
     final body = OnboardingProfileDto.from(profile).toJson();
@@ -62,6 +66,26 @@ class HttpOnboardingRepository implements OnboardingRepository {
       } on DioException catch (retried) {
         throw OnboardingException(_failureOf(retried));
       }
+    }
+  }
+
+  @override
+  Future<bool> isNicknameAvailable(String nickname) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _availabilityPath,
+        data: {'nickname': nickname},
+      );
+      final available = response.data?['available'];
+      if (available is! bool) {
+        // 200인데 몸통이 다르다. `false`로 떨어뜨리면 멀쩡한 이름이 거절된다.
+        throw const OnboardingException(OnboardingFailure.unknown);
+      }
+      return available;
+    } on DioException catch (error) {
+      // ⚠️ 형식이 틀려도 400이 온다. 앱이 먼저 막고 있으니 정상 경로에서는
+      // 나오지 않지만, 나온다면 앱 규칙이 서버와 어긋난 것이다.
+      throw OnboardingException(_failureOf(error));
     }
   }
 

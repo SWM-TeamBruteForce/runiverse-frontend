@@ -145,6 +145,13 @@ abstract final class AppStrings {
   static const profileNicknameOk = '쓸 수 있는 이름이에요';
   static const profileNicknameConfirm = '확인';
 
+  /// 서버에 묻는 동안. 확인 버튼이 잠기는 이유를 말해준다.
+  static const profileNicknameChecking = '확인하는 중이에요';
+
+  /// 물어보지 못했다. **[profileNicknameTaken]과 다른 말이어야 한다** —
+  /// 이름을 바꿀 일이 아니라 다시 눌러볼 일이다.
+  static const profileNicknameCheckFailed = '확인하지 못했어요. 다시 눌러주세요';
+
   /// 서버가 이미 누가 쓰고 있다고 답했다.
   ///
   /// **"중복"이라 쓰지 않는다** — 무엇을 해야 하는지 말해주는 쪽이 낫다.

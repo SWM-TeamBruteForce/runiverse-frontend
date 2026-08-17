@@ -15,7 +15,7 @@ import 'package:runiverse/features/onboarding/domain/gender.dart';
 import 'package:runiverse/features/onboarding/domain/onboarding_failure.dart';
 import 'package:runiverse/features/onboarding/domain/onboarding_profile.dart';
 
-/// 온보딩 409를 어떻게 읽는가.
+/// 온보딩 저장소가 **서버의 답을 어떻게 읽는가**. 409를 가르는 규칙이 중심이다.
 ///
 /// ## ⚠️ 이 저장소만 어댑터를 세워 테스트한다
 ///
@@ -114,6 +114,51 @@ void main() {
     final failure = await failureOf(repositoryAnswering(503));
 
     expect(failure, OnboardingFailure.server);
+  });
+
+  group('닉네임 중복 확인', () {
+    test('서버가 답한 available을 그대로 돌려준다', () async {
+      final free = await repositoryAnswering(
+        200,
+        body: {'nickname': '러너42', 'available': true},
+      );
+      final taken = await repositoryAnswering(
+        200,
+        body: {'nickname': '러너42', 'available': false},
+      );
+
+      expect(await free.isNicknameAvailable('러너42'), isTrue);
+      expect(await taken.isNicknameAvailable('러너42'), isFalse);
+    });
+
+    test('⚠️ 몸통이 이상하면 던진다. `false`로 떨어뜨리지 않는다', () async {
+      // `false`로 뭉뚱그리면 **쓸 수 있는 이름이 거절된다.** 사용자는 왜
+      // 안 되는지 알 수 없고, 원인은 서버 응답 형식이라 화면 어디에도 안 보인다.
+      final repository = await repositoryAnswering(
+        200,
+        body: {'nickname': '러너42'},
+      );
+
+      expect(
+        () => repository.isNicknameAvailable('러너42'),
+        throwsA(isA<OnboardingException>()),
+      );
+    });
+
+    test('닿지 못하면 네트워크 실패다', () async {
+      final repository = await repositoryAnswering(503);
+
+      await expectLater(
+        repository.isNicknameAvailable('러너42'),
+        throwsA(
+          isA<OnboardingException>().having(
+            (e) => e.failure,
+            'failure',
+            OnboardingFailure.server,
+          ),
+        ),
+      );
+    });
   });
 }
 

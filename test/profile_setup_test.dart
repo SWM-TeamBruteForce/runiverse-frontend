@@ -174,6 +174,69 @@ void main() {
     expect(nextEnabled(tester), isFalse);
   });
 
+  // ── 닉네임 중복 확인 ─────────────────────────────────────────
+
+  testWidgets('확인을 누르면 서버에 겹치는지 묻는다', (tester) async {
+    final onboarding = FakeOnboardingRepository(latency: Duration.zero);
+    await pumpPage(tester, onboarding: onboarding);
+    await typeNickname(tester, '러너42');
+    await confirmNickname(tester);
+
+    expect(onboarding.availabilityCalls, 1);
+    expect(find.text(AppStrings.profileBirthQuestion), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 이미 있는 이름이면 다음 질문이 열리지 않는다', (tester) async {
+    // 제출 때까지 미루면 네 질문을 지나 다시 여기로 돌아와야 한다.
+    final onboarding = FakeOnboardingRepository(latency: Duration.zero)
+      ..taken.add('러너42');
+    await pumpPage(tester, onboarding: onboarding);
+    await typeNickname(tester, '러너42');
+    await confirmNickname(tester);
+
+    expect(find.text(AppStrings.profileNicknameTaken), findsOneWidget);
+    expect(find.text(AppStrings.profileBirthQuestion), findsNothing);
+  });
+
+  testWidgets('⚠️ 물어보지 못한 것을 이미 있다고 말하지 않는다', (tester) async {
+    // 둘을 묶으면 네트워크가 잠깐 끊긴 것 때문에 쓸 수 있는 이름을 버리게 된다.
+    await pumpPage(
+      tester,
+      onboarding: FakeOnboardingRepository(
+        latency: Duration.zero,
+        availabilityFailure: OnboardingFailure.network,
+      ),
+    );
+    await typeNickname(tester, '러너42');
+    await confirmNickname(tester);
+
+    expect(find.text(AppStrings.profileNicknameCheckFailed), findsOneWidget);
+    expect(find.text(AppStrings.profileNicknameTaken), findsNothing);
+    // 판정하지 못했으니 넘기지도 않는다.
+    expect(find.text(AppStrings.profileBirthQuestion), findsNothing);
+  });
+
+  testWidgets('묻는 동안 확인이 잠긴다', (tester) async {
+    await pumpPage(
+      tester,
+      onboarding: FakeOnboardingRepository(
+        latency: const Duration(milliseconds: 200),
+      ),
+    );
+    await typeNickname(tester, '러너42');
+    await tester.tap(find.text(AppStrings.profileNicknameConfirm));
+    await tester.pump();
+
+    // 두 번 누르면 요청이 두 번 나가고 늦게 온 답이 이긴다.
+    final confirm = tester.widget<AppButton>(
+      find.widgetWithText(AppButton, AppStrings.profileNicknameConfirm),
+    );
+    expect(confirm.onPressed, isNull);
+    expect(find.text(AppStrings.profileNicknameChecking), findsOneWidget);
+
+    await tester.pumpAndSettle();
+  });
+
   // ── 제출 실패 ───────────────────────────────────────────────
 
   /// 다 채우고 제출해 [failure]로 실패시킨다.

@@ -100,6 +100,15 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
   /// 전송이 실패한 이유. 성공하면 화면을 떠나므로 `null`로 되돌릴 일이 없다.
   OnboardingFailure? _submitFailure;
 
+  /// 닉네임을 서버에 묻는 중. 확인 버튼이 두 번 눌리는 것을 막는다.
+  bool _checkingNickname = false;
+
+  /// 물어보지 못했다.
+  ///
+  /// ⚠️ **"이미 있다"와 다르다.** 하나로 묶으면 네트워크가 잠깐 끊긴 것 때문에
+  /// 멀쩡한 이름이 거절되고, 사용자는 쓸 수 있는 이름을 버리게 된다.
+  bool _nicknameCheckFailed = false;
+
   /// 상한에서 막힌 직후 잠깐 켜진다. 켜져 있는 동안 helper가 경고로 덮인다.
   bool _limitHit = false;
   Timer? _limitTimer;
@@ -144,9 +153,43 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
     });
   }
 
-  void _submitNickname() {
-    if (!_nicknameStatus.isValid) return;
-    _advance();
+  /// 형식을 통과하면 **서버에 겹치는지 묻고** 넘어간다.
+  ///
+  /// 제출 때까지 미루지 않는 이유는 닉네임이 첫 질문이어서다. 다섯 개를 다 채운
+  /// 뒤에 알면 네 질문을 거슬러 여기로 돌아와야 한다.
+  Future<void> _submitNickname() async {
+    if (!_nicknameStatus.isValid || _checkingNickname) return;
+
+    final nickname = _nickname.text.trim();
+    setState(() {
+      _checkingNickname = true;
+      _nicknameCheckFailed = false;
+      _submitFailure = null;
+    });
+
+    bool? available;
+    try {
+      available = await ref
+          .read(onboardingRepositoryProvider)
+          .isNicknameAvailable(nickname);
+    } on OnboardingException {
+      // 사유를 가르지 않는다. 사용자가 할 일은 다시 눌러보는 것 하나다.
+    }
+
+    if (!mounted) return;
+    // 기다리는 동안 이름을 고쳤다면 이 답은 **다른 이름의 답**이다. 버린다.
+    if (_nickname.text.trim() != nickname) {
+      setState(() => _checkingNickname = false);
+      return;
+    }
+
+    setState(() {
+      _checkingNickname = false;
+      _nicknameCheckFailed = available == null;
+      if (available == false) _submitFailure = OnboardingFailure.nicknameTaken;
+    });
+
+    if (available == true) _advance();
   }
 
   // ── 진행 ──────────────────────────────────────────────────
@@ -568,10 +611,16 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
 
     // 경고가 떠 있는 동안은 일반 안내가 덮어쓰지 않는다.
     // 안 그러면 경고가 뜨자마자 '쓸 수 있는 이름이에요'로 지워진다.
+    // 아래 셋은 전부 형식을 통과한 뒤의 이야기라, switch가 '쓸 수 있는
+    // 이름이에요'라고 답하는 것을 덮어야 한다.
     final (String helper, AppInputTone tone) = _limitHit
         ? (AppStrings.profileNicknameTooLong, AppInputTone.error)
-        // 서버가 거절한 이름이다. 형식은 멀쩡하므로 아래 switch는
-        // '쓸 수 있는 이름이에요'라고 답한다 — 그것을 덮는다.
+        : _checkingNickname
+        ? (AppStrings.profileNicknameChecking, AppInputTone.neutral)
+        // ⚠️ 물어보지 못한 것과 이미 있는 것을 가른다. 묶으면 네트워크가 잠깐
+        // 끊긴 것 때문에 쓸 수 있는 이름을 버리게 된다.
+        : _nicknameCheckFailed
+        ? (AppStrings.profileNicknameCheckFailed, AppInputTone.error)
         : _submitFailure == OnboardingFailure.nicknameTaken
         ? (AppStrings.profileNicknameTaken, AppInputTone.error)
         : switch (status) {
@@ -615,8 +664,9 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
             tone: tone,
             textInputAction: TextInputAction.done,
             inputFormatters: [_NicknameLimiter(_onNicknameRejected)],
-            // 이름을 고치는 순간 서버의 거절은 낡은 말이 된다.
+            // 이름을 고치는 순간 서버가 한 말은 전부 낡은 말이 된다.
             onChanged: (_) => setState(() {
+              _nicknameCheckFailed = false;
               if (_submitFailure == OnboardingFailure.nicknameTaken) {
                 _submitFailure = null;
               }
@@ -627,7 +677,11 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
         const SizedBox(height: AppSpacing.space4),
         AppButton(
           label: AppStrings.profileNicknameConfirm,
-          onPressed: status.isValid ? _submitNickname : null,
+          // 묻는 중에도 잠근다. 두 번 누르면 요청이 두 번 나가고,
+          // 늦게 온 답이 이긴다.
+          onPressed: (status.isValid && !_checkingNickname)
+              ? _submitNickname
+              : null,
         ),
       ],
     );
