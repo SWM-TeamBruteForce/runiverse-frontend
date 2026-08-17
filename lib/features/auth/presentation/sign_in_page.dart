@@ -14,6 +14,7 @@ import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/email_rule.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/auth/presentation/password_field.dart';
 
 /// 로그인 (S02.5).
@@ -90,14 +91,21 @@ class _SignInPageState extends ConsumerState<SignInPage> {
       _failure = failure;
     });
 
-    if (failure == null) {
-      // isOnboarded를 보지 않는다. **돌아온 사람을 폼으로 가로막지 않는다** —
-      // 프로필은 홈의 유도 카드에서 만난다(설계 문서 2-9).
-      //
-      // 스플래시와 같은 기준이라 어느 쪽으로 들어와도 도착지가 같다.
-      // go는 스택을 통째로 갈아치운다. 홈에서 뒤로 눌러 로그인으로 돌아가면 안 된다.
-      context.go(AppRoutes.home);
-    }
+    if (failure == null) _goAfterSignIn();
+  }
+
+  /// 로그인에 성공했다. 어디로 갈 것인가.
+  ///
+  /// **프로필이 없으면 폼이다.** 매칭도 기록도 그 값들 위에 서므로 채워야 쓸 수 있다.
+  ///
+  /// 이메일과 카카오가 이 한 곳을 함께 쓴다 — 나누면 "로그인 방식에 따라 도착지가
+  /// 다르다"는 규칙이 생기고, 한쪽만 고치는 사고가 난다. 스플래시도 같은 기준이다.
+  void _goAfterSignIn() {
+    final state = ref.read(authControllerProvider);
+    final isOnboarded = state is AuthSignedIn && state.isOnboarded;
+
+    // go는 스택을 통째로 갈아치운다. 도착한 뒤 뒤로 눌러 로그인으로 돌아가면 안 된다.
+    context.go(isOnboarded ? AppRoutes.home : AppRoutes.profileSetup);
   }
 
   @override
@@ -275,13 +283,10 @@ class _SignInPageState extends ConsumerState<SignInPage> {
       _failure = failure == AuthFailure.oauthCancelled ? null : failure;
     });
 
-    if (failure == null) {
-      // 이메일 로그인과 같은 자리로 보낸다. isOnboarded를 보지 않는다 —
-      // 프로필은 홈의 유도 카드에서 만난다(설계 문서 2-9).
-      //
-      // go는 스택을 통째로 갈아치운다. 홈에서 뒤로 눌러 로그인으로 돌아가면 안 된다.
-      context.go(AppRoutes.home);
-    }
+    // 카카오는 **가입과 로그인이 한 경로다.** 계정이 없으면 서버가 그 자리에서
+    // 만들고 `isOnboarded=false`로 답한다. 그래서 첫 로그인은 이메일의 *가입*에
+    // 해당하고, [_goAfterSignIn]이 그것을 폼으로 보낸다.
+    if (failure == null) _goAfterSignIn();
   }
 
   void _notReady(BuildContext context) {

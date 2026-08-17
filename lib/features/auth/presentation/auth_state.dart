@@ -1,3 +1,5 @@
+import 'package:runiverse/features/auth/domain/current_user.dart';
+
 /// 앱이 지금 로그인 상태인가.
 ///
 /// `bool` 하나로 두지 않은 이유는 **"모른다"가 실제 상태이기 때문**이다.
@@ -31,10 +33,22 @@ final class AuthSignedOut extends AuthState {
 }
 
 final class AuthSignedIn extends AuthState {
-  const AuthSignedIn(this.userId, {required this.isOnboarded});
+  const AuthSignedIn(this.userId, {required this.isOnboarded, this.user});
 
   final String userId;
 
-  /// 프로필 등록(S04)을 마쳤는가. `false`면 홈이 아니라 프로필로 보낸다.
+  /// 프로필 등록(S04)을 마쳤는가.
+  ///
+  /// **인증 직후**(가입 · 이메일 로그인 · 카카오)에 `false`면 프로필 폼으로 보내고,
+  /// **자동 로그인**이면 홈으로 보내되 유도 카드를 켠다.
+  ///
+  /// ⚠️ 값의 출처는 `GET /users/me`다. 로그인 응답에도 같은 이름이 있지만 그것은
+  /// **그 순간의 사진**이라, 다른 기기에서 프로필을 채우면 어긋난다.
   final bool isOnboarded;
+
+  /// 서버가 답한 내 정보. **`/me`가 오기 전에는 `null`이다.**
+  ///
+  /// 닉네임·프로필 이미지가 여기 있다. 화면은 없을 수 있다는 것을 전제로 그린다 —
+  /// 네트워크가 느리면 이 값이 늦게 오고, 온보딩 전이면 아예 비어 있다.
+  final CurrentUser? user;
 }

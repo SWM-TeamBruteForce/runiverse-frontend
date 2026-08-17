@@ -4,6 +4,7 @@ import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/domain/auth_tokens.dart';
+import 'package:runiverse/features/auth/domain/current_user.dart';
 import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 
@@ -30,6 +31,9 @@ class HttpAuthRepository implements AuthRepository {
   static const _oauthPath = '/api/v1/auth/oauth';
   static const _sendCodePath = '/api/v1/auth/email/verifications';
   static const _verifyCodePath = '/api/v1/auth/email/verifications/confirm';
+
+  /// 내 기본 정보. **`isOnboarded`의 유일한 출처다.**
+  static const _mePath = '/api/v1/users/me';
 
   /// 갱신에만 짧은 시간 제한을 건다.
   ///
@@ -156,6 +160,53 @@ class HttpAuthRepository implements AuthRepository {
     }
     return AuthTokens(accessToken: accessToken, refreshToken: refreshToken);
   }
+
+  @override
+  Future<CurrentUser> fetchCurrentUser(String accessToken) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        _mePath,
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      return _currentUserOf(response.data);
+    } on DioException catch (error) {
+      // 401은 토큰이 죽은 것이다. 부르는 쪽이 갱신하고 다시 온다.
+      if (error.response?.statusCode == 401) {
+        throw const AuthException(AuthFailure.sessionExpired);
+      }
+      throw AuthException(_failureOf(error));
+    }
+  }
+
+  /// 몸통에서 사람을 꺼낸다.
+  ///
+  /// ⚠️ **닉네임·이미지·소개글은 없을 수 있다.** 온보딩 전에는 서버가 채우지
+  /// 못한다. `userId`와 `email`만 반드시 있어야 하고, 그것이 없으면 답이
+  /// 계약과 다른 것이므로 세션을 믿지 않는다.
+  CurrentUser _currentUserOf(Map<String, dynamic>? body) {
+    final userId = body?['userId'];
+    final email = body?['email'];
+
+    if (userId is! String || email is! String) {
+      throw const AuthException(AuthFailure.unknown);
+    }
+
+    return CurrentUser(
+      userId: userId,
+      email: email,
+      // 값이 없거나 타입이 다르면 false로 본다. 유도 카드를 한 번 더 보이는 쪽이
+      // 프로필 없는 사람에게 아무것도 안 알리는 것보다 낫다.
+      isOnboarded: body?['isOnboarded'] == true,
+      nickname: _stringOrNull(body?['nickname']),
+      profileImageUrl: _stringOrNull(body?['profileImageUrl']),
+      introduction: _stringOrNull(body?['introduction']),
+    );
+  }
+
+  /// 빈 문자열도 `null`로 본다. 서버가 `""`를 주는 것과 아예 안 주는 것을
+  /// 화면이 다르게 그릴 이유가 없다.
+  static String? _stringOrNull(Object? value) =>
+      (value is String && value.isNotEmpty) ? value : null;
 
   Future<AuthSession> _login({
     required String email,

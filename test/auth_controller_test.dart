@@ -6,6 +6,7 @@ import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/domain/auth_tokens.dart';
+import 'package:runiverse/features/auth/domain/current_user.dart';
 import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
@@ -19,18 +20,19 @@ import 'package:runiverse/features/auth/presentation/auth_state.dart';
 /// 가짜 저장소를 지연 없이 넣는다. 지연은 화면에서 로딩을 보여주기 위한 것이지
 /// 여기서 기다릴 이유가 없다.
 void main() {
-  ProviderContainer makeContainer() => ProviderContainer.test(
-    overrides: [
-      // 앱은 SecureTokenStore를 쓰는데 그것은 플랫폼 채널을 부른다.
-      // 테스트에는 채널이 없다 — 순수 test()는 바인딩조차 없어 그 자리에서 죽고,
-      // testWidgets()는 조용히 null을 돌려줘 **저장이 안 되는데 통과한다.**
-      // 후자가 더 위험하므로 저장소를 쓰는 테스트는 반드시 이것을 갈아끼운다.
-      tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
-      authRepositoryProvider.overrideWithValue(
-        FakeAuthRepository(latency: Duration.zero),
-      ),
-    ],
-  );
+  ProviderContainer makeContainer({AuthRepository? repository}) =>
+      ProviderContainer.test(
+        overrides: [
+          // 앱은 SecureTokenStore를 쓰는데 그것은 플랫폼 채널을 부른다.
+          // 테스트에는 채널이 없다 — 순수 test()는 바인딩조차 없어 그 자리에서 죽고,
+          // testWidgets()는 조용히 null을 돌려줘 **저장이 안 되는데 통과한다.**
+          // 후자가 더 위험하므로 저장소를 쓰는 테스트는 반드시 이것을 갈아끼운다.
+          tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
+          authRepositoryProvider.overrideWithValue(
+            repository ?? FakeAuthRepository(latency: Duration.zero),
+          ),
+        ],
+      );
 
   /// 인증을 마친 상태를 세우고 티켓을 돌려준다.
   ///
@@ -91,8 +93,76 @@ void main() {
     await controller.restore();
 
     final state = container.read(authControllerProvider);
-    // 이 값이 false여야 스플래시가 프로필 등록으로 보낸다.
+    // 이 값이 false여야 홈이 유도 카드를 켠다.
     expect((state as AuthSignedIn).isOnboarded, isFalse);
+  });
+
+  group('/users/me', () {
+    test('로그인하면 서버가 답한 내 정보가 상태에 담긴다', () async {
+      final container = makeContainer();
+
+      await container
+          .read(authControllerProvider.notifier)
+          .signIn(
+            email: FakeAuthRepository.seedEmail,
+            password: FakeAuthRepository.seedPassword,
+          );
+
+      final state = container.read(authControllerProvider) as AuthSignedIn;
+      expect(state.user, isNotNull);
+      expect(state.user!.email, FakeAuthRepository.seedEmail);
+      expect(state.user!.isOnboarded, isTrue);
+    });
+
+    test('⚠️ 저장된 값이 낡았으면 자동 로그인이 서버 값으로 바로잡는다', () async {
+      // 다른 기기에서 프로필을 채운 상황이다. 이 기기의 저장값은 아직 false다.
+      final repository = FakeAuthRepository(latency: Duration.zero);
+      repository.seedAccount(
+        email: 'moved@example.com',
+        password: 'runi123!',
+        isOnboarded: true,
+      );
+      final container = makeContainer(repository: repository);
+      final session = repository.issueSession(email: 'moved@example.com');
+      await container
+          .read(tokenStoreProvider)
+          .saveSession(
+            userId: session.userId,
+            accessToken: session.accessToken,
+            refreshToken: session.refreshToken,
+            // ⚠️ 낡은 값이다. /me가 없으면 홈이 유도 카드를 헛되이 띄운다.
+            isOnboarded: false,
+          );
+
+      await container.read(authControllerProvider.notifier).restore();
+
+      final state = container.read(authControllerProvider) as AuthSignedIn;
+      expect(state.isOnboarded, isTrue);
+    });
+
+    test('/me가 실패해도 로그인을 되돌리지 않는다', () async {
+      // 인증은 성공했다. 부가 요청 하나가 실패했다고 로그인 화면으로 돌려보내면
+      // "네트워크가 끊긴 것"과 "비밀번호가 틀린 것"이 같은 결과가 된다.
+      final container = makeContainer(
+        repository: _MeFailsAuthRepository(
+          FakeAuthRepository(latency: Duration.zero),
+        ),
+      );
+
+      final failure = await container
+          .read(authControllerProvider.notifier)
+          .signIn(
+            email: FakeAuthRepository.seedEmail,
+            password: FakeAuthRepository.seedPassword,
+          );
+
+      expect(failure, isNull);
+      final state = container.read(authControllerProvider);
+      expect(state, isA<AuthSignedIn>());
+      // 로그인 응답으로 세운 값이 그대로 남는다.
+      expect((state as AuthSignedIn).isOnboarded, isTrue);
+      expect(state.user, isNull);
+    });
   });
 
   test('리프레시 토큰이 만료되면 토큰만 지우고 로그인 화면으로 보낸다', () async {
@@ -464,6 +534,58 @@ class _OfflineAuthRepository implements AuthRepository {
   @override
   Future<AuthTokens> refresh(String refreshToken) =>
       throw const AuthException(AuthFailure.network);
+
+  @override
+  Future<CurrentUser> fetchCurrentUser(String accessToken) =>
+      inner.fetchCurrentUser(accessToken);
+
+  @override
+  Future<AuthSession> signIn({
+    required String email,
+    required String password,
+  }) => inner.signIn(email: email, password: password);
+
+  @override
+  Future<AuthSession> signUp({
+    required String verificationTicket,
+    required String password,
+  }) =>
+      inner.signUp(verificationTicket: verificationTicket, password: password);
+
+  @override
+  Future<AuthSession> signInWithOauth({
+    required OauthProvider provider,
+    required OauthAuthorization authorization,
+  }) => inner.signInWithOauth(provider: provider, authorization: authorization);
+
+  @override
+  Future<void> sendVerificationCode(String email) =>
+      inner.sendVerificationCode(email);
+
+  @override
+  Future<String> verifyCode({required String email, required String code}) =>
+      inner.verifyCode(email: email, code: code);
+
+  @override
+  Future<void> signOut() => inner.signOut();
+}
+
+/// `/me`만 네트워크 오류로 답하는 저장소. 나머지는 [inner]에 맡긴다.
+///
+/// **인증은 성공했는데 부가 요청 하나가 실패한 상황**을 만든다. 그때 로그인을
+/// 되돌리면 "네트워크가 잠깐 끊긴 것"과 "비밀번호가 틀린 것"이 같은 결과가 된다.
+class _MeFailsAuthRepository implements AuthRepository {
+  _MeFailsAuthRepository(this.inner);
+
+  final AuthRepository inner;
+
+  @override
+  Future<CurrentUser> fetchCurrentUser(String accessToken) =>
+      throw const AuthException(AuthFailure.network);
+
+  @override
+  Future<AuthTokens> refresh(String refreshToken) =>
+      inner.refresh(refreshToken);
 
   @override
   Future<AuthSession> signIn({

@@ -2,6 +2,7 @@ import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/domain/auth_tokens.dart';
+import 'package:runiverse/features/auth/domain/current_user.dart';
 import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 
@@ -43,6 +44,13 @@ class FakeAuthRepository implements AuthRepository {
 
   /// 발급해 준 리프레시 토큰. 모르는 값이 오면 만료로 답한다.
   final Set<String> _issuedRefreshTokens = {};
+
+  /// 토큰 → 이메일. 서버가 JWT에서 주체를 꺼내는 것을 흉내 낸다.
+  ///
+  /// ⚠️ **갱신하면 토큰 값이 바뀐다.** 이 지도를 갱신할 때도 채워주지 않으면
+  /// 자동 로그인 직후의 `/me`가 만료로 답한다 — 실제 서버에는 없는 실패다.
+  final Map<String, String> _emailOfAccessToken = {};
+  final Map<String, String> _emailOfRefreshToken = {};
 
   /// 갱신할 때마다 값을 바꾸기 위한 번호. 회전을 흉내 낸다.
   int _rotation = 0;
@@ -128,9 +136,40 @@ class FakeAuthRepository implements AuthRepository {
     return _sessionFor(email);
   }
 
+  @override
+  Future<CurrentUser> fetchCurrentUser(String accessToken) async {
+    await Future<void>.delayed(latency);
+
+    final email = _emailOfAccessToken[accessToken];
+    // 발급한 적 없는 토큰이다. 서버라면 401을 줄 자리다.
+    if (email == null) {
+      throw const AuthException(AuthFailure.sessionExpired);
+    }
+
+    final onboarded = _onboarded.contains(email);
+    return CurrentUser(
+      userId: _userIdOf(email),
+      email: email,
+      isOnboarded: onboarded,
+      // 온보딩 전에는 서버가 채우지 못한다. 그 상태를 그대로 흉내 낸다 —
+      // 늘 값을 주면 "닉네임이 없을 때"를 화면이 시험할 수 없다.
+      nickname: onboarded ? '러너-${email.split('@').first}' : null,
+    );
+  }
+
   /// 어느 인가 코드가 어느 이메일에 대응하는지 심는다. **기다리지 않는다.**
-  void seedOauthAccount({required String code, required String email}) {
-    _oauthAccounts[code] = _normalize(email);
+  ///
+  /// [isOnboarded]는 **프로필까지 채운 카카오 계정**을 만든다. 로컬 계정을 심어
+  /// 대신할 수 없다 — 같은 이메일의 로컬 계정이 있으면 [signInWithOauth]가
+  /// `emailAlreadyExists`로 막는다. 그래서 여기서만 만들 수 있다.
+  void seedOauthAccount({
+    required String code,
+    required String email,
+    bool isOnboarded = false,
+  }) {
+    final key = _normalize(email);
+    _oauthAccounts[code] = key;
+    if (isOnboarded) _onboarded.add(key);
   }
 
   @override
@@ -202,10 +241,16 @@ class FakeAuthRepository implements AuthRepository {
       ..remove(refreshToken)
       ..add(rotated);
 
-    return AuthTokens(
-      accessToken: 'fake-access-r$_rotation',
-      refreshToken: rotated,
-    );
+    final rotatedAccess = 'fake-access-r$_rotation';
+    // ⚠️ 새 토큰도 주인을 알아야 한다. 안 옮기면 자동 로그인 직후의 `/me`가
+    // 만료로 답한다 — 실제 서버에는 없는 실패다.
+    final email = _emailOfRefreshToken[refreshToken];
+    if (email != null) {
+      _emailOfRefreshToken[rotated] = email;
+      _emailOfAccessToken[rotatedAccess] = email;
+    }
+
+    return AuthTokens(accessToken: rotatedAccess, refreshToken: rotated);
   }
 
   /// **기다리지 않고** 세션을 발급한다. 이미 로그인해 둔 상태를 만들 때 쓴다.
@@ -257,13 +302,19 @@ class FakeAuthRepository implements AuthRepository {
   /// 매번 새 번호를 매기면 로그인할 때마다 다른 사람이 된다.
   AuthSession _sessionFor(String email) {
     final session = AuthSession(
-      userId: 'fake-${email.hashCode.toRadixString(16)}',
+      userId: _userIdOf(email),
       accessToken: 'fake-access-$email',
       refreshToken: 'fake-refresh-$email',
       isOnboarded: _onboarded.contains(email),
     );
     // 이 토큰만 갱신해 준다. 기억하지 않으면 자동 로그인 경로를 시험할 수 없다.
     _issuedRefreshTokens.add(session.refreshToken);
+    _emailOfAccessToken[session.accessToken] = email;
+    _emailOfRefreshToken[session.refreshToken] = email;
     return session;
   }
+
+  /// 같은 이메일이면 늘 같은 값이 나와야 한다 — 로그인할 때마다 사람이 바뀌면
+  /// "같은 계정인가"를 보는 테스트가 무의미해진다.
+  String _userIdOf(String email) => 'fake-${email.hashCode.toRadixString(16)}';
 }

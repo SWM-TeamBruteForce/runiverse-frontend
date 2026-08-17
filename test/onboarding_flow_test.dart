@@ -207,15 +207,16 @@ void main() {
       expect(find.byType(HomePage), findsOneWidget);
     });
 
-    testWidgets('온보딩을 안 마쳤어도 홈으로 간다', (tester) async {
+    testWidgets('온보딩을 안 마쳤어도 자동 로그인은 홈으로 간다', (tester) async {
       final (store, repository) = await signedIn(isOnboarded: false);
 
       await pumpApp(tester, store: store, repository: repository);
       await tester.tap(find.byType(SplashPage));
       await tester.pumpAndSettle();
 
-      // 앱을 열자마자 폼이 뜨는 것이 당황스럽다(설계 문서 2-9).
-      // 프로필은 홈의 유도 카드에서 만난다.
+      // 앱을 열자마자 폼이 뜨는 것이 당황스럽다. 폼으로 보내는 것은
+      // **인증 직후**(가입 · 이메일 로그인 · 카카오)뿐이고, 여기서는
+      // 홈의 유도 카드가 맡는다.
       expect(find.byType(HomePage), findsOneWidget);
       expect(find.byType(ProfileSetupPage), findsNothing);
     });

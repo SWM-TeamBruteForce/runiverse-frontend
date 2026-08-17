@@ -1,5 +1,6 @@
 import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/domain/auth_tokens.dart';
+import 'package:runiverse/features/auth/domain/current_user.dart';
 import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 
@@ -66,6 +67,19 @@ abstract interface class AuthRepository {
     required String verificationTicket,
     required String password,
   });
+
+  /// 지금 로그인한 사람이 누구인지 서버에 묻는다.
+  ///
+  /// **`isOnboarded`의 유일한 출처다.** 저장소에도 같은 이름의 값이 있지만 그것은
+  /// 로그인하던 순간의 사진이라, 다른 기기에서 프로필을 채우면 어긋난다.
+  ///
+  /// 앱에 들어올 때마다(자동 로그인 · 로그인 · 가입 직후) 부른다.
+  ///
+  /// 토큰을 **인자로 받는다.** 이 저장소는 토큰이 어디 있는지 모른다 —
+  /// 알게 하면 `core/storage`에 기대게 되고, 가짜 구현도 저장소를 흉내 내야 한다.
+  ///
+  /// 실패: `sessionExpired`(401) · `network` · `server`
+  Future<CurrentUser> fetchCurrentUser(String accessToken);
 
   /// 저장된 리프레시 토큰으로 새 토큰 쌍을 받는다.
   ///
