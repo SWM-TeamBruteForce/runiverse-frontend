@@ -6,6 +6,7 @@ import 'package:runiverse/core/theme/tokens/app_radius.dart';
 import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
 
 /// 프로필 헤더 — 아바타 · 닉네임 · 시그니처 컬러 · 팔로워/팔로잉.
 ///
@@ -82,7 +83,7 @@ class ProfileHeader extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _Avatar(),
+              const ProfileAvatar(),
               const SizedBox(width: AppSpacing.space4),
 
               Expanded(
@@ -203,37 +204,6 @@ class SignatureColorRow extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
       ],
-    );
-  }
-}
-
-/// 프로필 사진 자리. 업로드 기능이 없어 기본 이미지를 쓴다.
-///
-/// **이니셜을 쓰지 않는다** — 닉네임에서 글자를 뽑는 규칙(앞 2글자? 숫자는?)이
-/// 필요해지고, 그 규칙은 사진이 붙는 순간 버려진다.
-/// 홈의 유도 카드와 **같은 글리프**를 써서 같은 사람을 가리킨다는 것을 보인다.
-class _Avatar extends StatelessWidget {
-  const _Avatar();
-
-  static const _size = 88.0;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColors;
-
-    return Container(
-      width: _size,
-      height: _size,
-      decoration: BoxDecoration(
-        color: colors.bgElevated,
-        shape: BoxShape.circle,
-        border: Border.all(color: colors.borderDefault),
-      ),
-      child: Icon(
-        LucideIcons.user,
-        size: AppSpacing.space8,
-        color: colors.textTertiary,
-      ),
     );
   }
 }
