@@ -51,12 +51,16 @@ void main() {
     expect(json['averagePaceSecondsPerKm'], 330);
   });
 
-  test('페이스를 건너뛰면 720으로 바뀌어 나간다', () {
+  test('페이스를 건너뛰면 1800으로 바뀌어 나간다', () {
     final json = OnboardingProfileDto.from(profileWith()).toJson();
 
     // 서버가 이 필드를 필수로 받는다. 화면은 null을 그대로 들고 있고
     // 여기서만 바꾼다 — 서버가 nullable이 되면 이 규칙만 지우면 된다.
-    expect(json['averagePaceSecondsPerKm'], 720);
+    //
+    // 값은 **서버 허용 범위의 상한**이다. 휠 최대치(720)를 쓰면 "12분/km로
+    // 달리는 사람"이라는 실제 값처럼 읽히지만, 상한은 재본 적 없다는 표시로
+    // 읽힌다 — 서버가 이후 자동 갱신하는 값이라 시작점이 낮을수록 손해다.
+    expect(json['averagePaceSecondsPerKm'], 1800);
   });
 
   test('치환값은 서버가 받는 범위 안이다', () {
@@ -71,10 +75,13 @@ void main() {
   test('키와 몸무게는 서버 필드명으로 나간다', () {
     final json = OnboardingProfileDto.from(profileWith(pace: 330)).toJson();
 
-    // 앱은 heightCm/weightKg지만 서버는 height/weight다.
-    expect(json['height'], 172);
-    expect(json['weight'], 63);
-    expect(json.containsKey('heightCm'), isFalse);
+    // ⚠️ 서버가 받는 이름은 `heightCm`·`weightKg`다. `height`·`weight`로 보내면
+    // 서버는 **필수 필드가 비었다고 보고 400으로 거절한다** —
+    // "키는 필수입니다. 몸무게는 필수입니다." 실제로 그렇게 막혔다.
+    expect(json['heightCm'], 172);
+    expect(json['weightKg'], 63);
+    expect(json.containsKey('height'), isFalse);
+    expect(json.containsKey('weight'), isFalse);
   });
 
   test('보내는 키는 서버가 아는 여섯 개뿐이다', () {
@@ -86,8 +93,8 @@ void main() {
       'gender',
       'birthday',
       'averagePaceSecondsPerKm',
-      'height',
-      'weight',
+      'heightCm',
+      'weightKg',
     });
   });
 }
