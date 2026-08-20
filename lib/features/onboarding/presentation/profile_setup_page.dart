@@ -109,6 +109,19 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
   /// 멀쩡한 이름이 거절되고, 사용자는 쓸 수 있는 이름을 버리게 된다.
   bool _nicknameCheckFailed = false;
 
+  /// 마지막으로 답을 받은 이름과 그 답.
+  ///
+  /// **어떤 이름의 답인지 함께 들고 있어야 한다.** `bool` 하나만 두면 이름을
+  /// 고친 뒤에도 지난 답이 남아, 겹치는 이름인데 통과하거나 그 반대가 된다.
+  String? _checkedNickname;
+  bool? _checkedAvailable;
+
+  /// 입력이 멎기를 기다리는 타이머.
+  ///
+  /// 글자마다 물으면 이름 길이만큼 요청이 나간다. 손을 멈춘 뒤에만 묻는다.
+  Timer? _checkTimer;
+  static const _checkDebounce = Duration(milliseconds: 500);
+
   /// 상한에서 막힌 직후 잠깐 켜진다. 켜져 있는 동안 helper가 경고로 덮인다.
   bool _limitHit = false;
   Timer? _limitTimer;
@@ -128,6 +141,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
   @override
   void dispose() {
     _limitTimer?.cancel();
+    _checkTimer?.cancel();
     _shake.dispose();
     _scroll.dispose();
     _nickname.dispose();
@@ -153,12 +167,44 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
     });
   }
 
-  /// 형식을 통과하면 **서버에 겹치는지 묻고** 넘어간다.
+  /// 이름이 바뀌었다. **서버가 한 말은 전부 낡은 말이 된다.**
   ///
-  /// 제출 때까지 미루지 않는 이유는 닉네임이 첫 질문이어서다. 다섯 개를 다 채운
-  /// 뒤에 알면 네 질문을 거슬러 여기로 돌아와야 한다.
-  Future<void> _submitNickname() async {
-    if (!_nicknameStatus.isValid || _checkingNickname) return;
+  /// 지난 답을 버리고, 형식을 통과했으면 손이 멎기를 기다렸다가 다시 묻는다.
+  void _onNicknameChanged() {
+    _checkTimer?.cancel();
+    setState(() {
+      _checkedNickname = null;
+      _checkedAvailable = null;
+      _nicknameCheckFailed = false;
+      if (_submitFailure == OnboardingFailure.nicknameTaken) {
+        _submitFailure = null;
+      }
+    });
+
+    // ⚠️ 형식이 틀리면 묻지 않는다. 서버도 400으로 거절하는데, 그 400은
+    // **앱 규칙이 서버와 어긋났다는 신호**로만 써야 한다. 정상 경로에서
+    // 400을 만들면 그 신호가 죽는다.
+    if (!_nicknameStatus.isValid) return;
+
+    _checkTimer = Timer(_checkDebounce, () {
+      if (mounted) _checkNickname();
+    });
+  }
+
+  /// 서버에 겹치는지 묻고 **결과만 남긴다.** 단계를 넘기지 않는다.
+  Future<void> _checkNickname() async {
+    if (!_nicknameStatus.isValid) return;
+
+    // ⚠️ 앞 요청이 아직 안 끝났다. 여기서 그냥 돌아가면 **이 이름은 영영
+    // 안 물어본다** — 타이머는 이미 소진됐고 다시 걸어주는 사람이 없어서,
+    // 화면이 "확인할게요"에 멈춘 채로 남는다. 뒤로 미뤄 다시 건다.
+    if (_checkingNickname) {
+      _checkTimer?.cancel();
+      _checkTimer = Timer(_checkDebounce, () {
+        if (mounted) _checkNickname();
+      });
+      return;
+    }
 
     final nickname = _nickname.text.trim();
     setState(() {
@@ -185,11 +231,37 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
 
     setState(() {
       _checkingNickname = false;
+      _checkedNickname = nickname;
+      _checkedAvailable = available;
       _nicknameCheckFailed = available == null;
       if (available == false) _submitFailure = OnboardingFailure.nicknameTaken;
     });
+  }
 
-    if (available == true) _advance();
+  /// 이 이름에 대한 **답**을 이미 들고 있는가.
+  ///
+  /// ⚠️ 물어봤다는 것만으로는 모자란다. 실패한 확인도 `_checkedNickname`을
+  /// 남기는데 그것을 답으로 치면 '확인'이 재시도 분기를 건너뛰어,
+  /// **눌리는데 아무 일도 일어나지 않는 버튼**이 된다. 그때 사용자가 빠져나갈
+  /// 길은 이름을 고치는 것뿐이다.
+  bool get _hasFreshAnswer =>
+      _checkedAvailable != null && _checkedNickname == _nickname.text.trim();
+
+  /// '확인'을 눌렀다. **묻는 것은 입력 중에 이미 끝났을 수 있다.**
+  ///
+  /// 제출 때까지 미루지 않는 이유는 닉네임이 첫 질문이어서다. 다섯 개를 다 채운
+  /// 뒤에 알면 네 질문을 거슬러 여기로 돌아와야 한다.
+  Future<void> _submitNickname() async {
+    if (!_nicknameStatus.isValid || _checkingNickname) return;
+
+    // 디바운스를 기다리는 중이었다면 지금 묻는다 — 기다릴 이유가 없다.
+    if (!_hasFreshAnswer) {
+      _checkTimer?.cancel();
+      await _checkNickname();
+      if (!mounted) return;
+    }
+
+    if (_hasFreshAnswer && _checkedAvailable == true) _advance();
   }
 
   // ── 진행 ──────────────────────────────────────────────────
@@ -623,6 +695,10 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
         ? (AppStrings.profileNicknameCheckFailed, AppInputTone.error)
         : _submitFailure == OnboardingFailure.nicknameTaken
         ? (AppStrings.profileNicknameTaken, AppInputTone.error)
+        // ⚠️ 형식을 통과했어도 **서버가 답하기 전까지는** 쓸 수 있다고 말하지
+        // 않는다. 곧 "이미 있다"로 뒤집힐 수 있는 말이다.
+        : (status.isValid && !_hasFreshAnswer)
+        ? (AppStrings.profileNicknameCheckPending, AppInputTone.neutral)
         : switch (status) {
             NicknameStatus.empty => (
               AppStrings.profileNicknameGuide,
@@ -664,13 +740,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
             tone: tone,
             textInputAction: TextInputAction.done,
             inputFormatters: [_NicknameLimiter(_onNicknameRejected)],
-            // 이름을 고치는 순간 서버가 한 말은 전부 낡은 말이 된다.
-            onChanged: (_) => setState(() {
-              _nicknameCheckFailed = false;
-              if (_submitFailure == OnboardingFailure.nicknameTaken) {
-                _submitFailure = null;
-              }
-            }),
+            onChanged: (_) => _onNicknameChanged(),
             onSubmitted: (_) => _submitNickname(),
           ),
         ),
@@ -679,7 +749,13 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
           label: AppStrings.profileNicknameConfirm,
           // 묻는 중에도 잠근다. 두 번 누르면 요청이 두 번 나가고,
           // 늦게 온 답이 이긴다.
-          onPressed: (status.isValid && !_checkingNickname)
+          //
+          // 겹친다는 답을 이미 들었으면 잠근다 — 눌러봐야 같은 답을 받으러
+          // 한 번 더 나갈 뿐이다.
+          onPressed:
+              (status.isValid &&
+                  !_checkingNickname &&
+                  !(_hasFreshAnswer && _checkedAvailable == false))
               ? _submitNickname
               : null,
         ),

@@ -17,7 +17,7 @@ enum NicknameStatus {
   bool get isValid => this == NicknameStatus.valid;
 }
 
-/// 닉네임 규칙 — 2~12자.
+/// 닉네임 규칙 — 2~16자. **서버 명세와 같은 값이다.**
 ///
 /// 순수 Dart다. import가 하나도 없어 위젯 없이 테스트할 수 있고,
 /// 나중에 서버 중복 검사가 붙어도 이 길이 규칙은 그대로 남는다.
@@ -31,10 +31,10 @@ enum NicknameStatus {
 ///
 /// 중요한 건 **입력을 자르는 쪽과 세는 쪽이 같은 기준을 쓰는 것**이다.
 /// 화면이 `LengthLimitingTextInputFormatter`(자소 기준)로 자르고 `.characters`로 세면
-/// 12자에서 막혔는데 카운터는 11이라고 하는 일이 생기지 않는다.
+/// 상한에서 막혔는데 카운터는 하나 적게 세는 일이 생기지 않는다.
 abstract final class NicknameRule {
   static const min = 2;
-  static const max = 12;
+  static const max = 16;
 
   /// 서버 `OnboardRequest`와 **같은 정규식**이다.
   ///

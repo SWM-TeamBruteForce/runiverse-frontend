@@ -3,7 +3,8 @@ import 'package:runiverse/features/onboarding/domain/nickname_rule.dart';
 
 /// 닉네임 규칙 — 순수 계산 로직.
 ///
-/// 길이는 경계값만 본다. 2와 12는 **통과해야 하고**, 1과 13은 막혀야 한다.
+/// 길이는 경계값만 본다. 상한은 **서버 명세(2~16자)와 같아야 한다** —
+/// 앱이 더 빡빡하면 서버가 받아주는 이름을 앱이 거절한다.
 /// 부등호를 하나 잘못 쓰면(`<` 대신 `<=`) 여기서 걸린다.
 ///
 /// 문자 규칙은 **서버 정규식과 같은 기준**이라, 여기가 통과시키는 값은
@@ -19,17 +20,29 @@ void main() {
     expect(NicknameRule.of(NicknameRule.min, '가나'), NicknameStatus.valid);
   });
 
-  test('상한 경계 — 12자는 통과하고 13자는 막힌다', () {
-    expect(NicknameRule.of(NicknameRule.max, '가' * 12), NicknameStatus.valid);
+  test('상한은 서버 명세와 같은 16자다', () {
+    // 앱이 더 빡빡하면 13~16자를 쓰려는 사람이 앱에서만 막힌다.
+    // 서버는 받아주므로 증상이 "왜 안 되지"로만 남는다.
+    expect(NicknameRule.max, 16);
+  });
+
+  test('상한 경계 — 상한까지는 통과하고 한 자 더는 막힌다', () {
+    final atMax = '가' * NicknameRule.max;
+    expect(NicknameRule.of(NicknameRule.max, atMax), NicknameStatus.valid);
     expect(
-      NicknameRule.of(NicknameRule.max + 1, '가' * 13),
+      NicknameRule.of(NicknameRule.max + 1, '$atMax가'),
       NicknameStatus.tooLong,
     );
   });
 
   test('짧아서 막힌 것과 길어서 막힌 것을 구분한다', () {
     // 화면이 서로 다른 문구를 띄워야 하므로 둘을 뭉뚱그리면 안 된다.
-    expect(NicknameRule.of(1, '가'), isNot(NicknameRule.of(13, '가' * 13)));
+    expect(
+      NicknameRule.of(1, '가'),
+      isNot(
+        NicknameRule.of(NicknameRule.max + 1, '가' * (NicknameRule.max + 1)),
+      ),
+    );
   });
 
   test('공백이 들어가면 막힌다', () {

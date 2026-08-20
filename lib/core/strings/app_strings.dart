@@ -132,16 +132,23 @@ abstract final class AppStrings {
   static const profileNicknameQuestion = '뭐라고 부를까요';
   static const profileNicknameWhy = '함께 달리는 러너에게 보이는 이름이에요.';
   static const profileNicknameHint = '러너42';
-  static const profileNicknameGuide = '2~12자로 지어주세요';
+  static const profileNicknameGuide = '2~16자로 지어주세요';
   static const profileNicknameTooShort = '2자 이상이어야 해요';
 
   /// 상한에서 막혔을 때 잠깐 떴다 사라진다.
-  static const profileNicknameTooLong = '12자까지 쓸 수 있어요';
+  static const profileNicknameTooLong = '16자까지 쓸 수 있어요';
 
   /// 서버 정규식(`^[가-힣a-zA-Z0-9_]+$`)에 걸리는 문자를 썼을 때.
   /// **무엇이 되는지**를 말한다 — 안 되는 것을 나열하면 길고 외우기 어렵다.
   static const profileNicknameInvalidChars = '한글, 영문, 숫자, _만 쓸 수 있어요';
 
+  /// 형식은 통과했지만 **아직 서버에 묻지 않았다.**
+  ///
+  /// ⚠️ 이 자리에 [profileNicknameOk]를 쓰면 안 된다. 곧 "이미 있다"로
+  /// 뒤집힐 수 있는 말을 먼저 해버리는 셈이다.
+  static const profileNicknameCheckPending = '쓸 수 있는지 확인할게요';
+
+  /// **서버가 쓸 수 있다고 답했다.** 형식만 통과한 상태가 아니다.
   static const profileNicknameOk = '쓸 수 있는 이름이에요';
   static const profileNicknameConfirm = '확인';
 
