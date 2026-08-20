@@ -7,6 +7,7 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/http_auth_repository.dart';
 import 'package:runiverse/features/auth/data/kakao_code_source.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
+import 'package:runiverse/features/auth/domain/current_user.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/domain/auth_tokens.dart';
@@ -128,7 +129,14 @@ class AuthController extends Notifier<AuthState> {
         refreshToken: tokens.refreshToken,
       );
       // 저장된 값으로 먼저 세운다. `/me`가 실패해도 앱을 쓸 수 있어야 한다.
-      state = AuthSignedIn(userId, isOnboarded: stored.isOnboarded);
+      //
+      // 캐시를 함께 실어 보낸다 — 없으면 `/me`가 도착할 때까지 프로필 탭이
+      // 회색 자리표시자로 비어 있고, 지하철에서 켰다면 계속 그렇게 남는다.
+      state = AuthSignedIn(
+        userId,
+        isOnboarded: stored.isOnboarded,
+        user: _cachedUser(userId, stored),
+      );
       // **여기가 진실을 맞추는 자리다.** 다른 기기에서 프로필을 채웠으면
       // 저장값은 낡았고, 이 호출이 그것을 바로잡는다.
       await _loadCurrentUser(tokens.accessToken);
@@ -303,8 +311,17 @@ class AuthController extends Notifier<AuthState> {
   ///
   /// 다른 사람이면 `false`다 — 한 번 더 묻는 쪽이 안전하다.
   ///
-  /// 이 우회로는 `GET /users/me`가 올라오면 걷어낸다. 그때는 서버가 매번
-  /// 진실을 말해주므로 저장값을 볼 이유가 없다.
+  /// ## 이것은 이제 우회로가 아니라 **캐시 읽기**다
+  ///
+  /// 인증 응답(`로그인`·`가입`·`카카오`)에는 `isOnboarded`가 없다. 진실은
+  /// `GET /users/me`에만 있고, 그 호출은 이 함수 **다음에** 온다. 그 사이를
+  /// 무엇으로 채울 것인가가 여기서 정해진다.
+  ///
+  /// 저장값은 지난 `/me` 응답이 남긴 것이다. 그래서 이 자리에서 가장 정확하다 —
+  /// `false`로 못 박으면 프로필을 이미 채운 사람이 `/me`가 오기 전까지
+  /// 폼으로 끌려간다.
+  ///
+  /// ⚠️ **`/me`가 도착하면 이 값은 덮어써진다.** 여기서 틀려도 잠깐이다.
   Future<bool> _onboardedOf(AuthSession session) async {
     final answered = session.isOnboarded;
     if (answered != null) return answered;
@@ -323,6 +340,26 @@ class AuthController extends Notifier<AuthState> {
   ///
   /// 자동 로그인 경로에서는 [restore]가 이것을 부르고, 실패하면 저장된 값으로
   /// 홈에 들어간다 — 유도 카드가 잠깐 어긋날 뿐 앱은 쓸 수 있다.
+  /// 저장된 `/me` 값을 화면이 쓸 모양으로 되살린다.
+  ///
+  /// 셋 다 비었으면 `null`을 준다. **빈 값을 지어내지 않는다** — 화면은
+  /// `user`가 없는 경우를 이미 다루고, 빈 껍데기를 주면 "받아왔는데 비어 있다"와
+  /// "아직 못 받았다"가 구별되지 않는다.
+  CurrentUser? _cachedUser(String userId, StoredAuth stored) {
+    if (stored.nickname == null &&
+        stored.profileImageUrl == null &&
+        stored.introduction == null) {
+      return null;
+    }
+    return CurrentUser(
+      userId: userId,
+      isOnboarded: stored.isOnboarded,
+      nickname: stored.nickname,
+      profileImageUrl: stored.profileImageUrl,
+      introduction: stored.introduction,
+    );
+  }
+
   Future<void> _loadCurrentUser(String accessToken) async {
     final current = state;
     if (current is! AuthSignedIn) return;
@@ -335,8 +372,17 @@ class AuthController extends Notifier<AuthState> {
         user: user,
       );
       // 다음 실행의 첫 화면이 이 값을 쓴다. 저장해 두지 않으면 /me가 늦게 오는
-      // 동안 유도 카드가 깜빡인다.
-      if (user.isOnboarded) await _store.markOnboarded();
+      // 동안 유도 카드가 깜빡이고, 프로필 탭이 회색 자리표시자로 비어 있다.
+      //
+      // `markOnboarded()`가 아니라 이것을 부른다 — 그쪽은 `true`만 쓸 수 있어
+      // **다른 기기에서 온보딩이 취소된 경우를 되돌리지 못한다.**
+      await _store.saveCurrentUser(
+        userId: user.userId,
+        isOnboarded: user.isOnboarded,
+        nickname: user.nickname,
+        profileImageUrl: user.profileImageUrl,
+        introduction: user.introduction,
+      );
     } on AuthException {
       // 위 주석대로 삼킨다. 상태는 로그인 응답으로 세운 것이 남는다.
     }

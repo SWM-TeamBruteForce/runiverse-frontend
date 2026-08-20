@@ -185,15 +185,16 @@ class HttpAuthRepository implements AuthRepository {
   /// 계약과 다른 것이므로 세션을 믿지 않는다.
   CurrentUser _currentUserOf(Map<String, dynamic>? body) {
     final userId = body?['userId'];
-    final email = body?['email'];
 
-    if (userId is! String || email is! String) {
+    // ⚠️ **`email`을 요구하지 않는다.** 서버 규격에 그 필드가 없다. 요구하면
+    // 200을 받고도 여기서 던지고, `_loadCurrentUser`가 그 예외를 삼켜
+    // **닉네임도 `isOnboarded`도 영영 반영되지 않는다.** 실제로 그랬다.
+    if (userId is! String) {
       throw const AuthException(AuthFailure.unknown);
     }
 
     return CurrentUser(
       userId: userId,
-      email: email,
       // 값이 없거나 타입이 다르면 false로 본다. 유도 카드를 한 번 더 보이는 쪽이
       // 프로필 없는 사람에게 아무것도 안 알리는 것보다 낫다.
       isOnboarded: body?['isOnboarded'] == true,

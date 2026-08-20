@@ -20,19 +20,21 @@ import 'package:runiverse/features/auth/presentation/auth_state.dart';
 /// 가짜 저장소를 지연 없이 넣는다. 지연은 화면에서 로딩을 보여주기 위한 것이지
 /// 여기서 기다릴 이유가 없다.
 void main() {
-  ProviderContainer makeContainer({AuthRepository? repository}) =>
-      ProviderContainer.test(
-        overrides: [
-          // 앱은 SecureTokenStore를 쓰는데 그것은 플랫폼 채널을 부른다.
-          // 테스트에는 채널이 없다 — 순수 test()는 바인딩조차 없어 그 자리에서 죽고,
-          // testWidgets()는 조용히 null을 돌려줘 **저장이 안 되는데 통과한다.**
-          // 후자가 더 위험하므로 저장소를 쓰는 테스트는 반드시 이것을 갈아끼운다.
-          tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
-          authRepositoryProvider.overrideWithValue(
-            repository ?? FakeAuthRepository(latency: Duration.zero),
-          ),
-        ],
-      );
+  ProviderContainer makeContainer({
+    AuthRepository? repository,
+    TokenStore? store,
+  }) => ProviderContainer.test(
+    overrides: [
+      // 앱은 SecureTokenStore를 쓰는데 그것은 플랫폼 채널을 부른다.
+      // 테스트에는 채널이 없다 — 순수 test()는 바인딩조차 없어 그 자리에서 죽고,
+      // testWidgets()는 조용히 null을 돌려줘 **저장이 안 되는데 통과한다.**
+      // 후자가 더 위험하므로 저장소를 쓰는 테스트는 반드시 이것을 갈아끼운다.
+      tokenStoreProvider.overrideWithValue(store ?? InMemoryTokenStore()),
+      authRepositoryProvider.overrideWithValue(
+        repository ?? FakeAuthRepository(latency: Duration.zero),
+      ),
+    ],
+  );
 
   /// 인증을 마친 상태를 세우고 티켓을 돌려준다.
   ///
@@ -110,7 +112,7 @@ void main() {
 
       final state = container.read(authControllerProvider) as AuthSignedIn;
       expect(state.user, isNotNull);
-      expect(state.user!.email, FakeAuthRepository.seedEmail);
+      expect(state.user!.userId, state.userId);
       expect(state.user!.isOnboarded, isTrue);
     });
 
@@ -534,6 +536,76 @@ void main() {
   });
 
   _emailVerificationGroup();
+
+  group('/me 디바이스 캐시', () {
+    test('/me가 답하면 디바이스에 남는다', () async {
+      final store = InMemoryTokenStore();
+      final container = makeContainer(store: store);
+
+      await container
+          .read(authControllerProvider.notifier)
+          .signIn(
+            email: FakeAuthRepository.seedEmail,
+            password: FakeAuthRepository.seedPassword,
+          );
+
+      // 다음 실행이 이 값으로 첫 화면을 그린다.
+      expect((await store.read()).nickname, isNotNull);
+    });
+
+    test('⚠️ /me가 실패해도 캐시가 화면을 채운다', () async {
+      // 앱을 껐다 켠 상황을 만든다. 저장소는 그대로 두고 컨테이너만 새로 만든다.
+      final store = InMemoryTokenStore();
+      // ⚠️ 서버 역할은 **같은 인스턴스**여야 한다. 새로 만들면 발급한
+      // 리프레시 토큰을 모르고, 갱신이 만료로 떨어져 로그아웃된다.
+      final server = FakeAuthRepository(latency: Duration.zero);
+
+      // ① 지난번 실행 — 정상적으로 로그인해 캐시까지 남겼다.
+      await makeContainer(store: store, repository: server)
+          .read(authControllerProvider.notifier)
+          .signIn(
+            email: FakeAuthRepository.seedEmail,
+            password: FakeAuthRepository.seedPassword,
+          );
+      final cachedNickname = (await store.read()).nickname;
+      expect(cachedNickname, isNotNull, reason: '전제: 지난 실행이 캐시를 남겼다');
+
+      // ② 이번 실행 — 지하철이라 `/me`가 못 온다.
+      final container = makeContainer(
+        store: store,
+        repository: _MeFailsAuthRepository(server),
+      );
+      await container.read(authControllerProvider.notifier).restore();
+
+      // 그래도 프로필 탭이 **회색 자리표시자로 비어 있으면 안 된다.**
+      final state = container.read(authControllerProvider) as AuthSignedIn;
+      expect(state.user, isNotNull);
+      expect(state.user!.nickname, cachedNickname);
+    });
+
+    test('캐시가 없으면 user는 null로 둔다', () async {
+      final store = InMemoryTokenStore();
+      final container = makeContainer(
+        store: store,
+        repository: _MeFailsAuthRepository(
+          FakeAuthRepository(latency: Duration.zero),
+        ),
+      );
+      final controller = container.read(authControllerProvider.notifier);
+
+      // `/me`가 한 번도 답한 적이 없다. 토큰만 있고 캐시는 비어 있다.
+      await controller.signIn(
+        email: FakeAuthRepository.seedEmail,
+        password: FakeAuthRepository.seedPassword,
+      );
+      await controller.restore();
+
+      // 없는 값을 지어내지 않는다. 빈 껍데기를 주면 "받아왔는데 비어 있다"와
+      // "아직 못 받았다"가 구별되지 않는다.
+      final state = container.read(authControllerProvider) as AuthSignedIn;
+      expect(state.user, isNull);
+    });
+  });
 }
 
 /// 인증번호 발송·확인 — **상태를 바꾸지 않는 것**이 핵심이다.

@@ -13,7 +13,6 @@
 class CurrentUser {
   const CurrentUser({
     required this.userId,
-    required this.email,
     required this.isOnboarded,
     this.nickname,
     this.profileImageUrl,
@@ -21,7 +20,6 @@ class CurrentUser {
   });
 
   final String userId;
-  final String email;
 
   /// 프로필을 채웠는가. 홈의 유도 카드를 켜고 끄는 값이다.
   final bool isOnboarded;

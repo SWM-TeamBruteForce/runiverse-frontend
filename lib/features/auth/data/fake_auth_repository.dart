@@ -149,7 +149,6 @@ class FakeAuthRepository implements AuthRepository {
     final onboarded = _onboarded.contains(email);
     return CurrentUser(
       userId: _userIdOf(email),
-      email: email,
       isOnboarded: onboarded,
       // 온보딩 전에는 서버가 채우지 못한다. 그 상태를 그대로 흉내 낸다 —
       // 늘 값을 주면 "닉네임이 없을 때"를 화면이 시험할 수 없다.

@@ -42,6 +42,15 @@ class SecureTokenStore implements TokenStore {
   static const _keyRefreshToken = 'auth.refreshToken';
   static const _keyIsOnboarded = 'auth.isOnboarded';
 
+  /// `GET /users/me` 캐시. 토큰과 수명을 같이한다.
+  static const _keyNickname = 'me.nickname';
+  static const _keyProfileImageUrl = 'me.profileImageUrl';
+  static const _keyIntroduction = 'me.introduction';
+
+  /// 캐시 키 셋. 지우는 곳이 둘이라 목록을 한 군데 둔다 —
+  /// 한쪽에만 키를 더하면 로그아웃한 기기에 값이 남는다.
+  static const _meKeys = [_keyNickname, _keyProfileImageUrl, _keyIntroduction];
+
   @override
   Future<StoredAuth> read() async {
     // readAll은 왕복 한 번이다. 값마다 read를 부르면 네 번 건너간다.
@@ -51,6 +60,9 @@ class SecureTokenStore implements TokenStore {
       accessToken: _blankToNull(all[_keyAccessToken]),
       refreshToken: _blankToNull(all[_keyRefreshToken]),
       isOnboarded: all[_keyIsOnboarded] == 'true',
+      nickname: _blankToNull(all[_keyNickname]),
+      profileImageUrl: _blankToNull(all[_keyProfileImageUrl]),
+      introduction: _blankToNull(all[_keyIntroduction]),
     );
   }
 
@@ -81,9 +93,29 @@ class SecureTokenStore implements TokenStore {
       _storage.write(key: _keyIsOnboarded, value: 'true');
 
   @override
+  Future<void> saveCurrentUser({
+    required String userId,
+    required bool isOnboarded,
+    String? nickname,
+    String? profileImageUrl,
+    String? introduction,
+  }) async {
+    await _storage.write(key: _keyUserId, value: userId);
+    await _storage.write(key: _keyIsOnboarded, value: '$isOnboarded');
+    // ⚠️ `null`을 write하면 flutter_secure_storage는 **키를 지운다.**
+    // 서버가 값을 비웠을 때(소개글 삭제 등) 옛 값이 남지 않으려면 그게 맞다.
+    await _storage.write(key: _keyNickname, value: nickname);
+    await _storage.write(key: _keyProfileImageUrl, value: profileImageUrl);
+    await _storage.write(key: _keyIntroduction, value: introduction);
+  }
+
+  @override
   Future<void> clearTokens() async {
     await _storage.delete(key: _keyAccessToken);
     await _storage.delete(key: _keyRefreshToken);
+    for (final key in _meKeys) {
+      await _storage.delete(key: key);
+    }
   }
 
   @override
@@ -95,6 +127,9 @@ class SecureTokenStore implements TokenStore {
     await _storage.delete(key: _keyAccessToken);
     await _storage.delete(key: _keyRefreshToken);
     await _storage.delete(key: _keyIsOnboarded);
+    for (final key in _meKeys) {
+      await _storage.delete(key: key);
+    }
   }
 }
 
