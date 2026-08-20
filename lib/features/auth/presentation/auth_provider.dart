@@ -366,19 +366,23 @@ class AuthController extends Notifier<AuthState> {
 
     try {
       final user = await _repository.fetchCurrentUser(accessToken);
-      state = AuthSignedIn(
-        user.userId,
-        isOnboarded: user.isOnboarded,
-        user: user,
-      );
+
+      // ⚠️ **서버가 답한 경우에만 내린다.** `user.isOnboarded`가 `null`이면
+      // 그것은 "아니다"가 아니라 "말하지 않았다"이고, 그때 `false`로 못 박으면
+      // 방금 [markOnboarded]가 켠 값을 그 자리에서 도로 끈다 — 프로필을 다 채운
+      // 사람에게 입력 시트가 즉시 다시 뜬다. 실제로 그랬다.
+      final onboarded = user.isOnboarded ?? current.isOnboarded;
+
+      state = AuthSignedIn(user.userId, isOnboarded: onboarded, user: user);
       // 다음 실행의 첫 화면이 이 값을 쓴다. 저장해 두지 않으면 /me가 늦게 오는
       // 동안 유도 카드가 깜빡이고, 프로필 탭이 회색 자리표시자로 비어 있다.
       //
       // `markOnboarded()`가 아니라 이것을 부른다 — 그쪽은 `true`만 쓸 수 있어
-      // **다른 기기에서 온보딩이 취소된 경우를 되돌리지 못한다.**
+      // **다른 기기에서 온보딩이 취소된 경우를 되돌리지 못한다.** 서버가 실제로
+      // `false`를 답한 경우는 여기서 그대로 내려간다.
       await _store.saveCurrentUser(
         userId: user.userId,
-        isOnboarded: user.isOnboarded,
+        isOnboarded: onboarded,
         nickname: user.nickname,
         profileImageUrl: user.profileImageUrl,
         introduction: user.introduction,

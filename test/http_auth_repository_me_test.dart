@@ -48,6 +48,32 @@ void main() {
     expect(user.nickname, isNull);
     expect(user.isOnboarded, isFalse);
   });
+
+  test('⚠️ isOnboarded를 안 주면 false가 아니라 null이다', () async {
+    // **`false`로 읽으면 "서버가 아직 안 준 것"과 "서버가 아니라고 답한 것"이
+    // 같아진다.** 그 둘이 같아지면 저장된 `true`를 덮어쓸 근거가 생기고,
+    // 프로필을 막 채운 사람이 다시 프로필 폼으로 끌려간다.
+    //
+    // 실제로 2026-08-17 인증 응답이 이 필드를 빼고 왔다.
+    final user = await repositoryReturning({
+      'userId': 'u-3',
+      'nickname': '러너7',
+    }).fetchCurrentUser('access-token');
+
+    expect(user.userId, 'u-3');
+    expect(user.isOnboarded, isNull);
+  });
+
+  test('isOnboarded가 bool이 아니면 답하지 않은 것으로 본다', () async {
+    // 문자열 "true"를 참으로 읽어주지 않는다. 규격이 어긋난 것을 넘겨짚으면
+    // 서버가 바뀐 것을 아무도 모른 채 지나간다.
+    final user = await repositoryReturning({
+      'userId': 'u-4',
+      'isOnboarded': 'true',
+    }).fetchCurrentUser('access-token');
+
+    expect(user.isOnboarded, isNull);
+  });
 }
 
 /// 요청이 무엇이든 정해둔 몸통을 200으로 돌려준다.

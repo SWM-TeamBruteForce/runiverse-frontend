@@ -181,8 +181,8 @@ class HttpAuthRepository implements AuthRepository {
   /// 몸통에서 사람을 꺼낸다.
   ///
   /// ⚠️ **닉네임·이미지·소개글은 없을 수 있다.** 온보딩 전에는 서버가 채우지
-  /// 못한다. `userId`와 `email`만 반드시 있어야 하고, 그것이 없으면 답이
-  /// 계약과 다른 것이므로 세션을 믿지 않는다.
+  /// 못한다. `userId`만 반드시 있어야 하고, 그것이 없으면 답이 계약과 다른
+  /// 것이므로 세션을 믿지 않는다.
   CurrentUser _currentUserOf(Map<String, dynamic>? body) {
     final userId = body?['userId'];
 
@@ -193,11 +193,14 @@ class HttpAuthRepository implements AuthRepository {
       throw const AuthException(AuthFailure.unknown);
     }
 
+    final onboarded = body?['isOnboarded'];
+
     return CurrentUser(
       userId: userId,
-      // 값이 없거나 타입이 다르면 false로 본다. 유도 카드를 한 번 더 보이는 쪽이
-      // 프로필 없는 사람에게 아무것도 안 알리는 것보다 낫다.
-      isOnboarded: body?['isOnboarded'] == true,
+      // ⚠️ **없거나 타입이 다르면 `null`이다. `false`가 아니다.**
+      // `false`로 읽으면 서버가 이 필드를 빠뜨린 날 저장된 `true`가 덮여
+      // 프로필을 이미 채운 사람이 폼으로 끌려간다. 실제로 그랬다.
+      isOnboarded: onboarded is bool ? onboarded : null,
       nickname: _stringOrNull(body?['nickname']),
       profileImageUrl: _stringOrNull(body?['profileImageUrl']),
       introduction: _stringOrNull(body?['introduction']),

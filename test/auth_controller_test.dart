@@ -486,6 +486,33 @@ void main() {
     );
   });
 
+  test('⚠️ /me가 isOnboarded를 안 주면 방금 켠 온보딩을 끄지 않는다', () async {
+    // 2026-08-17 인증 응답이 이 필드를 빼고 왔다. 그때 `/me`를 `false`로 읽으면
+    // **프로필을 방금 다 채운 사람에게 프로필 입력 시트가 즉시 다시 뜬다** —
+    // `markOnboarded`가 저장소를 켠 직후 `_loadCurrentUser`가 도로 끄기 때문이다.
+    final repository = _MeWithoutOnboardedFlag();
+    final container = makeContainer(repository: repository);
+    final controller = container.read(authControllerProvider.notifier);
+
+    await controller.signUp(
+      verificationTicket: ticketFor(container, 'new@example.com'),
+      password: 'runi123!',
+    );
+    repository.completeOnboarding('new@example.com');
+
+    await controller.markOnboarded();
+
+    expect(
+      (container.read(authControllerProvider) as AuthSignedIn).isOnboarded,
+      isTrue,
+    );
+    // 저장소까지 봐야 한다. 여기가 false면 다음 실행의 첫 화면이 폼으로 간다.
+    expect(
+      (await container.read(tokenStoreProvider).read()).isOnboarded,
+      isTrue,
+    );
+  });
+
   test('⚠️ 온보딩을 마치면 방금 입력한 닉네임이 상태에 들어온다', () async {
     // 여기가 깨지면 프로필 탭이 자리표시자만 그린다 — 방금 이름을 썼는데
     // 화면에는 안 나온다. `markOnboarded`가 `user`를 떨어뜨려서 겪었다.
@@ -839,4 +866,25 @@ class _SilentAboutOnboarding implements AuthRepository {
 
   @override
   Future<void> signOut() => inner.signOut();
+}
+
+/// `/users/me`는 오는데 그 답에 `isOnboarded`만 **빠져 있는** 서버.
+///
+/// 위 [_SilentAboutOnboarding]과 다르다. 그쪽은 `/me` 자체가 없는 경우고,
+/// 이쪽은 **200이 오는데 필드 하나가 없는** 경우다 — 답이 왔으니 앱은 그것을
+/// 믿고 상태를 덮어쓰려 든다. 그 덮어쓰기가 저장값을 깨뜨리는지를 본다.
+class _MeWithoutOnboardedFlag extends FakeAuthRepository {
+  _MeWithoutOnboardedFlag() : super(latency: Duration.zero);
+
+  @override
+  Future<CurrentUser> fetchCurrentUser(String accessToken) async {
+    final user = await super.fetchCurrentUser(accessToken);
+    return CurrentUser(
+      userId: user.userId,
+      isOnboarded: null,
+      nickname: user.nickname,
+      profileImageUrl: user.profileImageUrl,
+      introduction: user.introduction,
+    );
+  }
 }

@@ -10,6 +10,9 @@
 /// 저장소에도 같은 이름의 값이 있지만 그것은 **로그인하던 순간의 사진**이다.
 /// 다른 기기에서 프로필을 채우면 어긋난다. 앱에 들어올 때마다 서버에 다시 묻고,
 /// 홈의 유도 카드는 여기서 온 값만 본다.
+///
+/// 단, **서버가 그 필드를 안 주면 `null`이다.** 그때는 이것이 출처가 아니고,
+/// 부르는 쪽이 직전 값을 지킨다.
 class CurrentUser {
   const CurrentUser({
     required this.userId,
@@ -22,7 +25,10 @@ class CurrentUser {
   final String userId;
 
   /// 프로필을 채웠는가. 홈의 유도 카드를 켜고 끄는 값이다.
-  final bool isOnboarded;
+  ///
+  /// ⚠️ **`null`은 "서버가 답하지 않았다"이지 `false`가 아니다.** 둘을 섞으면
+  /// 저장된 `true`를 덮어쓸 근거가 생기고, 프로필을 막 채운 사람이 폼으로 돌아간다.
+  final bool? isOnboarded;
 
   /// 온보딩 전에는 없다. **`isOnboarded`가 `false`면 셋 다 `null`일 수 있다.**
   final String? nickname;
