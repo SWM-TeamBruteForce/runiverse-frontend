@@ -66,6 +66,18 @@ enum AuthFailure {
   /// 증상이 앱이 아니라 서버에서 나므로 찾기 어렵다.
   oauthFailed,
 
+  /// 소셜: **이 빌드에 카카오 앱 키가 없다.** 기능이 실패한 것이 아니라
+  /// 처음부터 쓸 수 없는 상태다.
+  ///
+  /// `main.dart`가 키 없이는 `KakaoSdk.init`을 건너뛰므로, 그 상태로 SDK를
+  /// 부르면 `LateInitializationError`가 난다. **그것은 `Exception`이 아니라
+  /// `Error`라 어떤 `on Exception`에도 걸리지 않는다** — 그래서 부르기 전에
+  /// 막고 이 이유로 돌려준다.
+  ///
+  /// [oauthFailed]와 나누는 이유는 **문구가 달라야 하기 때문**이다.
+  /// "다시 시도해주세요"는 거짓말이 된다 — 다시 눌러도 키는 생기지 않는다.
+  oauthUnavailable,
+
   /// 소셜: 카카오가 이메일을 주지 않았다. 서버 `OAUTH_EMAIL_NOT_PROVIDED` (403)
   ///
   /// 동의항목이 꺼져 있거나 사용자가 이메일 제공에 동의하지 않았다.
