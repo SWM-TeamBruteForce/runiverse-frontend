@@ -110,4 +110,82 @@ void main() {
     expect(stored.userId, isNull);
     expect(stored.refreshToken, isNull);
   });
+
+  group('/me 캐시', () {
+    Future<void> cacheProfile(TokenStore store) => store.saveCurrentUser(
+      userId: 'u-1',
+      isOnboarded: true,
+      nickname: '러너42',
+      profileImageUrl: 'https://cdn.test/u-1.png',
+      introduction: '아침에 달려요',
+    );
+
+    test('저장한 값이 그대로 읽힌다', () async {
+      final store = InMemoryTokenStore();
+      await signIn(store);
+
+      await cacheProfile(store);
+      final stored = await store.read();
+
+      expect(stored.nickname, '러너42');
+      expect(stored.profileImageUrl, 'https://cdn.test/u-1.png');
+      expect(stored.introduction, '아침에 달려요');
+    });
+
+    test('토큰은 건드리지 않는다', () async {
+      final store = InMemoryTokenStore();
+      await signIn(store);
+
+      await cacheProfile(store);
+      final stored = await store.read();
+
+      // `/me`는 토큰 갱신과 무관하다. 여기서 토큰을 건드리면
+      // 갱신 직후 캐시를 쓰는 순간 방금 받은 토큰이 날아간다.
+      expect(stored.accessToken, 'a-1');
+      expect(stored.refreshToken, 'r-1');
+    });
+
+    test('isOnboarded를 서버 값으로 덮어쓴다', () async {
+      final store = InMemoryTokenStore();
+      await store.saveSession(
+        userId: 'u-1',
+        accessToken: 'a-1',
+        refreshToken: 'r-1',
+        isOnboarded: false,
+      );
+
+      // 다른 기기에서 프로필을 채웠다. `/me`가 유일한 출처다.
+      await cacheProfile(store);
+
+      expect((await store.read()).isOnboarded, isTrue);
+    });
+
+    test('⚠️ 토큰이 만료되면 프로필 캐시도 지운다', () async {
+      final store = InMemoryTokenStore();
+      await signIn(store);
+      await cacheProfile(store);
+
+      await store.clearTokens();
+      final stored = await store.read();
+
+      // 캐시는 **토큰이 유효한 동안만** 유효하다. 남겨두면 로그인하지 않은
+      // 기기에 남의 닉네임이 계속 앉아 있게 된다.
+      expect(stored.nickname, isNull);
+      expect(stored.introduction, isNull);
+      // 기존 규칙은 그대로다 — 다시 로그인하면 되는 사람에게
+      // 온보딩 소개를 다시 보이지 않는다.
+      expect(stored.userId, 'u-1');
+      expect(stored.isOnboarded, isTrue);
+    });
+
+    test('로그아웃하면 캐시도 사라진다', () async {
+      final store = InMemoryTokenStore();
+      await signIn(store);
+      await cacheProfile(store);
+
+      await store.clear();
+
+      expect((await store.read()).nickname, isNull);
+    });
+  });
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/features/onboarding/domain/nickname_rule.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/onboarding/data/fake_onboarding_repository.dart';
 import 'package:runiverse/features/onboarding/domain/onboarding_failure.dart';
@@ -53,6 +54,20 @@ void main() {
 
   Future<void> typeNickname(WidgetTester tester, String value) async {
     await tester.enterText(find.byType(TextField), value);
+    await tester.pumpAndSettle();
+  }
+
+  /// 닉네임 단계의 '확인'. 겹치는 것을 이미 알고 있으면 잠겨 있어야 한다.
+  bool confirmEnabled(WidgetTester tester) {
+    final button = tester.widget<AppButton>(
+      find.widgetWithText(AppButton, AppStrings.profileNicknameConfirm),
+    );
+    return button.onPressed != null;
+  }
+
+  /// 입력이 멎은 뒤 자동 확인이 돌 만큼 시간을 보낸다.
+  Future<void> settleAutoCheck(WidgetTester tester) async {
+    await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
   }
 
@@ -111,12 +126,15 @@ void main() {
     expect(find.text(AppStrings.profileNicknameTooShort), findsOneWidget);
   });
 
-  testWidgets('12자를 넘겨 붙여넣으면 잘리고 경고가 뜬다', (tester) async {
+  testWidgets('상한을 넘겨 붙여넣으면 잘리고 경고가 뜬다', (tester) async {
     await pumpPage(tester);
-    await typeNickname(tester, '가나다라마바사아자차카타파하');
+    // 상한을 상수로 잡는다. 숫자를 박아두면 규칙이 바뀔 때 테스트가
+    // **잘못된 상한을 지키라고** 우기게 된다 — 서버가 16자인데 12자로 막던
+    // 자리가 그랬다.
+    await typeNickname(tester, '가' * (NicknameRule.max + 3));
 
     final field = tester.widget<TextField>(find.byType(TextField));
-    expect(field.controller!.text.characters.length, 12);
+    expect(field.controller!.text.characters.length, NicknameRule.max);
     expect(find.text(AppStrings.profileNicknameTooLong), findsOneWidget);
   });
 
@@ -174,6 +192,77 @@ void main() {
     expect(nextEnabled(tester), isFalse);
   });
 
+  // ── 입력 중 자동 확인 ────────────────────────────────────────
+
+  testWidgets('입력이 멎으면 누르지 않아도 알아서 확인한다', (tester) async {
+    final onboarding = FakeOnboardingRepository(latency: Duration.zero);
+    await pumpPage(tester, onboarding: onboarding);
+
+    await typeNickname(tester, '러너42');
+    // 아직 손을 뗀 직후다. 글자마다 물으면 요청이 이름 길이만큼 나간다.
+    expect(onboarding.availabilityCalls, 0);
+
+    await settleAutoCheck(tester);
+
+    expect(onboarding.availabilityCalls, 1);
+    expect(find.text(AppStrings.profileNicknameOk), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 타이핑하는 동안에는 요청이 한 번만 나간다', (tester) async {
+    final onboarding = FakeOnboardingRepository(latency: Duration.zero);
+    await pumpPage(tester, onboarding: onboarding);
+
+    for (final value in ['러', '러너', '러너4', '러너42']) {
+      await tester.enterText(find.byType(TextField), value);
+      await tester.pump(const Duration(milliseconds: 120));
+    }
+    await settleAutoCheck(tester);
+
+    // 네 글자를 쳤다고 네 번 물으면 서버가 그만큼 맞는다.
+    expect(onboarding.availabilityCalls, 1);
+  });
+
+  testWidgets('겹치는 이름은 누르기 전에 알려주고 확인을 잠근다', (tester) async {
+    final onboarding = FakeOnboardingRepository(latency: Duration.zero)
+      ..taken.add('러너42');
+    await pumpPage(tester, onboarding: onboarding);
+
+    await typeNickname(tester, '러너42');
+    await settleAutoCheck(tester);
+
+    expect(find.text(AppStrings.profileNicknameTaken), findsOneWidget);
+    // 잠그지 않으면 눌러볼 수 있고, 누르면 같은 답을 받으러 한 번 더 나간다.
+    expect(confirmEnabled(tester), isFalse);
+    expect(find.text(AppStrings.profileBirthQuestion), findsNothing);
+  });
+
+  testWidgets('⚠️ 형식만 통과한 것을 쓸 수 있다고 말하지 않는다', (tester) async {
+    // 서버에 묻기 전이다. 여기서 '쓸 수 있는 이름이에요'가 뜨면
+    // **곧 이미 있다고 뒤집힐 말**을 먼저 해버리는 셈이다.
+    final onboarding = FakeOnboardingRepository(
+      latency: const Duration(seconds: 5),
+    );
+    await pumpPage(tester, onboarding: onboarding);
+
+    await typeNickname(tester, '러너42');
+
+    expect(find.text(AppStrings.profileNicknameOk), findsNothing);
+    expect(find.text(AppStrings.profileNicknameCheckPending), findsOneWidget);
+  });
+
+  testWidgets('자동 확인이 끝났으면 확인을 눌러도 다시 묻지 않는다', (tester) async {
+    final onboarding = FakeOnboardingRepository(latency: Duration.zero);
+    await pumpPage(tester, onboarding: onboarding);
+
+    await typeNickname(tester, '러너42');
+    await settleAutoCheck(tester);
+    await confirmNickname(tester);
+
+    // 방금 받은 답이 그대로 유효하다. 한 번 더 묻는 것은 낭비다.
+    expect(onboarding.availabilityCalls, 1);
+    expect(find.text(AppStrings.profileBirthQuestion), findsOneWidget);
+  });
+
   // ── 닉네임 중복 확인 ─────────────────────────────────────────
 
   testWidgets('확인을 누르면 서버에 겹치는지 묻는다', (tester) async {
@@ -214,6 +303,54 @@ void main() {
     expect(find.text(AppStrings.profileNicknameTaken), findsNothing);
     // 판정하지 못했으니 넘기지도 않는다.
     expect(find.text(AppStrings.profileBirthQuestion), findsNothing);
+  });
+
+  testWidgets('⚠️ 확인에 실패한 뒤 다시 누르면 다시 물어본다', (tester) async {
+    // 실패는 **다시 눌러보라는 안내**와 함께 뜬다. 그런데 버튼이 눌리기만 하고
+    // 요청이 안 나가면, 빠져나갈 길은 이름을 고치는 것 하나뿐이다 —
+    // 쓸 수 있는 이름을 네트워크가 잠깐 끊겼다는 이유로 포기하게 된다.
+    final onboarding = FakeOnboardingRepository(
+      latency: Duration.zero,
+      availabilityFailure: OnboardingFailure.network,
+    );
+    await pumpPage(tester, onboarding: onboarding);
+    await typeNickname(tester, '러너42');
+    await confirmNickname(tester);
+
+    expect(find.text(AppStrings.profileNicknameCheckFailed), findsOneWidget);
+    expect(onboarding.availabilityCalls, 1);
+
+    // 눌리는 버튼은 반드시 무언가를 해야 한다.
+    expect(confirmEnabled(tester), isTrue, reason: '재시도할 방법이 없다');
+    await confirmNickname(tester);
+
+    expect(onboarding.availabilityCalls, 2, reason: '눌렀는데 요청이 안 나갔다');
+  });
+
+  testWidgets('⚠️ 묻는 중에 이름을 고치면 그 이름도 자동으로 확인한다', (tester) async {
+    // 자동 확인이 **앞 요청과 겹치면 조용히 사라지는** 문제다. 화면은
+    // "확인할게요"에서 영영 멈추고, 사용자는 왜 안 되는지 알 수 없다.
+    //
+    // 기존 자동 확인 테스트가 전부 `latency: Duration.zero`라서 이 구간을
+    // 지나칠 수 없었다. 여기서만 지연을 준다.
+    //
+    // ⚠️ 지연은 **디바운스(500ms)보다 넉넉히 길어야** 한다. 짧으면 앞 요청이
+    // 새 디바운스가 만료되기 전에 끝나버려서 겹치는 구간 자체가 안 생긴다.
+    final onboarding = FakeOnboardingRepository(
+      latency: const Duration(seconds: 2),
+    );
+    await pumpPage(tester, onboarding: onboarding);
+
+    await tester.enterText(find.byType(TextField), '러너4');
+    // 디바운스가 만료돼 요청이 나갔다. 아직 답은 오지 않았다.
+    await tester.pump(const Duration(seconds: 1));
+    expect(onboarding.availabilityCalls, 1);
+
+    await tester.enterText(find.byType(TextField), '러너42');
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+
+    expect(onboarding.availabilityCalls, 2, reason: '고친 이름을 안 물어봤다');
   });
 
   testWidgets('묻는 동안 확인이 잠긴다', (tester) async {
@@ -277,6 +414,12 @@ void main() {
     await typeNickname(tester, '러너99');
 
     expect(find.text(AppStrings.profileNicknameTaken), findsNothing);
+    // ⚠️ 아직 **쓸 수 있다고는 말하지 않는다.** 새 이름은 물어본 적이 없다.
+    expect(find.text(AppStrings.profileNicknameOk), findsNothing);
+    expect(find.text(AppStrings.profileNicknameCheckPending), findsOneWidget);
+
+    // 손을 멈추면 알아서 묻고, 그때 비로소 쓸 수 있다고 말한다.
+    await settleAutoCheck(tester);
     expect(find.text(AppStrings.profileNicknameOk), findsOneWidget);
   });
 

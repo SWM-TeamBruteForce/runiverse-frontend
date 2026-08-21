@@ -9,6 +9,9 @@ class StoredAuth {
     this.accessToken,
     this.refreshToken,
     this.isOnboarded = false,
+    this.nickname,
+    this.profileImageUrl,
+    this.introduction,
   });
 
   /// 저장된 것이 없으면 `null`. **로그인한 적이 있는지의 판단 기준이다.**
@@ -20,6 +23,17 @@ class StoredAuth {
   /// 프로필 등록을 마쳤는가. **모르면 `false`다** — 한 번 더 묻는 쪽이
   /// 프로필 없는 사용자를 홈에 들이는 것보다 안전하다.
   final bool isOnboarded;
+
+  /// `GET /users/me`가 마지막으로 답한 값. **토큰이 유효한 동안만 남는다** —
+  /// [clearTokens]가 토큰과 함께 지운다.
+  ///
+  /// 앱을 켜자마자 프로필 탭에 닉네임을 그릴 수 있게 하는 것이 목적이다.
+  /// 이것이 없으면 `/me`가 도착할 때까지 회색 자리표시자가 보인다.
+  ///
+  /// ⚠️ **진실은 여전히 서버다.** 이 값은 `/me` 응답이 오면 덮어쓴다.
+  final String? nickname;
+  final String? profileImageUrl;
+  final String? introduction;
 }
 
 /// 로그인 토큰을 어디에 넣어둘 것인가.
@@ -64,7 +78,23 @@ abstract interface class TokenStore {
   /// 프로필 등록을 마쳤다.
   Future<void> markOnboarded();
 
-  /// 토큰이 만료됐다. `userId`와 `isOnboarded`는 남긴다.
+  /// `GET /users/me`가 답한 값을 남긴다. **토큰은 건드리지 않는다.**
+  ///
+  /// ⚠️ `CurrentUser`를 그대로 받지 않고 원시값으로 받는다 — `core`가
+  /// `features/auth`를 알게 되면 의존 방향이 뒤집힌다.
+  ///
+  /// [isOnboarded]도 함께 덮어쓴다. `/me`가 그 값의 유일한 출처이고,
+  /// 다른 기기에서 프로필을 채웠으면 이 기기의 저장값이 낡았기 때문이다.
+  Future<void> saveCurrentUser({
+    required String userId,
+    required bool isOnboarded,
+    String? nickname,
+    String? profileImageUrl,
+    String? introduction,
+  });
+
+  /// 토큰이 만료됐다. `userId`와 `isOnboarded`는 남기고,
+  /// **`/me` 캐시는 토큰과 함께 지운다.**
   Future<void> clearTokens();
 
   /// 로그아웃. 전부 비운다.
@@ -80,6 +110,9 @@ class InMemoryTokenStore implements TokenStore {
   String? _accessToken;
   String? _refreshToken;
   bool _isOnboarded = false;
+  String? _nickname;
+  String? _profileImageUrl;
+  String? _introduction;
 
   @override
   Future<StoredAuth> read() async => StoredAuth(
@@ -87,6 +120,9 @@ class InMemoryTokenStore implements TokenStore {
     accessToken: _blankToNull(_accessToken),
     refreshToken: _blankToNull(_refreshToken),
     isOnboarded: _isOnboarded,
+    nickname: _blankToNull(_nickname),
+    profileImageUrl: _blankToNull(_profileImageUrl),
+    introduction: _blankToNull(_introduction),
   );
 
   @override
@@ -115,9 +151,27 @@ class InMemoryTokenStore implements TokenStore {
   Future<void> markOnboarded() async => _isOnboarded = true;
 
   @override
+  Future<void> saveCurrentUser({
+    required String userId,
+    required bool isOnboarded,
+    String? nickname,
+    String? profileImageUrl,
+    String? introduction,
+  }) async {
+    _userId = userId;
+    _isOnboarded = isOnboarded;
+    _nickname = nickname;
+    _profileImageUrl = profileImageUrl;
+    _introduction = introduction;
+  }
+
+  @override
   Future<void> clearTokens() async {
     _accessToken = null;
     _refreshToken = null;
+    _nickname = null;
+    _profileImageUrl = null;
+    _introduction = null;
   }
 
   @override
@@ -126,6 +180,9 @@ class InMemoryTokenStore implements TokenStore {
     _accessToken = null;
     _refreshToken = null;
     _isOnboarded = false;
+    _nickname = null;
+    _profileImageUrl = null;
+    _introduction = null;
   }
 }
 
