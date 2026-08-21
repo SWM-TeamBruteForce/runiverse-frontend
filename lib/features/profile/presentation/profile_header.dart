@@ -19,7 +19,7 @@ import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
 ///
 /// **대표 기록 대시보드도 뺐다.** 세 값이 전부 러닝 기록에서 나오는데 기록 기능이
 /// 없다. 넣으면 `0 km · 상위 --%`가 나란히 서서 화면이 고장 난 것처럼 읽힌다.
-class ProfileHeader extends StatelessWidget {
+class ProfileHeader extends StatefulWidget {
   const ProfileHeader({
     this.nickname,
     this.introduction,
@@ -54,10 +54,19 @@ class ProfileHeader extends StatelessWidget {
   final int following;
 
   @override
+  State<ProfileHeader> createState() => _ProfileHeaderState();
+}
+
+/// 편집 모드는 **이 화면을 벗어나면 의미가 없다.** 탭을 옮겼다 돌아오면 꺼져
+/// 있는 것이 맞아서 provider까지 올리지 않는다.
+class _ProfileHeaderState extends State<ProfileHeader> {
+  bool _editing = false;
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final nickname = this.nickname;
-    final introduction = this.introduction;
+    final nickname = widget.nickname;
+    final introduction = widget.introduction;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -72,10 +81,17 @@ class ProfileHeader extends StatelessWidget {
           // 편집·설정은 자리만 잡는다. 화면이 아직 없다.
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
-            children: const [
-              _HeaderAction(icon: LucideIcons.pencil),
-              SizedBox(width: AppSpacing.space2),
-              _HeaderAction(icon: LucideIcons.settings),
+            children: [
+              _HeaderAction(
+                icon: LucideIcons.pencil,
+                // 켜져 있는 동안 버튼이 스스로 강조된다 — **지금 편집 모드라는
+                // 것과 나가는 길이 같은 자리**에 있어야 헤맬 데가 없다.
+                active: _editing,
+                onTap: () => setState(() => _editing = !_editing),
+              ),
+              const SizedBox(width: AppSpacing.space2),
+              // 설정 화면은 아직 없다. 눌리지 않는다.
+              const _HeaderAction(icon: LucideIcons.settings),
             ],
           ),
           const SizedBox(height: AppSpacing.space2),
@@ -83,7 +99,7 @@ class ProfileHeader extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const ProfileAvatar(),
+              ProfileAvatar(editable: _editing),
               const SizedBox(width: AppSpacing.space4),
 
               Expanded(
@@ -97,7 +113,7 @@ class ProfileHeader extends StatelessWidget {
                           color: colors.textPrimary,
                         ),
                       )
-                    else if (!isOnboarded)
+                    else if (!widget.isOnboarded)
                       Text(
                         AppStrings.profileNicknameEmpty,
                         // 아직 이름이 아니라 **할 일**이므로 무게를 낮춘다.
@@ -121,7 +137,10 @@ class ProfileHeader extends StatelessWidget {
                     const SizedBox(height: AppSpacing.space2),
                     const SignatureColorRow(),
                     const SizedBox(height: AppSpacing.space3),
-                    _FollowCounts(followers: followers, following: following),
+                    _FollowCounts(
+                      followers: widget.followers,
+                      following: widget.following,
+                    ),
                   ],
                 ),
               ),
@@ -260,23 +279,40 @@ class _FollowCount extends StatelessWidget {
 
 /// 헤더 우상단 원형 버튼. 화면이 아직 없어 **눌리지 않는다.**
 class _HeaderAction extends StatelessWidget {
-  const _HeaderAction({required this.icon});
+  const _HeaderAction({required this.icon, this.active = false, this.onTap});
 
   final IconData icon;
+
+  /// 켜진 상태인가. 테두리와 아이콘 색이 바뀐다.
+  final bool active;
+
+  /// `null`이면 눌리지 않는다. 화면이 아직 없는 버튼이 그렇다.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
 
-    return Container(
+    final button = Container(
       width: AppSizes.touchDefault,
       height: AppSizes.touchDefault,
       decoration: BoxDecoration(
         color: colors.bgSurface,
         borderRadius: AppRadius.full,
-        border: Border.all(color: colors.borderDefault),
+        border: Border.all(
+          color: active ? colors.primary : colors.borderDefault,
+        ),
       ),
-      child: Icon(icon, size: AppSpacing.space5, color: colors.textSecondary),
+      child: Icon(
+        icon,
+        size: AppSpacing.space5,
+        color: active ? colors.primary : colors.textSecondary,
+      ),
     );
+
+    final onTap = this.onTap;
+    if (onTap == null) return button;
+
+    return GestureDetector(onTap: onTap, child: button);
   }
 }
