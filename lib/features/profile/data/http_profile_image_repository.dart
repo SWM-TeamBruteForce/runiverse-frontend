@@ -41,16 +41,26 @@ class HttpProfileImageRepository implements ProfileImageRepository {
   final TokenStore _store;
   final AuthRepository _auth;
 
+  /// ⚠️ **인증을 걸지 않는다.** 명세의 사진 4종 중 이것만 `권한: NO`다.
+  /// [_authed]로 감싸면 붙는 401 재시도 경로가 **영영 실행되지 않는 죽은 코드**로
+  /// 남는다. `userId`는 여전히 필요해서 저장소에서 읽는다.
   @override
-  Future<String?> fetchUrl() => _authed((userId, token) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      _path(userId),
-      options: Options(headers: _bearer(token)),
-    );
-    // 사진을 올린 적이 없으면 서버가 `null`을 담아 200을 준다. 실패가 아니다.
-    final url = response.data?['profileImageUrl'];
-    return url is String ? url : null;
-  });
+  Future<String?> fetchUrl() async {
+    final stored = await _store.read();
+    final userId = stored.userId;
+    if (userId == null) {
+      throw const ProfileImageException(ProfileImageFailure.sessionExpired);
+    }
+
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(_userPath(userId));
+      // 사진을 올린 적이 없으면 서버가 `null`을 담아 200을 준다. 실패가 아니다.
+      final url = response.data?['profileImageUrl'];
+      return url is String ? url : null;
+    } on DioException catch (error) {
+      throw ProfileImageException(_failureOf(error));
+    }
+  }
 
   @override
   Future<void> upload(PickedImage image) async {
@@ -80,7 +90,7 @@ class HttpProfileImageRepository implements ProfileImageRepository {
   @override
   Future<void> remove() => _authed((userId, token) async {
     await _dio.delete<Object?>(
-      _path(userId),
+      _mePath,
       options: Options(headers: _bearer(token)),
     );
   });
@@ -94,7 +104,7 @@ class HttpProfileImageRepository implements ProfileImageRepository {
   ) {
     return _authed((userId, token) async {
       final response = await _dio.post<Map<String, dynamic>>(
-        '${_path(userId)}/presigned-url',
+        '$_mePath/presigned-url',
         data: {'mimeType': image.mimeType, 'fileSizeBytes': image.sizeBytes},
         options: Options(headers: _bearer(token)),
       );
@@ -141,13 +151,19 @@ class HttpProfileImageRepository implements ProfileImageRepository {
   /// **2단계가 사실은 실패했을 수 있다.**
   Future<void> _confirm(String key) => _authed((userId, token) async {
     await _dio.patch<Object?>(
-      _path(userId),
+      _mePath,
       data: {'profileImageKey': key},
       options: Options(headers: _bearer(token)),
     );
   });
 
-  static String _path(String userId) => '/api/v1/users/$userId/profile-image';
+  /// 인증이 필요한 셋(47·48·50)이 쓰는 경로. **토큰 주체가 곧 대상**이라
+  /// 식별자를 받지 않는다 — 명세의 "본인만 접근하면 `/users/me/...`" 규칙이다.
+  static const _mePath = '/api/v1/users/me/profile-image';
+
+  /// 조회(49)만 다르다. **타인의 사진도 볼 수 있어야 해서** 식별자를 받는다.
+  static String _userPath(String userId) =>
+      '/api/v1/users/$userId/profile-image';
 
   static Map<String, String> _bearer(String token) => {
     'Authorization': 'Bearer $token',
