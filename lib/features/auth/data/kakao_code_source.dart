@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart';
+import 'package:runiverse/core/config/app_config.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/code_verifier.dart';
 import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
@@ -37,6 +38,18 @@ class KakaoCodeSource implements OauthCodeSource {
 
   @override
   Future<OauthAuthorization> authorize(OauthProvider provider) async {
+    // ⚠️ **키가 없으면 SDK를 부르기 전에 돌아선다.** `main.dart`가 키 없이는
+    // `KakaoSdk.init`을 건너뛰므로, 그대로 부르면 `LateInitializationError`가
+    // 난다. 그것은 `Exception`이 아니라 **`Error`**라 아래 `on Exception`을
+    // 포함해 어떤 catch에도 걸리지 않고 화면까지 그대로 올라간다.
+    //
+    // 이유를 [AuthFailure.oauthFailed]로 뭉뚱그리지 않는다 —
+    // "다시 시도해주세요"는 거짓말이다. 다시 눌러도 키는 생기지 않는다.
+    if (!AppConfig.hasKakaoNativeAppKey) {
+      _log('설정', '앱 키가 주입되지 않았다 — SDK를 부르지 않는다');
+      throw const AuthException(AuthFailure.oauthUnavailable);
+    }
+
     // 검증값을 먼저 만들어 둔다. SDK가 이것의 SHA-256을 카카오에 보내고,
     // 원본은 우리가 들고 있다가 서버에 넘긴다.
     final verifier = CodeVerifier.generate();

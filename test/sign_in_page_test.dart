@@ -11,6 +11,9 @@ import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/data/fake_oauth_code_source.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
+import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
+import 'package:runiverse/features/auth/domain/oauth_code_source.dart';
+import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
@@ -23,7 +26,7 @@ void main() {
   Future<void> pumpSignIn(
     WidgetTester tester, {
     FakeAuthRepository? repository,
-    FakeOauthCodeSource? codeSource,
+    OauthCodeSource? codeSource,
   }) async {
     // 이미 약관에 동의한 기기로 시작한다. 카카오 버튼이 인가 전에 약관을 끼우므로,
     // 동의가 없으면 아래 테스트들이 전부 약관 화면에서 멈춘다.
@@ -276,4 +279,49 @@ void main() {
       expect(find.text(AppStrings.authFailedOauthEmailTaken), findsOneWidget);
     });
   });
+
+  testWidgets('카카오에서 예상 못 한 오류가 나도 로그인 화면이 잠기지 않는다', (tester) async {
+    await pumpSignIn(tester, codeSource: _ThrowingOauthCodeSource());
+    await fill(
+      tester,
+      email: FakeAuthRepository.seedEmail,
+      password: FakeAuthRepository.seedPassword,
+    );
+    expect(ctaEnabled(tester), isTrue);
+
+    await tester.tap(find.widgetWithText(AppButton, AppStrings.authKakao));
+    // ⚠️ pumpAndSettle을 쓰면 안 된다. 잠긴 화면은 스피너가 영원히 돌아
+    // **영영 안정되지 않고**, 단언에 닿기 전에 타임아웃으로 죽는다
+    // (`docs/implementation-notes.md` §10-3). 정해진 횟수만 pump한다.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // 버튼 한 번에 **아무도 처리하지 않는 오류가 새어나가면 안 된다.**
+    // 새어나가면 이 테스트가 그 오류로 죽는다 — 단언까지 오지도 못한다.
+
+    // ⚠️ 여기가 버그다. 실패하면 CTA가 스피너로 바뀐 채 굳은 것이고,
+    // **이메일 로그인까지 같이 막힌다** — 카카오를 한 번 잘못 누른 사람은
+    // 앱을 다시 켜기 전에는 어떤 방법으로도 로그인할 수 없다.
+    expect(
+      find.widgetWithText(AppButton, AppStrings.authSignInCta),
+      findsOneWidget,
+      reason: 'CTA가 사라졌다면 _busy가 true로 굳은 것이다',
+    );
+    expect(ctaEnabled(tester), isTrue);
+
+    // 풀리기만 하면 되는 게 아니다. 아무 말도 없으면 사용자는 **버튼이 안 눌렸다**고
+    // 읽고 같은 자리를 계속 누른다.
+    expect(find.text(AppStrings.authFailedOauth), findsOneWidget);
+  });
+}
+
+/// SDK가 초기화되지 않았을 때 실제로 올라오는 것은 `Exception`이 아니라 `Error`다
+/// (`LateInitializationError`). 그래서 `KakaoCodeSource`의 `on Exception`에도,
+/// `AuthController`의 `on AuthException`에도 걸리지 않고 화면까지 그대로 올라온다.
+/// 그 상황을 같은 모양으로 만든다.
+class _ThrowingOauthCodeSource implements OauthCodeSource {
+  @override
+  Future<OauthAuthorization> authorize(OauthProvider provider) async {
+    throw StateError('SDK가 초기화되지 않았다');
+  }
 }

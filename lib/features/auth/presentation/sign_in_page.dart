@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -272,9 +273,28 @@ class _SignInPageState extends ConsumerState<SignInPage> {
       _failure = null;
     });
 
-    final failure = await ref
-        .read(authControllerProvider.notifier)
-        .signInWithOauth(OauthProvider.kakao);
+    // ⚠️ **여기를 감싸지 않으면 예외 하나가 이 화면을 영구히 잠근다.**
+    // `_busy`가 `true`로 굳으면 `_canSubmit`이 `false`가 되어 **이메일 로그인까지
+    // 같이 막힌다** — 앱을 다시 켜는 것 말고는 길이 없다.
+    //
+    // `on Exception`으로는 부족하다. SDK를 초기화하지 않은 채 부르면
+    // `LateInitializationError`가 오는데 그것은 `Exception`이 아니라 **`Error`**라
+    // `KakaoCodeSource`의 `on Exception`에도, `AuthController`의
+    // `on AuthException`에도 걸리지 않고 여기까지 그대로 올라온다.
+    // 에뮬레이터에서 카카오 키 없이 눌러 실제로 겪었다.
+    AuthFailure? failure;
+    try {
+      failure = await ref
+          .read(authControllerProvider.notifier)
+          .signInWithOauth(OauthProvider.kakao);
+    } catch (error) {
+      // 삼키되 **흔적은 남긴다.** 무엇이 오는지 모르면 고칠 수도 없다 —
+      // `KakaoCodeSource`가 로그를 남기는 이유와 같다.
+      if (kDebugMode) {
+        debugPrint('[kakao] 예상 못 한 오류: ${error.runtimeType} · $error');
+      }
+      failure = AuthFailure.oauthFailed;
+    }
 
     if (!mounted) return;
 
@@ -355,6 +375,9 @@ class _FailureNotice extends StatelessWidget {
 
     // 소셜 로그인 — 이 화면에서 실제로 난다.
     AuthFailure.oauthFailed => AppStrings.authFailedOauth,
+    // 이 빌드에 앱 키가 없다. **"다시 시도해주세요"를 쓰지 않는다** —
+    // 다시 눌러도 키는 생기지 않는다. 애플 버튼과 같은 말을 한다.
+    AuthFailure.oauthUnavailable => AppStrings.authSocialComingSoon,
     AuthFailure.oauthEmailMissing => AppStrings.authFailedOauthEmail,
     // 카카오 계정의 이메일로 이미 가입한 사람이다. 서버가 자동 연동하지 않으므로
     // **이메일 로그인으로 안내한다** — "이미 가입했다"만으로는 갈 곳을 모른다.
