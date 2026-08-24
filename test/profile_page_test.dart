@@ -19,11 +19,14 @@ import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/profile/data/fake_profile_image_repository.dart';
+import 'package:runiverse/features/profile/data/fake_profile_repository.dart';
+import 'package:runiverse/features/profile/domain/profile_failure.dart';
 import 'package:runiverse/features/profile/domain/photo_picker.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
+import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
 
 /// 프로필 탭(S22) — 서버 값이 화면에 닿는가, 없을 때 무엇을 하는가.
@@ -45,6 +48,8 @@ void main() {
     bool meFails = false,
     FakeProfileImageRepository? photos,
     PhotoPicker? picker,
+    FakeProfileRepository? summary,
+    String? cachedNickname,
   }) async {
     final repository = FakeAuthRepository(latency: Duration.zero);
     const email = 'runner@example.com';
@@ -61,6 +66,13 @@ void main() {
       refreshToken: session.refreshToken,
       isOnboarded: onboarded,
     );
+    if (cachedNickname != null) {
+      await store.saveCurrentUser(
+        userId: session.userId,
+        isOnboarded: onboarded,
+        nickname: cachedNickname,
+      );
+    }
 
     await tester.pumpWidget(
       ProviderScope(
@@ -72,6 +84,9 @@ void main() {
           ),
           profileImageRepositoryProvider.overrideWithValue(
             photos ?? FakeProfileImageRepository(latency: Duration.zero),
+          ),
+          profileRepositoryProvider.overrideWithValue(
+            summary ?? FakeProfileRepository(),
           ),
           if (picker != null) photoPickerProvider.overrideWithValue(picker),
         ],
@@ -90,11 +105,15 @@ void main() {
   }
 
   testWidgets('프로필을 채운 사람은 서버가 준 닉네임이 보인다', (tester) async {
-    await pumpProfile(tester, onboarded: true);
+    // 닉네임은 이제 `GET /users/{userId}`에서 온다. 본인과 타인이 같은 화면을
+    // 쓰기 때문에 출처도 하나여야 한다 — `/users/me`는 저장해 두는 쪽이다.
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      summary: FakeProfileRepository(nickname: '러너42'),
+    );
 
-    // 화면이 직접 부르지 않는다. `AuthController`가 부른 `/users/me`의 답이
-    // 상태에 담겨 여기까지 온다.
-    expect(find.textContaining('러너-runner'), findsOneWidget);
+    expect(find.text('러너42'), findsOneWidget);
     expect(find.text(AppStrings.profileNicknameEmpty), findsNothing);
   });
 
@@ -198,18 +217,62 @@ void main() {
     );
   });
 
-  testWidgets('⚠️ 팔로워·팔로잉은 눌리지 않는다', (tester) async {
+  testWidgets('⚠️ 블렌드 러너 수는 눌리지 않는다', (tester) async {
     await pumpProfile(tester, onboarded: true);
 
-    // 서버에 팔로우 기능이 없다. 누를 수 있게 만들면 반응이 없을 때
+    // 서버에 목록 API가 없다. 누를 수 있게 만들면 반응이 없을 때
     // 고장으로 읽힌다.
     expect(
       find.ancestor(
-        of: find.text(AppStrings.profileFollowers),
+        of: find.text(AppStrings.profileBlendRunners),
         matching: find.byType(InkWell),
       ),
       findsNothing,
     );
+  });
+
+  // ── 프로필 요약 ─────────────────────────────────────────────
+  //
+  // 닉네임·소개·사진은 이제 `/users/{userId}` 한 곳에서 온다.
+  // 본인과 타인이 같은 화면을 쓰기 때문에 출처도 하나여야 한다.
+
+  testWidgets('서버가 준 닉네임과 소개를 그린다', (tester) async {
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      summary: FakeProfileRepository(
+        nickname: '서버이름',
+        introduction: '아침에 달려요',
+        friendCount: 3,
+      ),
+    );
+
+    expect(find.text('서버이름'), findsOneWidget);
+    expect(find.text('아침에 달려요'), findsOneWidget);
+  });
+
+  testWidgets('블렌드 러너 수를 그린다', (tester) async {
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      summary: FakeProfileRepository(nickname: '서버이름', friendCount: 3),
+    );
+
+    // ⚠️ "친구"라는 말을 쓰지 않는다 — 요청→수락 모델이다(CLAUDE.md).
+    expect(find.text(AppStrings.profileBlendRunners), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 서버가 실패해도 저장해 둔 닉네임이 남는다', (tester) async {
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      cachedNickname: '캐시된이름',
+      summary: FakeProfileRepository(failure: ProfileFailure.server),
+    );
+
+    // `/users/{userId}`가 아직 배포되지 않았을 때가 이 상황이다.
+    expect(find.text('캐시된이름'), findsOneWidget);
   });
 
   // ── 프로필 사진 ─────────────────────────────────────────────
@@ -231,6 +294,44 @@ void main() {
     await tester.tap(find.byType(ProfileAvatar));
     await tester.pumpAndSettle();
   }
+
+  testWidgets('⚠️ 아바타는 사진 주소를 스스로 받아오지 않는다', (tester) async {
+    final photos = FakeProfileImageRepository(latency: Duration.zero);
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      photos: photos,
+      summary: FakeProfileRepository(
+        nickname: '서버이름',
+        profileImageUrl: 'https://cdn.test/a.png',
+      ),
+    );
+
+    // 주소는 프로필 요약이 준다. 아바타가 따로 물으면 **같은 값을 두 번**
+    // 받고, 타인 프로필에서는 `fetchUrl()`이 늘 내 사진을 가져와 틀린다.
+    expect(photos.fetchCalls, 0);
+  });
+
+  testWidgets('사진을 바꾸면 프로필 요약을 다시 받는다', (tester) async {
+    final summary = FakeProfileRepository(nickname: '서버이름');
+    final picker = _FakePicker(
+      image: PickedImage.validated(path: '/a/b.png', sizeBytes: 1024),
+    );
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      picker: picker,
+      summary: summary,
+    );
+    final before = summary.calls;
+
+    await openSheet(tester);
+    await tester.tap(find.text(AppStrings.profilePhotoPick));
+    await tester.pumpAndSettle();
+
+    // 새 주소는 서버만 안다. 다시 받지 않으면 아바타가 옛 사진을 문다.
+    expect(summary.calls, greaterThan(before));
+  });
 
   // ── 편집 모드 ───────────────────────────────────────────────
   //
@@ -283,7 +384,16 @@ void main() {
       latency: Duration.zero,
       url: 'https://example.invalid/a.png',
     );
-    await pumpProfile(tester, onboarded: true, photos: photos);
+    // 사진이 있는지는 **프로필 요약이 말한다.** 아바타는 주소를 받아 그릴 뿐이라
+    // 이미지 저장소에만 심어두면 시트가 지우는 항목을 보여주지 않는다.
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      photos: photos,
+      summary: FakeProfileRepository(
+        profileImageUrl: 'https://example.invalid/a.png',
+      ),
+    );
     await openSheet(tester);
 
     await tester.tap(find.text(AppStrings.profilePhotoReset));

@@ -392,8 +392,12 @@ abstract final class AppStrings {
   /// 결핍이 아니라 무엇을 하면 생기는지를 말한다.
   static const profileSignatureEmpty = '함께 달리면 색이 생겨요';
 
-  static const profileFollowers = '팔로워';
-  static const profileFollowing = '팔로잉';
+  /// 서로 수락해 함께 달리는 사람 수.
+  ///
+  /// ⚠️ **"친구"라고 쓰지 않는다.** 요청→수락 모델이고, 서비스가 쓰는 말은
+  /// 블렌드다(함께 달리면 색이 섞인다). 서버 응답 필드는 `friendCount`지만
+  /// 화면에 나가는 말은 이쪽이다.
+  static const profileBlendRunners = '블렌드 러너';
 
   static const profileBasicCollection = '기본 컬렉션';
   static const profileBlendCollection = '블렌드 컬렉션';

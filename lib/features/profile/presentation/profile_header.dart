@@ -24,8 +24,8 @@ class ProfileHeader extends StatefulWidget {
     this.nickname,
     this.introduction,
     this.isOnboarded = true,
-    this.followers = 0,
-    this.following = 0,
+    this.blendRunners = 0,
+    this.photoUrl,
     super.key,
   });
 
@@ -48,10 +48,14 @@ class ProfileHeader extends StatefulWidget {
   /// 가입일을 서버가 주지 않아 날수를 셀 수 없다.
   final String? introduction;
 
-  /// ⚠️ **눌리지 않는다.** 서버에 팔로우 기능이 없다. 누를 수 있게 만들면
+  /// 서로 수락해 함께 달리는 사람 수. 서버 `friendCount`다.
+  ///
+  /// ⚠️ **눌리지 않는다.** 서버에 목록 API가 없다. 누를 수 있게 만들면
   /// 반응이 없을 때 고장으로 읽힌다. 자리만 잡아 둔다.
-  final int followers;
-  final int following;
+  final int blendRunners;
+
+  /// 프로필 사진 열람 주소. 아바타에 그대로 내려보낸다 — [ProfileAvatar.url] 참조.
+  final String? photoUrl;
 
   @override
   State<ProfileHeader> createState() => _ProfileHeaderState();
@@ -99,7 +103,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ProfileAvatar(editable: _editing),
+              ProfileAvatar(url: widget.photoUrl, editable: _editing),
               const SizedBox(width: AppSpacing.space4),
 
               Expanded(
@@ -137,10 +141,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
                     const SizedBox(height: AppSpacing.space2),
                     const SignatureColorRow(),
                     const SizedBox(height: AppSpacing.space3),
-                    _FollowCounts(
-                      followers: widget.followers,
-                      following: widget.following,
-                    ),
+                    _BlendCount(count: widget.blendRunners),
                   ],
                 ),
               ),
@@ -227,30 +228,10 @@ class SignatureColorRow extends StatelessWidget {
   }
 }
 
-/// 팔로워 · 팔로잉. **`InkWell`을 두지 않는다** — 위 ⚠️ 참조.
-class _FollowCounts extends StatelessWidget {
-  const _FollowCounts({required this.followers, required this.following});
+class _BlendCount extends StatelessWidget {
+  const _BlendCount({required this.count});
 
-  final int followers;
-  final int following;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _FollowCount(value: followers, label: AppStrings.profileFollowers),
-        const SizedBox(width: AppSpacing.space5),
-        _FollowCount(value: following, label: AppStrings.profileFollowing),
-      ],
-    );
-  }
-}
-
-class _FollowCount extends StatelessWidget {
-  const _FollowCount({required this.value, required this.label});
-
-  final int value;
-  final String label;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
@@ -260,7 +241,7 @@ class _FollowCount extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          '$value',
+          '$count',
           // 숫자가 늘어도 라벨이 흔들리지 않게 tabular를 쓴다.
           style: AppTypography.body.copyWith(
             color: colors.textPrimary,
@@ -269,13 +250,15 @@ class _FollowCount extends StatelessWidget {
         ),
         const SizedBox(width: AppSpacing.space1),
         Text(
-          label,
+          AppStrings.profileBlendRunners,
           style: AppTypography.caption.copyWith(color: colors.textSecondary),
         ),
       ],
     );
   }
 }
+
+/// 헤더 우상단 원형 버튼. 화면이 아직 없어 **눌리지 않는다.**
 
 /// 헤더 우상단 원형 버튼. 화면이 아직 없어 **눌리지 않는다.**
 class _HeaderAction extends StatelessWidget {
