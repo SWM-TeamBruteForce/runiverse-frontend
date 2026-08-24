@@ -280,17 +280,17 @@ void main() {
   // 서버가 지금 열어 준 것은 사진뿐이다. 닉네임·소개를 고치는 API가 없어
   // 정본의 편집 화면(S22.1)을 만들 수 없고, 그래서 아바타를 직접 누르게 했다.
 
-  /// 우측 상단 ✎. 눌러서 편집 모드를 켜고 끈다.
-  Future<void> toggleEdit(WidgetTester tester) async {
+  /// 우측 상단 ✎. 눌러 **편집 화면(S22.1)으로 간다.**
+  Future<void> openEditPage(WidgetTester tester) async {
     await tester.tap(find.byIcon(LucideIcons.pencil));
     await tester.pumpAndSettle();
   }
 
-  /// 편집 모드를 켜고 아바타를 눌러 시트를 연다.
+  /// 편집 화면으로 가서 아바타를 눌러 사진 시트를 연다.
   ///
-  /// **✎를 거치지 않으면 아바타는 눌리지 않는다.** 편집 모드가 그 문이다.
+  /// **홈에서는 아바타가 눌리지 않는다.** 바꾸는 자리는 편집 화면 하나다.
   Future<void> openSheet(WidgetTester tester) async {
-    await toggleEdit(tester);
+    await openEditPage(tester);
     await tester.tap(find.byType(ProfileAvatar));
     await tester.pumpAndSettle();
   }
@@ -333,12 +333,13 @@ void main() {
     expect(summary.calls, greaterThan(before));
   });
 
-  // ── 편집 모드 ───────────────────────────────────────────────
+  // ── 편집 화면으로 가는 문 ────────────────────────────────────
   //
-  // 아바타는 **편집 모드에서만** 눌린다. 늘 눌리면 "지금 바꿀 수 있다"가
-  // 화면 어디에도 드러나지 않아, 눌러본 사람만 알게 된다.
+  // 홈에서는 아무것도 고치지 않는다. **바꾸는 자리는 편집 화면 하나**다
+  // (정본 S22.1) — 홈에도 두면 같은 일을 하는 문이 둘이 되고, 사진·닉네임은
+  // 즉시 저장되는데 나머지는 저장 버튼을 기다린다는 것을 설명할 길이 없다.
 
-  testWidgets('⚠️ 편집 모드가 아니면 아바타를 눌러도 시트가 열리지 않는다', (tester) async {
+  testWidgets('⚠️ 홈에서는 아바타를 눌러도 시트가 열리지 않는다', (tester) async {
     await pumpProfile(tester, onboarded: true);
 
     await tester.tap(find.byType(ProfileAvatar));
@@ -347,27 +348,30 @@ void main() {
     expect(find.text(AppStrings.profilePhotoPick), findsNothing);
   });
 
-  testWidgets('편집 모드에서는 아바타에 편집 표시가 뜬다', (tester) async {
-    await pumpProfile(tester, onboarded: true);
-    // 켜기 전에는 없다 — 있으면 늘 편집 가능한 것처럼 읽힌다.
+  testWidgets('⚠️ 홈에는 편집 표시가 없다', (tester) async {
+    // 표시가 있으면 눌러서 바꿀 수 있는 것처럼 읽힌다.
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      summary: FakeProfileRepository(nickname: '별밤러너'),
+    );
+
     expect(find.byIcon(LucideIcons.camera), findsNothing);
+    expect(find.byIcon(LucideIcons.type), findsNothing);
+  });
 
-    await toggleEdit(tester);
+  testWidgets('✎를 누르면 편집 화면이 열린다', (tester) async {
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      summary: FakeProfileRepository(nickname: '별밤러너'),
+    );
 
+    await openEditPage(tester);
+
+    expect(find.text(AppStrings.profileEditTitle), findsOneWidget);
+    // 거기서는 사진을 바꿀 수 있다.
     expect(find.byIcon(LucideIcons.camera), findsOneWidget);
-  });
-
-  testWidgets('✎를 다시 누르면 편집 모드가 꺼진다', (tester) async {
-    await pumpProfile(tester, onboarded: true);
-
-    await toggleEdit(tester);
-    await toggleEdit(tester);
-
-    expect(find.byIcon(LucideIcons.camera), findsNothing);
-    // 표시만 사라지는 게 아니라 실제로 눌리지 않아야 한다.
-    await tester.tap(find.byType(ProfileAvatar));
-    await tester.pumpAndSettle();
-    expect(find.text(AppStrings.profilePhotoPick), findsNothing);
   });
 
   testWidgets('사진이 없으면 시트에 지우는 항목이 없다', (tester) async {

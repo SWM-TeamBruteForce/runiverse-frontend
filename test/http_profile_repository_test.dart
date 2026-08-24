@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/profile/data/http_profile_repository.dart';
+import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
 
 /// 프로필 요약 — `GET /api/v1/users/{userId}` (명세 37번).
 ///
@@ -94,6 +95,84 @@ void main() {
 
     // 명세 37번은 `권한: YES`다. 사진 조회(49번)와 다르다.
     expect(api.headers['Authorization'], 'Bearer a-1');
+  });
+
+  // ── 프로필 수정 — `PATCH /api/v1/users/me/profile` (명세 51번) ───────
+  //
+  // 부분 수정이다. **보낸 필드만 바뀌고 생략한 것은 그대로 남는다.**
+
+  group('프로필 수정', () {
+    test('준 것만 담아 보낸다', () async {
+      final repo = await repositoryReturning({});
+
+      await repo.updateProfile(heightCm: 175, weightKg: 70.5);
+
+      expect(api.path, '/api/v1/users/me/profile');
+      expect(api.method, 'PATCH');
+      // ⚠️ 안 준 필드가 실리면 **다른 기기에서 방금 바꾼 값을 덮는다.**
+      expect(api.requestBody, {'weightKg': 70.5, 'heightCm': 175.0});
+    });
+
+    test('생년월일은 달력 날짜로 나간다', () async {
+      final repo = await repositoryReturning({});
+
+      await repo.updateProfile(birthday: DateTime(1998, 12, 6));
+
+      // 시각·타임존이 붙으면 서버가 400으로 거절한다.
+      expect(api.requestBody, {'birthday': '1998-12-06'});
+    });
+
+    test('⚠️ 빈 소개글은 빼지 않고 보낸다 — 지우라는 뜻이다', () async {
+      final repo = await repositoryReturning({});
+
+      await repo.updateProfile(introduction: '');
+
+      // `null`과 같이 다루면 소개글을 지울 방법이 사라진다.
+      expect(api.requestBody, {'introduction': ''});
+    });
+
+    test('바꿀 것이 없으면 요청하지 않는다', () async {
+      final repo = await repositoryReturning({});
+
+      await repo.updateProfile();
+
+      // 서버에 갔다 와도 결과가 같다.
+      expect(api.path, isNull);
+    });
+
+    test('409 ONBOARDING_NOT_COMPLETED는 notOnboarded다', () async {
+      final repo = await repositoryReturning({
+        'code': 'ONBOARDING_NOT_COMPLETED',
+      }, status: 409);
+
+      expect(
+        () => repo.updateProfile(heightCm: 175),
+        throwsA(
+          isA<ProfileEditException>().having(
+            (e) => e.failure,
+            'failure',
+            ProfileEditFailure.notOnboarded,
+          ),
+        ),
+      );
+    });
+
+    test('400은 invalid — 앱 규칙이 서버와 어긋났다는 신호다', () async {
+      final repo = await repositoryReturning({
+        'code': 'INVALID_REQUEST',
+      }, status: 400);
+
+      expect(
+        () => repo.updateProfile(weightKg: 500),
+        throwsA(
+          isA<ProfileEditException>().having(
+            (e) => e.failure,
+            'failure',
+            ProfileEditFailure.invalid,
+          ),
+        ),
+      );
+    });
   });
 
 }

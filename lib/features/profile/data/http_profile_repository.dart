@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
+import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_repository.dart';
 import 'package:runiverse/features/profile/domain/profile_summary.dart';
@@ -18,6 +19,8 @@ class HttpProfileRepository implements ProfileRepository {
   final AuthRepository _auth;
 
   static String _path(String userId) => '/api/v1/users/$userId';
+
+  static const _profilePath = '/api/v1/users/me/profile';
 
   @override
   Future<ProfileSummary> fetch(String userId) async {
@@ -39,6 +42,96 @@ class HttpProfileRepository implements ProfileRepository {
         throw ProfileException(_failureOf(retried));
       }
     }
+  }
+
+  @override
+  Future<void> updateProfile({
+    String? introduction,
+    DateTime? birthday,
+    double? weightKg,
+    double? heightCm,
+  }) async {
+    final body = <String, dynamic>{
+      // ⚠️ `?`는 `null`만 걸러낸다. `''`는 그대로 실려 나가고, 서버는 그것을
+      // **소개글 삭제**로 읽는다 — 둘을 같이 다루면 지울 방법이 없어진다.
+      'introduction': ?introduction,
+      if (birthday != null) 'birthday': _dateOf(birthday),
+      'weightKg': ?weightKg,
+      'heightCm': ?heightCm,
+    };
+    // 바꿀 것이 없다. 요청을 만들지 않는다 — 서버에 갔다 와도 결과가 같다.
+    if (body.isEmpty) return;
+
+    final stored = await _store.read();
+    final accessToken = stored.accessToken;
+    if (accessToken == null) {
+      throw const ProfileEditException(ProfileEditFailure.sessionExpired);
+    }
+
+    try {
+      await _patchProfile(body, accessToken);
+    } on DioException catch (error) {
+      if (error.response?.statusCode != 401) {
+        throw ProfileEditException(_editFailureOf(error));
+      }
+      try {
+        await _patchProfile(body, await _refreshedForEdit(stored.refreshToken));
+      } on DioException catch (retried) {
+        throw ProfileEditException(_editFailureOf(retried));
+      }
+    }
+  }
+
+  Future<void> _patchProfile(
+    Map<String, dynamic> body,
+    String accessToken,
+  ) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      _profilePath,
+      data: body,
+      options: Options(
+        headers: {'Authorization': 'Bearer $accessToken'},
+        validateStatus: (status) =>
+            status != null && (status < 400 || status == 409),
+      ),
+    );
+    // 409는 하나뿐이지만 코드를 확인한다. 모르는 409를 성공으로 흘리면
+    // **바뀌지 않은 값이 화면에 바뀐 것처럼 남는다.**
+    if (response.statusCode == 409) {
+      throw ProfileEditException(
+        response.data?['code'] == 'ONBOARDING_NOT_COMPLETED'
+            ? ProfileEditFailure.notOnboarded
+            : ProfileEditFailure.unknown,
+      );
+    }
+  }
+
+  /// `YYYY-MM-DD`. 달력 날짜라 시각·타임존이 붙지 않는다.
+  static String _dateOf(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}'
+      '-${date.month.toString().padLeft(2, '0')}'
+      '-${date.day.toString().padLeft(2, '0')}';
+
+  Future<String> _refreshedForEdit(String? refreshToken) async {
+    try {
+      return await _refreshed(refreshToken);
+    } on ProfileException catch (error) {
+      throw ProfileEditException(
+        error.failure == ProfileFailure.network
+            ? ProfileEditFailure.network
+            : ProfileEditFailure.sessionExpired,
+      );
+    }
+  }
+
+  ProfileEditFailure _editFailureOf(DioException error) {
+    if (error.type != DioExceptionType.badResponse) {
+      return ProfileEditFailure.network;
+    }
+    final status = error.response?.statusCode ?? 0;
+    if (status == 400) return ProfileEditFailure.invalid;
+    if (status == 401) return ProfileEditFailure.sessionExpired;
+    return ProfileEditFailure.unknown;
   }
 
   Future<ProfileSummary> _get(String userId, String accessToken) async {
