@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/profile/data/http_profile_repository.dart';
+import 'package:runiverse/features/profile/domain/nickname_change_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_repository.dart';
@@ -105,6 +106,59 @@ class ProfileSummaryController extends Notifier<ProfileSummaryState> {
 
   /// 사진을 바꾸거나 지운 뒤 다시 부른다. **새 주소는 서버만 안다.**
   Future<void> reload() => load();
+
+  /// 닉네임을 바꾸고 **화면과 저장값을 함께** 고친다. 실패하면 그 이유를 준다.
+  ///
+  /// ## 사진과 달리 다시 받아오지 않는다
+  ///
+  /// `PATCH .../me/nickname`의 200이 **새 이름을 그대로 돌려주기** 때문이다.
+  /// 사진은 서버만 아는 주소가 새로 생겨 [reload]가 필요했지만, 여기서는
+  /// 부를 이유가 없다 — 마침 그 API가 아직 배포 전이라 불렀다면 실패했을 것이다.
+  Future<NicknameChangeFailure?> changeNickname(String nickname) async {
+    final String changed;
+    try {
+      changed = await ref
+          .read(profileRepositoryProvider)
+          .changeNickname(nickname);
+    } on NicknameChangeException catch (error) {
+      return error.failure;
+    }
+
+    // ⚠️ 저장값도 함께 고친다. 안 고치면 앱을 다시 켰을 때 **옛 이름이
+    // 돌아온다** — 캐시가 화면의 첫 출처라서.
+    final store = ref.read(tokenStoreProvider);
+    final stored = await store.read();
+    final userId = stored.userId;
+    if (userId != null) {
+      await store.saveCurrentUser(
+        userId: userId,
+        isOnboarded: stored.isOnboarded,
+        nickname: changed,
+        // 나머지는 그대로 둔다. `saveCurrentUser`는 넷을 통째로 덮어쓴다.
+        profileImageUrl: stored.profileImageUrl,
+        introduction: stored.introduction,
+      );
+    }
+
+    final summary = state.summary;
+    state = ProfileSummaryState(
+      summary: summary != null
+          ? ProfileSummary(
+              userId: summary.userId,
+              nickname: changed,
+              profileImageUrl: summary.profileImageUrl,
+              introduction: summary.introduction,
+              friendCount: summary.friendCount,
+            )
+          // 요약을 한 번도 못 받았어도 이름만은 보여준다. 방금 바꾼 값이라
+          // 서버와 어긋날 수 없다.
+          : userId == null
+          ? null
+          : ProfileSummary(userId: userId, nickname: changed, friendCount: 0),
+      failure: state.failure,
+    );
+    return null;
+  }
 
   /// 소개글·신체 정보를 한 번에 저장한다. 실패하면 그 이유를 준다.
   ///

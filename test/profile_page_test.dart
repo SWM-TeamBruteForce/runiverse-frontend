@@ -374,6 +374,20 @@ void main() {
     expect(find.byIcon(LucideIcons.camera), findsOneWidget);
   });
 
+  testWidgets('편집 화면에서 닉네임을 누르면 변경 시트가 열린다', (tester) async {
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      summary: FakeProfileRepository(nickname: '별밤러너'),
+    );
+
+    await openEditPage(tester);
+    await tester.tap(find.text('별밤러너'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.profileNicknameChangeTitle), findsWidgets);
+  });
+
   testWidgets('사진이 없으면 시트에 지우는 항목이 없다', (tester) async {
     await pumpProfile(tester, onboarded: true);
     await openSheet(tester);

@@ -12,6 +12,7 @@ import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/widgets/app_input.dart';
 import 'package:runiverse/core/widgets/wheel_picker_sheet.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
+import 'package:runiverse/features/profile/presentation/nickname_sheet.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 
@@ -22,9 +23,11 @@ import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 /// | 무엇 | 언제 저장되나 |
 /// |---|---|
 /// | 사진 | 고르는 **즉시** (47~50번) |
+/// | 닉네임 | 시트에서 **즉시** (52번 — 중복확인·409) |
 /// | 소개글·생년월일·키·몸무게 | **저장 버튼 하나로** (51번) |
 ///
-/// 서버가 그렇게 갈라 놨다. 사진은 3단계 업로드라 저장 버튼에 묶을 수 없다.
+/// 서버가 그렇게 갈라 놨다. 사진은 3단계 업로드라 저장 버튼에 묶을 수 없고,
+/// 닉네임은 중복 검사가 붙어 누르는 자리에서 답이 나야 한다.
 ///
 /// 화면에서는 **누르면 시트가 열리는 것은 거기서 끝나고, 화면에 남는 것만
 /// 저장을 기다린다.** 이 구분이 보이지 않으면 사진을 바꾸고 저장을 안 눌러
@@ -286,6 +289,17 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                         ),
                       ),
                       const SizedBox(height: AppSpacing.space7),
+
+                      // 닉네임도 시트에서 즉시 저장된다.
+                      _Label(AppStrings.profileNicknameLabel),
+                      _ValueRow(
+                        value: summary?.nickname,
+                        onTap: () => showNicknameSheet(
+                          context,
+                          current: summary?.nickname,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.space6),
 
                       _Label(AppStrings.profileIntroductionLabel),
                       const SizedBox(height: AppSpacing.space2),

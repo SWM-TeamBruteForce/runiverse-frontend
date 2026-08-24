@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/profile/data/http_profile_repository.dart';
+import 'package:runiverse/features/profile/domain/nickname_change_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
 
 /// 프로필 요약 — `GET /api/v1/users/{userId}` (명세 37번).
@@ -97,6 +98,84 @@ void main() {
     expect(api.headers['Authorization'], 'Bearer a-1');
   });
 
+  // ── 닉네임 변경 — `PATCH /api/v1/users/me/nickname` (명세 52번) ──────
+  //
+  // 경로가 `me`다. 본인 것만 바꿀 수 있어 식별자를 받지 않는다.
+
+  group('닉네임 변경', () {
+    test('me 경로로 보낸 이름을 싣고 토큰과 함께 나간다', () async {
+      final repo = await repositoryReturning({'nickname': '완두콩'});
+
+      await repo.changeNickname('완두콩');
+
+      expect(api.path, '/api/v1/users/me/nickname');
+      expect(api.method, 'PATCH');
+      expect(api.requestBody, {'nickname': '완두콩'});
+      expect(api.headers['Authorization'], 'Bearer a-1');
+    });
+
+    test('보낸 값이 아니라 서버가 확정한 값을 돌려준다', () async {
+      // 서버가 다듬었다. 보낸 값을 화면에 올리면 화면과 서버가 갈라진다.
+      final repo = await repositoryReturning({'nickname': '완두콩'});
+
+      expect(await repo.changeNickname('  완두콩  '), '완두콩');
+    });
+
+    test('409 NICKNAME_ALREADY_EXISTS는 taken이다', () async {
+      final repo = await repositoryReturning({
+        'code': 'NICKNAME_ALREADY_EXISTS',
+        'message': '이미 사용 중인 닉네임입니다.',
+      }, status: 409);
+
+      expect(
+        () => repo.changeNickname('완두콩'),
+        throwsA(
+          isA<NicknameChangeException>().having(
+            (e) => e.failure,
+            'failure',
+            NicknameChangeFailure.taken,
+          ),
+        ),
+      );
+    });
+
+    test('같은 409라도 ONBOARDING_NOT_COMPLETED는 다른 실패다', () async {
+      // ⚠️ 묶으면 온보딩을 안 마친 사람에게 "다른 이름을 지어주세요"가 뜬다.
+      final repo = await repositoryReturning({
+        'code': 'ONBOARDING_NOT_COMPLETED',
+        'message': '온보딩을 먼저 완료해 주세요.',
+      }, status: 409);
+
+      expect(
+        () => repo.changeNickname('완두콩'),
+        throwsA(
+          isA<NicknameChangeException>().having(
+            (e) => e.failure,
+            'failure',
+            NicknameChangeFailure.notOnboarded,
+          ),
+        ),
+      );
+    });
+
+    test('400은 invalid — 앱 규칙이 서버와 어긋났다는 신호다', () async {
+      final repo = await repositoryReturning({
+        'code': 'INVALID_REQUEST',
+      }, status: 400);
+
+      expect(
+        () => repo.changeNickname('완두콩'),
+        throwsA(
+          isA<NicknameChangeException>().having(
+            (e) => e.failure,
+            'failure',
+            NicknameChangeFailure.invalid,
+          ),
+        ),
+      );
+    });
+  });
+
   // ── 프로필 수정 — `PATCH /api/v1/users/me/profile` (명세 51번) ───────
   //
   // 부분 수정이다. **보낸 필드만 바뀌고 생략한 것은 그대로 남는다.**
@@ -175,6 +254,23 @@ void main() {
     });
   });
 
+  group('닉네임 중복확인', () {
+    test('토큰 없이 나간다 — 서버가 공개로 열어 둔 경로다', () async {
+      final repo = await repositoryReturning({'available': true});
+
+      await repo.isNicknameAvailable('완두콩');
+
+      expect(api.path, '/api/v1/users/nickname/availability');
+      expect(api.headers.containsKey('Authorization'), isFalse);
+    });
+
+    test('몸통이 기대와 다르면 false가 아니라 null이다', () async {
+      // ⚠️ `false`로 떨어뜨리면 멀쩡한 이름이 거절된다.
+      final repo = await repositoryReturning({'available': 'yes'});
+
+      expect(await repo.isNicknameAvailable('완두콩'), isNull);
+    });
+  });
 }
 
 class _CannedAdapter implements HttpClientAdapter {
