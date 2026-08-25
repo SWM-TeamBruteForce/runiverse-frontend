@@ -381,7 +381,7 @@ class _FailureNotice extends StatelessWidget {
     AuthFailure.oauthEmailMissing => AppStrings.authFailedOauthEmail,
     // 카카오 계정의 이메일로 이미 가입한 사람이다. 서버가 자동 연동하지 않으므로
     // **이메일 로그인으로 안내한다** — "이미 가입했다"만으로는 갈 곳을 모른다.
-    AuthFailure.emailAlreadyExists => AppStrings.authFailedOauthEmailTaken,
+    AuthFailure.emailAlreadyExists => AppStrings.authFailedEmailTaken,
     // 취소는 `_signInWithKakao`가 걸러내 여기까지 오지 않는다.
     // enum이라 자리는 있어야 하고, 빈 문구가 그 사실을 드러낸다.
     AuthFailure.oauthCancelled => '',

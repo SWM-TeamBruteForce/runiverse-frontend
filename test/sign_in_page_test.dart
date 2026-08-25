@@ -276,7 +276,7 @@ void main() {
       await tester.tap(find.widgetWithText(AppButton, AppStrings.authKakao));
       await tester.pumpAndSettle();
 
-      expect(find.text(AppStrings.authFailedOauthEmailTaken), findsOneWidget);
+      expect(find.text(AppStrings.authFailedEmailTaken), findsOneWidget);
     });
   });
 
