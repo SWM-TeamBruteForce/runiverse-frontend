@@ -49,14 +49,18 @@ class FakeSettingsRepository implements SettingsRepository {
   /// 지금 값. [updateSettings]가 여기를 고친다.
   AppSettings settings;
 
-  final SettingsFailure? accountFailure;
-  final SettingsFailure? settingsFailure;
+  // ⚠️ **`final`이 아니다.** 서버가 죽었다 살아나는 상황을 만들려면 같은
+  // 인스턴스가 도중에 답을 바꿀 수 있어야 한다 — 새 인스턴스로 갈아 끼우면
+  // "실패가 지워졌는지"를 검사하지 못하고 처음부터 실패가 없던 것을 본다.
+
+  SettingsFailure? accountFailure;
+  SettingsFailure? settingsFailure;
 
   /// 주면 설정 변경이 그 이유로 실패한다. **되돌리기를 보는 데 쓴다.**
-  final SettingsFailure? updateFailure;
+  SettingsFailure? updateFailure;
 
-  final PasswordChangeFailure? passwordFailure;
-  final SettingsFailure? withdrawFailure;
+  PasswordChangeFailure? passwordFailure;
+  SettingsFailure? withdrawFailure;
 
   /// 마지막으로 받은 변경 요청. **무엇을 보냈고 무엇을 뺐는지** 보는 데 쓴다.
   Map<String, Object?>? updated;
