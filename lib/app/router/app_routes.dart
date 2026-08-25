@@ -95,4 +95,10 @@ abstract final class AppRoutes {
   /// **탭 셸 밖에 둔다.** 정본이 `‹ 프로필 편집  저장` 헤더의 전체 화면이라
   /// 하단 탭이 함께 보이면 저장하지 않고 다른 탭으로 샐 수 있다.
   static const profileEdit = '/profile/edit';
+
+  /// 설정 (S22.2)
+  ///
+  /// **탭 셸 밖에 둔다.** [profileEdit]과 같은 이유다 — 하단 탭이 함께 보이면
+  /// 설정을 하다 말고 다른 탭으로 샌다.
+  static const settings = '/profile/settings';
 }

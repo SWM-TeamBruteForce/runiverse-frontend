@@ -535,4 +535,72 @@ abstract final class AppStrings {
       '닉네임과 페이스로 상대를 찾고 기록을 계산해요.\n비워두면 매칭을 시작할 수 없어요';
 
   static const profileSheetCta = '프로필 입력하기';
+
+  // ── 설정 (S22.2) ────────────────────────────────────────────
+  //
+  // 정본과 세 곳이 다르다. 서버가 그렇게 되어 있다.
+  //
+  // - 알림이 3종(매칭·러닝·소셜)이 아니라 **하나**다 (`alertConsent`)
+  // - 공개 범위가 3단이 아니라 **둘**이다 (`PUBLIC` / `FRIENDS`)
+  // - `FRIENDS`를 **"친구"라고 부르지 않는다** — 이 파일 맨 위의 톤 규칙과
+  //   `CLAUDE.md`가 정한 것이다. 요청→수락 모델이라 "팔로워"로 쓴다
+
+  static const settingsTitle = '설정';
+
+  static const settingsNotificationSection = '알림';
+
+  static const settingsAlertConsent = '알림 허용';
+
+  /// ⚠️ **지금은 이걸 켜도 알림이 오지 않는다.** 앱에 알림을 띄우는 코드가
+  /// 아직 없다. 그래서 "받고 있어요"가 아니라 **받겠다는 의사**로 적는다.
+  static const settingsAlertConsentWhy = '매칭과 러닝 소식을 받아요';
+
+  static const settingsVisibilitySection = '공개 범위';
+
+  static const settingsVisibilityPublic = '전체 공개';
+
+  /// 서버 `FRIENDS`. 정본의 "팔로워공개"와 같은 것이다.
+  static const settingsVisibilityFollowers = '팔로워에게만';
+
+  static const settingsVisibilityPublicWhy = '누구나 프로필을 볼 수 있어요';
+
+  static const settingsVisibilityFollowersWhy = '팔로워만 프로필을 볼 수 있어요';
+
+  static const settingsAccountSection = '계정';
+
+  static const settingsEmail = '이메일';
+
+  static const settingsLoginMethod = '로그인';
+
+  static const settingsLoginLocal = '이메일';
+  static const settingsLoginKakao = '카카오';
+  static const settingsLoginGoogle = '구글';
+
+  /// 서버가 모르는 제공자를 보냈다. **비밀번호 메뉴는 숨는다.**
+  static const settingsLoginUnknown = '확인 불가';
+
+  static const settingsPassword = '비밀번호 변경';
+
+  static const settingsTerms = '약관 및 개인정보처리방침';
+
+  static const settingsSignOut = '로그아웃';
+
+  static const settingsWithdraw = '회원 탈퇴';
+
+  // ── 설정 · 실패와 확인 ───────────────────────────────────────
+
+  static const settingsLoadFailed = '설정을 불러오지 못했어요';
+
+  static const settingsRetry = '다시 시도';
+
+  /// 낙관적 반영이 되돌아갔을 때. **무엇이 되돌아갔는지** 알 수 있어야 한다.
+  static const settingsUpdateFailed = '바꾸지 못했어요. 다시 시도해주세요';
+
+  static const settingsSessionExpired = '로그인이 만료됐어요. 다시 로그인해주세요';
+
+  static const settingsSignOutTitle = '로그아웃할까요';
+
+  static const settingsSignOutBody = '기록은 그대로 남아 있어요.';
+
+  static const settingsCancel = '취소';
 }

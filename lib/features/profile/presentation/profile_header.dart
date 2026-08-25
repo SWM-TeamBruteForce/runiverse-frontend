@@ -97,8 +97,12 @@ class ProfileHeader extends ConsumerWidget {
                 },
               ),
               const SizedBox(width: AppSpacing.space2),
-              // 설정 화면은 아직 없다. 눌리지 않는다.
-              const _HeaderAction(icon: LucideIcons.settings),
+              // 편집과 달리 **돌아와서 다시 받아오지 않는다.** 설정은 프로필
+              // 요약(닉네임·사진·소개글)을 건드리지 않는다.
+              _HeaderAction(
+                icon: LucideIcons.settings,
+                onTap: () => context.push(AppRoutes.settings),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.space2),
