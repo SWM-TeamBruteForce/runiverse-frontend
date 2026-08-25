@@ -207,6 +207,20 @@ abstract interface class SettingsRepository {
 
 두 경우 모두 `AuthSignedOut(returning: true)`로 간다 — 로그아웃한 사람은 처음 온 사람이 아니다.
 
+### ⚠️ 상태만 바꾸면 화면이 옮겨지지 않는다
+
+구현하며 알게 된 것이다. **라우터에 인증 `redirect`가 아직 없고**
+(`app_router.dart`의 "아직 안 한 것"), `AppShell`의 관문은 `AuthSignedIn`일 때만 선다.
+설정은 셸 밖이라 그 앞도 지나지 않는다.
+
+내보내지 않으면 **로그아웃한 사람이 설정 화면에 그대로 남고, 뒤로 가면
+로그인하지 않은 채로 홈이 보인다.** 로그아웃 UI가 지금까지 없어서 이 경로는
+한 번도 실행된 적이 없었다.
+
+그래서 화면이 직접 `context.go(AppRoutes.signIn)`으로 내보낸다.
+`push`가 아닌 `go`인 것은 스택을 비우기 위해서다 — 뒤로가기로 설정에 돌아오면 안 된다.
+**라우터에 `redirect`가 붙으면 이 호출은 지운다.**
+
 ⚠️ 탈퇴는 **되돌릴 수 없다.** 확인 시트에서 한 번 더 묻고,
 `profile_prompt_sheet.dart`가 아니라 파괴적 동작임이 드러나는 문구·색으로 만든다.
 

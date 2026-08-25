@@ -36,9 +36,7 @@ void main() {
   ) => ProviderContainer.test(
     overrides: [
       tokenStoreProvider.overrideWithValue(store),
-      signInMemoryStoreProvider.overrideWithValue(
-        InMemorySignInMemoryStore(),
-      ),
+      signInMemoryStoreProvider.overrideWithValue(InMemorySignInMemoryStore()),
       profileRepositoryProvider.overrideWithValue(repository),
     ],
   );

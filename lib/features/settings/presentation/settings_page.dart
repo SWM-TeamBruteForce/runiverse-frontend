@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
 import 'package:runiverse/core/theme/tokens/app_radius.dart';
@@ -13,6 +15,7 @@ import 'package:runiverse/features/settings/domain/login_type.dart';
 import 'package:runiverse/features/settings/domain/profile_visibility.dart';
 import 'package:runiverse/features/settings/domain/settings_failure.dart';
 import 'package:runiverse/features/settings/presentation/settings_provider.dart';
+import 'package:runiverse/features/settings/presentation/withdraw_sheet.dart';
 
 /// 설정 (S22.2).
 ///
@@ -105,9 +108,58 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
     if (confirmed != true || !mounted) return;
 
-    // 화면을 직접 옮기지 않는다. 상태가 `AuthSignedOut`으로 바뀌면
-    // 라우터가 로그인 화면으로 보낸다 — 이동 규칙이 두 곳에 있으면 어긋난다.
     await ref.read(authControllerProvider.notifier).signOut();
+    _leave();
+  }
+
+  /// 로그인 화면으로 내보낸다.
+  ///
+  /// ## ⚠️ 상태를 바꾸는 것만으로는 화면이 옮겨지지 않는다
+  ///
+  /// 라우터에 인증 `redirect`가 **아직 없다**(`app_router.dart`의 "아직 안 한 것").
+  /// `AppShell`의 관문도 `AuthSignedIn`일 때만 서는데, 이 화면은 **셸 밖**이라
+  /// 그 앞도 지나지 않는다. 여기서 옮기지 않으면 로그아웃한 사람이 설정 화면에
+  /// 그대로 남고, 뒤로 가면 로그인하지 않은 채로 홈이 보인다.
+  ///
+  /// `push`가 아니라 `go`인 것은 **스택을 비우기 위해서**다. 로그아웃한 뒤
+  /// 뒤로가기로 설정 화면에 돌아올 수 있으면 안 된다.
+  ///
+  /// 라우터에 `redirect`가 붙으면 이 호출은 지운다.
+  void _leave() {
+    if (mounted) context.go(AppRoutes.signIn);
+  }
+
+  // ── 약관 ──────────────────────────────────────────────────
+
+  /// 문서 주소가 아직 없다.
+  ///
+  /// 행을 감추지 않는 이유는, **약관을 볼 수 있어야 한다는 사실 자체가 약속**이라
+  /// 자리를 비워두면 나중에 붙이는 것을 잊기 때문이다.
+  void _openTerms() {
+    // 주소가 채워지면 여기서 `url_launcher`로 연다.
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text(AppStrings.settingsTermsPending)),
+    );
+  }
+
+  // ── 탈퇴 ──────────────────────────────────────────────────
+
+  Future<void> _withdraw() async {
+    if (!await showWithdrawSheet(context) || !mounted) return;
+
+    final failure = await ref
+        .read(settingsControllerProvider.notifier)
+        .withdraw();
+    if (!mounted) return;
+
+    if (failure == null) {
+      // 계정이 사라졌다. 로그아웃과 같은 곳으로 내보낸다.
+      _leave();
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text(AppStrings.withdrawFailed)));
   }
 
   // ── 그리기 ────────────────────────────────────────────────
@@ -173,12 +225,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 _ValueRow(
                   label: AppStrings.settingsLoginMethod,
-                  value: account == null ? null : _loginLabel(account.loginType),
+                  value: account == null
+                      ? null
+                      : _loginLabel(account.loginType),
                 ),
+                // 소셜 계정에는 비밀번호가 없다. 보여줬다가 409를 맞는 것보다
+                // 안 보이는 편이 낫다. `loginType`을 못 읽었을 때도 숨는다.
+                if (account?.canChangePassword ?? false)
+                  _ActionRow(
+                    label: AppStrings.settingsPassword,
+                    onTap: () => context.push(AppRoutes.passwordChange),
+                  ),
+                _ActionRow(label: AppStrings.settingsTerms, onTap: _openTerms),
                 // ⚠️ 조회가 실패해도 이 행은 살아 있다.
+                _ActionRow(label: AppStrings.settingsSignOut, onTap: _signOut),
                 _ActionRow(
-                  label: AppStrings.settingsSignOut,
-                  onTap: _signOut,
+                  label: AppStrings.settingsWithdraw,
+                  onTap: _withdraw,
+                  danger: true,
                 ),
               ],
             ),
@@ -341,9 +405,7 @@ class _ValueRow extends StatelessWidget {
                 text,
                 textAlign: TextAlign.end,
                 overflow: TextOverflow.ellipsis,
-                style: AppTypography.body.copyWith(
-                  color: colors.textSecondary,
-                ),
+                style: AppTypography.body.copyWith(color: colors.textSecondary),
               ),
             )
           else
@@ -356,15 +418,22 @@ class _ValueRow extends StatelessWidget {
 
 /// 누르면 무언가 일어나는 행.
 class _ActionRow extends StatelessWidget {
-  const _ActionRow({required this.label, required this.onTap});
+  const _ActionRow({
+    required this.label,
+    required this.onTap,
+    this.danger = false,
+  });
 
   final String label;
   final VoidCallback onTap;
 
+  /// 되돌릴 수 없는 동작. `error` 색으로 적는다.
+  final bool danger;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final color = colors.textPrimary;
+    final color = danger ? colors.error : colors.textPrimary;
 
     return Material(
       type: MaterialType.transparency,
@@ -428,9 +497,7 @@ class _VisibilityChips extends StatelessWidget {
             padding: const EdgeInsets.only(left: AppSpacing.space1),
             child: Text(
               _description(selected),
-              style: AppTypography.caption.copyWith(
-                color: colors.textTertiary,
-              ),
+              style: AppTypography.caption.copyWith(color: colors.textTertiary),
             ),
           ),
         ],

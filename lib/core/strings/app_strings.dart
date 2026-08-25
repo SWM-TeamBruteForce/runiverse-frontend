@@ -603,4 +603,58 @@ abstract final class AppStrings {
   static const settingsSignOutBody = '기록은 그대로 남아 있어요.';
 
   static const settingsCancel = '취소';
+
+  /// 약관 문서 주소가 아직 정해지지 않았다. `LegalLinks`를 함께 본다.
+  static const settingsTermsPending = '약관 문서를 준비하고 있어요';
+
+  // ── 비밀번호 변경 ────────────────────────────────────────────
+  //
+  // ⚠️ **"재설정"이 아니라 "변경"이다.** 서버가 `currentPassword`를 요구한다 —
+  // 지금 비밀번호를 알아야 바꿀 수 있다. 비밀번호를 **잊은** 사람을 위한
+  // 흐름(이메일 인증 후 재설정)은 명세에 없다.
+  //
+  // 규칙 문구는 가입 화면과 같은 것을 쓴다 (`authPasswordGuide` 등) —
+  // 같은 `PasswordRule`을 쓰므로 문구가 갈리면 그것이 곧 버그다.
+
+  static const passwordChangeTitle = '비밀번호 변경';
+
+  static const passwordCurrentLabel = '현재 비밀번호';
+
+  static const passwordNewLabel = '새 비밀번호';
+
+  static const passwordConfirmLabel = '새 비밀번호 확인';
+
+  static const passwordChangeCta = '변경하기';
+
+  static const passwordChanged = '비밀번호를 바꿨어요';
+
+  static const passwordMismatch = '새 비밀번호가 서로 달라요';
+
+  /// 서버 401 `INVALID_CURRENT_PASSWORD`.
+  ///
+  /// ⚠️ 같은 401인 세션 만료와 **다른 문구여야 한다.** 묶으면 비밀번호를 틀린
+  /// 사람에게 "다시 로그인하세요"라고 말하게 된다.
+  static const passwordWrongCurrent = '현재 비밀번호가 올바르지 않아요';
+
+  /// 서버 409 `PASSWORD_NOT_SET`. 메뉴를 숨기므로 정상적으로는 오지 않는다.
+  static const passwordNotLocal = '소셜 계정은 비밀번호를 바꿀 수 없어요';
+
+  static const passwordChangeFailed = '바꾸지 못했어요. 다시 시도해주세요';
+
+  // ── 회원 탈퇴 ────────────────────────────────────────────────
+  //
+  // **되돌릴 수 없다.** 무엇이 사라지고 무엇이 남는지 정확히 적는다 —
+  // "정말요?"만 묻는 확인은 아무 정보도 주지 않는다.
+
+  static const withdrawTitle = '정말 탈퇴할까요';
+
+  /// 서버의 데이터 정책을 그대로 옮겼다. 기록·색은 지워지고, 이미 올린 글은
+  /// 작성자만 가려진 채 남는다.
+  static const withdrawBody =
+      '기록과 색이 모두 사라져요. 되돌릴 수 없어요.\n'
+      '이미 올린 피드는 작성자가 가려진 채 남아요.';
+
+  static const withdrawConfirm = '탈퇴하기';
+
+  static const withdrawFailed = '탈퇴하지 못했어요. 다시 시도해주세요';
 }
