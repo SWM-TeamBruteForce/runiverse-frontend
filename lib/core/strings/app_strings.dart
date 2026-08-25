@@ -225,6 +225,16 @@ abstract final class AppStrings {
   // 이메일·비밀번호 입력은 정본에 없고, 백엔드가 그 방식을 요구해 한 화면에 합쳤다.
   // (`docs/implementation-notes.md` 참조)
 
+  /// 아이디를 기기에 남길지. **끄면 저장해 둔 값도 지운다** —
+  /// 공유 기기에서 남의 이메일이 남지 않아야 한다.
+  static const authRememberEmail = '아이디 저장';
+
+  /// 마지막으로 성공한 로그인 방법에 붙는 표시.
+  ///
+  /// ⚠️ **이 기기에서 로그인한 적이 있어야 뜬다.** 앱을 지웠다 깔거나 기기를
+  /// 바꾸면 없다 — "내가 뭘로 가입했더라"가 떠오르는 순간이 대개 그때다.
+  static const authLastUsed = '최근 사용';
+
   static const authKakao = '카카오로 계속하기';
   static const authApple = 'Apple로 계속하기';
 
@@ -343,7 +353,6 @@ abstract final class AppStrings {
   /// 이메일 동의를 못 받았다. **무엇을 해야 하는지** 말한다 —
   /// "실패했어요"만으로는 다시 눌러도 같은 결과가 나온다.
   static const authFailedOauthEmail = '이메일 제공에 동의해야 로그인할 수 있어요';
-
 
   // ── 홈 (S05) ─────────────────────────────────────────────────
 

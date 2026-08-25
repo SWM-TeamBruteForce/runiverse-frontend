@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/storage/consent_store.dart';
+import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
@@ -40,6 +41,9 @@ void main() {
           // 앱은 SecureTokenStore를 쓰는데 그것은 플랫폼 채널을 부른다.
           // 로그인에 성공하면 토큰을 저장하므로 여기서도 갈아끼워야 한다.
           tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
+          signInMemoryStoreProvider.overrideWithValue(
+            InMemorySignInMemoryStore(),
+          ),
           consentStoreProvider.overrideWithValue(consent),
           // 지연이 있으면 pumpAndSettle이 실제로 기다린다. 테스트에서는 뺀다.
           authRepositoryProvider.overrideWithValue(

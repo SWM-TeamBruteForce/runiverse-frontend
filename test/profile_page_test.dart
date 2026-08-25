@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/storage/consent_store.dart';
+import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/tokens/run_palette.dart';
@@ -78,6 +79,9 @@ void main() {
       ProviderScope(
         overrides: [
           tokenStoreProvider.overrideWithValue(store),
+          signInMemoryStoreProvider.overrideWithValue(
+            InMemorySignInMemoryStore(),
+          ),
           consentStoreProvider.overrideWithValue(InMemoryConsentStore()),
           authRepositoryProvider.overrideWithValue(
             meFails ? _MeFailsRepository(repository) : repository,
