@@ -32,6 +32,35 @@ class RunMapView extends StatefulWidget {
 }
 
 class _RunMapViewState extends State<RunMapView> {
+  /// 스타일 에디터에서 만든 야간 스타일(`runiverse_night_default`).
+  ///
+  /// ⚠️ **이름이 아니라 My Style ID다.** 이름을 넣으면 서버가 400
+  /// (`Invalid custom style ID`)으로 거절하고 SDK는 조용히 기본 스타일로
+  /// 떨어진다. 실제로 그렇게 한 번 헤맸다.
+  ///
+  /// ⚠️ **시크릿이 아니다.** 클라이언트 ID와 달리 사용량이 걸려 있지 않고
+  /// 환경마다 달라지지도 않아 `config/*.json`으로 빼지 않는다.
+  ///
+  /// ⚠️ **없는 ID면 조용히 기본 스타일로 떨어진다.** 앱이 죽지는 않지만
+  /// 지도가 밝게 나오면 이 값부터 본다.
+  static const _styleId = '66d8e4b2-5d6f-4099-8372-e979cc683c65';
+
+  /// 초기 줌. **스케일바로 약 400m**에 해당한다.
+  ///
+  /// 축척은 위도에 따라 달라진다(Web Mercator) —
+  /// `metersPerPixel = 156543.034 × cos(위도) / 2^zoom`.
+  /// 서울(위도 37.5) 기준으로 16이 400m, 17이 200m, 18이 100m, 20이 30m다.
+  ///
+  /// ## 30m에서 세 번 낮췄다
+  ///
+  /// 처음엔 20(30m)으로 열었는데 **달리는 동안 경로가 화면에 남지 않았다.**
+  /// 3m/s면 10초에 30m라 금방 밖으로 나간다. 18·17을 거쳐 16으로 왔다 —
+  /// 몇 분치 경로가 한눈에 들어온다.
+  static const _initialZoom = 16.0;
+
+  /// 첫 좌표를 받기 전에 열어 둘 자리. 곧 내 위치로 따라간다.
+  static const _fallbackTarget = NLatLng(37.5666, 126.9784);
+
   NaverMapController? _controller;
 
   @override
@@ -45,7 +74,16 @@ class _RunMapViewState extends State<RunMapView> {
     if (!AppConfig.hasNaverMapClientId) return const _MapUnavailable();
 
     return NaverMap(
-      options: const NaverMapViewOptions(
+      options: NaverMapViewOptions(
+        // 달리는 사람이 보는 지도다. 어두운 바탕에서 경로선이 또렷하다.
+        //
+        // ⚠️ 커스텀 스타일을 쓰면 **야간·라이트 모드가 고정된다**(SDK 제약).
+        // 앱이 라이트 테마여도 지도는 어둡게 나온다.
+        customStyleId: _styleId,
+        initialCameraPosition: NCameraPosition(
+          target: _firstPoint() ?? _fallbackTarget,
+          zoom: _initialZoom,
+        ),
         // 내 위치를 따라간다. 달리면서 지도를 손으로 끌 여유는 없다.
         locationButtonEnable: true,
         // 러닝 중에는 기울이거나 돌릴 일이 없다. 손가락이 미끄러져 화면이
@@ -54,12 +92,30 @@ class _RunMapViewState extends State<RunMapView> {
         tiltGesturesEnable: false,
         indoorEnable: false,
       ),
+      // ⚠️ 스타일이 안 먹어도 SDK는 **조용히 기본 스타일로 떨어진다.**
+      // 콜백이 없으면 "왜 밝지"에서 멈춘다 — 실패 이유를 듣는다.
+      onCustomStyleLoadFailed: (error) =>
+          debugPrint('[naver-map] 커스텀 스타일 실패 · id=$_styleId · $error'),
       onMapReady: (controller) {
         _controller = controller;
+        // 추적 모드가 카메라를 현재 위치로 옮기지만 **줌은 덮지 않는다.**
+        // (실기기에서 `getCameraPosition()`으로 확인했다 — 16을 넣으면 16이다.)
         controller.setLocationTrackingMode(NLocationTrackingMode.follow);
         _draw();
       },
     );
+  }
+
+  /// 이미 달린 구간이 있으면 그 시작점에서 연다. 없으면 `null`.
+  ///
+  /// 요약 화면이 이 값을 쓴다 — 러닝이 끝난 뒤에는 따라갈 현재 위치가 없다.
+  NLatLng? _firstPoint() {
+    for (final segment in widget.track) {
+      if (segment.isNotEmpty) {
+        return NLatLng(segment.first.latitude, segment.first.longitude);
+      }
+    }
+    return null;
   }
 
   /// 경로를 다시 그린다.
