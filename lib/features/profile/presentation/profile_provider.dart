@@ -99,9 +99,34 @@ class ProfileSummaryController extends Notifier<ProfileSummaryState> {
     try {
       final summary = await ref.read(profileRepositoryProvider).fetch(userId);
       state = ProfileSummaryState(summary: summary);
+
+      // ⚠️ **받아온 값을 기기에 남긴다.** 편집 화면이 이 값으로 그리고,
+      // 앱을 껐다 켠 뒤에도 서버를 기다리는 동안 화면이 비지 않는다.
+      await _remember(userId, stored.isOnboarded, summary);
     } on ProfileException catch (error) {
       state = ProfileSummaryState(summary: cached, failure: error.failure);
     }
+  }
+
+  /// 서버가 준 요약을 기기에 저장한다.
+  ///
+  /// **친구 수는 남기지 않는다.** 저장소에 자리가 없고, 37번이 배포되면 홈이
+  /// 열릴 때마다 새로 받아오므로 캐시가 쓰이는 구간이 아주 짧다.
+  Future<void> _remember(
+    String userId,
+    bool isOnboarded,
+    ProfileSummary summary,
+  ) async {
+    await ref
+        .read(tokenStoreProvider)
+        .saveCurrentUser(
+          userId: userId,
+          // 37번 응답에는 `isOnboarded`가 없다. 지금 값을 그대로 둔다.
+          isOnboarded: isOnboarded,
+          nickname: summary.nickname,
+          profileImageUrl: summary.profileImageUrl,
+          introduction: summary.introduction,
+        );
   }
 
   /// 사진을 바꾸거나 지운 뒤 다시 부른다. **새 주소는 서버만 안다.**

@@ -87,4 +87,37 @@ void main() {
     // 누구를 물어볼지 모른다. 빈 userId로 부르면 서버가 404를 준다.
     expect(repository.calls, 0);
   });
+
+  test('⚠️ 서버가 준 값을 기기에 남긴다', () async {
+    // 편집 화면이 이 값으로 그리고, 앱을 껐다 켠 뒤에도 화면이 비지 않는다.
+    final store = await signedInStore();
+    final container = makeContainer(
+      store,
+      FakeProfileRepository(
+        nickname: '서버이름',
+        introduction: '아침에 달려요',
+        profileImageUrl: 'https://cdn.test/a.png',
+      ),
+    );
+
+    await container.read(profileSummaryControllerProvider.notifier).load();
+
+    final stored = await store.read();
+    expect(stored.nickname, '서버이름');
+    expect(stored.introduction, '아침에 달려요');
+    expect(stored.profileImageUrl, 'https://cdn.test/a.png');
+  });
+
+  test('⚠️ 서버가 실패하면 저장해 둔 값을 덮지 않는다', () async {
+    // 500 한 번에 캐시가 지워지면, 다음에 앱을 켤 때 화면이 통째로 빈다.
+    final store = await signedInStore(nickname: '캐시된이름');
+    final container = makeContainer(
+      store,
+      FakeProfileRepository(failure: ProfileFailure.server),
+    );
+
+    await container.read(profileSummaryControllerProvider.notifier).load();
+
+    expect((await store.read()).nickname, '캐시된이름');
+  });
 }

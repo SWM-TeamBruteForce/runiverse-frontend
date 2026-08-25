@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
@@ -9,6 +10,7 @@ import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
+import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 
 /// 프로필 헤더 — 아바타 · 닉네임 · 시그니처 컬러 · 팔로워/팔로잉.
 ///
@@ -21,7 +23,7 @@ import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
 ///
 /// **대표 기록 대시보드도 뺐다.** 세 값이 전부 러닝 기록에서 나오는데 기록 기능이
 /// 없다. 넣으면 `0 km · 상위 --%`가 나란히 서서 화면이 고장 난 것처럼 읽힌다.
-class ProfileHeader extends StatelessWidget {
+class ProfileHeader extends ConsumerWidget {
   const ProfileHeader({
     this.nickname,
     this.introduction,
@@ -60,7 +62,7 @@ class ProfileHeader extends StatelessWidget {
   final String? photoUrl;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
     // 지역 변수로 받는다 — public 필드는 `!= null` 검사로 승격되지 않는다.
     final nickname = this.nickname;
@@ -84,7 +86,15 @@ class ProfileHeader extends StatelessWidget {
             children: [
               _HeaderAction(
                 icon: LucideIcons.pencil,
-                onTap: () => context.push(AppRoutes.profileEdit),
+                // ⚠️ **돌아오면 다시 받아온다.** 편집 화면에서 사진·닉네임은
+                // 누르는 자리에서 이미 저장됐고, 소개글은 저장 버튼으로 갔다.
+                // 다시 받지 않으면 홈이 편집 전 값을 그린다.
+                onTap: () async {
+                  await context.push(AppRoutes.profileEdit);
+                  await ref
+                      .read(profileSummaryControllerProvider.notifier)
+                      .load();
+                },
               ),
               const SizedBox(width: AppSpacing.space2),
               // 설정 화면은 아직 없다. 눌리지 않는다.
