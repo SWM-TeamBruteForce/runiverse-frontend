@@ -7,6 +7,7 @@ import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_state.dart';
+import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_photo_sheet.dart';
 
 /// 프로필 사진. **누르면 바꿀 수 있다.**
@@ -22,7 +23,17 @@ import 'package:runiverse/features/profile/presentation/profile_photo_sheet.dart
 /// 회전 표시를 넣지 않는다. **대부분은 사진을 올린 적이 없는 사람**이라,
 /// 탭을 열 때마다 도는 표시가 떴다가 결국 같은 기본 아이콘으로 끝난다.
 class ProfileAvatar extends ConsumerStatefulWidget {
-  const ProfileAvatar({this.editable = false, super.key});
+  const ProfileAvatar({this.url, this.editable = false, super.key});
+
+  /// 지금 사진의 열람 주소. **밖에서 받는다.**
+  ///
+  /// 스스로 받아오지 않는 이유가 둘이다. 프로필 요약(`GET /users/{userId}`)이
+  /// 이미 같은 값을 주므로 **같은 것을 두 번 받게 되고**, 무엇보다
+  /// `fetchUrl()`은 저장소의 `userId`를 쓰기 때문에 **타인 프로필에서도
+  /// 내 사진을 가져온다.** 누구의 사진인지는 부르는 쪽이 안다.
+  ///
+  /// ⚠️ 만료되는 주소다. 실패하면 기본 아이콘으로 조용히 물러선다.
+  final String? url;
 
   /// 편집 모드인가. **`false`면 눌리지 않고 표시도 없다.**
   ///
@@ -41,19 +52,12 @@ class ProfileAvatar extends ConsumerStatefulWidget {
 
 class _ProfileAvatarState extends ConsumerState<ProfileAvatar> {
   @override
-  void initState() {
-    super.initState();
-    // 화면이 열릴 때 묻는다. 컨트롤러가 스스로 부르지 않는 이유는
-    // **열람 주소가 만료되는 값**이어서다 — 언제 필요한지는 화면이 안다.
-    ref.read(profileImageControllerProvider.notifier).load();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    // 컨트롤러에서는 **바꾸는 중인지**만 본다. 주소는 밖에서 받는다.
     final state = ref.watch(profileImageControllerProvider);
     final ready = state is ProfileImageReady ? state : null;
-    final url = ready?.url;
+    final url = widget.url;
 
     final avatar = Semantics(
       // 편집 모드가 아니면 **버튼이라고 읽히지 않아야 한다** — 눌러도 아무 일이
@@ -159,6 +163,11 @@ class _ProfileAvatarState extends ConsumerState<ProfileAvatar> {
       ProfilePhotoAction.pick => await controller.change(),
       ProfilePhotoAction.reset => await controller.remove(),
     };
+
+    // **새 주소는 서버만 안다.** 다시 받지 않으면 아바타가 옛 사진을 문다.
+    if (failure == null) {
+      await ref.read(profileSummaryControllerProvider.notifier).reload();
+    }
     // 앨범을 다녀오는 사이에 화면이 사라졌을 수 있다.
     if (failure == null || !mounted) return;
 

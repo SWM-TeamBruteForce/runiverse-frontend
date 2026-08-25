@@ -392,8 +392,12 @@ abstract final class AppStrings {
   /// 결핍이 아니라 무엇을 하면 생기는지를 말한다.
   static const profileSignatureEmpty = '함께 달리면 색이 생겨요';
 
-  static const profileFollowers = '팔로워';
-  static const profileFollowing = '팔로잉';
+  /// 서로 수락해 함께 달리는 사람 수.
+  ///
+  /// ⚠️ **"친구"라고 쓰지 않는다.** 요청→수락 모델이고, 서비스가 쓰는 말은
+  /// 블렌드다(함께 달리면 색이 섞인다). 서버 응답 필드는 `friendCount`지만
+  /// 화면에 나가는 말은 이쪽이다.
+  static const profileBlendRunners = '블렌드 러너';
 
   static const profileBasicCollection = '기본 컬렉션';
   static const profileBlendCollection = '블렌드 컬렉션';
@@ -430,6 +434,62 @@ abstract final class AppStrings {
   /// 사진을 다루다 실패했다. **어디서 막혔는지는 말하지 않는다** —
   /// 사용자가 할 수 있는 일이 "다시 해보기" 하나라서 갈라 말할 이유가 없다.
   static const profilePhotoFailed = '사진을 바꾸지 못했어요. 다시 시도해주세요';
+
+  // ── 닉네임 변경 ─────────────────────────────────────────────
+  //
+  // 규칙 문구(`2~16자`, `이미 누가 쓰고 있어요` 등)는 **온보딩과 같은 것을
+  // 쓴다.** 같은 규칙을 두 벌로 적으면 한쪽만 고쳐지고, 사용자는 화면마다
+  // 다른 말을 듣는다.
+
+  /// 시트 제목이자 연필 배지의 접근성 라벨. **버튼과 같은 말을 쓴다** —
+  /// 여는 곳과 끝내는 곳의 이름이 다르면 같은 일인지 알기 어렵다.
+  static const profileNicknameChangeTitle = '닉네임 변경';
+  static const profileNicknameChangeSubmit = '변경';
+
+  /// 지금 쓰는 이름 그대로다.
+  ///
+  /// ⚠️ **중복확인을 보내지 않는다.** 보내면 서버가 "이미 사용 중"이라고
+  /// 답하는데, 그 이름을 쓰고 있는 사람이 본인이라 경고가 될 수 없다.
+  static const profileNicknameUnchanged = '지금 쓰고 있는 이름이에요';
+
+  /// 바꾸다 실패했다. [profilePhotoFailed]와 같은 이유로 갈라 말하지 않는다.
+  static const profileNicknameChangeFailed = '닉네임을 바꾸지 못했어요. 다시 시도해주세요';
+
+  // ── 프로필 편집 (S22.1) ─────────────────────────────────────
+  //
+  // 라벨(`닉네임` `생년월일` `키 · 몸무게`)과 실패 문구는 **온보딩 것을 그대로
+  // 쓴다.** 같은 값을 묻는 자리라 다른 말을 쓰면 사용자가 다른 것으로 읽는다.
+
+  static const profileEditTitle = '프로필 편집';
+  static const profileEditSave = '저장';
+
+  /// 아바타 아래 문구. 정본 S22.1의 `프로필 사진 변경`을 줄였다.
+  static const profileEditPhoto = '사진 바꾸기';
+
+  static const profileIntroductionLabel = '한 줄 소개';
+  static const profileIntroductionHint = '오늘도 달립니다';
+
+  static const profileBodySection = '신체 정보';
+
+  /// 온보딩을 마쳐야 바꿀 수 있다(서버 409 `ONBOARDING_NOT_COMPLETED`).
+  /// 프로필 탭까지 온 사람에게는 나오지 않아야 하는 말이다.
+  static const profileNicknameNotOnboarded = '프로필을 먼저 완성해주세요';
+
+  /// 아직 값을 모른다.
+  ///
+  /// ⚠️ **`설정하기` 같은 말을 쓰지 않는다.** 서버에 값이 없는 것이 아니라
+  /// **불러올 API가 없는 것**이라, 안 채운 사람에게 채우라고 말하는 셈이 된다.
+  /// 온보딩에서 이미 넣은 값이다.
+  static const profileEditUnknown = '—';
+
+  /// 저장하지 않고 나가려 할 때.
+  static const profileEditDiscardTitle = '바꾼 내용을 버릴까요';
+  static const profileEditDiscardBody = '저장하지 않으면 방금 고친 값이 사라져요.';
+  static const profileEditDiscardLeave = '나가기';
+  static const profileEditDiscardStay = '계속 편집';
+
+  /// 소개글 상한. 서버는 100자까지 받는다.
+  static const profileIntroductionTooLong = '100자까지 쓸 수 있어요';
 
   // ── 러닝 색 10범주 ───────────────────────────────────────────
   //
