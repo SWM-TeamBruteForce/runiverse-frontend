@@ -13,6 +13,7 @@ import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.
 import 'package:runiverse/features/profile/presentation/profile_edit_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
+import 'package:runiverse/features/settings/presentation/password_change_page.dart';
 import 'package:runiverse/features/settings/presentation/settings_page.dart';
 
 /// 라우터 조립 — 앱의 화면 목록이자 딥링크 표.
@@ -87,6 +88,13 @@ GoRouter createAppRouter({String? initialLocation}) {
       GoRoute(
         path: AppRoutes.settings,
         builder: (context, state) => const SettingsPage(),
+      ),
+      // ⚠️ 설정의 **자식으로 두지 않았다.** 자식이면 경로가
+      // `/profile/settings/password`가 아니라 상대 경로가 되고,
+      // 딥링크로 바로 열 때 부모가 먼저 그려져야 한다.
+      GoRoute(
+        path: AppRoutes.passwordChange,
+        builder: (context, state) => const PasswordChangePage(),
       ),
 
       StatefulShellRoute.indexedStack(

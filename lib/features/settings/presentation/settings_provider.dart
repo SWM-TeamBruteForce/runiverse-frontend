@@ -73,9 +73,7 @@ class SettingsState {
 }
 
 final settingsControllerProvider =
-    NotifierProvider<SettingsController, SettingsState>(
-      SettingsController.new,
-    );
+    NotifierProvider<SettingsController, SettingsState>(SettingsController.new);
 
 /// 설정을 읽고 바꾼다.
 ///

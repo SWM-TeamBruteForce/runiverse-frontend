@@ -38,10 +38,7 @@ abstract interface class SettingsRepository {
   ///
   /// **성공해도 토큰은 그대로다.** 서버가 세션을 끊지 않는다 —
   /// 다시 로그인시키지 않아도 된다.
-  Future<void> changePassword({
-    required String current,
-    required String next,
-  });
+  Future<void> changePassword({required String current, required String next});
 
   /// 계정을 지운다. **되돌릴 수 없다.**
   ///
