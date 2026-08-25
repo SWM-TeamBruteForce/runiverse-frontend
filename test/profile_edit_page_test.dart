@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/storage/consent_store.dart';
+import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
@@ -52,6 +53,9 @@ void main() {
       ProviderScope(
         overrides: [
           tokenStoreProvider.overrideWithValue(store),
+          signInMemoryStoreProvider.overrideWithValue(
+            InMemorySignInMemoryStore(),
+          ),
           consentStoreProvider.overrideWithValue(InMemoryConsentStore()),
           authRepositoryProvider.overrideWithValue(auth),
           // ⚠️ 없으면 아바타가 진짜 저장소를 만들고 `API_BASE_URL`이 없어 죽는다.

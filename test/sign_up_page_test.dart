@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
@@ -34,6 +35,9 @@ void main() {
           // true로 남아 스피너가 영원히 돈다 — `pumpAndSettle`이 끝나지 않는다.
           // 실패 경로는 저장소를 부르지 않아 멀쩡히 통과하므로 원인을 찾기 어렵다.
           tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
+          signInMemoryStoreProvider.overrideWithValue(
+            InMemorySignInMemoryStore(),
+          ),
           authRepositoryProvider.overrideWithValue(repository),
         ],
         child: const RuniverseApp(initialLocation: AppRoutes.signUp),

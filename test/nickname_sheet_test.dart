@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
@@ -48,6 +49,9 @@ void main() {
       ProviderScope(
         overrides: [
           tokenStoreProvider.overrideWithValue(store),
+          signInMemoryStoreProvider.overrideWithValue(
+            InMemorySignInMemoryStore(),
+          ),
           profileRepositoryProvider.overrideWithValue(repo),
         ],
         child: MaterialApp(

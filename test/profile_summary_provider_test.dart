@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/profile/data/fake_profile_repository.dart';
@@ -35,6 +36,9 @@ void main() {
   ) => ProviderContainer.test(
     overrides: [
       tokenStoreProvider.overrideWithValue(store),
+      signInMemoryStoreProvider.overrideWithValue(
+        InMemorySignInMemoryStore(),
+      ),
       profileRepositoryProvider.overrideWithValue(repository),
     ],
   );
