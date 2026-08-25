@@ -289,8 +289,20 @@ class AuthController extends Notifier<AuthState> {
     } on AuthException {
       // 무시한다. 서버 세션은 만료되면 어차피 죽는다.
     }
+    await forgetSession();
+  }
+
+  /// **서버를 부르지 않고** 로컬만 비운다.
+  ///
+  /// ## 탈퇴 직후에 쓴다
+  ///
+  /// 탈퇴가 성공한 시점에는 서버가 이미 토큰을 무효화했다. 거기서 [signOut]을
+  /// 부르면 **실패할 것이 뻔한 호출을 한 번 더 보내는 셈**이다.
+  ///
+  /// 로그아웃과 도착지는 같다 — 방금 계정을 지운 사람도 처음 온 사람은 아니라
+  /// 온보딩 소개를 다시 보여주지 않는다.
+  Future<void> forgetSession() async {
     await _store.clear();
-    // 로그아웃한 사람은 처음 온 사람이 아니다. 소개를 다시 보여주지 않는다.
     state = const AuthSignedOut(returning: true);
   }
 
