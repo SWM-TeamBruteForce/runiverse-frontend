@@ -13,6 +13,7 @@ class GeoPoint {
     required this.longitude,
     required this.recordedAt,
     this.accuracy = 0,
+    this.speed = 0,
   });
 
   final double latitude;
@@ -23,9 +24,17 @@ class GeoPoint {
 
   /// 오차 반경(미터). "이 좌표는 반경 N미터 안 어딘가"라는 뜻이다.
   ///
-  /// 지금은 저장만 하고 쓰지 않는다. 좌표 보정을 넣을 때 첫 번째로 보게 될 값이다
-  /// (`docs/specs/2026-08-05-solo-run-design.md` 3절).
+  /// 칼만 필터의 측정 노이즈 `R`을 여기서 정한다 — 반경이 클수록 그 좌표를 덜 믿는다.
   final double accuracy;
+
+  /// 그 순간의 속도(m/s).
+  ///
+  /// 칼만 필터의 프로세스 노이즈 `Q`를 여기서 정한다 — 빠를수록 위치가 실제로
+  /// 변한다고 보고 측정을 더 받아들인다.
+  ///
+  /// ⚠️ **센서가 못 구하면 음수가 온다.** 직전 점과의 거리로 계산할 수도 있지만
+  /// 센서 값(도플러 기반)이 더 정확하다. 읽는 쪽이 음수를 0으로 다룬다.
+  final double speed;
 
   /// 지구 반지름(미터). 평균값을 쓴다.
   static const _earthRadius = 6371000.0;
@@ -52,5 +61,5 @@ class GeoPoint {
 
   @override
   String toString() =>
-      'GeoPoint($latitude, $longitude, ±${accuracy}m, $recordedAt)';
+      'GeoPoint($latitude, $longitude, ±${accuracy}m, ${speed}m/s, $recordedAt)';
 }

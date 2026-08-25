@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/session/data/geolocator_location_repository.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
+import 'package:runiverse/features/session/domain/location_smoother.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/session/domain/run_metrics.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
@@ -47,11 +48,28 @@ class RunSessionController extends Notifier<RunSessionState> {
   StreamSubscription<GeoPoint>? _subscription;
   Timer? _ticker;
 
+  /// 좌표의 흔들림을 걷어낸다. **들어온 좌표는 전부 이걸 먼저 지난다.**
+  final _smoother = LocationSmoother();
+
   /// 현재 구간의 좌표. 페이스 계산과 거리 누적의 기준점이다.
   ///
-  /// 재개할 때 비우므로 **러닝 전체의 경로가 아니다.** 지도를 그리려면
-  /// 따로 모아야 한다 — 이번 범위 밖이다.
+  /// 재개할 때 비우므로 **러닝 전체의 경로가 아니다.** 지도는 [track]을 본다.
   final _points = <GeoPoint>[];
+
+  /// 지도가 그릴 경로. **구간으로 나눠 담는다.**
+  ///
+  /// 일시정지 사이의 이동을 거리에 넣지 않기로 했으니 선으로도 잇지 않는다.
+  /// 하나로 이으면 멈춘 사이에 차로 이동한 것까지 뛴 것처럼 그려진다.
+  final _segments = <List<GeoPoint>>[];
+
+  /// 지금까지 달린 경로. 구간마다 선을 따로 그린다.
+  ///
+  /// 마지막 구간은 아직 달리는 중이라 [_points]에 있다.
+  List<List<GeoPoint>> get track => [
+    for (final segment in _segments)
+      if (segment.length > 1) segment,
+    if (_points.length > 1) List.unmodifiable(_points),
+  ];
 
   double _distanceMeters = 0;
 
@@ -102,6 +120,7 @@ class RunSessionController extends Notifier<RunSessionState> {
 
       // 준비하며 서 있는 동안 흔들린 좌표를 거리에 넣지 않는다.
       _points.clear();
+      _segments.clear();
 
       state = RunRunning(_metrics());
       _startTicker();
@@ -114,6 +133,10 @@ class RunSessionController extends Notifier<RunSessionState> {
     _accumulated = _elapsed();
     _resumedAt = null;
     _stopTicker();
+
+    // 여기까지가 한 구간이다. 재개하면 [_points]가 비워지므로 지금 접어 둔다.
+    if (_points.length > 1) _segments.add(List.of(_points));
+
     state = RunPaused(_metrics());
   }
 
@@ -151,7 +174,11 @@ class RunSessionController extends Notifier<RunSessionState> {
     state = const RunIdle();
   }
 
-  void _onPoint(GeoPoint point) {
+  void _onPoint(GeoPoint raw) {
+    // ⚠️ **여기가 유일한 보정 지점이다.** 거리 계산과 지도가 같은 좌표를 봐야
+    // 화면의 선과 화면의 숫자가 같은 이야기를 한다.
+    final point = _smoother.smooth(raw);
+
     switch (state) {
       // 준비 중에는 "신호를 받았다"만 알린다. 거리는 아직 세지 않는다.
       case RunPreparing(hasFix: false):
@@ -204,6 +231,9 @@ class RunSessionController extends Notifier<RunSessionState> {
 
   void _reset() {
     _points.clear();
+    _segments.clear();
+    // ⚠️ 안 비우면 다음 러닝의 첫 좌표가 **지난 러닝의 마지막 위치로 끌려온다.**
+    _smoother.reset();
     _distanceMeters = 0;
     _accumulated = Duration.zero;
     _resumedAt = null;
