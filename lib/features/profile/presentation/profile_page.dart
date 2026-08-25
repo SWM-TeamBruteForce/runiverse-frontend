@@ -9,6 +9,7 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/profile/presentation/basic_collection.dart';
 import 'package:runiverse/features/profile/presentation/profile_header.dart';
+import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 
 /// 프로필 탭 (S22, 본인).
 ///
@@ -26,14 +27,29 @@ import 'package:runiverse/features/profile/presentation/profile_header.dart';
 ///
 /// `AppShell`이 관문으로 막아선다. 그래서 이 화면의 빈 상태는 **거의 보이지
 /// 않는다** — 딥링크처럼 관문을 지나치는 길에 대비해 남겨 둔 것이다.
-class ProfilePage extends ConsumerWidget {
+class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends ConsumerState<ProfilePage> {
+  @override
+  void initState() {
+    super.initState();
+    // 화면이 열릴 때 묻는다. `initState`에서 provider를 바로 고치면 빌드 중
+    // 상태를 바꾸게 되어 죽는다(`docs/implementation-notes.md` §10-1).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(profileSummaryControllerProvider.notifier).load();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
     final signedIn = auth is AuthSignedIn ? auth : null;
-    final user = signedIn?.user;
+    final summary = ref.watch(profileSummaryControllerProvider).summary;
 
     return Scaffold(
       body: SafeArea(
@@ -43,8 +59,10 @@ class ProfilePage extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ProfileHeader(
-                nickname: user?.nickname,
-                introduction: user?.introduction,
+                nickname: summary?.nickname,
+                introduction: summary?.introduction,
+                blendRunners: summary?.friendCount ?? 0,
+                photoUrl: summary?.profileImageUrl,
                 // ⚠️ 닉네임이 없는 이유를 헤더가 갈라야 한다. 이 값을 빼면
                 // `/users/me`가 잠깐 실패하는 것만으로 **이미 프로필을 채운
                 // 사람에게 "완성해주세요"가 뜬다.**

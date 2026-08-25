@@ -10,6 +10,7 @@ import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
 import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.dart';
+import 'package:runiverse/features/profile/presentation/profile_edit_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
 
@@ -74,6 +75,12 @@ GoRouter createAppRouter({String? initialLocation}) {
       GoRoute(
         path: AppRoutes.profileSetup,
         builder: (context, state) => const ProfileSetupPage(),
+      ),
+      // ⚠️ 셸 **밖**이다. 탭 안에 두면 편집 도중 다른 탭으로 샐 수 있고,
+      // 그때 저장하지 않은 값이 말없이 사라진다.
+      GoRoute(
+        path: AppRoutes.profileEdit,
+        builder: (context, state) => const ProfileEditPage(),
       ),
 
       StatefulShellRoute.indexedStack(

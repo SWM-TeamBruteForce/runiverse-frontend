@@ -57,5 +57,9 @@ app.*.map.json
 /android/app/*.jks
 *.env
 
+# 빌드 설정 — 실제 키가 들어간다. 예시 파일만 공유한다.
+config/*.json
+!config/*.example.json
+
 # Claude Code 개인 설정 — 팀 저장소에 섞지 않는다.
 .claude/
