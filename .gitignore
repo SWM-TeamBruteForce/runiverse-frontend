@@ -57,5 +57,12 @@ app.*.map.json
 /android/app/*.jks
 *.env
 
+# 빌드 설정 — 실제 키가 들어간다. 예시 파일만 공유한다.
+#
+# `--dart-define-from-file=config/dev.json`으로 주입한다. 명령줄에 키를 적으면
+# 셸 히스토리·프로세스 목록에 평문으로 남는데, 파일로 넘기면 그 경로가 없다.
+config/*.json
+!config/*.example.json
+
 # Claude Code 개인 설정 — 팀 저장소에 섞지 않는다.
 .claude/

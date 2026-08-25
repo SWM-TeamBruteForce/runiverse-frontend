@@ -466,8 +466,13 @@ abstract final class AppStrings {
   /// 지도 페이지에 키가 없을 때. 나머지 기능은 그대로 돈다.
   static const runMapUnavailable = '지도를 불러올 수 없어요';
 
-  static const runSummaryTitle = '오늘의 러닝';
-  static const runSummaryDone = '완료';
+  static const runSummaryTitle = '러닝 완료';
+
+  /// 요약에서는 **평균**을 본다. 그 순간의 페이스가 아니라 오늘 어떻게
+  /// 달렸는지가 궁금한 자리다.
+  static const runSummaryAveragePace = '평균 페이스';
+
+  static const runSummaryHome = '홈으로';
 
   // ── 러닝 색 10범주 ───────────────────────────────────────────
   //

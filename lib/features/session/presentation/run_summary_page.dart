@@ -35,6 +35,12 @@ class RunSummaryPage extends ConsumerWidget {
 
     final metrics = state.metrics;
     final track = ref.read(runSessionControllerProvider.notifier).track;
+    final averagePace = PaceCalculator.format(
+      PaceCalculator.perKilometer(
+        meters: metrics.distanceMeters,
+        elapsed: metrics.elapsed,
+      ),
+    );
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -55,27 +61,23 @@ class RunSummaryPage extends ConsumerWidget {
 
             Padding(
               padding: const EdgeInsets.all(AppSpacing.space5),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              child: Column(
                 children: [
-                  _Value(
-                    label: AppStrings.runDistanceLabel,
-                    value: (metrics.distanceMeters / 1000).toStringAsFixed(2),
-                    unit: 'km',
+                  // 정본대로 거리와 시간을 한 줄에 잇는다. 셋을 나란히 놓으면
+                  // 44px 숫자가 가로를 넘긴다 — 실제로 102px 넘쳤다.
+                  Text(
+                    '${(metrics.distanceMeters / 1000).toStringAsFixed(2)} km'
+                    ' · ${_elapsedText(metrics.elapsed)}',
+                    style: AppTypography.metricLg.copyWith(
+                      color: colors.textPrimary,
+                    ),
                   ),
-                  _Value(
-                    label: AppStrings.runTimeLabel,
-                    value: _elapsedText(metrics.elapsed),
-                  ),
-                  _Value(
-                    label: AppStrings.runPaceLabel,
-                    // 요약에서는 **평균**을 본다. 그 순간의 페이스가 아니라
-                    // 오늘 어떻게 달렸는지가 궁금한 자리다.
-                    value: PaceCalculator.format(
-                      PaceCalculator.perKilometer(
-                        meters: metrics.distanceMeters,
-                        elapsed: metrics.elapsed,
-                      ),
+                  const SizedBox(height: AppSpacing.space2),
+                  Text(
+                    '${AppStrings.runSummaryAveragePace} '
+                    '$averagePace${AppStrings.profilePacePerKm}',
+                    style: AppTypography.body.copyWith(
+                      color: colors.textSecondary,
                     ),
                   ),
                 ],
@@ -90,7 +92,7 @@ class RunSummaryPage extends ConsumerWidget {
                 AppSpacing.space5,
               ),
               child: AppButton(
-                label: AppStrings.runSummaryDone,
+                label: AppStrings.runSummaryHome,
                 size: AppButtonSize.lg,
                 onPressed: () {
                   // 다음 러닝을 위해 비운다. 안 비우면 두 번째 러닝이 첫
@@ -113,49 +115,6 @@ class RunSummaryPage extends ConsumerWidget {
   }
 }
 
-class _Value extends StatelessWidget {
-  const _Value({required this.label, required this.value, this.unit});
-
-  final String label;
-  final String value;
-  final String? unit;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColors;
-    final unit = this.unit;
-
-    return Column(
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              value,
-              style: AppTypography.metricLg.copyWith(color: colors.textPrimary),
-            ),
-            if (unit != null) ...[
-              const SizedBox(width: AppSpacing.space1),
-              Text(
-                unit,
-                style: AppTypography.caption.copyWith(
-                  color: colors.textTertiary,
-                ),
-              ),
-            ],
-          ],
-        ),
-        Text(
-          label,
-          style: AppTypography.caption.copyWith(color: colors.textSecondary),
-        ),
-      ],
-    );
-  }
-}
-
 class _NothingToShow extends StatelessWidget {
   const _NothingToShow();
 
@@ -163,7 +122,7 @@ class _NothingToShow extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
     body: Center(
       child: AppButton(
-        label: AppStrings.runSummaryDone,
+        label: AppStrings.runSummaryHome,
         expand: false,
         onPressed: () => context.go(AppRoutes.home),
       ),
