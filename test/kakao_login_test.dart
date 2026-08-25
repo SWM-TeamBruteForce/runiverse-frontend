@@ -24,9 +24,7 @@ void main() {
     overrides: [
       // 저장소는 플랫폼 채널을 부른다. 테스트에는 채널이 없다.
       tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
-      signInMemoryStoreProvider.overrideWithValue(
-        InMemorySignInMemoryStore(),
-      ),
+      signInMemoryStoreProvider.overrideWithValue(InMemorySignInMemoryStore()),
       authRepositoryProvider.overrideWithValue(
         repository ?? FakeAuthRepository(latency: Duration.zero),
       ),

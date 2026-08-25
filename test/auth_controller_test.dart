@@ -31,9 +31,7 @@ void main() {
       // testWidgets()는 조용히 null을 돌려줘 **저장이 안 되는데 통과한다.**
       // 후자가 더 위험하므로 저장소를 쓰는 테스트는 반드시 이것을 갈아끼운다.
       tokenStoreProvider.overrideWithValue(store ?? InMemoryTokenStore()),
-      signInMemoryStoreProvider.overrideWithValue(
-        InMemorySignInMemoryStore(),
-      ),
+      signInMemoryStoreProvider.overrideWithValue(InMemorySignInMemoryStore()),
       authRepositoryProvider.overrideWithValue(
         repository ?? FakeAuthRepository(latency: Duration.zero),
       ),
@@ -647,9 +645,7 @@ void _emailVerificationGroup() {
   ProviderContainer makeContainer() => ProviderContainer.test(
     overrides: [
       tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
-      signInMemoryStoreProvider.overrideWithValue(
-        InMemorySignInMemoryStore(),
-      ),
+      signInMemoryStoreProvider.overrideWithValue(InMemorySignInMemoryStore()),
       authRepositoryProvider.overrideWithValue(
         FakeAuthRepository(latency: Duration.zero),
       ),

@@ -108,9 +108,25 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
     if (confirmed != true || !mounted) return;
 
-    // 화면을 직접 옮기지 않는다. 상태가 `AuthSignedOut`으로 바뀌면
-    // 라우터가 로그인 화면으로 보낸다 — 이동 규칙이 두 곳에 있으면 어긋난다.
     await ref.read(authControllerProvider.notifier).signOut();
+    _leave();
+  }
+
+  /// 로그인 화면으로 내보낸다.
+  ///
+  /// ## ⚠️ 상태를 바꾸는 것만으로는 화면이 옮겨지지 않는다
+  ///
+  /// 라우터에 인증 `redirect`가 **아직 없다**(`app_router.dart`의 "아직 안 한 것").
+  /// `AppShell`의 관문도 `AuthSignedIn`일 때만 서는데, 이 화면은 **셸 밖**이라
+  /// 그 앞도 지나지 않는다. 여기서 옮기지 않으면 로그아웃한 사람이 설정 화면에
+  /// 그대로 남고, 뒤로 가면 로그인하지 않은 채로 홈이 보인다.
+  ///
+  /// `push`가 아니라 `go`인 것은 **스택을 비우기 위해서**다. 로그아웃한 뒤
+  /// 뒤로가기로 설정 화면에 돌아올 수 있으면 안 된다.
+  ///
+  /// 라우터에 `redirect`가 붙으면 이 호출은 지운다.
+  void _leave() {
+    if (mounted) context.go(AppRoutes.signIn);
   }
 
   // ── 약관 ──────────────────────────────────────────────────
@@ -136,8 +152,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         .withdraw();
     if (!mounted) return;
 
-    // 성공하면 상태가 `AuthSignedOut`이 되어 라우터가 알아서 내보낸다.
-    if (failure == null) return;
+    if (failure == null) {
+      // 계정이 사라졌다. 로그아웃과 같은 곳으로 내보낸다.
+      _leave();
+      return;
+    }
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text(AppStrings.withdrawFailed)));
