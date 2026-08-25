@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
@@ -216,11 +217,57 @@ void main() {
   // 서버가 지금 열어 준 것은 사진뿐이다. 닉네임·소개를 고치는 API가 없어
   // 정본의 편집 화면(S22.1)을 만들 수 없고, 그래서 아바타를 직접 누르게 했다.
 
-  /// 아바타를 눌러 시트를 연다.
+  /// 우측 상단 ✎. 눌러서 편집 모드를 켜고 끈다.
+  Future<void> toggleEdit(WidgetTester tester) async {
+    await tester.tap(find.byIcon(LucideIcons.pencil));
+    await tester.pumpAndSettle();
+  }
+
+  /// 편집 모드를 켜고 아바타를 눌러 시트를 연다.
+  ///
+  /// **✎를 거치지 않으면 아바타는 눌리지 않는다.** 편집 모드가 그 문이다.
   Future<void> openSheet(WidgetTester tester) async {
+    await toggleEdit(tester);
     await tester.tap(find.byType(ProfileAvatar));
     await tester.pumpAndSettle();
   }
+
+  // ── 편집 모드 ───────────────────────────────────────────────
+  //
+  // 아바타는 **편집 모드에서만** 눌린다. 늘 눌리면 "지금 바꿀 수 있다"가
+  // 화면 어디에도 드러나지 않아, 눌러본 사람만 알게 된다.
+
+  testWidgets('⚠️ 편집 모드가 아니면 아바타를 눌러도 시트가 열리지 않는다', (tester) async {
+    await pumpProfile(tester, onboarded: true);
+
+    await tester.tap(find.byType(ProfileAvatar));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.profilePhotoPick), findsNothing);
+  });
+
+  testWidgets('편집 모드에서는 아바타에 편집 표시가 뜬다', (tester) async {
+    await pumpProfile(tester, onboarded: true);
+    // 켜기 전에는 없다 — 있으면 늘 편집 가능한 것처럼 읽힌다.
+    expect(find.byIcon(LucideIcons.camera), findsNothing);
+
+    await toggleEdit(tester);
+
+    expect(find.byIcon(LucideIcons.camera), findsOneWidget);
+  });
+
+  testWidgets('✎를 다시 누르면 편집 모드가 꺼진다', (tester) async {
+    await pumpProfile(tester, onboarded: true);
+
+    await toggleEdit(tester);
+    await toggleEdit(tester);
+
+    expect(find.byIcon(LucideIcons.camera), findsNothing);
+    // 표시만 사라지는 게 아니라 실제로 눌리지 않아야 한다.
+    await tester.tap(find.byType(ProfileAvatar));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.profilePhotoPick), findsNothing);
+  });
 
   testWidgets('사진이 없으면 시트에 지우는 항목이 없다', (tester) async {
     await pumpProfile(tester, onboarded: true);

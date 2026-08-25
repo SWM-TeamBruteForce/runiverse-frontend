@@ -22,9 +22,18 @@ import 'package:runiverse/features/profile/presentation/profile_photo_sheet.dart
 /// 회전 표시를 넣지 않는다. **대부분은 사진을 올린 적이 없는 사람**이라,
 /// 탭을 열 때마다 도는 표시가 떴다가 결국 같은 기본 아이콘으로 끝난다.
 class ProfileAvatar extends ConsumerStatefulWidget {
-  const ProfileAvatar({super.key});
+  const ProfileAvatar({this.editable = false, super.key});
+
+  /// 편집 모드인가. **`false`면 눌리지 않고 표시도 없다.**
+  ///
+  /// 늘 눌리게 두면 "지금 바꿀 수 있다"가 화면 어디에도 드러나지 않아
+  /// **눌러본 사람만** 알게 된다. 헤더의 ✎가 그 문이다.
+  final bool editable;
 
   static const size = 88.0;
+
+  /// 편집 배지 지름. ⚠️ 정확한 값은 디자인 확인이 필요하다.
+  static const badgeSize = AppSpacing.space6;
 
   @override
   ConsumerState<ProfileAvatar> createState() => _ProfileAvatarState();
@@ -46,13 +55,17 @@ class _ProfileAvatarState extends ConsumerState<ProfileAvatar> {
     final ready = state is ProfileImageReady ? state : null;
     final url = ready?.url;
 
-    return Semantics(
-      button: true,
-      label: AppStrings.profilePhotoChangeLabel,
+    final avatar = Semantics(
+      // 편집 모드가 아니면 **버튼이라고 읽히지 않아야 한다** — 눌러도 아무 일이
+      // 없는 것을 버튼이라고 알리면 스크린리더 사용자만 헛걸음한다.
+      button: widget.editable,
+      label: widget.editable ? AppStrings.profilePhotoChangeLabel : null,
       child: GestureDetector(
         // 도는 동안 또 누르면 요청이 겹친다. 뒤에 끝난 것이 이기는데,
         // 어느 쪽이 뒤인지는 알 수 없다.
-        onTap: (ready?.busy ?? false) ? null : () => _open(url != null),
+        onTap: (!widget.editable || (ready?.busy ?? false))
+            ? null
+            : () => _open(url != null),
         child: Container(
           width: ProfileAvatar.size,
           height: ProfileAvatar.size,
@@ -102,9 +115,40 @@ class _ProfileAvatarState extends ConsumerState<ProfileAvatar> {
         ),
       ),
     );
+
+    if (!widget.editable) return avatar;
+
+    // 배지가 원 밖으로 조금 나가지 않도록 크기를 아바타에 맞춰 잡는다.
+    return SizedBox(
+      width: ProfileAvatar.size,
+      height: ProfileAvatar.size,
+      child: Stack(clipBehavior: Clip.none, children: [avatar, _badge(colors)]),
+    );
   }
 
-  /// 시트를 띄우고 고른 것을 실행한다.
+  /// 아바타 위에 얹는 작은 표시. **`ClipOval` 밖에 둔다** — 안에 두면 잘린다.
+  Widget _badge(AppColors colors) => Positioned(
+    right: 0,
+    bottom: 0,
+    child: Container(
+      width: ProfileAvatar.badgeSize,
+      height: ProfileAvatar.badgeSize,
+      decoration: BoxDecoration(
+        color: colors.bgSurface,
+        shape: BoxShape.circle,
+        border: Border.all(color: colors.borderDefault),
+      ),
+      // ✎가 아니라 카메라다. 헤더의 ✎와 같은 아이콘을 쓰면 **같은 것을 두 번
+      // 그린 것처럼 보이고**, 이 자리가 뜻하는 것은 "프로필 편집"이 아니라
+      // "사진을 바꾼다"로 더 좁다.
+      child: Icon(
+        LucideIcons.camera,
+        size: AppSpacing.space4,
+        color: colors.textSecondary,
+      ),
+    ),
+  );
+
   Future<void> _open(bool hasPhoto) async {
     final action = await showProfilePhotoSheet(context, hasPhoto: hasPhoto);
     // 취소했다. 아무 일도 일어나지 않는다.
