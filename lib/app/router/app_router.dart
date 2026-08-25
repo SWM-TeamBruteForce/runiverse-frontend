@@ -12,6 +12,9 @@ import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
 import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
+import 'package:runiverse/features/session/presentation/run_prepare_page.dart';
+import 'package:runiverse/features/session/presentation/run_session_page.dart';
+import 'package:runiverse/features/session/presentation/run_summary_page.dart';
 
 /// 라우터 조립 — 앱의 화면 목록이자 딥링크 표.
 ///
@@ -74,6 +77,20 @@ GoRouter createAppRouter({String? initialLocation}) {
       GoRoute(
         path: AppRoutes.profileSetup,
         builder: (context, state) => const ProfileSetupPage(),
+      ),
+
+      // 1인 러닝 — 셸 밖이라 탭 바를 덮는다.
+      GoRoute(
+        path: AppRoutes.runPrepare,
+        builder: (context, state) => const RunPreparePage(),
+      ),
+      GoRoute(
+        path: AppRoutes.runSession,
+        builder: (context, state) => const RunSessionPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.runSummary,
+        builder: (context, state) => const RunSummaryPage(),
       ),
 
       StatefulShellRoute.indexedStack(

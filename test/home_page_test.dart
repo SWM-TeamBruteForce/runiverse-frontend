@@ -82,13 +82,15 @@ void main() {
       expect(find.text(AppStrings.homeMatchComingSoon), findsOneWidget);
     });
 
-    testWidgets('1인 러닝을 누르면 준비 중이라고 알려준다', (tester) async {
+    testWidgets('1인 러닝을 누르면 출발 준비로 간다', (tester) async {
+      // 준비 화면을 거치는 것이 이 버튼의 계약이다. 바로 러닝으로 보내면
+      // GPS 첫 신호를 기다릴 자리가 없어 초반 거리가 통째로 빠진다.
       await pumpHome(tester);
 
       await tester.tap(find.widgetWithText(AppButton, AppStrings.homeSoloCta));
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      expect(find.text(AppStrings.homeSoloPending), findsOneWidget);
+      expect(find.text(AppStrings.runWaitingFix), findsOneWidget);
     });
   });
 

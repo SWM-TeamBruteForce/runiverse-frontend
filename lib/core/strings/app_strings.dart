@@ -362,10 +362,6 @@ abstract final class AppStrings {
   /// 매칭은 아직 서버가 없다. 카카오·애플 버튼과 같은 처리다.
   static const homeMatchComingSoon = '매칭은 아직 준비 중이에요';
 
-  /// ⚠️ **한시적이다.** 러닝 화면이 붙는 PR에서 지운다.
-  /// 그전까지 버튼이 아무 반응도 없으면 고장으로 읽힌다.
-  static const homeSoloPending = '러닝 화면을 준비하고 있어요';
-
   static const homeSectionCompetition = '다가오는 대회';
   static const homeSectionRecentRun = '최근 러닝';
 
@@ -430,6 +426,48 @@ abstract final class AppStrings {
   /// 사진을 다루다 실패했다. **어디서 막혔는지는 말하지 않는다** —
   /// 사용자가 할 수 있는 일이 "다시 해보기" 하나라서 갈라 말할 이유가 없다.
   static const profilePhotoFailed = '사진을 바꾸지 못했어요. 다시 시도해주세요';
+
+  // ── 1인 러닝 (S11 파생 · S13 · S15) ──────────────────────────
+  //
+  // 파티원이 없는 세션이다. 정본 S13의 3페이지 중 **지도와 실시간 기록 둘만**
+  // 쓴다 — 파티원 비교 페이지는 매칭이 붙을 때 셋째 장으로 들어간다.
+
+  /// GPS 첫 신호를 기다리는 동안. **잠긴 이유를 글로 말한다** —
+  /// 색만으로 알리지 않는다(정본 C9).
+  static const runWaitingFix = '위치를 찾고 있어요';
+  static const runWaitingFixWhy = '신호를 잡기 전에 출발하면 초반 거리가 빠져요';
+  static const runFixReady = '준비됐어요';
+  static const runStartCta = '시작';
+
+  /// 위치 권한이 없을 때. 설정 앱으로 보낸다.
+  static const runPermissionTitle = '위치 권한이 필요해요';
+  static const runPermissionBody = '달린 거리와 경로를 재려면 위치를 알아야 해요.';
+  static const runPermissionOpenSettings = '설정 열기';
+  static const runServiceDisabled = '기기의 위치 기능이 꺼져 있어요';
+
+  /// 러닝 중 지표 라벨.
+  static const runPaceLabel = '페이스';
+  static const runTimeLabel = '시간';
+  static const runDistanceLabel = '거리';
+  static const runCadenceLabel = '케이던스';
+  static const runCaloriesLabel = '칼로리';
+
+  /// 아직 잴 수 없는 값. **지어낸 숫자를 넣지 않는다** —
+  /// 러닝 기록은 사용자가 믿고 보는 숫자다.
+  static const runUnavailable = '--';
+
+  static const runStopCta = '중지';
+  static const runPausedTitle = '일시정지됨';
+  static const runResumeCta = '계속 달리기';
+
+  /// 종료는 **길게 눌러야** 한다. 실수로 끝내면 되돌릴 방법이 없다.
+  static const runFinishHold = '길게 눌러 종료';
+
+  /// 지도 페이지에 키가 없을 때. 나머지 기능은 그대로 돈다.
+  static const runMapUnavailable = '지도를 불러올 수 없어요';
+
+  static const runSummaryTitle = '오늘의 러닝';
+  static const runSummaryDone = '완료';
 
   // ── 러닝 색 10범주 ───────────────────────────────────────────
   //

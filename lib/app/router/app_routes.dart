@@ -89,4 +89,17 @@ abstract final class AppRoutes {
 
   /// 본인 프로필 (S20)
   static const profile = '/profile';
+
+  // ── 1인 러닝 — 탭 셸 밖이다 ──────────────────────────────────
+  //
+  // **탭 바를 덮는다.** 달리는 도중에 다른 탭으로 샐 수 있으면 안 된다.
+
+  /// 출발 준비 (S11 파생). GPS 첫 신호를 기다린다.
+  static const runPrepare = '/run/prepare';
+
+  /// 러닝 진행 (S13). 지도 · 실시간 기록 2페이지.
+  static const runSession = '/run';
+
+  /// 러닝 요약 (S15).
+  static const runSummary = '/run/summary';
 }
