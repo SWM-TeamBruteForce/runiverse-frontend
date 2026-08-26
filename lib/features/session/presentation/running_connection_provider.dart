@@ -9,6 +9,7 @@ import 'package:runiverse/features/session/data/ws_running_channel.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/domain/running_room_repository.dart';
+import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 
 final runningRoomRepositoryProvider = Provider<RunningRoomRepository>(
   (ref) => HttpRunningRoomRepository(
@@ -148,6 +149,12 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
 
     _attempt = 0;
     state = state.copyWith(room: room, opening: false, failure: null);
+
+    // ⚠️ **방을 알게 된 순간 좌표 기록기에 알린다.** 방이 늦게 생기는 동안
+    // 쌓아 둔 좌표가 여기서 한꺼번에 저장된다 — 안 알리면 러닝 초반 좌표가
+    // 메모리에만 남아 앱이 죽으면 사라진다.
+    await ref.read(trackRecorderProvider).bind(room.id);
+
     await channel.start(room.id);
 
     // ⚠️ **구독만으로는 부족하다.** `states`가 broadcast 스트림이라 구독 전에

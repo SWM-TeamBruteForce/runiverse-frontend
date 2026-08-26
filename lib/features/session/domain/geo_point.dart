@@ -14,6 +14,8 @@ class GeoPoint {
     required this.recordedAt,
     this.accuracy = 0,
     this.speed = 0,
+    this.altitude,
+    this.heading,
   });
 
   final double latitude;
@@ -35,6 +37,22 @@ class GeoPoint {
   /// ⚠️ **센서가 못 구하면 음수가 온다.** 직전 점과의 거리로 계산할 수도 있지만
   /// 센서 값(도플러 기반)이 더 정확하다. 읽는 쪽이 음수를 0으로 다룬다.
   final double speed;
+
+  /// 해발 고도(미터). **못 구하면 `null`이다.**
+  ///
+  /// 서버 페이로드의 `altitudeMeters`가 그대로 nullable이라 여기서도 nullable로 든다.
+  ///
+  /// ⚠️ **경사를 내는 데 쓰지 않는다.** GPS 고도는 오차가 흔히 ±10~20m라
+  /// 평지에서도 오르내리는 것처럼 찍힌다. 서버가 트랙 전체를 보고 계산하고,
+  /// 그쪽도 `totalElevationGainMeters`를 nullable로 두었다.
+  final double? altitude;
+
+  /// 진행 방향(도, 0~360). **못 구하면 `null`이다.**
+  ///
+  /// 정지·저속에서 자주 못 구한다. 서버는 `0~360`을 요구하고 nullable 표기가
+  /// 없어, **보낼 때 `0`으로 눌러 보낸다**(설계 문서 6절). 그 판단은 전송
+  /// 계층이 하고, 도메인은 "모른다"를 `null`로 그대로 든다.
+  final double? heading;
 
   /// 지구 반지름(미터). 평균값을 쓴다.
   static const _earthRadius = 6371000.0;
