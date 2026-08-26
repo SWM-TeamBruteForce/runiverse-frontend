@@ -246,18 +246,92 @@ lib/features/session/
 
 ## 6. 로컬 트랙 (3단계, 이번 범위 밖)
 
-성격이 "기록"이 아니라 **재전송 버퍼**이므로 스키마가 단순하다.
+성격이 "기록"이 아니라 **재전송 버퍼**다.
+
+### 무엇을 계산해서 보내는가
+
+**클라이언트는 좌표만 보낸다.** 명세의 페이로드 필드가 10개뿐이고, 그 안에
+누적거리·경사·칼로리 자리가 없다.
+
+| 값 | 페이로드 | 누가 만드나 |
+|---|---|---|
+| 페이스 | ✅ `currentPaceSecondsPerKm` (좌표마다) | **클라 계산** |
+| 케이던스 | ✅ `cadenceSpm` (좌표마다) | **클라 계산** (걸음 센서) |
+| 고도 | ✅ `altitudeMeters` (그 지점의 원본) | 기기 GPS |
+| 방향 | ✅ `headingDegrees` | 기기 센서 |
+| 속도 | ✅ `speedMetersPerSecond` | 기기 GPS |
+| **누적거리** | ❌ 없음 | 서버가 좌표로 계산 |
+| **경사·누적상승** | ❌ 없음 | 서버가 고도로 계산 |
+| **칼로리** | ❌ 없음 | 서버가 종료 시 계산 |
+| **경과시간** | ❌ 없음 | 서버가 `recordedAt` 차이로 계산 |
+
+⚠️ **클라도 거리·시간을 계산하지만 그것은 화면 표시용이다.** 명세가
+*"클라 계산값은 러닝 중 화면 표시용이다"*라고 못박았다. 그래서 **러닝 중 화면
+숫자와 나중에 보는 기록이 미세하게 다를 수 있다** — 결함이 아니라 설계다.
+
+지표를 클라가 보내는 안(필드 추가 요청)도 검토했으나 택하지 않았다.
+**클라가 보낸 값은 조작할 수 있고**, 기기마다 계산이 다르면 기록 일관성이
+깨진다. 서버가 원본 트랙을 가지므로 언제든 재계산할 수 있다.
+
+경사와 칼로리는 어느 쪽을 택하든 **지금 클라가 제대로 낼 수 없다**:
+- 경사 — `Position.altitude`는 오차가 흔히 ±10~20m다. 평지에서도 오르내리는
+  것처럼 찍혀 경사가 튄다. 제대로 하려면 기압계(`TYPE_PRESSURE`)가 필요한데
+  모든 기기에 있지 않다. 서버가 `totalElevationGainMeters`를 nullable로 둔
+  이유로 보인다
+- 칼로리 — 체중이 필요한데 `GET /users/me/profile`이 `개발전`이라 앱을 껐다
+  켜면 모른다. `ProfileBody`가 메모리에만 들고 있다
+
+### 스키마
+
+```sql
+CREATE TABLE run_track_points (
+  running_room_id  INTEGER NOT NULL,
+  sequence         INTEGER NOT NULL,
+  latitude         REAL    NOT NULL,
+  longitude        REAL    NOT NULL,
+  altitude_meters  REAL,              -- nullable (명세 표기)
+  accuracy_meters  REAL    NOT NULL,
+  speed_mps        REAL    NOT NULL,
+  heading_degrees  REAL,              -- nullable ← 8절 ①
+  cadence_spm      INTEGER,           -- nullable ← 8절 ②
+  pace_sec_per_km  INTEGER,           -- 러닝 초반에는 낼 수 없다
+  recorded_at      TEXT    NOT NULL,  -- 'yyyy-MM-ddTHH:mm:ss'
+  PRIMARY KEY (running_room_id, sequence)
+);
+```
+
+**컬럼이 페이로드와 1:1이다.** 재전송할 때 변환 없이 그대로 실어 보낸다.
+중간 형식을 두면 저장할 때와 보낼 때 값이 갈릴 자리가 생긴다.
+
+**복합 PK `(running_room_id, sequence)`** — 서버의 중복 제거 키와 같다.
+같은 좌표를 두 번 넣으려 하면 DB가 막고, 순서대로 읽는 인덱스도 함께 얻는다.
+
+**"보냈음" 플래그가 없다.** 명세가 *"재연결 시 로컬 트랙 전체를 첫 `sequence`
+부터 다시 보낸다"*로 정해서 어디까지 보냈는지 알 필요가 없다. 서버가 거른다.
+(이 낭비를 8절 ③으로 물어 두었다.)
+
+**테이블은 하나뿐이다.** "러닝 세션" 테이블을 따로 둘까 고민했으나 뺐다 —
+앱이 죽어도 `running_room_id`는 트랙 행에서 복구되고, 트랙이 비어 있는 경우
+(방만 만들고 바로 죽음)는 `GET /users/me/running-match`로 알 수 있다.
+
+### 쓰고 읽는 주기
 
 ```
-run_track_points
-  running_room_id, sequence   (복합 유니크)
-  latitude, longitude, altitude_meters, accuracy_meters
-  speed_meters_per_second, heading_degrees, cadence_spm
-  current_pace_seconds_per_km, recorded_at
+2초마다   좌표 수신 → 페이스·케이던스를 함께 계산 → 한 행 저장
+10초마다  5행을 읽어 그대로 전송
+ack 받으면 DELETE WHERE running_room_id = ?
 ```
 
-`RUNNING_FINISHED` ack를 받으면 **그 방의 행을 전부 지운다.** 남겨두면 기록이
-두 벌이 되고, 1절에서 정한 원칙에 어긋난다.
+**페이스·케이던스를 저장 시점에 계산해 박아 둔다.** 전송 시점에 계산하면
+재전송할 때마다 다시 계산해야 하고, 그때는 이미 지나간 시점의 페이스를
+재현해야 한다. 저장할 때 박아두면 재전송이 **읽어서 보내기**로 끝난다.
+
+수집 주기는 **2초**다(명세 `1~2초` 중 느린 쪽). 30분에 900행 ≈ 150KB.
+
+⚠️ **주기를 바꾸면 칼만 보정의 `Q`를 함께 봐야 한다.** 간격이 길수록 그사이
+실제로 움직인 거리가 커지는데, `LocationSmoother`의 `Q`는 지금 간격을 모른다.
+1초에서 2초로 옮기면서 이 값을 손대지 않았다 — **실기기에서 경로가 실제보다
+안쪽으로 깎이는지 확인이 필요하다.**
 
 ⚠️ 앱이 죽었다 살아나도 트랙이 남아야 재전송이 된다. 메모리로는 안 되고
 `sqflite`가 필요하다. 패키지는 그때 승인받는다.

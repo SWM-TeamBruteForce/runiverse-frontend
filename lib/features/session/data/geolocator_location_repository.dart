@@ -23,6 +23,16 @@ class GeolocatorLocationRepository implements LocationRepository {
   /// 공통 [LocationSettings]로도 그렇게 동작하지만, 그러면 그 사실이 코드
   /// 어디에도 드러나지 않고 누가 `forceLocationManager`를 켜도 막을 것이 없다.
   /// 명시해 둔다 — LocationManager로 떨어지면 정확도가 눈에 띄게 나빠진다.
+  /// 좌표를 얼마나 자주 받나.
+  ///
+  /// 서버 명세는 `1~2초 간격`을 요구하고, 그중 **2초**를 쓴다.
+  /// 10초 배치에 5점이 들어간다.
+  ///
+  /// ⚠️ **이 값을 바꾸면 칼만 보정의 `Q`도 함께 봐야 한다.** 간격이 길수록
+  /// 그사이 실제로 움직인 거리가 커지는데, `LocationSmoother`의 `Q`는 지금
+  /// 간격을 모른다(`docs/specs/2026-08-05-solo-run-design.md` 3절).
+  static const _interval = Duration(seconds: 2);
+
   static LocationSettings get _settings {
     if (Platform.isAndroid) {
       return AndroidSettings(
@@ -30,7 +40,9 @@ class GeolocatorLocationRepository implements LocationRepository {
         distanceFilter: 0,
         // ⚠️ `true`로 바꾸면 FusedLocationProviderClient를 쓰지 않는다.
         forceLocationManager: false,
-        intervalDuration: const Duration(seconds: 1),
+        // 서버 명세가 정한 "1~2초 간격" 중 느린 쪽이다. 2초면 30분에 900점이라
+        // 저장량과 배터리가 절반이고, 10초 배치에 5점씩 들어간다.
+        intervalDuration: _interval,
       );
     }
     if (Platform.isIOS) {
