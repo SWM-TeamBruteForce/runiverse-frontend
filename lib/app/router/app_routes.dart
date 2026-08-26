@@ -107,4 +107,16 @@ abstract final class AppRoutes {
   /// ⚠️ **로컬 계정만 들어온다.** 설정 화면이 `loginType`으로 메뉴를 숨기지만,
   /// 딥링크는 그 문을 지나치지 않는다 — 그때는 서버가 409로 막는다.
   static const passwordChange = '/profile/settings/password';
+  // ── 1인 러닝 — 탭 셸 밖이다 ──────────────────────────────────
+  //
+  // **탭 바를 덮는다.** 달리는 도중에 다른 탭으로 샐 수 있으면 안 된다.
+
+  /// 출발 준비 (S11 파생). GPS 첫 신호를 기다린다.
+  static const runPrepare = '/run/prepare';
+
+  /// 러닝 진행 (S13). 지도 · 실시간 기록 2페이지.
+  static const runSession = '/run';
+
+  /// 러닝 요약 (S15).
+  static const runSummary = '/run/summary';
 }

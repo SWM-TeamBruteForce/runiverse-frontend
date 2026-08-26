@@ -48,6 +48,8 @@ dependencies:
   # **저장소 권한을 요구하지 않는다** — 매니페스트에 추가할 것이 없다.
   # 크기를 줄이지는 못한다. 10MB 제한은 앱이 검사해서 막는다.
   image_picker: ^1.2.3
+  flutter_naver_map: ^1.4.4
+  wakelock_plus: ^1.7.0
 
 dev_dependencies:
   flutter_test:

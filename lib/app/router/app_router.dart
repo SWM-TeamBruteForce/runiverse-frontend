@@ -13,6 +13,9 @@ import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.
 import 'package:runiverse/features/profile/presentation/profile_edit_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
+import 'package:runiverse/features/session/presentation/run_prepare_page.dart';
+import 'package:runiverse/features/session/presentation/run_session_page.dart';
+import 'package:runiverse/features/session/presentation/run_summary_page.dart';
 import 'package:runiverse/features/settings/presentation/password_change_page.dart';
 import 'package:runiverse/features/settings/presentation/settings_page.dart';
 
@@ -95,6 +98,20 @@ GoRouter createAppRouter({String? initialLocation}) {
       GoRoute(
         path: AppRoutes.passwordChange,
         builder: (context, state) => const PasswordChangePage(),
+      ),
+
+      // 1인 러닝 — 셸 밖이라 탭 바를 덮는다.
+      GoRoute(
+        path: AppRoutes.runPrepare,
+        builder: (context, state) => const RunPreparePage(),
+      ),
+      GoRoute(
+        path: AppRoutes.runSession,
+        builder: (context, state) => const RunSessionPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.runSummary,
+        builder: (context, state) => const RunSummaryPage(),
       ),
 
       StatefulShellRoute.indexedStack(

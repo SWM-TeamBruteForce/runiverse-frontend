@@ -48,4 +48,18 @@ class AppConfig {
   /// 키가 없으면 SDK를 초기화하지 않는다 — 빈 키로 초기화하면 버튼을 눌렀을 때
   /// 원인을 알기 어려운 오류가 난다.
   static bool get hasKakaoNativeAppKey => kakaoNativeAppKey.isNotEmpty;
+
+  /// 네이버 지도 Client ID.
+  ///
+  /// 네이버 클라우드 콘솔 > Maps > Dynamic Map에서 발급한다. 앱 패키지명으로
+  /// 묶여 있어 다른 앱이 훔쳐 써도 인증이 통과하지 않지만, **그래도 코드에
+  /// 적지 않는다** — 저장소가 공개되면 사용량이 남의 손에 들어간다.
+  static const naverMapClientId = String.fromEnvironment('NAVER_MAP_CLIENT_ID');
+
+  /// 지도를 띄워도 되는가.
+  ///
+  /// ⚠️ 키가 없으면 SDK를 초기화하지 않는다. 빈 키로 초기화하면 인증 실패
+  /// 콜백이 돌고, 그 뒤 지도를 그리려 하면 앱이 통째로 죽는다 —
+  /// 카카오에서 겪은 것과 같은 함정이다.
+  static bool get hasNaverMapClientId => naverMapClientId.isNotEmpty;
 }
