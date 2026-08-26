@@ -4,10 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/core/network/ws_client.dart';
+import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_running_room_repository.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
@@ -47,9 +49,21 @@ void main() {
     LocationAccess access = LocationAccess.granted,
   }) async {
     location = FakeLocationRepository(access: access);
+
+    // ⚠️ **토큰이 없으면 WS에 붙지 못한다.** 갈아 끼우지 않으면 진짜
+    // 보안 저장소를 읽으려 하고, 테스트에서는 비어 있어 `sessionExpired`로
+    // 빠진다 — 연결까지 가보는 테스트가 조용히 무의미해진다.
+    final tokens = InMemoryTokenStore();
+    await tokens.saveSession(
+      userId: 'u-1',
+      accessToken: 'a-1',
+      refreshToken: 'r-1',
+      isOnboarded: true,
+    );
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          tokenStoreProvider.overrideWithValue(tokens),
           locationRepositoryProvider.overrideWithValue(location),
           // 시각을 고정한다. `DateTime.now`를 그대로 두면 흐른 시간이 매번 달라진다.
           runClockProvider.overrideWithValue(() => clock),
@@ -207,6 +221,16 @@ void main() {
 
       expect(find.text(AppStrings.runAlreadyInProgress), findsOneWidget);
       expect(find.text(AppStrings.runStopCta), findsNothing);
+    });
+
+    testWidgets('⚠️ 붙고 나면 "연결하는 중" 안내가 사라진다', (tester) async {
+      // `states`가 broadcast라 구독 전에 지나간 `connected`는 다시 오지 않는다.
+      // 그것만 믿으면 소켓이 붙었는데도 화면이 "연결하는 중"이라고 말한다.
+      await pumpRun(tester);
+      await startRunning(tester);
+
+      expect(find.text(AppStrings.runOffline), findsNothing);
+      await unmount(tester);
     });
 
     testWidgets('⚠️ 409는 다시 시도하지 않는다', (tester) async {

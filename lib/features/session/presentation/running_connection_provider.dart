@@ -149,6 +149,12 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     _attempt = 0;
     state = state.copyWith(room: room, opening: false, failure: null);
     await channel.start(room.id);
+
+    // ⚠️ **구독만으로는 부족하다.** `states`가 broadcast 스트림이라 구독 전에
+    // 지나간 상태는 다시 오지 않는다. `start()` 안에서 `connected`로 바뀌면
+    // 그 이벤트를 놓치고, 소켓은 붙었는데 화면은 "연결하는 중"이라고 말한다.
+    // 시작 직후 현재값을 한 번 읽어 맞춘다.
+    state = state.copyWith(connection: channel.state);
   }
 
   /// 러닝을 끝내거나 화면을 벗어날 때. 연결을 닫고 처음 상태로 돌아간다.
