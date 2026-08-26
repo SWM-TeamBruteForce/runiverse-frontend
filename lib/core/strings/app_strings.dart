@@ -510,6 +510,26 @@ abstract final class AppStrings {
   static const runFixReady = '준비됐어요';
   static const runStartCta = '시작';
 
+  // ── 카운트다운 (S11) ─────────────────────────────────────────
+  //
+  // 정본은 숫자 하나만 크게 띄운다(160px). 지도도 파티원도 숨긴다.
+  // **이 3초 동안 서버에 붙는다** — 사용자는 기다리는 줄 모른다.
+
+  /// 이전 러닝이 안 끝나 새로 시작할 수 없다. 서버 409.
+  ///
+  /// ⚠️ **"다시 시도"를 권하지 않는다.** 몇 번을 눌러도 같은 답이 온다 —
+  /// 사용자가 이전 러닝을 정리해야 풀린다.
+  static const runAlreadyInProgress = '이전 러닝이 아직 끝나지 않았어요';
+
+  static const runAlreadyInProgressWhy = '앱이 갑자기 꺼졌다면 그때 러닝이 남아 있을 수 있어요.';
+
+  static const runBackToHome = '홈으로';
+
+  /// 연결이 없는 채로 달리는 중. **막지 않고 알리기만 한다.**
+  static const runOffline = '서버에 연결하는 중이에요';
+
+  static const runOfflineWhy = '기록은 계속 재고 있어요. 연결되면 자동으로 올라가요.';
+
   /// 위치 권한이 없을 때. 설정 앱으로 보낸다.
   static const runPermissionTitle = '위치 권한이 필요해요';
   static const runPermissionBody = '달린 거리와 경로를 재려면 위치를 알아야 해요.';

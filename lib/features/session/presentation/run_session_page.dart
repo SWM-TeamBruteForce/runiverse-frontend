@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
@@ -13,6 +16,7 @@ import 'package:runiverse/features/session/domain/run_metrics.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/presentation/run_map_view.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
+import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/run_stop_sheet.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -72,6 +76,9 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
         controller.resume();
       case RunStopAction.finish:
         controller.finish();
+        // ⚠️ 연결을 닫는다. 안 닫으면 러닝이 끝나도 소켓이 살아 있고,
+        // 다음 러닝에서 서버가 중복 연결로 보고 이쪽을 4001로 끊는다.
+        unawaited(ref.read(runningConnectionProvider.notifier).close());
         if (mounted) context.pushReplacement(AppRoutes.runSummary);
     }
   }
@@ -112,6 +119,11 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                   ],
                 ),
               ),
+
+              // 연결이 없는 채로 달리는 중이면 알린다. **막지는 않는다** —
+              // 기록은 계속 재고, 붙으면 쌓인 좌표가 올라간다(설계 문서 4절).
+              if (!ref.watch(runningConnectionProvider).isReady)
+                const _OfflineNotice(),
 
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.space5),
@@ -258,6 +270,39 @@ class _Metric extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// 서버에 아직 못 붙었다.
+///
+/// ⚠️ **경고가 아니라 안내다.** 기록은 계속 재고 있고, 연결되면 쌓인 좌표가
+/// 올라간다. 빨간색으로 겁을 주면 달리는 사람이 폰을 들여다보게 된다.
+class _OfflineNotice extends StatelessWidget {
+  const _OfflineNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
+      child: Row(
+        children: [
+          Icon(
+            LucideIcons.cloudOff,
+            size: AppSpacing.space4,
+            color: colors.textTertiary,
+          ),
+          const SizedBox(width: AppSpacing.space2),
+          Expanded(
+            child: Text(
+              AppStrings.runOffline,
+              style: AppTypography.caption.copyWith(color: colors.textTertiary),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

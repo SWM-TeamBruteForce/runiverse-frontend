@@ -3,13 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
+import 'package:runiverse/core/network/ws_client.dart';
+import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
+import 'package:runiverse/features/session/data/fake_running_room_repository.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
+import 'package:runiverse/features/session/domain/running_channel.dart';
+import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
+import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 
 /// 1인 러닝 — 출발 준비부터 요약까지 화면이 실제로 이어지는가.
 ///
@@ -28,10 +34,12 @@ void main() {
   final start = DateTime(2026, 8, 5, 19);
   late DateTime clock;
   late FakeLocationRepository location;
+  late FakeRunningRoomRepository room;
 
   setUp(() {
     clock = start;
     location = FakeLocationRepository();
+    room = FakeRunningRoomRepository();
   });
 
   Future<void> pumpRun(
@@ -45,6 +53,12 @@ void main() {
           locationRepositoryProvider.overrideWithValue(location),
           // 시각을 고정한다. `DateTime.now`를 그대로 두면 흐른 시간이 매번 달라진다.
           runClockProvider.overrideWithValue(() => clock),
+          // ⚠️ 서버를 부르지 않는다. 갈아 끼우지 않으면 진짜 HTTP와 소켓을
+          // 열려 하고, 테스트에는 주소가 없어 죽는다.
+          runningRoomRepositoryProvider.overrideWithValue(room),
+          runningChannelFactoryProvider.overrideWithValue(
+            (_) => _SilentChannel(),
+          ),
         ],
         child: const RuniverseApp(initialLocation: AppRoutes.runPrepare),
       ),
@@ -66,11 +80,19 @@ void main() {
   }
 
   /// 출발 준비를 마치고 달리는 상태로 만든다.
+  ///
+  /// ⚠️ **[시작]을 누르면 곧바로 러닝이 아니라 카운트다운 3초가 먼저다.**
+  /// 그 3초 동안 앱이 서버에 붙는다(설계 문서 4절).
   Future<void> startRunning(WidgetTester tester) async {
     await emit(tester, point(37.5, 127));
     await tester.tap(find.widgetWithText(AppButton, AppStrings.runStartCta));
-    // 화면 전환에 필요한 만큼만 돌린다. `pumpAndSettle`은 타이머 때문에 못 쓴다.
     await tester.pump();
+
+    // 3 · 2 · 1. 한 번에 3초를 보내면 Timer.periodic이 한 번만 돈다.
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    // 화면 전환에 필요한 만큼만 돌린다. `pumpAndSettle`은 타이머 때문에 못 쓴다.
     await tester.pump(const Duration(milliseconds: 500));
   }
 
@@ -147,6 +169,58 @@ void main() {
 
       expect(find.text(AppStrings.runServiceDisabled), findsOneWidget);
       expect(find.text(AppStrings.runPermissionTitle), findsNothing);
+    });
+  });
+
+  group('카운트다운', () {
+    testWidgets('시작을 누르면 3부터 센다', (tester) async {
+      await pumpRun(tester);
+      await emit(tester, point(37.5, 127));
+
+      await tester.tap(find.widgetWithText(AppButton, AppStrings.runStartCta));
+      await tester.pump();
+
+      expect(find.text('3'), findsOneWidget);
+      await unmount(tester);
+    });
+
+    testWidgets('세는 동안 서버에 붙는다', (tester) async {
+      // 이 3초가 연결 창이다. 사용자는 기다리는 줄 모른다.
+      await pumpRun(tester);
+      await emit(tester, point(37.5, 127));
+
+      await tester.tap(find.widgetWithText(AppButton, AppStrings.runStartCta));
+      await tester.pump();
+
+      expect(room.calls, 1);
+      await unmount(tester);
+    });
+
+    testWidgets('⚠️ 이전 러닝이 남아 있으면 시작하지 않는다', (tester) async {
+      // 방 없이 달리면 30분을 뛰어도 서버에 기록이 남지 않는다.
+      room.failure = RunningRoomFailure.alreadyRunning;
+      await pumpRun(tester);
+      await emit(tester, point(37.5, 127));
+
+      await tester.tap(find.widgetWithText(AppButton, AppStrings.runStartCta));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runAlreadyInProgress), findsOneWidget);
+      expect(find.text(AppStrings.runStopCta), findsNothing);
+    });
+
+    testWidgets('⚠️ 409는 다시 시도하지 않는다', (tester) async {
+      // 몇 번을 눌러도 같은 답이 온다. 재시도가 돌면 서버를 계속 두드린다.
+      room.failure = RunningRoomFailure.alreadyRunning;
+      await pumpRun(tester);
+      await emit(tester, point(37.5, 127));
+      await tester.tap(find.widgetWithText(AppButton, AppStrings.runStartCta));
+      await tester.pumpAndSettle();
+
+      // 첫 재시도가 1초 뒤다. 돌았다면 여기서 늘어난다.
+      await tester.pump(const Duration(seconds: 2));
+
+      expect(room.calls, 1);
     });
   });
 
@@ -253,4 +327,25 @@ void main() {
       );
     });
   });
+}
+
+/// 아무것도 하지 않는 러닝 채널.
+///
+/// 이 테스트가 보는 것은 **화면 흐름**이지 서버 통신이 아니다.
+/// WebSocket 자체는 `ws_client_test.dart`가 따로 본다.
+class _SilentChannel implements RunningChannel {
+  @override
+  Stream<WsConnectionState> get states => const Stream.empty();
+
+  @override
+  WsConnectionState get state => WsConnectionState.connected;
+
+  @override
+  Stream<WsErrorCode> get errors => const Stream.empty();
+
+  @override
+  Future<void> start(int runningRoomId) async {}
+
+  @override
+  Future<void> close() async {}
 }

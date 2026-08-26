@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/config/app_config.dart';
 import 'package:runiverse/core/network/ws_client.dart';
@@ -14,6 +16,22 @@ final runningRoomRepositoryProvider = Provider<RunningRoomRepository>(
     ref.watch(tokenStoreProvider),
     ref.watch(authRepositoryProvider),
   ),
+);
+
+/// 연결 하나를 만드는 법.
+///
+/// **provider로 뺀 이유는 테스트 때문이다.** 컨트롤러가 `WsClient`를 직접
+/// 만들면 위젯 테스트가 진짜 소켓을 열려 하고, 주소가 없어 죽는다.
+typedef RunningChannelFactory = RunningChannel Function(String accessToken);
+
+final runningChannelFactoryProvider = Provider<RunningChannelFactory>(
+  (ref) =>
+      (accessToken) => WsRunningChannel(
+        WsClient(
+          url: '${AppConfig.wsBaseUrl}/api/v1/ws/running',
+          accessToken: accessToken,
+        ),
+      ),
 );
 
 /// 서버와 이어진 상태.
@@ -74,24 +92,43 @@ final runningConnectionProvider =
 /// 유지하는 데까지가 범위다(설계 문서 3절).
 class RunningConnectionController extends Notifier<RunningConnectionState> {
   RunningChannel? _channel;
+  Timer? _retry;
+
+  /// 연속 실패 횟수. backoff 간격을 정한다.
+  var _attempt = 0;
 
   @override
   RunningConnectionState build() {
     // provider가 버려지면 소켓도 닫는다. 안 닫으면 러닝이 끝나도 연결이 남는다.
-    ref.onDispose(() => _channel?.close());
+    ref.onDispose(() {
+      _retry?.cancel();
+      _channel?.close();
+    });
     return const RunningConnectionState();
   }
 
   /// 방을 열고 연결한다. 이미 준비됐으면 아무것도 하지 않는다.
+  ///
+  /// ## ⚠️ 실패해도 포기하지 않는다
+  ///
+  /// 지하철·엘리베이터·터널에서는 몇 초 뒤면 대개 성공한다. 한 번 실패했다고
+  /// 러닝을 막으면 **신호가 잠깐 없는 곳에서 아예 못 뛰게 된다.**
+  /// 뒤에서 계속 시도하고, 방이 늦게라도 생기면 그때부터 좌표가 올라간다.
+  ///
+  /// **딱 하나 [RunningRoomFailure.alreadyRunning](409)만 멈춘다.** 재시도해도
+  /// 계속 실패하고, 원인이 "이전 러닝이 안 끝났다"라서 사용자가 조치해야 한다.
   Future<void> open() async {
     if (state.opening || state.isReady) return;
-    state = state.copyWith(opening: true);
+    _retry?.cancel();
+    state = state.copyWith(opening: true, failure: null);
 
     final RunningRoom room;
     try {
       room = await ref.read(runningRoomRepositoryProvider).openSolo();
     } on RunningRoomException catch (error) {
       state = RunningConnectionState(failure: error.failure);
+      // 409는 다시 시도해도 같은 답이 온다.
+      if (error.failure != RunningRoomFailure.alreadyRunning) _scheduleRetry();
       return;
     }
 
@@ -103,25 +140,35 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       return;
     }
 
-    final channel = WsRunningChannel(
-      WsClient(url: _url, accessToken: accessToken),
-    );
+    final channel = ref.read(runningChannelFactoryProvider)(accessToken);
     _channel = channel;
     channel.states.listen((connection) {
       state = state.copyWith(connection: connection);
     });
 
-    state = state.copyWith(room: room, opening: false);
+    _attempt = 0;
+    state = state.copyWith(room: room, opening: false, failure: null);
     await channel.start(room.id);
   }
 
   /// 러닝을 끝내거나 화면을 벗어날 때. 연결을 닫고 처음 상태로 돌아간다.
   Future<void> close() async {
+    _retry?.cancel();
+    _retry = null;
+    _attempt = 0;
     await _channel?.close();
     _channel = null;
     state = const RunningConnectionState();
   }
 
-  /// `wss://host/api/v1/ws/running`
-  static String get _url => '${AppConfig.wsBaseUrl}/api/v1/ws/running';
+  /// 잠시 뒤 다시 시도한다.
+  ///
+  /// 1 · 2 · 4 · 8 … 최대 30초. `WsClient`의 재연결과 같은 규칙이다 —
+  /// 서버가 죽었을 때 초당 두드리지 않는다.
+  void _scheduleRetry() {
+    _retry?.cancel();
+    final seconds = _attempt >= 5 ? 30 : 1 << _attempt;
+    _attempt++;
+    _retry = Timer(Duration(seconds: seconds), open);
+  }
 }
