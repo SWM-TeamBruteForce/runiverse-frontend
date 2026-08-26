@@ -225,6 +225,16 @@ abstract final class AppStrings {
   // 이메일·비밀번호 입력은 정본에 없고, 백엔드가 그 방식을 요구해 한 화면에 합쳤다.
   // (`docs/implementation-notes.md` 참조)
 
+  /// 아이디를 기기에 남길지. **끄면 저장해 둔 값도 지운다** —
+  /// 공유 기기에서 남의 이메일이 남지 않아야 한다.
+  static const authRememberEmail = '아이디 저장';
+
+  /// 마지막으로 성공한 로그인 방법에 붙는 표시.
+  ///
+  /// ⚠️ **이 기기에서 로그인한 적이 있어야 뜬다.** 앱을 지웠다 깔거나 기기를
+  /// 바꾸면 없다 — "내가 뭘로 가입했더라"가 떠오르는 순간이 대개 그때다.
+  static const authLastUsed = '최근 사용';
+
   static const authKakao = '카카오로 계속하기';
   static const authApple = 'Apple로 계속하기';
 
@@ -289,7 +299,13 @@ abstract final class AppStrings {
 
   /// **인증번호를 받기 전에** 나온다. 서버가 발송 단계에서 중복을 막기 때문이다.
   /// 바로 아래의 [authToSignIn]이 갈 곳을 알려준다.
-  static const authFailedEmailTaken = '이미 가입한 이메일이에요';
+  /// 이미 그 이메일로 계정이 있다. 서버 `EMAIL_ALREADY_EXISTS` (409).
+  ///
+  /// ⚠️ **어느 방법으로 가입했는지 말하지 않는다.** 로컬 가입과 소셜 로그인이
+  /// 같은 코드를 주고, 응답에 `provider`가 없어 앱이 구분할 수 없다.
+  /// "이메일로 로그인해주세요"처럼 단정하면 구글로 가입한 사람에게 틀린 안내가
+  /// 된다 — 서버가 `provider`를 실어 주면 그때 갈라 말한다.
+  static const authFailedEmailTaken = '이미 가입된 계정이에요';
 
   // ── 이메일 인증 ──────────────────────────────────────────────
   //
@@ -338,10 +354,6 @@ abstract final class AppStrings {
   /// "실패했어요"만으로는 다시 눌러도 같은 결과가 나온다.
   static const authFailedOauthEmail = '이메일 제공에 동의해야 로그인할 수 있어요';
 
-  /// 같은 이메일의 계정이 이미 있다. 서버가 자동으로 연동하지 않는다 —
-  /// 로그인하려는 사람이 그 계정의 주인인지 확인할 방법이 없기 때문이다.
-  static const authFailedOauthEmailTaken = '이미 가입한 이메일이에요. 이메일로 로그인해주세요';
-
   // ── 홈 (S05) ─────────────────────────────────────────────────
 
   /// 시간대 인사. 이름을 부르지 않는다 — 닉네임을 저장하는 곳이 아직 없다.
@@ -388,8 +400,12 @@ abstract final class AppStrings {
   /// 결핍이 아니라 무엇을 하면 생기는지를 말한다.
   static const profileSignatureEmpty = '함께 달리면 색이 생겨요';
 
-  static const profileFollowers = '팔로워';
-  static const profileFollowing = '팔로잉';
+  /// 서로 수락해 함께 달리는 사람 수.
+  ///
+  /// ⚠️ **"친구"라고 쓰지 않는다.** 요청→수락 모델이고, 서비스가 쓰는 말은
+  /// 블렌드다(함께 달리면 색이 섞인다). 서버 응답 필드는 `friendCount`지만
+  /// 화면에 나가는 말은 이쪽이다.
+  static const profileBlendRunners = '블렌드 러너';
 
   static const profileBasicCollection = '기본 컬렉션';
   static const profileBlendCollection = '블렌드 컬렉션';
@@ -427,6 +443,61 @@ abstract final class AppStrings {
   /// 사용자가 할 수 있는 일이 "다시 해보기" 하나라서 갈라 말할 이유가 없다.
   static const profilePhotoFailed = '사진을 바꾸지 못했어요. 다시 시도해주세요';
 
+  // ── 닉네임 변경 ─────────────────────────────────────────────
+  //
+  // 규칙 문구(`2~16자`, `이미 누가 쓰고 있어요` 등)는 **온보딩과 같은 것을
+  // 쓴다.** 같은 규칙을 두 벌로 적으면 한쪽만 고쳐지고, 사용자는 화면마다
+  // 다른 말을 듣는다.
+
+  /// 시트 제목이자 연필 배지의 접근성 라벨. **버튼과 같은 말을 쓴다** —
+  /// 여는 곳과 끝내는 곳의 이름이 다르면 같은 일인지 알기 어렵다.
+  static const profileNicknameChangeTitle = '닉네임 변경';
+  static const profileNicknameChangeSubmit = '변경';
+
+  /// 지금 쓰는 이름 그대로다.
+  ///
+  /// ⚠️ **중복확인을 보내지 않는다.** 보내면 서버가 "이미 사용 중"이라고
+  /// 답하는데, 그 이름을 쓰고 있는 사람이 본인이라 경고가 될 수 없다.
+  static const profileNicknameUnchanged = '지금 쓰고 있는 이름이에요';
+
+  /// 바꾸다 실패했다. [profilePhotoFailed]와 같은 이유로 갈라 말하지 않는다.
+  static const profileNicknameChangeFailed = '닉네임을 바꾸지 못했어요. 다시 시도해주세요';
+
+  // ── 프로필 편집 (S22.1) ─────────────────────────────────────
+  //
+  // 라벨(`닉네임` `생년월일` `키 · 몸무게`)과 실패 문구는 **온보딩 것을 그대로
+  // 쓴다.** 같은 값을 묻는 자리라 다른 말을 쓰면 사용자가 다른 것으로 읽는다.
+
+  static const profileEditTitle = '프로필 편집';
+  static const profileEditSave = '저장';
+
+  /// 아바타 아래 문구. 정본 S22.1의 `프로필 사진 변경`을 줄였다.
+  static const profileEditPhoto = '사진 바꾸기';
+
+  static const profileIntroductionLabel = '한 줄 소개';
+  static const profileIntroductionHint = '오늘도 달립니다';
+
+  static const profileBodySection = '신체 정보';
+
+  /// 온보딩을 마쳐야 바꿀 수 있다(서버 409 `ONBOARDING_NOT_COMPLETED`).
+  /// 프로필 탭까지 온 사람에게는 나오지 않아야 하는 말이다.
+  static const profileNicknameNotOnboarded = '프로필을 먼저 완성해주세요';
+
+  /// 아직 값을 모른다.
+  ///
+  /// ⚠️ **`설정하기` 같은 말을 쓰지 않는다.** 서버에 값이 없는 것이 아니라
+  /// **불러올 API가 없는 것**이라, 안 채운 사람에게 채우라고 말하는 셈이 된다.
+  /// 온보딩에서 이미 넣은 값이다.
+  static const profileEditUnknown = '—';
+
+  /// 저장하지 않고 나가려 할 때.
+  static const profileEditDiscardTitle = '바꾼 내용을 버릴까요';
+  static const profileEditDiscardBody = '저장하지 않으면 방금 고친 값이 사라져요.';
+  static const profileEditDiscardLeave = '나가기';
+  static const profileEditDiscardStay = '계속 편집';
+
+  /// 소개글 상한. 서버는 100자까지 받는다.
+  static const profileIntroductionTooLong = '100자까지 쓸 수 있어요';
   // ── 1인 러닝 (S11 파생 · S13 · S15) ──────────────────────────
   //
   // 파티원이 없는 세션이다. 정본 S13의 3페이지 중 **지도와 실시간 기록 둘만**
@@ -506,4 +577,126 @@ abstract final class AppStrings {
       '닉네임과 페이스로 상대를 찾고 기록을 계산해요.\n비워두면 매칭을 시작할 수 없어요';
 
   static const profileSheetCta = '프로필 입력하기';
+
+  // ── 설정 (S22.2) ────────────────────────────────────────────
+  //
+  // 정본과 세 곳이 다르다. 서버가 그렇게 되어 있다.
+  //
+  // - 알림이 3종(매칭·러닝·소셜)이 아니라 **하나**다 (`alertConsent`)
+  // - 공개 범위가 3단이 아니라 **둘**이다 (`PUBLIC` / `FRIENDS`)
+  // - `FRIENDS`를 **"친구"라고 부르지 않는다** — 이 파일 맨 위의 톤 규칙과
+  //   `CLAUDE.md`가 정한 것이다. 요청→수락 모델이라 "팔로워"로 쓴다
+
+  static const settingsTitle = '설정';
+
+  static const settingsNotificationSection = '알림';
+
+  static const settingsAlertConsent = '알림 허용';
+
+  /// ⚠️ **지금은 이걸 켜도 알림이 오지 않는다.** 앱에 알림을 띄우는 코드가
+  /// 아직 없다. 그래서 "받고 있어요"가 아니라 **받겠다는 의사**로 적는다.
+  static const settingsAlertConsentWhy = '매칭과 러닝 소식을 받아요';
+
+  static const settingsVisibilitySection = '공개 범위';
+
+  static const settingsVisibilityPublic = '전체 공개';
+
+  /// 서버 `FRIENDS`. 정본의 "팔로워공개"와 같은 것이다.
+  static const settingsVisibilityFollowers = '팔로워에게만';
+
+  static const settingsVisibilityPublicWhy = '누구나 프로필을 볼 수 있어요';
+
+  static const settingsVisibilityFollowersWhy = '팔로워만 프로필을 볼 수 있어요';
+
+  static const settingsAccountSection = '계정';
+
+  static const settingsEmail = '이메일';
+
+  static const settingsLoginMethod = '로그인';
+
+  static const settingsLoginLocal = '이메일';
+  static const settingsLoginKakao = '카카오';
+  static const settingsLoginGoogle = '구글';
+
+  /// 서버가 모르는 제공자를 보냈다. **비밀번호 메뉴는 숨는다.**
+  static const settingsLoginUnknown = '확인 불가';
+
+  static const settingsPassword = '비밀번호 변경';
+
+  static const settingsTerms = '약관 및 개인정보처리방침';
+
+  static const settingsSignOut = '로그아웃';
+
+  static const settingsWithdraw = '회원 탈퇴';
+
+  // ── 설정 · 실패와 확인 ───────────────────────────────────────
+
+  static const settingsLoadFailed = '설정을 불러오지 못했어요';
+
+  static const settingsRetry = '다시 시도';
+
+  /// 낙관적 반영이 되돌아갔을 때. **무엇이 되돌아갔는지** 알 수 있어야 한다.
+  static const settingsUpdateFailed = '바꾸지 못했어요. 다시 시도해주세요';
+
+  static const settingsSessionExpired = '로그인이 만료됐어요. 다시 로그인해주세요';
+
+  static const settingsSignOutTitle = '로그아웃할까요';
+
+  static const settingsSignOutBody = '기록은 그대로 남아 있어요.';
+
+  static const settingsCancel = '취소';
+
+  /// 약관 문서 주소가 아직 정해지지 않았다. `LegalLinks`를 함께 본다.
+  static const settingsTermsPending = '약관 문서를 준비하고 있어요';
+
+  // ── 비밀번호 변경 ────────────────────────────────────────────
+  //
+  // ⚠️ **"재설정"이 아니라 "변경"이다.** 서버가 `currentPassword`를 요구한다 —
+  // 지금 비밀번호를 알아야 바꿀 수 있다. 비밀번호를 **잊은** 사람을 위한
+  // 흐름(이메일 인증 후 재설정)은 명세에 없다.
+  //
+  // 규칙 문구는 가입 화면과 같은 것을 쓴다 (`authPasswordGuide` 등) —
+  // 같은 `PasswordRule`을 쓰므로 문구가 갈리면 그것이 곧 버그다.
+
+  static const passwordChangeTitle = '비밀번호 변경';
+
+  static const passwordCurrentLabel = '현재 비밀번호';
+
+  static const passwordNewLabel = '새 비밀번호';
+
+  static const passwordConfirmLabel = '새 비밀번호 확인';
+
+  static const passwordChangeCta = '변경하기';
+
+  static const passwordChanged = '비밀번호를 바꿨어요';
+
+  static const passwordMismatch = '새 비밀번호가 서로 달라요';
+
+  /// 서버 401 `INVALID_CURRENT_PASSWORD`.
+  ///
+  /// ⚠️ 같은 401인 세션 만료와 **다른 문구여야 한다.** 묶으면 비밀번호를 틀린
+  /// 사람에게 "다시 로그인하세요"라고 말하게 된다.
+  static const passwordWrongCurrent = '현재 비밀번호가 올바르지 않아요';
+
+  /// 서버 409 `PASSWORD_NOT_SET`. 메뉴를 숨기므로 정상적으로는 오지 않는다.
+  static const passwordNotLocal = '소셜 계정은 비밀번호를 바꿀 수 없어요';
+
+  static const passwordChangeFailed = '바꾸지 못했어요. 다시 시도해주세요';
+
+  // ── 회원 탈퇴 ────────────────────────────────────────────────
+  //
+  // **되돌릴 수 없다.** 무엇이 사라지고 무엇이 남는지 정확히 적는다 —
+  // "정말요?"만 묻는 확인은 아무 정보도 주지 않는다.
+
+  static const withdrawTitle = '정말 탈퇴할까요';
+
+  /// 서버의 데이터 정책을 그대로 옮겼다. 기록·색은 지워지고, 이미 올린 글은
+  /// 작성자만 가려진 채 남는다.
+  static const withdrawBody =
+      '기록과 색이 모두 사라져요. 되돌릴 수 없어요.\n'
+      '이미 올린 피드는 작성자가 가려진 채 남아요.';
+
+  static const withdrawConfirm = '탈퇴하기';
+
+  static const withdrawFailed = '탈퇴하지 못했어요. 다시 시도해주세요';
 }

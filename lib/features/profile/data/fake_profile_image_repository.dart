@@ -30,8 +30,12 @@ class FakeProfileImageRepository implements ProfileImageRepository {
   /// 올라간 사진. 무엇이 넘어갔는지 테스트가 확인한다.
   PickedImage? uploaded;
 
+  /// 몇 번 불렸는가. **아바타가 스스로 주소를 받아오지 않는지** 보는 데 쓴다.
+  var fetchCalls = 0;
+
   @override
   Future<String?> fetchUrl() async {
+    fetchCalls++;
     await Future<void>.delayed(latency);
     _throwIfFailing();
     return url;

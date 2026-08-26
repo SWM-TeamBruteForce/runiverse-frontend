@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
 import 'package:runiverse/core/theme/tokens/app_radius.dart';
@@ -7,6 +10,7 @@ import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
+import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 
 /// 프로필 헤더 — 아바타 · 닉네임 · 시그니처 컬러 · 팔로워/팔로잉.
 ///
@@ -19,13 +23,13 @@ import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
 ///
 /// **대표 기록 대시보드도 뺐다.** 세 값이 전부 러닝 기록에서 나오는데 기록 기능이
 /// 없다. 넣으면 `0 km · 상위 --%`가 나란히 서서 화면이 고장 난 것처럼 읽힌다.
-class ProfileHeader extends StatelessWidget {
+class ProfileHeader extends ConsumerWidget {
   const ProfileHeader({
     this.nickname,
     this.introduction,
     this.isOnboarded = true,
-    this.followers = 0,
-    this.following = 0,
+    this.blendRunners = 0,
+    this.photoUrl,
     super.key,
   });
 
@@ -48,14 +52,19 @@ class ProfileHeader extends StatelessWidget {
   /// 가입일을 서버가 주지 않아 날수를 셀 수 없다.
   final String? introduction;
 
-  /// ⚠️ **눌리지 않는다.** 서버에 팔로우 기능이 없다. 누를 수 있게 만들면
+  /// 서로 수락해 함께 달리는 사람 수. 서버 `friendCount`다.
+  ///
+  /// ⚠️ **눌리지 않는다.** 서버에 목록 API가 없다. 누를 수 있게 만들면
   /// 반응이 없을 때 고장으로 읽힌다. 자리만 잡아 둔다.
-  final int followers;
-  final int following;
+  final int blendRunners;
+
+  /// 프로필 사진 열람 주소. 아바타에 그대로 내려보낸다 — [ProfileAvatar.url] 참조.
+  final String? photoUrl;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
+    // 지역 변수로 받는다 — public 필드는 `!= null` 검사로 승격되지 않는다.
     final nickname = this.nickname;
     final introduction = this.introduction;
 
@@ -69,13 +78,31 @@ class ProfileHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 편집·설정은 자리만 잡는다. 화면이 아직 없다.
+          // ⚠️ 이 화면에서 값을 고치지 않는다. **바꾸는 자리는 편집 화면
+          // 하나**다(정본 S22.1) — 홈에도 두면 같은 일을 하는 문이 둘이 되고,
+          // 저장되는 시점이 서로 다른 것을 화면이 설명할 길이 없다.
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
-            children: const [
-              _HeaderAction(icon: LucideIcons.pencil),
-              SizedBox(width: AppSpacing.space2),
-              _HeaderAction(icon: LucideIcons.settings),
+            children: [
+              _HeaderAction(
+                icon: LucideIcons.pencil,
+                // ⚠️ **돌아오면 다시 받아온다.** 편집 화면에서 사진·닉네임은
+                // 누르는 자리에서 이미 저장됐고, 소개글은 저장 버튼으로 갔다.
+                // 다시 받지 않으면 홈이 편집 전 값을 그린다.
+                onTap: () async {
+                  await context.push(AppRoutes.profileEdit);
+                  await ref
+                      .read(profileSummaryControllerProvider.notifier)
+                      .load();
+                },
+              ),
+              const SizedBox(width: AppSpacing.space2),
+              // 편집과 달리 **돌아와서 다시 받아오지 않는다.** 설정은 프로필
+              // 요약(닉네임·사진·소개글)을 건드리지 않는다.
+              _HeaderAction(
+                icon: LucideIcons.settings,
+                onTap: () => context.push(AppRoutes.settings),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.space2),
@@ -83,7 +110,8 @@ class ProfileHeader extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const ProfileAvatar(),
+              // 홈에서는 눌리지 않는다. 사진을 바꾸는 자리도 편집 화면이다.
+              ProfileAvatar(url: photoUrl),
               const SizedBox(width: AppSpacing.space4),
 
               Expanded(
@@ -121,7 +149,7 @@ class ProfileHeader extends StatelessWidget {
                     const SizedBox(height: AppSpacing.space2),
                     const SignatureColorRow(),
                     const SizedBox(height: AppSpacing.space3),
-                    _FollowCounts(followers: followers, following: following),
+                    _BlendCount(count: blendRunners),
                   ],
                 ),
               ),
@@ -208,30 +236,11 @@ class SignatureColorRow extends StatelessWidget {
   }
 }
 
-/// 팔로워 · 팔로잉. **`InkWell`을 두지 않는다** — 위 ⚠️ 참조.
-class _FollowCounts extends StatelessWidget {
-  const _FollowCounts({required this.followers, required this.following});
+/// 블렌드 러너 수. **`InkWell`을 두지 않는다** — 위 ⚠️ 참조.
+class _BlendCount extends StatelessWidget {
+  const _BlendCount({required this.count});
 
-  final int followers;
-  final int following;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _FollowCount(value: followers, label: AppStrings.profileFollowers),
-        const SizedBox(width: AppSpacing.space5),
-        _FollowCount(value: following, label: AppStrings.profileFollowing),
-      ],
-    );
-  }
-}
-
-class _FollowCount extends StatelessWidget {
-  const _FollowCount({required this.value, required this.label});
-
-  final int value;
-  final String label;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
@@ -241,7 +250,7 @@ class _FollowCount extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          '$value',
+          '$count',
           // 숫자가 늘어도 라벨이 흔들리지 않게 tabular를 쓴다.
           style: AppTypography.body.copyWith(
             color: colors.textPrimary,
@@ -250,7 +259,7 @@ class _FollowCount extends StatelessWidget {
         ),
         const SizedBox(width: AppSpacing.space1),
         Text(
-          label,
+          AppStrings.profileBlendRunners,
           style: AppTypography.caption.copyWith(color: colors.textSecondary),
         ),
       ],
@@ -260,15 +269,18 @@ class _FollowCount extends StatelessWidget {
 
 /// 헤더 우상단 원형 버튼. 화면이 아직 없어 **눌리지 않는다.**
 class _HeaderAction extends StatelessWidget {
-  const _HeaderAction({required this.icon});
+  const _HeaderAction({required this.icon, this.onTap});
 
   final IconData icon;
+
+  /// `null`이면 눌리지 않는다. 화면이 아직 없는 버튼이 그렇다.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
 
-    return Container(
+    final button = Container(
       width: AppSizes.touchDefault,
       height: AppSizes.touchDefault,
       decoration: BoxDecoration(
@@ -278,5 +290,10 @@ class _HeaderAction extends StatelessWidget {
       ),
       child: Icon(icon, size: AppSpacing.space5, color: colors.textSecondary),
     );
+
+    final onTap = this.onTap;
+    if (onTap == null) return button;
+
+    return GestureDetector(onTap: onTap, child: button);
   }
 }

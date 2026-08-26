@@ -23,9 +23,7 @@ Dio createDio() {
   // "서버가 죽었다"와 구분되지 않는 실패를 보게 된다 — 원인이 설정인데
   // 서버를 뒤지게 되는 상황이 제일 오래 걸린다.
   if (!AppConfig.hasApiBaseUrl) {
-    throw StateError(
-      '서버 주소가 없다. --dart-define=API_BASE_URL=... 을 붙여 실행한다.',
-    );
+    throw StateError('서버 주소가 없다. --dart-define=API_BASE_URL=... 을 붙여 실행한다.');
   }
 
   final dio = Dio(

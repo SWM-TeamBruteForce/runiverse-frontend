@@ -10,11 +10,14 @@ import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
 import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.dart';
+import 'package:runiverse/features/profile/presentation/profile_edit_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
 import 'package:runiverse/features/session/presentation/run_prepare_page.dart';
 import 'package:runiverse/features/session/presentation/run_session_page.dart';
 import 'package:runiverse/features/session/presentation/run_summary_page.dart';
+import 'package:runiverse/features/settings/presentation/password_change_page.dart';
+import 'package:runiverse/features/settings/presentation/settings_page.dart';
 
 /// 라우터 조립 — 앱의 화면 목록이자 딥링크 표.
 ///
@@ -77,6 +80,24 @@ GoRouter createAppRouter({String? initialLocation}) {
       GoRoute(
         path: AppRoutes.profileSetup,
         builder: (context, state) => const ProfileSetupPage(),
+      ),
+      // ⚠️ 셸 **밖**이다. 탭 안에 두면 편집 도중 다른 탭으로 샐 수 있고,
+      // 그때 저장하지 않은 값이 말없이 사라진다.
+      GoRoute(
+        path: AppRoutes.profileEdit,
+        builder: (context, state) => const ProfileEditPage(),
+      ),
+      // 설정도 셸 밖이다. 이유는 편집과 같다.
+      GoRoute(
+        path: AppRoutes.settings,
+        builder: (context, state) => const SettingsPage(),
+      ),
+      // ⚠️ 설정의 **자식으로 두지 않았다.** 자식이면 경로가
+      // `/profile/settings/password`가 아니라 상대 경로가 되고,
+      // 딥링크로 바로 열 때 부모가 먼저 그려져야 한다.
+      GoRoute(
+        path: AppRoutes.passwordChange,
+        builder: (context, state) => const PasswordChangePage(),
       ),
 
       // 1인 러닝 — 셸 밖이라 탭 바를 덮는다.

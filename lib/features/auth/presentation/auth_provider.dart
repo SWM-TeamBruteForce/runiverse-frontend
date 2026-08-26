@@ -13,7 +13,9 @@ import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/domain/auth_tokens.dart';
 import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
 import 'package:runiverse/features/auth/domain/oauth_code_source.dart';
+import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
+import 'package:runiverse/features/auth/domain/sign_in_method.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 
 /// 토큰을 어디에 넣을 것인가. 안드로이드 Keystore · iOS Keychain이다.
@@ -22,6 +24,13 @@ import 'package:runiverse/features/auth/presentation/auth_state.dart';
 /// 테스트 환경에는 채널이 없어 `MissingPluginException`이 난다.
 /// `InMemoryTokenStore`를 넣으면 된다.
 final tokenStoreProvider = Provider<TokenStore>((ref) => SecureTokenStore());
+
+/// 로그인 화면이 기억해 두는 것(저장한 아이디 · 마지막 방법)을 어디에 넣을 것인가.
+///
+/// ⚠️ **위젯 테스트는 이것도 override해야 한다.** 플랫폼 채널을 부른다.
+final signInMemoryStoreProvider = Provider<SignInMemoryStore>(
+  (ref) => SecureSignInMemoryStore(),
+);
 
 /// 약관 동의 기록을 어디에 넣을 것인가.
 ///
@@ -169,8 +178,10 @@ class AuthController extends Notifier<AuthState> {
   Future<AuthFailure?> signIn({
     required String email,
     required String password,
-  }) =>
-      _authenticate(() => _repository.signIn(email: email, password: password));
+  }) => _authenticate(
+    () => _repository.signIn(email: email, password: password),
+    SignInMethod.email,
+  );
 
   /// 성공하면 `null`.
   ///
@@ -184,6 +195,7 @@ class AuthController extends Notifier<AuthState> {
       verificationTicket: verificationTicket,
       password: password,
     ),
+    SignInMethod.email,
   );
 
   /// 성공하면 `null`.
@@ -209,6 +221,9 @@ class AuthController extends Notifier<AuthState> {
         provider: provider,
         authorization: authorization,
       ),
+      switch (provider) {
+        OauthProvider.kakao => SignInMethod.kakao,
+      },
     );
   }
 
@@ -274,13 +289,28 @@ class AuthController extends Notifier<AuthState> {
     } on AuthException {
       // 무시한다. 서버 세션은 만료되면 어차피 죽는다.
     }
+    await forgetSession();
+  }
+
+  /// **서버를 부르지 않고** 로컬만 비운다.
+  ///
+  /// ## 탈퇴 직후에 쓴다
+  ///
+  /// 탈퇴가 성공한 시점에는 서버가 이미 토큰을 무효화했다. 거기서 [signOut]을
+  /// 부르면 **실패할 것이 뻔한 호출을 한 번 더 보내는 셈**이다.
+  ///
+  /// 로그아웃과 도착지는 같다 — 방금 계정을 지운 사람도 처음 온 사람은 아니라
+  /// 온보딩 소개를 다시 보여주지 않는다.
+  Future<void> forgetSession() async {
     await _store.clear();
-    // 로그아웃한 사람은 처음 온 사람이 아니다. 소개를 다시 보여주지 않는다.
     state = const AuthSignedOut(returning: true);
   }
 
+  /// [method]는 **성공했을 때만** 남긴다. 눌러봤다가 안 된 것을 "최근 사용"이라
+  /// 하면 잘못된 힌트가 된다.
   Future<AuthFailure?> _authenticate(
     Future<AuthSession> Function() call,
+    SignInMethod method,
   ) async {
     try {
       final session = await call();
@@ -294,6 +324,7 @@ class AuthController extends Notifier<AuthState> {
       state = AuthSignedIn(session.userId, isOnboarded: isOnboarded);
       // 로그인 응답에도 isOnboarded가 실려 오지만 **/me를 진실로 삼는다.**
       // 값이 갈리는 곳을 둘로 두면 나중에 어긋났을 때 원인을 찾기 어렵다.
+      await ref.read(signInMemoryStoreProvider).rememberMethod(method);
       await _loadCurrentUser(session.accessToken);
       return null;
     } on AuthException catch (error) {

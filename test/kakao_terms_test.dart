@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/storage/consent_store.dart';
+import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
@@ -36,6 +37,9 @@ void main() {
       ProviderScope(
         overrides: [
           tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
+          signInMemoryStoreProvider.overrideWithValue(
+            InMemorySignInMemoryStore(),
+          ),
           consentStoreProvider.overrideWithValue(consent),
           authRepositoryProvider.overrideWithValue(
             FakeAuthRepository(latency: Duration.zero),

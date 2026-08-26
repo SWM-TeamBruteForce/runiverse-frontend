@@ -90,6 +90,23 @@ abstract final class AppRoutes {
   /// 본인 프로필 (S20)
   static const profile = '/profile';
 
+  /// 프로필 편집 (S22.1)
+  ///
+  /// **탭 셸 밖에 둔다.** 정본이 `‹ 프로필 편집  저장` 헤더의 전체 화면이라
+  /// 하단 탭이 함께 보이면 저장하지 않고 다른 탭으로 샐 수 있다.
+  static const profileEdit = '/profile/edit';
+
+  /// 설정 (S22.2)
+  ///
+  /// **탭 셸 밖에 둔다.** [profileEdit]과 같은 이유다 — 하단 탭이 함께 보이면
+  /// 설정을 하다 말고 다른 탭으로 샌다.
+  static const settings = '/profile/settings';
+
+  /// 비밀번호 변경 — 설정 하위 (명세 56번)
+  ///
+  /// ⚠️ **로컬 계정만 들어온다.** 설정 화면이 `loginType`으로 메뉴를 숨기지만,
+  /// 딥링크는 그 문을 지나치지 않는다 — 그때는 서버가 409로 막는다.
+  static const passwordChange = '/profile/settings/password';
   // ── 1인 러닝 — 탭 셸 밖이다 ──────────────────────────────────
   //
   // **탭 바를 덮는다.** 달리는 도중에 다른 탭으로 샐 수 있으면 안 된다.

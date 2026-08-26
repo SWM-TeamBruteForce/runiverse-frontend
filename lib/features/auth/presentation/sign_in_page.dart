@@ -7,6 +7,7 @@ import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
 import 'package:runiverse/core/theme/tokens/app_radius.dart';
+import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
@@ -14,6 +15,7 @@ import 'package:runiverse/core/widgets/app_input.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/email_rule.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
+import 'package:runiverse/features/auth/domain/sign_in_method.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/auth/presentation/password_field.dart';
@@ -52,8 +54,39 @@ class _SignInPageState extends ConsumerState<SignInPage> {
   final _email = TextEditingController();
   final _password = TextEditingController();
 
+  /// 아이디를 기기에 남길지. 저장된 값이 있으면 켠 채로 시작한다.
+  bool _rememberEmail = false;
+
+  /// 마지막으로 성공한 로그인 방법. 그 버튼에 표시가 붙는다.
+  SignInMethod? _lastMethod;
+
   bool _busy = false;
   AuthFailure? _failure;
+
+  @override
+  void initState() {
+    super.initState();
+    // ⚠️ 첫 프레임 뒤로 미룬다 — `initState`에서 provider를 읽고 setState하면
+    // 빌드 도중 상태가 바뀐다.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _restoreMemory());
+  }
+
+  /// 기기에 남겨 둔 아이디와 마지막 로그인 방법을 되살린다.
+  Future<void> _restoreMemory() async {
+    final store = ref.read(signInMemoryStoreProvider);
+    final email = await store.savedEmail();
+    final method = await store.lastMethod();
+    if (!mounted) return;
+
+    setState(() {
+      _lastMethod = method;
+      if (email != null) {
+        _email.text = email;
+        // 저장된 값이 있다는 것은 지난번에 켜 뒀다는 뜻이다.
+        _rememberEmail = true;
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -83,6 +116,14 @@ class _SignInPageState extends ConsumerState<SignInPage> {
     final failure = await ref
         .read(authControllerProvider.notifier)
         .signIn(email: _email.text.trim(), password: _password.text);
+
+    // 성공했든 아니든 **끈 상태면 지운다** — 껐는데 남아 있으면 껐다고 할 수 없다.
+    // 저장은 성공했을 때만 한다. 틀린 이메일을 기억해 주면 다음에도 틀린다.
+    await ref
+        .read(signInMemoryStoreProvider)
+        .rememberEmail(
+          _rememberEmail && failure == null ? _email.text.trim() : null,
+        );
 
     // await 사이에 화면이 사라졌을 수 있다. setState나 context를 쓰기 전에 반드시 본다.
     if (!mounted) return;
@@ -164,6 +205,12 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                       onSubmitted: (_) => _submit(),
                     ),
 
+                    const SizedBox(height: AppSpacing.space2),
+                    _RememberEmail(
+                      value: _rememberEmail,
+                      onChanged: (on) => setState(() => _rememberEmail = on),
+                    ),
+
                     if (_failure != null) ...[
                       const SizedBox(height: AppSpacing.space4),
                       _FailureNotice(failure: _failure!),
@@ -196,10 +243,13 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                     // 카카오·애플을 지우지 않는다. 정본에 셋 다 있고, 나중에 붙일 때
                     // 레이아웃을 다시 잡지 않아도 된다. **회색으로 잠그지도 않는다** —
                     // 잠긴 버튼이 둘이면 앱이 미완성으로 읽힌다. 눌리고, 준비 중임을 알린다.
-                    AppButton(
-                      label: AppStrings.authKakao,
-                      variant: AppButtonVariant.secondary,
-                      onPressed: _busy ? null : _startKakao,
+                    _LastUsedMark(
+                      show: _lastMethod == SignInMethod.kakao,
+                      child: AppButton(
+                        label: AppStrings.authKakao,
+                        variant: AppButtonVariant.secondary,
+                        onPressed: _busy ? null : _startKakao,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.space3),
                     AppButton(
@@ -333,6 +383,94 @@ class _SignInPageState extends ConsumerState<SignInPage> {
 ///
 /// 이메일 로그인과 소셜 로그인이 **대등한 선택지**임을 보인다.
 /// 구분선이 없으면 카카오·애플 버튼이 이메일 로그인의 하위 단계처럼 읽힌다.
+/// `☐ 아이디 저장` — 라벨까지 눌린다.
+///
+/// 체크박스만 과녁으로 두면 44를 못 채우고, 옆의 글자를 눌러도 안 켜지면
+/// 고장으로 읽힌다.
+class _RememberEmail extends StatelessWidget {
+  const _RememberEmail({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return Semantics(
+      checked: value,
+      child: InkWell(
+        onTap: () => onChanged(!value),
+        borderRadius: AppRadius.md,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.space1),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 손가락이 닿는 칸을 44 아래로 내리지 않는다.
+              SizedBox.square(
+                dimension: AppSizes.touchDefault,
+                child: Icon(
+                  value ? LucideIcons.squareCheck : LucideIcons.square,
+                  size: AppSpacing.space5,
+                  color: value ? colors.primary : colors.textTertiary,
+                ),
+              ),
+              Text(
+                AppStrings.authRememberEmail,
+                style: AppTypography.body.copyWith(
+                  color: value ? colors.textPrimary : colors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 버튼 오른쪽에 붙는 `최근 사용` 표시.
+///
+/// **버튼을 감싸되 크기는 건드리지 않는다** — 표시가 붙고 떨어질 때 버튼이
+/// 움직이면 누르려던 자리가 어긋난다.
+class _LastUsedMark extends StatelessWidget {
+  const _LastUsedMark({required this.show, required this.child});
+
+  final bool show;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!show) return child;
+    final colors = context.appColors;
+
+    return Stack(
+      alignment: Alignment.centerRight,
+      children: [
+        child,
+        Padding(
+          padding: const EdgeInsets.only(right: AppSpacing.space4),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.space2,
+              vertical: AppSpacing.space0,
+            ),
+            decoration: BoxDecoration(
+              color: colors.primaryMuted,
+              borderRadius: AppRadius.full,
+            ),
+            child: Text(
+              AppStrings.authLastUsed,
+              style: AppTypography.micro.copyWith(color: colors.primary),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _OrDivider extends StatelessWidget {
   const _OrDivider();
 
@@ -381,7 +519,7 @@ class _FailureNotice extends StatelessWidget {
     AuthFailure.oauthEmailMissing => AppStrings.authFailedOauthEmail,
     // 카카오 계정의 이메일로 이미 가입한 사람이다. 서버가 자동 연동하지 않으므로
     // **이메일 로그인으로 안내한다** — "이미 가입했다"만으로는 갈 곳을 모른다.
-    AuthFailure.emailAlreadyExists => AppStrings.authFailedOauthEmailTaken,
+    AuthFailure.emailAlreadyExists => AppStrings.authFailedEmailTaken,
     // 취소는 `_signInWithKakao`가 걸러내 여기까지 오지 않는다.
     // enum이라 자리는 있어야 하고, 빈 문구가 그 사실을 드러낸다.
     AuthFailure.oauthCancelled => '',
