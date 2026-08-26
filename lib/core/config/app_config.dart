@@ -62,4 +62,27 @@ class AppConfig {
   /// 콜백이 돌고, 그 뒤 지도를 그리려 하면 앱이 통째로 죽는다 —
   /// 카카오에서 겪은 것과 같은 함정이다.
   static bool get hasNaverMapClientId => naverMapClientId.isNotEmpty;
+
+  /// WebSocket 주소. [apiBaseUrl]에서 파생한다.
+  ///
+  /// 주소를 따로 주입하지 않는 이유는 **둘이 어긋날 자리를 만들지 않기
+  /// 위해서**다. 서버를 옮겼는데 한쪽만 고치면, REST는 새 서버로 가고 WS는
+  /// 옛 서버로 가는 상태가 된다 — 증상이 "러닝만 안 된다"로 나타나서
+  /// 원인을 찾기 어렵다.
+  ///
+  /// `http` → `ws`, `https` → `wss`로 바꾼다. 스킴만 바뀌고 호스트·포트·경로는
+  /// 그대로다.
+  ///
+  /// ⚠️ **서버가 WS를 다른 호스트나 포트로 분리하면 이 파생은 깨진다.**
+  /// 그때는 주입값을 하나 더 두어야 한다.
+  static String get wsBaseUrl {
+    if (apiBaseUrl.startsWith('https://')) {
+      return apiBaseUrl.replaceFirst('https://', 'wss://');
+    }
+    if (apiBaseUrl.startsWith('http://')) {
+      return apiBaseUrl.replaceFirst('http://', 'ws://');
+    }
+    // 스킴을 모르면 손대지 않는다. 어차피 [hasApiBaseUrl]이 먼저 막는다.
+    return apiBaseUrl;
+  }
 }
