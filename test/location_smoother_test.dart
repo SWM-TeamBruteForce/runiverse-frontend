@@ -183,5 +183,28 @@ void main() {
       expect(fresh.latitude, 35.1);
       expect(fresh.longitude, 129.0);
     });
+
+    test('⚠️ 위경도 말고는 원본 그대로 나온다', () {
+      // 보정은 새 `GeoPoint`를 만들어 돌려준다. 옮겨 담는 것을 빠뜨리면
+      // 그 값은 **조용히 `null`이 된다** — 실제로 고도와 방향이 그렇게
+      // 사라져 DB에 한 번도 저장되지 않았다.
+      final smoothed = LocationSmoother().smooth(
+        GeoPoint(
+          latitude: 37.5665,
+          longitude: 126.978,
+          recordedAt: DateTime(2026, 8, 27, 5, 40, 48),
+          accuracy: 7.5,
+          speed: 2.8,
+          altitude: 38.2,
+          heading: 45.7,
+        ),
+      );
+
+      expect(smoothed.altitude, 38.2, reason: '고도는 거르지 않고 그대로 간다');
+      expect(smoothed.heading, 45.7, reason: '방향은 각도라 선형 필터를 걸면 안 된다');
+      expect(smoothed.accuracy, 7.5);
+      expect(smoothed.speed, 2.8);
+      expect(smoothed.recordedAt, DateTime(2026, 8, 27, 5, 40, 48));
+    });
   });
 }

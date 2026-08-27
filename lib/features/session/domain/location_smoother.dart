@@ -19,8 +19,13 @@ class LocationSmoother {
   final _latitude = KalmanFilter1D();
   final _longitude = KalmanFilter1D();
 
-  /// 보정한 좌표를 돌려준다. **시각·정확도·속도는 원본 그대로 실어 보낸다** —
+  /// 보정한 좌표를 돌려준다. **위경도 말고는 원본 그대로 실어 보낸다** —
   /// 보정 대상은 위치뿐이고, 나머지를 만들어내면 뒤에서 그것을 믿게 된다.
+  ///
+  /// ⚠️ **[GeoPoint]에 필드를 더하면 여기에도 더해야 한다.** 새 `GeoPoint`를
+  /// 만들어 돌려주므로 빠뜨린 필드는 조용히 `null`이 된다. 컴파일도 통과하고
+  /// 테스트도 통과했다 — 기기에서 저장된 값을 눈으로 보고서야 고도와 방향이
+  /// 통째로 비어 있는 것을 찾았다.
   GeoPoint smooth(GeoPoint point) {
     final q = _q(point.speed);
     final r = _r(point.accuracy);
@@ -31,6 +36,10 @@ class LocationSmoother {
       recordedAt: point.recordedAt,
       accuracy: point.accuracy,
       speed: point.speed,
+      // 고도는 거리 계산에 쓰지 않으므로 거르지 않는다. 방향은 각도라
+      // 359°와 1°의 평균이 180°가 되어 **선형 필터를 걸면 안 된다.**
+      altitude: point.altitude,
+      heading: point.heading,
     );
   }
 
