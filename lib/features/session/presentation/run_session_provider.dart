@@ -1,13 +1,18 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/database/database_provider.dart';
 import 'package:runiverse/features/session/data/geolocator_location_repository.dart';
+import 'package:runiverse/features/session/data/sqflite_track_repository.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/domain/location_smoother.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/session/domain/run_metrics.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
+import 'package:runiverse/features/session/domain/track_recorder.dart';
+import 'package:runiverse/features/session/domain/track_repository.dart';
 
 /// 위치를 누가 줄 것인가. 지금은 실제 GPS다.
 ///
@@ -22,6 +27,19 @@ final locationRepositoryProvider = Provider<LocationRepository>(
 
 /// 지금 몇 시인가. 테스트가 시간을 돌리기 위해 갈아 끼운다.
 final runClockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
+
+/// 좌표를 담는 곳. 기기 SQLite다.
+final trackRepositoryProvider = Provider<TrackRepository>(
+  (ref) => SqfliteTrackRepository(() => ref.read(databaseProvider.future)),
+);
+
+/// 좌표를 어디에 쌓나.
+///
+/// **테스트는 가짜 저장소를 끼운다.** 진짜를 쓰면 위젯 테스트가 기기 DB를
+/// 열려 하고, `sqflite`는 기기가 있어야 돌아서 죽는다.
+final trackRecorderProvider = Provider<TrackRecorder>(
+  (ref) => TrackRecorder(ref.watch(trackRepositoryProvider)),
+);
 
 /// 1인 러닝 세션.
 ///
@@ -189,7 +207,20 @@ class RunSessionController extends Notifier<RunSessionState> {
           _distanceMeters += _points.last.distanceTo(point);
         }
         _points.add(point);
-        state = RunRunning(_metrics());
+        final metrics = _metrics();
+        state = RunRunning(metrics);
+
+        // ⚠️ **기다리지 않는다.** DB 쓰기가 느려도 화면과 거리 계산이 멈추면
+        // 안 된다. 실패해도 러닝은 계속된다 — 좌표 하나 때문에 달리기를
+        // 멈출 이유가 없다.
+        unawaited(
+          ref
+              .read(trackRecorderProvider)
+              .add(point, currentPace: metrics.currentPace)
+              .catchError((Object error) {
+                debugPrint('[track] 좌표를 쌓지 못했다 · $error');
+              }),
+        );
 
       // 일시정지·종료·대기 중에 들어온 좌표는 버린다.
       case RunPreparing() || RunPaused() || RunFinished() || RunIdle():

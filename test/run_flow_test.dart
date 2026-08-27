@@ -12,6 +12,7 @@ import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_running_room_repository.dart';
+import 'package:runiverse/features/session/data/fake_track_repository.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
@@ -37,11 +38,13 @@ void main() {
   late DateTime clock;
   late FakeLocationRepository location;
   late FakeRunningRoomRepository room;
+  late FakeTrackRepository track;
 
   setUp(() {
     clock = start;
     location = FakeLocationRepository();
     room = FakeRunningRoomRepository();
+    track = FakeTrackRepository();
   });
 
   Future<void> pumpRun(
@@ -70,6 +73,9 @@ void main() {
           // ⚠️ 서버를 부르지 않는다. 갈아 끼우지 않으면 진짜 HTTP와 소켓을
           // 열려 하고, 테스트에는 주소가 없어 죽는다.
           runningRoomRepositoryProvider.overrideWithValue(room),
+          // ⚠️ 갈아 끼우지 않으면 진짜 DB를 열려다 실패하고, 컨트롤러가 그
+          // 실패를 삼켜 **좌표가 쌓이는지 아무도 확인하지 않는 상태**가 된다.
+          trackRepositoryProvider.overrideWithValue(track),
           runningChannelFactoryProvider.overrideWithValue(
             (_) => _SilentChannel(),
           ),
@@ -272,6 +278,34 @@ void main() {
       // 0이 아닌 거리가 찍혀야 한다. 정확한 값은 칼만 보정이 정하므로
       // 여기서 자릿수까지 못박지 않는다.
       expect(find.text('0.00'), findsNothing);
+      await unmount(tester);
+    });
+
+    testWidgets('⚠️ 달리면 좌표가 로컬에 쌓인다', (tester) async {
+      // 서버가 아직 좌표를 못 받으므로, 쌓아 두지 않으면 통째로 사라진다.
+      await pumpRun(tester);
+      await startRunning(tester);
+
+      await emit(tester, point(37.5, 127));
+      await emit(tester, point(37.501, 127));
+      // DB 쓰기는 기다리지 않고 보내므로 한 프레임 더 돌린다.
+      await tester.pump();
+
+      expect(track.all, isNotEmpty);
+      expect(track.all.first.sequence, 1);
+      await unmount(tester);
+    });
+
+    testWidgets('⚠️ 좌표를 못 쌓아도 러닝은 계속된다', (tester) async {
+      // 좌표 하나 때문에 달리기를 멈출 이유가 없다.
+      track.failure = StateError('디스크가 가득 찼다');
+      await pumpRun(tester);
+      await startRunning(tester);
+
+      await emit(tester, point(37.501, 127));
+      await tester.pump();
+
+      expect(find.text(AppStrings.runStopCta), findsOneWidget);
       await unmount(tester);
     });
 
