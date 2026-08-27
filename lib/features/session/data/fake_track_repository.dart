@@ -34,10 +34,18 @@ class FakeTrackRepository implements TrackRepository {
     int runningRoomId, {
     int afterSequence = 0,
     int limit = 100,
-  }) async => (saved[runningRoomId] ?? [])
-      .where((p) => p.sequence > afterSequence)
-      .take(limit)
-      .toList();
+  }) async {
+    // ⚠️ **진짜 저장소처럼 순번으로 정렬한 뒤 자른다.** 안 하면 넣은 순서대로
+    // 돌려주는데, 전송기는 `points.last.sequence`를 커서로 삼는다 — 가짜만
+    // 순서가 흐트러지면 그 버그를 테스트가 못 잡는다.
+    final matched =
+        (saved[runningRoomId] ?? [])
+            .where((p) => p.sequence > afterSequence)
+            .toList()
+          ..sort((a, b) => a.sequence.compareTo(b.sequence));
+
+    return matched.take(limit).toList();
+  }
 
   @override
   Future<void> clear(int runningRoomId) async {

@@ -17,6 +17,7 @@ import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
+import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 
@@ -448,6 +449,9 @@ class _SilentChannel implements RunningChannel {
 
   @override
   Future<void> start(int runningRoomId) async {}
+
+  @override
+  bool sendLocations(List<TrackPoint> points) => true;
 
   @override
   Future<void> close() async {}

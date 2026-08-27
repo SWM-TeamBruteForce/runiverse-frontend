@@ -30,7 +30,10 @@ void main() {
       final atSeoul = point(37.5, 127).distanceTo(point(37.5, 128));
       final atEquator = point(0, 127).distanceTo(point(0, 128));
 
-      expect(atSeoul / atEquator, closeTo(math.cos(37.5 * math.pi / 180), 0.01));
+      expect(
+        atSeoul / atEquator,
+        closeTo(math.cos(37.5 * math.pi / 180), 0.01),
+      );
     });
   });
 
