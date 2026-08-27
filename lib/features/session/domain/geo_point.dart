@@ -75,6 +75,36 @@ class GeoPoint {
     return _earthRadius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
   }
 
+  /// [other]로 가는 방위각(도). 정북이 0이고 시계방향으로 0~360이다.
+  ///
+  /// ## ⚠️ 센서가 주는 방향을 믿을 수 없어 직접 낸다
+  ///
+  /// 안드로이드 에뮬레이터에서 15개를 받아 재보니 [heading]이 전부
+  /// **0.005~0.011도**였다. 실제로는 북동 45도로 움직이는 중이었다.
+  /// `headingAccuracy`도 `30.0`으로 고정이라 "모른다"는 신호조차 주지 않는다.
+  /// 같은 좌표로 이 계산을 돌리면 42~47도가 나온다.
+  ///
+  /// **[heading]의 `null` 검사로는 못 막는다.** 안드로이드는 방위가 없을 때
+  /// 음수가 아니라 `0`을 주므로, 코드는 그것을 "정북"으로 받아들인다.
+  ///
+  /// ## 가까운 두 점에 쓰면 안 된다
+  ///
+  /// 거의 제자리면 방향이 통째로 잡음이다. 부르는 쪽이 [distanceTo]로
+  /// 먼저 걸러야 한다.
+  double bearingTo(GeoPoint other) {
+    final phi1 = _toRadians(latitude);
+    final phi2 = _toRadians(other.latitude);
+    final dLon = _toRadians(other.longitude - longitude);
+
+    final y = math.sin(dLon) * math.cos(phi2);
+    final x =
+        math.cos(phi1) * math.sin(phi2) -
+        math.sin(phi1) * math.cos(phi2) * math.cos(dLon);
+
+    // atan2는 -180~180을 준다. 서버가 요구하는 0~360으로 옮긴다.
+    return (math.atan2(y, x) * 180 / math.pi + 360) % 360;
+  }
+
   static double _toRadians(double degrees) => degrees * math.pi / 180;
 
   @override

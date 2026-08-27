@@ -53,11 +53,18 @@ class TrackPoint {
   final DateTime recordedAt;
 
   /// 기기가 준 좌표에 순번과 계산값을 얹는다.
+  /// [headingDegrees]는 **직전 좌표로부터 계산한 진행 방향**이다.
+  ///
+  /// ⚠️ 센서가 주는 `point.heading`보다 이것을 먼저 쓴다. 안드로이드에서
+  /// 측정해 보니 센서 값이 실제 방향과 무관했다(`GeoPoint.bearingTo` 참조).
+  /// 계산할 수 없을 때만 — 첫 좌표이거나 거의 제자리일 때 — 센서 값으로
+  /// 물러선다. iOS는 아직 재보지 않았다.
   factory TrackPoint.from(
     GeoPoint point, {
     required int sequence,
     int? cadenceSpm,
     Duration? currentPace,
+    double? headingDegrees,
   }) => TrackPoint(
     sequence: sequence,
     latitude: point.latitude,
@@ -66,7 +73,7 @@ class TrackPoint {
     // ⚠️ 센서가 못 구하면 음수가 온다. 서버에 음수 속도를 보낼 이유가 없다.
     speedMetersPerSecond: point.speed < 0 ? 0 : point.speed,
     altitudeMeters: point.altitude,
-    headingDegrees: point.heading,
+    headingDegrees: headingDegrees ?? point.heading,
     cadenceSpm: cadenceSpm,
     currentPaceSecondsPerKm: currentPace?.inSeconds,
     recordedAt: point.recordedAt,

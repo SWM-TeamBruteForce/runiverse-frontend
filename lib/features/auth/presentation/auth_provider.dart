@@ -9,6 +9,7 @@ import 'package:runiverse/features/auth/data/kakao_code_source.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/current_user.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
+import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/domain/auth_tokens.dart';
 import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
@@ -64,6 +65,18 @@ final dioProvider = Provider<Dio>((ref) {
 /// 반드시 해야 하고 그 자리가 여기다. 화면 파일은 여전히 `data`를 모른다.
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => HttpAuthRepository(ref.watch(dioProvider)),
+);
+
+/// 토큰 갱신을 한 줄로 모으는 곳.
+///
+/// ⚠️ **하나만 있어야 한다.** 갱신이 동시에 두 번 나가면 서버가 탈취로 보고
+/// 리프레시 토큰을 지운다(`docs/implementation-notes.md` 9-6). `Provider`가
+/// 인스턴스를 캐시하므로 이것을 읽는 쪽은 전부 같은 [TokenRefresher]를 본다.
+final tokenRefresherProvider = Provider<TokenRefresher>(
+  (ref) => TokenRefresher(
+    ref.watch(authRepositoryProvider),
+    ref.watch(tokenStoreProvider),
+  ),
 );
 
 /// 소셜 인가 코드를 어디서 얻는가.

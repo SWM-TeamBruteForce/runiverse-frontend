@@ -65,6 +65,12 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   sqflite_common_ffi: ^2.4.2+1
 
+  # 기기에서 도는 테스트. `flutter test`는 Dart VM에서만 돌아 플랫폼 채널
+  # (GPS·SQLite)을 부를 수 없다. 그것들이 진짜로 이어져 있는지는 기기에서만
+  # 확인된다. Flutter SDK와 함께 오므로 버전을 따로 고르지 않는다.
+  integration_test:
+    sdk: flutter
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 

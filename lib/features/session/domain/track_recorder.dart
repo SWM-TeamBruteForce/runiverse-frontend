@@ -52,13 +52,22 @@ class TrackRecorder {
   ///
   /// [currentPace]는 **그 시점의 페이스**다. 저장할 때 박아 두면 재전송이
   /// 읽어서 보내기로 끝난다 — 전송 시점에 계산하면 지나간 페이스를 재현해야 한다.
-  Future<void> add(GeoPoint point, {Duration? currentPace, int? cadenceSpm}) {
+  ///
+  /// [headingDegrees]도 마찬가지로 **부르는 쪽이 계산해서 준다.** 직전 좌표가
+  /// 있어야 내는 값이라 기록기가 알 수 없다.
+  Future<void> add(
+    GeoPoint point, {
+    Duration? currentPace,
+    int? cadenceSpm,
+    double? headingDegrees,
+  }) {
     _sequence++;
     final track = TrackPoint.from(
       point,
       sequence: _sequence,
       currentPace: currentPace,
       cadenceSpm: cadenceSpm,
+      headingDegrees: headingDegrees,
     );
 
     final roomId = _roomId;

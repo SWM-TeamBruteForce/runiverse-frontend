@@ -1,19 +1,25 @@
 import 'package:dio/dio.dart';
 import 'package:runiverse/core/storage/token_store.dart';
-import 'package:runiverse/features/auth/domain/auth_failure.dart';
-import 'package:runiverse/features/auth/domain/auth_repository.dart';
+import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/domain/running_room_repository.dart';
 
 /// 진짜 서버를 부르는 [RunningRoomRepository].
 ///
 /// 401이면 **한 번만** 갱신하고 다시 부른다 — 다른 저장소와 같은 규칙이다.
+///
+/// ## ⚠️ 갱신을 직접 부르지 않는다
+///
+/// 러닝을 시작하면 이 호출과 WebSocket 핸드셰이크가 **같은 만료 토큰으로 거의
+/// 동시에** 나간다. 양쪽이 각자 갱신하면 두 번째가 이미 회전된 리프레시 토큰을
+/// 보내게 되고, 서버가 그것을 탈취로 보고 **잘못 없는 사용자를 로그아웃시킨다**
+/// (`docs/implementation-notes.md` 9-6). [TokenRefresher]가 둘을 한 줄로 모은다.
 class HttpRunningRoomRepository implements RunningRoomRepository {
-  HttpRunningRoomRepository(this._dio, this._store, this._auth);
+  HttpRunningRoomRepository(this._dio, this._store, this._refresher);
 
   final Dio _dio;
   final TokenStore _store;
-  final AuthRepository _auth;
+  final TokenRefresher _refresher;
 
   static const _soloPath = '/api/v1/running-rooms/solo';
 
@@ -32,7 +38,7 @@ class HttpRunningRoomRepository implements RunningRoomRepository {
         throw RunningRoomException(_failureOf(error));
       }
       try {
-        return await _post(await _refreshed(stored.refreshToken));
+        return await _post(await _refreshed());
       } on DioException catch (retried) {
         throw RunningRoomException(_failureOf(retried));
       }
@@ -52,25 +58,16 @@ class HttpRunningRoomRepository implements RunningRoomRepository {
     return RunningRoom(id);
   }
 
-  Future<String> _refreshed(String? refreshToken) async {
-    if (refreshToken == null) {
+  /// 갱신된 액세스 토큰. 못 받으면 세션이 끝난 것으로 본다.
+  ///
+  /// 저장과 회전 처리는 [TokenRefresher]가 한다 — 여기서 또 하면 두 곳이
+  /// 갈릴 자리가 생긴다.
+  Future<String> _refreshed() async {
+    final accessToken = await _refresher.refresh();
+    if (accessToken == null) {
       throw const RunningRoomException(RunningRoomFailure.sessionExpired);
     }
-    try {
-      final tokens = await _auth.refresh(refreshToken);
-      // ⚠️ 회전된 refreshToken도 반드시 덮어쓴다. 안 하면 다음 갱신이 죽는다.
-      await _store.saveTokens(
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      );
-      return tokens.accessToken;
-    } on AuthException catch (error) {
-      throw RunningRoomException(
-        error.failure == AuthFailure.network
-            ? RunningRoomFailure.network
-            : RunningRoomFailure.sessionExpired,
-      );
-    }
+    return accessToken;
   }
 
   RunningRoomFailure _failureOf(DioException error) {

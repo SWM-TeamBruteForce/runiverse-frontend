@@ -296,6 +296,51 @@ void main() {
       await unmount(tester);
     });
 
+    testWidgets('⚠️ 사람이 달리는 속도에서 진행 방향이 붙는다', (tester) async {
+      // 센서가 주는 방향은 안드로이드에서 실제 방향과 무관했다. 직전 좌표로
+      // 직접 계산한 값이 저장까지 닿아야 한다(`GeoPoint.bearingTo`).
+      //
+      // ⚠️ **속도를 실제와 맞춰야 의미가 있다.** 좌표는 1초 간격이고 6분/km면
+      // 초당 2.8미터다. 최소 이동 거리를 직전 좌표 하나에 걸면 시속 36km를
+      // 요구하게 되어 방향이 전부 빈다 — 그 회귀를 여기서 잡는다.
+      await pumpRun(tester);
+      await startRunning(tester);
+
+      // 북쪽으로 초당 2.8미터씩. 위도 1도는 약 111,320미터다.
+      const step = 2.8 / 111320;
+      for (var i = 0; i < 15; i++) {
+        await emit(tester, point(37.5 + i * step, 127));
+      }
+      await tester.pump();
+
+      final headings = track.all
+          .map((p) => p.headingDegrees)
+          .whereType<double>();
+
+      expect(headings, isNotEmpty, reason: '방향이 하나도 안 붙었다');
+      expect(headings.last, closeTo(0, 5));
+      await unmount(tester);
+    });
+
+    testWidgets('⚠️ 제자리에서는 방향을 지어내지 않는다', (tester) async {
+      // 오차 반경 안에서 흔들리는 것은 진행이 아니다. 그 각도를 보내면
+      // 서 있는 사람이 어디론가 향하는 것처럼 기록된다.
+      await pumpRun(tester);
+      await startRunning(tester);
+
+      for (var i = 0; i < 10; i++) {
+        await emit(tester, point(37.5, 127));
+      }
+      await tester.pump();
+
+      expect(
+        track.all.map((p) => p.headingDegrees).whereType<double>(),
+        isEmpty,
+        reason: '움직이지 않았는데 방향이 붙었다',
+      );
+      await unmount(tester);
+    });
+
     testWidgets('⚠️ 좌표를 못 쌓아도 러닝은 계속된다', (tester) async {
       // 좌표 하나 때문에 달리기를 멈출 이유가 없다.
       track.failure = StateError('디스크가 가득 찼다');
