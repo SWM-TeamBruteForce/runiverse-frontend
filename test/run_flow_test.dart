@@ -296,6 +296,27 @@ void main() {
       await unmount(tester);
     });
 
+    testWidgets('⚠️ 쌓이는 좌표에 진행 방향이 계산되어 붙는다', (tester) async {
+      // 센서가 주는 방향은 안드로이드에서 실제 방향과 무관했다. 직전 좌표로
+      // 직접 계산한 값이 저장까지 닿아야 한다(`GeoPoint.bearingTo`).
+      await pumpRun(tester);
+      await startRunning(tester);
+
+      await emit(tester, point(37.5, 127));
+      // 북쪽으로 간다. 방위는 0도 근처여야 한다.
+      await emit(tester, point(37.501, 127));
+      await emit(tester, point(37.502, 127));
+      await tester.pump();
+
+      final headings = track.all
+          .map((p) => p.headingDegrees)
+          .whereType<double>();
+
+      expect(headings, isNotEmpty, reason: '방향이 하나도 안 붙었다');
+      expect(headings.last, closeTo(0, 5));
+      await unmount(tester);
+    });
+
     testWidgets('⚠️ 좌표를 못 쌓아도 러닝은 계속된다', (tester) async {
       // 좌표 하나 때문에 달리기를 멈출 이유가 없다.
       track.failure = StateError('디스크가 가득 찼다');

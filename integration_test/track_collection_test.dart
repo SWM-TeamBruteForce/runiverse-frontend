@@ -143,7 +143,9 @@ void main() {
         reason: '페이스가 하나도 안 박혔다',
       );
 
-      await repository.clear(testRoomId);
+      // ⚠️ **끝나고 지우지 않는다.** 격리는 시작할 때의 `clear`가 이미 맡고
+      // 있고, 여기서 또 지우면 **무엇이 쌓였는지 기기에서 확인할 방법이
+      // 없어진다** — DB 파일을 뽑아 눈으로 보는 것이 이 테스트의 절반이다.
     });
   }, timeout: const Timeout(Duration(minutes: 5)));
 }

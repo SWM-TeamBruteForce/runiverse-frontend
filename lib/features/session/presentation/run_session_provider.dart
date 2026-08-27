@@ -63,6 +63,12 @@ final runSessionControllerProvider =
 /// 시간은 [_accumulated]에 얼려두고, 들어온 좌표는 버린다.
 /// 재개할 때 [_points]를 비우므로 **멈춘 사이에 이동한 거리도 세지 않는다.**
 class RunSessionController extends Notifier<RunSessionState> {
+  /// 방향을 내려면 직전 좌표에서 최소 이만큼은 움직였어야 한다.
+  ///
+  /// 초당 1미터는 시속 3.6km로 **걷기보다 느리다.** 그보다 덜 움직였으면
+  /// 두 점 사이의 방향은 GPS 잡음이지 진행 방향이 아니다.
+  static const _headingMinMeters = 1.0;
+
   StreamSubscription<GeoPoint>? _subscription;
   Timer? _ticker;
 
@@ -203,8 +209,14 @@ class RunSessionController extends Notifier<RunSessionState> {
         state = const RunPreparing(hasFix: true);
 
       case RunRunning():
+        // 직전 좌표로부터의 진행 방향. **센서 값을 믿을 수 없어 직접 낸다**
+        // (`GeoPoint.bearingTo` 참조). 거의 제자리면 방향이 잡음이라 내지 않고,
+        // 그때는 "모른다"로 남겨 전송 계층이 0으로 눌러 보낸다.
+        double? heading;
         if (_points.isNotEmpty) {
-          _distanceMeters += _points.last.distanceTo(point);
+          final moved = _points.last.distanceTo(point);
+          _distanceMeters += moved;
+          if (moved >= _headingMinMeters) heading = _points.last.bearingTo(point);
         }
         _points.add(point);
         final metrics = _metrics();
@@ -216,7 +228,11 @@ class RunSessionController extends Notifier<RunSessionState> {
         unawaited(
           ref
               .read(trackRecorderProvider)
-              .add(point, currentPace: metrics.currentPace)
+              .add(
+                point,
+                currentPace: metrics.currentPace,
+                headingDegrees: heading,
+              )
               .catchError((Object error) {
                 debugPrint('[track] 좌표를 쌓지 못했다 · $error');
               }),
