@@ -63,11 +63,27 @@ final runSessionControllerProvider =
 /// 시간은 [_accumulated]에 얼려두고, 들어온 좌표는 버린다.
 /// 재개할 때 [_points]를 비우므로 **멈춘 사이에 이동한 거리도 세지 않는다.**
 class RunSessionController extends Notifier<RunSessionState> {
-  /// 방향을 내려면 직전 좌표에서 최소 이만큼은 움직였어야 한다.
+  /// 방향을 내는 데 쓸 최소 이동 거리.
   ///
-  /// 초당 1미터는 시속 3.6km로 **걷기보다 느리다.** 그보다 덜 움직였으면
-  /// 두 점 사이의 방향은 GPS 잡음이지 진행 방향이 아니다.
-  static const _headingMinMeters = 1.0;
+  /// GPS 오차 반경이 흔히 5~10미터다. 그보다 짧은 이동으로 각도를 내면
+  /// 진행 방향이 아니라 잡음의 방향이 나온다.
+  ///
+  /// ## ⚠️ 직전 좌표 하나와 비교하는 값이 아니다
+  ///
+  /// 좌표는 1초 간격이다. 6분/km로 달려도 초당 2.8미터라 **직전 좌표와의
+  /// 거리가 10미터를 넘으려면 시속 36km로 달려야 한다.** 그렇게 걸면 방향이
+  /// 거의 항상 비게 된다.
+  ///
+  /// 그래서 **되돌아보는 창**으로 쓴다 — 이만큼 떨어진 가장 최근 좌표에서
+  /// 방위를 낸다. 6분/km면 약 4초 전 좌표다.
+  static const _headingMinMeters = 10.0;
+
+  /// 방위를 낼 때 최대 몇 점까지 되돌아보나.
+  ///
+  /// 1초에 하나씩 들어오므로 1분이다. **1분 동안 10미터를 못 갔으면 움직이는
+  /// 중이 아니다.** 한도가 없으면 신호등에 서 있는 동안 매 초 러닝 전체를
+  /// 훑게 된다.
+  static const _headingLookback = 60;
 
   StreamSubscription<GeoPoint>? _subscription;
   Timer? _ticker;
@@ -209,15 +225,11 @@ class RunSessionController extends Notifier<RunSessionState> {
         state = const RunPreparing(hasFix: true);
 
       case RunRunning():
-        // 직전 좌표로부터의 진행 방향. **센서 값을 믿을 수 없어 직접 낸다**
-        // (`GeoPoint.bearingTo` 참조). 거의 제자리면 방향이 잡음이라 내지 않고,
-        // 그때는 "모른다"로 남겨 전송 계층이 0으로 눌러 보낸다.
-        double? heading;
+        // 진행 방향. **센서 값을 믿을 수 없어 직접 낸다**(`GeoPoint.bearingTo`).
         if (_points.isNotEmpty) {
-          final moved = _points.last.distanceTo(point);
-          _distanceMeters += moved;
-          if (moved >= _headingMinMeters) heading = _points.last.bearingTo(point);
+          _distanceMeters += _points.last.distanceTo(point);
         }
+        final heading = _headingAt(point);
         _points.add(point);
         final metrics = _metrics();
         state = RunRunning(metrics);
@@ -242,6 +254,24 @@ class RunSessionController extends Notifier<RunSessionState> {
       case RunPreparing() || RunPaused() || RunFinished() || RunIdle():
         break;
     }
+  }
+
+  /// [point]의 진행 방향. 낼 수 없으면 `null`이다.
+  ///
+  /// [_headingMinMeters] 이상 떨어진 **가장 최근** 좌표를 찾아 거기서 낸다.
+  /// 가장 최근 것을 쓰므로 조건을 만족하는 가장 짧은 창이 되고, 방향이
+  /// 지나간 것이 되지 않는다.
+  ///
+  /// 러닝 시작 직후나 제자리에 서 있을 때는 `null`이다. 그때는 "모른다"로
+  /// 남겨 전송 계층이 0으로 눌러 보낸다.
+  double? _headingAt(GeoPoint point) {
+    final oldest = _points.length - _headingLookback;
+    for (var i = _points.length - 1; i >= 0 && i >= oldest; i--) {
+      if (_points[i].distanceTo(point) >= _headingMinMeters) {
+        return _points[i].bearingTo(point);
+      }
+    }
+    return null;
   }
 
   /// 1초마다 화면의 시간을 밀어준다. 좌표가 안 와도 시계는 흘러야 한다.
