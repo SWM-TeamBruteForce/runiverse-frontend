@@ -1,9 +1,19 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+
+/// 붙을 때마다 액세스 토큰을 주는 함수.
+///
+/// [refresh]가 `true`면 **갱신해서** 새 토큰을 준다. 못 주면 `null`이고,
+/// 그때는 재로그인 말고는 방법이 없다.
+///
+/// 함수로 받는 이유는 [WsClient]가 인증을 몰라도 되게 하기 위해서다 —
+/// 어디에 저장하고 어떻게 갱신하는지는 부르는 쪽이 안다.
+typedef WsAccessToken = Future<String?> Function({bool refresh});
 
 /// 지금 연결이 어떤 상태인가.
 enum WsConnectionState {
@@ -37,10 +47,17 @@ enum WsConnectionState {
 /// 서버는 **같은 사용자의 마지막 연결만 유지**한다. 다른 기기에서 접속하면
 /// 이쪽을 `4001`로 닫는다. 여기서 다시 붙으면 저쪽을 끊고, 저쪽이 또 붙어
 /// 이쪽을 끊는 **무한 루프**가 된다. 명세도 재연결하지 말라고 못박았다.
+///
+/// ## 핸드셰이크 401은 갱신하고 한 번만 다시 붙는다
+///
+/// 토큰이 만료된 채로 붙으면 서버가 `101`이 아니라 `401`로 답한다. 그것을
+/// 여느 실패처럼 다루면 **같은 죽은 토큰으로 30초마다 영원히 두드리게 된다.**
+/// 갱신해서 곧바로 한 번 다시 붙고, 그래도 401이면 [WsConnectionState.closed]로
+/// 간다 — 그다음은 재로그인이다.
 class WsClient {
   WsClient({
     required this.url,
-    required this.accessToken,
+    required this.token,
     this.healthCheckInterval = const Duration(seconds: 30),
     this.connect = _connectIo,
   });
@@ -48,8 +65,12 @@ class WsClient {
   /// `wss://host/api/v1/ws/running`
   final String url;
 
+  /// 붙을 때마다 액세스 토큰을 준다.
+  ///
   /// 핸드셰이크에서 **한 번만** 검증된다. 연결 중 만료돼도 끊기지 않는다.
-  final String accessToken;
+  /// 다만 **끊겨서 다시 붙을 때는 새로 물어본다** — 30분을 달리면 처음 받은
+  /// 토큰이 그때는 죽어 있을 수 있다.
+  final WsAccessToken token;
 
   /// 얼마나 자주 `HEALTH_CHECK`를 보내나.
   ///
@@ -72,6 +93,15 @@ class WsClient {
 
   /// 스스로 끊었는가. `true`면 재연결하지 않는다.
   var _closedByUs = false;
+
+  /// 다음에 붙을 때 토큰을 갱신해서 받아야 하는가.
+  var _needsFreshToken = false;
+
+  /// 이번 연결 시도에서 이미 갱신을 써봤는가.
+  ///
+  /// **한 번뿐이다.** 갱신하고도 401이면 토큰 문제가 아니라 계정 문제다.
+  /// 계속 시도하면 갱신 API만 두드리게 된다.
+  var _refreshed = false;
 
   final _messages = StreamController<WsMessage>.broadcast();
   final _states = StreamController<WsConnectionState>.broadcast();
@@ -133,6 +163,18 @@ class WsClient {
           : WsConnectionState.reconnecting,
     );
 
+    // ⚠️ **붙을 때마다 새로 물어본다.** 한 번 받아 들고 있으면 30분짜리
+    // 러닝 중에 재연결할 때 이미 죽은 토큰을 쓰게 된다.
+    final accessToken = await token(refresh: _needsFreshToken);
+    _needsFreshToken = false;
+
+    if (accessToken == null) {
+      // 줄 토큰이 없다. 재연결해도 같으므로 멈춘다.
+      debugPrint('[ws] 토큰이 없다. 재연결하지 않는다');
+      _moveTo(WsConnectionState.closed);
+      return;
+    }
+
     try {
       final channel = connect(url, accessToken);
       _channel = channel;
@@ -149,12 +191,36 @@ class WsClient {
       );
 
       _attempt = 0;
+      _refreshed = false;
       _moveTo(WsConnectionState.connected);
       _startHealthCheck();
     } on Object catch (error) {
       // 핸드셰이크 실패. 401도 여기로 온다.
+      if (_isUnauthorized(error)) {
+        await _onUnauthorized();
+        return;
+      }
       _onDone(error);
     }
+  }
+
+  /// 핸드셰이크가 401로 거절됐다.
+  ///
+  /// 갱신하고 **backoff 없이 곧바로** 다시 붙는다. 갱신은 왕복 한 번이고,
+  /// 사용자는 출발 카운트다운 앞에서 기다리는 중이다.
+  Future<void> _onUnauthorized() async {
+    _channel = null;
+
+    if (_refreshed) {
+      debugPrint('[ws] 갱신하고도 401이다. 재로그인이 필요하다');
+      _moveTo(WsConnectionState.closed);
+      return;
+    }
+
+    debugPrint('[ws] 401 · 토큰을 갱신하고 다시 붙는다');
+    _refreshed = true;
+    _needsFreshToken = true;
+    if (!_closedByUs) await _attach();
   }
 
   void _onData(dynamic raw) {
@@ -221,6 +287,23 @@ class WsClient {
     if (_state == next) return;
     _state = next;
     if (!_states.isClosed) _states.add(next);
+  }
+
+  /// 핸드셰이크가 401로 거절됐는가.
+  ///
+  /// ## ⚠️ 메시지를 문자열로 뒤지지 않는다
+  ///
+  /// `dart:io`의 [WebSocketException]이 **`httpStatusCode`를 필드로 들고 있다.**
+  /// 메시지("...was not upgraded to websocket")를 파싱하면 SDK가 문구를 바꿀 때
+  /// 조용히 망가진다.
+  ///
+  /// `ready`가 실패하면 `web_socket_channel`이 원본을
+  /// [WebSocketChannelException]으로 감싸므로 `inner`를 한 겹 벗긴다.
+  /// 감싸지 않는 경로도 있어 둘 다 받는다.
+  static bool _isUnauthorized(Object error) {
+    final inner = error is WebSocketChannelException ? error.inner : error;
+    return inner is WebSocketException &&
+        inner.httpStatusCode == HttpStatus.unauthorized;
   }
 
   /// 서버가 중복 연결을 끊을 때 쓰는 close code.

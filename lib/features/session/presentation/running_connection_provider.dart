@@ -15,7 +15,7 @@ final runningRoomRepositoryProvider = Provider<RunningRoomRepository>(
   (ref) => HttpRunningRoomRepository(
     ref.watch(dioProvider),
     ref.watch(tokenStoreProvider),
-    ref.watch(authRepositoryProvider),
+    ref.watch(tokenRefresherProvider),
   ),
 );
 
@@ -23,14 +23,18 @@ final runningRoomRepositoryProvider = Provider<RunningRoomRepository>(
 ///
 /// **provider로 뺀 이유는 테스트 때문이다.** 컨트롤러가 `WsClient`를 직접
 /// 만들면 위젯 테스트가 진짜 소켓을 열려 하고, 주소가 없어 죽는다.
-typedef RunningChannelFactory = RunningChannel Function(String accessToken);
+/// 토큰을 **문자열이 아니라 함수로** 넘긴다.
+///
+/// 핸드셰이크가 401로 거절되면 `WsClient`가 갱신해서 다시 붙어야 하는데,
+/// 문자열을 한 번 건네면 그 자리에서 값이 굳어 죽은 토큰으로 계속 두드리게 된다.
+typedef RunningChannelFactory = RunningChannel Function(WsAccessToken token);
 
 final runningChannelFactoryProvider = Provider<RunningChannelFactory>(
   (ref) =>
-      (accessToken) => WsRunningChannel(
+      (token) => WsRunningChannel(
         WsClient(
           url: '${AppConfig.wsBaseUrl}/api/v1/ws/running',
-          accessToken: accessToken,
+          token: token,
         ),
       ),
 );
@@ -141,7 +145,7 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       return;
     }
 
-    final channel = ref.read(runningChannelFactoryProvider)(accessToken);
+    final channel = ref.read(runningChannelFactoryProvider)(_accessToken);
     _channel = channel;
     channel.states.listen((connection) {
       state = state.copyWith(connection: connection);
@@ -172,6 +176,19 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     await _channel?.close();
     _channel = null;
     state = const RunningConnectionState();
+  }
+
+  /// 붙을 때마다 `WsClient`가 부른다.
+  ///
+  /// [refresh]가 `true`면 핸드셰이크가 401로 거절된 뒤다. 그때만 갱신한다 —
+  /// 매번 갱신하면 멀쩡한 토큰까지 회전시켜 다른 요청을 죽인다.
+  ///
+  /// ⚠️ **갱신은 [tokenRefresherProvider]를 거친다.** 직접 부르면 러닝 시작
+  /// 순간에 `POST /running-rooms/solo`의 갱신과 겹쳐, 서버가 그것을 탈취로 보고
+  /// 사용자를 로그아웃시킨다(`docs/implementation-notes.md` 9-6).
+  Future<String?> _accessToken({bool refresh = false}) async {
+    if (refresh) return ref.read(tokenRefresherProvider).refresh();
+    return (await ref.read(tokenStoreProvider).read()).accessToken;
   }
 
   /// 잠시 뒤 다시 시도한다.

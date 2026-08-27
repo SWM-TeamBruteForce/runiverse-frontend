@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/network/ws_client.dart';
@@ -20,15 +21,42 @@ void main() {
   /// 몇 번째 연결인가. 재연결이 실제로 일어났는지 세는 데 쓴다.
   late int connectCalls;
 
-  WsClient makeClient({Duration healthCheck = const Duration(seconds: 30)}) {
+  /// 핸드셰이크에 실려 나간 토큰들. 갱신된 토큰을 쓰는지 보는 데 쓴다.
+  late List<String> sentTokens;
+
+  /// 갱신을 몇 번 불렀나. **한 번을 넘으면 안 된다.**
+  late int refreshCalls;
+
+  /// `n`번째 연결부터 이 상태코드로 거절한다. 비면 전부 성공한다.
+  late List<int?> handshakeStatuses;
+
+  WsClient makeClient({
+    Duration healthCheck = const Duration(seconds: 30),
+    List<int?> statuses = const [],
+    String? refreshedToken = 'fresh',
+  }) {
     connectCalls = 0;
+    refreshCalls = 0;
+    sentTokens = [];
+    handshakeStatuses = List.of(statuses);
+
     return WsClient(
       url: 'ws://example.test/ws',
-      accessToken: 'token',
+      token: ({bool refresh = false}) async {
+        if (refresh) {
+          refreshCalls++;
+          return refreshedToken;
+        }
+        return 'token';
+      },
       healthCheckInterval: healthCheck,
       connect: (url, token) {
+        sentTokens.add(token);
+        final status = connectCalls < handshakeStatuses.length
+            ? handshakeStatuses[connectCalls]
+            : null;
         connectCalls++;
-        channel = _FakeChannel();
+        channel = _FakeChannel(handshakeStatus: status);
         return channel;
       },
     );
@@ -89,6 +117,65 @@ void main() {
 
       expect(client.state, WsConnectionState.closed);
       expect(connectCalls, 1);
+    });
+  });
+
+  group('핸드셰이크 401', () {
+    test('⚠️ 갱신한 토큰으로 곧바로 다시 붙는다', () async {
+      // 갱신하지 않으면 죽은 토큰으로 30초마다 영원히 두드리게 된다.
+      client = makeClient(statuses: [401]);
+
+      await client.open();
+      // backoff를 기다리지 않는다. 사용자는 카운트다운 앞에 서 있다.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(client.state, WsConnectionState.connected);
+      expect(refreshCalls, 1);
+      expect(sentTokens, ['token', 'fresh'], reason: '갱신된 토큰을 써야 한다');
+    });
+
+    test('⚠️ 갱신하고도 401이면 멈춘다', () async {
+      // 토큰 문제가 아니라 계정 문제다. 계속하면 갱신 API만 두드린다.
+      client = makeClient(statuses: [401, 401]);
+
+      await client.open();
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+
+      expect(client.state, WsConnectionState.closed);
+      expect(refreshCalls, 1, reason: '갱신은 한 번뿐이어야 한다');
+      expect(connectCalls, 2);
+    });
+
+    test('⚠️ 갱신이 실패하면 붙지 않는다', () async {
+      // 재로그인 말고는 방법이 없다. 재연결로 시간을 끌지 않는다.
+      client = makeClient(statuses: [401], refreshedToken: null);
+
+      await client.open();
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+
+      expect(client.state, WsConnectionState.closed);
+      expect(connectCalls, 1, reason: '토큰 없이 소켓을 열면 안 된다');
+    });
+
+    test('401이 아닌 실패는 갱신하지 않고 backoff로 간다', () async {
+      // 500이나 네트워크 오류에 갱신을 부르면 멀쩡한 토큰을 회전시킨다.
+      client = makeClient(statuses: [503]);
+
+      await client.open();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(refreshCalls, 0);
+      expect(client.state, WsConnectionState.reconnecting);
+    });
+
+    test('⚠️ 다시 붙을 때 토큰을 새로 물어본다', () async {
+      // 30분을 달리면 처음 받은 토큰이 재연결 시점에는 죽어 있을 수 있다.
+      await client.open();
+
+      channel.closeFromServer();
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+
+      expect(sentTokens, hasLength(2), reason: '한 번 받아 들고 있으면 안 된다');
     });
   });
 
@@ -176,6 +263,15 @@ void main() {
 
 /// 손으로 여닫는 가짜 채널.
 class _FakeChannel implements WebSocketChannel {
+  _FakeChannel({this.handshakeStatus});
+
+  /// 핸드셰이크를 이 상태코드로 거절한다. `null`이면 성공한다.
+  ///
+  /// 진짜 서버가 401을 줄 때와 **같은 모양**으로 실패시킨다 —
+  /// `WebSocketChannelException`이 `dart:io`의 `WebSocketException`을 감싸고,
+  /// 상태코드는 그 안의 `httpStatusCode`에 있다.
+  final int? handshakeStatus;
+
   final _incoming = StreamController<dynamic>.broadcast();
   final _sink = _FakeSink();
 
@@ -183,7 +279,15 @@ class _FakeChannel implements WebSocketChannel {
   List<String> get sent => _sink.sent;
 
   @override
-  Future<void> get ready => Future<void>.value();
+  Future<void> get ready {
+    final status = handshakeStatus;
+    if (status == null) return Future<void>.value();
+    return Future<void>.error(
+      WebSocketChannelException.from(
+        WebSocketException('not upgraded', status),
+      ),
+    );
+  }
 
   @override
   Stream<dynamic> get stream => _incoming.stream;

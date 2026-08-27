@@ -427,7 +427,18 @@ dio의 `LogInterceptor`는 요청·응답 본문을 통째로 찍는다.
 
 ### 9-6. 401 재시도를 붙일 때 반드시 막아야 하는 것 셋
 
-아직 만들지 않았다. `core/network/`에 인터셉터를 넣는 시점에 본다.
+인터셉터는 아직 없다. 저장소마다 401을 직접 다룬다.
+
+**2번은 `TokenRefresher`(`features/auth/domain/`)가 맡는다.** 진행 중인 갱신이 있으면
+새로 부르지 않고 그것을 기다린다. ⚠️ **아직 두 곳만 그것을 쓴다** —
+`HttpRunningRoomRepository`와 WebSocket이다. 러닝을 시작하면 그 둘이 **같은 만료
+토큰으로 거의 동시에** 나가 실제로 겹치기 때문이다.
+
+나머지 네 곳(`onboarding` · `profile` × 2 · `settings`)은 아직 `_auth.refresh`를 직접
+부른다. 서로 동시에 나갈 일이 없어 미뤄 뒀다. **손대는 김에 하나씩 옮긴다.**
+
+`core`에 두지 않은 이유는 `AuthRepository`를 알아야 해서다 — `core → features`는
+뒤집힌 방향이다. 쓰는 쪽에는 함수 하나만 넘긴다(`WsAccessToken`).
 
 1. **`/auth/login`의 401은 재시도하지 않는다.** 로그인 실패가 401이라, 그냥 두면
    비밀번호를 틀릴 때마다 refresh를 부른다. `signup` `login` `refresh` 세 경로를 건너뛴다.
