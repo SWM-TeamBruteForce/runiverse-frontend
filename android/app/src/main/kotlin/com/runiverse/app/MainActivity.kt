@@ -1,4 +1,4 @@
-package com.swmaestro.runiverse
+package com.runiverse.app
 
 import io.flutter.embedding.android.FlutterActivity
 
