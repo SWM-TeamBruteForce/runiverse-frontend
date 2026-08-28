@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/network/dio_client.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/secure_token_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
@@ -316,6 +317,10 @@ class AuthController extends Notifier<AuthState> {
   /// 온보딩 소개를 다시 보여주지 않는다.
   Future<void> forgetSession() async {
     await _store.clear();
+    // ⚠️ **신체 정보도 함께 지운다.** 계정의 값이라 기기에 남기면 다음 사람이
+    // 로그인했을 때 남의 몸무게로 칼로리가 계산된다. 약관 동의(`ConsentStore`)는
+    // 기기 단위라 남기는 것과 반대 판단이다.
+    await ref.read(bodyProfileProvider.notifier).clear();
     state = const AuthSignedOut(returning: true);
   }
 

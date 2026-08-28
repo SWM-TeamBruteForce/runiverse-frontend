@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
@@ -407,6 +408,17 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
       await ref.read(onboardingRepositoryProvider).submit(profile);
       // 저장소와 상태를 함께 켠다. 이게 없으면 앱을 껐다 켤 때 다시 여기로 온다.
       await ref.read(authControllerProvider.notifier).markOnboarded();
+
+      // ⚠️ **여기가 신체 정보를 기기에 남기는 유일한 시작점이다.** 서버에
+      // 이것을 돌려주는 조회 API가 없어(`BodyProfileStore` 참조), 지금 남기지
+      // 않으면 앱을 껐다 켰을 때 칼로리를 낼 수 없다.
+      await ref
+          .read(bodyProfileProvider.notifier)
+          .remember(
+            birthday: profile.birthday,
+            heightCm: profile.heightCm,
+            weightKg: profile.weightKg,
+          );
     } on OnboardingException catch (error) {
       failure = error.failure;
     }

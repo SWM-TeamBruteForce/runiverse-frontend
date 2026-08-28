@@ -200,11 +200,11 @@ class _MetricsPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.space5),
-          const Row(
+          Row(
             children: [
-              // 잴 수 없는 값이다. **지어낸 숫자를 넣지 않는다** —
-              // 센서를 안 읽고, 체중도 아직 서버에서 못 받아온다.
-              Expanded(
+              // 아직 못 재는 값이다. **지어낸 숫자를 넣지 않는다** —
+              // 걸음 센서를 읽지 않는다.
+              const Expanded(
                 child: _Metric(
                   label: AppStrings.runCadenceLabel,
                   value: AppStrings.runUnavailable,
@@ -213,7 +213,11 @@ class _MetricsPage extends StatelessWidget {
               Expanded(
                 child: _Metric(
                   label: AppStrings.runCaloriesLabel,
-                  value: AppStrings.runUnavailable,
+                  // 몸무게를 모르면 `null`이고 그때는 `--`다. 기본 체중으로
+                  // 때우면 그 사람의 칼로리가 조용히 틀린다.
+                  value:
+                      metrics.calories?.toString() ?? AppStrings.runUnavailable,
+                  unit: metrics.calories == null ? null : 'kcal',
                 ),
               ),
             ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
@@ -65,7 +66,7 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
     _introduction = TextEditingController(text: _initialIntroduction);
 
     // 앱을 켜 둔 동안 기억해 둔 값이 있으면 그것으로 시작한다.
-    final body = ref.read(profileBodyProvider);
+    final body = ref.read(bodyProfileProvider);
     _birthday = body.birthday;
     _heightCm = body.heightCm;
     _weightKg = body.weightKg;
@@ -83,7 +84,7 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
   ///
   /// 사진과 닉네임은 세지 않는다 — 이미 저장된 것이라 저장 버튼이 할 일이 없다.
   bool get _dirty {
-    final body = ref.read(profileBodyProvider);
+    final body = ref.read(bodyProfileProvider);
     return _introduction.text.trim() != _initialIntroduction ||
         _birthday != body.birthday ||
         _heightCm != body.heightCm ||
@@ -166,7 +167,7 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
       _failure = null;
     });
 
-    final body = ref.read(profileBodyProvider);
+    final body = ref.read(bodyProfileProvider);
     final introduction = _introduction.text.trim();
 
     final failure = await ref

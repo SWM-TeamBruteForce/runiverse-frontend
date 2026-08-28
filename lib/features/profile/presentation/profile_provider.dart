@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/profile/data/http_profile_repository.dart';
@@ -15,45 +16,6 @@ final profileRepositoryProvider = Provider<ProfileRepository>(
     ref.watch(authRepositoryProvider),
   ),
 );
-
-/// 서버에서 **읽을 수 없는** 신체 정보. 앱을 켜 둔 동안만 남는다.
-///
-/// ## 왜 기기에 저장하지 않나
-///
-/// 생년월일·키·몸무게를 주는 조회 API가 없다(36번은 `userId`·`nickname`·
-/// `isOnboarded`뿐, 37번에도 없다). 기기에 영구 저장하면 **서버와 다른 진실이
-/// 하나 더 생기고**, 다른 기기에서 값을 바꿨을 때 이쪽이 틀렸다는 것을 알 방법이
-/// 없다. 방금 바꾼 값만 화면에 남기고, 앱을 다시 켜면 모르는 상태로 돌아간다.
-///
-/// ⚠️ 36번에 이 셋을 실어 달라고 요청하는 것이 진짜 해법이다. 붙으면 이 클래스는
-/// [ProfileSummary]로 흡수된다.
-class ProfileBody {
-  const ProfileBody({this.birthday, this.heightCm, this.weightKg});
-
-  final DateTime? birthday;
-  final int? heightCm;
-  final int? weightKg;
-}
-
-final profileBodyProvider =
-    NotifierProvider<ProfileBodyController, ProfileBody>(
-      ProfileBodyController.new,
-    );
-
-class ProfileBodyController extends Notifier<ProfileBody> {
-  @override
-  ProfileBody build() => const ProfileBody();
-
-  /// 방금 저장에 성공한 값만 덮어쓴다. **주지 않은 것은 건드리지 않는다** —
-  /// 부분 수정이라 안 보낸 필드는 서버에서도 그대로다.
-  void remember({DateTime? birthday, int? heightCm, int? weightKg}) {
-    state = ProfileBody(
-      birthday: birthday ?? state.birthday,
-      heightCm: heightCm ?? state.heightCm,
-      weightKg: weightKg ?? state.weightKg,
-    );
-  }
-}
 
 /// 화면이 보는 상태.
 ///
@@ -208,8 +170,10 @@ class ProfileSummaryController extends Notifier<ProfileSummaryState> {
       return error.failure;
     }
 
-    ref
-        .read(profileBodyProvider.notifier)
+    // ⚠️ **서버가 받아준 뒤에 남긴다.** 이 셋을 돌려주는 조회 API가 없어
+    // (`BodyProfileStore` 참조) 기기에 남기지 않으면 앱을 껐다 켰을 때 모른다.
+    await ref
+        .read(bodyProfileProvider.notifier)
         .remember(birthday: birthday, heightCm: heightCm, weightKg: weightKg);
 
     if (introduction != null) await _applyIntroduction(introduction);

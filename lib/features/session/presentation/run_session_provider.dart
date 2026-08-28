@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/database/database_provider.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
+import 'package:runiverse/features/session/domain/calorie_calculator.dart';
 import 'package:runiverse/features/session/data/geolocator_location_repository.dart';
 import 'package:runiverse/features/session/data/sqflite_track_repository.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
@@ -293,11 +295,21 @@ class RunSessionController extends Notifier<RunSessionState> {
     return _accumulated + _now().difference(resumedAt);
   }
 
-  RunMetrics _metrics() => RunMetrics(
-    distanceMeters: _distanceMeters,
-    elapsed: _elapsed(),
-    currentPace: PaceCalculator.recent(_points),
-  );
+  RunMetrics _metrics() {
+    final elapsed = _elapsed();
+    return RunMetrics(
+      distanceMeters: _distanceMeters,
+      elapsed: elapsed,
+      currentPace: PaceCalculator.recent(_points),
+      // ⚠️ **화면 표시용이다.** 서버가 종료 시 확정하는 칼로리와 다를 수 있다.
+      // 몸무게를 모르면 `null`이고, 화면은 그것을 `--`로 그린다.
+      calories: CalorieCalculator.burned(
+        meters: _distanceMeters,
+        elapsed: elapsed,
+        weightKg: ref.read(bodyProfileProvider).weightKg,
+      ),
+    );
+  }
 
   /// 바깥으로 나가는 것을 끊는다. 상태는 건드리지 않는다.
   void _teardown() {
