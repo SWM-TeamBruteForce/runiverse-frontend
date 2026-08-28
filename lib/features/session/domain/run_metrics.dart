@@ -10,6 +10,7 @@ class RunMetrics {
     required this.elapsed,
     this.currentPace,
     this.calories,
+    this.cadenceSpm,
   });
 
   /// 시작 직후. 아무것도 쌓이지 않은 상태다.
@@ -32,6 +33,12 @@ class RunMetrics {
   /// 있다(`CalorieCalculator` 참조). 페이로드에도 이 자리는 없다.
   final int? calories;
 
+  /// 분당 걸음 수(spm). **낼 수 없으면 `null`이다.**
+  ///
+  /// 권한이 없거나, 걸음 센서가 없거나(에뮬레이터), 표본이 아직 모자랄 때다.
+  /// 이 값은 **서버로도 간다** — 칼로리와 달리 페이로드에 자리가 있다.
+  final int? cadenceSpm;
+
   double get distanceKm => distanceMeters / 1000;
 
   /// 전 구간 평균 페이스. 아직 낼 수 없으면 `null`.
@@ -43,6 +50,7 @@ class RunMetrics {
     Duration? elapsed,
     Duration? currentPace,
     int? calories,
+    int? cadenceSpm,
   }) {
     return RunMetrics(
       distanceMeters: distanceMeters ?? this.distanceMeters,
@@ -50,6 +58,7 @@ class RunMetrics {
       // null로 되돌리는 경우가 없어 ?? 로 충분하다.
       currentPace: currentPace ?? this.currentPace,
       calories: calories ?? this.calories,
+      cadenceSpm: cadenceSpm ?? this.cadenceSpm,
     );
   }
 
