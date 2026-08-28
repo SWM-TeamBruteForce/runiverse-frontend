@@ -9,6 +9,7 @@ import 'package:runiverse/features/session/data/ws_running_channel.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/domain/running_room_repository.dart';
+import 'package:runiverse/features/session/domain/track_sender.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 
 final runningRoomRepositoryProvider = Provider<RunningRoomRepository>(
@@ -32,10 +33,7 @@ typedef RunningChannelFactory = RunningChannel Function(WsAccessToken token);
 final runningChannelFactoryProvider = Provider<RunningChannelFactory>(
   (ref) =>
       (token) => WsRunningChannel(
-        WsClient(
-          url: '${AppConfig.wsBaseUrl}/api/v1/ws/running',
-          token: token,
-        ),
+        WsClient(url: '${AppConfig.wsBaseUrl}/api/v1/ws/running', token: token),
       ),
 );
 
@@ -91,13 +89,16 @@ final runningConnectionProvider =
 ///
 /// 방 번호가 WS 모든 메시지의 payload에 들어가므로 **뒤바뀔 수 없다.**
 ///
-/// ## ⚠️ 아직 좌표를 보내지 않는다
+/// ## 좌표는 [TrackSender]가 올린다
 ///
-/// `RUNNING_LOCATION_UPDATE`가 명세상 `개발전`이다. 지금은 연결을 세우고
-/// 유지하는 데까지가 범위다(설계 문서 3절).
+/// 방이 생기고 `RUNNING_START`가 나간 **뒤에** 띄운다. 서버가 방을 알기 전에
+/// 좌표를 받으면 버린다. 닫을 때는 소켓보다 **먼저** 멈춘다.
 class RunningConnectionController extends Notifier<RunningConnectionState> {
   RunningChannel? _channel;
   Timer? _retry;
+
+  /// 쌓인 좌표를 10초마다 올리는 것. 방이 생긴 뒤에만 있다.
+  TrackSender? _sender;
 
   /// 연속 실패 횟수. backoff 간격을 정한다.
   var _attempt = 0;
@@ -107,6 +108,9 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     // provider가 버려지면 소켓도 닫는다. 안 닫으면 러닝이 끝나도 연결이 남는다.
     ref.onDispose(() {
       _retry?.cancel();
+      // ⚠️ 전송기를 먼저 멈춘다. 소켓이 닫힌 뒤에도 타이머가 돌면 매 10초
+      // "못 보냈다"만 찍힌다.
+      _sender?.stop();
       _channel?.close();
     });
     return const RunningConnectionState();
@@ -161,6 +165,11 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
 
     await channel.start(room.id);
 
+    // 이제부터 10초마다 쌓인 좌표가 올라간다. **`start()` 뒤여야 한다** —
+    // 서버가 `RUNNING_START`로 방을 알기 전에 좌표를 받으면 버린다.
+    _sender = TrackSender(ref.read(trackRepositoryProvider), channel)
+      ..start(room.id);
+
     // ⚠️ **구독만으로는 부족하다.** `states`가 broadcast 스트림이라 구독 전에
     // 지나간 상태는 다시 오지 않는다. `start()` 안에서 `connected`로 바뀌면
     // 그 이벤트를 놓치고, 소켓은 붙었는데 화면은 "연결하는 중"이라고 말한다.
@@ -173,6 +182,8 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     _retry?.cancel();
     _retry = null;
     _attempt = 0;
+    _sender?.stop();
+    _sender = null;
     await _channel?.close();
     _channel = null;
     state = const RunningConnectionState();

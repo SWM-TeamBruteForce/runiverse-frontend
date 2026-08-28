@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
+import 'package:runiverse/features/session/domain/track_point.dart';
 
 /// [WsClient] 위에 러닝 계약을 얹는다.
 ///
@@ -47,6 +48,18 @@ class WsRunningChannel implements RunningChannel {
     _roomId = runningRoomId;
     await _client.open();
     _sendStart();
+  }
+
+  @override
+  bool sendLocations(List<TrackPoint> points) {
+    if (points.isEmpty) return true;
+    return _client.send(
+      WsMessage(WsEvents.runningLocationUpdate, {
+        // ⚠️ **`runningRoomId`가 여기 없다.** 방 번호는 `RUNNING_START`에서
+        // 한 번만 보내고, 서버가 WS 세션에서 알아낸다(설계 문서 6절).
+        'locations': [for (final point in points) point.toJson()],
+      }),
+    );
   }
 
   @override
