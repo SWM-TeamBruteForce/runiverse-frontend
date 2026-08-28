@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/config/app_config.dart';
 import 'package:runiverse/core/network/ws_client.dart';
@@ -177,7 +178,50 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     state = state.copyWith(connection: channel.state);
   }
 
-  /// 러닝을 끝내거나 화면을 벗어날 때. 연결을 닫고 처음 상태로 돌아간다.
+  /// 러닝을 끝낸다. 남은 좌표를 마저 보내고, 확인을 받으면 트랙을 지운다.
+  ///
+  /// ## 순서가 정해져 있다
+  ///
+  /// ```
+  /// 남은 좌표 전송 → RUNNING_FINISH → RUNNING_FINISHED → 로컬 트랙 삭제 → 닫기
+  /// ```
+  ///
+  /// **좌표를 먼저 보내야 한다.** 서버가 마지막으로 받은 트랙으로 기록을
+  /// 확정하므로, 남겨둔 채 끝내면 **그 구간이 빠진 기록이 만들어지고 되돌릴
+  /// 수 없다.**
+  ///
+  /// ## ⚠️ 확인을 못 받으면 트랙을 지우지 않는다
+  ///
+  /// 명세가 "ack를 받은 뒤 삭제한다"고 정했다. 못 받았는데 지우면 서버에 없는
+  /// 구간을 다시 보낼 방법이 사라진다. 남겨두면 자리를 차지하지만 그뿐이다.
+  ///
+  /// ## 화면은 이것을 기다리지 않는다
+  ///
+  /// 요약에 뜨는 값은 러닝 중 계산한 것이라 서버 확정과 무관하다. 기다리게
+  /// 하면 신호가 나쁜 곳에서 사용자가 요약을 못 본다.
+  Future<void> finish({bool forced = false}) async {
+    final channel = _channel;
+    if (channel == null) {
+      await close();
+      return;
+    }
+
+    await _sender?.drain();
+    // 다 보냈으면 타이머를 세운다. ack를 기다리는 동안 또 돌 이유가 없다.
+    _sender?.stop();
+
+    final acked = await channel.finish(forced: forced);
+    if (acked) {
+      await ref.read(trackRecorderProvider).discard();
+    } else {
+      debugPrint('[running] 종료 확인을 못 받아 로컬 트랙을 남긴다');
+    }
+
+    await close();
+  }
+
+  /// 연결을 닫고 처음 상태로 돌아간다. **종료를 알리지는 않는다** — 화면을
+  /// 벗어나기만 할 때 쓴다. 러닝을 끝낼 때는 [finish]를 부른다.
   Future<void> close() async {
     _retry?.cancel();
     _retry = null;

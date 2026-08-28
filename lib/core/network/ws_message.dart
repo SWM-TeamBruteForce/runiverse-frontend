@@ -76,15 +76,33 @@ abstract final class WsEvents {
   static const runningFinished = 'RUNNING_FINISHED';
 }
 
-/// `ERROR`의 `code` 7종.
+/// `ERROR`의 `code` 10종.
 ///
-/// 지금은 어느 것이든 화면이 하는 일이 같지만(연결 유지, 로그), 나누어 두면
-/// 나중에 "왜 안 되지"를 로그 없이 쫓지 않아도 된다.
+/// **대부분은 로그로 끝나지만 셋은 다르다.** 서버가 무엇을 하라고 말해주는
+/// 코드들이라 [needsRestart]로 갈라 둔다.
 enum WsErrorCode {
   malformedMessage,
   missingMessageType,
   unsupportedMessageType,
   invalidRequest,
+
+  /// `RUNNING_START` 없이 러닝 중 메시지를 보냈다.
+  ///
+  /// 형식은 맞지만 서버에 정해진 방이 없다. 재연결 직후 `RUNNING_START`가
+  /// 아직 안 닿았는데 좌표가 먼저 나갔을 때 난다.
+  runningNotStarted,
+
+  /// 서버가 외부 저장소 장애로 세션을 등록하지 못했다.
+  ///
+  /// **러닝이 시작되지 않은 상태다.** 명세가 "잠시 뒤 `RUNNING_START`를
+  /// 재시도한다"고 정했다.
+  runningSessionUnavailable,
+
+  /// 서버가 좌표를 저장하지 못했다. **러닝은 계속된다.**
+  ///
+  /// 다시 보낼 필요는 없다 — 재연결 겹침이 어차피 다시 보낸다.
+  runningTrackUnavailable,
+
   roomNotFound,
   notRoomPlayer,
   invalidRoomState,
@@ -92,11 +110,21 @@ enum WsErrorCode {
   /// 명세에 없는 코드. 서버가 늘렸을 수 있다.
   unknown;
 
+  /// `RUNNING_START`를 다시 보내야 하는가.
+  ///
+  /// 서버에 이 사용자의 러닝 세션이 없다는 뜻이라, 다시 보내지 않으면
+  /// **그 뒤 좌표가 전부 같은 오류로 거절된다.**
+  bool get needsRestart =>
+      this == runningNotStarted || this == runningSessionUnavailable;
+
   static WsErrorCode fromWire(Object? value) => switch (value) {
     'MALFORMED_MESSAGE' => WsErrorCode.malformedMessage,
     'MISSING_MESSAGE_TYPE' => WsErrorCode.missingMessageType,
     'UNSUPPORTED_MESSAGE_TYPE' => WsErrorCode.unsupportedMessageType,
     'INVALID_REQUEST' => WsErrorCode.invalidRequest,
+    'RUNNING_NOT_STARTED' => WsErrorCode.runningNotStarted,
+    'RUNNING_SESSION_UNAVAILABLE' => WsErrorCode.runningSessionUnavailable,
+    'RUNNING_TRACK_UNAVAILABLE' => WsErrorCode.runningTrackUnavailable,
     'ROOM_NOT_FOUND' => WsErrorCode.roomNotFound,
     'NOT_ROOM_PLAYER' => WsErrorCode.notRoomPlayer,
     'INVALID_ROOM_STATE' => WsErrorCode.invalidRoomState,

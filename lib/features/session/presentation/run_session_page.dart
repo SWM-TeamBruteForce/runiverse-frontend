@@ -76,9 +76,13 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
         controller.resume();
       case RunStopAction.finish:
         controller.finish();
-        // ⚠️ 연결을 닫는다. 안 닫으면 러닝이 끝나도 소켓이 살아 있고,
-        // 다음 러닝에서 서버가 중복 연결로 보고 이쪽을 4001로 끊는다.
-        unawaited(ref.read(runningConnectionProvider.notifier).close());
+        // ⚠️ **기다리지 않는다.** 남은 좌표를 보내고 서버 확인까지 받는 데
+        // 몇 초가 걸리는데, 요약에 뜨는 값은 러닝 중 계산한 것이라 그것과
+        // 무관하다. 기다리게 하면 신호가 나쁜 곳에서 요약을 못 본다.
+        //
+        // 끝나면 소켓도 함께 닫힌다 — 안 닫으면 다음 러닝에서 서버가 중복
+        // 연결로 보고 이쪽을 4001로 끊는다.
+        unawaited(ref.read(runningConnectionProvider.notifier).finish());
         if (mounted) context.pushReplacement(AppRoutes.runSummary);
     }
   }

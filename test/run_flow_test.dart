@@ -454,5 +454,8 @@ class _SilentChannel implements RunningChannel {
   bool sendLocations(List<TrackPoint> points) => true;
 
   @override
+  Future<bool> finish({bool forced = false}) async => true;
+
+  @override
   Future<void> close() async {}
 }
