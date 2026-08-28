@@ -6,11 +6,44 @@
       Android 12부터 사용자가 둘 중 하나를 고를 수 있어 **양쪽 다 선언한다.**
       COARSE만 허용받으면 좌표가 수백 미터씩 튀어 러닝 기록으로 못 쓴다.
 
-      ACCESS_BACKGROUND_LOCATION은 넣지 않는다. 지금은 앱이 화면에 떠 있을 때만
-      추적한다(docs/specs/2026-08-05-solo-run-design.md 1절).
+      ACCESS_BACKGROUND_LOCATION은 넣지 않는다. 화면을 꺼도 좌표는 들어오지만,
+      그것은 이 권한이 아니라 아래의 포그라운드 서비스가 하는 일이다.
+
+      Android가 보는 것은 "화면이 켜져 있나"가 아니라 서비스를 시작하는 순간
+      앱이 포그라운드였나다. 사용자가 화면을 보며 시작을 누르므로 해당이 없다.
+      (developer.android.com/develop/background-work/services/fgs/service-types)
+
+      넣으면 Android 11+에서 사용자가 설정 화면에 직접 들어가 "항상 허용"을
+      골라야 하고, Play 심사에 백그라운드 위치 선언서와 영상이 더 붙는다.
     -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!--
+      포그라운드 서비스 — 화면을 꺼도 좌표를 계속 받는다.
+
+      이것이 없으면 화면이 꺼지거나 앱이 뒤로 가는 순간 Android가 위치 갱신을
+      시간당 몇 번으로 제한한다. 그 구간이 좌표 공백이 되고, 서버는 빈 자리를
+      직선으로 이어 거리를 실제보다 짧게 계산한다.
+
+      FOREGROUND_SERVICE_LOCATION은 targetSdk 34부터 필수다. 우리는 36이라
+      없으면 서비스 시작에서 예외가 난다.
+
+      서비스 자체는 geolocator 패키지 매니페스트가 이미 선언해 뒀다
+      (GeolocatorLocationService, foregroundServiceType="location").
+      여기에 다시 쓰면 매니페스트 병합이 깨진다.
+
+      WAKE_LOCK은 화면이 꺼진 동안 CPU를 깨워 둔다. 화면을 켜 두는
+      wakelock_plus와는 다른 것이고, 둘 다 필요하다.
+
+      POST_NOTIFICATIONS는 Android 13+에서 알림을 보이게 하는 데 쓴다.
+      ⚠️ 선언만으로는 부족하고 런타임 요청이 있어야 한다(TMB-169). 요청 전에는
+      알림이 서랍에 안 보이지만 서비스는 정상적으로 돌고 좌표도 들어온다.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!--
       백업을 끈다 — 토큰이 클라우드로 나가지 않게 한다.

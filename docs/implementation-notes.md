@@ -806,3 +806,37 @@ DB에 **한 번도 저장되지 않았다.**
 | 속도 | ⚠️ **노트 단위다.** `2.8`을 넣으면 `1.44 m/s`로 온다 |
 | 방향 | ❌ 진행 방향을 주지 않는다 (11-1) |
 | 케이던스 | ❌ 걸음 센서가 없다. 실기기 전용 |
+
+### 11-4. 화면을 꺼도 좌표를 받으려면 포그라운드 서비스가 필요하다
+
+`AndroidSettings.foregroundNotificationConfig`가 **`null`이 아니어야** geolocator가
+위치 수집을 포그라운드 서비스로 띄운다. 없으면 화면이 꺼지거나 앱이 뒤로 가는
+순간 Android가 갱신을 시간당 몇 번으로 제한하고, 그 구간이 좌표 공백이 된다.
+
+⚠️ **`ACCESS_BACKGROUND_LOCATION`은 넣지 않는다.** geolocator README가 "백그라운드에서
+업데이트를 받으려면 필요하다"고 적어 두어 "화면 껐으니 백그라운드겠네"로 읽기 쉽다.
+Android가 보는 것은 **서비스를 시작하는 순간 앱이 포그라운드였는지**다. 사용자가
+화면을 보며 시작을 누르므로 해당이 없고, 넣으면 사용자가 설정 화면에 직접 들어가
+"항상 허용"을 골라야 한다(앱 다이얼로그로는 못 받는다).
+
+| 넣는 것 | 왜 |
+|---|---|
+| `FOREGROUND_SERVICE` | 서비스를 띄우려면 필요 |
+| `FOREGROUND_SERVICE_LOCATION` | **targetSdk 34부터 필수.** 우리는 36이라 없으면 시작에서 예외 |
+| `POST_NOTIFICATIONS` | Android 13+에서 알림을 보이게 한다 |
+| `WAKE_LOCK` | 화면이 꺼진 동안 **CPU**를 깨워 둔다. 화면을 켜는 `wakelock_plus`와 다른 것이다 |
+
+⚠️ **`<service>`는 선언하지 않는다.** geolocator 패키지 매니페스트에 이미 있어
+병합된다(`GeolocatorLocationService`, `foregroundServiceType="location"`).
+중복이면 빌드가 깨진다.
+
+⚠️ **`POST_NOTIFICATIONS`는 선언만으로 동작하지 않는다.** 런타임 요청이 있어야
+알림이 서랍에 보인다. **못 받아도 서비스와 좌표 수집은 정상이다** — 안 보일 뿐이다.
+그래서 "알림이 뜨는지"로 서비스 동작을 판단하면 안 된다.
+
+⚠️ **끝낼 때 위치 구독을 끊어야 서비스가 내려간다.** 안 끊으면 개발 중에는 보이지
+않고 **사용자가 배터리로 먼저 알아챈다.** `RunSessionController._teardown()`이
+이미 한다.
+
+병합 결과는 `build/app/intermediates/merged_manifests/.../AndroidManifest.xml`에서
+확인한다 — 선언한 것이 실제로 들어갔는지, `<service>`가 하나뿐인지 보인다.

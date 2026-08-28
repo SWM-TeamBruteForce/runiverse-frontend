@@ -510,6 +510,17 @@ abstract final class AppStrings {
   static const runFixReady = '준비됐어요';
   static const runStartCta = '시작';
 
+  /// 화면을 꺼도 좌표를 받기 위한 지속 알림. **끌 수 없는 알림이라 문구가 곧
+  /// 사용자에게 하는 약속이다** — 무엇을 하고 있는지만 말하고 재촉하지 않는다.
+  ///
+  /// ⚠️ Android 13+에서는 알림 권한을 받기 전까지 서랍에 보이지 않는다.
+  /// 서비스와 좌표 수집은 그와 무관하게 돈다.
+  static const runNotificationTitle = '러닝 기록 중';
+  static const runNotificationText = '이동 경로를 기록하고 있어요';
+
+  /// 설정 앱의 알림 채널 목록에 이 이름으로 뜬다.
+  static const runNotificationChannel = '러닝 위치 기록';
+
   // ── 카운트다운 (S11) ─────────────────────────────────────────
   //
   // 정본은 숫자 하나만 크게 띄운다(160px). 지도도 파티원도 숨긴다.

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:geolocator/geolocator.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
 
@@ -49,8 +50,26 @@ class GeolocatorLocationRepository implements LocationRepository {
         distanceFilter: 0,
         // ⚠️ `true`로 바꾸면 FusedLocationProviderClient를 쓰지 않는다.
         forceLocationManager: false,
-        // 서버 명세가 정한 "1~2초 간격" 중 느린 쪽이다. 2초면 30분에 900점이라
-        // 저장량과 배터리가 절반이고, 10초 배치에 5점씩 들어간다.
+        // ⚠️ **이것이 `null`이 아니어야 화면을 꺼도 좌표가 들어온다.**
+        //
+        // geolocator가 이 설정을 보고 위치 수집을 포그라운드 서비스로 띄운다.
+        // 없으면 화면이 꺼지거나 앱이 뒤로 가는 순간 Android가 갱신을 시간당
+        // 몇 번으로 제한하고, 그 구간이 좌표 공백이 된다 — 서버는 빈 자리를
+        // 직선으로 이어 **거리를 실제보다 짧게 계산한다.**
+        //
+        // `notificationIcon`은 생략한다. 기본값이 `mipmap/ic_launcher`다.
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: AppStrings.runNotificationTitle,
+          notificationText: AppStrings.runNotificationText,
+          notificationChannelName: AppStrings.runNotificationChannel,
+          // 화면이 꺼진 동안 CPU를 깨워 둔다. 화면을 켜 두는 wakelock_plus와
+          // 다른 것이다 — 그쪽은 화면, 이쪽은 CPU다.
+          enableWakeLock: true,
+          // 사용자가 쓸어서 지우지 못하게 한다. 지워도 서비스는 살아 있어
+          // "껐는데 계속 도는" 것처럼 보이는 편이 더 나쁘다.
+          setOngoing: true,
+        ),
+        // 서버 명세가 정한 "1~2초 간격" 중 빠른 쪽이다. 10초 배치에 10점씩 든다.
         intervalDuration: _interval,
       );
     }
