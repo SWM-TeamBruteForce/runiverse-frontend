@@ -16,7 +16,10 @@ import 'package:runiverse/features/session/domain/track_point.dart';
 /// 끊겼다 붙을 때마다 다시 보내지 않으면, 서버는 이 사용자의 WS 세션을
 /// 새로 등록하지 못한다.
 class WsRunningChannel implements RunningChannel {
-  WsRunningChannel(this._client) {
+  WsRunningChannel(
+    this._client, {
+    this.finishAckTimeout = const Duration(seconds: 15),
+  }) {
     _messages = _client.messages.listen(_onMessage);
     _connections = _client.states.listen(_onState);
   }
@@ -33,6 +36,18 @@ class WsRunningChannel implements RunningChannel {
 
   /// 방금 연결된 것이 재연결인가. 첫 연결에서는 [start]가 직접 보낸다.
   var _wasConnected = false;
+
+  /// `RUNNING_FINISHED`를 기다리는 쪽. 없으면 종료 중이 아니다.
+  Completer<bool>? _finishing;
+
+  /// 종료 확인을 얼마나 기다리나.
+  ///
+  /// 서버가 트랙으로 기록·splits·S3 업로드까지 만든 뒤에 답한다. 넉넉해야
+  /// 하지만, 사용자가 요약 화면에서 이것이 끝나기를 기다리는 것은 아니라
+  /// 화면이 막히지는 않는다.
+  ///
+  /// **테스트가 갈아 끼운다.** 15초를 실제로 기다리게 할 수 없다.
+  final Duration finishAckTimeout;
 
   @override
   Stream<WsConnectionState> get states => _client.states;
@@ -63,9 +78,34 @@ class WsRunningChannel implements RunningChannel {
   }
 
   @override
+  Future<bool> finish({bool forced = false}) {
+    // 소켓에 못 넘겼으면 ack가 올 리 없다. 기다리지 않는다.
+    if (!_client.send(WsMessage(WsEvents.runningFinish, {'forced': forced}))) {
+      return Future.value(false);
+    }
+
+    final waiting = Completer<bool>();
+    _finishing = waiting;
+
+    // ⚠️ **무한정 기다리지 않는다.** 사용자는 요약 화면 뒤에서 이것이 끝나기를
+    // 기다리고 있고, ack가 안 오면 소켓이 영영 안 닫힌다. 못 받으면 트랙을
+    // 남긴 채 끝낸다 — 지우는 것보다 남기는 쪽이 되돌릴 수 있다.
+    return waiting.future.timeout(
+      finishAckTimeout,
+      onTimeout: () {
+        debugPrint('[running] 종료 확인이 오지 않았다. 트랙을 남긴다');
+        return false;
+      },
+    );
+  }
+
+  @override
   Future<void> close() async {
     _roomId = null;
     _wasConnected = false;
+    // 기다리는 쪽이 남아 있으면 풀어 준다. 안 풀면 타임아웃까지 매달린다.
+    if (_finishing?.isCompleted == false) _finishing!.complete(false);
+    _finishing = null;
     await _messages.cancel();
     await _connections.cancel();
     await _errors.close();
@@ -100,11 +140,25 @@ class WsRunningChannel implements RunningChannel {
         // ack다. 지금은 `data`가 비어 있어 확인할 것이 없다.
         debugPrint('[running] 시작 확인');
 
+      case WsEvents.runningFinished:
+        // 종료 확인이다. **이것이 로컬 트랙을 지워도 되는 유일한 근거다.**
+        debugPrint('[running] 종료 확인');
+        if (_finishing?.isCompleted == false) _finishing!.complete(true);
+
       case WsEvents.error:
         final code = WsErrorCode.fromWire(message.data['code']);
         // ⚠️ **연결을 끊지 않는다.** 명세가 "오류를 보낸 뒤 연결은 유지한다"고
         // 정했다. 여기서 끊으면 좌표 하나가 잘못됐을 때 러닝 전체가 죽는다.
-        debugPrint('[running] 서버 거절 · $code');
+        debugPrint('[running] 서버 거절 · $code · ${message.data['sourceType']}');
+
+        // ⚠️ **서버에 이 사용자의 러닝 세션이 없다는 뜻이다.** 다시 알리지
+        // 않으면 그 뒤 좌표가 전부 같은 오류로 거절된다 — 그런데 좌표에는
+        // ack가 없어 앱은 아무것도 모른 채 계속 보낸다.
+        if (code.needsRestart) {
+          debugPrint('[running] 세션이 없다. RUNNING_START를 다시 보낸다');
+          _sendStart();
+        }
+
         if (!_errors.isClosed) _errors.add(code);
 
       default:

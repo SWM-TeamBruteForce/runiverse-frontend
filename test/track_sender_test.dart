@@ -259,6 +259,9 @@ class _RecordingChannel implements RunningChannel {
   Future<void> start(int runningRoomId) async {}
 
   @override
+  Future<bool> finish({bool forced = false}) async => true;
+
+  @override
   bool sendLocations(List<TrackPoint> points) {
     if (!connected) return false;
     batches.add(points);

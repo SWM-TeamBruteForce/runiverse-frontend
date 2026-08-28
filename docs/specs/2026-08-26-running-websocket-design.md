@@ -49,10 +49,10 @@
 |---|---|---|
 | `POST /api/v1/running-rooms/solo` | REST | ✅ **개발완료** |
 | `HEALTH_CHECK` / `HEALTH_CHECKED` | WS | ✅ **개발완료** |
-| `RUNNING_START` / `RUNNING_STARTED` | WS | 🟡 개발중 |
+| `RUNNING_START` / `RUNNING_STARTED` | WS | ✅ **개발완료** |
 | `RUNNING_LOCATION_UPDATE` | WS | ✅ **개발완료** (2026-08-27 백엔드 확인. Notion은 아직 `개발전`) |
-| `RUNNING_PAUSE` / `RUNNING_RESUME` | WS | ❌ 개발전 |
-| `RUNNING_FINISH` / `RUNNING_FINISHED` | WS | ❌ 개발전 |
+| `RUNNING_PAUSE` / `RUNNING_RESUME` | WS | ✅ 개발완료 (앱은 아직 안 쓴다) |
+| `RUNNING_FINISH` / `RUNNING_FINISHED` | WS | ✅ **개발완료** (2026-08-28) |
 | 기록 목록·상세 (#19·#20) | REST | ❌ 개발전 |
 
 **연결·인증·헬스체크까지는 오늘 실제로 검증할 수 있다.** 나머지는 계약대로 만들어
@@ -67,18 +67,26 @@
 2. 솔로 방 생성 (POST .../solo)     ✅ 완료 · dev 서버로 검증
 3. 로컬 트랙 저장 (sqflite)         ✅ 완료 · 기기에서 검증
 4. 좌표 배치 전송 (10초)            ✅ 완료 · ⚠️ 서버로 검증 못 함
+6. 종료 · ack 후 트랙 삭제          ✅ 완료 · ⚠️ 서버로 검증 못 함
 ─────────────────────────────────  여기까지 만들었다
 5. 케이던스 (pedometer)             ← 실기기 필요
-6. 종료 · ack 후 트랙 삭제          ← 서버 개발전
 ```
 
-⚠️ **4단계는 아직 서버로 검증하지 못했다.** 이 계정에 끝나지 않은 방이 남아
-`POST /running-rooms/solo`가 409를 준다(4절). 방을 만들 수 없으니 좌표를 실제로
-보내볼 수도 없다. **방이 풀리는 대로 확인한다.**
+⚠️ **4·6단계를 아직 서버로 검증하지 못했다.** 계정에 끝나지 않은 방이 남아
+`POST /running-rooms/solo`가 409를 주는 상태다(4절). 방을 만들 수 없으니 좌표
+전송도 종료도 실제로 돌려보지 못했다. **다음 실기기 확인에서 함께 본다.**
 
-⚠️ **6단계가 없어 방을 끝낼 방법이 앱에 없다.** `RUNNING_FINISH`와
-`DELETE /users/me/running-match`가 둘 다 `개발전`이라, 한 번 방을 만든 계정은
-다음 러닝을 시작하지 못한다. **이것이 지금 가장 급한 백엔드 의존이다.**
+### 409를 앱이 스스로 풀 수 있게 됐다 `[2026-08-28]`
+
+`RUNNING_FINISH`가 배포되면서 **한 번 방을 만든 계정이 영영 막히는 상태가
+사라졌다.** 러닝을 정상적으로 끝내면 서버가 방을 `FINISHED`로 바꾼다.
+
+다만 **앱이 죽어서 남은 방**은 여전히 못 푼다 — `RUNNING_START`를 보낸 적 없는
+새 연결에서는 어느 방을 끝낼지 서버가 모르고, `RUNNING_FINISH`는 방 번호를
+싣지 않는다. 그 방의 번호를 알아내려면 `GET /users/me/running-match`가 필요하고,
+`DELETE /users/me/running-match`는 아직 `개발전`이다.
+
+**"이어서 달리기 / 이전 러닝 종료하기" 화면이 여기 붙는다.** 지금은 범위 밖이다.
 
 ---
 
@@ -124,11 +132,25 @@ wss://.../api/v1/ws/running       + Authorization: Bearer
 
 ### 오류
 
-`ERROR` 7종: `MALFORMED_MESSAGE` · `MISSING_MESSAGE_TYPE` ·
+`ERROR` **10종.** `MALFORMED_MESSAGE` · `MISSING_MESSAGE_TYPE` ·
 `UNSUPPORTED_MESSAGE_TYPE` · `INVALID_REQUEST` · `ROOM_NOT_FOUND` ·
-`NOT_ROOM_PLAYER` · `INVALID_ROOM_STATE`
+`NOT_ROOM_PLAYER` · `INVALID_ROOM_STATE` · **`RUNNING_NOT_STARTED`** ·
+**`RUNNING_SESSION_UNAVAILABLE`** · **`RUNNING_TRACK_UNAVAILABLE`**
+`[2026-08-28 셋 추가됨]`
 
 **오류를 받아도 연결은 유지된다.** 끊고 재연결하면 안 된다.
+
+### ⚠️ 셋 중 둘은 가만히 두면 안 된다
+
+| code | 뜻 | 앱이 하는 것 |
+|---|---|---|
+| `RUNNING_NOT_STARTED` | `RUNNING_START` 없이 러닝 메시지를 보냈다 | **`RUNNING_START` 재전송** |
+| `RUNNING_SESSION_UNAVAILABLE` | 서버가 세션 등록에 실패했다 | **`RUNNING_START` 재전송** |
+| `RUNNING_TRACK_UNAVAILABLE` | 서버가 좌표 저장에 실패했다 | 로그만. 러닝은 계속된다 |
+
+앞의 둘은 **서버에 이 사용자의 러닝 세션이 없다**는 뜻이다. 다시 알리지 않으면
+그 뒤 좌표가 전부 같은 오류로 거절되는데, **좌표에는 ack가 없어 앱은 아무것도
+모른 채 계속 보낸다.** `WsErrorCode.needsRestart`가 이 판단을 쥔다.
 
 ### 솔로 방 생성 실패
 
