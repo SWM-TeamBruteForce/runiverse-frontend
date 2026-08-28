@@ -35,4 +35,24 @@ abstract interface class TrackRepository {
 
   /// 그 러닝에 쌓인 좌표 수. 비어 있으면 0.
   Future<int> count(int runningRoomId);
+
+  /// 지금 진행 중인 러닝의 방 번호. 없으면 `null`.
+  ///
+  /// 앱이 죽었다 살아났을 때 **끝내지 못한 방이 있는지** 알아내는 유일한
+  /// 경로다. 서버에는 되찾을 API가 없다 — `POST /solo`의 409에는 번호가 없고
+  /// `GET /users/me/running-match`는 매칭 조회라 `STARTED`를 표현하지 못한다
+  /// (`AppDatabase.activeRun` 참조).
+  Future<int?> activeRoom();
+
+  /// 방을 연 직후 번호를 남긴다.
+  ///
+  /// ⚠️ **좌표가 하나도 없어도 남긴다.** 방만 만들고 죽는 경우가 가장 풀기
+  /// 어렵다 — 트랙이 비어 있어 거기서도 번호를 되찾을 수 없다.
+  Future<void> markActiveRoom(int runningRoomId);
+
+  /// `RUNNING_FINISHED` ack 뒤에 지운다.
+  ///
+  /// ⚠️ **좌표와 같은 순간에 지운다.** 한쪽만 지워지면 다음 러닝에서 이미
+  /// 끝난 방을 다시 끝내려 하거나, 끝내야 할 방을 잊는다.
+  Future<void> clearActiveRoom();
 }

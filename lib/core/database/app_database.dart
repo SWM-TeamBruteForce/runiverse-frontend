@@ -21,7 +21,9 @@ abstract final class AppDatabase {
   static const fileName = 'runiverse.db';
 
   /// 스키마 버전. **올릴 때는 [_upgrade]에 옮기는 법을 함께 적는다.**
-  static const version = 1;
+  ///
+  /// 2 — `active_run` 추가 (2026-08-28).
+  static const version = 2;
 
   /// 서버로 보낼 좌표를 담아 두는 곳.
   ///
@@ -60,6 +62,40 @@ abstract final class AppDatabase {
     )
   ''';
 
+  /// 지금 진행 중인 러닝의 방 번호를 담는 곳. **행이 하나뿐이다.**
+  ///
+  /// ## 왜 필요한가
+  ///
+  /// 방 번호는 `POST /running-rooms/solo`가 201로 준다. 그걸 안 남기고 앱이
+  /// 죽으면 **그 방을 끝낼 방법이 사라진다** — 서버에는 `STARTED` 방이 남고,
+  /// 다음 러닝은 영원히 409를 맞는다.
+  ///
+  /// 되찾을 경로가 없기 때문이다. 409 응답에는 방 번호가 없고,
+  /// `GET /users/me/running-match`는 **매칭** 조회라 `state`에 `STARTED`를
+  /// 표현할 값조차 없다. 받은 순간 남겨 두는 것이 유일한 방법이다.
+  ///
+  /// ## 트랙과 같은 DB에 둔다
+  ///
+  /// **번호와 좌표는 정확히 같은 순간에 지워져야 한다**(`RUNNING_FINISHED` ack).
+  /// 다른 저장소에 나누면 한쪽만 지워진 상태가 생긴다.
+  ///
+  /// ## ⚠️ 기기 안에서만 안다
+  ///
+  /// 앱을 지웠다 다시 깔거나 다른 기기에서 로그인하면 비어 있다. 그때는 서버가
+  /// 409에 방 번호를 실어 주지 않는 한 앱이 풀 수 없다.
+  static const activeRun = 'active_run';
+
+  /// `id`를 1로 고정해 **행이 둘이 될 수 없게** 한다. `INSERT OR REPLACE`가
+  /// 언제나 같은 행을 덮어쓴다.
+  static const _createActiveRun =
+      '''
+    CREATE TABLE $activeRun (
+      id               INTEGER PRIMARY KEY CHECK (id = 1),
+      running_room_id  INTEGER NOT NULL,
+      started_at       TEXT    NOT NULL
+    )
+  ''';
+
   /// DB를 연다. 없으면 만든다.
   ///
   /// [path]를 받는 이유는 **테스트가 메모리 DB를 쓰기 위해서**다.
@@ -67,7 +103,10 @@ abstract final class AppDatabase {
   static Future<Database> open(String path) => openDatabase(
     path,
     version: version,
-    onCreate: (db, version) async => db.execute(_createTrackPoints),
+    onCreate: (db, version) async {
+      await db.execute(_createTrackPoints);
+      await db.execute(_createActiveRun);
+    },
     onUpgrade: _upgrade,
     // ⚠️ sqflite는 외래 키를 **연결마다 켜야 한다.** 지금은 테이블이 하나라
     // 쓸 일이 없지만, 나중에 테이블이 늘 때 이 줄이 없으면 `ON DELETE CASCADE`가
@@ -78,12 +117,15 @@ abstract final class AppDatabase {
   /// 스키마를 올린다.
   ///
   /// **`version`을 올리면 여기에 `if (oldVersion < N)` 블록을 더한다.**
-  /// 지금은 버전 1뿐이라 할 일이 없다.
+  ///
+  /// ⚠️ **기존 테이블을 지우지 않는다.** 여기 있는 것은 아직 서버가 받았는지
+  /// 모르는 좌표라, 앱을 올렸다고 버리면 그 구간이 통째로 사라진다.
   static Future<void> _upgrade(
     Database db,
     int oldVersion,
     int newVersion,
   ) async {
-    // 버전 2가 생기면 여기서 갈라진다.
+    // 진행 중인 방 번호를 남기지 않아 409를 못 풀던 것을 고친다.
+    if (oldVersion < 2) await db.execute(_createActiveRun);
   }
 }
