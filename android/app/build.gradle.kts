@@ -1,7 +1,23 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// 릴리스 서명 자격증명. `android/key.properties`는 gitignore 대상이라
+// 저장소에 없다 — 업로드 키스토어를 가진 사람의 로컬에만 있다.
+//
+// 파일이 없으면 아래 buildTypes에서 debug 키로 되돌린다. 키스토어가 없는
+// 사람도 `flutter build --release`가 그대로 돌아가야 하기 때문이다. 그렇게
+// 나온 산출물은 Play에 올릴 수 없지만, 올릴 일도 없다.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        FileInputStream(keystorePropertiesFile).use { load(it) }
+    }
 }
 
 android {
@@ -37,11 +53,25 @@ android {
             (project.findProperty("KAKAO_NATIVE_APP_KEY") as String?) ?: ""
     }
 
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // key.properties가 있으면 업로드 키로, 없으면 종전대로 debug 키로
+            // 서명한다. Play는 debug 서명을 거부하므로 업로드용 산출물은
+            // 반드시 키스토어를 가진 쪽에서 빌드해야 한다.
+            signingConfig = signingConfigs.getByName(
+                if (keystorePropertiesFile.exists()) "release" else "debug"
+            )
         }
     }
 }
