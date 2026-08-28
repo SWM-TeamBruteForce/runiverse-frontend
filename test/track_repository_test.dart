@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/database/app_database.dart';
 import 'package:runiverse/features/session/data/sqflite_track_repository.dart';
@@ -141,6 +143,45 @@ void main() {
     });
   });
 
+  group('진행 중인 방', () {
+    test('처음에는 없다', () async {
+      expect(await repository.activeRoom(), isNull);
+    });
+
+    test('남기면 읽힌다', () async {
+      await repository.markActiveRoom(roomA);
+
+      expect(await repository.activeRoom(), roomA);
+    });
+
+    test('⚠️ 두 번 남겨도 행이 하나다', () async {
+      // 스키마의 `CHECK (id = 1)`이 강제한다. 둘이 되면 어느 것이 진짜인지
+      // 알 수 없어진다.
+      await repository.markActiveRoom(roomA);
+      await repository.markActiveRoom(roomB);
+
+      expect(await repository.activeRoom(), roomB);
+    });
+
+    test('지우면 없어진다', () async {
+      await repository.markActiveRoom(roomA);
+
+      await repository.clearActiveRoom();
+
+      expect(await repository.activeRoom(), isNull);
+    });
+
+    test('⚠️ 좌표를 지워도 번호는 남는다', () async {
+      // 둘은 따로 지운다. 종료 흐름이 순서대로 둘 다 지운다.
+      await repository.add(roomA, point(1));
+      await repository.markActiveRoom(roomA);
+
+      await repository.clear(roomA);
+
+      expect(await repository.activeRoom(), roomA);
+    });
+  });
+
   group('지우기', () {
     test('그 러닝만 지운다', () async {
       await repository.add(roomA, point(1));
@@ -150,6 +191,52 @@ void main() {
 
       expect(await repository.count(roomA), 0);
       expect(await repository.count(roomB), 1);
+    });
+  });
+
+  group('스키마 올리기', () {
+    test('⚠️ 버전 1에서 올려도 쌓인 좌표가 남는다', () async {
+      // 여기 있는 것은 아직 서버가 받았는지 모르는 좌표다. 앱을 올렸다고
+      // 버리면 그 구간이 통째로 사라진다.
+      // ⚠️ `:memory:`로는 못 본다. 열 때마다 빈 DB라 `onUpgrade`가 돌 일이 없다.
+      final dir = await Directory.systemTemp.createTemp('runiverse_migrate');
+      final path = '${dir.path}/runiverse.db';
+      final old = await databaseFactory.openDatabase(
+        path,
+        options: OpenDatabaseOptions(
+          version: 1,
+          onCreate: (db, _) => db.execute('''
+            CREATE TABLE run_track_points (
+              running_room_id  INTEGER NOT NULL,
+              sequence         INTEGER NOT NULL,
+              latitude         REAL    NOT NULL,
+              longitude        REAL    NOT NULL,
+              altitude_meters  REAL,
+              accuracy_meters  REAL    NOT NULL,
+              speed_mps        REAL    NOT NULL,
+              heading_degrees  REAL,
+              cadence_spm      INTEGER,
+              pace_sec_per_km  INTEGER,
+              recorded_at      TEXT    NOT NULL,
+              PRIMARY KEY (running_room_id, sequence)
+            )
+          '''),
+        ),
+      );
+      await SqfliteTrackRepository(() async => old).add(roomA, point(1));
+      await old.close();
+
+      // 같은 파일을 지금 버전으로 다시 연다 — `onUpgrade`가 돈다.
+      final upgraded = await AppDatabase.open(path);
+      final migrated = SqfliteTrackRepository(() async => upgraded);
+
+      expect(await migrated.count(roomA), 1, reason: '좌표가 사라졌다');
+      // 새 테이블도 쓸 수 있어야 한다.
+      await migrated.markActiveRoom(roomA);
+      expect(await migrated.activeRoom(), roomA);
+
+      await upgraded.close();
+      await dir.delete(recursive: true);
     });
   });
 }

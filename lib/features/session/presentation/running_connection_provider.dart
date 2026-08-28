@@ -132,15 +132,8 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     _retry?.cancel();
     state = state.copyWith(opening: true, failure: null);
 
-    final RunningRoom room;
-    try {
-      room = await ref.read(runningRoomRepositoryProvider).openSolo();
-    } on RunningRoomException catch (error) {
-      state = RunningConnectionState(failure: error.failure);
-      // 409는 다시 시도해도 같은 답이 온다.
-      if (error.failure != RunningRoomFailure.alreadyRunning) _scheduleRetry();
-      return;
-    }
+    final room = await _openRoom();
+    if (room == null) return;
 
     final accessToken = (await ref.read(tokenStoreProvider).read()).accessToken;
     if (accessToken == null) {
@@ -178,6 +171,95 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     state = state.copyWith(connection: channel.state);
   }
 
+  /// 방을 연다. 못 열면 `null`이고 상태에 이유가 담긴다.
+  ///
+  /// ## ⚠️ 409면 남은 방을 끝내고 다시 시도한다
+  ///
+  /// 러닝 중 앱이 죽으면 서버에 `STARTED` 방이 남고, 그 뒤로는 방을 만들 때마다
+  /// 409가 온다. **되찾을 API가 없어** 예전에는 그 계정이 영영 막혔다 —
+  /// 409 응답에는 방 번호가 없고 `GET /users/me/running-match`는 매칭 조회다.
+  ///
+  /// 그래서 방을 연 순간 번호를 기기에 남겨 둔다. 그 번호로 `RUNNING_START`를
+  /// 보내면 서버가 **재연결로 받아 주고**(명세: 이미 `RUNNING`인 참가자의
+  /// 재연결을 허용한다), 이어서 `RUNNING_FINISH`로 끝낼 수 있다.
+  Future<RunningRoom?> _openRoom() async {
+    try {
+      return await _createRoom();
+    } on RunningRoomException catch (error) {
+      if (error.failure != RunningRoomFailure.alreadyRunning) {
+        state = RunningConnectionState(failure: error.failure);
+        _scheduleRetry();
+        return null;
+      }
+    }
+
+    // 409다. 남겨 둔 번호가 있으면 그 방을 끝내고 한 번만 다시 시도한다.
+    if (!await _finishStaleRoom()) {
+      // 번호를 모른다. 앱이 할 수 있는 것이 없다.
+      state = const RunningConnectionState(
+        failure: RunningRoomFailure.alreadyRunning,
+      );
+      return null;
+    }
+
+    try {
+      return await _createRoom();
+    } on RunningRoomException catch (error) {
+      state = RunningConnectionState(failure: error.failure);
+      if (error.failure != RunningRoomFailure.alreadyRunning) _scheduleRetry();
+      return null;
+    }
+  }
+
+  /// 방을 만들고 **번호를 곧바로 남긴다.**
+  ///
+  /// ⚠️ 남기기 전에 앱이 죽으면 그 방은 못 끝낸다. 두 줄 사이가 그 틈이고,
+  /// 더 줄일 방법은 서버가 409에 번호를 실어 주는 것뿐이다.
+  Future<RunningRoom> _createRoom() async {
+    final room = await ref.read(runningRoomRepositoryProvider).openSolo();
+    await ref.read(trackRepositoryProvider).markActiveRoom(room.id);
+    return room;
+  }
+
+  /// 끝내지 못한 방을 정리한다. 정리했으면 `true`.
+  ///
+  /// **남은 좌표를 먼저 보낸다.** 그 러닝의 트랙이 로컬에 남아 있는데 그냥
+  /// 끝내면 서버는 받은 데까지로 기록을 확정한다 — 뛴 만큼이 안 남는다.
+  Future<bool> _finishStaleRoom() async {
+    final repository = ref.read(trackRepositoryProvider);
+    final stale = await repository.activeRoom();
+    if (stale == null) return false;
+
+    debugPrint('[running] 끝내지 못한 방 $stale을 정리한다');
+    final channel = ref.read(runningChannelFactoryProvider)(_accessToken);
+    try {
+      await channel.start(stale);
+
+      // ⚠️ **`start`를 빠뜨리면 `drain`이 아무것도 보내지 않는다.** 전송기는
+      // 방 번호를 모르면 조용히 돌아간다 — 남은 좌표가 통째로 버려진다.
+      // 다 보내면 곧바로 멈춘다. 여기서는 10초 타이머가 돌 이유가 없다.
+      final sender = TrackSender(repository, channel)..start(stale);
+      await sender.drain();
+      sender.stop();
+
+      final acked = await channel.finish();
+      if (!acked) debugPrint('[running] 종료 확인을 못 받았다. 그래도 정리한다');
+    } on Object catch (error) {
+      debugPrint('[running] 남은 방을 정리하지 못했다 · $error');
+      return false;
+    } finally {
+      // ⚠️ **반드시 닫는다.** 안 닫으면 새 연결이 중복으로 보여 서버가
+      // 둘 중 하나를 4001로 끊는다.
+      await channel.close();
+    }
+
+    // ⚠️ ack를 못 받았어도 지운다. 못 지우면 다음 시도가 같은 자리에서 또
+    // 막히고, 서버는 멱등이라 다시 끝내도 해롭지 않다.
+    await repository.clear(stale);
+    await repository.clearActiveRoom();
+    return true;
+  }
+
   /// 러닝을 끝낸다. 남은 좌표를 마저 보내고, 확인을 받으면 트랙을 지운다.
   ///
   /// ## 순서가 정해져 있다
@@ -213,6 +295,9 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     final acked = await channel.finish(forced: forced);
     if (acked) {
       await ref.read(trackRecorderProvider).discard();
+      // ⚠️ 좌표와 **같은 순간에** 지운다. 번호만 남으면 다음 러닝이 이미 끝난
+      // 방을 정리하려 들고, 좌표만 남으면 지울 사람이 없어진다.
+      await ref.read(trackRepositoryProvider).clearActiveRoom();
     } else {
       debugPrint('[running] 종료 확인을 못 받아 로컬 트랙을 남긴다');
     }

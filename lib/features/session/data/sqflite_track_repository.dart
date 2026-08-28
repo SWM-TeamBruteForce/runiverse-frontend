@@ -65,6 +65,32 @@ class SqfliteTrackRepository implements TrackRepository {
     return value is int ? value : 0;
   }
 
+  @override
+  Future<int?> activeRoom() async {
+    final db = await _open();
+    final rows = await db.query(AppDatabase.activeRun, limit: 1);
+    if (rows.isEmpty) return null;
+    return rows.first['running_room_id'] as int?;
+  }
+
+  @override
+  Future<void> markActiveRoom(int runningRoomId) async {
+    final db = await _open();
+    await db.insert(AppDatabase.activeRun, {
+      // ⚠️ 1로 고정한다. 진행 중인 러닝은 언제나 하나뿐이고, 스키마의
+      // `CHECK (id = 1)`이 그것을 강제한다.
+      'id': 1,
+      'running_room_id': runningRoomId,
+      'started_at': TrackPoint.formatServerTime(DateTime.now()),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  @override
+  Future<void> clearActiveRoom() async {
+    final db = await _open();
+    await db.delete(AppDatabase.activeRun);
+  }
+
   // ── 행 ↔ 값 ──────────────────────────────────────────────
 
   static Map<String, Object?> _toRow(int runningRoomId, TrackPoint p) => {

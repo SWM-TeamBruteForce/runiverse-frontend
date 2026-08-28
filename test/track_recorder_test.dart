@@ -141,6 +141,18 @@ class _FakeRepository implements TrackRepository {
     saved.remove(runningRoomId);
   }
 
+  int? active;
+
+  @override
+  Future<int?> activeRoom() async => active;
+
+  @override
+  Future<void> markActiveRoom(int runningRoomId) async =>
+      active = runningRoomId;
+
+  @override
+  Future<void> clearActiveRoom() async => active = null;
+
   @override
   Future<int> count(int runningRoomId) async =>
       saved[runningRoomId]?.length ?? 0;

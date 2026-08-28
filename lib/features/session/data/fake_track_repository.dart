@@ -56,4 +56,18 @@ class FakeTrackRepository implements TrackRepository {
   @override
   Future<int> count(int runningRoomId) async =>
       saved[runningRoomId]?.length ?? 0;
+
+  /// 지금 진행 중이라고 남긴 방. 테스트가 직접 세팅해 **끝내지 못한 방이
+  /// 남아 있는 상황**을 만든다.
+  int? active;
+
+  @override
+  Future<int?> activeRoom() async => active;
+
+  @override
+  Future<void> markActiveRoom(int runningRoomId) async =>
+      active = runningRoomId;
+
+  @override
+  Future<void> clearActiveRoom() async => active = null;
 }
