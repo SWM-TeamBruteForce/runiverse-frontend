@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
+import 'package:runiverse/core/storage/body_profile_store.dart';
 import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
@@ -42,6 +44,9 @@ void main() {
             InMemorySignInMemoryStore(),
           ),
           consentStoreProvider.overrideWithValue(InMemoryConsentStore()),
+          bodyProfileStoreProvider.overrideWithValue(
+            InMemoryBodyProfileStore(),
+          ),
           authRepositoryProvider.overrideWithValue(
             FakeAuthRepository(latency: Duration.zero),
           ),

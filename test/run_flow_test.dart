@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/core/network/ws_client.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
+import 'package:runiverse/core/storage/body_profile_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/app/router/app_routes.dart';
@@ -41,11 +43,14 @@ void main() {
   late FakeRunningRoomRepository room;
   late FakeTrackRepository track;
 
+  late InMemoryBodyProfileStore body;
+
   setUp(() {
     clock = start;
     location = FakeLocationRepository();
     room = FakeRunningRoomRepository();
     track = FakeTrackRepository();
+    body = InMemoryBodyProfileStore();
   });
 
   Future<void> pumpRun(
@@ -77,6 +82,8 @@ void main() {
           // ⚠️ 갈아 끼우지 않으면 진짜 DB를 열려다 실패하고, 컨트롤러가 그
           // 실패를 삼켜 **좌표가 쌓이는지 아무도 확인하지 않는 상태**가 된다.
           trackRepositoryProvider.overrideWithValue(track),
+          // 신체 정보가 없으면 칼로리가 `--`다. 값을 넣는 테스트가 따로 있다.
+          bodyProfileStoreProvider.overrideWithValue(body),
           runningChannelFactoryProvider.overrideWithValue(
             (_) => _SilentChannel(),
           ),
@@ -352,6 +359,37 @@ void main() {
       await tester.pump();
 
       expect(find.text(AppStrings.runStopCta), findsOneWidget);
+      await unmount(tester);
+    });
+
+    testWidgets('⚠️ 몸무게를 알면 칼로리가 뜬다', (tester) async {
+      // 온보딩이나 프로필 편집에서 남긴 값이다. 서버에 조회 API가 없어
+      // 기기에 남긴 것이 유일한 출처다(`BodyProfileStore`).
+      await body.save(weightKg: 70);
+      await pumpRun(tester);
+      await startRunning(tester);
+
+      // 달려야 칼로리가 생긴다. 위도 0.001도는 약 111m다.
+      await emit(tester, point(37.5, 127));
+      await emit(tester, point(37.501, 127));
+      await tester.pump(const Duration(seconds: 1));
+
+      // `--`가 케이던스 한 자리에만 남아야 한다. 둘 다면 칼로리가 안 뜬 것이다.
+      expect(find.text(AppStrings.runUnavailable), findsOneWidget);
+      await unmount(tester);
+    });
+
+    testWidgets('⚠️ 몸무게를 모르면 칼로리를 지어내지 않는다', (tester) async {
+      // 기본 체중으로 때우면 그 사람의 칼로리가 조용히 틀린다.
+      await pumpRun(tester);
+      await startRunning(tester);
+
+      await emit(tester, point(37.5, 127));
+      await emit(tester, point(37.501, 127));
+      await tester.pump(const Duration(seconds: 1));
+
+      // 케이던스와 칼로리 둘 다 `--`다.
+      expect(find.text(AppStrings.runUnavailable), findsNWidgets(2));
       await unmount(tester);
     });
 

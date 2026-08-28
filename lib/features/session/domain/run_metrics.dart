@@ -9,6 +9,7 @@ class RunMetrics {
     required this.distanceMeters,
     required this.elapsed,
     this.currentPace,
+    this.calories,
   });
 
   /// 시작 직후. 아무것도 쌓이지 않은 상태다.
@@ -25,6 +26,12 @@ class RunMetrics {
   /// 최근 구간의 페이스. 아직 낼 수 없으면 `null`이다.
   final Duration? currentPace;
 
+  /// 태운 열량(kcal). **몸무게를 모르면 `null`이다.**
+  ///
+  /// ⚠️ **기록이 아니라 화면 표시용이다.** 서버가 종료 시 확정하는 값과 다를 수
+  /// 있다(`CalorieCalculator` 참조). 페이로드에도 이 자리는 없다.
+  final int? calories;
+
   double get distanceKm => distanceMeters / 1000;
 
   /// 전 구간 평균 페이스. 아직 낼 수 없으면 `null`.
@@ -35,12 +42,14 @@ class RunMetrics {
     double? distanceMeters,
     Duration? elapsed,
     Duration? currentPace,
+    int? calories,
   }) {
     return RunMetrics(
       distanceMeters: distanceMeters ?? this.distanceMeters,
       elapsed: elapsed ?? this.elapsed,
       // null로 되돌리는 경우가 없어 ?? 로 충분하다.
       currentPace: currentPace ?? this.currentPace,
+      calories: calories ?? this.calories,
     );
   }
 
