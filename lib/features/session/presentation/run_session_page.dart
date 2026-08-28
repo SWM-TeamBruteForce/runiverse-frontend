@@ -206,12 +206,15 @@ class _MetricsPage extends StatelessWidget {
           const SizedBox(height: AppSpacing.space5),
           Row(
             children: [
-              // 아직 못 재는 값이다. **지어낸 숫자를 넣지 않는다** —
-              // 걸음 센서를 읽지 않는다.
-              const Expanded(
+              Expanded(
                 child: _Metric(
                   label: AppStrings.runCadenceLabel,
-                  value: AppStrings.runUnavailable,
+                  // 권한이 없거나 걸음 센서가 없으면 `null`이다.
+                  // 에뮬레이터에는 센서가 아예 없어 늘 `--`다.
+                  value:
+                      metrics.cadenceSpm?.toString() ??
+                      AppStrings.runUnavailable,
+                  unit: metrics.cadenceSpm == null ? null : 'spm',
                 ),
               ),
               Expanded(

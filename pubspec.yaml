@@ -52,6 +52,25 @@ dependencies:
   wakelock_plus: ^1.7.0
   web_socket_channel: ^3.0.3
   sqflite: ^2.4.3
+  # 케이던스(분당 걸음 수)를 낸다. 안드로이드 `TYPE_STEP_COUNTER`를 노출한다.
+  #
+  # ⚠️ **이 패키지는 권한을 요청하지 않는다.** 매니페스트가 비어 있고 요청
+  # 코드도 없다 — README도 "설정에서 직접 허용해야 할 수 있다"고 적어 두었다.
+  # `ACTIVITY_RECOGNITION` 선언과 런타임 요청은 앱이 한다.
+  #
+  # ⚠️ 에뮬레이터에는 걸음 센서가 없어 **실기기로만 검증된다.**
+  pedometer: ^4.2.0
+  # 런타임 권한을 요청한다. 위치는 geolocator가 자체 처리하지만 나머지는
+  # 요청할 수단이 없었다.
+  #
+  # 지금 쓰는 곳은 `ACTIVITY_RECOGNITION`(케이던스) 하나이고,
+  # 포그라운드 서비스 알림의 `POST_NOTIFICATIONS`도 이걸로 요청하게 된다.
+  #
+  # ⚠️ **13.x로 올리지 않는다. 버전을 고정한다.** 13.0.0이 compileSdk 37을
+  # 요구해 `checkDebugAarMetadata`에서 빌드가 깨진다 — flutter_secure_storage와
+  # 같은 함정이다(위 참고). 캐럿(`^`)을 쓰면 다음 사람이 `pub upgrade`만 해도
+  # 13.x가 올라와 깨지므로 정확한 버전으로 박는다.
+  permission_handler: 12.0.0
 
 dev_dependencies:
   flutter_test:

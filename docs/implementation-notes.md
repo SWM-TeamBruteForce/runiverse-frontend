@@ -198,6 +198,7 @@
 |---|---|---|
 | `flutter analyze`가 분석 서버 크래시로 죽음 | 저장소가 **한글·공백이 든 경로**에 있음 | ASCII 경로로 옮긴다 |
 | `main.dart` 교체 후 컴파일 자체가 안 됨 | `test/widget_test.dart`가 `flutter create` 기본 카운터 테스트라 `MyApp`을 직접 import | **교체하는 커밋에서 함께 지우거나 다시 쓴다** |
+| `checkDebugAarMetadata`에서 빌드 실패 · `compileSdk of at least 37` | 패키지가 **compileSdk 37**을 요구하는데 Flutter 3.44.8 기본값이 36이다 | 그 패키지의 **버전을 낮춰 고정한다.** `flutter_secure_storage`(11.x 금지)·`permission_handler`(13.x 금지)가 같은 이유로 묶여 있다. 캐럿(`^`)을 쓰면 다음 사람의 `pub upgrade`에서 다시 깨지므로 정확한 버전으로 박는다 |
 | `flutter test integration_test`가 5분 타임아웃 | 끝나면 **앱을 제거**한다. 다시 설치되며 런타임 권한이 날아가고, 앱이 권한 다이얼로그를 띄운 채 아무도 안 누른다 | 도는 동안 `adb shell pm grant <pkg> android.permission.ACCESS_FINE_LOCATION`을 1초마다 반복해서 준다 |
 | 테스트가 끝난 뒤 기기 DB를 못 뽑음 | 같은 이유다. 앱 전용 폴더가 앱과 함께 사라진다 | 도는 동안 `adb exec-out run-as <pkg> cat databases/<파일>`로 빼낸다. `run-as`로 `/sdcard`에 복사하는 것은 **앱 UID에 저장소 권한이 없어 실패한다** |
 
@@ -840,3 +841,25 @@ Android가 보는 것은 **서비스를 시작하는 순간 앱이 포그라운�
 
 병합 결과는 `build/app/intermediates/merged_manifests/.../AndroidManifest.xml`에서
 확인한다 — 선언한 것이 실제로 들어갔는지, `<service>`가 하나뿐인지 보인다.
+
+### 11-5. 걸음 센서는 권한을 직접 물어야 한다
+
+`pedometer` 패키지는 **권한을 요청하지 않는다.** 매니페스트가 비어 있고 요청
+코드도 없다 — README가 "설정에서 직접 허용해야 할 수 있다"고 적어 둔 이유다.
+
+⚠️ **`ACTIVITY_RECOGNITION`은 Android 10부터 런타임 권한이다.** 선언만 해두면
+센서가 **조용히 아무것도 주지 않는다** — 예외도 오류 콜백도 없어서 "왜 케이던스가
+안 뜨지"를 한참 쫓게 된다. `permission_handler`로 앱이 직접 묻는다.
+
+⚠️ **누적값이지 이번 러닝의 걸음 수가 아니다.** `TYPE_STEP_COUNTER`는 **기기를
+켠 뒤 총 몇 걸음**인지를 준다. 두 표본의 차이로만 뜻이 생기고, 재부팅하면 0으로
+돌아가 **음수가 나온다.**
+
+⚠️ **초당 한 번이 아니다.** 안드로이드가 이벤트를 묶어 보내 몇 초씩 몰려 온다.
+인접한 두 표본만 보면 1초에 3걸음 → 180spm 같은 값이 튄다. 창(30초)으로 평균을
+내고 최소 구간(5초)을 둔다.
+
+⚠️ **`DateTime.now()`를 시각으로 쓰면 안 된다.** 묶여 온 표본이 전부 같은 시각을
+갖게 되어 케이던스가 무한대로 튄다. 패키지가 주는 `timeStamp`를 쓴다.
+
+⚠️ **에뮬레이터에는 걸음 센서가 없다.** 실기기로만 검증된다.

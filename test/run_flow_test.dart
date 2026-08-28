@@ -14,6 +14,7 @@ import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_running_room_repository.dart';
+import 'package:runiverse/features/session/data/fake_step_repository.dart';
 import 'package:runiverse/features/session/data/fake_track_repository.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
@@ -44,6 +45,7 @@ void main() {
   late FakeTrackRepository track;
 
   late InMemoryBodyProfileStore body;
+  late FakeStepRepository steps;
 
   setUp(() {
     clock = start;
@@ -51,6 +53,7 @@ void main() {
     room = FakeRunningRoomRepository();
     track = FakeTrackRepository();
     body = InMemoryBodyProfileStore();
+    steps = FakeStepRepository();
   });
 
   Future<void> pumpRun(
@@ -84,6 +87,9 @@ void main() {
           trackRepositoryProvider.overrideWithValue(track),
           // 신체 정보가 없으면 칼로리가 `--`다. 값을 넣는 테스트가 따로 있다.
           bodyProfileStoreProvider.overrideWithValue(body),
+          // ⚠️ 에뮬레이터에도 걸음 센서가 없다. 갈아 끼우지 않으면
+          // 플랫폼 채널을 부르려다 죽는다.
+          stepRepositoryProvider.overrideWithValue(steps),
           runningChannelFactoryProvider.overrideWithValue(
             (_) => _SilentChannel(),
           ),
@@ -390,6 +396,39 @@ void main() {
 
       // 케이던스와 칼로리 둘 다 `--`다.
       expect(find.text(AppStrings.runUnavailable), findsNWidgets(2));
+      await unmount(tester);
+    });
+
+    testWidgets('⚠️ 걸음이 들어오면 케이던스가 뜨고 좌표에도 실린다', (tester) async {
+      await pumpRun(tester);
+      await startRunning(tester);
+
+      // 30초에 90걸음 = 180spm. 누적값이라 차이로만 뜻이 생긴다.
+      steps.emit(1000, clock);
+      steps.emit(1090, clock.add(const Duration(seconds: 30)));
+      await tester.pump();
+
+      await emit(tester, point(37.5, 127));
+      await emit(tester, point(37.501, 127));
+      await tester.pump();
+
+      // 화면에 뜬다.
+      expect(find.text('180'), findsOneWidget);
+      // ⚠️ 서버로도 간다. 칼로리와 달리 페이로드에 자리가 있다.
+      expect(track.all.last.cadenceSpm, 180);
+      await unmount(tester);
+    });
+
+    testWidgets('⚠️ 걸음 권한이 없어도 러닝은 계속된다', (tester) async {
+      // 케이던스는 있으면 좋은 값이다. 없다고 달리지 못하게 하면 안 된다.
+      steps = FakeStepRepository(granted: false);
+      await pumpRun(tester);
+      await startRunning(tester);
+
+      await emit(tester, point(37.5, 127));
+      await tester.pump();
+
+      expect(find.text(AppStrings.runStopCta), findsOneWidget);
       await unmount(tester);
     });
 

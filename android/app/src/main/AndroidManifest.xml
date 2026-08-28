@@ -40,6 +40,18 @@
       ⚠️ 선언만으로는 부족하고 런타임 요청이 있어야 한다(TMB-169). 요청 전에는
       알림이 서랍에 안 보이지만 서비스는 정상적으로 돌고 좌표도 들어온다.
     -->
+    <!--
+      걸음 센서 — 케이던스(분당 걸음 수)를 낸다.
+
+      ⚠️ Android 10부터 **런타임 권한**이다. 선언만 해두면 센서가 조용히
+      아무것도 주지 않는다 — 에러도 나지 않아 원인을 찾기 어렵다.
+      `pedometer` 패키지는 요청하지 않으므로 앱이 직접 묻는다
+      (`PedometerStepRepository.ensureAccess`).
+
+      ⚠️ 에뮬레이터에는 걸음 센서가 없어 실기기로만 검증된다.
+    -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
