@@ -499,13 +499,18 @@ void main() {
       expect(find.textContaining(AppStrings.runSummaryAveragePace), findsOne);
     });
 
-    testWidgets('홈으로 돌아갈 수 있다', (tester) async {
+    testWidgets('닫아서 빠져나갈 수 있다', (tester) async {
+      // Figma S15는 하단 `홈으로` 대신 **우상단 X**로 닫는다. 이게 요약을
+      // 벗어나는 유일한 길이라, 없거나 안 먹으면 화면에 갇힌다.
       await finish(tester);
 
-      expect(
-        find.widgetWithText(AppButton, AppStrings.runSummaryHome),
-        findsOneWidget,
-      );
+      final close = find.byTooltip(AppStrings.runSummaryClose);
+      expect(close, findsOneWidget);
+
+      await tester.tap(close);
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runSummaryTitle), findsNothing);
     });
   });
 }

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
+import 'package:runiverse/core/theme/tokens/app_radius.dart';
+import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
@@ -11,28 +14,29 @@ import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 
-/// 러닝 요약 (S15).
+/// 러닝 요약 (S15) — Figma `46:27` 기준.
 ///
 /// ## ⚠️ 나가면 사라진다
 ///
 /// 기록을 저장할 서버도 저장소도 아직 없다. 이 화면을 닫는 순간 방금 달린 것이
 /// 없어진다 — **알고 남겨둔 상태다**(`docs/specs/2026-08-05-solo-run-design.md` 9절).
 ///
-/// ## 정본에 있는데 아직 없는 것 셋
+/// ## Figma에 있는데 여기 없는 것 셋
 ///
-/// 정본 S15는 `제목 · 획득 컬러 ◉ · 거리·시간 · 평균 페이스 · 버튼 셋`이다.
-/// 이 중 셋은 지금 만들 수 없어 **자리까지 비워 두었다** — 나중에 넣을 때
-/// 레이아웃이 흔들리는 편이, 눌러도 아무 일 없는 버튼을 두는 것보다 정직하다.
+/// 지금 만들 수 없어 **자리까지 비웠다.** 나중에 넣을 때 레이아웃이 흔들리는
+/// 편이, 눌러도 아무 일 없는 버튼을 두는 것보다 정직하다.
 ///
-/// - **획득 컬러 ◉** — `features/color/`가 비어 있고 색 생성 규칙이 아직 없다.
-///   원래는 이 앞에 S14(컬러 리빌)가 온다.
-/// - **자세한 기록 보기 → S16** — S16 화면 자체가 없다.
-/// - **피드에 공유하기** — 피드 탭이 `ComingSoonPage`다.
+/// - **거리 카드의 글로우** — Figma는 `0 0 52px -6px rgba(226,104,60,.55)`,
+///   곧 `RunHue.company` 셰이드 2다. 그 색은 **그 러닝의 획득 컬러**이지 고정값이
+///   아니다. 색 생성 규칙이 정해지면 `boxShadow` 한 줄로 살아난다.
+/// - **`피드로 공유하기`** (primary) — 피드 탭이 `ComingSoonPage`다.
+/// - **`자세한 기록 보기`** (secondary) — S16 화면 자체가 없다.
 ///
-/// ## 지도는 여기 없다
+/// ## 제목이 Figma와 다르다
 ///
-/// 정본에서 경로 지도는 S15가 아니라 **S16의 "컬러 경로 지도"**다. S15의 규칙은
-/// "요약은 짧고 가볍게 — 핵심 3~4개". 지도를 되살리려면 S16을 만들어 거기 둔다.
+/// Figma의 `이서연 님과 함께 5km 완주!`는 **매칭 러닝 전용 문구**다. 지금 도달할
+/// 수 있는 건 1인 러닝뿐이라 동행자도, 목표 거리도 없다. 솔로용 카피가 정해질
+/// 때까지 기존 `러닝 완료`를 Figma의 자리·크기(H1 중앙)로만 옮겼다.
 class RunSummaryPage extends ConsumerWidget {
   const RunSummaryPage({super.key});
 
@@ -58,59 +62,71 @@ class RunSummaryPage extends ConsumerWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // 정본은 제목부터 페이스까지를 한 덩어리로 화면 가운데 세운다.
-            // 지도가 빠진 자리를 여백으로 두는 편이 요약을 가볍게 만든다.
+            // Figma는 하단 `홈으로` 대신 우상단 X로 닫는다. 버튼 둘이 빠진
+            // 지금은 이게 이 화면을 벗어나는 유일한 길이다 — 없으면 갇힌다.
+            Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.space4,
+                  vertical: AppSpacing.space2,
+                ),
+                child: IconButton(
+                  onPressed: () => _leave(ref, context),
+                  tooltip: AppStrings.runSummaryClose,
+                  constraints: const BoxConstraints(
+                    minWidth: AppSizes.touchDefault,
+                    minHeight: AppSizes.touchDefault,
+                  ),
+                  icon: Icon(
+                    LucideIcons.x,
+                    size: AppSpacing.space6,
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+            ),
+
             Expanded(
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      AppStrings.runSummaryTitle,
-                      style: AppTypography.h2.copyWith(
-                        color: colors.textPrimary,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.space4,
+                      ),
+                      child: Text(
+                        AppStrings.runSummaryTitle,
+                        textAlign: TextAlign.center,
+                        style: AppTypography.h1.copyWith(
+                          color: colors.textPrimary,
+                        ),
                       ),
                     ),
+                    const SizedBox(height: AppSpacing.space6),
+                    _DistanceCard(meters: metrics.distanceMeters),
+                    const SizedBox(height: AppSpacing.space6),
 
-                    // 획득 컬러 ◉ 자리. 색 생성 규칙이 정해지면 여기 들어간다.
-                    const SizedBox(height: AppSpacing.space7),
-
-                    // 정본대로 거리와 시간을 한 줄에 잇는다. 셋을 나란히 놓으면
-                    // 44px 숫자가 가로를 넘긴다 — 실제로 102px 넘쳤다.
-                    Text(
-                      '${(metrics.distanceMeters / 1000).toStringAsFixed(2)} km'
-                      ' · ${_elapsedText(metrics.elapsed)}',
-                      style: AppTypography.metricLg.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.space2),
-                    Text(
-                      '${AppStrings.runSummaryAveragePace} '
-                      '$averagePace${AppStrings.profilePacePerKm}',
-                      style: AppTypography.body.copyWith(
-                        color: colors.textSecondary,
-                      ),
+                    // 거리 하나만 키우고 나머지 둘은 나란히 눕힌다. 셋을 같은
+                    // 크기로 두면 무엇을 봐야 하는지가 사라진다.
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _MetricPair(
+                          value: _elapsedText(metrics.elapsed),
+                          label: AppStrings.runSummaryTotalTime,
+                        ),
+                        const SizedBox(width: AppSpacing.space9),
+                        _MetricPair(
+                          value: averagePace,
+                          label: AppStrings.runSummaryAveragePaceUnit,
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ),
-            ),
-
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.space5),
-              // 정본에서 `홈으로`는 위의 버튼 둘에 밀린 3순위라 테두리가 없다.
-              // 지금은 이 화면의 유일한 액션이다. 유일한 것을 ghost로 두면
-              // 어디를 눌러야 하는지가 사라진다 — 둘이 생기면 ghost로 내린다.
-              child: AppButton(
-                label: AppStrings.runSummaryHome,
-                size: AppButtonSize.lg,
-                onPressed: () {
-                  // 다음 러닝을 위해 비운다. 안 비우면 두 번째 러닝이 첫
-                  // 러닝의 거리에서 이어진다.
-                  ref.read(runSessionControllerProvider.notifier).reset();
-                  context.go(AppRoutes.home);
-                },
               ),
             ),
           ],
@@ -119,10 +135,109 @@ class RunSummaryPage extends ConsumerWidget {
     );
   }
 
+  static void _leave(WidgetRef ref, BuildContext context) {
+    // 다음 러닝을 위해 비운다. 안 비우면 두 번째 러닝이 첫 러닝의 거리에서
+    // 이어진다.
+    ref.read(runSessionControllerProvider.notifier).reset();
+    context.go(AppRoutes.home);
+  }
+
   static String _elapsedText(Duration elapsed) {
     final minutes = elapsed.inMinutes.toString().padLeft(2, '0');
     final seconds = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+}
+
+/// 총 거리 카드. 이 화면에서 56px은 여기 하나뿐이다.
+class _DistanceCard extends StatelessWidget {
+  const _DistanceCard({required this.meters});
+
+  final double meters;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.bgSurface,
+        border: Border.all(color: colors.borderDefault),
+        borderRadius: AppRadius.xl,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.space8,
+          vertical: AppSpacing.space6,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              AppStrings.runSummaryTotalDistance,
+              style: AppTypography.caption.copyWith(
+                color: colors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.space2),
+
+            // 숫자와 단위를 베이스라인으로 맞춘다. 가운데 정렬하면 `km`가
+            // 56px 숫자의 허리에 붙어 뜬다.
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  (meters / 1000).toStringAsFixed(2),
+                  style: AppTypography.metricXl.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.space1),
+                Text(
+                  AppStrings.runSummaryUnitKm,
+                  style: AppTypography.h2.copyWith(color: colors.textSecondary),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 수치 하나와 그 아래 라벨. 라벨이 단위를 안고 있어 수치는 숫자만 남는다.
+class _MetricPair extends StatelessWidget {
+  const _MetricPair({required this.value, required this.label});
+
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: AppTypography.h1.copyWith(
+            color: colors.textPrimary,
+            // h1은 램프상 tabular가 아니다. 요약은 갱신되지 않아 흔들릴 일은
+            // 없지만, 두 값의 자릿수를 서로 맞춰 두면 가운데 축이 선다.
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.space1),
+        Text(
+          label,
+          style: AppTypography.caption.copyWith(color: colors.textTertiary),
+        ),
+      ],
+    );
   }
 }
 
