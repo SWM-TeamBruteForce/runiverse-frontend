@@ -38,6 +38,19 @@ abstract final class AppTypography {
     fontFeatures: _tabular,
   );
 
+  /// 56/56 · 800 — 종료 요약(S15)의 총 거리 한 값.
+  ///
+  /// ⚠️ **디자인 시스템 v1.1의 타입 램프에 없는 값이다.** Figma S15가 hero(64)와
+  /// lg(44) 사이의 56을 직접 박아 쓰고 있어 여기에 토큰으로 올렸다. 램프에
+  /// 넣을지 S15만의 예외로 둘지는 디자인 확인이 필요하다.
+  static const metricXl = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 56,
+    height: 1,
+    fontWeight: FontWeight.w800,
+    fontFeatures: _tabular,
+  );
+
   /// 44/48 · 800 — 홈 확정 카운트다운(S05), 종료 요약
   static const metricLg = TextStyle(
     fontFamily: fontFamily,

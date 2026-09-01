@@ -576,6 +576,17 @@ abstract final class AppStrings {
 
   static const runSummaryHome = '홈으로';
 
+  /// 요약의 주인공. Figma S15는 이 값 하나만 56px로 키운다.
+  static const runSummaryTotalDistance = '총 거리';
+  static const runSummaryUnitKm = 'km';
+
+  /// 거리 아래 두 값의 라벨. 단위를 라벨에 붙여 수치를 숫자만 남긴다.
+  static const runSummaryTotalTime = '총 시간';
+  static const runSummaryAveragePaceUnit = '평균 페이스 /km';
+
+  /// 요약은 하단 버튼이 아니라 **우상단 X**로 닫는다(Figma S15).
+  static const runSummaryClose = '닫기';
+
   // ── 러닝 색 10범주 ───────────────────────────────────────────
   //
   // `RunHue`의 이름을 화면에 쓰는 말로 옮긴다. enum에 붙이지 않는 이유는
