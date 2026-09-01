@@ -587,6 +587,48 @@ abstract final class AppStrings {
   /// 요약은 하단 버튼이 아니라 **우상단 X**로 닫는다(Figma S15).
   static const runSummaryClose = '닫기';
 
+  /// S15에서 S16으로 들어가는 문. Figma의 secondary 버튼이다.
+  static const runSummaryDetail = '자세한 기록 보기';
+
+  // ── 러닝 결과 S16 ────────────────────────────────────────────
+  //
+  // 정본은 S16(대시보드)과 S16.5(구간별 상세 비교)를 나눠 두었지만, 한 화면에서
+  // 스크롤로 내려 보도록 합쳤다. 진입 카드가 사라진 자리다.
+
+  static const runResultTitle = '러닝 결과';
+  static const runResultBack = '뒤로';
+
+  static const runResultTime = '시간';
+  static const runResultDistance = '거리';
+  static const runResultPace = '페이스';
+  static const runResultCadence = '케이던스';
+
+  static const runResultPaceChart = '구간별 페이스';
+  static const runResultCadenceChart = '구간별 케이던스';
+  static const runResultCadenceUnit = 'spm';
+
+  /// 누른 채 밀 수 있다는 것을 아무도 스스로 알아채지 못한다.
+  static const runResultChartHint = '그래프를 누른 채 좌우로 밀어 구간별 기록을 확인하세요';
+
+  /// ⚠️ **지어낸 값에 붙인다.** 케이던스 구간 기록이 아직 남지 않아
+  /// 고정값을 그리고 있다 — 이 꼬리표가 그 사실을 화면에서 밝힌다.
+  static const runResultSample = '예시';
+
+  static const runResultSplitColumn = '구간';
+  static const runResultBurnedColumn = '소모';
+  static const runResultMoreSplits = '구간 더 보기';
+  static const runResultUnitKcal = 'kcal';
+
+  /// 1km를 채우지 못하면 구간이 하나도 나오지 않는다.
+  static const runResultNoSplits = '구간을 나눌 만큼 달리지 않았어요';
+
+  /// `3km`처럼 구간 끝 지점을 적는다.
+  static String runResultSplitLabel(int index) => '${index}km';
+
+  /// 마지막 자투리 구간. `5.4km`처럼 실제로 닿은 지점을 적는다.
+  static String runResultPartialLabel(double totalKm) =>
+      '${totalKm.toStringAsFixed(2)}km';
+
   // ── 러닝 색 10범주 ───────────────────────────────────────────
   //
   // `RunHue`의 이름을 화면에 쓰는 말로 옮긴다. enum에 붙이지 않는 이유는

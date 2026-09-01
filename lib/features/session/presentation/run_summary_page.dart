@@ -30,7 +30,6 @@ import 'package:runiverse/features/session/presentation/run_session_provider.dar
 ///   곧 `RunHue.company` 셰이드 2다. 그 색은 **그 러닝의 획득 컬러**이지 고정값이
 ///   아니다. 색 생성 규칙이 정해지면 `boxShadow` 한 줄로 살아난다.
 /// - **`피드로 공유하기`** (primary) — 피드 탭이 `ComingSoonPage`다.
-/// - **`자세한 기록 보기`** (secondary) — S16 화면 자체가 없다.
 ///
 /// ## 제목이 Figma와 다르다
 ///
@@ -127,6 +126,25 @@ class RunSummaryPage extends ConsumerWidget {
                     ),
                   ],
                 ),
+              ),
+            ),
+
+            // Figma footer의 secondary 버튼. primary(`피드로 공유하기`)는
+            // 피드가 준비되면 이 위에 붙는다.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.space4,
+                0,
+                AppSpacing.space4,
+                AppSpacing.space4,
+              ),
+              child: AppButton(
+                label: AppStrings.runSummaryDetail,
+                variant: AppButtonVariant.secondary,
+                size: AppButtonSize.lg,
+                // `go`가 아니라 `push`다. 결과 화면이 요약 위에 얹혀야
+                // 뒤로가기로 돌아오고, 그동안 트랙도 그대로 남는다.
+                onPressed: () => context.push(AppRoutes.runResult),
               ),
             ),
           ],

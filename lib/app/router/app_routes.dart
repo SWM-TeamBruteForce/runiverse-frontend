@@ -119,4 +119,7 @@ abstract final class AppRoutes {
 
   /// 러닝 요약 (S15).
   static const runSummary = '/run/summary';
+
+  /// 러닝 결과 (S16). 정본의 S16.5(구간별 상세 비교)를 아래로 이어 붙인 한 화면이다.
+  static const runResult = '/run/result';
 }
