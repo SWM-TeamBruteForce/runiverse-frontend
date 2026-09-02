@@ -629,6 +629,101 @@ abstract final class AppStrings {
   static String runResultPartialLabel(double totalKm) =>
       '${totalKm.toStringAsFixed(2)}km';
 
+  // ── 기록 탭 S21 ──────────────────────────────────────────────
+
+  /// 주간 요약 줄. 누적 거리 · 누적 시간 · 누적 경사를 나란히 놓는다.
+  static const recordWeekTitle = '이번 주';
+  static const recordWeekDistance = '누적 거리';
+  static const recordWeekTime = '누적 시간';
+  static const recordWeekElevation = '누적 경사';
+
+  /// 월 요약 줄. 러닝 횟수 · 누적 거리 · 누적 시간.
+  static const recordMonthCount = '러닝';
+  static const recordMonthDistance = '누적 거리';
+  static const recordMonthTime = '누적 시간';
+
+  static const recordPrevMonth = '이전 달';
+  static const recordNextMonth = '다음 달';
+
+  /// 값을 모를 때. **0이 아니라 모른다는 뜻이다.**
+  ///
+  /// 지금은 누적 경사가 늘 이 값이다 — 목록 API가 고도를 주지 않는다.
+  static const recordUnknown = '--';
+
+  static const recordDayEmpty = '이 날은 달리지 않았어요';
+  static const recordMonthEmpty = '이 달에는 기록이 없어요';
+
+  static const recordError = '기록을 불러오지 못했어요';
+  static const recordRetry = '다시 시도';
+
+  /// 캘린더 요일 머리. 일요일부터 시작한다(정본 S21).
+  static const recordWeekdays = ['일', '월', '화', '수', '목', '금', '토'];
+
+  /// `2026년 7월`
+  static String recordMonthLabel(DateTime month) =>
+      '${month.year}년 ${month.month}월';
+
+  /// `7월 13일 · 러닝 2회`
+  static String recordDayLabel(DateTime day, int count) =>
+      '${day.month}월 ${day.day}일 · 러닝 $count회';
+
+  /// `5.02km`
+  static String recordDistanceText(double km) => '${km.toStringAsFixed(2)}km';
+
+  /// `14.2km` — 요약 줄은 소수 한 자리로 줄인다.
+  static String recordSummaryDistanceText(double km) =>
+      '${km.toStringAsFixed(1)}km';
+
+  /// `42m`
+  static String recordElevationText(int? meters) =>
+      meters == null ? recordUnknown : '${meters}m';
+
+  /// `아침 07:10` · `저녁 20:05`
+  ///
+  /// **오전/오후가 아니라 때 이름 + 24시각이다**(Figma S21). 12시간제로 적으면
+  /// `오후 8:05`가 되는데, 정본은 하루 중 언제였는지를 먼저 읽히게 한다.
+  ///
+  /// ⚠️ **경계는 확인이 필요하다.** Figma에 `07:10 → 아침`, `20:05 → 저녁`
+  /// 두 예시뿐이라 나머지는 정하고 들어갔다. 디자인 확인 대상이다.
+  static String recordTimeOfDay(DateTime time) {
+    final hour = time.hour;
+    final label = switch (hour) {
+      < 6 => '새벽',
+      < 12 => '아침',
+      < 18 => '오후',
+      _ => '저녁',
+    };
+    final hh = hour.toString().padLeft(2, '0');
+    final mm = time.minute.toString().padLeft(2, '0');
+    return '$label $hh:$mm';
+  }
+
+  /// `아침 07:10 · 5.02km` — 목록 행의 첫 줄 앞부분.
+  static String recordRunLabel(DateTime startedAt, double km) =>
+      '${recordTimeOfDay(startedAt)} · ${recordDistanceText(km)}';
+
+  /// 러닝 하나의 총 시간. `27:28` · `1:05:12`
+  ///
+  /// 누적 시간([recordDurationText])과 다르다 — 이쪽은 한 번의 러닝이라
+  /// 시계 표기가 읽힌다.
+  static String recordRunDuration(Duration duration) {
+    final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    if (duration.inHours == 0) return '${duration.inMinutes}:$seconds';
+    final minutes = (duration.inMinutes % 60).toString().padLeft(2, '0');
+    return '${duration.inHours}:$minutes:$seconds';
+  }
+
+  /// 누적 시간. `3시간 20분` · `45분`
+  ///
+  /// ⚠️ 러닝 화면의 `MM:SS`를 쓰지 않는다. 한 주를 더하면 시간 단위가 되어
+  /// `187:30` 같은 읽히지 않는 값이 된다.
+  static String recordDurationText(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+    if (hours == 0) return '$minutes분';
+    return '$hours시간 $minutes분';
+  }
+
   // ── 러닝 색 10범주 ───────────────────────────────────────────
   //
   // `RunHue`의 이름을 화면에 쓰는 말로 옮긴다. enum에 붙이지 않는 이유는
