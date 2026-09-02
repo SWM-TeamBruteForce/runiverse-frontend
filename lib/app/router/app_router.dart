@@ -15,6 +15,7 @@ import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
 import 'package:runiverse/features/session/presentation/run_prepare_page.dart';
 import 'package:runiverse/features/session/presentation/run_session_page.dart';
+import 'package:runiverse/features/session/presentation/run_result_page.dart';
 import 'package:runiverse/features/session/presentation/run_summary_page.dart';
 import 'package:runiverse/features/settings/presentation/password_change_page.dart';
 import 'package:runiverse/features/settings/presentation/settings_page.dart';
@@ -112,6 +113,10 @@ GoRouter createAppRouter({String? initialLocation}) {
       GoRoute(
         path: AppRoutes.runSummary,
         builder: (context, state) => const RunSummaryPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.runResult,
+        builder: (context, state) => const RunResultPage(),
       ),
 
       StatefulShellRoute.indexedStack(
