@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
 import 'package:runiverse/features/record/domain/record_summary.dart';
+import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record/domain/run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_state.dart';
@@ -23,6 +24,14 @@ final runRecordRepositoryProvider = Provider<RunRecordRepository>(
 /// 주간 차트가 어느 7일인지 검증할 수 없다.
 final recordClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
+);
+
+/// 기록 하나의 상세. 기록 탭에서 카드를 눌렀을 때만 읽는다.
+///
+/// `autoDispose`가 기본이라 화면을 닫으면 버려진다 — 상세는 무거워서
+/// (경로 좌표가 통째로 들어 있다) 들고 있을 이유가 없다.
+final runDetailProvider = FutureProvider.family<RunDetail, int>(
+  (ref, recordId) => ref.read(runRecordRepositoryProvider).detail(recordId),
 );
 
 final recordControllerProvider =

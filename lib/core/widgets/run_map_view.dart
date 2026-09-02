@@ -21,6 +21,14 @@ import 'package:runiverse/features/session/domain/geo_point.dart';
 /// [track]이 좌표 하나의 목록이 아니라 **목록의 목록**인 이유다. 일시정지 사이의
 /// 이동은 거리에 넣지 않기로 했으니 선으로도 잇지 않는다 — 하나로 이으면 멈춘
 /// 사이에 차로 옮긴 것까지 뛴 것처럼 그려진다.
+/// ⚠️ **`core`에 있는 이유는 화면 둘이 함께 쓰기 때문이다.**
+///
+/// 러닝 중 화면(session)과 러닝 결과(record)가 같은 지도를 그린다. 한쪽
+/// feature의 `presentation/`을 다른 쪽에서 import할 수 없어 여기로 올렸다
+/// (CLAUDE.md "공유가 필요하면 `core/widgets/`로 올린다").
+///
+/// `GeoPoint`(session/domain)에만 기대고 그 밖의 feature 코드는 모른다 —
+/// `core/storage/sign_in_memory_store.dart`가 `auth/domain`을 쓰는 것과 같다.
 class RunMapView extends StatefulWidget {
   const RunMapView({required this.track, super.key});
 

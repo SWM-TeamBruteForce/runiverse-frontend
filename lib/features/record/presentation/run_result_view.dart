@@ -1,76 +1,52 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
 import 'package:runiverse/core/theme/tokens/app_radius.dart';
 import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/features/session/domain/calorie_calculator.dart';
-import 'package:runiverse/features/session/domain/geo_point.dart';
+import 'package:runiverse/features/record/domain/run_detail.dart';
+import 'package:runiverse/features/record/presentation/split_line_chart.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
-import 'package:runiverse/features/session/domain/run_metrics.dart';
-import 'package:runiverse/features/session/domain/run_split.dart';
-import 'package:runiverse/features/session/domain/run_session_state.dart';
-import 'package:runiverse/features/session/domain/split_calculator.dart';
-import 'package:runiverse/features/session/presentation/run_map_view.dart';
-import 'package:runiverse/features/session/presentation/run_session_provider.dart';
-import 'package:runiverse/features/session/presentation/split_line_chart.dart';
+import 'package:runiverse/core/widgets/run_map_view.dart';
 
 /// 러닝 결과 (S16) — Figma `46:69`에 `47:65`(S16.5)를 이어 붙인 한 화면.
 ///
+/// ## 두 곳에서 열린다
+///
+/// 러닝을 막 끝냈을 때(S15 → S16)와 기록 탭에서 지난 기록을 눌렀을 때다.
+/// **화면은 어느 쪽인지 모른다** — [RunDetail] 하나만 받는다. 그래서 세션
+/// provider를 읽지 않고, `record`가 `session/presentation`에 기대지도 않는다.
+///
 /// ## 정본과 다른 점: 두 화면을 합쳤다
 ///
-/// 정본은 S16 안의 `구간별 상세 비교 ›` 카드로 별도 화면(S16.5)에 들어가게 했다.
-/// 그 진입 카드를 없애고 **스크롤로 내려가면 나오도록** 합쳤다. 한 러닝의
-/// 결과를 두 번 열어야 할 이유가 없다.
+/// 정본은 S16 안의 `구간별 상세 비교 ›` 카드로 별도 화면(S16.5)에 들어가게
+/// 했다. 그 진입 카드를 없애고 **스크롤로 내려가면 나오도록** 합쳤다.
 ///
 /// ## Figma에 있는데 여기 없는 것
 ///
-/// - **획득 컬러 카드** — 색 생성 규칙이 아직 없다(S15와 같은 이유)
+/// - **획득 컬러 카드** — 색 생성 규칙이 아직 없다
 /// - **파티원 비교 · 러너 칩 · 차트의 두 번째 선** — 매칭 러닝이 없어 비교할
-///   대상 자체가 없다. 붙일 때 섹션 하나를 얹으면 되도록 남겨 두었다
+///   대상 자체가 없다
 /// - **구간별 경사** — `GeoPoint.altitude`가 "경사를 내는 데 쓰지 않는다"고
 ///   못 박고 있다. GPS 고도 오차가 ±10~20m다
-///
-/// ## ⚠️ 케이던스 차트는 지어낸 값이다
-///
-/// 케이던스는 `TrackPoint`에만 실리는데 그건 서버 ack 뒤 지워지고, 화면에 남는
-/// `GeoPoint`에는 그 값이 없다. 컨트롤러의 걸음 표본도 최근 창만 남기고 계속
-/// 버린다. 그래서 [_sampleCadence]가 **고정값**을 만든다 — 대신 차트에 `예시`
-/// 꼬리표가 붙어 그 사실을 화면에서 밝힌다. 실측값을 남기려면 러닝 중 컨트롤러가
-/// 1km마다 스냅샷을 들어야 하고, 그건 실기기 검증과 함께 갈 별도 작업이다.
-class RunResultPage extends ConsumerWidget {
-  const RunResultPage({super.key});
+class RunResultView extends StatelessWidget {
+  const RunResultView({required this.detail, super.key});
+
+  final RunDetail detail;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final colors = context.appColors;
-    final state = ref.watch(runSessionControllerProvider);
-
-    // 결과가 아닌 상태로 들어오면 보여줄 것이 없다. 요약과 같은 규칙이다.
-    if (state is! RunFinished) {
-      return Scaffold(
-        backgroundColor: colors.bgBase,
-        body: const SafeArea(child: SizedBox.shrink()),
-      );
-    }
-
-    final controller = ref.read(runSessionControllerProvider.notifier);
-    final metrics = state.metrics;
-    final track = controller.track;
-    final splits = SplitCalculator.from(track);
-    final weightKg = ref.read(bodyProfileProvider).weightKg;
+    final splits = detail.splits;
 
     return Scaffold(
       backgroundColor: colors.bgBase,
       body: SafeArea(
         child: Column(
           children: [
-            _Header(onBack: () => context.pop()),
+            _Header(onBack: () => Navigator.of(context).maybePop()),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(
@@ -80,9 +56,9 @@ class RunResultPage extends ConsumerWidget {
                   AppSpacing.space8,
                 ),
                 children: [
-                  _RouteCard(track: track, metrics: metrics),
+                  _RouteCard(detail: detail),
                   const SizedBox(height: AppSpacing.space6),
-                  _MetricGrid(metrics: metrics),
+                  _MetricGrid(detail: detail),
                   const SizedBox(height: AppSpacing.space6),
 
                   if (splits.isEmpty)
@@ -92,33 +68,37 @@ class RunResultPage extends ConsumerWidget {
                       title: AppStrings.runResultPaceChart,
                       unit: AppStrings.profilePacePerKm,
                       values: [
-                        for (final split in splits)
-                          split.pace.inSeconds.toDouble(),
+                        for (final s in splits) s.pace.inSeconds.toDouble(),
                       ],
-                      labels: _labels(splits, metrics.distanceKm),
+                      labels: _labels(splits, detail.distanceKm),
                       format: (v) =>
                           PaceCalculator.format(Duration(seconds: v.round())),
                       color: colors.primary,
                       hint: AppStrings.runResultChartHint,
                     ),
                     const SizedBox(height: AppSpacing.space4),
-                    _SplitTable(
-                      splits: splits,
-                      totalKm: metrics.distanceKm,
-                      average: metrics.averagePace,
-                      weightKg: weightKg,
-                    ),
+                    _SplitTable(detail: detail),
                     const SizedBox(height: AppSpacing.space4),
-                    SplitLineChart(
-                      title: AppStrings.runResultCadenceChart,
-                      unit: AppStrings.runResultCadenceUnit,
-                      values: _sampleCadence(splits.length),
-                      labels: _labels(splits, metrics.distanceKm),
-                      format: (v) => v.round().toString(),
-                      color: colors.primary,
-                      hint: AppStrings.runResultChartHint,
-                      badge: AppStrings.runResultSample,
-                    ),
+                    // 구간 케이던스를 하나도 모르면 차트를 아예 접는다.
+                    // 빈 차트를 그리면 "0spm으로 뛰었다"로 읽힌다.
+                    if (splits.any((s) => s.cadenceSpm != null)) ...[
+                      SplitLineChart(
+                        title: AppStrings.runResultCadenceChart,
+                        unit: AppStrings.runResultCadenceUnit,
+                        values: [
+                          for (final s in splits)
+                            (s.cadenceSpm ?? 0).toDouble(),
+                        ],
+                        labels: _labels(splits, detail.distanceKm),
+                        format: (v) => v.round().toString(),
+                        color: colors.primary,
+                        hint: AppStrings.runResultChartHint,
+                        // ⚠️ 지어낸 값이면 꼬리표를 단다.
+                        badge: detail.cadenceIsSample
+                            ? AppStrings.runResultSample
+                            : null,
+                      ),
+                    ],
                   ],
                 ],
               ),
@@ -130,21 +110,12 @@ class RunResultPage extends ConsumerWidget {
   }
 
   /// x축 라벨. 마지막 자투리 구간만 실제로 닿은 지점을 적는다.
-  static List<String> _labels(List<RunSplit> splits, double totalKm) => [
+  static List<String> _labels(List<RunSplitDetail> splits, double totalKm) => [
     for (final split in splits)
       split.isPartial
           ? AppStrings.runResultPartialLabel(totalKm)
           : AppStrings.runResultSplitLabel(split.index),
   ];
-
-  /// ⚠️ **진짜 케이던스가 아니다.** 구간별 실측값이 남지 않아 만들어 낸 값이다.
-  ///
-  /// 실측이 붙는 날 이 함수를 지우고 그 값을 넘기면 된다 — 차트는 그대로 쓴다.
-  /// 달리기 케이던스가 보통 170~180spm이라 그 언저리에서 흔들리게 두었다.
-  static List<double> _sampleCadence(int count) {
-    const pattern = [172.0, 176.0, 169.0, 178.0, 174.0, 171.0, 177.0];
-    return [for (var i = 0; i < count; i++) pattern[i % pattern.length]];
-  }
 }
 
 class _Header extends StatelessWidget {
@@ -183,10 +154,9 @@ class _Header extends StatelessWidget {
 /// 달린 길. Figma 프레임 이름이 `route (내 경로만)`인 그대로다 — 파티원 경로는
 /// 어떤 화면으로도 내보내지 않는다.
 class _RouteCard extends StatelessWidget {
-  const _RouteCard({required this.track, required this.metrics});
+  const _RouteCard({required this.detail});
 
-  final List<List<GeoPoint>> track;
-  final RunMetrics metrics;
+  final RunDetail detail;
 
   @override
   Widget build(BuildContext context) {
@@ -198,7 +168,7 @@ class _RouteCard extends StatelessWidget {
         height: 238,
         child: Stack(
           children: [
-            Positioned.fill(child: RunMapView(track: track)),
+            Positioned.fill(child: RunMapView(track: detail.track)),
             Positioned(
               left: AppSpacing.space3,
               top: AppSpacing.space3,
@@ -213,9 +183,9 @@ class _RouteCard extends StatelessWidget {
                     vertical: AppSpacing.space1,
                   ),
                   child: Text(
-                    '${metrics.distanceKm.toStringAsFixed(2)}'
+                    '${detail.distanceKm.toStringAsFixed(2)}'
                     '${AppStrings.runSummaryUnitKm} · '
-                    '${_elapsedText(metrics.elapsed)}',
+                    '${_elapsedText(detail.duration)}',
                     style: AppTypography.caption.copyWith(
                       color: colors.textSecondary,
                     ),
@@ -232,13 +202,13 @@ class _RouteCard extends StatelessWidget {
 
 /// 시간 · 거리 · 페이스 · 케이던스 2×2. Figma `46:96`.
 class _MetricGrid extends StatelessWidget {
-  const _MetricGrid({required this.metrics});
+  const _MetricGrid({required this.detail});
 
-  final RunMetrics metrics;
+  final RunDetail detail;
 
   @override
   Widget build(BuildContext context) {
-    final cadence = metrics.cadenceSpm;
+    final cadence = detail.cadenceSpm;
 
     return Column(
       children: [
@@ -247,14 +217,14 @@ class _MetricGrid extends StatelessWidget {
             Expanded(
               child: _Metric(
                 label: AppStrings.runResultTime,
-                value: _elapsedText(metrics.elapsed),
+                value: _elapsedText(detail.duration),
               ),
             ),
             Expanded(
               child: _Metric(
                 label: AppStrings.runResultDistance,
                 value:
-                    '${metrics.distanceKm.toStringAsFixed(2)}'
+                    '${detail.distanceKm.toStringAsFixed(2)}'
                     '${AppStrings.runSummaryUnitKm}',
               ),
             ),
@@ -266,7 +236,7 @@ class _MetricGrid extends StatelessWidget {
             Expanded(
               child: _Metric(
                 label: AppStrings.runResultPace,
-                value: PaceCalculator.format(metrics.averagePace),
+                value: PaceCalculator.format(detail.averagePace),
               ),
             ),
             Expanded(
@@ -311,17 +281,9 @@ class _Metric extends StatelessWidget {
 
 /// 구간 리스트. 정본의 `경사`는 빼고 `구간 · 페이스(격차) · 소모`만 남았다.
 class _SplitTable extends StatefulWidget {
-  const _SplitTable({
-    required this.splits,
-    required this.totalKm,
-    required this.average,
-    required this.weightKg,
-  });
+  const _SplitTable({required this.detail});
 
-  final List<RunSplit> splits;
-  final double totalKm;
-  final Duration? average;
-  final int? weightKg;
+  final RunDetail detail;
 
   /// 이만큼 넘어가면 접는다. 10km(10구간)에서도 차트 둘이 한 화면에 들어오게.
   static const collapsedCount = 5;
@@ -336,7 +298,7 @@ class _SplitTableState extends State<_SplitTable> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final all = widget.splits;
+    final all = widget.detail.splits;
     final collapsed = !_expanded && all.length > _SplitTable.collapsedCount;
     final shown = collapsed ? all.take(_SplitTable.collapsedCount) : all;
 
@@ -352,9 +314,8 @@ class _SplitTableState extends State<_SplitTable> {
           for (final split in shown)
             _SplitRow(
               split: split,
-              totalKm: widget.totalKm,
-              average: widget.average,
-              weightKg: widget.weightKg,
+              totalKm: widget.detail.distanceKm,
+              average: widget.detail.averagePace,
             ),
           if (collapsed)
             InkWell(
@@ -411,23 +372,17 @@ class _SplitRow extends StatelessWidget {
     required this.split,
     required this.totalKm,
     required this.average,
-    required this.weightKg,
   });
 
-  final RunSplit split;
+  final RunSplitDetail split;
   final double totalKm;
   final Duration? average;
-  final int? weightKg;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final burned = CalorieCalculator.burned(
-      meters: split.distanceMeters,
-      elapsed: split.duration,
-      weightKg: weightKg,
-    );
-    final gap = average == null ? null : split.gapTo(average!);
+    final burned = split.caloriesKcal;
+    final gap = average == null ? null : split.split.gapTo(average!);
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -461,10 +416,18 @@ class _SplitRow extends StatelessWidget {
                   const SizedBox(width: AppSpacing.space2),
                   Text(
                     _gapText(gap),
+                    // 평균보다 빨랐으면 success, 느렸으면 error. 순위가
+                    // 아니라 내 평균과의 거리다.
+                    //
+                    // ⚠️ **0은 어느 쪽도 아니다.** `isNegative`만 보면 0이
+                    // 느린 쪽으로 빨갛게 칠해진다 — 평균과 같은 구간을
+                    // 나무라는 셈이다.
                     style: AppTypography.micro.copyWith(
-                      // 평균보다 빨랐으면 success, 느렸으면 error. 순위가
-                      // 아니라 내 평균과의 거리다.
-                      color: gap.isNegative ? colors.success : colors.error,
+                      color: switch (gap.inSeconds) {
+                        < 0 => colors.success,
+                        > 0 => colors.error,
+                        _ => colors.textTertiary,
+                      },
                     ),
                   ),
                 ],
@@ -482,7 +445,10 @@ class _SplitRow extends StatelessWidget {
 
   static String _gapText(Duration gap) {
     final seconds = gap.inSeconds;
-    return seconds >= 0 ? '+${seconds}s' : '${seconds}s';
+    // 부호를 반드시 붙인다 — 색만으로 빠르고 느림을 알리지 않는다(색맹 대응,
+    // `implementation-notes` 3-5). 0에는 부호가 없다.
+    if (seconds == 0) return '0s';
+    return seconds > 0 ? '+${seconds}s' : '${seconds}s';
   }
 }
 

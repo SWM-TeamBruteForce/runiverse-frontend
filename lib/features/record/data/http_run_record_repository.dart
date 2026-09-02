@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/record/data/run_record_dto.dart';
+import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record/domain/run_record_repository.dart';
 
@@ -50,7 +51,35 @@ class HttpRunRecordRepository implements RunRecordRepository {
       // 서버가 두 모드를 섞은 요청으로 볼 수 있다.
       _get({'cursor': ?cursor, 'limit': limit});
 
+  @override
+  Future<RunDetail> detail(int recordId) async {
+    final data = await _authorized(
+      (token) => _dio.get<Map<String, dynamic>>(
+        '/api/v1/running-records/$recordId',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      ),
+    );
+    return RunRecordDto.detailFrom(data);
+  }
+
   Future<RunRecordPage> _get(Map<String, dynamic> query) async {
+    final data = await _authorized(
+      (token) => _dio.get<Map<String, dynamic>>(
+        _path,
+        queryParameters: query,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      ),
+    );
+    return RunRecordDto.pageFrom(data);
+  }
+
+  /// 토큰을 실어 보내고, **401이면 한 번만** 갱신해서 다시 부른다.
+  ///
+  /// 두 호출(목록·상세)이 같은 규칙을 쓰도록 여기 모았다. 각자 재시도를
+  /// 적으면 한쪽만 고쳐지는 일이 생긴다.
+  Future<Map<String, dynamic>> _authorized(
+    Future<Response<Map<String, dynamic>>> Function(String token) send,
+  ) async {
     final stored = await _store.read();
     final accessToken = stored.accessToken;
     if (accessToken == null) {
@@ -58,33 +87,25 @@ class HttpRunRecordRepository implements RunRecordRepository {
     }
 
     try {
-      return await _request(query, accessToken);
+      return _body(await send(accessToken));
     } on DioException catch (error) {
       if (error.response?.statusCode != 401) {
         throw RunRecordException(_failureOf(error));
       }
       try {
-        return await _request(query, await _refreshed());
+        return _body(await send(await _refreshed()));
       } on DioException catch (retried) {
         throw RunRecordException(_failureOf(retried));
       }
     }
   }
 
-  Future<RunRecordPage> _request(
-    Map<String, dynamic> query,
-    String accessToken,
-  ) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      _path,
-      queryParameters: query,
-      options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
-    );
+  static Map<String, dynamic> _body(Response<Map<String, dynamic>> response) {
     final data = response.data;
     if (data == null) {
       throw const RunRecordException(RunRecordFailure.server);
     }
-    return RunRecordDto.pageFrom(data);
+    return data;
   }
 
   Future<String> _refreshed() async {

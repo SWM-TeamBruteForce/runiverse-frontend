@@ -1,3 +1,4 @@
+import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 
 /// 내 러닝 기록을 읽는다. `GET /api/v1/users/me/running-records`(19번).
@@ -28,6 +29,13 @@ abstract interface class RunRecordRepository {
   ///
   /// [limit]은 기본 20, **최대 50**이다. 넘겨도 서버가 50으로 깎는다.
   Future<RunRecordPage> recent({String? cursor, int limit});
+
+  /// 기록 하나의 상세. `GET /api/v1/running-records/{id}`(20번).
+  ///
+  /// 목록(19번)이 주지 않는 구간·케이던스·칼로리·고도와 전체 경로가 들어 있다.
+  /// **구간은 서버가 나눈 것을 그대로 쓴다** — 앱이 다시 나누면 같은 러닝의
+  /// 구간 수가 화면마다 달라진다.
+  Future<RunDetail> detail(int recordId);
 }
 
 /// [RunRecordRepository.recent]의 한 페이지.

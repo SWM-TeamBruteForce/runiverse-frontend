@@ -9,8 +9,10 @@ import 'package:runiverse/core/theme/tokens/app_radius.dart';
 import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
+import 'package:runiverse/features/session/domain/session_run_detail.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 
@@ -144,7 +146,18 @@ class RunSummaryPage extends ConsumerWidget {
                 size: AppButtonSize.lg,
                 // `go`가 아니라 `push`다. 결과 화면이 요약 위에 얹혀야
                 // 뒤로가기로 돌아오고, 그동안 트랙도 그대로 남는다.
-                onPressed: () => context.push(AppRoutes.runResult),
+                onPressed: () => context.push(
+                  AppRoutes.runResult,
+                  // 화면이 세션을 읽지 않는다. 세션을 아는 이쪽이 상세로
+                  // 옮겨서 넘긴다 — 그래야 같은 화면을 기록 탭도 연다.
+                  extra: SessionRunDetail.from(
+                    metrics: metrics,
+                    track: ref
+                        .read(runSessionControllerProvider.notifier)
+                        .track,
+                    weightKg: ref.read(bodyProfileProvider).weightKg,
+                  ),
+                ),
               ),
             ),
           ],
