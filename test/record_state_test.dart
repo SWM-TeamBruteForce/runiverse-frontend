@@ -19,7 +19,8 @@ void main() {
     routePolyline: '',
   );
 
-  // 9월 2일에 보는 화면. 최근 7일은 8월 27일부터다.
+  // 9월 2일(수)에 보는 화면. 이번 주는 8월 31일(월)~9월 6일(일)이라
+  // 월요일 하루가 지난달에 걸친다.
   final today = DateTime(2026, 9, 2);
 
   final september = record(
@@ -29,7 +30,7 @@ void main() {
   );
   final august = record(
     id: 2,
-    startedAt: DateTime(2026, 8, 28, 7),
+    startedAt: DateTime(2026, 8, 31, 7),
     meters: 10250,
   );
 
@@ -40,7 +41,7 @@ void main() {
     monthRecords: [september],
     // 최근 7일 조회 결과 — 달을 넘어 8월이 섞인다.
     weekRecords: [august, september],
-    weekDays: lastDays(today),
+    weekDays: weekOf(today),
   );
 
   test('이번 달 날짜는 월 조회 결과에서 찾는다', () {
@@ -50,9 +51,9 @@ void main() {
   });
 
   test('⚠️ 지난달 날짜를 골라도 기록을 찾는다', () {
-    // 주간 막대는 8월 28일에 10.25km를 그리는데 목록이 "0회"라고 말하던
+    // 주간 막대는 8월 31일에 10.25km를 그리는데 목록이 "0회"라고 말하던
     // 버그다. 막대를 누르는 순간 재현된다.
-    final state = data(selectedDay: DateTime(2026, 8, 28));
+    final state = data(selectedDay: DateTime(2026, 8, 31));
 
     expect(
       state.selectedRecords.map((r) => r.id),
@@ -71,14 +72,14 @@ void main() {
     final state = data(selectedDay: today);
 
     expect(state.weekPeakMeters, 10250);
-    expect(state.metersOn(DateTime(2026, 8, 28)), 10250);
-    expect(state.metersOn(DateTime(2026, 8, 30)), 0, reason: '안 뛴 날은 0이다');
+    expect(state.metersOn(DateTime(2026, 8, 31)), 10250);
+    expect(state.metersOn(DateTime(2026, 9, 3)), 0, reason: '안 뛴 날은 0이다');
   });
 
   test('날짜를 바꿔도 읽어 온 기록은 그대로다', () {
     final state = data(
       selectedDay: today,
-    ).copyWith(selectedDay: DateTime(2026, 8, 28));
+    ).copyWith(selectedDay: DateTime(2026, 8, 31));
 
     expect(state.selectedRecords.map((r) => r.id), [2]);
     expect(state.monthSummary.count, 1, reason: '월 요약이 흔들리면 안 된다');

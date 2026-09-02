@@ -33,9 +33,10 @@ final recordControllerProvider =
 /// ## 요청이 둘인 이유
 ///
 /// 명세가 캘린더 모드(`from`·`to`)와 최근 목록 모드(`cursor`)의 혼용을 막는다.
-/// 그리고 **주간 차트의 최근 7일이 달 경계를 넘는다** — 8월 2일이면 7월 27일부터
-/// 봐야 한다. 그래서 `from`·`to` 조회를 **이번 달**과 **최근 7일** 두 번 한다.
-/// 겹치는 날은 서버가 같은 기록을 두 번 주지만, 각각 따로 묶으므로 문제없다.
+/// 그리고 **이번 주(월~일)가 달 경계를 넘는다** — 9월 1일 화요일이면 8월 31일
+/// 월요일부터 봐야 한다. 그래서 `from`·`to` 조회를 **이번 달**과 **이번 주**
+/// 두 번 한다. 겹치는 날은 서버가 같은 기록을 두 번 주지만, 각각 따로
+/// 묶으므로 문제없다.
 ///
 /// ## ⚠️ 탭을 옮기면 다시 읽는다
 ///
@@ -63,7 +64,7 @@ class RecordController extends Notifier<RecordState> {
     state = const RecordLoading();
 
     try {
-      final days = lastDays(now);
+      final days = weekOf(now);
       // 둘을 동시에 보낸다. 줄 세우면 왕복이 두 배가 된다.
       final results = await Future.wait([
         _repository.byDateRange(from: target, to: _lastDayOf(target)),
