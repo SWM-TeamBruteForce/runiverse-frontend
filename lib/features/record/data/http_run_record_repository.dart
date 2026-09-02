@@ -1,0 +1,115 @@
+import 'package:dio/dio.dart';
+import 'package:runiverse/core/storage/token_store.dart';
+import 'package:runiverse/features/auth/domain/token_refresher.dart';
+import 'package:runiverse/features/record/data/run_record_dto.dart';
+import 'package:runiverse/features/record/domain/run_record.dart';
+import 'package:runiverse/features/record/domain/run_record_repository.dart';
+
+/// 진짜 서버를 부르는 [RunRecordRepository]. 19번.
+///
+/// 401이면 **한 번만** 갱신하고 다시 부른다 — `HttpRunningRoomRepository`와
+/// 같은 규칙이고, 갱신은 반드시 [TokenRefresher]를 거친다.
+///
+/// ## ⚠️ 아직 서버에 없다
+///
+/// 19번은 `개발전`이다. 명세대로 미리 짜 두되 **화면에는 물리지 않는다** —
+/// provider가 `FakeRunRecordRepository`를 쓴다. 서버가 열리면 그 한 줄만 바꾼다.
+class HttpRunRecordRepository implements RunRecordRepository {
+  HttpRunRecordRepository(this._dio, this._store, this._refresher);
+
+  final Dio _dio;
+  final TokenStore _store;
+  final TokenRefresher _refresher;
+
+  static const _path = '/api/v1/users/me/running-records';
+
+  /// 캘린더 모드가 한 번에 볼 수 있는 최대 일수. 넘기면 서버가 400을 준다.
+  static const maxRangeDays = 31;
+
+  @override
+  Future<List<RunRecord>> byDateRange({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    // 서버에 물어보기 전에 여기서 걸러 낸다. 400을 받고 나서야 아는 것보다
+    // 낫고, 무엇보다 이건 사용자 입력이 아니라 **앱의 버그**다.
+    if (from.isAfter(to)) {
+      throw const RunRecordException(RunRecordFailure.invalidRequest);
+    }
+    if (to.difference(from).inDays >= maxRangeDays) {
+      throw const RunRecordException(RunRecordFailure.invalidRequest);
+    }
+
+    final page = await _get({'from': _day(from), 'to': _day(to)});
+    return page.items;
+  }
+
+  @override
+  Future<RunRecordPage> recent({String? cursor, int limit = 20}) =>
+      // `?cursor` — 첫 페이지면 키 자체를 빼야 한다. `null`을 실어 보내면
+      // 서버가 두 모드를 섞은 요청으로 볼 수 있다.
+      _get({'cursor': ?cursor, 'limit': limit});
+
+  Future<RunRecordPage> _get(Map<String, dynamic> query) async {
+    final stored = await _store.read();
+    final accessToken = stored.accessToken;
+    if (accessToken == null) {
+      throw const RunRecordException(RunRecordFailure.sessionExpired);
+    }
+
+    try {
+      return await _request(query, accessToken);
+    } on DioException catch (error) {
+      if (error.response?.statusCode != 401) {
+        throw RunRecordException(_failureOf(error));
+      }
+      try {
+        return await _request(query, await _refreshed());
+      } on DioException catch (retried) {
+        throw RunRecordException(_failureOf(retried));
+      }
+    }
+  }
+
+  Future<RunRecordPage> _request(
+    Map<String, dynamic> query,
+    String accessToken,
+  ) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      _path,
+      queryParameters: query,
+      options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+    );
+    final data = response.data;
+    if (data == null) {
+      throw const RunRecordException(RunRecordFailure.server);
+    }
+    return RunRecordDto.pageFrom(data);
+  }
+
+  Future<String> _refreshed() async {
+    final accessToken = await _refresher.refresh();
+    if (accessToken == null) {
+      throw const RunRecordException(RunRecordFailure.sessionExpired);
+    }
+    return accessToken;
+  }
+
+  /// 서버가 받는 `YYYY-MM-DD`. **KST 달력 날짜**라 시각을 붙이지 않는다.
+  static String _day(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
+  }
+
+  RunRecordFailure _failureOf(DioException error) {
+    if (error.type != DioExceptionType.badResponse) {
+      return RunRecordFailure.network;
+    }
+    final status = error.response?.statusCode ?? 0;
+    if (status == 400) return RunRecordFailure.invalidRequest;
+    if (status == 401) return RunRecordFailure.sessionExpired;
+    if (status >= 500) return RunRecordFailure.server;
+    return RunRecordFailure.server;
+  }
+}
