@@ -103,11 +103,32 @@ Map<DateTime, List<RunRecord>> groupRecordsByDay(Iterable<RunRecord> records) {
   return byDay;
 }
 
-/// [end]까지의 [days]일치 날짜를 **과거→현재** 순으로 만든다.
+/// [date]가 속한 주의 **월요일부터 일요일까지** 7일.
 ///
-/// 주간 바차트가 이걸로 칸을 세운다. 기록이 없는 날도 칸이 있어야 막대가
-/// 빈 자리로 보인다 — 기록이 있는 날만 그리면 요일이 밀린다.
-List<DateTime> lastDays(DateTime end, {int days = 7}) {
-  final last = DateTime(end.year, end.month, end.day);
-  return [for (var i = days - 1; i >= 0; i--) last.subtract(Duration(days: i))];
+/// 주간 바차트와 주간 요약이 이 7일을 센다.
+///
+/// ## ⚠️ "최근 7일"이 아니다
+///
+/// 오늘부터 거꾸로 7일을 세면 **같은 주인데 날마다 집계 구간이 달라진다** —
+/// 수요일에 본 "이번 주"와 목요일에 본 "이번 주"가 서로 다른 기간이 된다.
+/// 요일 칸도 매일 밀려서 월요일이 왼쪽 끝에 있다가 오른쪽으로 옮겨 간다.
+/// Figma S21도 `월 화 수 목 금 토 일` 순으로 고정해 두었다.
+///
+/// 아직 오지 않은 요일도 칸으로 남는다. 막대가 비어 있는 것이 곧 "아직
+/// 안 뛴 날"이라 주의 남은 몫이 보인다.
+///
+/// 날짜 산술에 [Duration]을 쓰지 않는다 — `DateTime(년, 월, 일 ± n)`이
+/// 월말·윤년을 알아서 넘겨 주고 서머타임에도 흔들리지 않는다.
+List<DateTime> weekOf(DateTime date) {
+  final day = DateTime(date.year, date.month, date.day);
+  // `weekday`는 월=1 … 일=7이다. 그만큼 되돌리면 그 주 월요일이다.
+  final monday = DateTime(
+    day.year,
+    day.month,
+    day.day - (day.weekday - DateTime.monday),
+  );
+  return [
+    for (var i = 0; i < 7; i++)
+      DateTime(monday.year, monday.month, monday.day + i),
+  ];
 }

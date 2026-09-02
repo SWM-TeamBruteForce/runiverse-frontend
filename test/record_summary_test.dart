@@ -148,21 +148,41 @@ void main() {
     });
   });
 
-  group('최근 며칠', () {
-    test('과거에서 현재 순으로 7칸이 나온다', () {
-      final days = lastDays(DateTime(2026, 7, 13, 22, 30));
+  group('주간 구간', () {
+    test('월요일에서 시작해 일요일에 끝난다', () {
+      // 2026-09-02는 수요일이다.
+      final days = weekOf(DateTime(2026, 9, 2, 22, 30));
 
       expect(days, hasLength(7));
-      expect(days.first, DateTime(2026, 7, 7));
-      expect(days.last, DateTime(2026, 7, 13), reason: '오늘이 마지막 칸이다');
+      expect(days.first, DateTime(2026, 8, 31), reason: '그 주 월요일');
+      expect(days.last, DateTime(2026, 9, 6), reason: '그 주 일요일');
+      expect(days.first.weekday, DateTime.monday);
+      expect(days.last.weekday, DateTime.sunday);
     });
 
-    test('⚠️ 달을 넘어가도 이어진다', () {
-      // 최근 7일이 월 경계를 넘으므로 캘린더와 별도로 조회해야 한다.
-      final days = lastDays(DateTime(2026, 8, 2));
+    test('⚠️ 같은 주 안에서는 언제 봐도 같은 구간이다', () {
+      // "최근 7일"이면 날마다 구간이 밀려 수요일과 목요일의 "이번 주"가
+      // 달라진다. 주 단위로 고정한 이유다.
+      final wednesday = weekOf(DateTime(2026, 9, 2));
+      final saturday = weekOf(DateTime(2026, 9, 5));
 
-      expect(days.first, DateTime(2026, 7, 27));
-      expect(days.last, DateTime(2026, 8, 2));
+      expect(wednesday, saturday);
+    });
+
+    test('⚠️ 일요일은 그 주의 끝이지 다음 주의 시작이 아니다', () {
+      // `weekday`가 일=7이라 잘못 다루면 일요일 하루만 다음 주로 튄다.
+      final sunday = weekOf(DateTime(2026, 9, 6));
+
+      expect(sunday.first, DateTime(2026, 8, 31));
+      expect(sunday.last, DateTime(2026, 9, 6));
+    });
+
+    test('달을 넘어가도 이어진다', () {
+      // 주가 월 경계를 넘으므로 캘린더와 별도로 조회해야 한다.
+      final days = weekOf(DateTime(2026, 9, 1));
+
+      expect(days.first, DateTime(2026, 8, 31));
+      expect(days.last, DateTime(2026, 9, 6));
     });
   });
 }
