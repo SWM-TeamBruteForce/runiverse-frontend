@@ -40,7 +40,10 @@ class RunResultView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    // 테이블은 1km, 그래프는 50m다. 같은 러닝을 두 배율로 본다 — 표는
+    // "몇 번째 킬로를 몇 분에 뛰었나"를, 그래프는 "어디서 흔들렸나"를 답한다.
     final splits = detail.tableSplits;
+    final samples = detail.chartSamples;
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -69,14 +72,17 @@ class RunResultView extends StatelessWidget {
                       title: AppStrings.runResultPaceChart,
                       unit: AppStrings.profilePacePerKm,
                       values: [
-                        for (final s in splits)
+                        for (final s in samples)
                           (s.pace ?? Duration.zero).inSeconds.toDouble(),
                       ],
-                      labels: _labels(splits, detail.distanceKm),
+                      labels: _sampleLabels(samples),
                       format: (v) =>
                           PaceCalculator.format(Duration(seconds: v.round())),
                       color: colors.primary,
                       hint: AppStrings.runResultChartHint,
+                      // ⚠️ 페이스만 뒤집는다. 작을수록 빠르므로 그대로 올리면
+                      // 솟은 봉우리가 "느렸던 구간"이 되어 거꾸로 읽힌다.
+                      inverted: true,
                     ),
                     const SizedBox(height: AppSpacing.space4),
                     _SplitTable(detail: detail),
@@ -88,10 +94,10 @@ class RunResultView extends StatelessWidget {
                         title: AppStrings.runResultCadenceChart,
                         unit: AppStrings.runResultCadenceUnit,
                         values: [
-                          for (final s in splits)
+                          for (final s in samples)
                             (s.cadenceSpm ?? 0).toDouble(),
                         ],
-                        labels: _labels(splits, detail.distanceKm),
+                        labels: _sampleLabels(samples),
                         format: (v) => v.round().toString(),
                         color: colors.primary,
                         hint: AppStrings.runResultChartHint,
@@ -109,12 +115,15 @@ class RunResultView extends StatelessWidget {
   }
 
   /// x축 라벨. 마지막 자투리 구간만 실제로 닿은 지점을 적는다.
-  static List<String> _labels(List<SplitBucket> splits, double totalKm) => [
-    for (final split in splits)
-      split.isPartialOf(SplitAggregator.tableMeters)
-          ? AppStrings.runResultPartialLabel(totalKm)
-          : AppStrings.runResultSplitLabel(split.index),
+  /// 50m 표본의 x축·툴팁 라벨. **닿은 지점의 누적 거리**다.
+  ///
+  /// 구간 번호(`1km` `2km`)를 쓰지 않는다 — 50m면 5km에 100개가 되어 번호가
+  /// 아무 뜻도 갖지 못한다. 어디쯤이었는지가 읽고 싶은 값이다.
+  static List<String> _sampleLabels(List<SplitBucket> samples) => [
+    for (final sample in samples)
+      AppStrings.runResultPartialLabel(sample.endDistanceMeters / 1000),
   ];
+
 }
 
 class _Header extends StatelessWidget {
