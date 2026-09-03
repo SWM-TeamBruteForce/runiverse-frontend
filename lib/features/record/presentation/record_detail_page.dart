@@ -16,26 +16,23 @@ import 'package:runiverse/features/record/presentation/run_result_view.dart';
 /// 여기서는 번호밖에 없으므로 먼저 읽어 와야 한다. 그 차이만 이 페이지가
 /// 흡수하고, 그림은 [RunResultView] 하나가 그린다.
 ///
-/// ## ⚠️ 지금은 목이다
-///
-/// 20번(`GET /running-records/{id}`)이 `개발전`이라
-/// `FakeRunRecordRepository`가 구간을 만들어 준다 — 케이던스는 지어낸 값이라
-/// 차트에 `예시` 꼬리표가 붙는다. 서버가 열리면 provider 한 줄만 바꾼다.
+/// 17번(`results`)과 18번(`split-results`)을 합쳐 받는다. 둘 다 방 번호로
+/// 찾으므로, 기록 번호를 모르는 종료 직후에도 같은 화면을 열 수 있다.
 class RecordDetailPage extends ConsumerWidget {
-  const RecordDetailPage({required this.recordId, super.key});
+  const RecordDetailPage({required this.runningRoomId, super.key});
 
-  final int recordId;
+  final int runningRoomId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final detail = ref.watch(runDetailProvider(recordId));
+    final detail = ref.watch(runDetailProvider(runningRoomId));
 
     return detail.when(
       data: (value) => RunResultView(detail: value),
       loading: () => const _Frame(child: CircularProgressIndicator()),
       error: (_, _) => _Frame(
         child: _Failed(
-          onRetry: () => ref.invalidate(runDetailProvider(recordId)),
+          onRetry: () => ref.invalidate(runDetailProvider(runningRoomId)),
         ),
       ),
     );

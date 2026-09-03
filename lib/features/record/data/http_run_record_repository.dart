@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/domain/token_refresher.dart';
+import 'package:flutter/foundation.dart';
+import 'package:runiverse/features/record/data/room_result_dto.dart';
 import 'package:runiverse/features/record/data/run_record_dto.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
@@ -52,14 +54,32 @@ class HttpRunRecordRepository implements RunRecordRepository {
       _get({'cursor': ?cursor, 'limit': limit});
 
   @override
-  Future<RunDetail> detail(int recordId) async {
-    final data = await _authorized(
-      (token) => _dio.get<Map<String, dynamic>>(
-        '/api/v1/running-records/$recordId',
-        options: Options(headers: {'Authorization': 'Bearer $token'}),
+  Future<RunDetail> byRoom(int runningRoomId) async {
+    // 둘을 동시에 보낸다. 줄 세우면 왕복이 두 배가 된다.
+    final responses = await Future.wait([
+      _authorized(
+        (token) => _dio.get<Map<String, dynamic>>(
+          '/api/v1/running-rooms/$runningRoomId/results',
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        ),
       ),
+      _authorized(
+        (token) => _dio.get<Map<String, dynamic>>(
+          '/api/v1/running-rooms/$runningRoomId/split-results',
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        ),
+      ),
+    ]);
+
+    final detail = RoomResultDto.merge(
+      results: responses[0],
+      splitResults: responses[1],
     );
-    return RunRecordDto.detailFrom(data);
+    debugPrint(
+      '[record] 방 $runningRoomId 결과를 받았다 · $detail · '
+      '1km ${detail.tableSplits.length}구간 · 50m ${detail.chartSamples.length}점',
+    );
+    return detail;
   }
 
   Future<RunRecordPage> _get(Map<String, dynamic> query) async {

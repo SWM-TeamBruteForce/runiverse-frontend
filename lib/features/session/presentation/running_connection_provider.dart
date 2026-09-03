@@ -324,7 +324,15 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       debugPrint('[running] 종료 확인을 못 받아 로컬 트랙을 남긴다');
     }
 
+    // ⚠️ **방 번호는 남겨야 한다.** 요약 화면(S15)이 이 번호로 상세 결과
+    // 17·18번을 부른다. [close]가 상태를 통째로 비우므로, 닫은 뒤 번호만
+    // 되돌려 놓는다 — 없으면 `자세한 기록 보기`가 계속 잠겨 있다.
+    //
+    // 다음 러닝의 409 판정은 상태가 아니라 **저장소**(`activeRoom()`)를 보므로
+    // 여기 남은 번호가 다음 러닝을 방해하지 않는다.
+    final finished = state.room;
     await close();
+    if (finished != null) state = RunningConnectionState(room: finished);
   }
 
   /// 연결을 닫고 처음 상태로 돌아간다. **종료를 알리지는 않는다** — 화면을

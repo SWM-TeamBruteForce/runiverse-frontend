@@ -1,80 +1,86 @@
+import 'package:runiverse/features/record/domain/split_aggregator.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
-import 'package:runiverse/features/session/domain/run_split.dart';
 
 /// 러닝 하나의 상세. **S16 화면이 그리는 것 전부**다.
 ///
-/// ## 화면 하나가 두 곳에서 열린다
+/// ## 서버가 확정한 값이다
 ///
-/// 러닝을 막 끝냈을 때(S15 → S16)와 기록 탭에서 지난 기록을 눌렀을 때다.
-/// 앞은 앱이 방금 계산한 값으로, 뒤는 서버가 확정한 값(20번)으로 채운다.
-/// **화면은 어느 쪽인지 모른다** — 그래서 이 모델이 둘 사이에 있다.
+/// `GET /running-rooms/{id}/results`(17번)와 `.../split-results`(18번)를
+/// 합친 것이다. 앱이 좌표에서 다시 계산하지 않는다 — 서버는 목표 거리를
+/// 넘긴 구간을 잘라내는 등 앱이 모르는 규칙으로 기록을 만들고, 앱이 따로
+/// 계산하면 **같은 러닝의 숫자가 화면마다 달라진다.**
 ///
-/// ## 구간을 여기서 이미 나눠 둔다
+/// ## 구간은 두 단위로 쓴다
 ///
-/// 화면이 `SplitCalculator`를 부르지 않는다. 서버에서 온 기록은 서버가
-/// 나눈 구간을 그대로 써야 하는데, 화면이 다시 계산하면 두 숫자가 갈린다.
+/// 서버는 **10m 고정 경계**로 준다(파티원 비교를 위해서다). 화면은 구간
+/// 테이블에 **1km**, 페이스·케이던스 그래프에 **50m**를 쓴다. 원본을 들고
+/// 있다가 필요할 때 묶는다 — [tableSplits]·[chartSamples].
 class RunDetail {
-  const RunDetail({
-    required this.distanceKm,
+  RunDetail({
+    required this.runningRoomId,
+    required this.distanceMeters,
     required this.duration,
-    required this.averagePace,
-    required this.track,
-    required this.splits,
-    this.recordId,
-    this.cadenceSpm,
-    this.cadenceIsSample = false,
-  });
-
-  /// 서버 기록의 번호. **막 끝낸 러닝이면 `null`이다** — 아직 기록이 없다.
-  final int? recordId;
-
-  final double distanceKm;
-
-  /// 총 러닝 시간. 일시정지는 빠져 있다.
-  final Duration duration;
-
-  final Duration averagePace;
-
-  /// 전체 평균 케이던스. 못 구하면 `null`이라 화면이 `--`를 쓴다.
-  final int? cadenceSpm;
-
-  /// 지도에 그릴 경로. 세그먼트마다 선이 끊긴다(일시정지 구간).
-  ///
-  /// 서버 기록은 좌표가 한 줄로 오므로 세그먼트가 하나다.
-  final List<List<GeoPoint>> track;
-
-  final List<RunSplitDetail> splits;
-
-  /// ⚠️ 구간 케이던스가 **지어낸 값인가.**
-  ///
-  /// `true`면 차트에 `예시` 꼬리표가 붙는다. 가짜 값을 진짜처럼 두지 않으려고
-  /// 모델이 들고 다닌다 — 화면이 출처를 짐작하지 않게 한다.
-  final bool cadenceIsSample;
-
-  bool get hasSplits => splits.isNotEmpty;
-}
-
-/// 구간 하나 + 그 구간의 파생 지표.
-///
-/// [RunSplit]을 감싸는 이유는 **거리·시간은 계산으로 나오지만 케이던스·칼로리는
-/// 출처가 다르기** 때문이다. 앱이 낼 때도 있고 서버가 줄 때도 있다.
-class RunSplitDetail {
-  const RunSplitDetail({
-    required this.split,
+    required this.rawSplits,
+    this.track = const [],
+    this.averagePace,
     this.cadenceSpm,
     this.caloriesKcal,
+    this.elevationGainMeters,
   });
 
-  final RunSplit split;
+  final int runningRoomId;
 
-  /// 구간 평균 케이던스. 표본이 부족하면 `null`이다.
+  /// 서버가 확정한 총 거리(m).
+  final int distanceMeters;
+
+  /// 총 러닝 시간. 일시정지는 서버가 이미 빼고 준다.
+  final Duration duration;
+
+  /// 전체 평균 페이스. 서버가 못 내면 `null`이다.
+  final Duration? averagePace;
+
+  /// 전체 평균 케이던스. 표본이 부족하면 `null`이다.
   final int? cadenceSpm;
 
-  /// 구간 소모 칼로리. 몸무게를 모르면 `null`이다.
   final int? caloriesKcal;
 
-  int get index => split.index;
-  double get distanceMeters => split.distanceMeters;
-  Duration get pace => split.pace;
-  bool get isPartial => split.isPartial;
+  /// 누적 상승 고도(m). 표본이 부족하면 `null`이다.
+  final int? elevationGainMeters;
+
+  /// 지도에 그릴 경로. **본인 것만이다** — 파티원 경로는 어떤 화면으로도
+  /// 내보내지 않는다.
+  ///
+  /// 서버는 한 줄로 주므로 세그먼트가 하나다. 지도 위젯이 세그먼트 목록을
+  /// 받기 때문에 형태만 맞춘다.
+  final List<List<GeoPoint>> track;
+
+  /// 서버가 준 10m 구간 원본.
+  final List<RawSplit> rawSplits;
+
+  double get distanceKm => distanceMeters / 1000;
+
+  bool get hasSplits => rawSplits.isNotEmpty;
+
+  /// 구간 테이블이 쓰는 1km 묶음. 마지막은 짧을 수 있다.
+  late final List<SplitBucket> tableSplits = SplitAggregator.bucket(
+    rawSplits,
+    SplitAggregator.tableMeters,
+  );
+
+  /// 페이스·케이던스 그래프가 쓰는 50m 묶음.
+  ///
+  /// 10m 그대로 그리면 5km에 500점이라 화면 폭을 넘고 잡음이 심하다.
+  late final List<SplitBucket> chartSamples = SplitAggregator.bucket(
+    rawSplits,
+    SplitAggregator.chartMeters,
+  );
+
+  /// 구간 케이던스를 하나라도 아는가. 모르면 그래프를 접는다 —
+  /// 빈 그래프는 "0spm으로 뛰었다"로 읽힌다.
+  bool get hasCadence => chartSamples.any((s) => s.cadenceSpm != null);
+
+  @override
+  String toString() =>
+      'RunDetail(room $runningRoomId, ${distanceKm.toStringAsFixed(2)}km, '
+      '구간 ${rawSplits.length}개)';
 }

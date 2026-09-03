@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/record/data/http_run_record_repository.dart';
 import 'package:runiverse/features/record/domain/record_summary.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
@@ -11,13 +12,17 @@ import 'package:runiverse/features/record/presentation/record_state.dart';
 
 /// 기록을 누가 읽어 오나.
 ///
-/// ## ⚠️ 아직 목이다
+/// ## ⚠️ 목록은 아직 서버가 없다
 ///
-/// 19번(`GET /users/me/running-records`)이 `개발전`이라 붙일 서버가 없다.
-/// 서버가 열리면 **이 한 줄만** `HttpRunRecordRepository`로 바꾼다 —
-/// 화면도 상태도 손대지 않는다.
+/// 상세(17·18번)는 열려 있지만 목록 19번(`GET /users/me/running-records`)은
+/// `개발전`이다 — 서버가 `NoResourceFoundException`으로 답하는 것을 확인했다.
+/// 목록이 필요한 테스트는 `FakeRunRecordRepository`를 덮어써서 쓴다.
 final runRecordRepositoryProvider = Provider<RunRecordRepository>(
-  (ref) => FakeRunRecordRepository(),
+  (ref) => HttpRunRecordRepository(
+    ref.watch(dioProvider),
+    ref.watch(tokenStoreProvider),
+    ref.watch(tokenRefresherProvider),
+  ),
 );
 
 /// "오늘"이 언제인가. 테스트가 고정된 날짜를 넣는다.
@@ -28,12 +33,16 @@ final recordClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
 );
 
-/// 기록 하나의 상세. 기록 탭에서 카드를 눌렀을 때만 읽는다.
+/// 러닝 결과 상세. **방 번호로 찾는다.**
+///
+/// 러닝을 막 끝냈을 때와 기록 탭에서 지난 기록을 눌렀을 때 둘 다 이걸 쓴다.
+/// 앱이 아는 것이 방 번호라 기록 번호가 아니라 방 번호가 키다.
 ///
 /// `autoDispose`가 기본이라 화면을 닫으면 버려진다 — 상세는 무거워서
-/// (경로 좌표가 통째로 들어 있다) 들고 있을 이유가 없다.
+/// (구간이 10m 단위로 수백 개다) 들고 있을 이유가 없다.
 final runDetailProvider = FutureProvider.family<RunDetail, int>(
-  (ref, recordId) => ref.read(runRecordRepositoryProvider).detail(recordId),
+  (ref, runningRoomId) =>
+      ref.read(runRecordRepositoryProvider).byRoom(runningRoomId),
 );
 
 final recordControllerProvider =

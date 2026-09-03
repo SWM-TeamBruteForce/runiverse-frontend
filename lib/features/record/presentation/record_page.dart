@@ -98,7 +98,7 @@ class _Loaded extends StatelessWidget {
             records: data.selectedRecords,
             // 러닝을 막 끝냈을 때와 **같은 화면**(S16)을 연다.
             onOpen: (record) =>
-                context.push(AppRoutes.recordDetailOf(record.id)),
+                context.push(AppRoutes.recordDetailOf(record.runningRoomId)),
           ),
       ],
     );

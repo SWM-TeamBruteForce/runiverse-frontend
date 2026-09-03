@@ -7,6 +7,7 @@ import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
+import 'package:runiverse/features/record/domain/split_aggregator.dart';
 import 'package:runiverse/features/record/presentation/split_line_chart.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/core/widgets/run_map_view.dart';
@@ -39,7 +40,7 @@ class RunResultView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final splits = detail.splits;
+    final splits = detail.tableSplits;
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -68,7 +69,8 @@ class RunResultView extends StatelessWidget {
                       title: AppStrings.runResultPaceChart,
                       unit: AppStrings.profilePacePerKm,
                       values: [
-                        for (final s in splits) s.pace.inSeconds.toDouble(),
+                        for (final s in splits)
+                          (s.pace ?? Duration.zero).inSeconds.toDouble(),
                       ],
                       labels: _labels(splits, detail.distanceKm),
                       format: (v) =>
@@ -81,7 +83,7 @@ class RunResultView extends StatelessWidget {
                     const SizedBox(height: AppSpacing.space4),
                     // 구간 케이던스를 하나도 모르면 차트를 아예 접는다.
                     // 빈 차트를 그리면 "0spm으로 뛰었다"로 읽힌다.
-                    if (splits.any((s) => s.cadenceSpm != null)) ...[
+                    if (detail.hasCadence) ...[
                       SplitLineChart(
                         title: AppStrings.runResultCadenceChart,
                         unit: AppStrings.runResultCadenceUnit,
@@ -93,10 +95,7 @@ class RunResultView extends StatelessWidget {
                         format: (v) => v.round().toString(),
                         color: colors.primary,
                         hint: AppStrings.runResultChartHint,
-                        // ⚠️ 지어낸 값이면 꼬리표를 단다.
-                        badge: detail.cadenceIsSample
-                            ? AppStrings.runResultSample
-                            : null,
+                        // 서버 실측값이라 꼬리표를 달지 않는다.
                       ),
                     ],
                   ],
@@ -110,9 +109,9 @@ class RunResultView extends StatelessWidget {
   }
 
   /// x축 라벨. 마지막 자투리 구간만 실제로 닿은 지점을 적는다.
-  static List<String> _labels(List<RunSplitDetail> splits, double totalKm) => [
+  static List<String> _labels(List<SplitBucket> splits, double totalKm) => [
     for (final split in splits)
-      split.isPartial
+      split.isPartialOf(SplitAggregator.tableMeters)
           ? AppStrings.runResultPartialLabel(totalKm)
           : AppStrings.runResultSplitLabel(split.index),
   ];
@@ -298,7 +297,7 @@ class _SplitTableState extends State<_SplitTable> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final all = widget.detail.splits;
+    final all = widget.detail.tableSplits;
     final collapsed = !_expanded && all.length > _SplitTable.collapsedCount;
     final shown = collapsed ? all.take(_SplitTable.collapsedCount) : all;
 
@@ -374,7 +373,7 @@ class _SplitRow extends StatelessWidget {
     required this.average,
   });
 
-  final RunSplitDetail split;
+  final SplitBucket split;
   final double totalKm;
   final Duration? average;
 
@@ -382,7 +381,9 @@ class _SplitRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final burned = split.caloriesKcal;
-    final gap = average == null ? null : split.split.gapTo(average!);
+    // 평균과의 거리. 순위가 아니라 내 평균 대비다.
+    final pace = split.pace;
+    final gap = (average == null || pace == null) ? null : pace - average!;
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -394,7 +395,7 @@ class _SplitRow extends StatelessWidget {
           SizedBox(
             width: 64,
             child: Text(
-              split.isPartial
+              split.isPartialOf(SplitAggregator.tableMeters)
                   ? AppStrings.runResultPartialLabel(totalKm)
                   : AppStrings.runResultSplitLabel(split.index),
               style: AppTypography.body.copyWith(color: colors.textSecondary),
@@ -435,7 +436,7 @@ class _SplitRow extends StatelessWidget {
             ),
           ),
           Text(
-            burned == null ? '--' : '$burned${AppStrings.runResultUnitKcal}',
+            '$burned${AppStrings.runResultUnitKcal}',
             style: AppTypography.caption.copyWith(color: colors.textSecondary),
           ),
         ],
