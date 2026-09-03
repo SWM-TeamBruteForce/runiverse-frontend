@@ -30,6 +30,7 @@ class SplitLineChart extends StatefulWidget {
     required this.hint,
     this.badge,
     this.inverted = false,
+    this.filled = false,
     super.key,
   });
 
@@ -62,6 +63,12 @@ class SplitLineChart extends StatefulWidget {
 
   /// 작은 값을 위로 올릴 것인가. **페이스만 `true`다.**
   final bool inverted;
+
+  /// 선 아래를 채울 것인가. **50m 상세만 `true`다.**
+  ///
+  /// 점이 촘촘할 때는 선 하나로 오르내림이 잘 안 읽혀 면적이 형태를 먼저
+  /// 보여 준다. 1km 그래프는 점이 몇 개뿐이라 채우면 오히려 뭉개진다.
+  final bool filled;
 
   @override
   State<SplitLineChart> createState() => _SplitLineChartState();
@@ -150,6 +157,7 @@ class _SplitLineChartState extends State<SplitLineChart> {
                           grid: colors.borderDefault,
                           inset: _inset,
                           inverted: widget.inverted,
+                          filled: widget.filled,
                         ),
                       ),
                       SizedBox(
@@ -353,6 +361,7 @@ class _LinePainter extends CustomPainter {
     required this.grid,
     required this.inset,
     required this.inverted,
+    required this.filled,
   });
 
   final List<double> values;
@@ -363,6 +372,9 @@ class _LinePainter extends CustomPainter {
 
   /// 작은 값을 위로 올리는가. 페이스가 `true`다.
   final bool inverted;
+
+  /// 선 아래를 채우는가. 50m 상세가 `true`다.
+  final bool filled;
 
   /// 위아래 여백 비율. 선이 카드 천장과 바닥에 닿으면 값의 크기를 못 읽는다.
   static const _padRatio = 0.15;
@@ -420,24 +432,23 @@ class _LinePainter extends CustomPainter {
         path.lineTo(point.dx, point.dy);
       }
 
-      // 선 아래를 채운다. 50m 단위로 점이 촘촘해지면 선 하나만으로는
-      // 오르내림이 잘 안 읽힌다 — 면적이 있으면 형태가 먼저 보인다.
-      //
       // 바닥까지 내려 닫는다. 값의 최솟값이 아니라 **그림 영역 바닥**이라야
       // 구간마다 채운 높이가 서로 비교된다.
-      final fill = Path.from(path)
-        ..lineTo(points.last.dx, size.height)
-        ..lineTo(points.first.dx, size.height)
-        ..close();
-      canvas.drawPath(
-        fill,
-        Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [line.withValues(alpha: 0.28), line.withValues(alpha: 0)],
-          ).createShader(Offset.zero & size),
-      );
+      if (filled) {
+        final fill = Path.from(path)
+          ..lineTo(points.last.dx, size.height)
+          ..lineTo(points.first.dx, size.height)
+          ..close();
+        canvas.drawPath(
+          fill,
+          Paint()
+            ..shader = LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [line.withValues(alpha: 0.28), line.withValues(alpha: 0)],
+            ).createShader(Offset.zero & size),
+        );
+      }
 
       canvas.drawPath(path, linePaint);
     }
@@ -463,5 +474,6 @@ class _LinePainter extends CustomPainter {
       old.focused != focused ||
       old.values != values ||
       old.line != line ||
-      old.inverted != inverted;
+      old.inverted != inverted ||
+      old.filled != filled;
 }

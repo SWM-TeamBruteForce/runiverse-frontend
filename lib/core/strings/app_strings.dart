@@ -604,6 +604,14 @@ abstract final class AppStrings {
   static const runResultCadence = '케이던스';
 
   static const runResultPaceChart = '구간별 페이스';
+
+  /// 같은 러닝을 더 잘게 본 그래프. **제목이 배율을 밝혀야 한다** —
+  /// 위아래로 페이스 그래프가 둘이라 이름이 같으면 어느 쪽을 보는지 모른다.
+  static const runResultPaceDetailChart = '페이스 상세';
+
+  /// [runResultPaceDetailChart]가 몇 미터마다 한 점인지. 제목 옆에 붙는다.
+  static const runResultPaceDetailUnit = '50m마다';
+
   static const runResultCadenceChart = '구간별 케이던스';
   static const runResultCadenceUnit = 'spm';
 

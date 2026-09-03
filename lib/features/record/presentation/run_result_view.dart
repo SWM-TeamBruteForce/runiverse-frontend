@@ -68,9 +68,33 @@ class RunResultView extends StatelessWidget {
                   if (splits.isEmpty)
                     const _NoSplits()
                   else ...[
+                    // 1km 그래프가 먼저다. **러닝 전체의 모양을 먼저 보여
+                    // 준다** — 몇 번째 킬로가 무너졌는지는 이쪽이 답한다.
                     SplitLineChart(
                       title: AppStrings.runResultPaceChart,
                       unit: AppStrings.profilePacePerKm,
+                      values: [
+                        for (final s in splits)
+                          (s.pace ?? Duration.zero).inSeconds.toDouble(),
+                      ],
+                      labels: _labels(splits, detail.distanceKm),
+                      format: (v) =>
+                          PaceCalculator.format(Duration(seconds: v.round())),
+                      color: colors.primary,
+                      hint: AppStrings.runResultChartHint,
+                      // ⚠️ 페이스는 작을수록 빠르므로 그대로 올리면 솟은
+                      // 봉우리가 "느렸던 구간"이 되어 거꾸로 읽힌다. **두 페이스
+                      // 그래프가 같은 방향이어야 한다** — 위아래로 붙어 있는데
+                      // 축이 반대면 같은 러닝이 서로 다른 얘기를 한다.
+                      inverted: true,
+                    ),
+                    const SizedBox(height: AppSpacing.space4),
+
+                    // 그 아래가 50m 상세다. 1km로는 안 보이는 구간 안쪽의
+                    // 흔들림을 본다.
+                    SplitLineChart(
+                      title: AppStrings.runResultPaceDetailChart,
+                      unit: AppStrings.runResultPaceDetailUnit,
                       values: [
                         for (final s in samples)
                           (s.pace ?? Duration.zero).inSeconds.toDouble(),
@@ -80,9 +104,8 @@ class RunResultView extends StatelessWidget {
                           PaceCalculator.format(Duration(seconds: v.round())),
                       color: colors.primary,
                       hint: AppStrings.runResultChartHint,
-                      // ⚠️ 페이스만 뒤집는다. 작을수록 빠르므로 그대로 올리면
-                      // 솟은 봉우리가 "느렸던 구간"이 되어 거꾸로 읽힌다.
                       inverted: true,
+                      filled: true,
                     ),
                     const SizedBox(height: AppSpacing.space4),
                     _SplitTable(detail: detail),
@@ -101,6 +124,9 @@ class RunResultView extends StatelessWidget {
                         format: (v) => v.round().toString(),
                         color: colors.primary,
                         hint: AppStrings.runResultChartHint,
+                        // 50m 상세라 페이스 상세와 같은 모양으로 둔다.
+                        // ⚠️ 뒤집지 않는다 — 케이던스는 클수록 좋은 값이다.
+                        filled: true,
                         // 서버 실측값이라 꼬리표를 달지 않는다.
                       ),
                     ],
@@ -114,7 +140,14 @@ class RunResultView extends StatelessWidget {
     );
   }
 
-  /// x축 라벨. 마지막 자투리 구간만 실제로 닿은 지점을 적는다.
+  /// 1km 그래프의 x축 라벨. 마지막 자투리 구간만 실제로 닿은 지점을 적는다.
+  static List<String> _labels(List<SplitBucket> splits, double totalKm) => [
+    for (final split in splits)
+      split.isPartialOf(SplitAggregator.tableMeters)
+          ? AppStrings.runResultPartialLabel(totalKm)
+          : AppStrings.runResultSplitLabel(split.index),
+  ];
+
   /// 50m 표본의 x축·툴팁 라벨. **닿은 지점의 누적 거리**다.
   ///
   /// 구간 번호(`1km` `2km`)를 쓰지 않는다 — 50m면 5km에 100개가 되어 번호가
@@ -123,7 +156,6 @@ class RunResultView extends StatelessWidget {
     for (final sample in samples)
       AppStrings.runResultPartialLabel(sample.endDistanceMeters / 1000),
   ];
-
 }
 
 class _Header extends StatelessWidget {
