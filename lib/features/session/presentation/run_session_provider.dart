@@ -238,8 +238,10 @@ class RunSessionController extends Notifier<RunSessionState> {
     _resumedAt = null;
     _stopTicker();
 
-    // 여기까지가 한 구간이다. 재개하면 [_points]가 비워지므로 지금 접어 둔다.
-    if (_points.length > 1) _segments.add(List.of(_points));
+    // ⚠️ **여기서 접지 않는다.** [track]이 이미 [_points]를 마지막 구간으로
+    // 내보내므로, 여기서 [_segments]에도 넣으면 **같은 좌표가 두 벌이 된다.**
+    // 멈춘 채로 끝내면 구간·거리가 통째로 두 배가 되어 나왔다.
+    // 접는 것은 [resume]이 비우기 직전에 한다.
 
     state = RunPaused(_metrics());
   }
@@ -248,6 +250,10 @@ class RunSessionController extends Notifier<RunSessionState> {
     if (state is! RunPaused) return;
 
     _resumedAt = _now();
+
+    // 여기까지가 한 구간이다. **비우기 직전에** 접는다 — 멈춰 있는 동안에는
+    // [track]이 [_points]를 그대로 내보내므로 접어 두면 중복이 된다.
+    if (_points.length > 1) _segments.add(List.of(_points));
 
     // 멈춘 사이에 이동했더라도 그 구간은 거리에 넣지 않는다.
     _points.clear();

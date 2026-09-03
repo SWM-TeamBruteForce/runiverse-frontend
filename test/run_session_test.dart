@@ -324,4 +324,61 @@ void main() {
       expect(container.read(runSessionControllerProvider), isA<RunIdle>());
     });
   });
+
+  group('트랙', () {
+    test('⚠️ 멈춘 채로 끝내도 좌표가 두 벌이 되지 않는다', () async {
+      // `pause()`가 구간을 접는데 `_points`를 비우지 않아, 멈춘 동안
+      // `track`이 같은 좌표를 두 번 내보냈다. 그대로 종료하면 구간과 거리가
+      // 통째로 두 배가 된다 — 1.23km를 뛰고 구간이 3개(2.2km) 나왔다.
+      final container = makeContainer();
+      final controller = container.read(runSessionControllerProvider.notifier);
+      await controller.prepare();
+      location.emit(point(37.5, 127));
+      await settle();
+      controller.start();
+
+      location.emit(point(37.501, 127));
+      await settle();
+      location.emit(point(37.502, 127));
+      await settle();
+
+      final running = controller.track;
+      expect(running, hasLength(1), reason: '달리는 중에는 구간이 하나다');
+      final before = running.first.length;
+      expect(before, greaterThan(1));
+
+      controller.pause();
+
+      final paused = controller.track;
+      expect(paused, hasLength(1), reason: '멈췄다고 구간이 늘어나면 안 된다');
+      expect(paused.expand((s) => s).length, before, reason: '같은 좌표가 두 벌이 됐다');
+    });
+
+    test('재개하면 구간이 나뉜다', () async {
+      // 멈춘 사이의 이동을 선으로 잇지 않기 위해서다.
+      final container = makeContainer();
+      final controller = container.read(runSessionControllerProvider.notifier);
+      await controller.prepare();
+      location.emit(point(37.5, 127));
+      await settle();
+      controller.start();
+
+      // 구간이 되려면 좌표가 둘 이상이어야 한다.
+      location.emit(point(37.501, 127));
+      await settle();
+      location.emit(point(37.502, 127));
+      await settle();
+
+      controller.pause();
+      controller.resume();
+
+      location.emit(point(37.51, 127));
+      await settle();
+      location.emit(point(37.511, 127));
+      await settle();
+
+      final track = controller.track;
+      expect(track, hasLength(2), reason: '멈춤 전후가 다른 선이어야 한다');
+    });
+  });
 }
