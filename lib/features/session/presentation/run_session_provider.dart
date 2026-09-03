@@ -165,13 +165,37 @@ class RunSessionController extends Notifier<RunSessionState> {
       return access;
     }
 
-    _subscription = _repository.watchPosition().listen(_onPoint);
+    _subscription = _repository.watchPosition().listen(
+      _onPoint,
+      // ⚠️ **이것이 없으면 예외가 Zone으로 새고 화면이 영원히 멈춘다.**
+      // `ensureAccess`를 통과한 뒤에도 스트림이 "위치 서비스가 꺼졌다"를
+      // 던지는 일이 있다. 상태에 실어 화면이 이유를 띄우게 한다.
+      onError: _onPositionError,
+    );
 
     // ⚠️ **위치와 달리 실패해도 러닝을 막지 않는다.** 케이던스는 있으면 좋은
     // 값이고, 없으면 `--`로 남을 뿐이다. 걸음 권한을 거절했다고 달리지
     // 못하게 하면 안 된다.
     unawaited(_startSteps());
     return access;
+  }
+
+  /// 위치 스트림이 죽었다. **준비 중에만 화면에 알린다.**
+  ///
+  /// 달리는 도중이라면 상태를 건드리지 않는다 — 잠깐 신호가 끊겼다고 기록을
+  /// 되돌리면 그때까지 달린 거리가 사라진다. 로그만 남기고 그대로 둔다.
+  void _onPositionError(Object error) {
+    debugPrint('[run] 위치 스트림이 실패했다 · $error');
+
+    if (state is! RunPreparing) return;
+
+    unawaited(_subscription?.cancel());
+    _subscription = null;
+    state = RunPreparing(
+      failure: error is LocationUnavailable
+          ? error.reason
+          : LocationAccess.denied,
+    );
   }
 
   /// 걸음 센서를 연다. 권한이 없거나 센서가 없으면 조용히 포기한다.

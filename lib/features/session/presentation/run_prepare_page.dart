@@ -111,7 +111,11 @@ class _RunPreparePageState extends ConsumerState<RunPreparePage> {
     final colors = context.appColors;
     final state = ref.watch(runSessionControllerProvider);
     final hasFix = state is RunPreparing && state.hasFix;
-    final access = _access;
+
+    // ⚠️ **구독을 연 뒤에 실패하는 경우가 있다.** `_access`는 `prepare()`가
+    // 돌려준 한 번뿐인 답이라 그 뒤의 실패를 모른다. 상태 쪽 이유를 먼저 본다 —
+    // 이게 없으면 화면이 "위치를 찾고 있어요"에서 영원히 멈춘다.
+    final access = (state is RunPreparing ? state.failure : null) ?? _access;
 
     // ⚠️ **이전 러닝이 남아 있으면 카운트다운을 멈춘다.** 그대로 두면 방 없이
     // 러닝 화면으로 들어가고, 30분을 뛰어도 기록이 서버에 남지 않는다.
