@@ -89,9 +89,13 @@ class RunResultView extends StatelessWidget {
                       inverted: true,
                     ),
                     const SizedBox(height: AppSpacing.space4),
+                    _SplitTable(detail: detail),
+                    const SizedBox(height: AppSpacing.space4),
 
-                    // 그 아래가 50m 상세다. 1km로는 안 보이는 구간 안쪽의
-                    // 흔들림을 본다.
+                    // ⚠️ **1km 묶음을 다 보여 준 뒤에 50m로 내려간다.**
+                    // 그래프-표-그래프 순서가 배율 순서이기도 하다: 1km
+                    // 그래프와 1km 표가 같은 단위끼리 붙고, 그 아래부터
+                    // 50m 상세가 시작된다.
                     SplitLineChart(
                       title: AppStrings.runResultPaceDetailChart,
                       unit: AppStrings.runResultPaceDetailUnit,
@@ -107,8 +111,6 @@ class RunResultView extends StatelessWidget {
                       inverted: true,
                       filled: true,
                     ),
-                    const SizedBox(height: AppSpacing.space4),
-                    _SplitTable(detail: detail),
                     const SizedBox(height: AppSpacing.space4),
                     // 구간 케이던스를 하나도 모르면 차트를 아예 접는다.
                     // 빈 차트를 그리면 "0spm으로 뛰었다"로 읽힌다.
