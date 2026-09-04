@@ -110,9 +110,25 @@ class GeolocatorLocationRepository implements LocationRepository {
     };
   }
 
+  /// ⚠️ **[ensureAccess]가 통과시켜도 이 스트림은 실패할 수 있다.**
+  ///
+  /// `isLocationServiceEnabled()`가 `true`라고 답한 직후에도
+  /// `LocationServiceDisabledException`이 뜬다 — 안드로이드에서 실제 판정은
+  /// `FusedLocationProviderClient`의 설정 검사가 하고, 그 검사는 GPS 말고
+  /// network provider까지 본다. 두 답이 어긋나는 순간이 있다.
+  ///
+  /// 패키지 예외를 그대로 흘리지 않고 [LocationUnavailable]로 바꾼다.
   @override
   Stream<GeoPoint> watchPosition() =>
-      Geolocator.getPositionStream(locationSettings: _settings).map(_toPoint);
+      Geolocator.getPositionStream(locationSettings: _settings)
+          .handleError((Object error) {
+            throw LocationUnavailable(
+              error is LocationServiceDisabledException
+                  ? LocationAccess.serviceDisabled
+                  : LocationAccess.denied,
+            );
+          })
+          .map(_toPoint);
 
   @override
   Future<void> openSettings() async {

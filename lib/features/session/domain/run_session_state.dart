@@ -1,3 +1,4 @@
+import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/domain/run_metrics.dart';
 
 /// 1인 러닝 세션의 상태.
@@ -22,10 +23,19 @@ class RunIdle extends RunSessionState {
 /// 신호를 잡기 전에 출발하면 초반 거리가 통째로 빠진다.
 /// 그래서 [hasFix]가 `false`인 동안 시작 버튼을 잠근다.
 class RunPreparing extends RunSessionState {
-  const RunPreparing({this.hasFix = false});
+  const RunPreparing({this.hasFix = false, this.failure});
 
   /// 쓸 만한 좌표를 한 번이라도 받았는가.
   final bool hasFix;
+
+  /// 구독을 연 **뒤에** 위치를 못 쓰게 된 이유. `null`이면 아직 기다리는 중이다.
+  ///
+  /// ⚠️ **권한 확인을 통과해도 스트림이 뒤늦게 실패한다.** `ensureAccess`는
+  /// `isLocationServiceEnabled`가 `true`라고 답했는데, 그다음 열린 스트림이
+  /// `LocationServiceDisabledException`을 던지는 일이 실제로 있다(안드로이드
+  /// 에뮬레이터에서 재현). 이 값이 없으면 화면은 실패를 "아직 신호를 못 잡음"과
+  /// 구분하지 못해 **영원히 기다린다.**
+  final LocationAccess? failure;
 }
 
 /// 달리는 중.
