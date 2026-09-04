@@ -635,6 +635,12 @@ abstract final class AppStrings {
   /// 1km를 채우지 못하면 구간이 하나도 나오지 않는다.
   static const runResultNoSplits = '구간을 나눌 만큼 달리지 않았어요';
 
+  /// 케이던스가 하나도 없을 때. **그래프 대신 이 문구를 그 자리에 둔다.**
+  ///
+  /// 빈 그래프를 그리면 "0spm으로 뛰었다"로 읽히고, 카드를 통째로 감추면
+  /// 케이던스가 원래 없는 화면인 줄 알게 된다.
+  static const runResultNoCadence = '걸음 센서를 읽지 못해 이번 러닝은 케이던스가 없어요';
+
   /// `3km`처럼 구간 끝 지점을 적는다.
   static String runResultSplitLabel(int index) => '${index}km';
 

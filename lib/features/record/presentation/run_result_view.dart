@@ -112,8 +112,9 @@ class RunResultView extends StatelessWidget {
                       filled: true,
                     ),
                     const SizedBox(height: AppSpacing.space4),
-                    // 구간 케이던스를 하나도 모르면 차트를 아예 접는다.
-                    // 빈 차트를 그리면 "0spm으로 뛰었다"로 읽힌다.
+                    // ⚠️ 값이 없으면 그래프 대신 **이유를 그 자리에 적는다.**
+                    // 빈 그래프는 "0spm으로 뛰었다"로 읽히고, 카드를 통째로
+                    // 감추면 케이던스가 원래 없는 화면인 줄 알게 된다.
                     if (detail.hasCadence) ...[
                       SplitLineChart(
                         // ⚠️ **50m 표본이다.** 제목이 배율을 밝혀야 위쪽
@@ -133,6 +134,8 @@ class RunResultView extends StatelessWidget {
                         filled: true,
                         // 서버 실측값이라 꼬리표를 달지 않는다.
                       ),
+                    ] else ...[
+                      const _NoCadence(),
                     ],
                   ],
                 ],
@@ -495,6 +498,58 @@ class _SplitRow extends StatelessWidget {
     // `implementation-notes` 3-5). 0에는 부호가 없다.
     if (seconds == 0) return '0s';
     return seconds > 0 ? '+${seconds}s' : '${seconds}s';
+  }
+}
+
+/// 케이던스를 하나도 못 구했을 때 그래프 자리를 지키는 카드.
+///
+/// 그래프와 같은 껍데기를 쓴다. 자리가 비면 화면이 위로 붙어 버려서
+/// "케이던스라는 게 있었나" 싶어진다.
+class _NoCadence extends StatelessWidget {
+  const _NoCadence();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.bgSurface,
+        border: Border.all(color: colors.borderDefault),
+        borderRadius: AppRadius.lg,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.space4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  AppStrings.runResultCadenceDetailChart,
+                  style: AppTypography.micro.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.space1),
+                Text(
+                  AppStrings.runResultCadenceDetailUnit,
+                  style: AppTypography.micro.copyWith(
+                    color: colors.textTertiary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.space3),
+            Text(
+              AppStrings.runResultNoCadence,
+              style: AppTypography.micro.copyWith(color: colors.textTertiary),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
