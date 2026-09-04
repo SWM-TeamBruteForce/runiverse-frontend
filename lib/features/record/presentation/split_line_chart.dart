@@ -112,23 +112,7 @@ class _SplitLineChartState extends State<SplitLineChart> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _Title(
-              title: widget.title,
-              unit: widget.unit,
-              badge: widget.badge,
-              // 손가락이 집은 값은 제목 줄 오른쪽에 띄운다. 선 옆에 붙이면
-              // 그 손가락이 가린다.
-              reading: focused == null
-                  ? null
-                  : widget.format(widget.values[focused]),
-              // 값만 띄우면 "어디서" 그랬는지를 모른다. 같은 줄에 그 지점의
-              // 거리를 붙인다 — x축 라벨은 솎아 그리므로 짚은 자리가 그 사이에
-              // 있으면 읽을 수가 없다.
-              readingAt: focused == null || focused >= widget.labels.length
-                  ? null
-                  : widget.labels[focused],
-              readingColor: widget.color,
-            ),
+            _Title(title: widget.title, unit: widget.unit, badge: widget.badge),
             const SizedBox(height: AppSpacing.space2),
 
             LayoutBuilder(
@@ -158,6 +142,22 @@ class _SplitLineChartState extends State<SplitLineChart> {
                           inset: _inset,
                           inverted: widget.inverted,
                           filled: widget.filled,
+                          // ⚠️ 집은 값은 **그 점 바로 위**에 띄운다. 제목 줄
+                          // 오른쪽에 두면 눈이 그래프와 카드 모서리를 오가야
+                          // 해서 훑는 동안 읽히지 않는다.
+                          reading: focused == null
+                              ? null
+                              : widget.format(widget.values[focused]),
+                          // 값만으로는 "어디서" 그랬는지 모른다. x축 라벨은
+                          // 솎아 그리므로 짚은 자리가 그 사이면 읽을 수 없다.
+                          readingAt:
+                              focused == null || focused >= widget.labels.length
+                              ? null
+                              : widget.labels[focused],
+                          bubble: colors.bgElevated,
+                          bubbleBorder: colors.borderStrong,
+                          readingColor: colors.textPrimary,
+                          readingAtColor: colors.textTertiary,
                         ),
                       ),
                       SizedBox(
@@ -188,23 +188,11 @@ class _SplitLineChartState extends State<SplitLineChart> {
 }
 
 class _Title extends StatelessWidget {
-  const _Title({
-    required this.title,
-    required this.unit,
-    required this.badge,
-    required this.reading,
-    required this.readingAt,
-    required this.readingColor,
-  });
+  const _Title({required this.title, required this.unit, required this.badge});
 
   final String title;
   final String unit;
   final String? badge;
-  final String? reading;
-
-  /// 집은 값이 어느 지점인가. `8.51km`처럼 [reading] 옆에 흐리게 붙는다.
-  final String? readingAt;
-  final Color readingColor;
 
   @override
   Widget build(BuildContext context) {
@@ -230,28 +218,6 @@ class _Title extends StatelessWidget {
           if (label != null) ...[
             const SizedBox(width: AppSpacing.space2),
             _Badge(label: label),
-          ],
-          const Spacer(),
-          if (reading != null) ...[
-            Text(
-              reading!,
-              style: AppTypography.micro.copyWith(
-                color: readingColor,
-                fontWeight: FontWeight.w600,
-                // 훑는 동안 자릿수가 바뀌면 글자가 좌우로 흔들린다.
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
-            ),
-            if (readingAt != null) ...[
-              const SizedBox(width: AppSpacing.space2),
-              Text(
-                readingAt!,
-                style: AppTypography.micro.copyWith(
-                  color: colors.textTertiary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-            ],
           ],
         ],
       ),
@@ -362,6 +328,12 @@ class _LinePainter extends CustomPainter {
     required this.inset,
     required this.inverted,
     required this.filled,
+    required this.reading,
+    required this.readingAt,
+    required this.bubble,
+    required this.bubbleBorder,
+    required this.readingColor,
+    required this.readingAtColor,
   });
 
   final List<double> values;
@@ -375,6 +347,17 @@ class _LinePainter extends CustomPainter {
 
   /// 선 아래를 채우는가. 50m 상세가 `true`다.
   final bool filled;
+
+  /// 집은 값을 사람이 읽는 말로. 손을 떼면 `null`이다.
+  final String? reading;
+
+  /// 그 값이 어느 지점인가. `0.65km`처럼 [reading] 아래 줄에 흐리게 붙는다.
+  final String? readingAt;
+
+  final Color bubble;
+  final Color bubbleBorder;
+  final Color readingColor;
+  final Color readingAtColor;
 
   /// 위아래 여백 비율. 선이 카드 천장과 바닥에 닿으면 값의 크기를 못 읽는다.
   static const _padRatio = 0.15;
@@ -467,6 +450,76 @@ class _LinePainter extends CustomPainter {
         ..strokeWidth = 1,
     );
     canvas.drawCircle(at, 4, Paint()..color = line);
+
+    _paintReading(canvas, size, at);
+  }
+
+  /// 집은 값을 **그 점 바로 위**에 띄운다.
+  ///
+  /// 위젯이 아니라 여기서 그린다. 점의 좌표를 아는 곳이 여기뿐이라, 위젯으로
+  /// 올리면 같은 계산을 두 벌 들고 서로 어긋나게 된다.
+  void _paintReading(Canvas canvas, Size size, Offset at) {
+    final value = reading;
+    if (value == null) return;
+
+    final text = TextPainter(
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+      text: TextSpan(
+        children: [
+          TextSpan(
+            text: value,
+            style: AppTypography.micro.copyWith(
+              color: readingColor,
+              fontWeight: FontWeight.w600,
+              // 훑는 동안 자릿수가 바뀌면 말풍선이 좌우로 떤다.
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          if (readingAt != null)
+            TextSpan(
+              // 한 줄로 붙인다. 말풍선이 두 줄이면 점 위 공간을 많이 먹어
+              // 그래프 위쪽 구간에서 자주 뒤집힌다.
+              text: '  $readingAt',
+              style: AppTypography.micro.copyWith(
+                color: readingAtColor,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+        ],
+      ),
+    )..layout();
+
+    const padX = AppSpacing.space2;
+    const padY = AppSpacing.space1;
+    const gap = AppSpacing.space2;
+
+    final box = Size(text.width + padX * 2, text.height + padY * 2);
+
+    // 점 위에 띄우되 천장을 넘으면 아래로 뒤집는다. 그래프 위쪽에 붙은
+    // 점에서는 말풍선이 잘려 아무것도 못 읽는다.
+    var top = at.dy - gap - box.height;
+    if (top < 0) top = at.dy + gap;
+
+    // 양 끝에서도 잘리지 않게 가둔다.
+    final left = (at.dx - box.width / 2).clamp(0.0, size.width - box.width);
+
+    final rect = Rect.fromLTWH(left, top, box.width, box.height);
+    // `AppRadius.sm`은 BorderRadius다. 캔버스는 Radius 하나를 받으므로
+    // 그 네 모서리 중 하나를 꺼내 쓴다 — 값을 새로 적지 않는다.
+    final rrect = RRect.fromRectAndRadius(rect, AppRadius.sm.topLeft);
+
+    canvas
+      ..drawRRect(rrect, Paint()..color = bubble)
+      ..drawRRect(
+        rrect,
+        Paint()
+          ..color = bubbleBorder
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
+
+    text.paint(canvas, Offset(left + padX, top + padY));
   }
 
   @override
@@ -475,5 +528,7 @@ class _LinePainter extends CustomPainter {
       old.values != values ||
       old.line != line ||
       old.inverted != inverted ||
-      old.filled != filled;
+      old.filled != filled ||
+      old.reading != reading ||
+      old.readingAt != readingAt;
 }
