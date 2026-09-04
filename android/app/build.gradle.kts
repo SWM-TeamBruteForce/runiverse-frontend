@@ -51,6 +51,9 @@ android {
         // 초기화하지 않으므로(main.dart) 버튼이 그 상태로 눌리지는 않는다.
         manifestPlaceholders["KAKAO_NATIVE_APP_KEY"] =
             (project.findProperty("KAKAO_NATIVE_APP_KEY") as String?) ?: ""
+
+        // 런처에 뜨는 이름. 개발 빌드는 아래 buildTypes에서 덮어쓴다.
+        manifestPlaceholders["appLabel"] = "runiverse"
     }
 
     signingConfigs {
@@ -65,6 +68,24 @@ android {
     }
 
     buildTypes {
+        // 개발 빌드는 applicationId가 달라 Play에서 받은 앱과 나란히 깔린다.
+        //
+        // 같은 applicationId면 덮어쓰기가 실패한다 — Play 설치본은 구글이
+        // 만든 앱 서명 키로, 로컬 빌드는 업로드 키나 debug 키로 서명되기
+        // 때문이다(INSTALL_FAILED_UPDATE_INCOMPATIBLE). 지우고 깔면 되지만
+        // 그러면 로그인과 러닝 기록이 함께 날아간다.
+        debug {
+            applicationIdSuffix = ".dev"
+            manifestPlaceholders["appLabel"] = "runiverse dev"
+        }
+
+        // `profile`은 Flutter가 만드는 타입이다. DEBUG 리본 없이 돌려보는
+        // 용도라 이것도 개발 빌드로 친다. 이미 있으면 그대로 가져온다.
+        maybeCreate("profile").apply {
+            applicationIdSuffix = ".dev"
+            manifestPlaceholders["appLabel"] = "runiverse dev"
+        }
+
         release {
             // key.properties가 있으면 업로드 키로, 없으면 종전대로 debug 키로
             // 서명한다. Play는 debug 서명을 거부하므로 업로드용 산출물은
