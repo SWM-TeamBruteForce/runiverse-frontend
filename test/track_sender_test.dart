@@ -192,18 +192,19 @@ void main() {
 
       await sender.flush();
 
-      expect(channel.batches.single, hasLength(200));
-      expect(sender.lastSent, 200);
+      // 상한을 하드코딩하지 않는다. 서버 메시지 한도에서 역산한 값이라
+      // 바뀔 수 있고, 그때 이 테스트가 함께 흔들리면 안 된다.
+      expect(channel.batches.single, hasLength(TrackSender.batchLimit));
+      expect(sender.lastSent, TrackSender.batchLimit);
     });
 
     test('⚠️ 나눠 보내도 결국 다 간다', () async {
-      // 쌓이는 속도(10점/틱)보다 보내는 속도(200점/틱)가 빨라야 따라잡는다.
+      // 쌓이는 속도(10점/틱)보다 보내는 속도(batchLimit/틱)가 빨라야 따라잡는다.
       await store(1, 500);
       sender.start(roomId);
 
-      await sender.flush();
-      await sender.flush();
-      await sender.flush();
+      // 500점을 다 보낼 만큼 반복한다. `drain`이 실제로 하는 일이다.
+      await sender.drain();
 
       expect(sentSequences(), List.generate(500, (i) => i + 1));
     });
