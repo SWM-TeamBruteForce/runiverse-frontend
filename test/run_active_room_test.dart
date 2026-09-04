@@ -151,6 +151,30 @@ void main() {
       );
       expect(channel.finishes, 0, reason: '모르는 방을 끝내려 들면 안 된다');
     });
+
+    test('⚠️ ack를 못 받으면 번호를 남긴다', () async {
+      // 지우면 그 계정은 영영 못 푼다 — 409 응답에 번호가 없어
+      // 다시 얻을 데가 없다. 이번 시도는 막히더라도 다음 실행에서
+      // 다시 해볼 수 있어야 한다.
+      track.active = staleRoom;
+      await track.add(staleRoom, point(1));
+      rooms.failure = RunningRoomFailure.alreadyRunning;
+      channel.ack = false;
+
+      final container = await make();
+      await container.read(runningConnectionProvider.notifier).open();
+
+      expect(track.active, staleRoom, reason: '번호를 잃으면 다시 시도할 길이 없다');
+      expect(
+        await track.count(staleRoom),
+        1,
+        reason: '좌표까지 잃으면 그 구간을 다시 못 보낸다',
+      );
+      expect(
+        container.read(runningConnectionProvider).failure,
+        RunningRoomFailure.alreadyRunning,
+      );
+    });
   });
 
   group('끝나면 지운다', () {

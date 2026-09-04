@@ -225,6 +225,27 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   ///
   /// **남은 좌표를 먼저 보낸다.** 그 러닝의 트랙이 로컬에 남아 있는데 그냥
   /// 끝내면 서버는 받은 데까지로 기록을 확정한다 — 뛴 만큼이 안 남는다.
+  ///
+  /// ## ⚠️ ack를 못 받으면 번호를 지우지 않는다
+  ///
+  /// 예전에는 못 받아도 지웠다. "서버는 멱등이라 다시 끝내도 해롭지 않다"는
+  /// 근거였는데, 그것은 **`RUNNING_FINISH`가 서버에 닿았을 때** 이야기다.
+  /// 소켓이 안 붙었으면 `send`가 실패하고 [RunningChannel.finish]는 기다리지도
+  /// 않고 `false`를 준다 — 서버는 아무것도 못 받았는데 번호만 사라졌다.
+  ///
+  /// 그 번호가 **유일한 사본이다.** 409 응답에 번호가 없어 다시 얻을 데가
+  /// 없으므로, 지우는 순간 그 계정은 영영 러닝을 시작하지 못한다. 이 함수가
+  /// 막으려던 바로 그 상태다.
+  ///
+  /// 남겨 두면 이번 시도는 똑같이 막히지만 **다음 실행에서 다시 해볼 수 있다.**
+  /// ack 타임아웃(닿았을 수도 있다)이든 소켓 실패(확실히 안 닿았다)든 남기는
+  /// 쪽이 맞다 — 서버가 멱등이라 두 번 끝내도 해롭지 않다.
+  ///
+  /// ⚠️ **다만 서버가 재연결을 거부하면 이 경로는 영영 성공하지 못한다.**
+  /// 명세가 `RUNNING_START`의 참가자 판정을 `status='JOINED'`로 적어 두었는데
+  /// 정리 대상은 `RUNNING`이다(명세에도 "확인 필요"로 달려 있다). 그때는
+  /// `ERROR` 코드를 보고 포기해야 하지만, 아직 확인되지 않아 짐작으로 짜지
+  /// 않았다.
   Future<bool> _finishStaleRoom() async {
     final repository = ref.read(trackRepositoryProvider);
     final stale = await repository.activeRoom();
@@ -242,8 +263,11 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       await sender.drain();
       sender.stop();
 
-      final acked = await channel.finish();
-      if (!acked) debugPrint('[running] 종료 확인을 못 받았다. 그래도 정리한다');
+      // ⚠️ **ack를 받아야만 정리된 것이다.** 아래 주석 참조.
+      if (!await channel.finish()) {
+        debugPrint('[running] 종료 확인을 못 받았다. 방 번호를 남긴다');
+        return false;
+      }
     } on Object catch (error) {
       debugPrint('[running] 남은 방을 정리하지 못했다 · $error');
       return false;
@@ -253,8 +277,6 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       await channel.close();
     }
 
-    // ⚠️ ack를 못 받았어도 지운다. 못 지우면 다음 시도가 같은 자리에서 또
-    // 막히고, 서버는 멱등이라 다시 끝내도 해롭지 않다.
     await repository.clear(stale);
     await repository.clearActiveRoom();
     return true;
