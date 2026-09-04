@@ -813,7 +813,7 @@ gh pr create --repo SWM-TeamBruteForce/runiverse-frontend --base dev \
 | 누구 | 무엇 | 확인 방법 |
 |---|---|---|
 | 콘솔 | 네이티브 앱 키 | 앱 키 화면 (REST API 키와 다르다) |
-| 콘솔 | Android 플랫폼 등록 | 패키지 `com.swmaestro.runiverse` + 키 해시 |
+| 콘솔 | Android 플랫폼 등록 | 패키지 `com.runiverse.app` + 키 해시 |
 | 콘솔 | 카카오 로그인 활성화 | 기본이 꺼져 있다 |
 | 콘솔 | **동의항목 `이메일` ON** | ⚠️ 비즈니스 앱 전환이 필요할 수 있다 |
 | 서버 | `oauth.kakao.redirect-uri` | 지금 `http://localhost:5173`이라 앱이 못 받는다 |

@@ -121,8 +121,8 @@ buildTypes {
 
 | | 패키지명 | Client ID |
 |---|---|---|
-| 개발 | `com.swmaestro.runiverse.debug` | 별도 발급 · 한도 낮게 |
-| 운영 | `com.swmaestro.runiverse` | 별도 발급 · 로컬에서 쓰지 않음 |
+| 개발 | `com.runiverse.app.debug` | 별도 발급 · 한도 낮게 |
+| 운영 | `com.runiverse.app` | 별도 발급 · 로컬에서 쓰지 않음 |
 
 ### 왜 미뤘나
 
