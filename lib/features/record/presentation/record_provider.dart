@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
 import 'package:runiverse/features/record/domain/record_summary.dart';
+import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record/domain/run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_state.dart';
@@ -23,6 +26,14 @@ final runRecordRepositoryProvider = Provider<RunRecordRepository>(
 /// 주간 차트가 어느 7일인지 검증할 수 없다.
 final recordClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
+);
+
+/// 기록 하나의 상세. 기록 탭에서 카드를 눌렀을 때만 읽는다.
+///
+/// `autoDispose`가 기본이라 화면을 닫으면 버려진다 — 상세는 무거워서
+/// (경로 좌표가 통째로 들어 있다) 들고 있을 이유가 없다.
+final runDetailProvider = FutureProvider.family<RunDetail, int>(
+  (ref, recordId) => ref.read(runRecordRepositoryProvider).detail(recordId),
 );
 
 final recordControllerProvider =
@@ -54,8 +65,11 @@ class RecordController extends Notifier<RecordState> {
 
   RunRecordRepository get _repository => ref.read(runRecordRepositoryProvider);
 
-  /// 이번 달과 최근 7일을 읽는다. [month]를 주면 그 달을 읽는다.
-  Future<void> load({DateTime? month}) async {
+  /// 이번 달과 이번 주를 읽는다.
+  ///
+  /// [month]를 주면 그 달을, [select]를 주면 읽은 뒤 그 날을 고른다.
+  /// [select]가 없으면 이번 달이면 오늘, 지난달이면 1일이다.
+  Future<void> load({DateTime? month, DateTime? select}) async {
     final now = ref.read(recordClockProvider)();
     final target = month == null
         ? DateTime(now.year, now.month)
@@ -73,8 +87,9 @@ class RecordController extends Notifier<RecordState> {
 
       state = RecordData(
         month: target,
-        // 이번 달을 보고 있으면 오늘을, 지난달을 보고 있으면 그 달 1일을 고른다.
-        selectedDay: _initialDay(target, now),
+        selectedDay: select == null
+            ? _initialDay(target, now)
+            : DateTime(select.year, select.month, select.day),
         monthRecords: results[0],
         weekRecords: results[1],
         weekDays: days,
@@ -85,15 +100,32 @@ class RecordController extends Notifier<RecordState> {
     }
   }
 
-  /// 캘린더에서 날짜를 고른다. 아래 목록이 그 날로 바뀐다.
+  /// 날짜를 고른다. 아래 목록이 그 날로 바뀐다.
   ///
-  /// 다시 읽지 않는다 — 그 달 기록은 이미 손에 있다.
+  /// ## ⚠️ 보고 있는 달 밖이면 캘린더도 따라간다
+  ///
+  /// 주간 막대는 달 경계를 넘는다 — 9월 2일 수요일에 보는 이번 주는 8월 31일
+  /// 월요일에 시작한다. 그 막대를 눌렀을 때 캘린더가 9월에 머물면 **고른 날이
+  /// 캘린더 어디에도 표시되지 않는다.** 목록은 8월 31일이라 말하는데 캘린더는
+  /// 아무 칸도 밝히지 않아, 두 화면이 서로 다른 말을 한다.
+  ///
+  /// 그 달을 새로 읽어야 한다 — 손에 든 것은 그 주 몫뿐이라 월 요약을 낼 수
+  /// 없다. `‹ ›`로 달을 옮길 때와 같은 비용이고, 주 경계에 걸리는 날은 한 달에
+  /// 며칠뿐이다.
   void select(DateTime day) {
     final current = state;
     if (current is! RecordData) return;
-    state = current.copyWith(
-      selectedDay: DateTime(day.year, day.month, day.day),
-    );
+
+    final picked = DateTime(day.year, day.month, day.day);
+    final sameMonth =
+        picked.year == current.month.year &&
+        picked.month == current.month.month;
+
+    if (!sameMonth) {
+      unawaited(load(month: picked, select: picked));
+      return;
+    }
+    state = current.copyWith(selectedDay: picked);
   }
 
   /// 이전·다음 달로 옮긴다. 그 달을 새로 읽는다.

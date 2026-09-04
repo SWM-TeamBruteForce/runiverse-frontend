@@ -14,7 +14,7 @@ import 'package:runiverse/core/widgets/page_indicator.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/session/domain/run_metrics.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
-import 'package:runiverse/features/session/presentation/run_map_view.dart';
+import 'package:runiverse/core/widgets/run_map_view.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/run_stop_sheet.dart';

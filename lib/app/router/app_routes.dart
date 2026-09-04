@@ -81,6 +81,15 @@ abstract final class AppRoutes {
   /// 기록 (S21)
   static const record = '/record';
 
+  /// 기록 상세. **S16과 같은 화면**을 지난 기록으로 연다.
+  ///
+  /// 기록 탭 안쪽이라 탭 branch의 자식으로 둔다 — 상세를 열어 둔 채 다른
+  /// 탭에 갔다 와도 그 자리가 남는다.
+  static const recordDetail = 'detail/:recordId';
+
+  /// `/record/detail/12` — [recordDetail]은 상대 경로라 직접 못 쓴다.
+  static String recordDetailOf(int recordId) => '$record/detail/$recordId';
+
   /// 피드 — 준비 중
   static const feed = '/feed';
 

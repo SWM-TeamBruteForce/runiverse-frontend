@@ -15,7 +15,9 @@ import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
 import 'package:runiverse/features/session/presentation/run_prepare_page.dart';
 import 'package:runiverse/features/session/presentation/run_session_page.dart';
-import 'package:runiverse/features/session/presentation/run_result_page.dart';
+import 'package:runiverse/features/record/domain/run_detail.dart';
+import 'package:runiverse/features/record/presentation/record_detail_page.dart';
+import 'package:runiverse/features/record/presentation/run_result_view.dart';
 import 'package:runiverse/features/session/presentation/run_summary_page.dart';
 import 'package:runiverse/features/settings/presentation/password_change_page.dart';
 import 'package:runiverse/features/settings/presentation/settings_page.dart';
@@ -116,7 +118,10 @@ GoRouter createAppRouter({String? initialLocation}) {
       ),
       GoRoute(
         path: AppRoutes.runResult,
-        builder: (context, state) => const RunResultPage(),
+        // 종료 직후 S15가 만들어 넘긴 상세를 그대로 그린다. 화면이 세션을
+        // 읽지 않으므로 `record`가 `session/presentation`에 기대지 않는다.
+        builder: (context, state) =>
+            RunResultView(detail: state.extra! as RunDetail),
       ),
 
       StatefulShellRoute.indexedStack(
@@ -139,6 +144,21 @@ GoRouter createAppRouter({String? initialLocation}) {
               GoRoute(
                 path: AppRoutes.record,
                 builder: (context, state) => const RecordPage(),
+                routes: [
+                  GoRoute(
+                    path: AppRoutes.recordDetail,
+                    builder: (context, state) => RecordDetailPage(
+                      // 경로에서 온 값이라 문자열이다. 숫자가 아니면 기록
+                      // 목록으로 돌려보내는 대신 0을 넘겨 "못 찾음"으로
+                      // 흘린다 — 상세 화면이 이미 오류 상태를 그린다.
+                      recordId:
+                          int.tryParse(
+                            state.pathParameters['recordId'] ?? '',
+                          ) ??
+                          0,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
