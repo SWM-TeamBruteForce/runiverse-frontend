@@ -116,8 +116,10 @@ class RunResultView extends StatelessWidget {
                     // 빈 차트를 그리면 "0spm으로 뛰었다"로 읽힌다.
                     if (detail.hasCadence) ...[
                       SplitLineChart(
-                        title: AppStrings.runResultCadenceChart,
-                        unit: AppStrings.runResultCadenceUnit,
+                        // ⚠️ **50m 표본이다.** 제목이 배율을 밝혀야 위쪽
+                        // 1km 그래프와 헷갈리지 않는다.
+                        title: AppStrings.runResultCadenceDetailChart,
+                        unit: AppStrings.runResultCadenceDetailUnit,
                         values: [
                           for (final s in samples)
                             (s.cadenceSpm ?? 0).toDouble(),

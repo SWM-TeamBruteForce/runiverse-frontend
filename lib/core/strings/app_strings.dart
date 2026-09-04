@@ -609,11 +609,16 @@ abstract final class AppStrings {
   /// 위아래로 페이스 그래프가 둘이라 이름이 같으면 어느 쪽을 보는지 모른다.
   static const runResultPaceDetailChart = '페이스 상세';
 
-  /// [runResultPaceDetailChart]가 몇 미터마다 한 점인지. 제목 옆에 붙는다.
-  static const runResultPaceDetailUnit = '50m마다';
+  /// 값의 단위와 **표본 간격**을 함께 적는다. 간격만 적으면 값이 무엇인지
+  /// 사라지고, 단위만 적으면 위쪽 1km 그래프와 구분되지 않는다.
+  static const runResultPaceDetailUnit = '/km · 50m마다';
 
   static const runResultCadenceChart = '구간별 케이던스';
   static const runResultCadenceUnit = 'spm';
+
+  /// 케이던스도 50m 표본이다. 페이스 상세와 같은 형식으로 적는다.
+  static const runResultCadenceDetailChart = '케이던스 상세';
+  static const runResultCadenceDetailUnit = 'spm · 50m마다';
 
   /// 누른 채 밀 수 있다는 것을 아무도 스스로 알아채지 못한다.
   static const runResultChartHint = '그래프를 누른 채 좌우로 밀어 구간별 기록을 확인하세요';
