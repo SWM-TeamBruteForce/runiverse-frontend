@@ -15,9 +15,7 @@ import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
 import 'package:runiverse/features/session/presentation/run_prepare_page.dart';
 import 'package:runiverse/features/session/presentation/run_session_page.dart';
-import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/presentation/record_detail_page.dart';
-import 'package:runiverse/features/record/presentation/run_result_view.dart';
 import 'package:runiverse/features/session/presentation/run_summary_page.dart';
 import 'package:runiverse/features/settings/presentation/password_change_page.dart';
 import 'package:runiverse/features/settings/presentation/settings_page.dart';
@@ -118,10 +116,11 @@ GoRouter createAppRouter({String? initialLocation}) {
       ),
       GoRoute(
         path: AppRoutes.runResult,
-        // 종료 직후 S15가 만들어 넘긴 상세를 그대로 그린다. 화면이 세션을
-        // 읽지 않으므로 `record`가 `session/presentation`에 기대지 않는다.
+        // 종료 직후에도 **서버가 확정한 값**을 그린다. S15가 방 번호만
+        // 넘기고 화면이 17·18번으로 읽는다 — 기록 탭에서 여는 것과 같은
+        // 경로다.
         builder: (context, state) =>
-            RunResultView(detail: state.extra! as RunDetail),
+            RecordDetailPage(runningRoomId: state.extra! as int),
       ),
 
       StatefulShellRoute.indexedStack(
@@ -148,12 +147,12 @@ GoRouter createAppRouter({String? initialLocation}) {
                   GoRoute(
                     path: AppRoutes.recordDetail,
                     builder: (context, state) => RecordDetailPage(
-                      // 경로에서 온 값이라 문자열이다. 숫자가 아니면 기록
-                      // 목록으로 돌려보내는 대신 0을 넘겨 "못 찾음"으로
-                      // 흘린다 — 상세 화면이 이미 오류 상태를 그린다.
-                      recordId:
+                      // 경로에서 온 값이라 문자열이다. 숫자가 아니면 0을
+                      // 넘겨 "못 찾음"으로 흘린다 — 상세 화면이 이미 오류
+                      // 상태를 그린다.
+                      runningRoomId:
                           int.tryParse(
-                            state.pathParameters['recordId'] ?? '',
+                            state.pathParameters['runningRoomId'] ?? '',
                           ) ??
                           0,
                     ),

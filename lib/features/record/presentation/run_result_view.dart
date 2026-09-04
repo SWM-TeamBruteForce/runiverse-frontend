@@ -7,6 +7,7 @@ import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
+import 'package:runiverse/features/record/domain/split_aggregator.dart';
 import 'package:runiverse/features/record/presentation/split_line_chart.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/core/widgets/run_map_view.dart';
@@ -39,7 +40,10 @@ class RunResultView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final splits = detail.splits;
+    // 테이블은 1km, 그래프는 50m다. 같은 러닝을 두 배율로 본다 — 표는
+    // "몇 번째 킬로를 몇 분에 뛰었나"를, 그래프는 "어디서 흔들렸나"를 답한다.
+    final splits = detail.tableSplits;
+    final samples = detail.chartSamples;
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -64,40 +68,74 @@ class RunResultView extends StatelessWidget {
                   if (splits.isEmpty)
                     const _NoSplits()
                   else ...[
+                    // 1km 그래프가 먼저다. **러닝 전체의 모양을 먼저 보여
+                    // 준다** — 몇 번째 킬로가 무너졌는지는 이쪽이 답한다.
                     SplitLineChart(
                       title: AppStrings.runResultPaceChart,
                       unit: AppStrings.profilePacePerKm,
                       values: [
-                        for (final s in splits) s.pace.inSeconds.toDouble(),
+                        for (final s in splits)
+                          (s.pace ?? Duration.zero).inSeconds.toDouble(),
                       ],
                       labels: _labels(splits, detail.distanceKm),
                       format: (v) =>
                           PaceCalculator.format(Duration(seconds: v.round())),
                       color: colors.primary,
                       hint: AppStrings.runResultChartHint,
+                      // ⚠️ 페이스는 작을수록 빠르므로 그대로 올리면 솟은
+                      // 봉우리가 "느렸던 구간"이 되어 거꾸로 읽힌다. **두 페이스
+                      // 그래프가 같은 방향이어야 한다** — 위아래로 붙어 있는데
+                      // 축이 반대면 같은 러닝이 서로 다른 얘기를 한다.
+                      inverted: true,
                     ),
                     const SizedBox(height: AppSpacing.space4),
                     _SplitTable(detail: detail),
                     const SizedBox(height: AppSpacing.space4),
-                    // 구간 케이던스를 하나도 모르면 차트를 아예 접는다.
-                    // 빈 차트를 그리면 "0spm으로 뛰었다"로 읽힌다.
-                    if (splits.any((s) => s.cadenceSpm != null)) ...[
+
+                    // ⚠️ **1km 묶음을 다 보여 준 뒤에 50m로 내려간다.**
+                    // 그래프-표-그래프 순서가 배율 순서이기도 하다: 1km
+                    // 그래프와 1km 표가 같은 단위끼리 붙고, 그 아래부터
+                    // 50m 상세가 시작된다.
+                    SplitLineChart(
+                      title: AppStrings.runResultPaceDetailChart,
+                      unit: AppStrings.runResultPaceDetailUnit,
+                      values: [
+                        for (final s in samples)
+                          (s.pace ?? Duration.zero).inSeconds.toDouble(),
+                      ],
+                      labels: _sampleLabels(samples),
+                      format: (v) =>
+                          PaceCalculator.format(Duration(seconds: v.round())),
+                      color: colors.primary,
+                      hint: AppStrings.runResultChartHint,
+                      inverted: true,
+                      filled: true,
+                    ),
+                    const SizedBox(height: AppSpacing.space4),
+                    // ⚠️ 값이 없으면 그래프 대신 **이유를 그 자리에 적는다.**
+                    // 빈 그래프는 "0spm으로 뛰었다"로 읽히고, 카드를 통째로
+                    // 감추면 케이던스가 원래 없는 화면인 줄 알게 된다.
+                    if (detail.hasCadence) ...[
                       SplitLineChart(
-                        title: AppStrings.runResultCadenceChart,
-                        unit: AppStrings.runResultCadenceUnit,
+                        // ⚠️ **50m 표본이다.** 제목이 배율을 밝혀야 위쪽
+                        // 1km 그래프와 헷갈리지 않는다.
+                        title: AppStrings.runResultCadenceDetailChart,
+                        unit: AppStrings.runResultCadenceDetailUnit,
                         values: [
-                          for (final s in splits)
+                          for (final s in samples)
                             (s.cadenceSpm ?? 0).toDouble(),
                         ],
-                        labels: _labels(splits, detail.distanceKm),
+                        labels: _sampleLabels(samples),
                         format: (v) => v.round().toString(),
                         color: colors.primary,
                         hint: AppStrings.runResultChartHint,
-                        // ⚠️ 지어낸 값이면 꼬리표를 단다.
-                        badge: detail.cadenceIsSample
-                            ? AppStrings.runResultSample
-                            : null,
+                        // 50m 상세라 페이스 상세와 같은 모양으로 둔다.
+                        // ⚠️ 뒤집지 않는다 — 케이던스는 클수록 좋은 값이다.
+                        filled: true,
+                        // 서버 실측값이라 꼬리표를 달지 않는다.
                       ),
+                    ] else ...[
+                      const _NoCadence(),
                     ],
                   ],
                 ],
@@ -109,12 +147,21 @@ class RunResultView extends StatelessWidget {
     );
   }
 
-  /// x축 라벨. 마지막 자투리 구간만 실제로 닿은 지점을 적는다.
-  static List<String> _labels(List<RunSplitDetail> splits, double totalKm) => [
+  /// 1km 그래프의 x축 라벨. 마지막 자투리 구간만 실제로 닿은 지점을 적는다.
+  static List<String> _labels(List<SplitBucket> splits, double totalKm) => [
     for (final split in splits)
-      split.isPartial
+      split.isPartialOf(SplitAggregator.tableMeters)
           ? AppStrings.runResultPartialLabel(totalKm)
           : AppStrings.runResultSplitLabel(split.index),
+  ];
+
+  /// 50m 표본의 x축·툴팁 라벨. **닿은 지점의 누적 거리**다.
+  ///
+  /// 구간 번호(`1km` `2km`)를 쓰지 않는다 — 50m면 5km에 100개가 되어 번호가
+  /// 아무 뜻도 갖지 못한다. 어디쯤이었는지가 읽고 싶은 값이다.
+  static List<String> _sampleLabels(List<SplitBucket> samples) => [
+    for (final sample in samples)
+      AppStrings.runResultPartialLabel(sample.endDistanceMeters / 1000),
   ];
 }
 
@@ -298,7 +345,7 @@ class _SplitTableState extends State<_SplitTable> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final all = widget.detail.splits;
+    final all = widget.detail.tableSplits;
     final collapsed = !_expanded && all.length > _SplitTable.collapsedCount;
     final shown = collapsed ? all.take(_SplitTable.collapsedCount) : all;
 
@@ -374,7 +421,7 @@ class _SplitRow extends StatelessWidget {
     required this.average,
   });
 
-  final RunSplitDetail split;
+  final SplitBucket split;
   final double totalKm;
   final Duration? average;
 
@@ -382,7 +429,9 @@ class _SplitRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final burned = split.caloriesKcal;
-    final gap = average == null ? null : split.split.gapTo(average!);
+    // 평균과의 거리. 순위가 아니라 내 평균 대비다.
+    final pace = split.pace;
+    final gap = (average == null || pace == null) ? null : pace - average!;
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -394,7 +443,7 @@ class _SplitRow extends StatelessWidget {
           SizedBox(
             width: 64,
             child: Text(
-              split.isPartial
+              split.isPartialOf(SplitAggregator.tableMeters)
                   ? AppStrings.runResultPartialLabel(totalKm)
                   : AppStrings.runResultSplitLabel(split.index),
               style: AppTypography.body.copyWith(color: colors.textSecondary),
@@ -435,7 +484,7 @@ class _SplitRow extends StatelessWidget {
             ),
           ),
           Text(
-            burned == null ? '--' : '$burned${AppStrings.runResultUnitKcal}',
+            '$burned${AppStrings.runResultUnitKcal}',
             style: AppTypography.caption.copyWith(color: colors.textSecondary),
           ),
         ],
@@ -449,6 +498,58 @@ class _SplitRow extends StatelessWidget {
     // `implementation-notes` 3-5). 0에는 부호가 없다.
     if (seconds == 0) return '0s';
     return seconds > 0 ? '+${seconds}s' : '${seconds}s';
+  }
+}
+
+/// 케이던스를 하나도 못 구했을 때 그래프 자리를 지키는 카드.
+///
+/// 그래프와 같은 껍데기를 쓴다. 자리가 비면 화면이 위로 붙어 버려서
+/// "케이던스라는 게 있었나" 싶어진다.
+class _NoCadence extends StatelessWidget {
+  const _NoCadence();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.bgSurface,
+        border: Border.all(color: colors.borderDefault),
+        borderRadius: AppRadius.lg,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.space4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  AppStrings.runResultCadenceDetailChart,
+                  style: AppTypography.micro.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.space1),
+                Text(
+                  AppStrings.runResultCadenceDetailUnit,
+                  style: AppTypography.micro.copyWith(
+                    color: colors.textTertiary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.space3),
+            Text(
+              AppStrings.runResultNoCadence,
+              style: AppTypography.micro.copyWith(color: colors.textTertiary),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

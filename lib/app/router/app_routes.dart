@@ -85,10 +85,14 @@ abstract final class AppRoutes {
   ///
   /// 기록 탭 안쪽이라 탭 branch의 자식으로 둔다 — 상세를 열어 둔 채 다른
   /// 탭에 갔다 와도 그 자리가 남는다.
-  static const recordDetail = 'detail/:recordId';
+  static const recordDetail = 'detail/:runningRoomId';
 
   /// `/record/detail/12` — [recordDetail]은 상대 경로라 직접 못 쓴다.
-  static String recordDetailOf(int recordId) => '$record/detail/$recordId';
+  ///
+  /// ⚠️ **기록 번호가 아니라 방 번호다.** 결과 조회(17·18번)가 방 번호로
+  /// 찾고, 러닝을 막 끝냈을 때 앱이 아는 것도 방 번호뿐이다.
+  static String recordDetailOf(int runningRoomId) =>
+      '$record/detail/$runningRoomId';
 
   /// 피드 — 준비 중
   static const feed = '/feed';

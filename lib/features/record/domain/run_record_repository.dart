@@ -30,12 +30,17 @@ abstract interface class RunRecordRepository {
   /// [limit]은 기본 20, **최대 50**이다. 넘겨도 서버가 50으로 깎는다.
   Future<RunRecordPage> recent({String? cursor, int limit});
 
-  /// 기록 하나의 상세. `GET /api/v1/running-records/{id}`(20번).
+  /// 러닝 결과 상세. **방 번호로 찾는다.**
   ///
-  /// 목록(19번)이 주지 않는 구간·케이던스·칼로리·고도와 전체 경로가 들어 있다.
-  /// **구간은 서버가 나눈 것을 그대로 쓴다** — 앱이 다시 나누면 같은 러닝의
-  /// 구간 수가 화면마다 달라진다.
-  Future<RunDetail> detail(int recordId);
+  /// `GET /running-rooms/{id}/results`(17번)와 `.../split-results`(18번)를
+  /// 합친다. 둘을 동시에 부른다 — 줄 세우면 왕복이 두 배다.
+  ///
+  /// ⚠️ **기록 번호가 아니라 방 번호다.** 러닝을 막 끝냈을 때 앱이 아는 것은
+  /// `POST /solo`가 준 방 번호뿐이고, 기록 번호는 아직 모른다.
+  ///
+  /// **구간은 서버가 나눈 것을 그대로 쓴다** — 앱이 좌표에서 다시 나누면
+  /// 같은 러닝의 숫자가 화면마다 달라진다.
+  Future<RunDetail> byRoom(int runningRoomId);
 }
 
 /// [RunRecordRepository.recent]의 한 페이지.

@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/coming_soon_page.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
+import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
+import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 
@@ -20,7 +22,18 @@ void main() {
   /// `onboarding_flow_test.dart`가 따로 본다.
   Future<void> pumpApp(WidgetTester tester) async {
     await tester.pumpWidget(
-      const ProviderScope(child: RuniverseApp(initialLocation: AppRoutes.home)),
+      ProviderScope(
+        // ⚠️ **기록 저장소를 갈아 끼워야 한다.** 진짜 구현은 `dioProvider`를
+        // 거치고, 그쪽은 `API_BASE_URL` 없이 죽는다 — 테스트는
+        // `--dart-define`을 받지 않는다. 여기서 보는 건 라우터 배선이지
+        // 서버 통신이 아니다.
+        overrides: [
+          runRecordRepositoryProvider.overrideWithValue(
+            FakeRunRecordRepository(today: DateTime(2026, 9, 3)),
+          ),
+        ],
+        child: const RuniverseApp(initialLocation: AppRoutes.home),
+      ),
     );
     await tester.pumpAndSettle();
   }

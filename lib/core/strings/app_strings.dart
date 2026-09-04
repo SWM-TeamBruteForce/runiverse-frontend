@@ -604,8 +604,21 @@ abstract final class AppStrings {
   static const runResultCadence = '케이던스';
 
   static const runResultPaceChart = '구간별 페이스';
+
+  /// 같은 러닝을 더 잘게 본 그래프. **제목이 배율을 밝혀야 한다** —
+  /// 위아래로 페이스 그래프가 둘이라 이름이 같으면 어느 쪽을 보는지 모른다.
+  static const runResultPaceDetailChart = '페이스 상세';
+
+  /// 값의 단위와 **표본 간격**을 함께 적는다. 간격만 적으면 값이 무엇인지
+  /// 사라지고, 단위만 적으면 위쪽 1km 그래프와 구분되지 않는다.
+  static const runResultPaceDetailUnit = '/km · 50m마다';
+
   static const runResultCadenceChart = '구간별 케이던스';
   static const runResultCadenceUnit = 'spm';
+
+  /// 케이던스도 50m 표본이다. 페이스 상세와 같은 형식으로 적는다.
+  static const runResultCadenceDetailChart = '케이던스 상세';
+  static const runResultCadenceDetailUnit = 'spm · 50m마다';
 
   /// 누른 채 밀 수 있다는 것을 아무도 스스로 알아채지 못한다.
   static const runResultChartHint = '그래프를 누른 채 좌우로 밀어 구간별 기록을 확인하세요';
@@ -621,6 +634,12 @@ abstract final class AppStrings {
 
   /// 1km를 채우지 못하면 구간이 하나도 나오지 않는다.
   static const runResultNoSplits = '구간을 나눌 만큼 달리지 않았어요';
+
+  /// 케이던스가 하나도 없을 때. **그래프 대신 이 문구를 그 자리에 둔다.**
+  ///
+  /// 빈 그래프를 그리면 "0spm으로 뛰었다"로 읽히고, 카드를 통째로 감추면
+  /// 케이던스가 원래 없는 화면인 줄 알게 된다.
+  static const runResultNoCadence = '걸음 센서를 읽지 못해 이번 러닝은 케이던스가 없어요';
 
   /// `3km`처럼 구간 끝 지점을 적는다.
   static String runResultSplitLabel(int index) => '${index}km';

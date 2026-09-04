@@ -9,12 +9,11 @@ import 'package:runiverse/core/theme/tokens/app_radius.dart';
 import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
-import 'package:runiverse/features/session/domain/session_run_detail.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
+import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 
 /// 러닝 요약 (S15) — Figma `46:27` 기준.
 ///
@@ -51,6 +50,8 @@ class RunSummaryPage extends ConsumerWidget {
     if (state is! RunFinished) return const _NothingToShow();
 
     final metrics = state.metrics;
+    // 결과 조회는 방 번호로 한다. 없으면 상세로 갈 수 없다.
+    final room = ref.watch(runningConnectionProvider).room;
     final averagePace = PaceCalculator.format(
       PaceCalculator.perKilometer(
         meters: metrics.distanceMeters,
@@ -146,18 +147,15 @@ class RunSummaryPage extends ConsumerWidget {
                 size: AppButtonSize.lg,
                 // `go`가 아니라 `push`다. 결과 화면이 요약 위에 얹혀야
                 // 뒤로가기로 돌아오고, 그동안 트랙도 그대로 남는다.
-                onPressed: () => context.push(
-                  AppRoutes.runResult,
-                  // 화면이 세션을 읽지 않는다. 세션을 아는 이쪽이 상세로
-                  // 옮겨서 넘긴다 — 그래야 같은 화면을 기록 탭도 연다.
-                  extra: SessionRunDetail.from(
-                    metrics: metrics,
-                    track: ref
-                        .read(runSessionControllerProvider.notifier)
-                        .track,
-                    weightKg: ref.read(bodyProfileProvider).weightKg,
-                  ),
-                ),
+                // ⚠️ **방 번호만 넘긴다.** 상세는 서버가 확정한 값을 읽는다
+                // (17·18번). 앱이 계산한 값을 그리면 같은 러닝의 숫자가
+                // 화면마다 달라진다.
+                //
+                // 방을 못 열었으면(409 등) 결과를 볼 수 없다. 그때는 버튼을
+                // 비활성으로 둔다 — 눌러 봐야 빈 화면이다.
+                onPressed: room == null
+                    ? null
+                    : () => context.push(AppRoutes.runResult, extra: room.id),
               ),
             ),
           ],
