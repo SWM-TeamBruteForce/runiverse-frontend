@@ -127,8 +127,21 @@ class RunSessionController extends Notifier<RunSessionState> {
   List<List<GeoPoint>> get track => [
     for (final segment in _segments)
       if (segment.length > 1) segment,
-    if (_points.length > 1) List.unmodifiable(_points),
+    // ⚠️ **끝에 원본 좌표를 하나 더 잇는다.** 보정값만으로 그리면 선 끝이
+    // 지도의 현위치 마커를 못 따라가 몇 미터 떨어진 채로 보인다. 모양은
+    // 보정값 그대로 두고 **마지막 한 점만** 실제 위치에 닿게 한다.
+    //
+    // 그만큼 그려진 선이 센 거리보다 조금 길어지지만, 킬로미터 단위에서
+    // 몇 미터다. 선이 끊겨 보이는 쪽이 훨씬 나쁘다.
+    if (_points.length > 1)
+      List.unmodifiable([
+        ..._points,
+        if (_lastRaw case final raw? when raw != _points.last) raw,
+      ]),
   ];
+
+  /// 마지막으로 받은 **보정 전** 좌표. 지도 선의 끝점에만 쓴다.
+  GeoPoint? _lastRaw;
 
   double _distanceMeters = 0;
 
@@ -325,6 +338,11 @@ class RunSessionController extends Notifier<RunSessionState> {
         }
         final heading = _headingAt(point);
         _points.add(point);
+        // ⚠️ **원본도 따로 들고 있는다.** 지도가 그리는 선은 보정 좌표라
+        // 원본보다 뒤처지고, SDK 위치 마커는 원본을 쓴다. 그대로 두면
+        // **선 끝과 마커가 몇 미터 벌어진 채로 보인다.** [track]이 끝점만
+        // 이 값으로 이어 붙인다 — 거리 계산은 [_points]만 쓰므로 그대로다.
+        _lastRaw = raw;
         final metrics = _metrics();
         state = RunRunning(metrics);
 
@@ -420,6 +438,7 @@ class RunSessionController extends Notifier<RunSessionState> {
   }
 
   void _reset() {
+    _lastRaw = null;
     _points.clear();
     _segments.clear();
     // ⚠️ 안 비우면 다음 러닝의 첫 좌표가 **지난 러닝의 마지막 위치로 끌려온다.**

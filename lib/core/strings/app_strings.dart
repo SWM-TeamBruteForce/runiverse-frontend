@@ -568,6 +568,11 @@ abstract final class AppStrings {
   /// 지도 페이지에 키가 없을 때. 나머지 기능은 그대로 돈다.
   static const runMapUnavailable = '지도를 불러올 수 없어요';
 
+  /// 지도 줌 버튼. **화면에 글자로 나오지 않고 스크린 리더가 읽는다** —
+  /// 아이콘만 있는 버튼이라 이 이름이 없으면 "버튼"이라고만 읽힌다.
+  static const mapZoomIn = '지도 확대';
+  static const mapZoomOut = '지도 축소';
+
   static const runSummaryTitle = '러닝 완료';
 
   /// 요약에서는 **평균**을 본다. 그 순간의 페이스가 아니라 오늘 어떻게
