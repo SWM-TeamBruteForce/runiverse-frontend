@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/config/legal_links.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
 import 'package:runiverse/core/theme/tokens/app_radius.dart';
@@ -16,6 +19,7 @@ import 'package:runiverse/features/settings/domain/profile_visibility.dart';
 import 'package:runiverse/features/settings/domain/settings_failure.dart';
 import 'package:runiverse/features/settings/presentation/settings_provider.dart';
 import 'package:runiverse/features/settings/presentation/withdraw_sheet.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// 설정 (S22.2).
 ///
@@ -131,14 +135,46 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   // ── 약관 ──────────────────────────────────────────────────
 
-  /// 문서 주소가 아직 없다.
+  /// 이용약관 문서는 아직 없다. 법정 필수가 아니라 신고·제재 기능을 붙일 때
+  /// 만든다.
   ///
   /// 행을 감추지 않는 이유는, **약관을 볼 수 있어야 한다는 사실 자체가 약속**이라
   /// 자리를 비워두면 나중에 붙이는 것을 잊기 때문이다.
   void _openTerms() {
-    // 주소가 채워지면 여기서 `url_launcher`로 연다.
+    if (LegalLinks.isReady(LegalLinks.terms)) {
+      unawaited(_openDocument(LegalLinks.terms));
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text(AppStrings.settingsTermsPending)),
+    );
+  }
+
+  /// 고지 문서를 브라우저로 연다.
+  ///
+  /// ## ⚠️ 실패를 삼키지 않는다
+  ///
+  /// `launchUrl`은 열 수 없을 때 `false`를 돌려주거나 던진다. 그대로 두면
+  /// **아무 일도 일어나지 않는 버튼**이 되고, 사용자는 앱이 멈춘 줄 안다.
+  ///
+  /// 안드로이드에서 열리려면 매니페스트 `<queries>`에 VIEW+https 인텐트가
+  /// 있어야 한다. 없으면 예외도 로그도 없이 실패한다.
+  Future<void> _openDocument(String url) async {
+    var opened = false;
+    try {
+      opened = await launchUrl(
+        Uri.parse(url),
+        // 기본값이면 안드로이드는 Custom Tab으로 연다. 앱 밖으로 튕기지
+        // 않으면서 뒤로가기로 돌아온다.
+        mode: LaunchMode.platformDefault,
+      );
+    } on Object catch (error) {
+      debugPrint('[settings] 문서를 열지 못했다 · $error');
+    }
+    if (opened || !mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text(AppStrings.settingsLinkFailed)),
     );
   }
 
@@ -236,6 +272,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     label: AppStrings.settingsPassword,
                     onTap: () => context.push(AppRoutes.passwordChange),
                   ),
+                _ActionRow(
+                  label: AppStrings.settingsPrivacy,
+                  onTap: () => _openDocument(LegalLinks.privacy),
+                ),
+                _ActionRow(
+                  label: AppStrings.settingsAccountDeletion,
+                  onTap: () => _openDocument(LegalLinks.accountDeletion),
+                ),
                 _ActionRow(label: AppStrings.settingsTerms, onTap: _openTerms),
                 // ⚠️ 조회가 실패해도 이 행은 살아 있다.
                 _ActionRow(label: AppStrings.settingsSignOut, onTap: _signOut),

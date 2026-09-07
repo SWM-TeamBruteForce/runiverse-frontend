@@ -71,6 +71,13 @@ dependencies:
   # 같은 함정이다(위 참고). 캐럿(`^`)을 쓰면 다음 사람이 `pub upgrade`만 해도
   # 13.x가 올라와 깨지므로 정확한 버전으로 박는다.
   permission_handler: 12.0.0
+  # 개인정보처리방침·계정삭제 안내를 외부 문서로 연다. 문서는 앱 밖(GitHub
+  # Pages)에 있고, 구글 플레이 심사가 두 링크를 요구한다.
+  #
+  # ⚠️ **안드로이드는 `<queries>`에 VIEW+https 인텐트가 있어야 열린다.**
+  # 없으면 `canLaunchUrl`이 조용히 false를 돌려주고 링크가 안 열린다 —
+  # 에러도 로그도 없다. 매니페스트를 함께 본다.
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
