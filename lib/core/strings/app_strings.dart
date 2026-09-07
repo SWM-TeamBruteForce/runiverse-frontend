@@ -169,6 +169,11 @@ abstract final class AppStrings {
   static const profileBirthLabel = '생년월일';
   static const profileBirthQuestion = '언제 태어났나요';
   static const profileBirthWhy = '기록을 계산하는 데만 써요. 다른 러너에게 보이지 않아요.';
+
+  /// 만 14세 미만을 막을 때. **왜 막혔는지 말해야 한다** — 서버도 400으로
+  /// 거절하지만 그 메시지는 화면에 닿지 않아, 앱이 말하지 않으면 사용자는
+  /// 다음 버튼이 고장 난 줄 안다. 기준은 `AgeRule.minimum`이다.
+  static const profileBirthTooYoung = '만 14세부터 가입할 수 있어요';
   static const profileUnitYear = '년';
   static const profileUnitMonth = '월';
   static const profileUnitDay = '일';

@@ -14,6 +14,7 @@ import 'package:runiverse/core/theme/tokens/app_radius.dart';
 import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/core/utils/age_rule.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/core/widgets/app_input.dart';
 import 'package:runiverse/core/widgets/preset_chip.dart';
@@ -297,7 +298,11 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
       columns: [
         WheelColumn(
           unit: AppStrings.profileUnitYear,
-          values: [for (var y = now.year - 80; y <= now.year - 10; y++) y],
+          // ⚠️ 상한은 `AgeRule`이 정한다. 여기서 숫자를 직접 적으면
+          // 프로필 수정 화면과 갈린다.
+          values: [
+            for (var y = now.year - 80; y <= AgeRule.latestYear(now); y++) y,
+          ],
           initial: current.year,
         ),
         WheelColumn(
@@ -319,8 +324,22 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
     );
     if (picked == null) return;
 
-    setState(() => _birth = DateTime(picked[0], picked[1], picked[2]));
+    final birth = DateTime(picked[0], picked[1], picked[2]);
+    setState(() => _birth = birth);
+
+    // ⚠️ **막혔으면 다음으로 넘기지 않는다.** 고른 값은 그대로 두어 무엇을
+    // 골랐는지 보이게 하고, 아래에 이유를 띄운다. 값을 지워버리면 왜 안
+    // 넘어가는지 알 수 없다.
+    if (_birthTooYoung) return;
     _advance();
+  }
+
+  /// 만 14세 미만인가. 아직 안 골랐으면 `false`다 — 고르기 전에 경고를
+  /// 띄울 이유가 없다.
+  bool get _birthTooYoung {
+    final birth = _birth;
+    if (birth == null) return false;
+    return !AgeRule.isAllowed(birth, now: DateTime.now());
   }
 
   Future<void> _pickBody() async {
@@ -610,6 +629,9 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
       child: _PickerRow(
         value: _birth == null ? null : _birthLabel,
         onTap: _pickBirth,
+        // 만 14세 미만이면 여기서 멈춘다. 서버도 400으로 막지만 그 메시지는
+        // 화면에 닿지 않는다.
+        error: _birthTooYoung ? AppStrings.profileBirthTooYoung : null,
       ),
     ),
     _stepGender => _Question(
@@ -916,17 +938,21 @@ class _Question extends StatelessWidget {
 
 /// 시트를 여는 줄. 값이 있으면 그 값을, 없으면 자리 표시를 보여준다.
 class _PickerRow extends StatelessWidget {
-  const _PickerRow({required this.value, required this.onTap});
+  const _PickerRow({required this.value, required this.onTap, this.error});
 
   final String? value;
   final VoidCallback onTap;
+
+  /// 고른 값이 조건에 맞지 않을 때 아래에 띄우는 이유. `null`이면 정상이다.
+  final String? error;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final filled = value != null;
+    final message = error;
 
-    return Material(
+    final row = Material(
       type: MaterialType.transparency,
       child: InkWell(
         onTap: onTap,
@@ -960,6 +986,20 @@ class _PickerRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+
+    if (message == null) return row;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        row,
+        const SizedBox(height: AppSpacing.space2),
+        Text(
+          message,
+          style: AppTypography.caption.copyWith(color: colors.error),
+        ),
+      ],
     );
   }
 }
