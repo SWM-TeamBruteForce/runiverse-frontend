@@ -25,8 +25,11 @@ class HttpSettingsRepository implements SettingsRepository {
   static const _settingsPath = '/api/v1/users/me/settings';
   static const _passwordPath = '/api/v1/users/me/password';
 
-  /// ⚠️ **4차 API 명세서에 없는 경로다.** 2.5차에 있던 것을 그대로 쓴다.
-  /// 기능정의서도 *"권장, 실제 경로 협의 필요"*라고만 적었다. 바뀌면 이 줄이다.
+  /// 명세 59번·§12-5와 경로가 일치한다.
+  ///
+  /// ⚠️ **서버에 아직 구현되지 않았다.** 호출하면 실패한다. 탈퇴 시트의 문구도
+  /// 확정된 데이터 정책과 어긋나 있는데, 검증할 API가 없어 함께 미뤄 두었다
+  /// (`AppStrings.withdrawBody`).
   static const _withdrawPath = '/api/v1/users/me';
 
   @override
