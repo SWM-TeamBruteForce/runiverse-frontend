@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/config/legal_links.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
 import 'package:runiverse/core/theme/tokens/app_motion.dart';
@@ -11,6 +14,7 @@ import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/widgets/legal_document.dart';
 // 저장소를 고르는 provider는 auth에 모여 있다. `onboarding_provider.dart`가
 // `tokenStoreProvider`를 가져다 쓰는 것과 같은 규칙이다 — 화면이 아니라 인프라다.
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
@@ -49,10 +53,17 @@ class TermsAgreementPage extends ConsumerStatefulWidget {
 
 class _TermsAgreementPageState extends ConsumerState<TermsAgreementPage> {
   /// 항목 순서는 **법적 무게 순**이다. 이용약관 → 개인정보 → 민감정보 → 선택.
+  ///
+  /// ## ⚠️ 어느 항목에 어떤 문서를 거는가
+  ///
+  /// 방침 문서에 **1항이 수집·이용, 2항이 민감정보(체중·신장·평균 페이스)** 라
+  /// 두 항목이 같은 문서를 가리킨다. 이용약관 문서는 아직 없고, 마케팅 조항도
+  /// 방침에 없어 둘은 비워 둔다 — 없는 문서를 가리키게 하면 열었을 때
+  /// 해당 내용이 없다.
   static const _terms = [
-    _Term(AppStrings.termsService),
-    _Term(AppStrings.termsPrivacy),
-    _Term(AppStrings.termsHealth),
+    _Term(AppStrings.termsService, document: LegalLinks.terms),
+    _Term(AppStrings.termsPrivacy, document: LegalLinks.privacy),
+    _Term(AppStrings.termsHealth, document: LegalLinks.privacy),
     _Term(AppStrings.termsMarketing, isRequired: false),
   ];
 
@@ -170,6 +181,9 @@ class _TermsAgreementPageState extends ConsumerState<TermsAgreementPage> {
                         term: _terms[i],
                         checked: _agreed.contains(i),
                         onTap: () => _toggle(i),
+                        onOpenDocument: () => unawaited(
+                          openLegalDocument(context, _terms[i].document),
+                        ),
                       ),
 
                     const SizedBox(height: AppSpacing.space6),
@@ -202,12 +216,19 @@ class _TermsAgreementPageState extends ConsumerState<TermsAgreementPage> {
 
 /// 약관 한 건. 약관 전문 URL이 정해지면 여기 붙는다.
 class _Term {
-  const _Term(this.label, {this.isRequired = true});
+  const _Term(this.label, {this.isRequired = true, this.document = ''});
 
   final String label;
 
   /// 선택 항목은 **CTA를 막지 않는다.** 막으면 그것은 선택이 아니다.
   final bool isRequired;
+
+  /// 이 항목의 전문 주소.
+  ///
+  /// ⚠️ **비어 있어도 화살표는 둔다.** 눌러 보면 "준비 중"이 뜬다. 문서가
+  /// 있는 행에만 화살표를 두면 줄이 어긋나고, 무엇보다 문서가 생겼을 때
+  /// 붙이는 것을 잊는다 — 설정 화면이 같은 이유로 약관 행을 남겨 두었다.
+  final String document;
 }
 
 /// 누름 피드백 색.
@@ -292,16 +313,27 @@ class _AgreeAllCard extends StatelessWidget {
 }
 
 /// 개별 약관 한 줄. 체크 + `필수`/`선택` 배지 + 라벨.
+/// 동의 항목 한 줄.
+///
+/// ## ⚠️ 누르는 곳이 둘이다
+///
+/// 행을 누르면 동의가 토글되고, 오른쪽 화살표를 누르면 전문이 열린다. 화살표를
+/// 행의 [InkWell] 안에 그대로 두면 **문서를 보려다 동의가 켜진다.** 그래서
+/// 화살표를 밖으로 빼 자기 몫의 44px를 갖게 한다.
 class _TermRow extends StatelessWidget {
   const _TermRow({
     required this.term,
     required this.checked,
     required this.onTap,
+    required this.onOpenDocument,
   });
 
   final _Term term;
   final bool checked;
   final VoidCallback onTap;
+
+  /// 전문을 연다. 주소가 없으면 "준비 중"이 뜬다.
+  final VoidCallback onOpenDocument;
 
   @override
   Widget build(BuildContext context) {
@@ -310,7 +342,7 @@ class _TermRow extends StatelessWidget {
     // **글자를 읽어야만** 필수인지 알 수 있다.
     final badgeColor = term.isRequired ? colors.primary : colors.textTertiary;
 
-    return Semantics(
+    final row = Semantics(
       checked: checked,
       button: true,
       child: Material(
@@ -348,6 +380,39 @@ class _TermRow extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+
+    return Row(
+      children: [
+        Expanded(child: row),
+        _DocumentButton(onTap: onOpenDocument),
+      ],
+    );
+  }
+}
+
+/// 전문을 여는 화살표. **행과 분리된 자기 터치 영역을 갖는다.**
+class _DocumentButton extends StatelessWidget {
+  const _DocumentButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return IconButton(
+      onPressed: onTap,
+      tooltip: AppStrings.termsViewDocument,
+      constraints: const BoxConstraints(
+        minWidth: AppSizes.touchDefault,
+        minHeight: AppSizes.touchDefault,
+      ),
+      icon: Icon(
+        LucideIcons.chevronRight,
+        size: AppSpacing.space5,
+        color: colors.textTertiary,
       ),
     );
   }

@@ -848,7 +848,10 @@ abstract final class AppStrings {
 
   /// 브라우저가 없거나 인텐트가 막혔을 때. **주소를 화면에 적지 않는다** —
   /// 길어서 읽히지 않고, 손으로 옮겨 적게 만드는 것은 안내가 아니다.
-  static const settingsLinkFailed = '문서를 열지 못했어요. 잠시 후 다시 시도해주세요';
+  ///
+  /// ⚠️ 설정과 약관 동의 **두 화면이 함께 쓴다.** 한쪽 이름을 붙이면 다른
+  /// 쪽에서 어색해진다.
+  static const legalDocumentFailed = '문서를 열지 못했어요. 잠시 후 다시 시도해주세요';
 
   static const settingsSignOut = '로그아웃';
 
@@ -871,8 +874,14 @@ abstract final class AppStrings {
 
   static const settingsCancel = '취소';
 
-  /// 약관 문서 주소가 아직 정해지지 않았다. `LegalLinks`를 함께 본다.
-  static const settingsTermsPending = '약관 문서를 준비하고 있어요';
+  /// 문서 주소가 아직 정해지지 않았다. `LegalLinks`를 함께 본다.
+  ///
+  /// ⚠️ 설정과 약관 동의 **두 화면이 함께 쓴다.**
+  static const legalDocumentPending = '문서를 준비하고 있어요';
+
+  /// 동의 항목의 전문을 여는 버튼. **화면에 글자로 나오지 않고 스크린 리더가
+  /// 읽는다** — 화살표만 있는 버튼이라 이 이름이 없으면 "버튼"이라고만 읽힌다.
+  static const termsViewDocument = '전문 보기';
 
   // ── 비밀번호 변경 ────────────────────────────────────────────
   //

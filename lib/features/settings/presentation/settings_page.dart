@@ -12,6 +12,7 @@ import 'package:runiverse/core/theme/tokens/app_radius.dart';
 import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/core/widgets/legal_document.dart';
 import 'package:runiverse/core/widgets/preset_chip.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/settings/domain/login_type.dart';
@@ -19,7 +20,6 @@ import 'package:runiverse/features/settings/domain/profile_visibility.dart';
 import 'package:runiverse/features/settings/domain/settings_failure.dart';
 import 'package:runiverse/features/settings/presentation/settings_provider.dart';
 import 'package:runiverse/features/settings/presentation/withdraw_sheet.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// 설정 (S22.2).
 ///
@@ -136,47 +136,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   // ── 약관 ──────────────────────────────────────────────────
 
   /// 이용약관 문서는 아직 없다. 법정 필수가 아니라 신고·제재 기능을 붙일 때
-  /// 만든다.
+  /// 만든다. 그동안 이 행은 눌러도 "준비 중"이 뜬다 —
+  /// [openLegalDocument]가 주소 유무를 보고 가른다.
   ///
   /// 행을 감추지 않는 이유는, **약관을 볼 수 있어야 한다는 사실 자체가 약속**이라
   /// 자리를 비워두면 나중에 붙이는 것을 잊기 때문이다.
-  void _openTerms() {
-    if (LegalLinks.isReady(LegalLinks.terms)) {
-      unawaited(_openDocument(LegalLinks.terms));
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text(AppStrings.settingsTermsPending)),
-    );
-  }
+  void _openTerms() => unawaited(_openDocument(LegalLinks.terms));
 
-  /// 고지 문서를 브라우저로 연다.
-  ///
-  /// ## ⚠️ 실패를 삼키지 않는다
-  ///
-  /// `launchUrl`은 열 수 없을 때 `false`를 돌려주거나 던진다. 그대로 두면
-  /// **아무 일도 일어나지 않는 버튼**이 되고, 사용자는 앱이 멈춘 줄 안다.
-  ///
-  /// 안드로이드에서 열리려면 매니페스트 `<queries>`에 VIEW+https 인텐트가
-  /// 있어야 한다. 없으면 예외도 로그도 없이 실패한다.
-  Future<void> _openDocument(String url) async {
-    var opened = false;
-    try {
-      opened = await launchUrl(
-        Uri.parse(url),
-        // 기본값이면 안드로이드는 Custom Tab으로 연다. 앱 밖으로 튕기지
-        // 않으면서 뒤로가기로 돌아온다.
-        mode: LaunchMode.platformDefault,
-      );
-    } on Object catch (error) {
-      debugPrint('[settings] 문서를 열지 못했다 · $error');
-    }
-    if (opened || !mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text(AppStrings.settingsLinkFailed)),
-    );
-  }
+  Future<void> _openDocument(String url) => openLegalDocument(context, url);
 
   // ── 탈퇴 ──────────────────────────────────────────────────
 

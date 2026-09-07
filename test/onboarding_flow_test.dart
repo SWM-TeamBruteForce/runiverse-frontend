@@ -124,6 +124,52 @@ void main() {
     expect(find.byType(SignUpPage), findsNothing);
   });
 
+  testWidgets('⚠️ 전문 보기를 눌러도 동의가 켜지지 않는다', (tester) async {
+    // 한 행에 누르는 곳이 둘이다 — 행은 동의 토글, 화살표는 문서 열기.
+    // 화살표가 행의 터치 영역 안에 있으면 **문서를 보려다 동의가 켜진다.**
+    // 필수 셋을 모두 눌러 보고 CTA가 여전히 잠겨 있는지로 가른다.
+    await pumpApp(tester);
+    await tester.tap(find.byType(SplashPage));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.onboardingSkip));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+
+    final chevrons = find.byTooltip(AppStrings.termsViewDocument);
+    expect(chevrons, findsNWidgets(4));
+
+    for (var i = 0; i < 4; i++) {
+      await tester.tap(chevrons.at(i));
+      await tester.pumpAndSettle();
+    }
+
+    final cta = tester.widget<AppButton>(
+      find.widgetWithText(AppButton, AppStrings.termsCta),
+    );
+    expect(cta.onPressed, isNull);
+  });
+
+  testWidgets('문서가 없는 항목은 준비 중이라고 알린다', (tester) async {
+    // 눌러도 조용하면 고장으로 읽힌다. 이용약관 문서는 아직 없다.
+    await pumpApp(tester);
+    await tester.tap(find.byType(SplashPage));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.onboardingSkip));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip(AppStrings.termsViewDocument).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.legalDocumentPending), findsOneWidget);
+  });
+
   testWidgets('약관에 동의하면 정보 입력으로 넘어간다', (tester) async {
     await pumpApp(tester);
     await tester.tap(find.byType(SplashPage));
