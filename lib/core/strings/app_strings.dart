@@ -590,6 +590,13 @@ abstract final class AppStrings {
   /// S15에서 S16으로 들어가는 문. Figma의 secondary 버튼이다.
   static const runSummaryDetail = '자세한 기록 보기';
 
+  /// 종료를 알리고 서버가 기록을 확정하는 동안 [runSummaryDetail] 대신 쓴다.
+  ///
+  /// ⚠️ **버튼을 말없이 잠그면 안 된다.** 이 사이 상세를 열면 빈 기록이 와서
+  /// `0.00km · 구간 0개`가 뜨므로 막아야 하는데, 이유를 안 적으면 사용자는
+  /// 버튼이 고장 난 줄 안다. 몇 초면 풀린다.
+  static const runSummaryDetailSettling = '기록을 확정하는 중이에요';
+
   // ── 러닝 결과 S16 ────────────────────────────────────────────
   //
   // 정본은 S16(대시보드)과 S16.5(구간별 상세 비교)를 나눠 두었지만, 한 화면에서

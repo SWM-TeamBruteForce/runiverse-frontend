@@ -48,6 +48,7 @@ class RunningConnectionState {
     this.connection = WsConnectionState.disconnected,
     this.failure,
     this.opening = false,
+    this.settling = false,
   });
 
   /// 서버가 준 방. `null`이면 아직 못 열었다.
@@ -60,6 +61,18 @@ class RunningConnectionState {
 
   final bool opening;
 
+  /// 종료를 알리고 **서버가 기록을 확정하기를 기다리는 중**인가.
+  ///
+  /// ## ⚠️ 이걸 안 보면 빈 기록을 보여준다
+  ///
+  /// 상세(17·18번)는 서버가 `RUNNING_FINISH`를 처리한 뒤에야 값이 찬다. 그
+  /// 전에 부르면 **200에 빈 기록**이 와서 화면이 `0.00km · 구간 0개`가 된다 —
+  /// 실제로 44분 6.38km 러닝에서 그렇게 됐다. 좌표가 유실된 것이 아니라
+  /// 너무 일찍 물어본 것이다.
+  ///
+  /// 러닝이 길수록 서버가 처리할 좌표가 많아 이 창이 넓어진다.
+  final bool settling;
+
   /// 달릴 준비가 됐는가. **방과 연결이 둘 다 있어야 한다.**
   bool get isReady => room != null && connection == WsConnectionState.connected;
 
@@ -68,12 +81,14 @@ class RunningConnectionState {
     WsConnectionState? connection,
     RunningRoomFailure? failure,
     bool? opening,
+    bool? settling,
   }) => RunningConnectionState(
     room: room ?? this.room,
     connection: connection ?? this.connection,
     // ⚠️ `??`를 쓰지 않는다. 다시 시도해서 성공하면 실패를 **지워야** 한다.
     failure: failure,
     opening: opening ?? this.opening,
+    settling: settling ?? this.settling,
   );
 }
 
@@ -299,10 +314,14 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// 명세가 "ack를 받은 뒤 삭제한다"고 정했다. 못 받았는데 지우면 서버에 없는
   /// 구간을 다시 보낼 방법이 사라진다. 남겨두면 자리를 차지하지만 그뿐이다.
   ///
-  /// ## 화면은 이것을 기다리지 않는다
+  /// ## 요약은 기다리지 않지만, 상세는 기다린다
   ///
   /// 요약에 뜨는 값은 러닝 중 계산한 것이라 서버 확정과 무관하다. 기다리게
   /// 하면 신호가 나쁜 곳에서 사용자가 요약을 못 본다.
+  ///
+  /// ⚠️ **상세는 다르다.** 서버가 확정한 값을 읽으므로 ack 전에 부르면 빈
+  /// 기록이 온다. 그래서 이 구간 동안 [RunningConnectionState.settling]을
+  /// 세워 요약 화면이 문을 잠그게 한다.
   Future<void> finish({bool forced = false}) async {
     final channel = _channel;
     if (channel == null) {
@@ -310,29 +329,38 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       return;
     }
 
-    await _sender?.drain();
-    // 다 보냈으면 타이머를 세운다. ack를 기다리는 동안 또 돌 이유가 없다.
-    _sender?.stop();
+    // 여기부터 ack까지가 **서버가 기록을 확정하는 구간**이다. 요약 화면이
+    // 이 표시를 보고 상세로 가는 문을 잠근다 — [RunningConnectionState.settling].
+    state = state.copyWith(settling: true);
 
-    final acked = await channel.finish(forced: forced);
-    if (acked) {
-      await ref.read(trackRecorderProvider).discard();
-      // ⚠️ 좌표와 **같은 순간에** 지운다. 번호만 남으면 다음 러닝이 이미 끝난
-      // 방을 정리하려 들고, 좌표만 남으면 지울 사람이 없어진다.
-      await ref.read(trackRepositoryProvider).clearActiveRoom();
-    } else {
-      debugPrint('[running] 종료 확인을 못 받아 로컬 트랙을 남긴다');
+    try {
+      await _sender?.drain();
+      // 다 보냈으면 타이머를 세운다. ack를 기다리는 동안 또 돌 이유가 없다.
+      _sender?.stop();
+
+      final acked = await channel.finish(forced: forced);
+      if (acked) {
+        await ref.read(trackRecorderProvider).discard();
+        // ⚠️ 좌표와 **같은 순간에** 지운다. 번호만 남으면 다음 러닝이 이미 끝난
+        // 방을 정리하려 들고, 좌표만 남으면 지울 사람이 없어진다.
+        await ref.read(trackRepositoryProvider).clearActiveRoom();
+      } else {
+        debugPrint('[running] 종료 확인을 못 받아 로컬 트랙을 남긴다');
+      }
+    } finally {
+      // ⚠️ **어떻게 끝나든 [settling]을 내린다.** 중간에 던지면 `자세한 기록
+      // 보기`가 영영 잠긴 채로 남는다.
+      //
+      // ⚠️ **방 번호는 남겨야 한다.** 요약 화면(S15)이 이 번호로 상세 결과
+      // 17·18번을 부른다. [close]가 상태를 통째로 비우므로, 닫은 뒤 번호만
+      // 되돌려 놓는다 — 없으면 `자세한 기록 보기`가 계속 잠겨 있다.
+      //
+      // 다음 러닝의 409 판정은 상태가 아니라 **저장소**(`activeRoom()`)를 보므로
+      // 여기 남은 번호가 다음 러닝을 방해하지 않는다.
+      final finished = state.room;
+      await close();
+      if (finished != null) state = RunningConnectionState(room: finished);
     }
-
-    // ⚠️ **방 번호는 남겨야 한다.** 요약 화면(S15)이 이 번호로 상세 결과
-    // 17·18번을 부른다. [close]가 상태를 통째로 비우므로, 닫은 뒤 번호만
-    // 되돌려 놓는다 — 없으면 `자세한 기록 보기`가 계속 잠겨 있다.
-    //
-    // 다음 러닝의 409 판정은 상태가 아니라 **저장소**(`activeRoom()`)를 보므로
-    // 여기 남은 번호가 다음 러닝을 방해하지 않는다.
-    final finished = state.room;
-    await close();
-    if (finished != null) state = RunningConnectionState(room: finished);
   }
 
   /// 연결을 닫고 처음 상태로 돌아간다. **종료를 알리지는 않는다** — 화면을

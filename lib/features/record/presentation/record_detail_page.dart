@@ -18,21 +18,50 @@ import 'package:runiverse/features/record/presentation/run_result_view.dart';
 ///
 /// 17번(`results`)과 18번(`split-results`)을 합쳐 받는다. 둘 다 방 번호로
 /// 찾으므로, 기록 번호를 모르는 종료 직후에도 같은 화면을 열 수 있다.
-class RecordDetailPage extends ConsumerWidget {
+///
+/// ## ⚠️ 나갈 때 캐시를 버린다
+///
+/// 서버가 종료를 처리하기 전에 부르면 **200에 빈 기록**이 온다. 그 값이 캐시에
+/// 남으면 화면을 닫았다 다시 열어도 `0.00km · 구간 0개`가 그대로라, 사용자가
+/// 앱 안에서 복구할 방법이 없다. 그래서 [dispose]에서 버린다 — 다시 열면
+/// 반드시 서버에 다시 묻는다.
+class RecordDetailPage extends ConsumerStatefulWidget {
   const RecordDetailPage({required this.runningRoomId, super.key});
 
   final int runningRoomId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final detail = ref.watch(runDetailProvider(runningRoomId));
+  ConsumerState<RecordDetailPage> createState() => _RecordDetailPageState();
+}
+
+class _RecordDetailPageState extends ConsumerState<RecordDetailPage> {
+  /// ⚠️ **[dispose]에서 `context`를 뒤지면 안 된다.** 그때는 트리에서 이미
+  /// 떨어져 있다. 살아 있는 동안 잡아 둔다.
+  ProviderContainer? _container;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _container = ProviderScope.containerOf(context, listen: false);
+  }
+
+  @override
+  void dispose() {
+    _container?.invalidate(runDetailProvider(widget.runningRoomId));
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final detail = ref.watch(runDetailProvider(widget.runningRoomId));
 
     return detail.when(
       data: (value) => RunResultView(detail: value),
       loading: () => const _Frame(child: CircularProgressIndicator()),
       error: (_, _) => _Frame(
         child: _Failed(
-          onRetry: () => ref.invalidate(runDetailProvider(runningRoomId)),
+          onRetry: () =>
+              ref.invalidate(runDetailProvider(widget.runningRoomId)),
         ),
       ),
     );
