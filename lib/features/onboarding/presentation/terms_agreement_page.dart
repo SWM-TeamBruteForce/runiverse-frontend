@@ -52,20 +52,37 @@ class TermsAgreementPage extends ConsumerStatefulWidget {
 }
 
 class _TermsAgreementPageState extends ConsumerState<TermsAgreementPage> {
-  /// 항목 순서는 **법적 무게 순**이다. 이용약관 → 개인정보 → 민감정보 → 선택.
+  /// 항목 순서는 **법적 무게 순**이다.
+  /// 연령 확인 → 이용약관 → 개인정보 → 민감정보 → 선택.
+  ///
+  /// ## ⚠️ 연령 확인이 맨 위인 이유
+  ///
+  /// 나머지 동의의 유효성을 정하는 전제다. 생년월일은 **프로필 설정에서야**
+  /// 받으므로, 이것이 없으면 이메일·비밀번호를 다 받고 인증까지 마친 뒤에
+  /// 나이를 알게 된다. 카카오 경로는 더 앞서서, 계정 이메일과 회원번호를
+  /// 이미 받은 상태가 된다.
   ///
   /// ## ⚠️ 어느 항목에 어떤 문서를 거는가
   ///
   /// 방침 문서에 **1항이 수집·이용, 2항이 민감정보(체중·신장·평균 페이스)** 라
   /// 두 항목이 같은 문서를 가리킨다. 이용약관 문서는 아직 없고, 마케팅 조항도
-  /// 방침에 없어 둘은 비워 둔다 — 없는 문서를 가리키게 하면 열었을 때
-  /// 해당 내용이 없다.
+  /// 방침에 없어 둘은 빈 주소로 둔다 — 화살표는 있고 "준비 중"이 뜬다.
+  ///
+  /// 연령 확인만 `null`이다. **읽을 문서가 애초에 없는 항목**이라, "준비 중"을
+  /// 띄우면 언젠가 생길 문서를 기다리게 만든다.
   static const _terms = [
+    _Term(AppStrings.termsAge),
     _Term(AppStrings.termsService, document: LegalLinks.terms),
     _Term(AppStrings.termsPrivacy, document: LegalLinks.privacy),
     _Term(AppStrings.termsHealth, document: LegalLinks.privacy),
-    _Term(AppStrings.termsMarketing, isRequired: false),
+    _Term(AppStrings.termsMarketing, isRequired: false, document: _pending),
   ];
+
+  /// 아직 없는 문서. 화살표는 두고 누르면 "준비 중"이 뜬다.
+  ///
+  /// ⚠️ **마케팅 조항이 방침에 없다.** 방침을 가리키게 하면 열어 봐도 해당
+  /// 내용이 없어 더 나쁘다. 조항이 생기거나 별도 문서가 나오면 여기를 채운다.
+  static const _pending = '';
 
   /// 동의한 항목의 인덱스. [_terms]와 길이가 같은 `List<bool>` 대신 [Set]을 쓴 이유는
   /// 항목이 늘거나 순서가 바뀌어도 초기화 코드를 고칠 필요가 없어서다.
@@ -181,9 +198,13 @@ class _TermsAgreementPageState extends ConsumerState<TermsAgreementPage> {
                         term: _terms[i],
                         checked: _agreed.contains(i),
                         onTap: () => _toggle(i),
-                        onOpenDocument: () => unawaited(
-                          openLegalDocument(context, _terms[i].document),
-                        ),
+                        onOpenDocument: switch (_terms[i].document) {
+                          // 읽을 문서가 없는 항목(연령 확인)은 화살표도 없다.
+                          null => null,
+                          final url => () => unawaited(
+                            openLegalDocument(context, url),
+                          ),
+                        },
                       ),
 
                     const SizedBox(height: AppSpacing.space6),
@@ -216,19 +237,23 @@ class _TermsAgreementPageState extends ConsumerState<TermsAgreementPage> {
 
 /// 약관 한 건. 약관 전문 URL이 정해지면 여기 붙는다.
 class _Term {
-  const _Term(this.label, {this.isRequired = true, this.document = ''});
+  const _Term(this.label, {this.isRequired = true, this.document});
 
   final String label;
 
   /// 선택 항목은 **CTA를 막지 않는다.** 막으면 그것은 선택이 아니다.
   final bool isRequired;
 
-  /// 이 항목의 전문 주소.
+  /// 이 항목의 전문 주소. 값이 없으면 화살표를 그리지 않는다.
   ///
-  /// ⚠️ **비어 있어도 화살표는 둔다.** 눌러 보면 "준비 중"이 뜬다. 문서가
-  /// 있는 행에만 화살표를 두면 줄이 어긋나고, 무엇보다 문서가 생겼을 때
-  /// 붙이는 것을 잊는다 — 설정 화면이 같은 이유로 약관 행을 남겨 두었다.
-  final String document;
+  /// 세 가지를 구분한다.
+  ///
+  /// - **주소가 있다** — 화살표를 누르면 문서가 열린다
+  /// - **빈 문자열** — 화살표는 있고, 누르면 "준비 중"이 뜬다. 문서가 있는
+  ///   행에만 화살표를 두면 줄이 어긋나고 문서가 생겼을 때 붙이는 것을 잊는다
+  /// - **`null`** — ⚠️ **읽을 문서가 애초에 없는 항목**이다(연령 확인).
+  ///   여기에 "준비 중"을 띄우면 오지 않을 문서를 기다리게 만든다
+  final String? document;
 }
 
 /// 누름 피드백 색.
@@ -332,8 +357,9 @@ class _TermRow extends StatelessWidget {
   final bool checked;
   final VoidCallback onTap;
 
-  /// 전문을 연다. 주소가 없으면 "준비 중"이 뜬다.
-  final VoidCallback onOpenDocument;
+  /// 전문을 연다. 읽을 문서가 없는 항목이면 `null`이고, 그때는 화살표를
+  /// 그리지 않는다.
+  final VoidCallback? onOpenDocument;
 
   @override
   Widget build(BuildContext context) {
@@ -383,10 +409,13 @@ class _TermRow extends StatelessWidget {
       ),
     );
 
+    final open = onOpenDocument;
+    if (open == null) return row;
+
     return Row(
       children: [
         Expanded(child: row),
-        _DocumentButton(onTap: onOpenDocument),
+        _DocumentButton(onTap: open),
       ],
     );
   }

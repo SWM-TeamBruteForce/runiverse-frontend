@@ -92,6 +92,15 @@ abstract final class AppStrings {
   /// 길이가 다르면 라벨의 시작 위치가 줄마다 어긋난다.
   static const termsOptional = '선택';
 
+  /// 연령 확인. **동의가 아니라 확인이라 "동의합니다"로 적지 않는다** —
+  /// 만 14세 미만은 애초에 받지 않기로 한 것이지, 사용자가 동의로 열 수 있는
+  /// 문이 아니다.
+  ///
+  /// ⚠️ **이 항목이 목록 맨 위에 있어야 한다.** 개인정보를 받기 전에 세우는
+  /// 관문이다 — 생년월일은 프로필 설정에서야 받으므로, 이것이 없으면 이메일과
+  /// 비밀번호를 다 받은 뒤에야 나이를 알게 된다. 기준은 `AgeRule.minimum`이다.
+  static const termsAge = '만 14세 이상입니다';
+
   static const termsService = '서비스 이용약관';
   static const termsPrivacy = '개인정보 수집·이용';
   static const termsHealth = '생체·운동 정보';

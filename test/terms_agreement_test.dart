@@ -65,6 +65,9 @@ void main() {
   testWidgets('필수 항목을 전부 동의하면 계속할 수 있다', (tester) async {
     await pumpPage(tester);
 
+    await tap(tester, AppStrings.termsAge);
+    expect(ctaEnabled(tester), isFalse);
+
     await tap(tester, AppStrings.termsService);
     expect(ctaEnabled(tester), isFalse);
 
@@ -79,6 +82,7 @@ void main() {
 
   testWidgets('선택 항목은 CTA를 막지 않는다', (tester) async {
     await pumpPage(tester);
+    await tap(tester, AppStrings.termsAge);
     await tap(tester, AppStrings.termsService);
     await tap(tester, AppStrings.termsPrivacy);
     await tap(tester, AppStrings.termsHealth);
@@ -101,6 +105,7 @@ void main() {
 
   testWidgets('필수만 켜면 전체 동의는 켜지지 않는다', (tester) async {
     await pumpPage(tester);
+    await tap(tester, AppStrings.termsAge);
     await tap(tester, AppStrings.termsService);
     await tap(tester, AppStrings.termsPrivacy);
     await tap(tester, AppStrings.termsHealth);
