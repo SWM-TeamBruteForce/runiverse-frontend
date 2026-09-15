@@ -15,6 +15,8 @@ import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/session/domain/run_metrics.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/core/widgets/run_map_view.dart';
+import 'package:runiverse/features/session/presentation/party_provider.dart';
+import 'package:runiverse/features/session/presentation/run_party_view.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/run_stop_sheet.dart';
@@ -93,6 +95,13 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     final state = ref.watch(runSessionControllerProvider);
     final metrics = _metricsOf(state);
 
+    final party = ref.watch(partyProvider);
+    final hasParty = party.rows.isNotEmpty;
+    // 목표는 파티원 통지가 실어 온다. 솔로 방은 목표가 없어 `null`이다.
+    final target = party.rows
+        .map((row) => row.progress?.targetDistanceMeters)
+        .firstWhere((value) => value != null, orElse: () => null);
+
     return PopScope(
       // 달리는 도중에 뒤로 나가지 못한다. 나가려면 중지 시트를 거쳐야 한다.
       canPop: false,
@@ -104,7 +113,12 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                 padding: const EdgeInsets.symmetric(
                   vertical: AppSpacing.space3,
                 ),
-                child: PageIndicator(count: 2, currentIndex: _page),
+                child: PageIndicator(
+                  // 파티원 장은 **함께 뛰는 사람이 있을 때만** 있다. 솔로에서
+                  // 빈 장을 두면 스와이프했다가 아무것도 없는 화면을 만난다.
+                  count: hasParty ? 3 : 2,
+                  currentIndex: _page,
+                ),
               ),
 
               Expanded(
@@ -120,6 +134,14 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                           .track,
                     ),
                     _MetricsPage(metrics: metrics),
+                    if (hasParty)
+                      RunPartyView(
+                        board: party,
+                        // ⚠️ 내 거리는 앱이 잰 값이다. 서버는 본인 진행을
+                        // 보내지 않고, 표시는 로컬 계산값을 우선한다.
+                        myDistanceMeters: metrics.distanceMeters.round(),
+                        targetDistanceMeters: target,
+                      ),
                   ],
                 ),
               ),

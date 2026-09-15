@@ -36,8 +36,10 @@ void main() {
   test('진행 통지가 줄에 붙는다', () {
     final board = empty.withRoster(members).withProgress(progress('u-2', 1520));
 
-    expect(board.rows.last.progress?.distanceMeters, 1520);
-    expect(board.rows.first.progress, isNull);
+    // 통지가 온 사람이 앞으로 온다 — 나머지는 아직 0m다.
+    expect(board.rows.first.userId, 'u-2');
+    expect(board.rows.first.progress?.distanceMeters, 1520);
+    expect(board.rows.last.progress, isNull);
   });
 
   test('같은 사람의 통지는 덮는다', () {
@@ -50,15 +52,32 @@ void main() {
     expect(board.rows.first.progress?.distanceMeters, 260);
   });
 
-  test('⚠️ 거리순으로 세우지 않는다', () {
-    // 정렬을 거리로 하면 그것이 곧 순위표가 된다. 경쟁이 아니라 동행이다.
+  test('진행률 높은 순으로 세운다', () {
+    // 정본 S13이 정한 순서다. 금지된 것은 등수 숫자이지 정렬이 아니다.
     final board = empty
         .withRoster(members)
         .withProgress(progress('u-2', 3000))
         .withProgress(progress('u-1', 500));
 
-    expect(board.rows.first.userId, 'u-1');
-    expect(board.rows.last.userId, 'u-2');
+    expect(board.rows.first.userId, 'u-2');
+    expect(board.rows.last.userId, 'u-1');
+  });
+
+  test('⚠️ 같은 거리면 명단 순서를 지킨다', () {
+    // 나란히 달릴 때 통지마다 자리가 바뀌면 줄이 깜빡인다.
+    final board = empty
+        .withRoster(members)
+        .withProgress(progress('u-2', 1000))
+        .withProgress(progress('u-1', 1000));
+
+    expect(board.rows.map((row) => row.userId), ['u-1', 'u-2']);
+  });
+
+  test('아직 통지가 없는 사람은 뒤로 간다', () {
+    // 0m로 읽는다. 앞에 두면 달리고 있는 사람이 아래로 밀린다.
+    final board = empty.withRoster(members).withProgress(progress('u-2', 10));
+
+    expect(board.rows.first.userId, 'u-2');
   });
 
   test('⚠️ 명단에 없어도 통지가 오면 그린다', () {
@@ -72,13 +91,14 @@ void main() {
     expect(board.rows.single.progress?.distanceMeters, 800);
   });
 
-  test('명단에 있는 사람이 먼저, 모르는 사람이 뒤에 온다', () {
+  test('모르는 사람도 거리대로 섞인다', () {
+    // 이름을 몰라도 함께 달리는 중이다. 뒤로 몰면 화면이 사실과 달라진다.
     final board = empty
         .withRoster(members)
         .withProgress(progress('u-9', 800))
         .withProgress(progress('u-1', 100));
 
-    expect(board.rows.map((row) => row.userId), ['u-1', 'u-2', 'u-9']);
+    expect(board.rows.map((row) => row.userId), ['u-9', 'u-1', 'u-2']);
   });
 
   group('콤보', () {

@@ -715,6 +715,38 @@ abstract final class AppStrings {
   static const runServiceDisabled = '기기의 위치 기능이 꺼져 있어요';
 
   /// 러닝 중 지표 라벨.
+  // ── 파티원 비교 (S13 3페이지) ────────────────────────────────
+
+  static const runPartyTitle = '함께 달리는 중';
+
+  /// 순위가 아니라 동행이라는 프레임을 문구로 세운다.
+  static const runPartyHint = '각자의 자리에서 같은 시간을 달려요';
+
+  /// 솔로 러닝이거나 아직 아무 통지도 오지 않았을 때.
+  static const runPartyEmpty = '아직 함께 달리는 사람이 없어요';
+
+  /// 내 레인. 이름 대신 `나`로 둔다 — 누구의 줄인지가 한눈에 보여야 한다.
+  static const runPartyMe = '나';
+
+  /// ⚠️ 이름을 모르는 파티원. 러닝 중 앱을 재시작하면 명단이 사라진다.
+  static const runPartyUnknown = '함께 달리는 사람';
+
+  /// `+260m` / `-80m` — 내 거리를 기준으로 한 격차.
+  ///
+  /// 양수면 상대가 앞이다. **순위가 아니라 거리 차**라 부호를 그대로 쓴다.
+  static String runPartyGap(int meters) =>
+      meters >= 0 ? '+${meters}m' : '${meters}m';
+
+  /// `2.32km` — 막대 옆 숫자.
+  static String runPartyDistance(int meters) =>
+      '${(meters / 1000).toStringAsFixed(2)}km';
+
+  /// 멈춰 있는 사람. **느려진 것과 구분해서 적는다.**
+  static const runPartyPaused = '잠시 멈춤';
+
+  /// `12콤보` — 지금 이어지고 있는 콤보.
+  static String runPartyCombo(int count) => '$count콤보';
+
   static const runPaceLabel = '페이스';
   static const runTimeLabel = '시간';
   static const runDistanceLabel = '거리';

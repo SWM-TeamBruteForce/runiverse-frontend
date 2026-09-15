@@ -48,11 +48,14 @@ class PartyRow {
 
 /// 파티원 명단과 통지를 맞춰 화면 줄을 만든다.
 ///
-/// ## ⚠️ 거리순으로 세우지 않는다
+/// ## 진행률 순으로 세운다
 ///
-/// 정렬을 거리로 하면 그것이 곧 순위표가 된다. 이 앱은 **경쟁이 아니라 동행**을
-/// 그리기로 했고(`CLAUDE.md`), 순위 표시를 금지한다. 그래서 **명단 순서를
-/// 그대로 유지한다** — 누가 앞서도 줄이 흔들리지 않는다.
+/// 정본 S13이 "진행률 높은 순 정렬"을 명시한다. 금지된 것은 **등수 숫자**다 —
+/// `1등`·`2등`을 적으면 경쟁 프레임이 되지만, 막대 길이로 앞뒤가 보이는 것은
+/// 함께 달리는 감각에 필요하다(`CLAUDE.md`의 "순위(1등/2등) 표시" 금지).
+///
+/// ⚠️ **같은 거리면 명단 순서를 지킨다.** 안 그러면 두 사람이 나란히 달릴 때
+/// 통지가 올 때마다 줄이 서로 자리를 바꾸며 깜빡인다.
 class PartyBoard {
   const PartyBoard({
     this.roster = const [],
@@ -69,30 +72,36 @@ class PartyBoard {
   /// `userId` → 나와의 콤보. **통이 올 때마다 통째로 갈린다.**
   final Map<String, ComboPeer> combos;
 
-  /// 그릴 줄들.
+  /// 그릴 줄들. **진행률 내림차순, 같으면 명단 순서.**
   ///
-  /// 명단에 없는데 통지만 오는 사람도 **버리지 않고 뒤에 붙인다.** 러닝 중
-  /// 재시작하면 명단이 비어 있는데, 그때 통지까지 버리면 화면이 통째로 빈다.
+  /// 명단에 없는데 통지만 오는 사람도 **버리지 않는다.** 러닝 중 재시작하면
+  /// 명단이 비어 있는데, 그때 통지까지 버리면 화면이 통째로 빈다.
   List<PartyRow> get rows {
-    final known = {for (final member in roster) member.userId};
-    final extra = progress.keys.where((id) => !known.contains(id)).toList()
-      ..sort();
+    final order = {for (var i = 0; i < roster.length; i++) roster[i].userId: i};
+    final ids = <String>{...order.keys, ...progress.keys};
 
-    return [
-      for (final member in roster)
-        PartyRow(
-          userId: member.userId,
-          member: member,
-          progress: progress[member.userId],
-          combo: combos[member.userId],
-        ),
-      for (final userId in extra)
+    final rows = [
+      for (final userId in ids)
         PartyRow(
           userId: userId,
+          member: order.containsKey(userId) ? roster[order[userId]!] : null,
           progress: progress[userId],
           combo: combos[userId],
         ),
     ];
+
+    rows.sort((a, b) {
+      final byDistance = (b.progress?.distanceMeters ?? 0).compareTo(
+        a.progress?.distanceMeters ?? 0,
+      );
+      if (byDistance != 0) return byDistance;
+      // 명단에 없는 사람은 뒤로. 그들끼리는 `userId`로 순서를 고정한다 —
+      // 무엇으로든 고정해야 줄이 깜빡이지 않는다.
+      final ai = order[a.userId] ?? roster.length;
+      final bi = order[b.userId] ?? roster.length;
+      return ai != bi ? ai.compareTo(bi) : a.userId.compareTo(b.userId);
+    });
+    return rows;
   }
 
   /// 진행 통지 하나를 덮는다.
