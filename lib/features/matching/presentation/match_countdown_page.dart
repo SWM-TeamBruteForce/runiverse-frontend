@@ -13,6 +13,8 @@ import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
+import 'package:runiverse/features/session/domain/party_board.dart';
+import 'package:runiverse/features/session/presentation/party_provider.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 
@@ -91,12 +93,28 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
     _ticker?.cancel();
     HapticFeedback.heavyImpact();
 
-    final roomId = ref.read(matchRoomProvider).room?.runningRoomId;
-    if (roomId == null || !mounted) return;
+    final room = ref.read(matchRoomProvider).room;
+    if (room == null || !mounted) return;
+
+    // ⚠️ **명단을 지금 넘긴다.** 러닝이 시작되면 SSE가 닫혀 이 정보를 다시
+    // 받을 길이 없다 — 진행·콤보 통지는 `userId`만 싣고, 명세가 정한 출처인
+    // `RUNNING_STARTED` 스냅샷은 서버가 비워 보낸다.
+    ref.read(partyProvider.notifier).setRoster([
+      for (final player in room.players)
+        PartyMember(
+          userId: player.userId,
+          nickname: player.nickname,
+          profileImageUrl: player.profileImageUrl,
+        ),
+    ]);
 
     // ⚠️ 연결을 기다리지 않는다. 기다리면 출발이 그만큼 늦고, 늦게 붙어도
     // 좌표는 쌓였다가 한꺼번에 올라간다.
-    unawaited(ref.read(runningConnectionProvider.notifier).openMatched(roomId));
+    unawaited(
+      ref
+          .read(runningConnectionProvider.notifier)
+          .openMatched(room.runningRoomId),
+    );
     ref.read(runSessionControllerProvider.notifier).start();
 
     // `pushReplacement` — 달리는 중에 뒤로 가서 대기실이 나오면 안 된다.

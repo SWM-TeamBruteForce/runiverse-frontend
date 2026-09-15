@@ -111,6 +111,12 @@ final runningConnectionProvider =
 /// 좌표를 받으면 버린다. 닫을 때는 소켓보다 **먼저** 멈춘다.
 class RunningConnectionController extends Notifier<RunningConnectionState> {
   RunningChannel? _channel;
+
+  /// 지금 붙어 있는 채널. 아직 안 붙었으면 `null`이다.
+  ///
+  /// 파티원 통지를 듣는 쪽이 필요로 한다. **소유권은 그대로 여기 있다** —
+  /// 빌려주기만 하고 닫는 것은 이 컨트롤러가 한다.
+  RunningChannel? get channel => _channel;
   Timer? _retry;
 
   /// 쌓인 좌표를 10초마다 올리는 것. 방이 생긴 뒤에만 있다.
