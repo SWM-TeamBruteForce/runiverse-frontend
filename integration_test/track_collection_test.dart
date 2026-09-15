@@ -60,18 +60,15 @@ void main() {
 
       // ── 1. 권한과 구독 ────────────────────────────────────
       final access = await controller.prepare();
-      expect(
-        access,
-        LocationAccess.granted,
-        reason: 'adb pm grant로 미리 줬어야 한다',
-      );
+      expect(access, LocationAccess.granted, reason: 'adb pm grant로 미리 줬어야 한다');
 
       // ── 2. 첫 신호를 기다린다 ─────────────────────────────
       final waitedFrom = DateTime.now();
       while (true) {
         // `while`은 패턴을 받지 못한다. `if`로 확인하고 빠져나온다.
-        if (container.read(runSessionControllerProvider)
-            case RunPreparing(hasFix: true)) {
+        if (container.read(runSessionControllerProvider) case RunPreparing(
+          hasFix: true,
+        )) {
           break;
         }
         if (DateTime.now().difference(waitedFrom) > fixTimeout) {
@@ -79,8 +76,10 @@ void main() {
         }
         await Future<void>.delayed(const Duration(milliseconds: 200));
       }
-      debugPrint('[IT] 첫 신호까지 '
-          '${DateTime.now().difference(waitedFrom).inSeconds}초');
+      debugPrint(
+        '[IT] 첫 신호까지 '
+        '${DateTime.now().difference(waitedFrom).inSeconds}초',
+      );
 
       // ── 3. 달린다 ─────────────────────────────────────────
       controller.start();
@@ -159,8 +158,10 @@ void _report(List<TrackPoint> points) {
   if (points.isEmpty) return;
 
   debugPrint('[IT] 순번 ${points.first.sequence}~${points.last.sequence}');
-  debugPrint('[IT] 시각 ${TrackPoint.formatServerTime(points.first.recordedAt)}'
-      ' ~ ${TrackPoint.formatServerTime(points.last.recordedAt)}');
+  debugPrint(
+    '[IT] 시각 ${TrackPoint.formatServerTime(points.first.recordedAt)}'
+    ' ~ ${TrackPoint.formatServerTime(points.last.recordedAt)}',
+  );
 
   for (final p in [...points.take(3), ...points.skip(points.length - 3)]) {
     debugPrint(

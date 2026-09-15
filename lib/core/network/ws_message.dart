@@ -69,6 +69,12 @@ abstract final class WsEvents {
   /// 좌표 10초 배치. **ack가 없다.**
   static const runningLocationUpdate = 'RUNNING_LOCATION_UPDATE';
 
+  /// 파티원 한 명의 진행이 바뀌었다 (S→C). **본인 것은 오지 않는다.**
+  static const runningProgressUpdated = 'RUNNING_PROGRESS_UPDATED';
+
+  /// 콤보가 바뀌었다 (S→C). **받는 사람이 낀 관계 전체**를 싣는다.
+  static const runningComboUpdated = 'RUNNING_COMBO_UPDATED';
+
   static const runningPause = 'RUNNING_PAUSE';
   static const runningResume = 'RUNNING_RESUME';
 

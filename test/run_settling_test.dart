@@ -8,6 +8,7 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/fake_running_room_repository.dart';
 import 'package:runiverse/features/session/data/fake_track_repository.dart';
+import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
@@ -148,6 +149,14 @@ class _SlowFinishChannel implements RunningChannel {
 
   @override
   Stream<WsErrorCode> get errors => const Stream.empty();
+
+  // 파티원 진행·콤보는 매칭 러닝에서만 온다. 이 테스트들은 솔로 흐름이라
+  // 비워 둔다.
+  @override
+  Stream<RunProgress> get progress => const Stream.empty();
+
+  @override
+  Stream<RunCombo> get combos => const Stream.empty();
 
   @override
   Future<void> start(int runningRoomId) async {}

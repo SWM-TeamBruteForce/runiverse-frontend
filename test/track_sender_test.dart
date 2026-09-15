@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/features/session/data/fake_track_repository.dart';
+import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/domain/track_sender.dart';
@@ -255,6 +256,14 @@ class _RecordingChannel implements RunningChannel {
 
   @override
   Stream<WsErrorCode> get errors => const Stream.empty();
+
+  // 파티원 진행·콤보는 매칭 러닝에서만 온다. 이 테스트들은 솔로 흐름이라
+  // 비워 둔다.
+  @override
+  Stream<RunProgress> get progress => const Stream.empty();
+
+  @override
+  Stream<RunCombo> get combos => const Stream.empty();
 
   @override
   Future<void> start(int runningRoomId) async {}
