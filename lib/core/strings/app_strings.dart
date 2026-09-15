@@ -542,6 +542,14 @@ abstract final class AppStrings {
   static const matchRoomStarted = '러닝이 시작됐어요';
   static const matchRoomStartedHint = '러닝 화면은 준비 중이에요';
 
+  // ── 출발 대기실 (S11) ────────────────────────────────────────
+
+  static const matchCountdownTitle = '출발 대기실';
+
+  /// 여기서 나갈 수 없다는 사실을 미리 말한다. 뒤로가기가 안 먹는 것을
+  /// 고장으로 오해하지 않게 한다.
+  static const matchCountdownHint = '곧 함께 출발해요.\n이제부터는 취소할 수 없어요';
+
   // ── 프로필 탭 (S22, 본인) ────────────────────────────────────
   //
   // ⚠️ **S22가 본인, S20이 타인**이다. Figma 페이지 이름이 `S20–S21`이라

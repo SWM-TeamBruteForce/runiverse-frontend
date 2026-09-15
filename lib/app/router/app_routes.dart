@@ -133,6 +133,9 @@ abstract final class AppRoutes {
   /// **셸 밖이다.** 매칭 상태는 탭이 아니라 그 자체로 하나의 흐름이다.
   static const matchRoom = '/match/room';
 
+  /// 출발 대기실 (S11). **취소 불가 구간이다** — 뒤로가기가 막힌다.
+  static const matchCountdown = '/match/countdown';
+
   // ── 1인 러닝 — 탭 셸 밖이다 ──────────────────────────────────
   //
   // **탭 바를 덮는다.** 달리는 도중에 다른 탭으로 샐 수 있으면 안 된다.

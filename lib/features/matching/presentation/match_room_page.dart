@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
 import 'package:runiverse/core/theme/tokens/app_radius.dart';
@@ -49,12 +50,16 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
 
   var _leaving = false;
 
+  /// 출발 대기실로 넘어가는 중. 타이머가 두 번 밀지 않게 막는다.
+  var _entering = false;
+
   @override
   void initState() {
     super.initState();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() => _now = DateTime.now());
+      _enterIfDue();
     });
   }
 
@@ -163,6 +168,28 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
         ),
       ),
     );
+  }
+
+  /// 출발이 가까우면 대기실로 옮긴다.
+  ///
+  /// ⚠️ **확정된 방에서만 넘어간다.** 모집 중인 방의 `scheduledStartAt`은 아직
+  /// 이 사람의 출발 시각이 아니다 — 마감 전에 취소할 수도 있다.
+  ///
+  /// 넉넉히 앞서 들어가는 이유는 WebSocket을 미리 붙여야 해서다. 정각에
+  /// 붙기 시작하면 첫 메시지가 그만큼 늦는다.
+  void _enterIfDue() {
+    if (_leaving || _entering) return;
+    final state = ref.read(matchRoomProvider);
+    final room = state.room;
+    final launch = state.launch;
+    if (room == null || launch == null) return;
+    if (room.status == RoomStatus.matching) return;
+    if (!launch.shouldEnter(_now)) return;
+
+    _entering = true;
+    _ticker?.cancel();
+    // `pushReplacement` — 출발한 뒤에 뒤로 가서 대기방이 나오면 안 된다.
+    context.pushReplacement(AppRoutes.matchCountdown);
   }
 
   /// 나가면 어떻게 되는지. **제재가 걸릴 때만 겁을 준다.**
