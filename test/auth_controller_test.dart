@@ -11,6 +11,8 @@ import 'package:runiverse/features/auth/domain/current_user.dart';
 import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 
 /// 인증 상태 전이 — 무엇을 하면 상태가 어디로 가는가.
@@ -32,6 +34,11 @@ void main() {
       // 후자가 더 위험하므로 저장소를 쓰는 테스트는 반드시 이것을 갈아끼운다.
       tokenStoreProvider.overrideWithValue(store ?? InMemoryTokenStore()),
       signInMemoryStoreProvider.overrideWithValue(InMemorySignInMemoryStore()),
+      // 스플래시가 서버 상태를 읽는다. 진짜를 두면 dio가 서버 주소를 찾다
+      // 죽는다 — 테스트에는 주소가 없다.
+      userStatusRepositoryProvider.overrideWithValue(
+        FakeUserStatusRepository(),
+      ),
       authRepositoryProvider.overrideWithValue(
         repository ?? FakeAuthRepository(latency: Duration.zero),
       ),

@@ -16,6 +16,8 @@ import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
 import 'package:runiverse/features/auth/domain/oauth_code_source.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 
@@ -46,6 +48,11 @@ void main() {
           ),
           consentStoreProvider.overrideWithValue(consent),
           // 지연이 있으면 pumpAndSettle이 실제로 기다린다. 테스트에서는 뺀다.
+          // 스플래시가 서버 상태를 읽는다. 진짜를 두면 dio가 서버 주소를 찾다
+          // 죽는다 — 테스트에는 주소가 없다.
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
+          ),
           authRepositoryProvider.overrideWithValue(
             repository ?? FakeAuthRepository(latency: Duration.zero),
           ),

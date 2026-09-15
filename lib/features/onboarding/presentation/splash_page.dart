@@ -13,6 +13,8 @@ import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/core/widgets/color/aura_orb.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/session/domain/run_resume.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 스플래시 (S01).
 ///
@@ -107,7 +109,7 @@ class _SplashPageState extends ConsumerState<SplashPage> {
         // `restore()`가 부른 `/users/me`에서 온다 — 저장된 값이 아니다.
         //
         // 폼으로 보내는 것은 **인증 직후**(가입 · 이메일 로그인 · 카카오)뿐이다.
-        context.go(AppRoutes.home);
+        await _goByStatus();
       case AuthSignedOut(:final returning):
         // 로그인했던 적이 있으면 소개를 건너뛴다.
         context.go(returning ? AppRoutes.signIn : AppRoutes.onboardingIntro);
@@ -117,6 +119,37 @@ class _SplashPageState extends ConsumerState<SplashPage> {
           _offline = true;
           _leaving = false;
         });
+    }
+  }
+
+  /// 서버가 아는 상태를 보고 갈 곳을 정한다.
+  ///
+  /// ## ⚠️ 못 읽어도 홈으로 보낸다
+  ///
+  /// 여기서 막으면 **상태 조회 하나가 앱 전체를 잠근다.** 진행 중인 러닝이 있어도
+  /// 홈에서 다시 물을 기회가 있고(포그라운드 복귀), 로그인은 이미 끝났다.
+  /// 스플래시에 사람을 묶어두는 쪽이 더 나쁘다.
+  Future<void> _goByStatus() async {
+    final status = await ref.read(userStatusProvider.notifier).refresh();
+    if (!mounted) return;
+
+    // 못 읽었으면 홈이다.
+    if (status == null) {
+      context.go(AppRoutes.home);
+      return;
+    }
+
+    switch (RunResume.of(status)) {
+      case RunResume.home:
+        context.go(AppRoutes.home);
+      // ⚠️ **`go`가 아니라 홈을 깔고 그 위에 얹는다.** 곧바로 러닝 화면을
+      // 띄우면 뒤로가기로 갈 곳이 없어 앱이 닫힌다.
+      case RunResume.soloPrepare:
+        context.go(AppRoutes.home);
+        unawaited(context.push(AppRoutes.runPrepare));
+      case RunResume.running:
+        context.go(AppRoutes.home);
+        unawaited(context.push(AppRoutes.runSession));
     }
   }
 

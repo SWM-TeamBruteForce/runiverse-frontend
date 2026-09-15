@@ -9,6 +9,8 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/profile/data/fake_profile_image_repository.dart';
 import 'package:runiverse/features/profile/data/fake_profile_repository.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
@@ -57,6 +59,11 @@ void main() {
             InMemorySignInMemoryStore(),
           ),
           consentStoreProvider.overrideWithValue(InMemoryConsentStore()),
+          // 스플래시가 서버 상태를 읽는다. 진짜를 두면 dio가 서버 주소를 찾다
+          // 죽는다 — 테스트에는 주소가 없다.
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
+          ),
           authRepositoryProvider.overrideWithValue(auth),
           // ⚠️ 없으면 아바타가 진짜 저장소를 만들고 `API_BASE_URL`이 없어 죽는다.
           profileImageRepositoryProvider.overrideWithValue(

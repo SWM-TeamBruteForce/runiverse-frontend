@@ -388,6 +388,16 @@ abstract final class AppStrings {
   /// 매칭은 아직 서버가 없다. 카카오·애플 버튼과 같은 처리다.
   static const homeMatchComingSoon = '매칭은 아직 준비 중이에요';
 
+  /// 진행 중인 매칭이 있을 때 홈 상단에 뜬다.
+  ///
+  /// ⚠️ **흔적을 남기지 않으면 다시 신청하려 든다.** 신청해 두고 앱을 껐다 켠
+  /// 사람에게 아무것도 보이지 않으면 신청이 사라진 줄 알고 다시 누르고,
+  /// 서버는 409로 막는다. 매칭 화면이 생기면 이 배너가 그 화면으로 데려간다.
+  static const homeMatchInProgress = '매칭이 진행 중이에요';
+
+  /// 매칭 화면이 아직 없어 배너를 눌러도 갈 곳이 없다. 그 사실을 적는다.
+  static const homeMatchInProgressHint = '대기방 화면은 준비 중이에요';
+
   static const homeSectionCompetition = '다가오는 대회';
   static const homeSectionRecentRun = '최근 러닝';
 
