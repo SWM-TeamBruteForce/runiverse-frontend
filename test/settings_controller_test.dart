@@ -110,25 +110,10 @@ void main() {
   });
 
   group('조회', () {
-    test('계정을 못 읽어도 설정은 그린다', () async {
-      // 두 API는 서로 모른다. 하나가 죽었다고 알림 토글까지 감출 이유가 없다.
-      final container = makeContainer(
-        FakeSettingsRepository(
-          latency: Duration.zero,
-          accountFailure: SettingsFailure.server,
-        ),
-      );
-
-      await container.read(settingsControllerProvider.notifier).load();
-
-      final state = container.read(settingsControllerProvider);
-      expect(state.account, isNull);
-      expect(state.settings, isNotNull);
-      // 절반이라도 읽었으면 오류 화면이 아니다.
-      expect(state.isEmpty, isFalse);
-    });
-
-    test('설정을 못 읽어도 계정은 그린다', () async {
+    test('설정을 못 읽으면 오류 화면이다', () async {
+      // ⚠️ 예전에는 계정 조회와 설정 조회가 따로였고, 하나만 실패하면 나머지를
+      // 그렸다. 계정 정보가 `/users/me`로 옮겨가면서 이 화면이 읽는 것은
+      // **설정 하나뿐**이다. 그것이 없으면 그릴 것이 없다.
       final container = makeContainer(
         FakeSettingsRepository(
           latency: Duration.zero,
@@ -139,16 +124,14 @@ void main() {
       await container.read(settingsControllerProvider.notifier).load();
 
       final state = container.read(settingsControllerProvider);
-      expect(state.account, isNotNull);
       expect(state.settings, isNull);
-      expect(state.isEmpty, isFalse);
+      expect(state.isEmpty, isTrue);
     });
 
-    test('둘 다 실패해야 오류 화면이다', () async {
+    test('못 읽으면 오류 화면이다', () async {
       final container = makeContainer(
         FakeSettingsRepository(
           latency: Duration.zero,
-          accountFailure: SettingsFailure.network,
           settingsFailure: SettingsFailure.network,
         ),
       );
@@ -167,7 +150,6 @@ void main() {
       // 처음부터 실패가 없던 것을 보게 되어 아무것도 검사하지 못한다.
       final repository = FakeSettingsRepository(
         latency: Duration.zero,
-        accountFailure: SettingsFailure.network,
         settingsFailure: SettingsFailure.network,
       );
       final container = makeContainer(repository);
@@ -176,7 +158,6 @@ void main() {
       expect(container.read(settingsControllerProvider).failure, isNotNull);
 
       // 서버가 살아났다.
-      repository.accountFailure = null;
       repository.settingsFailure = null;
       await notifier.load();
 

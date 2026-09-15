@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
@@ -11,7 +13,7 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/settings/data/fake_settings_repository.dart';
-import 'package:runiverse/features/settings/domain/login_type.dart';
+import 'package:runiverse/features/auth/domain/login_type.dart';
 import 'package:runiverse/features/settings/presentation/settings_provider.dart';
 
 /// 설정 화면 — **계정 유형에 따른 분기**와 **나가는 길**.
@@ -36,6 +38,13 @@ void main() {
       isOnboarded: true,
     );
 
+    // 저장소에 직접 넣은 토큰이라 가짜 서버는 이것을 모른다. 알려주지 않으면
+    // 자동 로그인이 만료로 끝나고 계정 섹션이 통째로 빈다.
+    final auth = FakeAuthRepository(
+      latency: Duration.zero,
+      loginType: loginType,
+    )..seedSession(accessToken: 'a-1', refreshToken: 'r-1');
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -47,18 +56,29 @@ void main() {
           bodyProfileStoreProvider.overrideWithValue(
             InMemoryBodyProfileStore(),
           ),
-          authRepositoryProvider.overrideWithValue(
-            FakeAuthRepository(latency: Duration.zero),
-          ),
+          // ⚠️ 계정 유형은 이제 **auth**가 답한다. `/users/me`가 함께 싣고,
+          // 설정 화면은 따로 조회하지 않는다.
+          authRepositoryProvider.overrideWithValue(auth),
           settingsRepositoryProvider.overrideWithValue(
-            FakeSettingsRepository(
-              latency: Duration.zero,
-              loginType: loginType,
-            ),
+            FakeSettingsRepository(latency: Duration.zero),
           ),
         ],
         child: const RuniverseApp(initialLocation: AppRoutes.settings),
       ),
+    );
+    await tester.pumpAndSettle();
+
+    // ⚠️ **스플래시를 건너뛰고 설정으로 바로 들어왔다.** 실제 앱에서는 스플래시가
+    // 자동 로그인을 돌려 `/users/me`를 읽어 두는데, 여기서는 그것이 없어
+    // 계정 정보가 비어 있다. 같은 일을 대신 해준다.
+    //
+    // ⚠️ **`await`하지 않는다.** 위젯 테스트는 가짜 시계를 쓰므로 여기서 기다리면
+    // `Future.delayed`가 영영 안 끝나고 테스트가 멈춘다. 시계는 `pump`가 돌린다.
+    unawaited(
+      ProviderScope.containerOf(
+        tester.element(find.byType(RuniverseApp)),
+        listen: false,
+      ).read(authControllerProvider.notifier).restore(),
     );
     await tester.pumpAndSettle();
   }
