@@ -80,8 +80,12 @@ class FakeMatchRepository implements MatchRepository {
 
   var cancelCalls = 0;
 
+  /// 시간대를 몇 번 받아왔는가. **거리를 고칠 때 다시 받는지** 세는 데 쓴다.
+  var slotsCalls = 0;
+
   @override
   Future<List<MatchSlot>> fetchSlots({TargetDistance? distance}) async {
+    slotsCalls++;
     await Future<void>.delayed(latency);
     _throwIfSet(slotsFailure);
     return slots;

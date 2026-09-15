@@ -8,14 +8,20 @@ import 'package:runiverse/core/widgets/empty_state_card.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
+import 'package:runiverse/features/matching/data/fake_match_repository.dart';
+import 'package:runiverse/features/matching/presentation/match_register_page.dart';
+import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 
-/// 홈 (S05 상태 1) — 무엇이 보이고, 아직 없는 화면으로 가는 버튼이 무엇을 하는가.
+/// 홈 (S05 상태 1) — 무엇이 보이고, 히어로의 두 버튼이 어디로 가는가.
 void main() {
   Future<void> pumpHome(WidgetTester tester, {AuthState? auth}) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          // 매칭 버튼이 등록 화면으로 간다. 그 화면이 들어서면서 시간대를
+          // 받아오는데, 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
+          matchRepositoryProvider.overrideWithValue(FakeMatchRepository()),
           if (auth != null)
             authControllerProvider.overrideWith(
               () => _StubAuthController(auth),
@@ -72,14 +78,15 @@ void main() {
     });
   });
 
-  group('아직 없는 화면으로 가는 버튼', () {
-    testWidgets('매칭을 누르면 준비 중이라고 알려준다', (tester) async {
+  group('히어로의 두 버튼', () {
+    testWidgets('매칭을 누르면 등록 화면으로 간다', (tester) async {
+      // 홈에서 바로 신청하면 시간대도 거리도 정할 수 없다. S08을 거친다.
       await pumpHome(tester);
 
       await tester.tap(find.widgetWithText(AppButton, AppStrings.homeMatchCta));
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      expect(find.text(AppStrings.homeMatchComingSoon), findsOneWidget);
+      expect(find.byType(MatchRegisterPage), findsOneWidget);
     });
 
     testWidgets('1인 러닝을 누르면 출발 준비로 간다', (tester) async {

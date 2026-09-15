@@ -385,9 +385,6 @@ abstract final class AppStrings {
   static const homeMatchCta = '지금 매칭하기';
   static const homeSoloCta = '혼자 달리기';
 
-  /// 매칭은 아직 서버가 없다. 카카오·애플 버튼과 같은 처리다.
-  static const homeMatchComingSoon = '매칭은 아직 준비 중이에요';
-
   /// 진행 중인 매칭이 있을 때 홈 상단에 뜬다.
   ///
   /// ⚠️ **흔적을 남기지 않으면 다시 신청하려 든다.** 신청해 두고 앱을 껐다 켠
@@ -406,6 +403,81 @@ abstract final class AppStrings {
 
   /// 빈 상태에 붙는 한 줄. 무엇을 하면 채워지는지 알려준다.
   static const homeEmptyRecentRunHint = '혼자 달리기로 첫 기록을 남겨보세요';
+
+  // ── 매칭 등록 (S08) ──────────────────────────────────────────
+
+  static const matchRegisterTitle = '매칭 등록';
+  static const matchRegisterCta = '매칭 등록하기';
+
+  static const matchTimeLabel = '오늘 언제 뛸까요?';
+  static const matchTimePlaceholder = '시간 고르기';
+
+  /// 대기 인원을 왜 보여주는지 설명한다. 숫자만 두면 무슨 뜻인지 모른다.
+  static const matchTimeHint = '같은 시간대 러너끼리 매칭돼요.\n대기 인원이 많을수록 빨리 만나요';
+
+  static const matchDistanceLabel = '목표 거리';
+
+  /// `3km` — 거리 칩과 요약 줄에 함께 쓴다.
+  static String matchDistanceText(int km) => '${km}km';
+
+  /// `19:00` — 슬롯 표기. 날짜는 오늘뿐이라 시각만 적는다.
+  static String matchSlotTime(DateTime startAt) {
+    final hh = startAt.hour.toString().padLeft(2, '0');
+    final mm = startAt.minute.toString().padLeft(2, '0');
+    return '$hh:$mm';
+  }
+
+  /// `3명 대기` — 사회적 증거다. 0명이면 붙이지 않는다.
+  static String matchWaitingCount(int count) => '$count명 대기';
+
+  static const matchSlotSheetTitle = '시간 선택';
+
+  /// 마감된 슬롯에 붙는다. 목록에서 빼지 않고 잠그기 때문에 이유가 필요하다.
+  static const matchSlotClosed = '마감';
+
+  static const matchSlotEmpty = '오늘은 고를 수 있는 시간대가 없어요';
+
+  /// 페이스를 입력받지 않는 이유를 밝힌다. 없으면 빠뜨린 항목으로 읽힌다.
+  static const matchPaceAuto = '페이스는 프로필 기록으로 자동으로 맞춰드려요';
+
+  static const matchPlayerCountInfo = '2~4명이 함께 달려요';
+
+  /// ⚠️ 등록 전에 알린다. 확정 뒤에 나가면 제재가 붙는다는 사실을
+  /// 나갈 때 처음 알리면 속았다고 느낀다.
+  static const matchCancelPolicy = '매칭이 확정된 뒤에 나가면 20분 동안 다시 신청할 수 없어요';
+
+  // 실패 — 서버가 준 문장을 그대로 띄우지 않는다. 앱이 무엇을 할 수 있는지가
+  // 문구에 들어가야 한다.
+
+  /// 모달을 열어둔 사이 마감이 지났다. 목록을 다시 받는다.
+  static const matchFailedSlotClosed = '방금 그 시간대는 마감됐어요. 다른 시간을 골라주세요';
+
+  static const matchFailedAlready = '이미 진행 중인 매칭이 있어요';
+
+  static const matchFailedOnboarding = '프로필을 먼저 채워야 매칭 조건을 만들 수 있어요';
+
+  /// ⚠️ 쿨다운은 확정 후 이탈과 러닝 중 조기 종료 **둘 다**에서 걸린다.
+  /// "이탈"만 말하면 러닝을 중간에 끝낸 사람이 이유를 모른다.
+  static String matchFailedCooldown(DateTime? until) {
+    if (until == null) return '매칭이나 러닝을 중간에 그만둬서 잠시 신청할 수 없어요';
+    return '매칭이나 러닝을 중간에 그만둬서 ${matchSlotTime(until)}까지 신청할 수 없어요';
+  }
+
+  /// ⚠️ 앱의 선택지가 서버 규칙과 어긋났다는 신호다. 정상 경로에서는 안 나온다.
+  static const matchFailedInvalid = '지금은 등록할 수 없어요. 앱을 업데이트해주세요';
+
+  /// ⚠️ 재시도 버튼을 주지 않는다. 등록됐는지 알 수 없어서 다시 보내면
+  /// 중복 신청이 된다.
+  static const matchFailedNetwork = '등록됐는지 확인하지 못했어요. 홈에서 다시 확인해주세요';
+
+  // 위치 권한 시트 — 알림은 묻지 않는다. 받아도 보낼 채널이 아직 없다.
+
+  static const matchLocationTitle = '위치를 쓸 수 있게 해주세요';
+  static const matchLocationBody = '달리는 동안 경로와 거리를 재는 데만 써요.\n파티원에게는 보이지 않아요';
+  static const matchLocationAllow = '허용하고 계속하기';
+
+  /// 거부해도 등록은 진행한다. 위치가 필요한 시점은 달리기 시작할 때다.
+  static const matchLocationLater = '나중에 할게요';
 
   // ── 프로필 탭 (S22, 본인) ────────────────────────────────────
   //
