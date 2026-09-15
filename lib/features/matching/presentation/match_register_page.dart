@@ -13,6 +13,7 @@ import 'package:runiverse/core/widgets/preset_chip.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
+import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 import 'package:runiverse/features/matching/presentation/match_slot_sheet.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
@@ -180,6 +181,11 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
   Future<void> _submit() async {
     final roomId = await ref.read(matchRegisterProvider.notifier).submit();
     if (roomId == null || !mounted) return;
+
+    // ⚠️ 순서가 정해져 있다 — 신청 응답을 받은 **뒤에** 붙는다. 활성 신청이
+    // 없는데 열면 서버가 404로 거절하고, 그 뒤에 신청해도 이벤트가 오지 않는
+    // 연결이 된다. 상태 갱신보다 먼저 붙어야 모집 중 인원 변동을 처음부터 받는다.
+    ref.read(matchRoomProvider.notifier).connect();
 
     // 신청이 됐으니 서버가 아는 상태가 달라졌다. 홈 배너가 그 값을 본다.
     await ref.read(userStatusProvider.notifier).refresh();

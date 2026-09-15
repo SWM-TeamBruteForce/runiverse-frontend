@@ -11,6 +11,7 @@ import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/widgets/profile_prompt_sheet.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 하단 탭 셸 — 5개 탭의 공통 껍데기.
@@ -140,6 +141,10 @@ class _AppShellState extends ConsumerState<AppShell> {
     // 채운 사람도 잠깐 갇힌다.
     final auth = ref.watch(authControllerProvider);
     if (auth is AuthSignedIn) _gateIfNeeded(auth.isOnboarded);
+
+    // 매칭 스트림을 여기서 살려둔다. **화면이 소유하면 탭을 옮기는 사이에
+    // 확정 통지를 놓친다.** 붙을지 끊을지는 provider가 유저 상태를 보고 정한다.
+    ref.watch(matchRoomProvider);
 
     return Scaffold(
       body: widget.navigationShell,

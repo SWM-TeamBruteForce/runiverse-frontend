@@ -6,11 +6,13 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
+import 'package:runiverse/features/matching/data/fake_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/match_slot.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 import 'package:runiverse/features/matching/presentation/match_register_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
+import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
@@ -47,6 +49,9 @@ void main() {
       ProviderScope(
         overrides: [
           matchRepositoryProvider.overrideWithValue(matches),
+          // 신청에 성공하면 곧바로 스트림에 붙는다. 진짜를 두면 dio가
+          // 서버 주소를 찾다 죽는다.
+          matchStreamProvider.overrideWithValue(FakeMatchStream()),
           // 신청에 성공하면 홈 배너가 볼 상태를 다시 읽는다.
           userStatusRepositoryProvider.overrideWithValue(
             FakeUserStatusRepository(),
