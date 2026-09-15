@@ -10,6 +10,7 @@ import 'package:runiverse/core/theme/tokens/app_radius.dart';
 import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/core/utils/age_rule.dart';
 import 'package:runiverse/core/widgets/app_input.dart';
 import 'package:runiverse/core/widgets/wheel_picker_sheet.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
@@ -93,7 +94,16 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
 
   bool get _introductionTooLong => _introduction.text.trim().length > 100;
 
-  bool get _canSave => _dirty && !_saving && !_introductionTooLong;
+  /// 만 14세 미만인가. 서버도 `PATCH /users/me/profile`에서 400으로 막지만
+  /// 그 메시지는 화면에 닿지 않아, 저장 버튼을 여기서 잠근다.
+  bool get _birthdayTooYoung {
+    final birthday = _birthday;
+    if (birthday == null) return false;
+    return !AgeRule.isAllowed(birthday, now: DateTime.now());
+  }
+
+  bool get _canSave =>
+      _dirty && !_saving && !_introductionTooLong && !_birthdayTooYoung;
 
   // ── 고르기 ────────────────────────────────────────────────
 
@@ -107,7 +117,10 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
       columns: [
         WheelColumn(
           unit: AppStrings.profileUnitYear,
-          values: [for (var y = now.year - 80; y <= now.year - 10; y++) y],
+          // ⚠️ 상한은 `AgeRule`이 정한다. 온보딩 화면과 같은 값을 써야 한다.
+          values: [
+            for (var y = now.year - 80; y <= AgeRule.latestYear(now); y++) y,
+          ],
           initial: current.year,
         ),
         WheelColumn(
@@ -327,6 +340,19 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                         value: _birthday == null ? null : _dateText(_birthday!),
                         onTap: _pickBirthday,
                       ),
+                      // 저장 버튼만 잠그면 왜 안 눌리는지 알 수 없다.
+                      if (_birthdayTooYoung)
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: AppSpacing.space2,
+                          ),
+                          child: Text(
+                            AppStrings.profileBirthTooYoung,
+                            style: AppTypography.caption.copyWith(
+                              color: colors.error,
+                            ),
+                          ),
+                        ),
                       _ValueRow(
                         label: AppStrings.profileBodyLabel,
                         value: _heightCm == null || _weightKg == null

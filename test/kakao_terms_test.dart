@@ -146,7 +146,9 @@ void main() {
     final app = await pumpSignIn(tester, agreed: false);
     await tapKakao(tester);
 
-    // 필수 3개만 켠다. 선택이 CTA를 막으면 그것은 선택이 아니다.
+    // 필수만 켠다. 선택이 CTA를 막으면 그것은 선택이 아니다.
+    await tester.tap(find.text(AppStrings.termsAge));
+    await tester.pumpAndSettle();
     await tester.tap(find.text(AppStrings.termsService));
     await tester.pumpAndSettle();
     await tester.tap(find.text(AppStrings.termsPrivacy));

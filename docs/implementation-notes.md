@@ -863,3 +863,37 @@ Android가 보는 것은 **서비스를 시작하는 순간 앱이 포그라운�
 갖게 되어 케이던스가 무한대로 튄다. 패키지가 주는 `timeStamp`를 쓴다.
 
 ⚠️ **에뮬레이터에는 걸음 센서가 없다.** 실기기로만 검증된다.
+
+---
+
+## 12. 네이버 지도 — 로딩 배경의 흰 격자
+
+지도에 타일이 아직 없을 때 SDK가 배경 이미지를 깐다. 그것이 **흰 격자**(`#F3F2F1`
+바탕에 `#DAD9D8` 선)라 어두운 앱에서 화면이 밝게 번쩍인다.
+
+### ⚠️ `android/app/src/main/res/drawable-*/navermap_default_background_light.png`
+
+**이름이 SDK 리소스와 같은 것은 의도한 것이다.** 안드로이드는 앱 모듈의 리소스가
+라이브러리(AAR)의 같은 이름 리소스를 이긴다. SDK가 `_light`를 고를 때 우리 파일이
+쓰이게 만든 것이고, 내용은 **SDK의 `_dark` 타일을 그대로 복사**했다(`#252B30`).
+색을 새로 만들지 않았으므로 격자 모양과 톤이 SDK 것과 같다.
+
+**밀도 다섯 곳에 모두 넣어야 한다**(mdpi·hdpi·xhdpi·xxhdpi·xxxhdpi). 한 곳만 넣으면
+기기 밀도에 따라 라이브러리 것이 선택된다.
+
+### 왜 코드로 못 고치나
+
+네이티브 `NaverMapOptions`에는 `backgroundColor`·`backgroundResource`가 있지만
+**`flutter_naver_map`이 둘 다 노출하지 않는다.** 플러그인이 네이티브에서 건드리는
+옵션은 `compassEnabled` `zoomControlEnabled` `scaleBarEnabled` `logoClickEnabled`
+`locationButtonEnabled` 다섯뿐이다.
+
+⚠️ **`nightModeEnable: true`로는 안 된다.** 시도했고 배경이 그대로 흰 격자였다
+(에뮬레이터에서 픽셀로 확인). 커스텀 스타일과도 무관하다.
+
+### ⚠️ 조용히 원상복귀할 수 있다
+
+SDK가 리소스 이름을 바꾸면 우리 파일은 아무것도 덮지 않고, **에러 없이** 흰 격자가
+돌아온다. `flutter_naver_map`이나 `map-sdk`를 올린 뒤에는 지도 로딩 화면을 한 번
+눈으로 본다. 확인은 지도가 **처음 뜨는 순간**에만 가능하다 — 타일이 깔린 뒤에는
+배경이 보이지 않는다.

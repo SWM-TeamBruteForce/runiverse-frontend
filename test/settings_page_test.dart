@@ -63,6 +63,19 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// 설정 목록의 행 하나를 누른다.
+  ///
+  /// ⚠️ **먼저 화면 안으로 끌어와야 한다.** 테스트 화면은 800×600이라 목록
+  /// 아래쪽 행(로그아웃·탈퇴)은 밖에 있고, 그대로 누르면 "off-screen"으로
+  /// 실패한다. 행이 하나 늘 때마다 이 경계가 움직인다.
+  Future<void> tapRow(WidgetTester tester, String label) async {
+    final row = find.text(label);
+    await tester.ensureVisible(row);
+    await tester.pumpAndSettle();
+    await tester.tap(row);
+    await tester.pumpAndSettle();
+  }
+
   group('비밀번호 메뉴 분기', () {
     testWidgets('로컬 계정이면 보인다', (tester) async {
       await pumpSettings(tester);
@@ -86,12 +99,28 @@ void main() {
     });
   });
 
+  group('고지 문서', () {
+    testWidgets('⚠️ 방침과 계정삭제 행이 있다', (tester) async {
+      // 구글 플레이 심사가 두 링크를 요구한다. 행이 사라지면 심사에서 막힌다.
+      await pumpSettings(tester);
+
+      expect(find.text(AppStrings.settingsPrivacy), findsOneWidget);
+      expect(find.text(AppStrings.settingsAccountDeletion), findsOneWidget);
+    });
+
+    testWidgets('이용약관 행은 문서가 없어도 남아 있다', (tester) async {
+      // 자리를 비워두면 문서가 생겼을 때 붙이는 것을 잊는다.
+      await pumpSettings(tester);
+
+      expect(find.text(AppStrings.settingsTerms), findsOneWidget);
+    });
+  });
+
   group('나가는 길', () {
     testWidgets('⚠️ 로그아웃하면 로그인 화면으로 간다', (tester) async {
       await pumpSettings(tester);
 
-      await tester.tap(find.text(AppStrings.settingsSignOut));
-      await tester.pumpAndSettle();
+      await tapRow(tester, AppStrings.settingsSignOut);
 
       // 다이얼로그의 확인 버튼. 행과 같은 문구라 마지막 것을 누른다.
       await tester.tap(find.text(AppStrings.settingsSignOut).last);
@@ -106,8 +135,7 @@ void main() {
     testWidgets('취소하면 그대로 남는다', (tester) async {
       await pumpSettings(tester);
 
-      await tester.tap(find.text(AppStrings.settingsSignOut));
-      await tester.pumpAndSettle();
+      await tapRow(tester, AppStrings.settingsSignOut);
       await tester.tap(find.text(AppStrings.settingsCancel));
       await tester.pumpAndSettle();
 
@@ -118,8 +146,7 @@ void main() {
     testWidgets('⚠️ 탈퇴해도 로그인 화면으로 간다', (tester) async {
       await pumpSettings(tester);
 
-      await tester.tap(find.text(AppStrings.settingsWithdraw));
-      await tester.pumpAndSettle();
+      await tapRow(tester, AppStrings.settingsWithdraw);
 
       // 시트의 확인 버튼.
       await tester.tap(find.text(AppStrings.withdrawConfirm));
@@ -132,8 +159,7 @@ void main() {
     testWidgets('탈퇴 시트에서 취소하면 계정이 남는다', (tester) async {
       await pumpSettings(tester);
 
-      await tester.tap(find.text(AppStrings.settingsWithdraw));
-      await tester.pumpAndSettle();
+      await tapRow(tester, AppStrings.settingsWithdraw);
       await tester.tap(find.text(AppStrings.settingsCancel));
       await tester.pumpAndSettle();
 

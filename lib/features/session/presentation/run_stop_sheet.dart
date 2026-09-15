@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
+import 'package:runiverse/core/theme/tokens/app_motion.dart';
 import 'package:runiverse/core/theme/tokens/app_radius.dart';
 import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
@@ -139,7 +140,7 @@ class _Value extends StatelessWidget {
   }
 }
 
-/// 2초 길게 눌러야 끝난다.
+/// [AppMotion.holdToConfirm]만큼 길게 눌러야 끝난다.
 ///
 /// ## 왜 한 번 눌러서 끝내지 않나
 ///
@@ -158,7 +159,7 @@ class _HoldToFinish extends StatefulWidget {
 class _HoldToFinishState extends State<_HoldToFinish>
     with SingleTickerProviderStateMixin {
   late final AnimationController _hold =
-      AnimationController(vsync: this, duration: const Duration(seconds: 2))
+      AnimationController(vsync: this, duration: AppMotion.holdToConfirm)
         ..addStatusListener((status) {
           if (status == AnimationStatus.completed) widget.onFinish();
         });

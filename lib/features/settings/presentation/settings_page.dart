@@ -1,14 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/config/legal_links.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
 import 'package:runiverse/core/theme/tokens/app_radius.dart';
 import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/core/widgets/legal_document.dart';
 import 'package:runiverse/core/widgets/preset_chip.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/settings/domain/login_type.dart';
@@ -131,16 +135,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   // ── 약관 ──────────────────────────────────────────────────
 
-  /// 문서 주소가 아직 없다.
+  /// 이용약관 문서는 아직 없다. 법정 필수가 아니라 신고·제재 기능을 붙일 때
+  /// 만든다. 그동안 이 행은 눌러도 "준비 중"이 뜬다 —
+  /// [openLegalDocument]가 주소 유무를 보고 가른다.
   ///
   /// 행을 감추지 않는 이유는, **약관을 볼 수 있어야 한다는 사실 자체가 약속**이라
   /// 자리를 비워두면 나중에 붙이는 것을 잊기 때문이다.
-  void _openTerms() {
-    // 주소가 채워지면 여기서 `url_launcher`로 연다.
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text(AppStrings.settingsTermsPending)),
-    );
-  }
+  void _openTerms() => unawaited(_openDocument(LegalLinks.terms));
+
+  Future<void> _openDocument(String url) => openLegalDocument(context, url);
 
   // ── 탈퇴 ──────────────────────────────────────────────────
 
@@ -236,6 +239,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     label: AppStrings.settingsPassword,
                     onTap: () => context.push(AppRoutes.passwordChange),
                   ),
+                _ActionRow(
+                  label: AppStrings.settingsPrivacy,
+                  onTap: () => _openDocument(LegalLinks.privacy),
+                ),
+                _ActionRow(
+                  label: AppStrings.settingsAccountDeletion,
+                  onTap: () => _openDocument(LegalLinks.accountDeletion),
+                ),
                 _ActionRow(label: AppStrings.settingsTerms, onTap: _openTerms),
                 // ⚠️ 조회가 실패해도 이 행은 살아 있다.
                 _ActionRow(label: AppStrings.settingsSignOut, onTap: _signOut),

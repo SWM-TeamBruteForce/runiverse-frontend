@@ -138,5 +138,15 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+
+        <!-- 개인정보처리방침·계정삭제 문서를 브라우저로 연다(`url_launcher`).
+
+             ⚠️ API 30부터 다른 앱은 기본적으로 보이지 않는다. 이 선언이 없으면
+             `canLaunchUrl`이 **조용히 false**를 돌려주고 링크가 열리지 않는다 —
+             예외도 로그도 없어서 원인을 찾기 어렵다. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
     </queries>
 </manifest>

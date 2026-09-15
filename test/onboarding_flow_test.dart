@@ -124,6 +124,97 @@ void main() {
     expect(find.byType(SignUpPage), findsNothing);
   });
 
+  testWidgets('⚠️ 연령 확인 없이는 가입으로 넘어갈 수 없다', (tester) async {
+    // 생년월일은 프로필 설정에서야 받는다. 이 항목이 없으면 이메일·비밀번호를
+    // 다 받은 뒤에야 나이를 알게 된다 — 개인정보를 이미 수집한 뒤다.
+    await pumpApp(tester);
+    await tester.tap(find.byType(SplashPage));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.onboardingSkip));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.termsAge), findsOneWidget);
+
+    // 연령 확인만 빼고 나머지 필수를 전부 켠다.
+    for (final label in [
+      AppStrings.termsService,
+      AppStrings.termsPrivacy,
+      AppStrings.termsHealth,
+    ]) {
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    final locked = tester.widget<AppButton>(
+      find.widgetWithText(AppButton, AppStrings.termsCta),
+    );
+    expect(locked.onPressed, isNull);
+
+    await tester.tap(find.text(AppStrings.termsAge));
+    await tester.pumpAndSettle();
+
+    final unlocked = tester.widget<AppButton>(
+      find.widgetWithText(AppButton, AppStrings.termsCta),
+    );
+    expect(unlocked.onPressed, isNotNull);
+  });
+
+  testWidgets('⚠️ 전문 보기를 눌러도 동의가 켜지지 않는다', (tester) async {
+    // 한 행에 누르는 곳이 둘이다 — 행은 동의 토글, 화살표는 문서 열기.
+    // 화살표가 행의 터치 영역 안에 있으면 **문서를 보려다 동의가 켜진다.**
+    // 필수 셋을 모두 눌러 보고 CTA가 여전히 잠겨 있는지로 가른다.
+    await pumpApp(tester);
+    await tester.tap(find.byType(SplashPage));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.onboardingSkip));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+
+    // ⚠️ **연령 확인은 먼저 정상적으로 체크한다.** 그 행에는 화살표가 없어서,
+    // 안 켜두면 화살표가 동의를 토글하더라도 CTA가 잠긴 채라 판별이 안 된다.
+    await tester.tap(find.text(AppStrings.termsAge));
+    await tester.pumpAndSettle();
+
+    // 문서가 없는 연령 확인을 뺀 나머지 넷.
+    final chevrons = find.byTooltip(AppStrings.termsViewDocument);
+    expect(chevrons, findsNWidgets(4));
+
+    for (var i = 0; i < 4; i++) {
+      await tester.tap(chevrons.at(i));
+      await tester.pumpAndSettle();
+    }
+
+    final cta = tester.widget<AppButton>(
+      find.widgetWithText(AppButton, AppStrings.termsCta),
+    );
+    expect(cta.onPressed, isNull);
+  });
+
+  testWidgets('문서가 없는 항목은 준비 중이라고 알린다', (tester) async {
+    // 눌러도 조용하면 고장으로 읽힌다. 이용약관 문서는 아직 없다.
+    await pumpApp(tester);
+    await tester.tap(find.byType(SplashPage));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.onboardingSkip));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip(AppStrings.termsViewDocument).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.legalDocumentPending), findsOneWidget);
+  });
+
   testWidgets('약관에 동의하면 정보 입력으로 넘어간다', (tester) async {
     await pumpApp(tester);
     await tester.tap(find.byType(SplashPage));

@@ -52,6 +52,10 @@ class RunSummaryPage extends ConsumerWidget {
     final metrics = state.metrics;
     // 결과 조회는 방 번호로 한다. 없으면 상세로 갈 수 없다.
     final room = ref.watch(runningConnectionProvider).room;
+    // 서버가 아직 기록을 확정하는 중이면 상세로 가는 문을 잠근다.
+    final settling = ref.watch(
+      runningConnectionProvider.select((it) => it.settling),
+    );
     final averagePace = PaceCalculator.format(
       PaceCalculator.perKilometer(
         meters: metrics.distanceMeters,
@@ -142,7 +146,9 @@ class RunSummaryPage extends ConsumerWidget {
                 AppSpacing.space4,
               ),
               child: AppButton(
-                label: AppStrings.runSummaryDetail,
+                label: settling
+                    ? AppStrings.runSummaryDetailSettling
+                    : AppStrings.runSummaryDetail,
                 variant: AppButtonVariant.secondary,
                 size: AppButtonSize.lg,
                 // `go`가 아니라 `push`다. 결과 화면이 요약 위에 얹혀야
@@ -153,7 +159,11 @@ class RunSummaryPage extends ConsumerWidget {
                 //
                 // 방을 못 열었으면(409 등) 결과를 볼 수 없다. 그때는 버튼을
                 // 비활성으로 둔다 — 눌러 봐야 빈 화면이다.
-                onPressed: room == null
+                //
+                // ⚠️ **확정 중에도 잠근다.** 서버가 `RUNNING_FINISH`를 처리하기
+                // 전에 부르면 200에 빈 기록이 와서 `0.00km · 구간 0개`가 된다
+                // ([RunningConnectionState.settling]).
+                onPressed: room == null || settling
                     ? null
                     : () => context.push(AppRoutes.runResult, extra: room.id),
               ),
