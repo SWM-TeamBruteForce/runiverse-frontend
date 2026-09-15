@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:runiverse/app/router/app_routes.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
@@ -191,8 +194,10 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
     await ref.read(userStatusProvider.notifier).refresh();
     if (!mounted) return;
 
-    // ⚠️ 대기방 화면이 아직 없다. 홈으로 돌려보내면 배너가 진행 중임을 알린다.
+    // 등록 화면을 닫고 대기방으로 옮긴다. 뒤로 가면 홈이어야 한다 — 방금
+    // 신청한 조건 화면으로 되돌아가면 또 신청하려 들고 서버가 409로 막는다.
     context.pop();
+    unawaited(context.push(AppRoutes.matchRoom));
   }
 
   /// 실패를 말로 옮긴다. **서버 문장을 그대로 띄우지 않는다** — 사용자가

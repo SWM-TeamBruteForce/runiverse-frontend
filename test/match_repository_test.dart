@@ -217,7 +217,11 @@ void main() {
 
   group('가짜 저장소', () {
     test('⚠️ 신청은 받은 문자열을 손대지 않고 되돌려 보낸다', () async {
-      final repository = FakeMatchRepository();
+      // ⚠️ 기본 슬롯은 `DateTime.now()`에 기댄다. 밤 10시가 넘어 돌리면 고를
+      // 수 있는 자리가 하나도 없어 테스트가 시각에 따라 달라진다.
+      final repository = FakeMatchRepository(
+        slots: FakeMatchRepository.defaultSlots(now: DateTime(2026, 9, 15, 12)),
+      );
       final slot = repository.slots.firstWhere((slot) => slot.selectable);
 
       await repository.apply(slotRaw: slot.raw, distance: TargetDistance.km5);

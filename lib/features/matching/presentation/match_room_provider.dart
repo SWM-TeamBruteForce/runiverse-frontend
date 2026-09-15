@@ -180,7 +180,10 @@ class MatchRoomController extends Notifier<MatchRoomState> {
   Future<void> _stop() async {
     final subscription = _subscription;
     _subscription = null;
-    await subscription?.cancel();
+    // ⚠️ 해지를 기다리지 않는다. 브로드캐스트 스트림의 `cancel()`이 언제
+    // 끝나는지는 우리가 통제하지 못하는데, 그걸 기다리다 **닫기 자체가 뒤로
+    // 밀린다.** 닫는 것이 목적이고 해지는 그 부수 효과다.
+    unawaited(subscription?.cancel());
 
     final stream = _stream;
     _stream = null;

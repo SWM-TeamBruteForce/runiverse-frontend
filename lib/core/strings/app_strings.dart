@@ -392,8 +392,8 @@ abstract final class AppStrings {
   /// 서버는 409로 막는다. 매칭 화면이 생기면 이 배너가 그 화면으로 데려간다.
   static const homeMatchInProgress = '매칭이 진행 중이에요';
 
-  /// 매칭 화면이 아직 없어 배너를 눌러도 갈 곳이 없다. 그 사실을 적는다.
-  static const homeMatchInProgressHint = '대기방 화면은 준비 중이에요';
+  /// 눌러서 갈 곳이 생겼다. 무엇을 하면 되는지 적는다.
+  static const homeMatchInProgressHint = '눌러서 대기방을 봐요';
 
   static const homeSectionCompetition = '다가오는 대회';
   static const homeSectionRecentRun = '최근 러닝';
@@ -478,6 +478,69 @@ abstract final class AppStrings {
 
   /// 거부해도 등록은 진행한다. 위치가 필요한 시점은 달리기 시작할 때다.
   static const matchLocationLater = '나중에 할게요';
+
+  // ── 대기방 (S10) ─────────────────────────────────────────────
+
+  static const matchRoomTitle = '매칭';
+
+  static const matchRoomWaiting = '매칭 중';
+  static const matchRoomMatched = '매칭 완료!';
+
+  /// `현재 3명 모였어요` — 모집 중에 인원을 알린다. 사회적 증거다.
+  static String matchRoomJoined(int count) => '현재 $count명 모였어요';
+
+  /// ⚠️ 알림으로 알려주지 않는다. FCM이 아직 없어 "알림으로 알려줄게요"는
+  /// 지킬 수 없는 약속이다. 지금 할 수 있는 말만 적는다.
+  static const matchRoomWaitingHint = '확정되면 이 화면이 바뀌어요';
+
+  static const matchRoomCloseLabel = '모집 마감까지';
+  static const matchRoomStartLabel = '시작까지';
+
+  /// `19:00 시작` — 세션 정보 바 왼쪽.
+  static String matchRoomStartAt(DateTime startAt) =>
+      '${matchSlotTime(startAt)} 시작';
+
+  /// `5km 목표` — 세션 정보 바 오른쪽.
+  static String matchRoomTarget(int km) => '${km}km 목표';
+
+  /// `파티원 (3명)`
+  static String matchRoomPlayers(int count) => '파티원 ($count명)';
+
+  /// 탈퇴한 사람의 자리. **목록에서 빼지 않는다** — 빼면 인원 수가 어긋난다.
+  static const matchRoomDeletedPlayer = '탈퇴한 사용자';
+
+  /// 남은 시간 `08:20`. 시간 단위가 필요하면 `1:08:20`.
+  static String matchRoomCountdown(Duration remaining) {
+    final seconds = (remaining.inSeconds % 60).toString().padLeft(2, '0');
+    final minutes = remaining.inMinutes % 60;
+    if (remaining.inHours == 0) {
+      return '${minutes.toString().padLeft(2, '0')}:$seconds';
+    }
+    final mm = minutes.toString().padLeft(2, '0');
+    return '${remaining.inHours}:$mm:$seconds';
+  }
+
+  static const matchRoomCancel = '매칭 취소하기';
+  static const matchRoomLeave = '나가기';
+
+  static const matchRoomLeaveTitle = '정말 나갈까요?';
+
+  /// ⚠️ 나가기 전에 알린다. 나간 뒤에 알리면 속았다고 느낀다.
+  static const matchRoomLeavePenalty = '지금 나가면 20분 동안 다시 신청할 수 없어요';
+
+  /// 혼자 남은 방은 제재가 없다. 있는 것처럼 겁주지 않는다.
+  static const matchRoomLeaveFree = '지금 나가도 다시 신청할 수 있어요';
+
+  static const matchRoomLeaveConfirm = '나갈게요';
+  static const matchRoomStay = '남아 있을게요';
+
+  static const matchRoomLeaveFailed = '나가지 못했어요. 잠시 뒤 다시 시도해주세요';
+
+  /// ⚠️ 끊겨도 방은 그대로 둔다. 무엇이 멈춘 것인지만 알린다.
+  static const matchRoomDisconnected = '실시간 연결이 끊겼어요. 인원이 바뀌어도 바로 보이지 않아요';
+
+  static const matchRoomStarted = '러닝이 시작됐어요';
+  static const matchRoomStartedHint = '러닝 화면은 준비 중이에요';
 
   // ── 프로필 탭 (S22, 본인) ────────────────────────────────────
   //
