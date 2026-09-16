@@ -10,7 +10,6 @@ import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/data/fake_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
-import 'package:runiverse/features/matching/domain/match_slot.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 import 'package:runiverse/features/matching/presentation/match_register_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
