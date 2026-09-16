@@ -97,9 +97,7 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                         ? AppStrings.matchTimePlaceholder
                         : AppStrings.matchSlotTime(selected.startAt),
                     waitingCount: selected?.waitingCount ?? 0,
-                    // 목록을 받아오는 동안에는 열지 않는다. 빈 시트를 열면
-                    // "고를 것이 없다"로 읽힌다.
-                    onTap: state.loading ? null : _pickSlot,
+                    onTap: _pickSlot,
                   ),
                   const SizedBox(height: AppSpacing.space3),
 

@@ -6,7 +6,6 @@ import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/match_repository.dart';
-import 'package:runiverse/features/matching/domain/match_slot.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 
 /// 진짜 서버를 부르는 [MatchRepository]. **여기가 응답 형식을 아는 유일한 곳이다.**
@@ -20,22 +19,6 @@ class HttpMatchRepository implements MatchRepository {
   final AuthRepository _auth;
 
   static const _path = '/api/v1/running-matches';
-  static const _slotsPath = '$_path/slots';
-
-  @override
-  Future<List<MatchSlot>> fetchSlots({TargetDistance? distance}) =>
-      _authorized((token) async {
-        final response = await _dio.get<Map<String, dynamic>>(
-          _slotsPath,
-          // `date`를 보내지 않는다. 오늘이 언제인지는 서버가 정한다 —
-          // 기기 시계로 날짜를 조립하면 자정 근처에서 어긋난다.
-          queryParameters: {
-            if (distance != null) 'targetDistanceMeters': distance.meters,
-          },
-          options: Options(headers: {'Authorization': 'Bearer $token'}),
-        );
-        return slotsOf(response.data);
-      });
 
   @override
   Future<int> apply({
@@ -69,36 +52,6 @@ class HttpMatchRepository implements MatchRepository {
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
   });
-
-  /// 몸통에서 시간대 목록을 꺼낸다. **테스트가 직접 부른다.**
-  ///
-  /// 읽을 수 없는 항목은 **건너뛴다**. 슬롯 하나가 이상하다고 목록 전체를
-  /// 버리면 매칭 자체를 못 하게 되는데, 한 칸이 비는 것이 그보다 가볍다.
-  static List<MatchSlot> slotsOf(Map<String, dynamic>? body) {
-    final slots = body?['slots'];
-    if (slots is! List) return const [];
-
-    final parsed = <MatchSlot>[];
-    for (final slot in slots) {
-      if (slot is! Map) continue;
-      final raw = slot['scheduledStartAt'];
-      if (raw is! String) continue;
-      final startAt = DateTime.tryParse(raw);
-      if (startAt == null) continue;
-      final waiting = slot['waitingCount'];
-      parsed.add(
-        MatchSlot(
-          raw: raw,
-          startAt: startAt,
-          waitingCount: waiting is int ? waiting : 0,
-          // ⚠️ 없으면 잠근다. 모르는 슬롯을 열어두면 마감된 시간대를 눌러
-          // 409를 맞는다 — 눌리지 않는 편이 낫다.
-          selectable: slot['selectable'] == true,
-        ),
-      );
-    }
-    return parsed;
-  }
 
   /// 응답에서 실패 갈래를 읽는다. **테스트가 직접 부른다.**
   static MatchException exceptionOf(DioException error) {

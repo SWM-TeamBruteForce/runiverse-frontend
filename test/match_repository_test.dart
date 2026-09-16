@@ -45,73 +45,6 @@ void main() {
     });
   });
 
-  group('시간대 목록을 읽는다', () {
-    test('세 값을 그대로 옮긴다', () {
-      final slots = HttpMatchRepository.slotsOf({
-        'slots': [
-          {
-            'scheduledStartAt': '2026-09-15T19:00:00',
-            'waitingCount': 3,
-            'selectable': true,
-          },
-        ],
-      });
-
-      expect(slots, hasLength(1));
-      // ⚠️ 원문 문자열을 들고 있어야 신청에 그대로 실을 수 있다.
-      expect(slots.single.raw, '2026-09-15T19:00:00');
-      expect(slots.single.startAt, DateTime(2026, 9, 15, 19));
-      expect(slots.single.waitingCount, 3);
-      expect(slots.single.selectable, isTrue);
-    });
-
-    test('마감된 슬롯도 목록에 남는다', () {
-      // 빼면 "18:00이 왜 없지"가 되고, 목록이 줄어드는 것도 이상하게 읽힌다.
-      final slots = HttpMatchRepository.slotsOf({
-        'slots': [
-          {
-            'scheduledStartAt': '2026-09-15T18:00:00',
-            'waitingCount': 0,
-            'selectable': false,
-          },
-        ],
-      });
-
-      expect(slots.single.selectable, isFalse);
-    });
-
-    test('⚠️ selectable이 없으면 잠근다', () {
-      // 모르는 슬롯을 열어두면 마감된 시간대를 눌러 409를 맞는다.
-      final slots = HttpMatchRepository.slotsOf({
-        'slots': [
-          {'scheduledStartAt': '2026-09-15T18:00:00'},
-        ],
-      });
-
-      expect(slots.single.selectable, isFalse);
-      expect(slots.single.waitingCount, 0);
-    });
-
-    test('읽을 수 없는 항목만 건너뛴다', () {
-      // 슬롯 하나가 이상하다고 목록을 통째로 버리면 매칭을 못 하게 된다.
-      final slots = HttpMatchRepository.slotsOf({
-        'slots': [
-          {'scheduledStartAt': null, 'selectable': true},
-          {'scheduledStartAt': '망가진 값', 'selectable': true},
-          {'scheduledStartAt': '2026-09-15T19:00:00', 'selectable': true},
-        ],
-      });
-
-      expect(slots, hasLength(1));
-      expect(slots.single.raw, '2026-09-15T19:00:00');
-    });
-
-    test('목록이 없으면 빈 목록이다', () {
-      expect(HttpMatchRepository.slotsOf(null), isEmpty);
-      expect(HttpMatchRepository.slotsOf({'slots': null}), isEmpty);
-    });
-  });
-
   group('실패를 가른다', () {
     test('마감 경합', () {
       final error = HttpMatchRepository.exceptionOf(
@@ -293,38 +226,18 @@ void main() {
   });
 
   group('가짜 저장소', () {
-    test('⚠️ 신청은 받은 문자열을 손대지 않고 되돌려 보낸다', () async {
-      // ⚠️ 기본 슬롯은 `DateTime.now()`에 기댄다. 밤 10시가 넘어 돌리면 고를
-      // 수 있는 자리가 하나도 없어 테스트가 시각에 따라 달라진다.
-      final repository = FakeMatchRepository(
-        slots: FakeMatchRepository.defaultSlots(now: DateTime(2026, 9, 15, 12)),
-      );
-      final slot = repository.slots.firstWhere((slot) => slot.selectable);
+    test('⚠️ 신청은 받은 문자열을 손대지 않고 되돌려 보낸다', () {
+      final repository = FakeMatchRepository();
+      final slot = MatchSlot.todayRange(
+        nowWall: DateTime(2026, 9, 15, 12),
+      ).firstWhere((slot) => slot.selectable);
 
-      await repository.apply(slotRaw: slot.raw, distance: TargetDistance.km5);
-
-      expect(repository.appliedSlotRaw, slot.raw);
-      expect(repository.appliedDistance, TargetDistance.km5);
-    });
-
-    test('기본 슬롯은 18:00~22:00을 30분 간격으로 채운다', () {
-      final slots = FakeMatchRepository.defaultSlots(
-        now: DateTime(2026, 9, 15, 12),
-      );
-
-      expect(slots, hasLength(9));
-      expect(slots.first.startAt, DateTime(2026, 9, 15, 18));
-      expect(slots.last.startAt, DateTime(2026, 9, 15, 22));
-      expect(slots.first.raw, '2026-09-15T18:00:00');
-    });
-
-    test('이미 지난 시간대는 잠긴 채로 온다', () {
-      final slots = FakeMatchRepository.defaultSlots(
-        now: DateTime(2026, 9, 15, 19, 10),
-      );
-
-      expect(slots.first.selectable, isFalse);
-      expect(slots.last.selectable, isTrue);
+      return repository
+          .apply(slotRaw: slot.raw, distance: TargetDistance.km5)
+          .then((_) {
+            expect(repository.appliedSlotRaw, slot.raw);
+            expect(repository.appliedDistance, TargetDistance.km5);
+          });
     });
   });
 }

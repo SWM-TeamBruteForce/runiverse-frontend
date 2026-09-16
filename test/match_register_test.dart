@@ -23,34 +23,26 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 /// 시각을 앱이 조립하면 엉뚱한 날짜로 신청되고 사용자는 알아챌 방법이 없다.
 /// 그래서 "서버가 준 문자열이 그대로 나가는가"가 여기서 가장 중요한 확인이다.
 void main() {
-  /// 시각을 고정한다. `DateTime.now()`에 기대면 밤 10시 이후에 돌릴 때
-  /// 고를 수 있는 슬롯이 없어 테스트가 시각에 따라 달라진다.
-  const eighteen = '2026-09-15T18:00:00';
+  /// 시각을 고정한다. 목록을 앱이 벽시계로 만들기 때문에, 고정하지 않으면
+  /// 밤 10시 이후에 돌릴 때 고를 수 있는 슬롯이 없어 테스트가 시각에 따라
+  /// 달라진다.
   const nineteen = '2026-09-15T19:00:00';
 
-  final closed = MatchSlot(
-    raw: eighteen,
-    startAt: DateTime(2026, 9, 15, 18),
-    waitingCount: 2,
-    selectable: false,
-  );
-  final open = MatchSlot(
-    raw: nineteen,
-    startAt: DateTime(2026, 9, 15, 19),
-    waitingCount: 3,
-    selectable: true,
-  );
+  /// 18:30 — 18:00은 이미 지났고 19:00부터는 고를 수 있다.
+  DateTime clockAt1830() => DateTime(2026, 9, 15, 18, 30);
 
   Future<FakeMatchRepository> pumpRegister(
     WidgetTester tester, {
     FakeMatchRepository? repository,
+    DateTime Function()? clock,
   }) async {
-    final matches = repository ?? FakeMatchRepository(slots: [closed, open]);
+    final matches = repository ?? FakeMatchRepository();
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           matchRepositoryProvider.overrideWithValue(matches),
+          matchClockProvider.overrideWithValue(clock ?? clockAt1830),
           // 신청이 방 번호를 남긴다. 진짜는 플랫폼 채널을 탄다.
           matchRoomStoreProvider.overrideWithValue(InMemoryMatchRoomStore()),
           // 신청에 성공하면 곧바로 스트림에 붙는다. 진짜를 두면 dio가
@@ -103,7 +95,7 @@ void main() {
   );
 
   group('고르기', () {
-    testWidgets('들어오면 시간대를 받아온다', (tester) async {
+    testWidgets('들어오면 시간대를 갖춘다', (tester) async {
       await pumpRegister(tester);
 
       expect(find.byType(MatchRegisterPage), findsOneWidget);
@@ -122,13 +114,12 @@ void main() {
       expect(cta(tester).onPressed, isNotNull);
     });
 
-    testWidgets('고른 시간과 대기 인원이 함께 보인다', (tester) async {
+    testWidgets('고른 시간이 보인다', (tester) async {
       await pumpRegister(tester);
 
       await pickSlot(tester, '19:00');
 
       expect(find.text('19:00'), findsOneWidget);
-      expect(find.text(AppStrings.matchWaitingCount(3)), findsOneWidget);
     });
 
     testWidgets('⚠️ 마감된 시간대는 목록에 남되 눌리지 않는다', (tester) async {
@@ -139,7 +130,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('18:00'), findsOneWidget);
-      expect(find.text(AppStrings.matchSlotClosed), findsOneWidget);
+      // 18:30 기준이라 18:00·18:30 둘 다 지났다.
+      expect(find.text(AppStrings.matchSlotClosed), findsNWidgets(2));
 
       await tester.tap(find.text('18:00'));
       await tester.pumpAndSettle();
@@ -148,19 +140,23 @@ void main() {
       expect(find.text(AppStrings.matchSlotSheetTitle), findsOneWidget);
     });
 
-    testWidgets('⚠️ 대기 인원을 못 받아도 시간을 고를 수 있다', (tester) async {
-      // 조회 API(14번)는 MVP 범위 밖이라 없을 수 있다. 신청은 11번만으로
-      // 되므로, 목록을 못 받았다고 매칭 자체를 막으면 안 된다.
-      final matches = FakeMatchRepository(
-        slots: [closed, open],
-        slotsFailure: MatchFailure.unknown,
-      );
-      await pumpRegister(tester, repository: matches);
+    testWidgets('⚠️ 모르는 대기 인원은 적지 않는다', (tester) async {
+      // 조회 API가 없어 목록은 앱이 만들고, 대기 인원은 전부 `null`이다.
+      // 0명으로 그리면 아무도 없다고 잘못 알린다.
+      await pumpRegister(tester);
 
       await tester.tap(find.text(AppStrings.matchTimePlaceholder));
       await tester.pumpAndSettle();
 
-      // 앱이 만든 목록이다 — 18:00부터 22:00까지 아홉 칸.
+      expect(find.text(AppStrings.matchWaitingCount(0)), findsNothing);
+    });
+
+    testWidgets('앱이 만든 목록은 18:00부터 22:00까지다', (tester) async {
+      await pumpRegister(tester);
+
+      await tester.tap(find.text(AppStrings.matchTimePlaceholder));
+      await tester.pumpAndSettle();
+
       expect(find.text('18:00'), findsOneWidget);
 
       // 시트가 화면 절반이라 마지막 칸은 굴려야 나온다. 화면에 목록이 둘
@@ -172,44 +168,6 @@ void main() {
       await tester.drag(sheetList, const Offset(0, -400));
       await tester.pumpAndSettle();
       expect(find.text('22:00'), findsOneWidget);
-    });
-
-    testWidgets('⚠️ 모르는 대기 인원은 적지 않는다', (tester) async {
-      // 0명으로 그리면 아무도 없다고 잘못 알린다.
-      final matches = FakeMatchRepository(
-        slots: [closed, open],
-        slotsFailure: MatchFailure.unknown,
-      );
-      await pumpRegister(tester, repository: matches);
-
-      await tester.tap(find.text(AppStrings.matchTimePlaceholder));
-      await tester.pumpAndSettle();
-
-      expect(find.text(AppStrings.matchWaitingCount(0)), findsNothing);
-    });
-
-    testWidgets('조회에 실패해도 오류를 띄우지 않는다', (tester) async {
-      // 사용자가 할 수 있는 것이 없고, 화면은 그대로 쓸 수 있다.
-      final matches = FakeMatchRepository(
-        slots: [closed, open],
-        slotsFailure: MatchFailure.unknown,
-      );
-      await pumpRegister(tester, repository: matches);
-
-      expect(find.text(AppStrings.matchFailedUnknown), findsNothing);
-      expect(find.text(AppStrings.matchFailedNetwork), findsNothing);
-    });
-
-    testWidgets('거리를 고치면 시간대를 다시 받는다', (tester) async {
-      // 대기 인원 집계가 거리별이라, 안 받으면 10km를 고른 사람에게 3km
-      // 대기자 수를 보여주게 된다.
-      final matches = FakeMatchRepository(slots: [closed, open]);
-      await pumpRegister(tester, repository: matches);
-      final before = matches.slotsCalls;
-
-      await pickDistance(tester, TargetDistance.km10);
-
-      expect(matches.slotsCalls, before + 1);
     });
   });
 
@@ -241,7 +199,6 @@ void main() {
 
     testWidgets('이미 진행 중이면 화면에 남아 이유를 말한다', (tester) async {
       final matches = FakeMatchRepository(
-        slots: [closed, open],
         applyFailure: MatchFailure.alreadyInProgress,
       );
       await pumpRegister(tester, repository: matches);
@@ -261,7 +218,6 @@ void main() {
       // "잠시 제한됩니다"만으로는 언제 다시 눌러야 할지 알 수 없다.
       final until = DateTime(2026, 9, 15, 19, 30);
       final matches = FakeMatchRepository(
-        slots: [closed, open],
         applyFailure: MatchFailure.cooldown,
         cooldownUntil: until,
       );
@@ -280,7 +236,6 @@ void main() {
     testWidgets('⚠️ 마감 경합이면 고른 시간대를 놓는다', (tester) async {
       // 그대로 두면 마감된 슬롯으로 등록을 눌러 같은 409를 다시 맞는다.
       final matches = FakeMatchRepository(
-        slots: [closed, open],
         applyFailure: MatchFailure.slotClosed,
       );
       await pumpRegister(tester, repository: matches);
@@ -288,17 +243,7 @@ void main() {
       await pickSlot(tester, '19:00');
       await pickDistance(tester, TargetDistance.km5);
 
-      // 이 사이에 마감됐다. 다시 받으면 잠긴 채로 온다.
-      matches.slots = [
-        closed,
-        MatchSlot(
-          raw: nineteen,
-          startAt: DateTime(2026, 9, 15, 19),
-          waitingCount: 3,
-          selectable: false,
-        ),
-      ];
-
+      // 이 사이에 마감됐다 — 서버가 409로 알려주고, 화면이 그 슬롯만 잠근다.
       await tester.tap(
         find.widgetWithText(AppButton, AppStrings.matchRegisterCta),
       );
@@ -312,7 +257,6 @@ void main() {
     testWidgets('⚠️ 네트워크 실패에 재시도를 권하지 않는다', (tester) async {
       // 신청됐는지 알 수 없어, 다시 보내면 중복 신청이 된다.
       final matches = FakeMatchRepository(
-        slots: [closed, open],
         applyFailure: MatchFailure.network,
       );
       await pumpRegister(tester, repository: matches);

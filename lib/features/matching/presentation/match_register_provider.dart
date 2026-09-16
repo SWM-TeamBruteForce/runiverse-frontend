@@ -26,13 +26,21 @@ final matchRepositoryProvider = Provider<MatchRepository>(
   ),
 );
 
+/// 지금의 **한국 벽시계.**
+///
+/// 시간대 목록을 앱이 이 값으로 만들기 때문에, 고정하지 않으면 테스트가 돌아가는
+/// 시각에 따라 결과가 달라진다 — 밤 10시 이후에는 고를 수 있는 슬롯이 하나도
+/// 없어진다. 테스트는 이것을 갈아끼워 시각을 못 박는다.
+final matchClockProvider = Provider<DateTime Function()>(
+  (ref) => KstTime.nowWall,
+);
+
 /// 매칭 등록 화면(S08)이 들고 있는 것.
 class MatchRegisterState {
   const MatchRegisterState({
     this.slots = const [],
     this.selected,
     this.distance,
-    this.loading = false,
     this.submitting = false,
     this.failure,
     this.cooldownUntil,
@@ -45,9 +53,6 @@ class MatchRegisterState {
 
   /// 고른 거리. `null`이면 아직 고르지 않았다.
   final TargetDistance? distance;
-
-  /// 시간대 목록을 받아오는 중.
-  final bool loading;
 
   /// 신청을 보내는 중. **CTA를 잠그는 데 쓴다** — 두 번 누르면 중복 신청이 된다.
   final bool submitting;
@@ -64,7 +69,6 @@ class MatchRegisterState {
     List<MatchSlot>? slots,
     MatchSlot? selected,
     TargetDistance? distance,
-    bool? loading,
     bool? submitting,
     MatchFailure? failure,
     DateTime? cooldownUntil,
@@ -72,7 +76,6 @@ class MatchRegisterState {
     slots: slots ?? this.slots,
     selected: selected ?? this.selected,
     distance: distance ?? this.distance,
-    loading: loading ?? this.loading,
     submitting: submitting ?? this.submitting,
     // ⚠️ `??`를 쓰지 않는다. 실패를 **지울** 수 있어야 한다 — 그러지 않으면
     // 한 번 실패한 뒤로 스낵바가 영영 다시 뜬다.
@@ -91,32 +94,20 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
   @override
   MatchRegisterState build() => const MatchRegisterState();
 
-  /// 시간대 목록을 갖춘다. 화면에 들어올 때와 거리를 고칠 때 부른다.
+  /// 시간대 목록을 갖춘다. 화면에 들어올 때 부른다.
   ///
-  /// ## ⚠️ 조회에 실패해도 화면을 멈추지 않는다
+  /// ## ⚠️ 서버에 묻지 않는다
   ///
-  /// 대기 인원 조회(14번)는 MVP 범위 밖이라 서버에 없을 수 있다. 그런데 신청은
-  /// `POST /running-matches`만으로 되므로, **목록을 못 받았다고 매칭 자체를
-  /// 막으면 안 된다.** 명세가 고정한 규칙으로 앱이 목록을 만들어 이어간다.
+  /// 대기 인원 조회(`GET /running-matches/slots`, 14번)는 MVP 범위 밖이고 아직
+  /// 구현되어 있지 않다. 신청은 `POST /running-matches`만으로 되므로 목록은
+  /// **명세가 고정한 규칙으로 앱이 만든다** — 18:00~22:00, 30분 간격.
   ///
   /// 잃는 것은 대기 인원 하나뿐이고, 그것은 `null`로 남아 화면에서 빠진다.
   ///
-  /// **고른 시간대가 목록에서 사라지거나 잠기면 선택을 푼다.** 남겨두면
-  /// 마감된 슬롯으로 등록을 눌러 같은 409를 다시 맞는다.
-  Future<void> loadSlots() async {
-    state = state.copyWith(loading: true);
-
-    var slots = MatchSlot.todayRange(nowWall: KstTime.nowWall());
-    try {
-      final fetched = await ref
-          .read(matchRepositoryProvider)
-          .fetchSlots(distance: state.distance);
-      // 빈 목록도 답이다. 다만 그때는 고를 것이 없어지므로 앱이 만든 것을 쓴다.
-      if (fetched.isNotEmpty) slots = fetched;
-    } on MatchException catch (error) {
-      // 알리지 않는다. 사용자가 할 수 있는 것이 없고, 화면은 그대로 쓸 수 있다.
-      debugPrint('[match] 대기 인원을 읽지 못했다 · ${error.failure.name}');
-    }
+  /// **고른 시간대가 잠기면 선택을 푼다.** 남겨두면 마감된 슬롯으로 등록을
+  /// 눌러 같은 409를 다시 맞는다.
+  void loadSlots() {
+    final slots = MatchSlot.todayRange(nowWall: ref.read(matchClockProvider)());
 
     final picked = state.selected;
     final stillOpen =
@@ -134,11 +125,13 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
     state = state.copyWith(selected: slot, failure: null);
   }
 
-  /// 거리를 고른다. **대기 인원 집계가 거리별이라 목록을 다시 받는다** —
+  /// 거리를 고른다.
+  ///
+  /// 목록을 다시 만들지 않는다 — 시간대는 거리와 무관하고, 대기 인원은 어차피
+  /// 비어 있다. 대기 인원 조회가 들어오면 그때 거리별로 다시 받아야 한다:
   /// 10km를 고른 사람에게 3km 대기자 수를 보여주면 사회적 증거가 거짓이 된다.
   void selectDistance(TargetDistance distance) {
     state = state.copyWith(distance: distance, failure: null);
-    unawaited(loadSlots());
   }
 
   /// 신청한다. 성공하면 배정된 방 번호를, 실패하면 `null`을 돌려준다.
