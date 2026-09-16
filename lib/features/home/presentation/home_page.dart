@@ -53,7 +53,9 @@ class HomePage extends ConsumerWidget {
             ],
             HomeHero(
               greeting: _greetingText(GreetingRule.of(DateTime.now())),
-              onMatch: () => _notReady(context, AppStrings.homeMatchComingSoon),
+              // 조건을 고르는 화면(S08)을 거친다. 홈에서 바로 신청하면
+              // 시간대도 거리도 정할 수 없다.
+              onMatch: () => context.push(AppRoutes.matchRegister),
               // 준비 화면을 거친다. GPS 첫 신호를 기다릴 자리가 필요하다 —
               // 신호 전에 출발하면 초반 거리가 통째로 빠진다.
               onSolo: () => context.push(AppRoutes.runPrepare),
@@ -90,13 +92,6 @@ class HomePage extends ConsumerWidget {
     Greeting.evening => AppStrings.homeGreetingEvening,
     Greeting.night => AppStrings.homeGreetingNight,
   };
-
-  /// 아직 없는 화면으로 가는 버튼. 누르면 이유를 말한다.
-  void _notReady(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
 }
 
 /// 카드 묶음 위에 붙는 라벨. 무엇이 아니라 **무엇의 목록**인지 알려준다.

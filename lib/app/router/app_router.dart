@@ -6,6 +6,7 @@ import 'package:runiverse/core/widgets/coming_soon_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_in_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_up_page.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
+import 'package:runiverse/features/matching/presentation/match_register_page.dart';
 import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
@@ -99,6 +100,12 @@ GoRouter createAppRouter({String? initialLocation}) {
       GoRoute(
         path: AppRoutes.passwordChange,
         builder: (context, state) => const PasswordChangePage(),
+      ),
+
+      // 매칭 등록 — 셸 밖이다. 조건을 고르는 도중에 탭으로 새면 값이 사라진다.
+      GoRoute(
+        path: AppRoutes.matchRegister,
+        builder: (context, state) => const MatchRegisterPage(),
       ),
 
       // 1인 러닝 — 셸 밖이라 탭 바를 덮는다.
