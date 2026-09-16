@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +11,7 @@ import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/widgets/profile_prompt_sheet.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 하단 탭 셸 — 5개 탭의 공통 껍데기.
 ///
@@ -45,6 +48,39 @@ class _AppShellState extends ConsumerState<AppShell> {
   /// 관문을 지금 세워 뒀는가. 없으면 화면이 다시 그려질 때마다 시트가 쌓인다 —
   /// `build`는 한 번만 불리는 자리가 아니다.
   bool _gateUp = false;
+
+  /// 포그라운드 복귀를 듣는다.
+  ///
+  /// ## ⚠️ 돌아올 때마다 서버에 다시 묻는다
+  ///
+  /// 앱이 뒤에 있는 동안 **매칭이 확정되거나 러닝이 강제 종료될 수 있다.**
+  /// 서버가 예약으로 상태를 바꾸므로 앱은 통보를 받지 못한다. 돌아온 순간의
+  /// 화면이 옛 상태면 사용자는 이미 끝난 매칭을 기다리게 된다.
+  ///
+  /// **여기 하나만 둔다.** 화면마다 붙이면 복귀 한 번에 여러 번 묻는다.
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(onResume: _refreshStatus);
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  /// 서버 상태를 다시 읽는다.
+  ///
+  /// ⚠️ **여기서 화면을 옮기지 않는다.** 복귀할 때마다 사용자가 보던 화면을
+  /// 빼앗으면, 기록을 보다가 홈으로 튕기는 일이 생긴다. 값만 갱신하고 그것을
+  /// 보는 화면(홈의 배너 등)이 알아서 반응한다.
+  void _refreshStatus() {
+    if (ref.read(authControllerProvider) is! AuthSignedIn) return;
+    unawaited(ref.read(userStatusProvider.notifier).refresh());
+  }
 
   /// 프로필이 없으면 관문을 세운다.
   ///

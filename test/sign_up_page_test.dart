@@ -9,6 +9,8 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 
 /// 가입 2 · 정보 입력 — 이메일 인증 → 비밀번호 순으로 열리는가.
@@ -37,6 +39,11 @@ void main() {
           tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
           signInMemoryStoreProvider.overrideWithValue(
             InMemorySignInMemoryStore(),
+          ),
+          // 스플래시가 서버 상태를 읽는다. 진짜를 두면 dio가 서버 주소를 찾다
+          // 죽는다 — 테스트에는 주소가 없다.
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
           ),
           authRepositoryProvider.overrideWithValue(repository),
         ],

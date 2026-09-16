@@ -11,6 +11,8 @@ import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/domain/sign_in_method.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 로그인 화면이 기억하는 것 — **아이디 저장**과 **최근 사용한 방법**.
 ///
@@ -50,6 +52,11 @@ void main() {
           tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
           signInMemoryStoreProvider.overrideWithValue(memory),
           consentStoreProvider.overrideWithValue(InMemoryConsentStore()),
+          // 스플래시가 서버 상태를 읽는다. 진짜를 두면 dio가 서버 주소를 찾다
+          // 죽는다 — 테스트에는 주소가 없다.
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
+          ),
           authRepositoryProvider.overrideWithValue(auth),
         ],
         child: const RuniverseApp(initialLocation: AppRoutes.signIn),

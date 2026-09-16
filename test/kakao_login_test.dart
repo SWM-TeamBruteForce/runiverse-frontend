@@ -7,6 +7,8 @@ import 'package:runiverse/features/auth/data/fake_oauth_code_source.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 
 /// 카카오 로그인 — 두 단계가 이어지는가.
@@ -25,6 +27,11 @@ void main() {
       // 저장소는 플랫폼 채널을 부른다. 테스트에는 채널이 없다.
       tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
       signInMemoryStoreProvider.overrideWithValue(InMemorySignInMemoryStore()),
+      // 스플래시가 서버 상태를 읽는다. 진짜를 두면 dio가 서버 주소를 찾다
+      // 죽는다 — 테스트에는 주소가 없다.
+      userStatusRepositoryProvider.overrideWithValue(
+        FakeUserStatusRepository(),
+      ),
       authRepositoryProvider.overrideWithValue(
         repository ?? FakeAuthRepository(latency: Duration.zero),
       ),

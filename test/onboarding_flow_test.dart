@@ -6,6 +6,8 @@ import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
@@ -41,6 +43,11 @@ void main() {
           // 테스트만** MissingPluginException으로 죽는다 — 다른 경로는 저장소를
           // 건드리지 않아 멀쩡해 보인다.
           consentStoreProvider.overrideWithValue(InMemoryConsentStore()),
+          // 스플래시가 서버 상태를 읽는다. 진짜를 두면 dio가 서버 주소를 찾다
+          // 죽는다 — 테스트에는 주소가 없다.
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
+          ),
           authRepositoryProvider.overrideWithValue(
             repository ?? FakeAuthRepository(latency: Duration.zero),
           ),

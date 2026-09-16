@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
+import 'package:runiverse/core/theme/tokens/app_radius.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/widgets/empty_state_card.dart';
 import 'package:runiverse/features/home/domain/greeting.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
+import 'package:runiverse/features/session/domain/run_resume.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 홈 (S05).
 ///
@@ -20,12 +24,16 @@ import 'package:runiverse/features/home/presentation/home_hero.dart';
 ///
 /// 매칭 상태가 생기면 홈이 그것을 소유하지 않는다. 스티키 배너와 같은 provider를
 /// 구독해야 하고, 탭을 옮겨도 살아있어야 한다(`docs/implementation-notes.md` §5-1).
-class HomePage extends StatelessWidget {
+class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
+    // 진행 중인 매칭이 있으면 배너로 알린다. 값은 `AppShell`이 앱 진입과
+    // 포그라운드 복귀에서 갱신한다 — 홈이 소유하지 않는다.
+    final status = ref.watch(userStatusProvider);
+    final matching = status != null && RunResume.showsMatchBanner(status);
 
     // 프로필 유도는 여기 없다. **`AppShell`이 관문으로 막아선다** —
     // 프로필 없이는 어느 탭도 쓸 수 없으므로 홈만 막는 것은 뜻이 없다.
@@ -39,6 +47,10 @@ class HomePage extends StatelessWidget {
             AppSpacing.space8,
           ),
           children: [
+            if (matching) ...[
+              const _MatchBanner(),
+              const SizedBox(height: AppSpacing.space4),
+            ],
             HomeHero(
               greeting: _greetingText(GreetingRule.of(DateTime.now())),
               onMatch: () => _notReady(context, AppStrings.homeMatchComingSoon),
@@ -99,6 +111,66 @@ class _SectionLabel extends StatelessWidget {
       text,
       style: AppTypography.caption.copyWith(
         color: context.appColors.textTertiary,
+      ),
+    );
+  }
+}
+
+/// 진행 중인 매칭을 알리는 배너.
+///
+/// ## ⚠️ 아직 눌러도 갈 곳이 없다
+///
+/// 대기방 화면이 없어서다. 그래도 **띄운다** — 신청해 두고 앱을 껐다 켠 사람에게
+/// 아무 흔적도 없으면 신청이 사라진 줄 알고 다시 누르고, 서버는 409로 막는다.
+/// 갈 곳이 없다는 사실까지 적어야 누르고 기다리지 않는다.
+///
+/// 매칭 화면이 생기면 여기에 `onTap`을 붙인다.
+class _MatchBanner extends StatelessWidget {
+  const _MatchBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.primaryMuted,
+        borderRadius: AppRadius.md,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.space4,
+          vertical: AppSpacing.space3,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              LucideIcons.users,
+              size: AppSpacing.space5,
+              color: colors.primary,
+            ),
+            const SizedBox(width: AppSpacing.space3),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    AppStrings.homeMatchInProgress,
+                    style: AppTypography.body.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    AppStrings.homeMatchInProgressHint,
+                    style: AppTypography.caption.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -12,6 +12,8 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/settings/data/fake_settings_repository.dart';
 import 'package:runiverse/features/auth/domain/login_type.dart';
 import 'package:runiverse/features/settings/presentation/settings_provider.dart';
@@ -58,6 +60,11 @@ void main() {
           ),
           // ⚠️ 계정 유형은 이제 **auth**가 답한다. `/users/me`가 함께 싣고,
           // 설정 화면은 따로 조회하지 않는다.
+          // 스플래시가 서버 상태를 읽는다. 진짜를 두면 dio가 서버 주소를 찾다
+          // 죽는다 — 테스트에는 주소가 없다.
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
+          ),
           authRepositoryProvider.overrideWithValue(auth),
           settingsRepositoryProvider.overrideWithValue(
             FakeSettingsRepository(latency: Duration.zero),
