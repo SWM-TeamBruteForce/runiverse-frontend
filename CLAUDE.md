@@ -22,7 +22,8 @@
 - `lib/features/<name>/` - `onboarding` `auth` `home` `matching` `session` `record` `color` `profile` `feed` `competition`
   - `data/` DTO·API·repo 구현 / `domain/` 엔티티·repo 인터페이스 / `presentation/` page·widget·provider
 - **의존 방향: `presentation → domain ← data`.** presentation은 data를 import하지 않는다. domain은 순수 Dart만.
-- 다른 feature의 `presentation/`을 import하지 않는다. 공유가 필요하면 `core/widgets/`로 올린다.
+- 다른 feature의 **화면·위젯**을 import하지 않는다. 공유가 필요하면 `core/widgets/`로 올린다.
+- **provider는 예외다.** 여러 feature가 같은 상태를 봐야 하는 경우가 있다(유저 상태 · 러닝 세션 · 파티원). 대신 **한 방향으로만** 의존한다 — 지금은 `onboarding · matching → session` 하나뿐이고, 역방향이 생기면 Riverpod이 `CircularDependencyError`로 막는다.
 
 ## Scope (MVP)
 
