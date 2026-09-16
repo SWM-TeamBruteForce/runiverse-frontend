@@ -7,6 +7,7 @@ import 'package:runiverse/features/auth/presentation/sign_in_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_up_page.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_page.dart';
+import 'package:runiverse/features/matching/presentation/match_room_page.dart';
 import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
@@ -106,6 +107,10 @@ GoRouter createAppRouter({String? initialLocation}) {
       GoRoute(
         path: AppRoutes.matchRegister,
         builder: (context, state) => const MatchRegisterPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.matchRoom,
+        builder: (context, state) => const MatchRoomPage(),
       ),
 
       // 1인 러닝 — 셸 밖이라 탭 바를 덮는다.

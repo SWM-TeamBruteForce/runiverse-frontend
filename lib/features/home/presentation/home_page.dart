@@ -111,15 +111,14 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-/// 진행 중인 매칭을 알리는 배너.
+/// 진행 중인 매칭을 알리는 배너. 누르면 대기방으로 간다.
 ///
-/// ## ⚠️ 아직 눌러도 갈 곳이 없다
+/// **흔적을 남기는 것이 목적이다.** 신청해 두고 앱을 껐다 켠 사람에게 아무것도
+/// 보이지 않으면 신청이 사라진 줄 알고 다시 누르고, 서버는 409로 막는다.
 ///
-/// 대기방 화면이 없어서다. 그래도 **띄운다** — 신청해 두고 앱을 껐다 켠 사람에게
-/// 아무 흔적도 없으면 신청이 사라진 줄 알고 다시 누르고, 서버는 409로 막는다.
-/// 갈 곳이 없다는 사실까지 적어야 누르고 기다리지 않는다.
-///
-/// 매칭 화면이 생기면 여기에 `onTap`을 붙인다.
+/// ⚠️ 정본은 홈 히어로가 매칭 상태를 전담한다(S05 상태 2·3). 지금은 히어로를
+/// 그대로 두고 배너로 대신한다 — 히어로를 4상태로 가르는 것은 대기방이 자리를
+/// 잡은 뒤에 한다.
 class _MatchBanner extends StatelessWidget {
   const _MatchBanner();
 
@@ -127,44 +126,56 @@ class _MatchBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColors;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.primaryMuted,
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: () => context.push(AppRoutes.matchRoom),
         borderRadius: AppRadius.md,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.space4,
-          vertical: AppSpacing.space3,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              LucideIcons.users,
-              size: AppSpacing.space5,
-              color: colors.primary,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: colors.primaryMuted,
+            borderRadius: AppRadius.md,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.space4,
+              vertical: AppSpacing.space3,
             ),
-            const SizedBox(width: AppSpacing.space3),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    AppStrings.homeMatchInProgress,
-                    style: AppTypography.body.copyWith(
-                      color: colors.textPrimary,
-                    ),
+            child: Row(
+              children: [
+                Icon(
+                  LucideIcons.users,
+                  size: AppSpacing.space5,
+                  color: colors.primary,
+                ),
+                const SizedBox(width: AppSpacing.space3),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        AppStrings.homeMatchInProgress,
+                        style: AppTypography.body.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        AppStrings.homeMatchInProgressHint,
+                        style: AppTypography.caption.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    AppStrings.homeMatchInProgressHint,
-                    style: AppTypography.caption.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                Icon(
+                  LucideIcons.chevronRight,
+                  size: AppSpacing.space5,
+                  color: colors.primary,
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

@@ -4,13 +4,15 @@ import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
-import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
+import 'package:runiverse/features/matching/data/fake_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/match_slot.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 import 'package:runiverse/features/matching/presentation/match_register_page.dart';
+import 'package:runiverse/features/matching/presentation/match_room_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
+import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
@@ -47,6 +49,9 @@ void main() {
       ProviderScope(
         overrides: [
           matchRepositoryProvider.overrideWithValue(matches),
+          // 신청에 성공하면 곧바로 스트림에 붙는다. 진짜를 두면 dio가
+          // 서버 주소를 찾다 죽는다.
+          matchStreamProvider.overrideWithValue(FakeMatchStream()),
           // 신청에 성공하면 홈 배너가 볼 상태를 다시 읽는다.
           userStatusRepositoryProvider.overrideWithValue(
             FakeUserStatusRepository(),
@@ -73,6 +78,19 @@ void main() {
   Future<void> pickDistance(WidgetTester tester, TargetDistance km) async {
     await tester.tap(find.text(AppStrings.matchDistanceText(km.km)));
     await tester.pumpAndSettle();
+  }
+
+  /// 등록을 누르고 화면이 자리를 잡을 때까지 돌린다.
+  ///
+  /// ⚠️ `pumpAndSettle`을 쓰지 못한다. 신청에 성공하면 대기방으로 가는데,
+  /// 그 화면이 카운트다운 때문에 1초 타이머를 계속 돌려 영영 잠잠해지지 않는다.
+  Future<void> tapCta(WidgetTester tester) async {
+    await tester.tap(
+      find.widgetWithText(AppButton, AppStrings.matchRegisterCta),
+    );
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
   }
 
   /// CTA를 찾는다. `onPressed`가 `null`이면 잠긴 것이다.
@@ -146,27 +164,21 @@ void main() {
 
       await pickSlot(tester, '19:00');
       await pickDistance(tester, TargetDistance.km5);
-      await tester.tap(
-        find.widgetWithText(AppButton, AppStrings.matchRegisterCta),
-      );
-      await tester.pumpAndSettle();
+      await tapCta(tester);
 
       expect(matches.appliedSlotRaw, nineteen);
       expect(matches.appliedDistance, TargetDistance.km5);
     });
 
-    testWidgets('신청이 되면 홈으로 돌아간다', (tester) async {
-      // 대기방 화면이 아직 없다. 홈 배너가 진행 중임을 알린다.
+    testWidgets('신청이 되면 대기방으로 간다', (tester) async {
       await pumpRegister(tester);
 
       await pickSlot(tester, '19:00');
       await pickDistance(tester, TargetDistance.km5);
-      await tester.tap(
-        find.widgetWithText(AppButton, AppStrings.matchRegisterCta),
-      );
-      await tester.pumpAndSettle();
+      await tapCta(tester);
 
-      expect(find.byType(HomePage), findsOneWidget);
+      expect(find.byType(MatchRoomPage), findsOneWidget);
+      // ⚠️ 등록 화면은 닫는다. 뒤로 가서 또 신청하면 서버가 409로 막는다.
       expect(find.byType(MatchRegisterPage), findsNothing);
     });
 
