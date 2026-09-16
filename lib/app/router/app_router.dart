@@ -6,6 +6,7 @@ import 'package:runiverse/core/widgets/coming_soon_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_in_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_up_page.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
+import 'package:runiverse/features/matching/presentation/match_countdown_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_page.dart';
 import 'package:runiverse/features/matching/presentation/match_room_page.dart';
 import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page.dart';
@@ -111,6 +112,10 @@ GoRouter createAppRouter({String? initialLocation}) {
       GoRoute(
         path: AppRoutes.matchRoom,
         builder: (context, state) => const MatchRoomPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.matchCountdown,
+        builder: (context, state) => const MatchCountdownPage(),
       ),
 
       // 1인 러닝 — 셸 밖이라 탭 바를 덮는다.

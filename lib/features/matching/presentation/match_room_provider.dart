@@ -7,6 +7,7 @@ import 'package:runiverse/features/matching/data/sse_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
 import 'package:runiverse/features/matching/domain/match_stream.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
+import 'package:runiverse/features/matching/domain/run_launch.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
@@ -26,6 +27,7 @@ class MatchRoomState {
     this.failure,
     this.justMatched = false,
     this.ready,
+    this.launchAt,
   });
 
   /// 마지막으로 받은 방 정보. `null`이면 속한 방이 없다.
@@ -41,8 +43,23 @@ class MatchRoomState {
   /// 와서, 앱을 껐다 켤 때마다 다시 축하하게 된다.
   final bool justMatched;
 
-  /// 마지막으로 받은 시작 통지. 카운트다운이 이 값으로 발사 시각을 잡는다.
+  /// 마지막으로 받은 시작 통지.
   final RunningReady? ready;
+
+  /// 언제 쏘는가.
+  ///
+  /// ⚠️ **통지를 받은 순간 + `startsInMs`로 잡는다.** 서버가 시각이 아니라
+  /// 간격을 주는 이유가 이것이다 — 기기 시계가 어긋나 있어도 맞는다.
+  ///
+  /// 통지가 없으면 방의 `scheduledStartAt`을 쓴다. SSE가 끊겼거나 앱이
+  /// 백그라운드였으면 이벤트가 오지 않는데, 그렇다고 출발을 포기하지 않는다.
+  final DateTime? launchAt;
+
+  /// 발사 시각을 들고 있는 계산기. 들고 있을 방이 없으면 `null`이다.
+  RunLaunch? get launch {
+    final at = launchAt ?? room?.scheduledStartAt;
+    return at == null ? null : RunLaunch(at);
+  }
 
   MatchRoomState copyWith({
     RoomInfo? room,
@@ -50,6 +67,7 @@ class MatchRoomState {
     MatchStreamFailure? failure,
     bool? justMatched,
     RunningReady? ready,
+    DateTime? launchAt,
   }) => MatchRoomState(
     room: room ?? this.room,
     connected: connected ?? this.connected,
@@ -57,6 +75,7 @@ class MatchRoomState {
     failure: failure,
     justMatched: justMatched ?? this.justMatched,
     ready: ready ?? this.ready,
+    launchAt: launchAt ?? this.launchAt,
   );
 }
 
@@ -159,7 +178,15 @@ class MatchRoomController extends Notifier<MatchRoomState> {
         }
         state = state.copyWith(room: room, failure: null);
       case RunningReady():
-        state = state.copyWith(ready: event, failure: null);
+        // ⚠️ 받은 순간을 기준으로 발사 시각을 잡는다. `scheduledStartAt`을
+        // 그대로 쓰면 기기 시계가 어긋난 만큼 출발이 어긋난다.
+        state = state.copyWith(
+          ready: event,
+          launchAt: DateTime.now().add(
+            Duration(milliseconds: event.startsInMs),
+          ),
+          failure: null,
+        );
     }
   }
 

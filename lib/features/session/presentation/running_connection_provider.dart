@@ -111,6 +111,12 @@ final runningConnectionProvider =
 /// 좌표를 받으면 버린다. 닫을 때는 소켓보다 **먼저** 멈춘다.
 class RunningConnectionController extends Notifier<RunningConnectionState> {
   RunningChannel? _channel;
+
+  /// 지금 붙어 있는 채널. 아직 안 붙었으면 `null`이다.
+  ///
+  /// 파티원 통지를 듣는 쪽이 필요로 한다. **소유권은 그대로 여기 있다** —
+  /// 빌려주기만 하고 닫는 것은 이 컨트롤러가 한다.
+  RunningChannel? get channel => _channel;
   Timer? _retry;
 
   /// 쌓인 좌표를 10초마다 올리는 것. 방이 생긴 뒤에만 있다.
@@ -149,7 +155,28 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
 
     final room = await _openRoom();
     if (room == null) return;
+    await _connect(room);
+  }
 
+  /// **서버가 이미 만들어 둔 매칭 방**에 붙는다.
+  ///
+  /// 솔로와 갈리는 곳은 방을 만드는 한 줄뿐이다. 매칭 방은 신청할 때 서버가
+  /// 만들었고 번호는 `RoomInfo`가 실어 왔다 — 여기서 또 만들면 **엉뚱한 솔로
+  /// 방이 하나 더 생기고**, 정작 매칭 방은 아무도 시작하지 않는다.
+  Future<void> openMatched(int runningRoomId) async {
+    if (state.opening || state.isReady) return;
+    _retry?.cancel();
+    state = state.copyWith(opening: true, failure: null);
+
+    final room = RunningRoom(runningRoomId);
+    // 솔로와 같은 이유로 번호를 남긴다. 러닝 중 앱이 죽어도 이 번호로
+    // 다시 붙어 끝낼 수 있다.
+    await ref.read(trackRepositoryProvider).markActiveRoom(room.id);
+    await _connect(room);
+  }
+
+  /// 소켓을 붙이고 `RUNNING_START`를 보낸다. 솔로와 매칭이 여기서 합쳐진다.
+  Future<void> _connect(RunningRoom room) async {
     final accessToken = (await ref.read(tokenStoreProvider).read()).accessToken;
     if (accessToken == null) {
       state = const RunningConnectionState(

@@ -13,6 +13,7 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/fake_running_room_repository.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
+import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
@@ -97,8 +98,9 @@ void main() {
 
       final waitedFrom = DateTime.now();
       while (true) {
-        if (container.read(runSessionControllerProvider)
-            case RunPreparing(hasFix: true)) {
+        if (container.read(runSessionControllerProvider) case RunPreparing(
+          hasFix: true,
+        )) {
           break;
         }
         if (DateTime.now().difference(waitedFrom) > fixTimeout) {
@@ -106,8 +108,10 @@ void main() {
         }
         await Future<void>.delayed(const Duration(milliseconds: 200));
       }
-      debugPrint('[E2E] 1. 첫 신호 · '
-          '${DateTime.now().difference(waitedFrom).inSeconds}초');
+      debugPrint(
+        '[E2E] 1. 첫 신호 · '
+        '${DateTime.now().difference(waitedFrom).inSeconds}초',
+      );
 
       // ── 2. 연결 ──────────────────────────────────────────
       session.start();
@@ -130,14 +134,12 @@ void main() {
         greaterThanOrEqualTo(10),
         reason: '$runFor 동안 1초에 하나씩이면 최소 10개는 쌓여야 한다',
       );
-      expect(
-        channel.batches,
-        isNotEmpty,
-        reason: '10초마다 보내야 하는데 한 번도 안 나갔다',
+      expect(channel.batches, isNotEmpty, reason: '10초마다 보내야 하는데 한 번도 안 나갔다');
+      debugPrint(
+        '[E2E] 3. 저장 $storedWhileRunning개 · '
+        '배치 ${channel.batches.length}회 · '
+        '전송 ${channel.sent.length}개',
       );
-      debugPrint('[E2E] 3. 저장 $storedWhileRunning개 · '
-          '배치 ${channel.batches.length}회 · '
-          '전송 ${channel.sent.length}개');
 
       // ── 4. 종료 ──────────────────────────────────────────
       session.finish();
@@ -148,11 +150,7 @@ void main() {
       final sequences = channel.sent.map((p) => p.sequence).toSet().toList()
         ..sort();
 
-      expect(
-        sequences.first,
-        1,
-        reason: '첫 좌표부터 보내야 한다. 초반이 빠지면 거리가 짧아진다',
-      );
+      expect(sequences.first, 1, reason: '첫 좌표부터 보내야 한다. 초반이 빠지면 거리가 짧아진다');
       expect(
         sequences,
         List.generate(sequences.length, (i) => i + 1),
@@ -167,11 +165,7 @@ void main() {
         reason: '저장된 것보다 적게 보냈다',
       );
 
-      expect(
-        channel.order.last,
-        'finish',
-        reason: '좌표를 다 보내기 전에 종료를 보냈다',
-      );
+      expect(channel.order.last, 'finish', reason: '좌표를 다 보내기 전에 종료를 보냈다');
       expect(channel.finished, isTrue, reason: 'RUNNING_FINISH가 안 나갔다');
 
       // ⚠️ ack를 받았으므로 로컬 트랙이 지워져야 한다.
@@ -233,6 +227,14 @@ class _RecordingChannel implements RunningChannel {
 
   @override
   Stream<WsErrorCode> get errors => const Stream.empty();
+
+  // 파티원 진행·콤보는 매칭 러닝에서만 온다. 이 테스트들은 솔로 흐름이라
+  // 비워 둔다.
+  @override
+  Stream<RunProgress> get progress => const Stream.empty();
+
+  @override
+  Stream<RunCombo> get combos => const Stream.empty();
 
   @override
   Future<void> start(int runningRoomId) async {

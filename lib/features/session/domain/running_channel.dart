@@ -1,5 +1,6 @@
 import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
+import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 
 /// 러닝 중 서버와 주고받는 것.
@@ -18,6 +19,16 @@ abstract interface class RunningChannel {
 
   /// 서버가 거절했을 때. **연결은 유지된다.**
   Stream<WsErrorCode> get errors;
+
+  /// 파티원 한 명의 진행이 바뀔 때마다.
+  ///
+  /// ⚠️ **갱신된 사람만 온다.** 전원 스냅샷이 아니라서 받는 쪽이 참가자별
+  /// 최신값을 들고 이것으로 덮어야 한다. 솔로 러닝에는 오지 않는다.
+  Stream<RunProgress> get progress;
+
+  /// 콤보가 바뀔 때마다. **받을 때마다 통째로 갈아끼운다** — 끊긴 상대는
+  /// 목록에서 빠지고, 끊김을 알리는 별도 이벤트가 없다.
+  Stream<RunCombo> get combos;
 
   /// 붙고 `RUNNING_START`를 보낸다.
   ///

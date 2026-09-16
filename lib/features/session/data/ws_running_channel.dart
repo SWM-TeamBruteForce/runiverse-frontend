@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
+import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 
@@ -30,6 +31,8 @@ class WsRunningChannel implements RunningChannel {
   late final StreamSubscription<WsConnectionState> _connections;
 
   final _errors = StreamController<WsErrorCode>.broadcast();
+  final _progress = StreamController<RunProgress>.broadcast();
+  final _combos = StreamController<RunCombo>.broadcast();
 
   /// 어느 방에서 달리는가. 재연결 때 `RUNNING_START`를 다시 보내려면 필요하다.
   int? _roomId;
@@ -57,6 +60,12 @@ class WsRunningChannel implements RunningChannel {
 
   @override
   Stream<WsErrorCode> get errors => _errors.stream;
+
+  @override
+  Stream<RunProgress> get progress => _progress.stream;
+
+  @override
+  Stream<RunCombo> get combos => _combos.stream;
 
   @override
   Future<void> start(int runningRoomId) async {
@@ -109,6 +118,8 @@ class WsRunningChannel implements RunningChannel {
     await _messages.cancel();
     await _connections.cancel();
     await _errors.close();
+    await _progress.close();
+    await _combos.close();
     await _client.dispose();
   }
 
@@ -144,6 +155,25 @@ class WsRunningChannel implements RunningChannel {
         // 종료 확인이다. **이것이 로컬 트랙을 지워도 되는 유일한 근거다.**
         debugPrint('[running] 종료 확인');
         if (_finishing?.isCompleted == false) _finishing!.complete(true);
+
+      case WsEvents.runningProgressUpdated:
+        // ⚠️ 읽지 못한 통지는 버린다. 하나가 이상하다고 러닝을 끊을 수 없고,
+        // 다음 통지가 같은 사람의 최신값을 다시 실어 온다.
+        final progress = RunProgress.of(message.data);
+        if (progress == null) {
+          debugPrint('[running] 읽지 못한 진행 통지를 버렸다');
+        } else if (!_progress.isClosed) {
+          _progress.add(progress);
+        }
+
+      case WsEvents.runningComboUpdated:
+        final combo = RunCombo.of(message.data);
+        // ⚠️ 못 읽은 것을 빈 목록으로 흘리면 멀쩡한 콤보가 화면에서 사라진다.
+        if (combo == null) {
+          debugPrint('[running] 읽지 못한 콤보 통지를 버렸다');
+        } else if (!_combos.isClosed) {
+          _combos.add(combo);
+        }
 
       case WsEvents.error:
         final code = WsErrorCode.fromWire(message.data['code']);
