@@ -1,6 +1,4 @@
-import 'package:runiverse/features/settings/domain/account_info.dart';
 import 'package:runiverse/features/settings/domain/app_settings.dart';
-import 'package:runiverse/features/settings/domain/login_type.dart';
 import 'package:runiverse/features/settings/domain/password_change_failure.dart';
 import 'package:runiverse/features/settings/domain/profile_visibility.dart';
 import 'package:runiverse/features/settings/domain/settings_failure.dart';
@@ -21,10 +19,7 @@ import 'package:runiverse/features/settings/domain/settings_repository.dart';
 class FakeSettingsRepository implements SettingsRepository {
   FakeSettingsRepository({
     this.latency = const Duration(milliseconds: 300),
-    this.email = 'runner@example.com',
-    this.loginType = LoginType.local,
     AppSettings? settings,
-    this.accountFailure,
     this.settingsFailure,
     this.updateFailure,
     this.passwordFailure,
@@ -43,9 +38,6 @@ class FakeSettingsRepository implements SettingsRepository {
   /// 해서다. 즉시 답하면 화면이 먼저 바뀌었는지 응답을 받고 바뀌었는지 구분되지 않는다.
   final Duration latency;
 
-  final String email;
-  final LoginType? loginType;
-
   /// 지금 값. [updateSettings]가 여기를 고친다.
   AppSettings settings;
 
@@ -53,7 +45,6 @@ class FakeSettingsRepository implements SettingsRepository {
   // 인스턴스가 도중에 답을 바꿀 수 있어야 한다 — 새 인스턴스로 갈아 끼우면
   // "실패가 지워졌는지"를 검사하지 못하고 처음부터 실패가 없던 것을 본다.
 
-  SettingsFailure? accountFailure;
   SettingsFailure? settingsFailure;
 
   /// 주면 설정 변경이 그 이유로 실패한다. **되돌리기를 보는 데 쓴다.**
@@ -72,14 +63,6 @@ class FakeSettingsRepository implements SettingsRepository {
   /// 마지막으로 받은 비밀번호 한 쌍.
   String? currentPassword;
   String? newPassword;
-
-  @override
-  Future<AccountInfo> fetchAccount() async {
-    await Future<void>.delayed(latency);
-    final reason = accountFailure;
-    if (reason != null) throw SettingsException(reason);
-    return AccountInfo(email: email, loginType: loginType);
-  }
 
   @override
   Future<AppSettings> fetchSettings() async {

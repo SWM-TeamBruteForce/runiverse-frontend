@@ -2,9 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
-import 'package:runiverse/features/settings/domain/account_info.dart';
 import 'package:runiverse/features/settings/domain/app_settings.dart';
-import 'package:runiverse/features/settings/domain/login_type.dart';
 import 'package:runiverse/features/settings/domain/password_change_failure.dart';
 import 'package:runiverse/features/settings/domain/profile_visibility.dart';
 import 'package:runiverse/features/settings/domain/settings_failure.dart';
@@ -21,7 +19,6 @@ class HttpSettingsRepository implements SettingsRepository {
   final TokenStore _store;
   final AuthRepository _auth;
 
-  static const _accountPath = '/api/v1/users/me/account';
   static const _settingsPath = '/api/v1/users/me/settings';
   static const _passwordPath = '/api/v1/users/me/password';
 
@@ -31,24 +28,6 @@ class HttpSettingsRepository implements SettingsRepository {
   /// 확정된 데이터 정책과 어긋나 있는데, 검증할 API가 없어 함께 미뤄 두었다
   /// (`AppStrings.withdrawBody`).
   static const _withdrawPath = '/api/v1/users/me';
-
-  @override
-  Future<AccountInfo> fetchAccount() => _authorized((token) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      _accountPath,
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
-    );
-    final email = response.data?['email'];
-    // 200인데 몸통이 다르다. 이메일이 없으면 계정 섹션에 그릴 것이 없다.
-    if (email is! String || email.isEmpty) {
-      throw const SettingsException(SettingsFailure.unknown);
-    }
-    return AccountInfo(
-      email: email,
-      // 모르는 값이면 `null`이 되고, 비밀번호 메뉴가 숨는다.
-      loginType: LoginType.fromWire(_stringOrNull(response.data?['loginType'])),
-    );
-  });
 
   @override
   Future<AppSettings> fetchSettings() => _authorized((token) async {

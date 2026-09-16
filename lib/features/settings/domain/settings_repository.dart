@@ -1,4 +1,3 @@
-import 'package:runiverse/features/settings/domain/account_info.dart';
 import 'package:runiverse/features/settings/domain/app_settings.dart';
 import 'package:runiverse/features/settings/domain/profile_visibility.dart';
 
@@ -18,9 +17,6 @@ import 'package:runiverse/features/settings/domain/profile_visibility.dart';
 /// 이미 `AuthController.signOut()`이 서버 호출·토큰 삭제·상태 전환을 다 한다.
 /// 여기에 또 두면 토큰을 지우는 곳이 둘이 된다.
 abstract interface class SettingsRepository {
-  /// 이메일과 계정 유형. 명세 55번.
-  Future<AccountInfo> fetchAccount();
-
   /// 알림 의사와 공개 범위. 명세 57번.
   Future<AppSettings> fetchSettings();
 

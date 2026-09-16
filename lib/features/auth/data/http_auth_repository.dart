@@ -5,6 +5,7 @@ import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/domain/auth_tokens.dart';
 import 'package:runiverse/features/auth/domain/current_user.dart';
+import 'package:runiverse/features/auth/domain/login_type.dart';
 import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 
@@ -186,7 +187,7 @@ class HttpAuthRepository implements AuthRepository {
   CurrentUser _currentUserOf(Map<String, dynamic>? body) {
     final userId = body?['userId'];
 
-    // ⚠️ **`email`을 요구하지 않는다.** 서버 규격에 그 필드가 없다. 요구하면
+    // ⚠️ **`userId` 말고는 아무것도 요구하지 않는다.** 하나라도 더 요구하면
     // 200을 받고도 여기서 던지고, `_loadCurrentUser`가 그 예외를 삼켜
     // **닉네임도 `isOnboarded`도 영영 반영되지 않는다.** 실제로 그랬다.
     if (userId is! String) {
@@ -201,6 +202,10 @@ class HttpAuthRepository implements AuthRepository {
       // `false`로 읽으면 서버가 이 필드를 빠뜨린 날 저장된 `true`가 덮여
       // 프로필을 이미 채운 사람이 폼으로 끌려간다. 실제로 그랬다.
       isOnboarded: onboarded is bool ? onboarded : null,
+      // 설정 화면의 계정 섹션이 쓰는 두 값. **없어도 던지지 않는다** —
+      // 계정 섹션이 비는 것과 세션이 통째로 죽는 것은 무게가 다르다.
+      email: _stringOrNull(body?['email']),
+      loginType: LoginType.fromWire(_stringOrNull(body?['loginType'])),
       nickname: _stringOrNull(body?['nickname']),
       profileImageUrl: _stringOrNull(body?['profileImageUrl']),
       introduction: _stringOrNull(body?['introduction']),

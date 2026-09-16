@@ -14,8 +14,9 @@ import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/widgets/legal_document.dart';
 import 'package:runiverse/core/widgets/preset_chip.dart';
+import 'package:runiverse/features/auth/domain/login_type.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
-import 'package:runiverse/features/settings/domain/login_type.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/settings/domain/profile_visibility.dart';
 import 'package:runiverse/features/settings/domain/settings_failure.dart';
 import 'package:runiverse/features/settings/presentation/settings_provider.dart';
@@ -172,7 +173,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final colors = context.appColors;
     final state = ref.watch(settingsControllerProvider);
     final settings = state.settings;
-    final account = state.account;
+    // 계정 정보는 `/users/me`가 실어 온다 — 설정이 따로 조회하지 않는다.
+    // 아직 못 읽었으면 `null`이고, 계정 섹션만 빈 채로 나머지가 그려진다.
+    final account = ref.watch(
+      authControllerProvider.select(
+        (state) => state is AuthSignedIn ? state.user : null,
+      ),
+    );
     final failed = state.isEmpty && state.failure != null;
 
     return Scaffold(

@@ -1,4 +1,3 @@
-import 'package:runiverse/features/settings/domain/account_info.dart';
 import 'package:runiverse/features/settings/domain/app_settings.dart';
 import 'package:runiverse/features/settings/domain/profile_visibility.dart';
 import 'package:runiverse/features/settings/domain/settings_repository.dart';
@@ -34,10 +33,6 @@ class StagedSettingsRepository implements SettingsRepository {
     required String current,
     required String next,
   }) => live.changePassword(current: current, next: next);
-
-  /// ❌ 명세 55번 — 개발전.
-  @override
-  Future<AccountInfo> fetchAccount() => fake.fetchAccount();
 
   /// ❌ 명세 57번 — 개발전.
   @override

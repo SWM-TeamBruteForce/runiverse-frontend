@@ -3,7 +3,6 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/settings/data/fake_settings_repository.dart';
 import 'package:runiverse/features/settings/data/http_settings_repository.dart';
 import 'package:runiverse/features/settings/data/staged_settings_repository.dart';
-import 'package:runiverse/features/settings/domain/account_info.dart';
 import 'package:runiverse/features/settings/domain/app_settings.dart';
 import 'package:runiverse/features/settings/domain/password_change_failure.dart';
 import 'package:runiverse/features/settings/domain/profile_visibility.dart';
@@ -32,21 +31,18 @@ final settingsRepositoryProvider = Provider<SettingsRepository>(
 
 /// 화면이 보는 상태.
 ///
-/// [account]와 [settings]가 **따로** 있는 이유는 두 API가 따로 오기 때문이다.
-/// 하나가 실패해도 다른 하나는 그린다 — 계정 조회가 실패했다고 알림 토글까지
-/// 감출 이유가 없다.
+/// ## ⚠️ 계정 정보는 여기 없다
+///
+/// 이메일과 로그인 수단은 `GET /users/me`가 실어 오므로 **auth가 소유한다**
+/// (`CurrentUser`). 전용 경로였던 `/users/me/account`는 없어졌다.
+/// 화면은 두 곳을 따로 읽는다 — 계정 조회가 실패했다고 알림 토글까지 감추거나,
+/// 그 반대가 되지 않는다.
 class SettingsState {
-  const SettingsState({
-    this.account,
-    this.settings,
-    this.failure,
-    this.loading = false,
-  });
+  const SettingsState({this.settings, this.failure, this.loading = false});
 
-  final AccountInfo? account;
   final AppSettings? settings;
 
-  /// 마지막 조회 실패. 둘 중 하나라도 실패하면 값이 있다.
+  /// 마지막 조회 실패.
   final SettingsFailure? failure;
 
   final bool loading;
@@ -55,15 +51,13 @@ class SettingsState {
   ///
   /// ⚠️ **이때도 로그아웃 버튼은 살아 있어야 한다.** 세션이 이상해서 조회가
   /// 실패하는 경우가 있는데, 그때 로그아웃까지 막히면 앱에서 나갈 방법이 없다.
-  bool get isEmpty => account == null && settings == null;
+  bool get isEmpty => settings == null;
 
   SettingsState copyWith({
-    AccountInfo? account,
     AppSettings? settings,
     SettingsFailure? failure,
     bool? loading,
   }) => SettingsState(
-    account: account ?? this.account,
     settings: settings ?? this.settings,
     // ⚠️ `??`를 쓰지 않는다. 실패를 **지울** 수 있어야 해서다 —
     // `failure ?? this.failure`로 두면 한 번 실패한 뒤로 영영 실패가 남는다.
@@ -88,22 +82,15 @@ class SettingsController extends Notifier<SettingsState> {
 
   SettingsRepository get _repository => ref.read(settingsRepositoryProvider);
 
-  /// 계정과 설정을 함께 읽는다.
+  /// 설정을 읽는다.
   ///
-  /// **두 요청은 서로 모른다.** 순서대로 기다리면 그냥 두 배 느리다.
+  /// 계정 정보는 여기서 읽지 않는다 — `/users/me`가 이미 실어 왔다.
   Future<void> load() async {
     state = state.copyWith(loading: true);
 
-    final ((account, accountFailure), (settings, settingsFailure)) = await (
-      _attempt(_repository.fetchAccount()),
-      _attempt(_repository.fetchSettings()),
-    ).wait;
+    final (settings, failure) = await _attempt(_repository.fetchSettings());
 
-    state = SettingsState(
-      account: account,
-      settings: settings,
-      failure: accountFailure ?? settingsFailure,
-    );
+    state = SettingsState(settings: settings, failure: failure);
   }
 
   /// 알림을 받겠다는 의사를 바꾼다. 실패하면 그 이유를 돌려준다.

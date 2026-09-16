@@ -3,6 +3,7 @@ import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/domain/auth_tokens.dart';
 import 'package:runiverse/features/auth/domain/current_user.dart';
+import 'package:runiverse/features/auth/domain/login_type.dart';
 import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 
@@ -25,7 +26,10 @@ import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 /// 메모리에만 있다. 가입해두고 앱을 재시작하면 그 계정으로 로그인할 수 없다.
 /// 저장이 필요해지는 시점은 진짜 서버가 붙는 시점과 같아서 따로 만들지 않는다.
 class FakeAuthRepository implements AuthRepository {
-  FakeAuthRepository({this.latency = const Duration(milliseconds: 600)});
+  FakeAuthRepository({
+    this.latency = const Duration(milliseconds: 600),
+    this.loginType = LoginType.local,
+  });
 
   static const seedEmail = 'test@runiverse.app';
   static const seedPassword = 'runi123!';
@@ -33,6 +37,12 @@ class FakeAuthRepository implements AuthRepository {
   /// 응답이 즉시 오면 로딩 표시가 화면에 뜨는지 확인할 수 없다.
   /// 테스트에서는 [Duration.zero]를 넣어 기다리지 않는다.
   final Duration latency;
+
+  /// `fetchCurrentUser`가 답할 계정 유형.
+  ///
+  /// 설정 화면의 **비밀번호 변경 메뉴가 이 값으로 갈린다.** `null`이면 서버가
+  /// 모르는 제공자를 보낸 상황이고, 그때도 메뉴는 숨는다.
+  final LoginType? loginType;
 
   final Map<String, String> _accounts = {seedEmail: seedPassword};
 
@@ -150,10 +160,33 @@ class FakeAuthRepository implements AuthRepository {
     return CurrentUser(
       userId: _userIdOf(email),
       isOnboarded: onboarded,
+      // 계정 섹션이 그리는 두 값. 진짜 서버도 이 응답에 함께 싣는다(명세 10-1).
+      email: email,
+      loginType: loginType,
       // 온보딩 전에는 서버가 채우지 못한다. 그 상태를 그대로 흉내 낸다 —
       // 늘 값을 주면 "닉네임이 없을 때"를 화면이 시험할 수 없다.
       nickname: onboarded ? '러너-${email.split('@').first}' : null,
     );
+  }
+
+  /// 이 저장소가 발급하지 않은 토큰 한 쌍을 **이미 로그인한 것으로** 인정한다.
+  ///
+  /// ⚠️ 토큰을 `TokenStore`에 직접 넣어 시작하는 테스트가 쓴다. 그런 토큰은
+  /// 여기 등록돼 있지 않아 자동 로그인이 만료로 끝나고, **화면이 계정 정보를
+  /// 못 받는다.**
+  ///
+  /// ⚠️ **두 토큰을 함께 받는다.** 자동 로그인은 `/me`보다 갱신을 먼저 타므로
+  /// access만 심으면 그 앞에서 막힌다.
+  void seedSession({
+    required String accessToken,
+    required String refreshToken,
+    String email = seedEmail,
+  }) {
+    final key = _normalize(email);
+    _emailOfAccessToken[accessToken] = key;
+    _emailOfRefreshToken[refreshToken] = key;
+    _issuedRefreshTokens.add(refreshToken);
+    _onboarded.add(key);
   }
 
   /// 서버가 프로필을 받아 **온보딩을 마친 것으로 표시한다.**
