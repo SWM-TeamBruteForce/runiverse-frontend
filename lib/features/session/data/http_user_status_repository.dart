@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:runiverse/core/storage/token_store.dart';
+import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
@@ -83,14 +84,9 @@ class HttpUserStatusRepository implements UserStatusRepository {
     };
   }
 
-  /// 서버는 시간대 없는 한국 시각을 준다. 그대로 **로컬 시각으로** 읽는다.
-  ///
-  /// ⚠️ `DateTime.parse`는 `Z`가 없으면 로컬로 읽는다. 기기가 한국이면 맞고,
-  /// 아니면 어긋난다 — 서버가 오프셋을 실어 주기 전까지 남는 한계다.
-  static DateTime? _dateOrNull(Object? value) {
-    if (value is! String || value.isEmpty) return null;
-    return DateTime.tryParse(value);
-  }
+  /// 서버는 시간대 없는 한국 시각을 준다. [KstTime]이 그것을 기기 시각으로
+  /// 옮긴다 — 기기가 한국이 아니어도 남은 시간이 맞는다.
+  static DateTime? _dateOrNull(Object? value) => KstTime.parse(value);
 
   Future<T> _authorized<T>(Future<T> Function(String accessToken) call) async {
     final stored = await _store.read();

@@ -222,25 +222,32 @@ void main() {
     final noon = DateTime(2026, 9, 16, 12);
 
     test('18:00~22:00을 30분 간격으로 채운다', () {
-      final slots = MatchSlot.todayRange(now: noon);
+      final slots = MatchSlot.todayRange(nowWall: noon);
 
       expect(slots, hasLength(9));
-      expect(slots.first.startAt, DateTime(2026, 9, 16, 18));
-      expect(slots.last.startAt, DateTime(2026, 9, 16, 22));
+      // ⚠️ **순간(UTC)으로 비교한다.** `startAt`은 기기 시각이라 로컬 벽시계로
+      // 비교하면 CI 시간대에 따라 답이 달라진다. 18:00 KST = 09:00 UTC.
+      expect(slots.first.startAt.toUtc(), DateTime.utc(2026, 9, 16, 9));
+      expect(slots.last.startAt.toUtc(), DateTime.utc(2026, 9, 16, 13));
     });
 
     test('서버 표기를 그대로 만든다', () {
       // 밀리초가 붙으면 서버 형식과 어긋난다.
-      expect(MatchSlot.todayRange(now: noon).first.raw, '2026-09-16T18:00:00');
+      expect(
+        MatchSlot.todayRange(nowWall: noon).first.raw,
+        '2026-09-16T18:00:00',
+      );
     });
 
     test('⚠️ 대기 인원은 0이 아니라 모름이다', () {
       // 0으로 그리면 아무도 없다고 잘못 알린다.
-      expect(MatchSlot.todayRange(now: noon).first.waitingCount, isNull);
+      expect(MatchSlot.todayRange(nowWall: noon).first.waitingCount, isNull);
     });
 
     test('지난 시간대는 잠긴 채로 온다', () {
-      final slots = MatchSlot.todayRange(now: DateTime(2026, 9, 16, 19, 10));
+      final slots = MatchSlot.todayRange(
+        nowWall: DateTime(2026, 9, 16, 19, 10),
+      );
 
       expect(slots.first.selectable, isFalse);
       expect(slots.last.selectable, isTrue);
@@ -249,13 +256,15 @@ void main() {
     test('⚠️ 마감 오프셋을 앱이 갖지 않는다', () {
       // 진짜 마감은 시작 10분 전이지만 그것은 운영값이다. 시작 직전까지
       // 열어 두고, 마감된 슬롯은 서버가 409로 거절한다.
-      final slots = MatchSlot.todayRange(now: DateTime(2026, 9, 16, 17, 55));
+      final slots = MatchSlot.todayRange(
+        nowWall: DateTime(2026, 9, 16, 17, 55),
+      );
 
       expect(slots.first.selectable, isTrue);
     });
 
     test('잠근 사본은 나머지를 그대로 둔다', () {
-      final slot = MatchSlot.todayRange(now: noon).first.closed();
+      final slot = MatchSlot.todayRange(nowWall: noon).first.closed();
 
       expect(slot.selectable, isFalse);
       expect(slot.raw, '2026-09-16T18:00:00');

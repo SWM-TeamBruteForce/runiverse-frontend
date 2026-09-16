@@ -1,3 +1,5 @@
+import 'package:runiverse/core/utils/kst_time.dart';
+
 /// 고를 수 있는 매칭 시간대 하나.
 ///
 /// ## [raw]를 손대지 않는다
@@ -53,7 +55,10 @@ class MatchSlot {
   /// (`start_at - 오프셋`) 그 오프셋은 운영값이라 앱이 알면 언젠가 어긋난다.
   /// 마감이 지난 슬롯을 누르면 서버가 `MATCH_SLOT_CLOSED`로 거절하고, 화면이
   /// 그때 그 슬롯을 잠근다.
-  static List<MatchSlot> todayRange({required DateTime now}) {
+  ///
+  /// ⚠️ [nowWall]은 **한국 벽시계**다. 기기 시계로 만들면 해외에 있는 사용자가
+  /// 자기 지역의 18:00을 신청하게 되고, 서버는 그것을 KST로 읽는다.
+  static List<MatchSlot> todayRange({required DateTime nowWall}) {
     const firstHour = 18;
     const lastHour = 22;
     const halves = (lastHour - firstHour) * 2;
@@ -61,31 +66,22 @@ class MatchSlot {
     return [
       for (var i = 0; i <= halves; i++)
         () {
-          final startAt = DateTime(
-            now.year,
-            now.month,
-            now.day,
+          final wall = DateTime(
+            nowWall.year,
+            nowWall.month,
+            nowWall.day,
             firstHour + i ~/ 2,
             (i % 2) * 30,
           );
           return MatchSlot(
-            raw: isoOf(startAt),
-            startAt: startAt,
+            raw: KstTime.format(wall),
+            // 화면에 그리고 남은 시간을 재는 값이라 **기기 시각**이어야 한다.
+            startAt: KstTime.toLocal(wall),
             waitingCount: null,
-            selectable: now.isBefore(startAt),
+            selectable: nowWall.isBefore(wall),
           );
         }(),
     ];
-  }
-
-  /// 서버가 쓰는 표기 — 시간대 없는 한국 시각, 초 단위까지.
-  ///
-  /// `DateTime.toIso8601String()`을 쓰지 않는다. 밀리초가 붙어 서버 형식과
-  /// 어긋난다.
-  static String isoOf(DateTime time) {
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${time.year}-${two(time.month)}-${two(time.day)}'
-        'T${two(time.hour)}:${two(time.minute)}:00';
   }
 
   /// 이 슬롯을 잠근 사본. 서버가 마감됐다고 답했을 때 쓴다.

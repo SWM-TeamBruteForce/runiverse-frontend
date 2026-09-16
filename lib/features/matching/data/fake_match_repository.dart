@@ -1,3 +1,4 @@
+import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/match_repository.dart';
 import 'package:runiverse/features/matching/domain/match_slot.dart';
@@ -23,8 +24,8 @@ class FakeMatchRepository implements MatchRepository {
   /// 목록 자체는 [MatchSlot.todayRange]가 만든다 — 진짜 서버가 없을 때 앱이
   /// 쓰는 것과 같은 값이어야 화면이 실제와 같게 그려진다.
   static List<MatchSlot> defaultSlots({DateTime? now}) {
-    final today = now ?? DateTime.now();
-    final slots = MatchSlot.todayRange(now: today);
+    final today = now ?? KstTime.nowWall();
+    final slots = MatchSlot.todayRange(nowWall: today);
     return [
       for (var i = 0; i < slots.length; i++)
         MatchSlot(

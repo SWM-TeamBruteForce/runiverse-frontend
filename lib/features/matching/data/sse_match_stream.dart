@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:runiverse/core/storage/token_store.dart';
+import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
@@ -279,10 +280,9 @@ class SseMatchStream implements MatchStream {
     };
   }
 
-  static DateTime? _dateOrNull(Object? value) {
-    if (value is! String || value.isEmpty) return null;
-    return DateTime.tryParse(value);
-  }
+  /// 서버는 시간대 없는 한국 시각을 준다. [KstTime]이 그것을 기기 시각으로
+  /// 옮긴다 — 기기가 한국이 아니어도 남은 시간이 맞는다.
+  static DateTime? _dateOrNull(Object? value) => KstTime.parse(value);
 
   static int? _intOrNull(Object? value) => value is int ? value : null;
 

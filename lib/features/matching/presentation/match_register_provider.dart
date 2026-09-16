@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/matching/data/http_match_repository.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
@@ -97,7 +98,7 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
   Future<void> loadSlots() async {
     state = state.copyWith(loading: true);
 
-    var slots = MatchSlot.todayRange(now: DateTime.now());
+    var slots = MatchSlot.todayRange(nowWall: KstTime.nowWall());
     try {
       final fetched = await ref
           .read(matchRepositoryProvider)
