@@ -122,7 +122,12 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
                   AppSpacing.space6,
                 ),
                 children: [
-                  if (!state.connected)
+                  // ⚠️ `connected`가 아니라 `failure`를 본다. 서버가 30분마다
+                  // 스트림을 정상으로 닫는데(`match-stream.timeout`), 그때마다
+                  // 1초 남짓 이 문구를 띄우면 **스스로 낫는 일에 겁을 주는
+                  // 셈**이다. 정상 종료는 실패를 남기지 않고 조용히 다시 붙고,
+                  // 다시 붙는 데 실패한 경우에만 여기가 켜진다.
+                  if (state.failure != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: AppSpacing.space4),
                       child: _Notice(AppStrings.matchRoomDisconnected),
