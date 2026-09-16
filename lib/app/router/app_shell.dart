@@ -65,6 +65,15 @@ class _AppShellState extends ConsumerState<AppShell> {
   void initState() {
     super.initState();
     _lifecycle = AppLifecycleListener(onResume: _refreshStatus);
+    // ⚠️ **세워질 때도 한 번 묻는다.** 스플래시를 거쳐 들어오면 이미 읽은
+    // 값이 있지만, **로그인을 마치고 들어오는 길에는 없다** — 그 경로에는
+    // 상태를 읽는 곳이 없어서, 진행 중인 매칭이 있어도 홈이 처음인 것처럼
+    // 그려지고 신청을 누르면 409가 난다(에뮬레이터에서 확인).
+    //
+    // `build` 중에 provider를 건드리면 Riverpod이 막으므로 첫 프레임 뒤로 민다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _refreshStatus();
+    });
   }
 
   @override
