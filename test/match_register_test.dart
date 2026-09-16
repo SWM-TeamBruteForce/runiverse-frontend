@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/storage/match_room_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
@@ -50,6 +51,8 @@ void main() {
       ProviderScope(
         overrides: [
           matchRepositoryProvider.overrideWithValue(matches),
+          // 신청이 방 번호를 남긴다. 진짜는 플랫폼 채널을 탄다.
+          matchRoomStoreProvider.overrideWithValue(InMemoryMatchRoomStore()),
           // 신청에 성공하면 곧바로 스트림에 붙는다. 진짜를 두면 dio가
           // 서버 주소를 찾다 죽는다.
           matchStreamProvider.overrideWithValue(FakeMatchStream()),

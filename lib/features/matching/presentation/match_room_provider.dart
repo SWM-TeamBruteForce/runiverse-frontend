@@ -182,16 +182,12 @@ class MatchRoomController extends Notifier<MatchRoomState> {
 
   void _onEvent(MatchEvent event) {
     switch (event) {
-      case MatchStarted(:final room):
-        // 확정된 그 순간이다. 연출은 이때만 띄운다.
-        state = state.copyWith(room: room, justMatched: true, failure: null);
-      case MatchRoomUpdated(:final room):
-        if (room.status == RoomStatus.cancelled) {
-          // 참가자가 모두 빠졌다. 들고 있을 방이 없다.
-          unawaited(disconnect());
-          return;
-        }
-        state = state.copyWith(room: room, failure: null);
+      // ⚠️ **두 이벤트를 같게 다룬다.** 연동 가이드가 "매칭 신청을 완료하고
+      // SSE에 연결하면 서버가 `MATCH_STARTED`를 전송한다"고 정했다 — 확정된
+      // 순간에만 오는 것이 아니라 **연결할 때마다 온다.** 이것만 보고 확정
+      // 연출을 띄우면 앱을 껐다 켤 때마다 다시 축하하게 된다.
+      case MatchStarted(:final room) || MatchRoomUpdated(:final room):
+        _applyRoom(room);
       case RunningReady():
         // ⚠️ 받은 순간을 기준으로 발사 시각을 잡는다. `scheduledStartAt`을
         // 그대로 쓰면 기기 시계가 어긋난 만큼 출발이 어긋난다.
@@ -203,6 +199,29 @@ class MatchRoomController extends Notifier<MatchRoomState> {
           failure: null,
         );
     }
+  }
+
+  /// 방 정보를 들인다. **어느 이벤트로 왔든 같게 다룬다.**
+  ///
+  /// 확정 판정은 이벤트 종류가 아니라 **상태 전이**로 한다 — 모집 중이던 방이
+  /// 확정으로 넘어간 그 순간만 연출을 띄운다. 재연결로 같은 `MATCHED`가 다시
+  /// 와도 전이가 아니므로 조용하다.
+  void _applyRoom(RoomInfo room) {
+    if (room.status == RoomStatus.cancelled) {
+      // 참가자가 모두 빠졌다. 들고 있을 방이 없다.
+      unawaited(disconnect());
+      return;
+    }
+
+    final justMatched =
+        state.room?.status != RoomStatus.matched &&
+        room.status == RoomStatus.matched;
+
+    state = state.copyWith(
+      room: room,
+      justMatched: justMatched || state.justMatched,
+      failure: null,
+    );
   }
 
   /// 확정 연출을 띄운 뒤에 부른다. 같은 확정으로 두 번 축하하지 않는다.
@@ -235,6 +254,9 @@ class MatchRoomController extends Notifier<MatchRoomState> {
     }
 
     await disconnect();
+    if (!ref.mounted) return true;
+    // 그 방과의 관계가 끝났다. 남겨두면 다음 신청 때 지난 번호를 들고 있다.
+    await ref.read(matchRoomStoreProvider).clear();
     if (!ref.mounted) return true;
     await ref.read(userStatusProvider.notifier).refresh();
     return true;

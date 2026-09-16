@@ -814,6 +814,17 @@ abstract final class AppStrings {
   /// `12콤보` — 지금 이어지고 있는 콤보.
   static String runPartyCombo(int count) => '$count콤보';
 
+  /// ⚠️ 목표의 80%를 채우지 못한 채 끝내려 할 때. **끝내기 전에 알린다** —
+  /// 끝낸 뒤에 알리면 되돌릴 수 없다.
+  ///
+  /// 기준은 서버가 확정한 거리다. 앱이 잰 값과 미세하게 다를 수 있어
+  /// "적용될 수 있다"로 적는다 — 단정하면 안 걸렸을 때 거짓말이 된다.
+  static const runFinishPenaltyNotice = '목표의 80%를 채우지 못하면 20분 동안 매칭을 신청할 수 없어요';
+
+  /// `4.00km 남았어요` — 얼마나 더 가야 제한을 피하는지.
+  static String runFinishRemaining(double km) =>
+      '${km.toStringAsFixed(2)}km 더 달리면 제한 없이 끝낼 수 있어요';
+
   static const runPaceLabel = '페이스';
   static const runTimeLabel = '시간';
   static const runDistanceLabel = '거리';

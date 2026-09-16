@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/storage/match_room_store.dart';
 import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/matching/data/http_match_repository.dart';
@@ -9,6 +10,13 @@ import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/match_repository.dart';
 import 'package:runiverse/features/matching/domain/match_slot.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
+
+/// 신청해 둔 방 번호를 남기는 곳.
+///
+/// ⚠️ 위젯 테스트는 이것도 override해야 한다. `InMemoryMatchRoomStore`를 넣는다.
+final matchRoomStoreProvider = Provider<MatchRoomStore>(
+  (ref) => SecureMatchRoomStore(),
+);
 
 final matchRepositoryProvider = Provider<MatchRepository>(
   (ref) => HttpMatchRepository(
@@ -147,6 +155,11 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
       final roomId = await ref
           .read(matchRepositoryProvider)
           .apply(slotRaw: slot.raw, distance: distance);
+
+      // 가이드가 요구하는 것 — 신청·러닝·결과 조회가 같은 방 번호 하나로
+      // 이어진다. 메모리에만 두면 앱이 죽는 순간 그 고리가 끊긴다.
+      await ref.read(matchRoomStoreProvider).save(roomId);
+
       state = state.copyWith(submitting: false);
       return roomId;
     } on MatchException catch (error) {

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/storage/match_room_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/data/fake_match_stream.dart';
@@ -211,6 +212,8 @@ void main() {
         overrides: [
           matchStreamProvider.overrideWithValue(stream),
           matchRepositoryProvider.overrideWithValue(matches),
+          // 나가기가 남겨 둔 방 번호를 지운다. 진짜는 플랫폼 채널을 탄다.
+          matchRoomStoreProvider.overrideWithValue(InMemoryMatchRoomStore()),
           userStatusRepositoryProvider.overrideWithValue(
             FakeUserStatusRepository(),
           ),
@@ -276,19 +279,38 @@ void main() {
       );
     });
 
-    test('⚠️ 확정 연출은 MATCH_STARTED에만 붙는다', () async {
-      // 갱신으로도 켜지면 재연결 스냅샷마다 다시 축하하게 된다.
+    test('⚠️ 확정 연출은 상태 전이로 판정한다', () async {
+      // 연동 가이드가 "SSE에 연결하면 MATCH_STARTED를 전송한다"고 정했다 —
+      // 이벤트 종류로 판정하면 앱을 켤 때마다 다시 축하하게 된다.
       final app = build();
       app.container.read(matchRoomProvider.notifier).connect();
       await Future<void>.delayed(Duration.zero);
 
-      app.stream.emit(MatchRoomUpdated(room(RoomStatus.matched)));
+      // 연결 직후 스냅샷. 아직 모집 중이니 축하할 것이 없다.
+      app.stream.emit(MatchStarted(room(RoomStatus.matching)));
       await Future<void>.delayed(Duration.zero);
       expect(app.container.read(matchRoomProvider).justMatched, isFalse);
 
-      app.stream.emit(MatchStarted(room(RoomStatus.matched)));
+      // 모집 중 → 확정으로 넘어간 그 순간이다.
+      app.stream.emit(MatchRoomUpdated(room(RoomStatus.matched)));
       await Future<void>.delayed(Duration.zero);
       expect(app.container.read(matchRoomProvider).justMatched, isTrue);
+    });
+
+    test('⚠️ 확정된 방으로 다시 붙어도 축하하지 않는다', () async {
+      // 재연결 스냅샷은 같은 MATCHED를 실어 온다. 전이가 아니므로 조용하다.
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      app.stream.emit(MatchStarted(room(RoomStatus.matched)));
+      await Future<void>.delayed(Duration.zero);
+      app.container.read(matchRoomProvider.notifier).consumeMatched();
+
+      app.stream.emit(MatchStarted(room(RoomStatus.matched)));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(app.container.read(matchRoomProvider).justMatched, isFalse);
     });
 
     test('연출을 띄우고 나면 내려간다', () async {
