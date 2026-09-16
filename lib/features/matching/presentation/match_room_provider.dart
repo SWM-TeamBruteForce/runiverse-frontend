@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/matching/data/sse_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
+import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/match_stream.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/domain/run_launch.dart';
+import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
@@ -207,6 +209,35 @@ class MatchRoomController extends Notifier<MatchRoomState> {
   void consumeMatched() {
     if (!state.justMatched) return;
     state = state.copyWith(justMatched: false);
+  }
+
+  /// 매칭에서 빠진다. 성공했으면 `true`.
+  ///
+  /// ## 화면이 아니라 여기에 둔다
+  ///
+  /// 나가기를 누를 수 있는 곳이 둘이다 — 모집 중에는 홈 히어로, 확정 뒤에는
+  /// 로비. **같은 순서를 두 화면이 각자 적으면 언젠가 한쪽만 고쳐진다.**
+  /// 물어보는 방식(다이얼로그 문구)은 화면마다 다르므로 그쪽에 남긴다.
+  ///
+  /// ⚠️ **순서가 정해져 있다.** 서버에 취소를 알리고 → 스트림을 닫고 →
+  /// 상태를 다시 읽는다. 스트림을 남겨두면 서버가 닫기 전까지 지난 방의
+  /// 이벤트가 계속 올라온다.
+  Future<bool> leave() async {
+    try {
+      await ref.read(matchRepositoryProvider).cancel();
+    } on MatchException catch (error) {
+      // 취소할 것이 없다는 답은 실패가 아니다. 이미 원하던 상태다 —
+      // 다른 기기에서 먼저 나갔거나 서버가 방을 닫은 뒤다.
+      if (error.failure != MatchFailure.nothingToCancel) {
+        debugPrint('[match] 나가지 못했다 · ${error.failure.name}');
+        return false;
+      }
+    }
+
+    await disconnect();
+    if (!ref.mounted) return true;
+    await ref.read(userStatusProvider.notifier).refresh();
+    return true;
   }
 
   /// 끊고 방을 비운다. 취소·나가기·방 취소에서 부른다.

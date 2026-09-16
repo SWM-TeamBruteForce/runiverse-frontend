@@ -12,12 +12,9 @@ import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
-import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
-import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
-import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 대기방 (S10).
 ///
@@ -237,27 +234,20 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
     if (agreed != true || !mounted) return;
 
     setState(() => _leaving = true);
-    try {
-      await ref.read(matchRepositoryProvider).cancel();
-    } on MatchException catch (error) {
-      // 취소할 것이 없다는 답은 실패가 아니다. 이미 원하던 상태다.
-      if (error.failure != MatchFailure.nothingToCancel) {
-        if (!mounted) return;
-        setState(() => _leaving = false);
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            const SnackBar(content: Text(AppStrings.matchRoomLeaveFailed)),
-          );
-        return;
-      }
+    // 나가는 순서는 provider가 안다. 히어로에서 취소할 때와 같은 순서여야 한다.
+    final left = await ref.read(matchRoomProvider.notifier).leave();
+    if (!mounted) return;
+
+    if (!left) {
+      setState(() => _leaving = false);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text(AppStrings.matchRoomLeaveFailed)),
+        );
+      return;
     }
 
-    // 스트림을 먼저 닫는다. 남겨두면 서버가 닫기 전까지 지난 방의 이벤트가
-    // 계속 올라온다.
-    await ref.read(matchRoomProvider.notifier).disconnect();
-    await ref.read(userStatusProvider.notifier).refresh();
-    if (!mounted) return;
     if (context.canPop()) context.pop();
   }
 }
