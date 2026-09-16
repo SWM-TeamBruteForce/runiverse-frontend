@@ -14,8 +14,8 @@ import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 final matchStreamProvider = Provider<MatchStream>(
+  // ⚠️ `dioProvider`를 넘기지 않는다. 이 스트림은 자기 클라이언트를 따로 쓴다.
   (ref) => SseMatchStream(
-    ref.watch(dioProvider),
     ref.watch(tokenStoreProvider),
     ref.watch(authRepositoryProvider),
   ),
