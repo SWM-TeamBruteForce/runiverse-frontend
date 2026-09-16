@@ -49,7 +49,7 @@ class SseMatchStream implements MatchStream {
   /// 상태를 확인했다 — 화면은 포그라운드, 프로세스도 살아 있었다).
   ///
   /// 서버가 15초마다 `:ping`을 보내는 이유가 이것이다. **침묵 자체가 신호다** —
-  /// 세 번 연속 놓치면 죽은 것으로 보고 오류를 만들어 재연결을 깨운다.
+  /// 두 번 연속 놓치면 죽은 것으로 보고 오류를 만들어 재연결을 깨운다.
   ///
   /// 이벤트가 아니라 **바이트**로 잰다. keep-alive는 이벤트를 만들지 않으므로
   /// 이벤트로 재면 조용한 방이 죽은 것으로 오해된다.
@@ -61,11 +61,16 @@ class SseMatchStream implements MatchStream {
     },
   );
 
-  /// keep-alive 간격(서버 `match-stream.keep-alive-interval`)의 세 배.
+  /// keep-alive 간격(서버 `match-stream.keep-alive-interval` = 15초)의 두 배.
   ///
-  /// 한 번 놓친 것으로 끊으면 잠깐 느려진 망에 매번 다시 붙고, 너무 길게 잡으면
-  /// 죽은 연결로 확정 통지를 놓친다.
-  static const _silence = Duration(seconds: 45);
+  /// **이 값이 곧 갱신이 늦는 시간의 하한이다.** 연결이 조용히 죽으면 여기까지는
+  /// 아무것도 모르고, 그 뒤에야 다시 붙어 현재 상태를 받는다. 45초로 두었더니
+  /// 합류·이탈이 화면에 닿기까지 50초가 걸렸다.
+  ///
+  /// 한 번 놓친 것(15초)으로 끊으면 잠깐 느려진 망에 매번 다시 붙는다.
+  /// 두 번 놓치면 살아 있는 연결일 가능성이 낮고, 헛되이 다시 붙어도 비용은
+  /// 요청 두 번이다 — 확정 통지를 놓치는 것보다 싸다.
+  static const _silence = Duration(seconds: 30);
 
   Future<void> _pump(StreamController<MatchEvent> controller) async {
     try {

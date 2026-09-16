@@ -219,9 +219,10 @@ class MatchRoomController extends Notifier<MatchRoomState> {
     // 이미 예약돼 있으면 둔다. `_stop()`과 `onDone`이 겹쳐 두 번 들어올 수 있다.
     if (_retry != null) return;
 
-    // ⚠️ 첫 번을 늦추지 않는다. 30분 타임아웃으로 닫힌 경우가 대부분이라
-    // 곧바로 다시 붙는 것이 맞다. 진짜로 망가진 경우에만 간격이 벌어진다.
-    final wait = Duration(seconds: _retryStep == 0 ? 1 : 1 << _retryStep);
+    // ⚠️ **첫 번은 기다리지 않는다.** 침묵으로 끊김을 판정한 시점에 이미 30초를
+    // 쓴 뒤라, 여기서 더 재는 시간은 그대로 갱신 지연에 더해진다. 진짜로 망가진
+    // 경우에만 2·4·8초로 간격이 벌어진다.
+    final wait = Duration(seconds: _retryStep == 0 ? 0 : 1 << _retryStep);
     if (_retryStep < _maxRetryStep) _retryStep++;
 
     _retry = Timer(wait, () async {
