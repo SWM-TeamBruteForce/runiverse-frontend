@@ -151,10 +151,12 @@ class _SlotRow extends StatelessWidget {
                       color: colors.textTertiary,
                     ),
                   )
-                else if (slot.waitingCount > 0)
+                else if ((slot.waitingCount ?? 0) > 0)
                   // 대기 인원은 강조색이다 — 사회적 증거로 슬롯을 유도한다.
+                  // 모르면(`null`) 아무것도 적지 않는다 — 0으로 그리면 사람이
+                  // 없다고 잘못 알린다.
                   Text(
-                    AppStrings.matchWaitingCount(slot.waitingCount),
+                    AppStrings.matchWaitingCount(slot.waitingCount!),
                     style: AppTypography.caption.copyWith(
                       color: colors.matchWaiting,
                     ),

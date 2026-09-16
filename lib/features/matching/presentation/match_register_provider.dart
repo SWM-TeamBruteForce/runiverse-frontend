@@ -82,31 +82,43 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
   @override
   MatchRegisterState build() => const MatchRegisterState();
 
-  /// 시간대 목록을 받아온다. 화면에 들어올 때와 마감 경합 뒤에 부른다.
+  /// 시간대 목록을 갖춘다. 화면에 들어올 때와 거리를 고칠 때 부른다.
+  ///
+  /// ## ⚠️ 조회에 실패해도 화면을 멈추지 않는다
+  ///
+  /// 대기 인원 조회(14번)는 MVP 범위 밖이라 서버에 없을 수 있다. 그런데 신청은
+  /// `POST /running-matches`만으로 되므로, **목록을 못 받았다고 매칭 자체를
+  /// 막으면 안 된다.** 명세가 고정한 규칙으로 앱이 목록을 만들어 이어간다.
+  ///
+  /// 잃는 것은 대기 인원 하나뿐이고, 그것은 `null`로 남아 화면에서 빠진다.
   ///
   /// **고른 시간대가 목록에서 사라지거나 잠기면 선택을 푼다.** 남겨두면
   /// 마감된 슬롯으로 등록을 눌러 같은 409를 다시 맞는다.
   Future<void> loadSlots() async {
     state = state.copyWith(loading: true);
+
+    var slots = MatchSlot.todayRange(now: DateTime.now());
     try {
-      final slots = await ref
+      final fetched = await ref
           .read(matchRepositoryProvider)
           .fetchSlots(distance: state.distance);
-
-      final picked = state.selected;
-      final stillOpen =
-          picked != null &&
-          slots.any((slot) => slot.raw == picked.raw && slot.selectable);
-
-      state = MatchRegisterState(
-        slots: slots,
-        selected: stillOpen ? picked : null,
-        distance: state.distance,
-      );
+      // 빈 목록도 답이다. 다만 그때는 고를 것이 없어지므로 앱이 만든 것을 쓴다.
+      if (fetched.isNotEmpty) slots = fetched;
     } on MatchException catch (error) {
-      debugPrint('[match] 시간대를 읽지 못했다 · ${error.failure.name}');
-      state = state.copyWith(loading: false, failure: error.failure);
+      // 알리지 않는다. 사용자가 할 수 있는 것이 없고, 화면은 그대로 쓸 수 있다.
+      debugPrint('[match] 대기 인원을 읽지 못했다 · ${error.failure.name}');
     }
+
+    final picked = state.selected;
+    final stillOpen =
+        picked != null &&
+        slots.any((slot) => slot.raw == picked.raw && slot.selectable);
+
+    state = MatchRegisterState(
+      slots: slots,
+      selected: stillOpen ? picked : null,
+      distance: state.distance,
+    );
   }
 
   void selectSlot(MatchSlot slot) {
@@ -142,8 +154,19 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
         failure: error.failure,
         cooldownUntil: error.cooldownUntil,
       );
-      // 마감 경합이면 목록이 이미 낡았다. 바로 다시 받는다.
-      if (error.failure == MatchFailure.slotClosed) unawaited(loadSlots());
+      // 마감 경합이다. **그 슬롯만 잠근다** — 목록을 다시 받아도 앱이 만든
+      // 것이면 같은 값이 돌아와 무한히 같은 409를 맞는다.
+      if (error.failure == MatchFailure.slotClosed) {
+        // ⚠️ 고른 것도 함께 푼다. 잠근 슬롯을 고른 채로 두면 CTA가 열려 있어
+        // 같은 409를 다시 맞는다. `copyWith`는 선택을 비울 수 없어 직접 세운다.
+        state = MatchRegisterState(
+          slots: [
+            for (final s in state.slots) s.raw == slot.raw ? s.closed() : s,
+          ],
+          distance: state.distance,
+          failure: error.failure,
+        );
+      }
       return null;
     }
   }

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/data/http_match_repository.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
+import 'package:runiverse/features/matching/domain/match_slot.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 
 /// 매칭 신청 — **서버가 준 시각을 그대로 되돌려 보내는가.**
@@ -212,6 +213,52 @@ void main() {
         ).failure,
         MatchFailure.unknown,
       );
+    });
+  });
+
+  group('앱이 만드는 시간대', () {
+    // ⚠️ 대기 인원 조회(14번)가 MVP 범위 밖이다. 목록을 못 받아도 신청은
+    // 돼야 하므로, 명세가 고정한 규칙으로 앱이 만든다.
+    final noon = DateTime(2026, 9, 16, 12);
+
+    test('18:00~22:00을 30분 간격으로 채운다', () {
+      final slots = MatchSlot.todayRange(now: noon);
+
+      expect(slots, hasLength(9));
+      expect(slots.first.startAt, DateTime(2026, 9, 16, 18));
+      expect(slots.last.startAt, DateTime(2026, 9, 16, 22));
+    });
+
+    test('서버 표기를 그대로 만든다', () {
+      // 밀리초가 붙으면 서버 형식과 어긋난다.
+      expect(MatchSlot.todayRange(now: noon).first.raw, '2026-09-16T18:00:00');
+    });
+
+    test('⚠️ 대기 인원은 0이 아니라 모름이다', () {
+      // 0으로 그리면 아무도 없다고 잘못 알린다.
+      expect(MatchSlot.todayRange(now: noon).first.waitingCount, isNull);
+    });
+
+    test('지난 시간대는 잠긴 채로 온다', () {
+      final slots = MatchSlot.todayRange(now: DateTime(2026, 9, 16, 19, 10));
+
+      expect(slots.first.selectable, isFalse);
+      expect(slots.last.selectable, isTrue);
+    });
+
+    test('⚠️ 마감 오프셋을 앱이 갖지 않는다', () {
+      // 진짜 마감은 시작 10분 전이지만 그것은 운영값이다. 시작 직전까지
+      // 열어 두고, 마감된 슬롯은 서버가 409로 거절한다.
+      final slots = MatchSlot.todayRange(now: DateTime(2026, 9, 16, 17, 55));
+
+      expect(slots.first.selectable, isTrue);
+    });
+
+    test('잠근 사본은 나머지를 그대로 둔다', () {
+      final slot = MatchSlot.todayRange(now: noon).first.closed();
+
+      expect(slot.selectable, isFalse);
+      expect(slot.raw, '2026-09-16T18:00:00');
     });
   });
 

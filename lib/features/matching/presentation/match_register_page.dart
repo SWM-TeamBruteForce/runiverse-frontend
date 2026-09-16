@@ -210,10 +210,12 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
       MatchFailure.onboardingNotCompleted => AppStrings.matchFailedOnboarding,
       MatchFailure.invalidRequest => AppStrings.matchFailedInvalid,
       MatchFailure.network => AppStrings.matchFailedNetwork,
-      // 세션이 끊긴 경우는 라우터가 로그인으로 보낸다. 여기서는 같은 말을 쓴다.
-      MatchFailure.sessionExpired ||
+      MatchFailure.sessionExpired => AppStrings.matchFailedExpired,
+      // ⚠️ `network`와 같은 말을 쓰지 않는다. 그쪽은 "신청이 나갔는지 모른다"는
+      // 뜻이라 재시도를 막는 문구인데, 여기는 서버가 답은 했지만 읽지 못한
+      // 경우다. 사용자가 할 일이 달라 문구도 달라야 한다.
       MatchFailure.nothingToCancel ||
-      MatchFailure.unknown => AppStrings.matchFailedNetwork,
+      MatchFailure.unknown => AppStrings.matchFailedUnknown,
     };
 
     ScaffoldMessenger.of(context)
