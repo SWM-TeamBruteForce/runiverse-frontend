@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
@@ -54,6 +55,10 @@ class HttpMatchRepository implements MatchRepository {
     // 방 번호가 없으면 신청은 됐는데 스트림에 붙을 수 없다. 조용히 넘기면
     // 신청해 놓고 아무 소식도 못 받는 상태가 된다.
     if (roomId is! int) throw const MatchException(MatchFailure.unknown);
+    // 이 번호가 신청·러닝·결과 조회를 잇는 유일한 고리다. 남겨두면 "어느 방에
+    // 배정됐나"를 로그만으로 따라갈 수 있다 — 같은 조건으로 신청한 두 사람이
+    // 한 방에 묶였는지도 이 한 줄로 갈린다.
+    debugPrint('[match] 방에 배정됐다 · $roomId');
     return roomId;
   });
 
