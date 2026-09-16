@@ -102,7 +102,14 @@ void main() {
       await pumpHero(tester, withRoom: room(RoomStatus.matching));
 
       expect(find.text(AppStrings.homeMatchCta), findsNothing);
-      expect(find.text(AppStrings.homeMatchCancel), findsOneWidget);
+      expect(find.text(AppStrings.homeMatchToLobby), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 취소는 히어로에 두지 않는다', (tester) async {
+      // 제재 여부는 로비가 문구로 알려준다. 두 곳에 두면 한쪽만 고쳐진다.
+      await pumpHero(tester, withRoom: room(RoomStatus.matching));
+
+      expect(find.text(AppStrings.homeMatchCancel), findsNothing);
     });
 
     testWidgets('파티원 이름이 보인다', (tester) async {
@@ -120,11 +127,11 @@ void main() {
       expect(find.text(AppStrings.homeMatchConfirmed(startAt)), findsOneWidget);
       expect(find.text(AppStrings.homeMatchStartLabel), findsOneWidget);
       expect(find.text(AppStrings.homeMatchParty(3)), findsOneWidget);
-      expect(find.text(AppStrings.homeMatchLobby), findsOneWidget);
+      expect(find.text(AppStrings.homeMatchToWaitingRoom), findsOneWidget);
     });
 
-    testWidgets('⚠️ 확정 뒤에는 취소가 히어로에 없다', (tester) async {
-      // 확정 이탈은 제재가 붙는다. 로비에서 문구를 보고 결정하게 한다.
+    testWidgets('⚠️ 확정 뒤에도 취소가 히어로에 없다', (tester) async {
+      // 확정 이탈은 제재가 붙는다. 대기실에서 문구를 보고 결정하게 한다.
       await pumpHero(tester, withRoom: room(RoomStatus.matched));
 
       expect(find.text(AppStrings.homeMatchCancel), findsNothing);

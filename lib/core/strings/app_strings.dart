@@ -421,7 +421,12 @@ abstract final class AppStrings {
     return minutes == 0 ? '${left.inHours}시간' : '${left.inHours}시간 $minutes분';
   }
 
+  /// ⚠️ 방 정보를 못 받아 로비로 들어갈 수 없을 때만 히어로에 둔다.
+  /// 평소의 취소·나가기는 로비가 맡는다 — 두 곳에 두면 문구가 갈린다.
   static const homeMatchCancel = '취소하기';
+
+  /// 모집 중에 들어가는 문.
+  static const homeMatchToLobby = '로비로 가기';
 
   // 히어로 — 매칭 확정 (S05 상태 3)
 
@@ -434,8 +439,11 @@ abstract final class AppStrings {
   /// `파티원 3명` — 겹친 아바타 옆.
   static String homeMatchParty(int count) => '파티원 $count명';
 
-  /// 확정된 방으로 들어가는 유일한 문. 정본 문구 그대로다.
-  static const homeMatchLobby = '로비로 이동';
+  /// 확정된 방으로 들어가는 문.
+  ///
+  /// ⚠️ **같은 화면인데 이름이 다르다.** 모집 중에는 로비, 확정 뒤에는
+  /// 대기실이다 — 사람이 보는 단계가 달라서다.
+  static const homeMatchToWaitingRoom = '대기실로 가기';
 
   static const homeSectionCompetition = '다가오는 대회';
   static const homeSectionRecentRun = '최근 러닝';
@@ -535,7 +543,12 @@ abstract final class AppStrings {
 
   // ── 대기방 (S10) ─────────────────────────────────────────────
 
-  static const matchRoomTitle = '매칭';
+  /// 화면 이름. **같은 화면인데 단계에 따라 부르는 말이 다르다.**
+  ///
+  /// 모집 중에는 아직 누구와 뛸지 정해지지 않아 `로비`이고, 확정된 뒤에는
+  /// 출발을 기다리는 `대기실`이다.
+  static const matchRoomTitleLobby = '로비';
+  static const matchRoomTitleWaiting = '대기실';
 
   static const matchRoomWaiting = '매칭 중';
   static const matchRoomMatched = '매칭 완료!';

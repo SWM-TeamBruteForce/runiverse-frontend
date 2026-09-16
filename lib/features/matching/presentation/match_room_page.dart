@@ -89,7 +89,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
         appBar: AppBar(
           backgroundColor: colors.bgBase,
           surfaceTintColor: Colors.transparent,
-          title: Text(AppStrings.matchRoomTitle, style: AppTypography.h3),
+          title: Text(AppStrings.matchRoomTitleLobby, style: AppTypography.h3),
         ),
         body: const Center(child: CircularProgressIndicator()),
       );
@@ -100,7 +100,14 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
       appBar: AppBar(
         backgroundColor: colors.bgBase,
         surfaceTintColor: Colors.transparent,
-        title: Text(AppStrings.matchRoomTitle, style: AppTypography.h3),
+        title: Text(
+          // ⚠️ 같은 화면인데 단계에 따라 부르는 말이 다르다. 모집 중에는
+          // 누구와 뛸지 아직 모르니 로비이고, 확정 뒤에는 대기실이다.
+          room.status == RoomStatus.matching
+              ? AppStrings.matchRoomTitleLobby
+              : AppStrings.matchRoomTitleWaiting,
+          style: AppTypography.h3,
+        ),
       ),
       body: SafeArea(
         top: false,

@@ -119,6 +119,27 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
+    testWidgets('⚠️ 단계에 따라 화면 이름이 갈린다', (tester) async {
+      // 같은 화면이다. 모집 중에는 누구와 뛸지 아직 모르니 로비이고,
+      // 확정 뒤에는 출발을 기다리는 대기실이다.
+      await pumpRoom(
+        tester,
+        snapshot: room(status: RoomStatus.matching, closeAt: closeAtSoon),
+      );
+
+      expect(find.text(AppStrings.matchRoomTitleLobby), findsOneWidget);
+      expect(find.text(AppStrings.matchRoomTitleWaiting), findsNothing);
+    });
+
+    testWidgets('확정되면 대기실이다', (tester) async {
+      await pumpRoom(
+        tester,
+        snapshot: room(status: RoomStatus.matched, closeAt: closedAlready),
+      );
+
+      expect(find.text(AppStrings.matchRoomTitleWaiting), findsOneWidget);
+    });
+
     testWidgets('모집 중에는 마감까지 세고 인원을 알린다', (tester) async {
       await pumpRoom(
         tester,

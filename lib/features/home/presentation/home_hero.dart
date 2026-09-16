@@ -56,10 +56,10 @@ class HomeHero extends StatelessWidget {
   /// 1인 러닝 시작.
   final VoidCallback onSolo;
 
-  /// 모집 중에 빠진다.
+  /// 방 정보를 못 받았을 때만 쓴다. 평소의 취소는 로비가 맡는다.
   final VoidCallback onCancel;
 
-  /// 확정된 방으로 들어간다.
+  /// 방으로 들어간다. 모집 중이면 로비, 확정 뒤면 대기실 — 같은 화면이다.
   final VoidCallback onLobby;
 
   /// 지금. **부르는 쪽이 1초마다 갈아끼운다** — 카운트다운이 이 값에서 나온다.
@@ -107,7 +107,7 @@ class HomeHero extends StatelessWidget {
                 RoomStatus.matching => _Waiting(
                   room: current!,
                   now: now,
-                  onCancel: onCancel,
+                  onLobby: onLobby,
                 ),
                 RoomStatus.matched => _Confirmed(
                   room: current!,
@@ -236,12 +236,12 @@ class _Waiting extends StatelessWidget {
   const _Waiting({
     required this.room,
     required this.now,
-    required this.onCancel,
+    required this.onLobby,
   });
 
   final RoomInfo room;
   final DateTime now;
-  final VoidCallback onCancel;
+  final VoidCallback onLobby;
 
   @override
   Widget build(BuildContext context) {
@@ -304,14 +304,9 @@ class _Waiting extends StatelessWidget {
           ),
         const SizedBox(height: AppSpacing.space4),
 
-        // 정본이 ghost다. 취소는 여기서 주된 행동이 아니다.
-        AppButton(
-          label: AppStrings.homeMatchCancel,
-          onPressed: onCancel,
-          variant: AppButtonVariant.ghost,
-          size: AppButtonSize.md,
-          expand: false,
-        ),
+        // ⚠️ 취소는 여기 두지 않는다. 로비가 제재 여부를 문구로 알려주고
+        // 거기서 결정하게 한다 — 두 곳에 두면 한쪽 문구만 고쳐진다.
+        AppButton(label: AppStrings.homeMatchToLobby, onPressed: onLobby),
       ],
     );
   }
@@ -387,7 +382,7 @@ class _Confirmed extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.space4),
 
-        AppButton(label: AppStrings.homeMatchLobby, onPressed: onLobby),
+        AppButton(label: AppStrings.homeMatchToWaitingRoom, onPressed: onLobby),
       ],
     );
   }
