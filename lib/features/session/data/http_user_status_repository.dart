@@ -123,9 +123,9 @@ class HttpUserStatusRepository implements UserStatusRepository {
       return tokens.accessToken;
     } on AuthException catch (error) {
       throw UserStatusException(
-        error.failure == AuthFailure.network
-            ? UserStatusFailure.network
-            : UserStatusFailure.sessionExpired,
+        error.failure == AuthFailure.sessionExpired
+            ? UserStatusFailure.sessionExpired
+            : UserStatusFailure.network,
       );
     }
   }

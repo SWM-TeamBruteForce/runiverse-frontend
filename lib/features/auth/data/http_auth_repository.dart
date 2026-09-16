@@ -274,9 +274,19 @@ class HttpAuthRepository implements AuthRepository {
   /// 잘라내면 그 사유가 영영 나오지 않는다. 상태 코드는 **아는 `code`가 없을 때만**
   /// 쓰는 마지막 수단이다.
   AuthFailure _failureOf(DioException error) {
-    // 응답 자체가 없는 경우 — 연결 실패, 시간 초과. 서버까지 닿지 못했다.
+    // 응답이 없는 경우를 **두 갈래로 나눈다.** "안 갔다"와 "갔는지 모른다"는
+    // 다음 수가 다르다 — 앞은 다시 보내도 되고, 뒤는 다시 보내면 안 된다.
     if (error.type != DioExceptionType.badResponse) {
-      return AuthFailure.network;
+      return switch (error.type) {
+        // 연결을 못 맺었다. 서버는 아무것도 받지 않았다.
+        DioExceptionType.connectionTimeout ||
+        DioExceptionType.connectionError ||
+        DioExceptionType.badCertificate => AuthFailure.network,
+        // ⚠️ 나머지는 **이미 처리됐을 수 있다.** 보내던 중 끊겼거나(sendTimeout),
+        // 다 보내고 응답을 기다리다 끊겼다(receiveTimeout). `unknown`은 소켓
+        // 오류가 섞여 들어와 판별이 안 되므로 안전한 쪽으로 둔다.
+        _ => AuthFailure.deliveryUnknown,
+      };
     }
 
     final response = error.response;

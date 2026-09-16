@@ -173,9 +173,9 @@ class HttpMatchRepository implements MatchRepository {
       return tokens.accessToken;
     } on AuthException catch (error) {
       throw MatchException(
-        error.failure == AuthFailure.network
-            ? MatchFailure.network
-            : MatchFailure.sessionExpired,
+        error.failure == AuthFailure.sessionExpired
+            ? MatchFailure.sessionExpired
+            : MatchFailure.network,
       );
     }
   }

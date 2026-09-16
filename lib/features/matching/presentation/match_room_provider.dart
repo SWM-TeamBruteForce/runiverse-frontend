@@ -280,6 +280,14 @@ class MatchRoomController extends Notifier<MatchRoomState> {
   /// 확정으로 넘어간 그 순간만 연출을 띄운다. 재연결로 같은 `MATCHED`가 다시
   /// 와도 전이가 아니므로 조용하다.
   void _applyRoom(RoomInfo room) {
+    // 서버는 **방 평균 페이스 ±30초** 안에 드는 사람만 같은 방에 넣는다
+    // (`MatchRoomAssigner.ranked`). 혼자 남는 이유가 대개 이 값이라, 방이
+    // 바뀔 때마다 남긴다 — 없으면 "왜 나만 있나"를 로그로 답할 수 없다.
+    debugPrint(
+      '[match] 방 ${room.runningRoomId} · ${room.status.name} · '
+      '${room.players.length}명 · 팀 평균 ${room.teamAveragePaceSecondsPerKm}s/km',
+    );
+
     if (room.status == RoomStatus.cancelled) {
       // 참가자가 모두 빠졌다. 들고 있을 방이 없다.
       unawaited(disconnect());

@@ -292,9 +292,9 @@ class HttpProfileRepository implements ProfileRepository {
       return tokens.accessToken;
     } on AuthException catch (error) {
       throw ProfileException(
-        error.failure == AuthFailure.network
-            ? ProfileFailure.network
-            : ProfileFailure.sessionExpired,
+        error.failure == AuthFailure.sessionExpired
+            ? ProfileFailure.sessionExpired
+            : ProfileFailure.network,
       );
     }
   }

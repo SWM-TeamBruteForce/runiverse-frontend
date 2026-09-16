@@ -184,6 +184,10 @@ class AuthController extends Notifier<AuthState> {
     } on AuthException catch (error) {
       // 만료는 다시 시도해도 결과가 같다. 기다릴 이유가 없다.
       if (error.failure == AuthFailure.sessionExpired) rethrow;
+      // ⚠️ **갔는지 모르면 다시 보내지 않는다.** 서버가 이미 처리했다면 refresh
+      // 토큰이 회전한 뒤라, 손에 든 낡은 토큰으로 재시도하면 401이 온다 —
+      // 살아 있는 세션을 우리 손으로 끊는 셈이다. 다시 시도는 사용자가 정한다.
+      if (error.failure == AuthFailure.deliveryUnknown) rethrow;
       return _repository.refresh(refreshToken);
     }
   }

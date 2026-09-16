@@ -282,6 +282,10 @@ abstract final class AppStrings {
 
   static const authFailedCredentials = '이메일이나 비밀번호가 맞지 않아요';
   static const authFailedNetwork = '인터넷 연결을 확인해주세요';
+
+  /// ⚠️ **"실패했어요"라고 말하지 않는다.** 응답을 못 받았을 뿐 서버는 이미
+  /// 처리했을 수 있다. 실패라고 단정하면 사용자가 같은 일을 또 하게 된다.
+  static const authFailedTimeout = '응답이 늦어요. 잠시 뒤 다시 확인해주세요';
   static const authFailedServer = '잠시 후 다시 시도해주세요';
   static const authFailedUnknown = '로그인하지 못했어요. 다시 시도해주세요';
 
