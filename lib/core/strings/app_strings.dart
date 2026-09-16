@@ -385,15 +385,55 @@ abstract final class AppStrings {
   static const homeMatchCta = '지금 매칭하기';
   static const homeSoloCta = '혼자 달리기';
 
-  /// 진행 중인 매칭이 있을 때 홈 상단에 뜬다.
-  ///
-  /// ⚠️ **흔적을 남기지 않으면 다시 신청하려 든다.** 신청해 두고 앱을 껐다 켠
-  /// 사람에게 아무것도 보이지 않으면 신청이 사라진 줄 알고 다시 누르고,
-  /// 서버는 409로 막는다. 매칭 화면이 생기면 이 배너가 그 화면으로 데려간다.
-  static const homeMatchInProgress = '매칭이 진행 중이에요';
+  // 히어로 — 매칭 대기 (S05 상태 2)
+  //
+  // ⚠️ **정본은 히어로가 매칭 상태를 전담한다.** 모집 중에는 갈 화면이 따로
+  // 없고, 여기가 그 상태를 보여주는 유일한 자리다.
 
-  /// 눌러서 갈 곳이 생겼다. 무엇을 하면 되는지 적는다.
-  static const homeMatchInProgressHint = '눌러서 대기방을 봐요';
+  static const homeMatchWaiting = '매칭 중';
+
+  /// ⚠️ 서버는 매칭 중이라는데 방 정보가 아직 안 온 구간.
+  ///
+  /// 인원·마감 시각은 스트림이 나르므로 상태 조회만으로는 그릴 수 없다.
+  /// **그렇다고 기본 히어로를 보여주면 안 된다** — 신청한 적 없는 줄 알고
+  /// 다시 누르고, 서버는 409로 막는다.
+  static const homeMatchPending = '매칭 정보를 불러오는 중이에요';
+
+  /// `현재 2명 매칭됨` — 숫자만 강조색으로 그린다(정본).
+  ///
+  /// 문장을 셋으로 쪼개 두는 이유는 가운데만 색을 달리하기 위해서다.
+  /// 조사가 붙지 않아 쪼개도 어색해지지 않는다.
+  static const homeMatchJoinedPrefix = '현재';
+  static String homeMatchJoinedCount(int count) => '$count명';
+  static const homeMatchJoinedSuffix = '매칭됨';
+
+  /// `19:00 슬롯 · 마감까지 12분`
+  static String homeMatchSlotLine(DateTime startAt, Duration untilClose) =>
+      '${matchSlotTime(startAt)} 슬롯 · 마감까지 ${_minutesText(untilClose)}';
+
+  /// 마감까지 남은 시간. 분 단위로 담담하게 적는다 — 초까지 세면 조급해진다.
+  static String _minutesText(Duration left) {
+    if (left.inMinutes < 1) return '곧';
+    if (left.inHours < 1) return '${left.inMinutes}분';
+    final minutes = left.inMinutes % 60;
+    return minutes == 0 ? '${left.inHours}시간' : '${left.inHours}시간 $minutes분';
+  }
+
+  static const homeMatchCancel = '취소하기';
+
+  // 히어로 — 매칭 확정 (S05 상태 3)
+
+  /// `매칭 완료 · 오늘 19:00` — 배지 문구.
+  static String homeMatchConfirmed(DateTime startAt) =>
+      '매칭 완료 · 오늘 ${matchSlotTime(startAt)}';
+
+  static const homeMatchStartLabel = '시작까지';
+
+  /// `파티원 3명` — 겹친 아바타 옆.
+  static String homeMatchParty(int count) => '파티원 $count명';
+
+  /// 확정된 방으로 들어가는 유일한 문. 정본 문구 그대로다.
+  static const homeMatchLobby = '로비로 이동';
 
   static const homeSectionCompetition = '다가오는 대회';
   static const homeSectionRecentRun = '최근 러닝';
