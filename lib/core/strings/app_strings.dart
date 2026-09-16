@@ -1,3 +1,5 @@
+import 'package:runiverse/core/utils/kst_time.dart';
+
 /// UI 문자열 — 화면 코드에 한국어를 직접 쓰지 않는다.
 ///
 /// 한곳에 모아두면 문구 톤을 일괄로 맞출 수 있고, 나중에 다국어를 붙일 때
@@ -461,9 +463,14 @@ abstract final class AppStrings {
   static String matchDistanceText(int km) => '${km}km';
 
   /// `19:00` — 슬롯 표기. 날짜는 오늘뿐이라 시각만 적는다.
-  static String matchSlotTime(DateTime startAt) {
-    final hh = startAt.hour.toString().padLeft(2, '0');
-    final mm = startAt.minute.toString().padLeft(2, '0');
+  ///
+  /// ⚠️ **항상 한국 시각으로 적는다.** 슬롯은 18:00~22:00으로 고정이라,
+  /// 기기 시간대로 옮겨 그리면 있지도 않은 `10:00 슬롯`이 화면에 뜬다.
+  /// 받는 값은 순간(기기 시각)이므로 여기서 벽시계로 되돌린다.
+  static String matchSlotTime(DateTime at) {
+    final wall = KstTime.wallOf(at);
+    final hh = wall.hour.toString().padLeft(2, '0');
+    final mm = wall.minute.toString().padLeft(2, '0');
     return '$hh:$mm';
   }
 

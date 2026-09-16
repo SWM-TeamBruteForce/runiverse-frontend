@@ -56,6 +56,33 @@ void main() {
     });
   });
 
+  group('화면에 적을 벽시계', () {
+    test('⚠️ 순간을 한국 시각으로 되돌린다', () {
+      // 슬롯은 18:00~22:00으로 고정이다. 기기 시간대로 그리면 있지도 않은
+      // `10:00 슬롯`이 뜬다.
+      final at = KstTime.parse('2026-09-16T19:00:00')!;
+
+      final wall = KstTime.wallOf(at);
+
+      expect(wall.hour, 19);
+      expect(wall.minute, 0);
+    });
+
+    test('기기가 어디에 있든 같은 숫자가 나온다', () {
+      // 같은 순간을 UTC로 만들어도 벽시계는 19:00이다.
+      final wall = KstTime.wallOf(DateTime.utc(2026, 9, 16, 10));
+
+      expect(wall.hour, 19);
+    });
+
+    test('읽기와 맞물린다', () {
+      const raw = '2026-09-16T21:30:00';
+      final wall = KstTime.wallOf(KstTime.parse(raw)!);
+
+      expect(KstTime.format(wall), raw);
+    });
+  });
+
   group('서버 표기로 적는다', () {
     test('초 단위까지, 오프셋 없이', () {
       // ⚠️ `toIso8601String()`은 밀리초를 붙여 서버 형식과 어긋난다.
