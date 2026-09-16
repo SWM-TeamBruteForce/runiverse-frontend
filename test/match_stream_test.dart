@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/matching/data/sse_match_stream.dart';
@@ -78,7 +79,10 @@ void main() {
 
     test('프레임이 연달아 와도 각각 읽는다', () async {
       final events = await decode([
-        [...frame('MATCH_ROOM_UPDATED', room), ...frame('MATCH_STARTED', room)],
+        Uint8List.fromList([
+          ...frame('MATCH_ROOM_UPDATED', room),
+          ...frame('MATCH_STARTED', room),
+        ]),
       ]);
 
       expect(events, hasLength(2));

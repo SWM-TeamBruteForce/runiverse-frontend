@@ -109,7 +109,14 @@ class MatchRoomController extends Notifier<MatchRoomState> {
     // ⚠️ Riverpod 3은 기본이 auto-dispose다. 보는 화면이 잠깐 없어지는 순간
     // 스트림이 통째로 닫히고, 그사이에 오는 확정 통지를 놓친다.
     ref.keepAlive();
-    ref.listen(userStatusProvider, (_, status) => _syncWith(status));
+    // ⚠️ `fireImmediately`가 없으면 **이미 지나간 상태를 영영 못 본다.**
+    // 상태는 스플래시가 읽고, 이 provider는 그 뒤 `AppShell`이 만들어질 때
+    // 생긴다 — 변화만 들으면 앱을 켤 때마다 대기 중인 매칭에 안 붙는다.
+    ref.listen(
+      userStatusProvider,
+      (_, status) => _syncWith(status),
+      fireImmediately: true,
+    );
     ref.onDispose(() => unawaited(_stop()));
     return const MatchRoomState();
   }
@@ -128,11 +135,17 @@ class MatchRoomController extends Notifier<MatchRoomState> {
       UserStatusRunning() || UserStatusIdle() => false,
     };
 
-    if (wants) {
-      connect();
-    } else {
-      unawaited(disconnect());
-    }
+    // ⚠️ `fireImmediately`로 **`build()` 도중에** 들어올 수 있다. 그때 state를
+    // 건드리면 Riverpod이 막는다. 한 틱 미룬다 — [connect]가 멱등이라 늦어도
+    // 두 번 붙지 않는다.
+    Future.microtask(() {
+      if (!ref.mounted) return;
+      if (wants) {
+        connect();
+      } else {
+        unawaited(disconnect());
+      }
+    });
   }
 
   /// 붙는다. **이미 붙어 있으면 아무것도 하지 않는다.**

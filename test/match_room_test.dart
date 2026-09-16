@@ -55,6 +55,32 @@ void main() {
       expect(app.stream.connects, 0);
     });
 
+    test('⚠️ 이미 대기 중인 상태로 앱을 켜도 붙는다', () async {
+      // 상태는 스플래시가 읽고 이 provider는 그 뒤에 생긴다. 변화만 들으면
+      // 이미 지나간 값을 영영 못 봐서, 켤 때마다 대기 중인 매칭에 안 붙는다.
+      final stream = FakeMatchStream();
+      final statuses = FakeUserStatusRepository(
+        status: UserStatusWaiting(
+          runningRoomId: 125,
+          scheduledStartAt: startAt,
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          matchStreamProvider.overrideWithValue(stream),
+          userStatusRepositoryProvider.overrideWithValue(statuses),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      // provider를 세우기 **전에** 상태를 읽어 둔다 — 실제 진입 순서다.
+      await container.read(userStatusProvider.notifier).refresh();
+      container.read(matchRoomProvider);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(stream.connects, 1);
+    });
+
     test('⚠️ 매칭 대기면 붙는다', () async {
       // 안 붙으면 확정 통지를 못 받아 출발 시각을 지나친다.
       final app = build();
@@ -64,6 +90,8 @@ void main() {
       );
 
       await app.container.read(userStatusProvider.notifier).refresh();
+      // 붙는 판정은 한 틱 미뤄진다(`build()` 중 state 변경을 피한다).
+      await Future<void>.delayed(Duration.zero);
 
       expect(app.stream.connects, 1);
     });
@@ -77,6 +105,8 @@ void main() {
       );
 
       await app.container.read(userStatusProvider.notifier).refresh();
+      // 붙는 판정은 한 틱 미뤄진다(`build()` 중 state 변경을 피한다).
+      await Future<void>.delayed(Duration.zero);
 
       expect(app.stream.connects, 1);
     });
@@ -91,6 +121,8 @@ void main() {
       );
 
       await app.container.read(userStatusProvider.notifier).refresh();
+      // 붙는 판정은 한 틱 미뤄진다(`build()` 중 state 변경을 피한다).
+      await Future<void>.delayed(Duration.zero);
 
       expect(app.stream.connects, 0);
     });
@@ -105,6 +137,8 @@ void main() {
       );
 
       await app.container.read(userStatusProvider.notifier).refresh();
+      // 붙는 판정은 한 틱 미뤄진다(`build()` 중 state 변경을 피한다).
+      await Future<void>.delayed(Duration.zero);
 
       expect(app.stream.connects, 0);
     });
@@ -119,6 +153,8 @@ void main() {
 
       await app.container.read(userStatusProvider.notifier).refresh();
       await app.container.read(userStatusProvider.notifier).refresh();
+      // 붙는 판정은 한 틱 미뤄진다(`build()` 중 state 변경을 피한다).
+      await Future<void>.delayed(Duration.zero);
 
       expect(app.stream.connects, 1);
     });
@@ -134,6 +170,7 @@ void main() {
 
       app.statuses.failure = UserStatusFailure.network;
       await app.container.read(userStatusProvider.notifier).refresh();
+      await Future<void>.delayed(Duration.zero);
 
       expect(app.stream.closes, 0);
     });

@@ -8,6 +8,8 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
+import 'package:runiverse/features/matching/data/fake_match_stream.dart';
+import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
@@ -47,6 +49,9 @@ void main() {
           ),
           consentStoreProvider.overrideWithValue(InMemoryConsentStore()),
           userStatusRepositoryProvider.overrideWithValue(statuses),
+          // 대기·확정이면 앱이 곧바로 매칭 스트림에 붙는다. 진짜를 두면
+          // dio가 서버 주소를 찾다 죽는다.
+          matchStreamProvider.overrideWithValue(FakeMatchStream()),
           authRepositoryProvider.overrideWithValue(auth),
         ],
         child: const RuniverseApp(),
