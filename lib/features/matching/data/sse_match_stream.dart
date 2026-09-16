@@ -33,10 +33,24 @@ class SseMatchStream implements MatchStream {
 
   @override
   Stream<MatchEvent> connect() {
-    final controller = StreamController<MatchEvent>(onCancel: close);
+    final controller = StreamController<MatchEvent>();
+    // ⚠️ **`onCancel: close`를 그대로 걸면 안 된다.** 해지를 기다리지 않으므로
+    // 이 콜백이 **다시 붙은 뒤에** 뒤늦게 올 수 있는데, 그러면 방금 연 연결을
+    // 우리 손으로 닫는다 — 오류도 종료도 없이 조용해져서 30초 뒤 감시가 울리고,
+    // 그 재연결이 다시 같은 일을 부른다. 자기 차례일 때만 닫는다.
+    controller.onCancel = () => _closeIfCurrent(controller);
     _controller = controller;
     unawaited(_pump(controller));
     return controller.stream;
+  }
+
+  /// 그 연결이 아직 현재일 때만 닫는다.
+  ///
+  /// provider가 같은 인스턴스를 돌려주므로 한 객체가 여러 연결을 잇달아 맡는다.
+  /// 지난 연결의 뒷정리가 지금 연결을 건드리지 않게 하는 자물쇠다.
+  Future<void> _closeIfCurrent(StreamController<MatchEvent> controller) async {
+    if (!identical(_controller, controller)) return;
+    await close();
   }
 
   /// 조용히 죽은 연결을 잡아낸다.
