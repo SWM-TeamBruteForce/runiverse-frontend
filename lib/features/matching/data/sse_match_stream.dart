@@ -39,6 +39,34 @@ class SseMatchStream implements MatchStream {
     return controller.stream;
   }
 
+  /// 조용히 죽은 연결을 잡아낸다.
+  ///
+  /// ## ⚠️ 끊김이 늘 오류로 오지 않는다
+  ///
+  /// 중간의 프록시·NAT가 연결을 버리면 **소켓은 열린 채로 남고 바이트만 영영
+  /// 오지 않는다.** `onError`도 `onDone`도 뜨지 않아 앱은 붙어 있다고 믿는데,
+  /// 실제로는 확정 통지도 인원 변동도 받지 못한다(에뮬레이터에서 3분간 무음
+  /// 상태를 확인했다 — 화면은 포그라운드, 프로세스도 살아 있었다).
+  ///
+  /// 서버가 15초마다 `:ping`을 보내는 이유가 이것이다. **침묵 자체가 신호다** —
+  /// 세 번 연속 놓치면 죽은 것으로 보고 오류를 만들어 재연결을 깨운다.
+  ///
+  /// 이벤트가 아니라 **바이트**로 잰다. keep-alive는 이벤트를 만들지 않으므로
+  /// 이벤트로 재면 조용한 방이 죽은 것으로 오해된다.
+  static Stream<Uint8List> _watched(Stream<Uint8List> bytes) => bytes.timeout(
+    _silence,
+    onTimeout: (sink) {
+      debugPrint('[sse] ${_silence.inSeconds}초 동안 아무것도 오지 않았다');
+      sink.addError(const MatchStreamException(MatchStreamFailure.network));
+    },
+  );
+
+  /// keep-alive 간격(서버 `match-stream.keep-alive-interval`)의 세 배.
+  ///
+  /// 한 번 놓친 것으로 끊으면 잠깐 느려진 망에 매번 다시 붙고, 너무 길게 잡으면
+  /// 죽은 연결로 확정 통지를 놓친다.
+  static const _silence = Duration(seconds: 45);
+
   Future<void> _pump(StreamController<MatchEvent> controller) async {
     try {
       final stored = await _store.read();
@@ -57,7 +85,7 @@ class SseMatchStream implements MatchStream {
         body = await _open(token);
       }
 
-      _subscription = decode(body.stream).listen(
+      _subscription = decode(_watched(body.stream)).listen(
         controller.add,
         onError: (Object error, StackTrace stack) {
           // 도중에 끊긴 것이다. 스스로 다시 붙지 않는다.
@@ -146,6 +174,9 @@ class SseMatchStream implements MatchStream {
       if (value.startsWith(' ')) value = value.substring(1);
 
       if (field == 'event') {
+        // 무엇이 실제로 도착했는지 남긴다. 화면이 안 바뀔 때 "안 왔다"와
+        // "왔는데 못 썼다"를 가르는 첫 단서가 이 한 줄이다.
+        debugPrint('[sse] < $value');
         name = value;
       } else if (field == 'data') {
         if (data.isNotEmpty) data.write('\n');
@@ -261,9 +292,9 @@ class SseMatchStream implements MatchStream {
       return tokens.accessToken;
     } on AuthException catch (error) {
       throw MatchStreamException(
-        error.failure == AuthFailure.network
-            ? MatchStreamFailure.network
-            : MatchStreamFailure.sessionExpired,
+        error.failure == AuthFailure.sessionExpired
+            ? MatchStreamFailure.sessionExpired
+            : MatchStreamFailure.network,
       );
     }
   }
