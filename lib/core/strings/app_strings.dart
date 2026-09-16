@@ -509,6 +509,10 @@ abstract final class AppStrings {
 
   static const matchFailedAlready = '이미 진행 중인 매칭이 있어요';
 
+  /// ⚠️ "취소할 수 없다"로 끝내지 않는다. 러닝이 이미 시작됐다는 사실 자체가
+  /// 사용자가 모르던 것이라, **지금 무슨 일이 일어났는지**를 먼저 말한다.
+  static const matchFailedAlreadyStarted = '러닝이 이미 시작됐어요. 러닝 화면으로 옮길게요';
+
   static const matchFailedOnboarding = '프로필을 먼저 채워야 매칭 조건을 만들 수 있어요';
 
   /// ⚠️ 쿨다운은 확정 후 이탈과 러닝 중 조기 종료 **둘 다**에서 걸린다.

@@ -206,6 +206,9 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
       MatchFailure.slotClosed => AppStrings.matchFailedSlotClosed,
       MatchFailure.cooldown => AppStrings.matchFailedCooldown(cooldownUntil),
       MatchFailure.alreadyInProgress => AppStrings.matchFailedAlready,
+      // 신청 경로에서는 나오지 않는다 — 취소에만 걸리는 코드다. 그래도
+      // `unknown`으로 뭉개지 않는다. 나오면 그 자체가 알아야 할 신호다.
+      MatchFailure.alreadyStarted => AppStrings.matchFailedAlreadyStarted,
       MatchFailure.onboardingNotCompleted => AppStrings.matchFailedOnboarding,
       MatchFailure.invalidRequest => AppStrings.matchFailedInvalid,
       MatchFailure.network => AppStrings.matchFailedNetwork,

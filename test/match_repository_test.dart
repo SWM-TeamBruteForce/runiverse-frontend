@@ -162,6 +162,17 @@ void main() {
       );
     });
 
+    test('⚠️ 이미 시작한 러닝은 "진행 중"과 가른다', () {
+      // 둘 다 "진행 중이라 안 된다"지만 사용자가 할 일이 다르다. 그쪽은 기다리는
+      // 것이고, 이쪽은 이미 달리는 중이라 러닝 화면으로 옮겨야 한다.
+      expect(
+        HttpMatchRepository.exceptionOf(
+          httpError(409, body: {'code': 'MATCH_ALREADY_STARTED'}),
+        ).failure,
+        MatchFailure.alreadyStarted,
+      );
+    });
+
     test('온보딩 미완료', () {
       expect(
         HttpMatchRepository.exceptionOf(

@@ -125,6 +125,9 @@ class HttpMatchRepository implements MatchRepository {
       ),
       'MATCH_ALREADY_IN_PROGRESS' || 'RUNNING_ALREADY_IN_PROGRESS' =>
         const MatchException(MatchFailure.alreadyInProgress),
+      'MATCH_ALREADY_STARTED' => const MatchException(
+        MatchFailure.alreadyStarted,
+      ),
       'ONBOARDING_NOT_COMPLETED' => const MatchException(
         MatchFailure.onboardingNotCompleted,
       ),

@@ -318,6 +318,14 @@ class MatchRoomController extends Notifier<MatchRoomState> {
     try {
       await ref.read(matchRepositoryProvider).cancel();
     } on MatchException catch (error) {
+      // 러닝이 이미 시작됐다 — 나가지 못한 것이 맞지만, 여기서 할 일은
+      // 재시도가 아니라 **앱이 늦게 아는 상태를 따라잡는 것**이다. 다시 읽으면
+      // `RUNNING`이 올라오고 화면이 러닝으로 옮겨간다.
+      if (error.failure == MatchFailure.alreadyStarted) {
+        debugPrint('[match] 이미 시작한 러닝이다 · 상태를 다시 읽는다');
+        await ref.read(userStatusProvider.notifier).refresh();
+        return false;
+      }
       // 취소할 것이 없다는 답은 실패가 아니다. 이미 원하던 상태다 —
       // 다른 기기에서 먼저 나갔거나 서버가 방을 닫은 뒤다.
       if (error.failure != MatchFailure.nothingToCancel) {
