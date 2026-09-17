@@ -120,7 +120,10 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
     unawaited(
       ref
           .read(runningConnectionProvider.notifier)
-          .openMatched(room.runningRoomId),
+          .openMatched(
+            room.runningRoomId,
+            targetDistanceMeters: room.targetDistanceMeters,
+          ),
     );
     ref.read(runSessionControllerProvider.notifier).start();
 

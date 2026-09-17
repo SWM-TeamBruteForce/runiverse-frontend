@@ -163,12 +163,21 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// 솔로와 갈리는 곳은 방을 만드는 한 줄뿐이다. 매칭 방은 신청할 때 서버가
   /// 만들었고 번호는 `RoomInfo`가 실어 왔다 — 여기서 또 만들면 **엉뚱한 솔로
   /// 방이 하나 더 생기고**, 정작 매칭 방은 아무도 시작하지 않는다.
-  Future<void> openMatched(int runningRoomId) async {
+  ///
+  /// [targetDistanceMeters]는 방 정보가 실어 온 목표다. 파티원 통지에도 같은
+  /// 값이 오지만 그것은 첫 통지까지 최대 10초가 빈다.
+  Future<void> openMatched(
+    int runningRoomId, {
+    int? targetDistanceMeters,
+  }) async {
     if (state.opening || state.isReady) return;
     _retry?.cancel();
     state = state.copyWith(opening: true, failure: null);
 
-    final room = RunningRoom(runningRoomId);
+    final room = RunningRoom(
+      runningRoomId,
+      targetDistanceMeters: targetDistanceMeters,
+    );
     // 솔로와 같은 이유로 번호를 남긴다. 러닝 중 앱이 죽어도 이 번호로
     // 다시 붙어 끝낼 수 있다.
     await ref.read(trackRepositoryProvider).markActiveRoom(room.id);

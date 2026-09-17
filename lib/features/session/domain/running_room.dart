@@ -9,10 +9,16 @@
 /// 그래서 이 값은 러닝을 시작하기 전에 반드시 있어야 한다 — WS의 모든 메시지가
 /// `runningRoomId`를 payload에 싣는다.
 class RunningRoom {
-  const RunningRoom(this.id);
+  const RunningRoom(this.id, {this.targetDistanceMeters});
 
   /// 서버가 발급한 Long.
   final int id;
+
+  /// 목표 거리(m). **솔로는 `null`이다** — 목표가 없어 제한도 없다.
+  ///
+  /// 매칭 방은 신청할 때 정해져 `RoomInfo`가 실어 온다. 여기 실어 두면
+  /// 첫 진행 통지(최대 10초)를 기다리지 않고 막대·눈금·80% 판정이 처음부터 선다.
+  final int? targetDistanceMeters;
 
   @override
   String toString() => 'RunningRoom($id)';
