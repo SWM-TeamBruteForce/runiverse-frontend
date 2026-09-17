@@ -23,7 +23,7 @@ import 'package:runiverse/features/session/domain/party_board.dart';
 /// ## ⚠️ 위치를 그리지 않는다
 ///
 /// 진행률과 격차만 보여준다. GPS 좌표·경로는 어떤 화면으로도 파티원에게
-/// 드러내지 않는 것이 정책이다(`CLAUDE.md`). 꼬리말이 그것을 화면에서 말한다.
+/// 드러내지 않는 것이 정책이다(`CLAUDE.md`).
 ///
 /// ## 등수를 적지 않는다
 ///
@@ -43,9 +43,6 @@ class RunPartyView extends StatelessWidget {
     this.now,
     super.key,
   });
-
-  /// 지금. 통지가 오래된 레인을 가려내는 기준이다. 테스트만 넣는다.
-  final DateTime? now;
 
   final PartyBoard board;
 
