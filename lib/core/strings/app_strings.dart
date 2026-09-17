@@ -282,6 +282,10 @@ abstract final class AppStrings {
 
   static const authFailedCredentials = '이메일이나 비밀번호가 맞지 않아요';
   static const authFailedNetwork = '인터넷 연결을 확인해주세요';
+
+  /// ⚠️ **"실패했어요"라고 말하지 않는다.** 응답을 못 받았을 뿐 서버는 이미
+  /// 처리했을 수 있다. 실패라고 단정하면 사용자가 같은 일을 또 하게 된다.
+  static const authFailedTimeout = '응답이 늦어요. 잠시 뒤 다시 확인해주세요';
   static const authFailedServer = '잠시 후 다시 시도해주세요';
   static const authFailedUnknown = '로그인하지 못했어요. 다시 시도해주세요';
 
@@ -508,6 +512,10 @@ abstract final class AppStrings {
   static const matchFailedSlotClosed = '방금 그 시간대는 마감됐어요. 다른 시간을 골라주세요';
 
   static const matchFailedAlready = '이미 진행 중인 매칭이 있어요';
+
+  /// ⚠️ "취소할 수 없다"로 끝내지 않는다. 러닝이 이미 시작됐다는 사실 자체가
+  /// 사용자가 모르던 것이라, **지금 무슨 일이 일어났는지**를 먼저 말한다.
+  static const matchFailedAlreadyStarted = '러닝이 이미 시작됐어요. 러닝 화면으로 옮길게요';
 
   static const matchFailedOnboarding = '프로필을 먼저 채워야 매칭 조건을 만들 수 있어요';
 

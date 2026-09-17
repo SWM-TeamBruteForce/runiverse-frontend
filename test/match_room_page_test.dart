@@ -13,6 +13,7 @@ import 'package:runiverse/features/matching/presentation/match_register_provider
 import 'package:runiverse/features/matching/presentation/match_room_page.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 대기방 (S10) — **무엇을 보여주고, 나갈 때 무엇을 알리는가.**
@@ -62,7 +63,15 @@ void main() {
           matchStreamProvider.overrideWithValue(stream),
           matchRepositoryProvider.overrideWithValue(matches),
           userStatusRepositoryProvider.overrideWithValue(
-            FakeUserStatusRepository(),
+            // ⚠️ 대기로 답하게 둔다. 끊긴 뒤 재연결이 이 값을 실제로 읽는데,
+            // `IDLE`이면 "신청한 적 없다"로 읽혀 방을 비우는 것이 맞는 동작이
+            // 된다 — 대기방을 띄워놓고 상태만 idle인 상황은 서버에 없다.
+            FakeUserStatusRepository(
+              status: UserStatusWaiting(
+                runningRoomId: 1,
+                scheduledStartAt: startAt,
+              ),
+            ),
           ),
         ],
         child: const RuniverseApp(initialLocation: AppRoutes.matchRoom),
@@ -197,11 +206,37 @@ void main() {
       );
 
       app.stream.breakDown();
-      await tick(tester);
+      // ⚠️ 두 번 민다. 첫 프레임에 오류가 전달되고, 그것이 바꾼 상태는 다음
+      // 프레임에야 화면에 닿는다. 1초짜리 재연결 예약보다는 이르다.
+      await tester.pump();
+      await tester.pump();
 
       expect(find.text(AppStrings.matchRoomDisconnected), findsOneWidget);
       // 방은 남아 있다 — 잠깐 끊겼다고 사람을 홈으로 튕기지 않는다.
       expect(find.text(AppStrings.matchRoomPlayers(3)), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 다시 붙으면 경고를 내린다', (tester) async {
+      // 서버는 30분마다 스트림을 정상으로 닫는다. 끊긴 채로 두면 확정 통지를
+      // 놓치므로 스스로 다시 붙고, 붙었으면 겁주던 문구를 거둬야 한다.
+      final app = await pumpRoom(
+        tester,
+        snapshot: room(status: RoomStatus.matching, closeAt: closeAtSoon),
+      );
+
+      app.stream.breakDown();
+      await tester.pump();
+      await tester.pump();
+      expect(find.text(AppStrings.matchRoomDisconnected), findsOneWidget);
+
+      // 재연결 예약이 깨어날 만큼 흘린다.
+      await tester.pump(const Duration(seconds: 2));
+      await tick(tester);
+
+      expect(find.text(AppStrings.matchRoomDisconnected), findsNothing);
+      expect(find.text(AppStrings.matchRoomPlayers(3)), findsOneWidget);
+      // 새로 붙었다 — 닫고 다시 여는 것이 한 번씩 일어났다.
+      expect(app.stream.connects, 2);
     });
   });
 

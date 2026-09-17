@@ -142,9 +142,9 @@ class HttpOnboardingRepository implements OnboardingRepository {
       return tokens.accessToken;
     } on AuthException catch (error) {
       throw OnboardingException(
-        error.failure == AuthFailure.network
-            ? OnboardingFailure.network
-            : OnboardingFailure.sessionExpired,
+        error.failure == AuthFailure.sessionExpired
+            ? OnboardingFailure.sessionExpired
+            : OnboardingFailure.network,
       );
     }
   }

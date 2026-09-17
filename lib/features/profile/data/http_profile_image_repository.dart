@@ -213,9 +213,9 @@ class HttpProfileImageRepository implements ProfileImageRepository {
       return tokens.accessToken;
     } on AuthException catch (error) {
       throw ProfileImageException(
-        error.failure == AuthFailure.network
-            ? ProfileImageFailure.network
-            : ProfileImageFailure.sessionExpired,
+        error.failure == AuthFailure.sessionExpired
+            ? ProfileImageFailure.sessionExpired
+            : ProfileImageFailure.network,
       );
     }
   }

@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/storage/token_store.dart';
+import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/matching/data/sse_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
@@ -231,6 +235,79 @@ void main() {
         }),
         isNull,
       );
+    });
+  });
+
+  group('뒷정리', () {
+    // 진짜 소켓으로 잰다. 여기서 새는 오류는 `Unhandled Exception`으로 남아
+    // 화면은 멀쩡한데 크래시 리포터에 잡힌다 — 에뮬레이터 로그에서 확인했다.
+    late HttpServer server;
+    late SseMatchStream stream;
+
+    setUp(() async {
+      server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final store = InMemoryTokenStore();
+      await store.saveSession(
+        userId: 'u-1',
+        accessToken: 'access',
+        refreshToken: 'refresh',
+        isOnboarded: true,
+      );
+      stream = SseMatchStream(
+        store,
+        FakeAuthRepository(latency: Duration.zero),
+        baseUrl: 'http://${server.address.address}:${server.port}',
+      );
+    });
+
+    tearDown(() => server.close(force: true));
+
+    /// 서버가 실제로 하는 것 — 스냅샷 하나를 보내고 연결을 붙잡는다.
+    Future<void> holdOpen(HttpRequest request) async {
+      // ⚠️ 끄지 않으면 flush해도 청크가 버퍼에 남아 클라이언트에 닿지 않는다.
+      request.response.bufferOutput = false;
+      request.response.headers.contentType = ContentType(
+        'text',
+        'event-stream',
+      );
+      request.response.add(frame('MATCH_ROOM_UPDATED', room));
+      await request.response.flush();
+    }
+
+    test('⚠️ 이벤트를 받은 뒤 닫아도 늦은 오류가 새지 않는다', () async {
+      // 해지가 내려가기 전에 소켓을 강제로 끊으면 dart:io가 아직 살아 있는
+      // 내부 구독으로 "Connection closed while receiving data"를 던진다.
+      server.listen(holdOpen);
+      final first = Completer<MatchEvent>();
+      stream.connect().listen((event) {
+        if (!first.isCompleted) first.complete(event);
+      }, onError: (_) {});
+      await first.future;
+
+      await stream.close();
+      // 늦은 오류는 다음 틱에 온다. 새면 테스트 존이 잡아 실패한다.
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    });
+
+    test('⚠️ 연결하는 동안 닫히면 늦게 끝난 요청을 버린다', () async {
+      // 응답을 기다리는 사이 사용자가 나갔다. 그 요청이 뒤늦게 실패하거나
+      // 성공해도 이미 닫힌 스트림에 넣을 것은 없다.
+      final released = Completer<void>();
+      server.listen((request) async {
+        await released.future;
+        try {
+          await holdOpen(request);
+        } on IOException {
+          // 클라이언트가 먼저 끊었다. 그것이 기대하는 일이다.
+        }
+      });
+      stream.connect().listen((_) {}, onError: (_) {});
+      // 요청이 서버에 닿을 때까지
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      await stream.close();
+      released.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
     });
   });
 }

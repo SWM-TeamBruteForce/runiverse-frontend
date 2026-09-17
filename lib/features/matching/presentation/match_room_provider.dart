@@ -14,8 +14,8 @@ import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 final matchStreamProvider = Provider<MatchStream>(
+  // ⚠️ `dioProvider`를 넘기지 않는다. 이 스트림은 자기 클라이언트를 따로 쓴다.
   (ref) => SseMatchStream(
-    ref.watch(dioProvider),
     ref.watch(tokenStoreProvider),
     ref.watch(authRepositoryProvider),
   ),
@@ -106,6 +106,16 @@ class MatchRoomController extends Notifier<MatchRoomState> {
   /// 닫아야 하는데, 그때는 `ref`가 죽어 있어 `UnmountedRefException`이 난다.
   MatchStream? _stream;
 
+  /// 예약된 재연결. 없으면 `null`.
+  Timer? _retry;
+
+  /// 연달아 실패한 횟수. 붙는 데 성공하면 0으로 돌아간다.
+  int _retryStep = 0;
+
+  /// 간격 상한을 32초로 둔다(`1 << 5`). 모집 대기는 몇 시간짜리라 더 벌리면
+  /// 확정 통지를 받기까지 그만큼 늦어진다.
+  static const _maxRetryStep = 5;
+
   @override
   MatchRoomState build() {
     // ⚠️ Riverpod 3은 기본이 auto-dispose다. 보는 화면이 잠깐 없어지는 순간
@@ -119,7 +129,11 @@ class MatchRoomController extends Notifier<MatchRoomState> {
       (_, status) => _syncWith(status),
       fireImmediately: true,
     );
-    ref.onDispose(() => unawaited(_stop()));
+    ref.onDispose(() {
+      // 타이머는 provider보다 오래 산다. 두면 버려진 뒤에 깨어나 `ref`를 만진다.
+      _cancelRetry();
+      unawaited(_stop());
+    });
     return const MatchRoomState();
   }
 
@@ -172,20 +186,80 @@ class MatchRoomController extends Notifier<MatchRoomState> {
         // ⚠️ 방 정보는 지우지 않는다. 끊겼다고 대기방을 비우면 잠깐의
         // 네트워크 끊김에 사람이 홈으로 튕긴다.
         state = state.copyWith(connected: false, failure: failure);
+        // 다시 로그인해야 하는 것은 기다린다고 풀리지 않는다.
+        if (failure != MatchStreamFailure.sessionExpired) _scheduleRetry();
       },
       onDone: () {
+        // ⚠️ **서버가 정상으로 닫아도 여기로 온다.** `match-stream.timeout`이
+        // 30분이라 몇 시간짜리 모집 대기는 반드시 한 번 이상 끊긴다 — 오류가
+        // 아니므로 `onError`가 아니라 이쪽으로 떨어진다.
+        debugPrint('[match] 스트림이 닫혔다');
         unawaited(_stop());
-        state = state.copyWith(connected: false);
+        // ⚠️ **`failure`를 그대로 넘긴다.** `copyWith`는 실패를 지울 수 있도록
+        // `??`를 쓰지 않는데, 끊김은 `onError` 직후에 `onDone`이 따라온다 —
+        // 여기서 빼먹으면 방금 기록한 이유가 곧바로 지워진다.
+        state = state.copyWith(connected: false, failure: state.failure);
+        _scheduleRetry();
       },
     );
   }
 
+  /// 끊긴 뒤 다시 붙을 준비를 한다.
+  ///
+  /// ## 바로 붙지 않고 상태부터 다시 읽는다
+  ///
+  /// 연동 가이드가 정한 순서다 — *"예상치 못하게 연결이 종료되면 상태 조회
+  /// API로 현재 상태를 확인한 후 필요한 연결을 복구"*. 끊겨 있는 동안 다른
+  /// 기기에서 취소했거나 방이 닫혔을 수 있는데, 그대로 다시 열면 서버가
+  /// 404로 거절한다. **무엇이 진행 중인지는 언제나 `/users/me/status`가 정한다.**
+  ///
+  /// 그래서 재연결 판단이 [_syncWith] 한 곳에 그대로 남는다. 여기는 그것을
+  /// 다시 부를 계기만 만든다.
+  void _scheduleRetry() {
+    // 이미 예약돼 있으면 둔다. `_stop()`과 `onDone`이 겹쳐 두 번 들어올 수 있다.
+    if (_retry != null) return;
+
+    // ⚠️ **첫 번은 기다리지 않는다.** 침묵으로 끊김을 판정한 시점에 이미 30초를
+    // 쓴 뒤라, 여기서 더 재는 시간은 그대로 갱신 지연에 더해진다. 진짜로 망가진
+    // 경우에만 2·4·8초로 간격이 벌어진다.
+    final wait = Duration(seconds: _retryStep == 0 ? 0 : 1 << _retryStep);
+    if (_retryStep < _maxRetryStep) _retryStep++;
+
+    _retry = Timer(wait, () async {
+      _retry = null;
+      if (!ref.mounted) return;
+      final status = await ref.read(userStatusProvider.notifier).refresh();
+      if (!ref.mounted) return;
+      // 못 읽었으면 붙을지 알 수 없다. 다음 기회를 만든다.
+      if (status == null) {
+        _scheduleRetry();
+        return;
+      }
+      _syncWith(status);
+    });
+  }
+
+  /// 예약된 재연결을 버린다. **의도한 종료가 되살아나지 않게 한다.**
+  void _cancelRetry() {
+    _retry?.cancel();
+    _retry = null;
+    _retryStep = 0;
+  }
+
   void _onEvent(MatchEvent event) {
+    // 이벤트가 왔다는 것은 연결이 실제로 살아 있다는 뜻이다. 다음에 끊기면
+    // 다시 처음 간격부터 시작한다 — 30분마다 닫히는 연결에 간격이 누적되면
+    // 하루 종일 기다리는 동안 재연결이 점점 늦어진다.
+    _retryStep = 0;
     switch (event) {
-      // ⚠️ **두 이벤트를 같게 다룬다.** 연동 가이드가 "매칭 신청을 완료하고
-      // SSE에 연결하면 서버가 `MATCH_STARTED`를 전송한다"고 정했다 — 확정된
-      // 순간에만 오는 것이 아니라 **연결할 때마다 온다.** 이것만 보고 확정
-      // 연출을 띄우면 앱을 껐다 켤 때마다 다시 축하하게 된다.
+      // ⚠️ **두 이벤트를 같게 다룬다.** 서버 코드가 정본이다 — 연결하면
+      // `MATCH_ROOM_UPDATED`가 스냅샷으로 오고(`OpenMatchStreamHandler`),
+      // `MATCH_STARTED`는 **모집 마감에 단 한 번** 나온다
+      // (`CloseMatchingHandler`, 인원과 무관하게 1인도 확정이다).
+      //
+      // 연동 가이드는 "SSE에 연결하면 서버가 `MATCH_STARTED`를 전송한다"고
+      // 적었지만 실제 동작은 위와 같다. 어느 쪽이든 **이벤트 종류로 확정을
+      // 판정하지 않는다** — 그 판정은 [_applyRoom]이 상태 전이로 한다.
       case MatchStarted(:final room) || MatchRoomUpdated(:final room):
         _applyRoom(room);
       case RunningReady():
@@ -207,6 +281,14 @@ class MatchRoomController extends Notifier<MatchRoomState> {
   /// 확정으로 넘어간 그 순간만 연출을 띄운다. 재연결로 같은 `MATCHED`가 다시
   /// 와도 전이가 아니므로 조용하다.
   void _applyRoom(RoomInfo room) {
+    // 서버는 **방 평균 페이스 ±30초** 안에 드는 사람만 같은 방에 넣는다
+    // (`MatchRoomAssigner.ranked`). 혼자 남는 이유가 대개 이 값이라, 방이
+    // 바뀔 때마다 남긴다 — 없으면 "왜 나만 있나"를 로그로 답할 수 없다.
+    debugPrint(
+      '[match] 방 ${room.runningRoomId} · ${room.status.name} · '
+      '${room.players.length}명 · 팀 평균 ${room.teamAveragePaceSecondsPerKm}s/km',
+    );
+
     if (room.status == RoomStatus.cancelled) {
       // 참가자가 모두 빠졌다. 들고 있을 방이 없다.
       unawaited(disconnect());
@@ -245,6 +327,14 @@ class MatchRoomController extends Notifier<MatchRoomState> {
     try {
       await ref.read(matchRepositoryProvider).cancel();
     } on MatchException catch (error) {
+      // 러닝이 이미 시작됐다 — 나가지 못한 것이 맞지만, 여기서 할 일은
+      // 재시도가 아니라 **앱이 늦게 아는 상태를 따라잡는 것**이다. 다시 읽으면
+      // `RUNNING`이 올라오고 화면이 러닝으로 옮겨간다.
+      if (error.failure == MatchFailure.alreadyStarted) {
+        debugPrint('[match] 이미 시작한 러닝이다 · 상태를 다시 읽는다');
+        await ref.read(userStatusProvider.notifier).refresh();
+        return false;
+      }
       // 취소할 것이 없다는 답은 실패가 아니다. 이미 원하던 상태다 —
       // 다른 기기에서 먼저 나갔거나 서버가 방을 닫은 뒤다.
       if (error.failure != MatchFailure.nothingToCancel) {
@@ -264,6 +354,9 @@ class MatchRoomController extends Notifier<MatchRoomState> {
 
   /// 끊고 방을 비운다. 취소·나가기·방 취소에서 부른다.
   Future<void> disconnect() async {
+    // ⚠️ **예약을 먼저 버린다.** 나가기 직전에 끊김이 있었으면 재연결이 예약돼
+    // 있는데, 그대로 두면 나간 뒤에 살아나 없는 방에 붙으려 든다.
+    _cancelRetry();
     await _stop();
     // ⚠️ 닫는 동안 provider가 버려졌을 수 있다. 그때 state를 건드리면 던진다.
     if (!ref.mounted) return;

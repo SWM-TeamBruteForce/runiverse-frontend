@@ -1,11 +1,11 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/match_repository.dart';
-import 'package:runiverse/features/matching/domain/match_slot.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 
 /// 진짜 서버를 부르는 [MatchRepository]. **여기가 응답 형식을 아는 유일한 곳이다.**
@@ -19,22 +19,6 @@ class HttpMatchRepository implements MatchRepository {
   final AuthRepository _auth;
 
   static const _path = '/api/v1/running-matches';
-  static const _slotsPath = '$_path/slots';
-
-  @override
-  Future<List<MatchSlot>> fetchSlots({TargetDistance? distance}) =>
-      _authorized((token) async {
-        final response = await _dio.get<Map<String, dynamic>>(
-          _slotsPath,
-          // `date`를 보내지 않는다. 오늘이 언제인지는 서버가 정한다 —
-          // 기기 시계로 날짜를 조립하면 자정 근처에서 어긋난다.
-          queryParameters: {
-            if (distance != null) 'targetDistanceMeters': distance.meters,
-          },
-          options: Options(headers: {'Authorization': 'Bearer $token'}),
-        );
-        return slotsOf(response.data);
-      });
 
   @override
   Future<int> apply({
@@ -54,6 +38,10 @@ class HttpMatchRepository implements MatchRepository {
     // 방 번호가 없으면 신청은 됐는데 스트림에 붙을 수 없다. 조용히 넘기면
     // 신청해 놓고 아무 소식도 못 받는 상태가 된다.
     if (roomId is! int) throw const MatchException(MatchFailure.unknown);
+    // 이 번호가 신청·러닝·결과 조회를 잇는 유일한 고리다. 남겨두면 "어느 방에
+    // 배정됐나"를 로그만으로 따라갈 수 있다 — 같은 조건으로 신청한 두 사람이
+    // 한 방에 묶였는지도 이 한 줄로 갈린다.
+    debugPrint('[match] 방에 배정됐다 · $roomId');
     return roomId;
   });
 
@@ -64,36 +52,6 @@ class HttpMatchRepository implements MatchRepository {
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
   });
-
-  /// 몸통에서 시간대 목록을 꺼낸다. **테스트가 직접 부른다.**
-  ///
-  /// 읽을 수 없는 항목은 **건너뛴다**. 슬롯 하나가 이상하다고 목록 전체를
-  /// 버리면 매칭 자체를 못 하게 되는데, 한 칸이 비는 것이 그보다 가볍다.
-  static List<MatchSlot> slotsOf(Map<String, dynamic>? body) {
-    final slots = body?['slots'];
-    if (slots is! List) return const [];
-
-    final parsed = <MatchSlot>[];
-    for (final slot in slots) {
-      if (slot is! Map) continue;
-      final raw = slot['scheduledStartAt'];
-      if (raw is! String) continue;
-      final startAt = DateTime.tryParse(raw);
-      if (startAt == null) continue;
-      final waiting = slot['waitingCount'];
-      parsed.add(
-        MatchSlot(
-          raw: raw,
-          startAt: startAt,
-          waitingCount: waiting is int ? waiting : 0,
-          // ⚠️ 없으면 잠근다. 모르는 슬롯을 열어두면 마감된 시간대를 눌러
-          // 409를 맞는다 — 눌리지 않는 편이 낫다.
-          selectable: slot['selectable'] == true,
-        ),
-      );
-    }
-    return parsed;
-  }
 
   /// 응답에서 실패 갈래를 읽는다. **테스트가 직접 부른다.**
   static MatchException exceptionOf(DioException error) {
@@ -120,6 +78,9 @@ class HttpMatchRepository implements MatchRepository {
       ),
       'MATCH_ALREADY_IN_PROGRESS' || 'RUNNING_ALREADY_IN_PROGRESS' =>
         const MatchException(MatchFailure.alreadyInProgress),
+      'MATCH_ALREADY_STARTED' => const MatchException(
+        MatchFailure.alreadyStarted,
+      ),
       'ONBOARDING_NOT_COMPLETED' => const MatchException(
         MatchFailure.onboardingNotCompleted,
       ),
@@ -165,9 +126,9 @@ class HttpMatchRepository implements MatchRepository {
       return tokens.accessToken;
     } on AuthException catch (error) {
       throw MatchException(
-        error.failure == AuthFailure.network
-            ? MatchFailure.network
-            : MatchFailure.sessionExpired,
+        error.failure == AuthFailure.sessionExpired
+            ? MatchFailure.sessionExpired
+            : MatchFailure.network,
       );
     }
   }

@@ -175,9 +175,9 @@ class HttpSettingsRepository implements SettingsRepository {
       return tokens.accessToken;
     } on AuthException catch (error) {
       throw SettingsException(
-        error.failure == AuthFailure.network
-            ? SettingsFailure.network
-            : SettingsFailure.sessionExpired,
+        error.failure == AuthFailure.sessionExpired
+            ? SettingsFailure.sessionExpired
+            : SettingsFailure.network,
       );
     }
   }

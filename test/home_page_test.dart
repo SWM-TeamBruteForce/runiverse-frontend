@@ -12,6 +12,8 @@ import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/presentation/match_register_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 홈 (S05 상태 1) — 무엇이 보이고, 히어로의 두 버튼이 어디로 가는가.
 void main() {
@@ -22,6 +24,11 @@ void main() {
           // 매칭 버튼이 등록 화면으로 간다. 그 화면이 들어서면서 시간대를
           // 받아오는데, 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
           matchRepositoryProvider.overrideWithValue(FakeMatchRepository()),
+          // 로그인한 상태로 들어오면 셸이 세워지면서 유저 상태를 한 번 묻는다.
+          // 진짜를 두면 여기서도 dio가 서버 주소를 찾다 죽는다.
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
+          ),
           if (auth != null)
             authControllerProvider.overrideWith(
               () => _StubAuthController(auth),
