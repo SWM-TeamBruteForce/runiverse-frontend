@@ -107,6 +107,71 @@ void main() {
       expect((state as RunPreparing).hasFix, isTrue);
     });
 
+    group('시각이 정해진 출발', () {
+      // 매칭 러닝은 서버가 정한 시각에 출발한다. 그 순간 신호가 없다고 출발을
+      // 미룰 수도, 신호 없이 달릴 수도 없다 — 첫 신호가 오는 즉시 출발한다.
+      test('신호가 있으면 곧바로 출발한다', () async {
+        final container = makeContainer();
+        final controller = container.read(
+          runSessionControllerProvider.notifier,
+        );
+        await controller.prepare();
+        location.emit(point(37.5, 127));
+        await settle();
+
+        await controller.startWhenReady();
+
+        expect(container.read(runSessionControllerProvider), isA<RunRunning>());
+      });
+
+      test('⚠️ 신호가 없으면 기다렸다가 첫 신호에 출발한다', () async {
+        final container = makeContainer();
+        final controller = container.read(
+          runSessionControllerProvider.notifier,
+        );
+        await controller.prepare();
+
+        await controller.startWhenReady();
+        expect(
+          container.read(runSessionControllerProvider),
+          isA<RunPreparing>(),
+        );
+
+        location.emit(point(37.5, 127));
+        await settle();
+        expect(container.read(runSessionControllerProvider), isA<RunRunning>());
+      });
+
+      test('준비를 열지 않았어도 여기서 연다', () async {
+        // 카운트다운 화면이 준비를 빠뜨려도 러닝은 시작돼야 한다.
+        final container = makeContainer();
+        final controller = container.read(
+          runSessionControllerProvider.notifier,
+        );
+
+        await controller.startWhenReady();
+        expect(
+          container.read(runSessionControllerProvider),
+          isA<RunPreparing>(),
+        );
+
+        location.emit(point(37.5, 127));
+        await settle();
+        expect(container.read(runSessionControllerProvider), isA<RunRunning>());
+      });
+
+      test('권한이 없으면 출발하지 않는다', () async {
+        final container = makeContainer(access: LocationAccess.deniedForever);
+        final controller = container.read(
+          runSessionControllerProvider.notifier,
+        );
+
+        await controller.startWhenReady();
+
+        expect(container.read(runSessionControllerProvider), isA<RunIdle>());
+      });
+    });
+
     test('출발하면 진행 상태가 되고 수치는 0이다', () async {
       final container = makeContainer();
       final controller = container.read(runSessionControllerProvider.notifier);
