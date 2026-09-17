@@ -815,23 +815,46 @@ abstract final class AppStrings {
   /// 러닝 중 지표 라벨.
   // ── 파티원 비교 (S13 3페이지) ────────────────────────────────
 
-  static const runPartyTitle = '함께 달리는 중';
+  static const runPartyTitle = '파티원 상태';
 
-  /// 순위가 아니라 동행이라는 프레임을 문구로 세운다. 정본 S13의 머리말.
-  static const runPartyHint = '각자의 색으로 칠해요';
+  // 카드 안 라벨·단위 (Figma `runiverse_final` 파티원 상태)
+  static const runPartyDistanceLabel = '현재 거리';
 
-  /// 정본 S13의 꼬리말. 위치는 공유되지 않는다는 것을 화면이 스스로 말한다.
-  static const runPartyFooter = '공유되는 것은 진행률과 격차뿐이에요';
+  /// ⚠️ 정본은 "평균 페이스"지만 서버가 주는 것은 순간 페이스다.
+  static const runPartyPaceLabel = '페이스';
+  static const runPartyUnitKm = 'km';
+  static const runPartyUnitPerKm = '/km';
 
-  /// 표 머리. 순위 열은 없다.
-  static const runPartyColRunner = '러너';
-  static const runPartyColDistance = '거리';
+  /// 임팩트 순간 숫자 옆. 아케이드 느낌이라 영문 그대로 둔다.
+  static const runPartyImpactCombo = 'COMBO';
 
-  /// ⚠️ "평균"이 아니다. 서버가 주는 것은 마지막 좌표의 순간 페이스다.
-  static const runPartyColPace = '페이스';
+  /// `최고 7` — 콤보가 없을 때 배지에 남는 이 러닝의 최고 기록.
+  static String runPartyBestCombo(int count) => '최고 $count';
 
-  /// `3.20` — 표의 거리. 단위는 머리에 있다.
-  static String runPartyKm(int meters) => (meters / 1000).toStringAsFixed(2);
+  /// 콤보가 끊긴 내 카드 아래 줄.
+  static const runPartyComboHint = '30m 안으로 붙으면 콤보가 시작돼요';
+
+  /// 콤보 중인 내 카드 아래 줄과 임팩트 덮개의 한 줄.
+  static String runPartyBeside(String name) => '$name 곁에서 달리는 중';
+
+  /// `나보다 160m 앞` / `나보다 120m 뒤` / `나란히` — 상대 카드 아래 줄.
+  static String runPartyGapLine(int meters) => switch (meters) {
+    > 0 => '나보다 ${meters}m 앞',
+    < 0 => '나보다 ${-meters}m 뒤',
+    _ => '나란히 달리는 중',
+  };
+
+  /// `3.4` — 카드의 현재 거리. 소수 한 자리.
+  static String runPartyKm1(int meters) => (meters / 1000).toStringAsFixed(1);
+
+  /// `5 km` — 목표 거리.
+  static String runPartyTargetKm(int meters) {
+    final km = meters / 1000;
+    final text = km == km.roundToDouble()
+        ? km.toInt().toString()
+        : km.toStringAsFixed(1);
+    return '$text $runPartyUnitKm';
+  }
 
   /// 솔로 러닝이거나 아직 아무 통지도 오지 않았을 때.
   static const runPartyEmpty = '아직 함께 달리는 사람이 없어요';
@@ -841,12 +864,6 @@ abstract final class AppStrings {
 
   /// ⚠️ 이름을 모르는 파티원. 러닝 중 앱을 재시작하면 명단이 사라진다.
   static const runPartyUnknown = '함께 달리는 사람';
-
-  /// `+260m` / `-80m` — 내 거리를 기준으로 한 격차.
-  ///
-  /// 양수면 상대가 앞이다. **순위가 아니라 거리 차**라 부호를 그대로 쓴다.
-  static String runPartyGap(int meters) =>
-      meters >= 0 ? '+${meters}m' : '${meters}m';
 
   /// `2.32km` — 막대 옆 숫자.
   static String runPartyDistance(int meters) =>
