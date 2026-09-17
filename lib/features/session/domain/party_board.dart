@@ -61,41 +61,33 @@ class PartyRow {
 
 /// 파티원 명단과 통지를 맞춰 화면 줄을 만든다.
 ///
-/// ## 진행률 순으로 세운다
+/// ## 순서는 고정이다 (2026-09-18 결정)
 ///
-/// 정본 S13이 "진행률 높은 순 정렬"을 명시한다. 금지된 것은 **등수 숫자**다 —
-/// `1등`·`2등`을 적으면 경쟁 프레임이 되지만, 막대 길이로 앞뒤가 보이는 것은
-/// 함께 달리는 감각에 필요하다(`CLAUDE.md`의 "순위(1등/2등) 표시" 금지).
+/// **나는 맨 위, 나머지는 대기실 명단 순.** 명단에 없는데 통지만 오는 사람은
+/// 그 뒤에 `userId` 순으로 붙는다. 거리로 자리를 바꾸지 않는다.
 ///
-/// ## ⚠️ 자리는 기준값만큼 앞서야 바뀐다
-///
-/// 나란히 달리는 두 사람은 통지마다 몇 미터씩 앞서거니 뒤서거니 한다. 거리순으로
-/// 곧이곧대로 세우면 10초마다 줄이 서로 자리를 바꾸며 튄다. 그래서 **아래 줄이
-/// 위 줄보다 [swapThresholdMeters] 이상 앞설 때만** 자리를 바꾸고, 바뀐 뒤에
-/// 되돌리는 쪽도 같은 만큼이 필요하다(FE노트 S13). 그 기억이 [order]다.
-///
-/// 처음 세울 때는 기억이 없어 거리순이다. 같은 거리면 명단 순서를 지킨다.
+/// 정본 S13은 "진행률 높은 순"이었고 10m 히스테리시스까지 두었지만, 진행과
+/// 콤보 통지가 10초마다 같이 오는 화면에서 카드까지 자리를 옮기면 너무 혼잡했다.
+/// 앞뒤는 막대 길이와 격차 문장으로 충분히 보인다. 등수 숫자는 여전히 금지다
+/// (`CLAUDE.md`의 "순위(1등/2등) 표시" 금지).
 class PartyBoard {
   const PartyBoard({
     this.roster = const [],
     this.progress = const {},
     this.combos = const {},
+    this.bestCombos = const {},
     this.myDistanceMeters = 0,
     this.myUserId = meId,
-    this.order = const [],
   });
 
   /// 내 `userId`를 모를 때의 자리. 솔로처럼 명단이 없으면 실제 ID가 필요 없다.
   static const meId = '@me';
 
-  /// 자리를 바꾸는 데 필요한 격차. 정책값이다.
-  static const swapThresholdMeters = 10;
-
   /// 이만큼 통지가 없으면 끊긴 것으로 **보인다.** 서버가 콤보 판정에서 오래된
   /// 거리를 빼는 기준(`running-combo.freshness`)과 같다.
   static const staleAfter = Duration(seconds: 19);
 
-  /// 대기방에서 들고 온 명단. **처음 세울 때의 동률 순서다.**
+  /// 대기방에서 들고 온 명단. **화면 순서 그 자체다.**
   final List<PartyMember> roster;
 
   /// `userId` → 마지막 진행. 통지가 갱신분만 실어 오므로 여기에 덮는다.
@@ -103,6 +95,13 @@ class PartyBoard {
 
   /// `userId` → 나와의 콤보. **통이 올 때마다 통째로 갈린다.**
   final Map<String, ComboPeer> combos;
+
+  /// `userId` → 이 러닝에서 그 사람과 이어 본 최고 콤보.
+  ///
+  /// ⚠️ [combos]는 끊기면 목록에서 빠져 최고값도 같이 사라진다. 콤보가 없을 때
+  /// 카드에 "최고 N"을 남기려면 따로 기억해야 한다. 서버 `maxComboCount`와
+  /// 지금 세는 값 중 큰 쪽을 둔다.
+  final Map<String, int> bestCombos;
 
   /// **앱이 잰 내 거리.** 서버는 본인 진행을 보내지 않는다.
   final int myDistanceMeters;
@@ -114,17 +113,14 @@ class PartyBoard {
   /// 또 뜬다. 그래서 이 ID의 줄이 곧 내 레인이다.
   final String myUserId;
 
-  /// 지난번 화면 순서(나 포함). 히스테리시스의 기억이다.
-  final List<String> order;
-
-  /// 나를 포함한 모든 줄. **[order] 순서 그대로.**
+  /// 나를 포함한 모든 줄. **나, 명단 순, 낯선 사람 순.**
   ///
   /// 명단에 없는데 통지만 오는 사람도 **버리지 않는다.** 러닝 중 재시작하면
   /// 명단이 비어 있는데, 그때 통지까지 버리면 화면이 통째로 빈다.
   List<PartyRow> get lanes {
     final byId = {for (final member in roster) member.userId: member};
     return [
-      for (final userId in _reordered())
+      for (final userId in _order())
         if (userId == myUserId)
           PartyRow(userId: userId, member: byId[userId], isMe: true)
         else
@@ -172,6 +168,13 @@ class PartyBoard {
     return base + (offset < 0 ? 0 : offset);
   }
 
+  /// 그 사람과의 최고 콤보. 이어 본 적이 없으면 0.
+  int bestComboOf(String userId) => bestCombos[userId] ?? 0;
+
+  /// 내 최고 콤보 — 모든 상대 중 가장 높은 것.
+  int get myBestCombo =>
+      bestCombos.values.fold(0, (best, count) => count > best ? count : best);
+
   /// 파티원 줄만. 솔로면 비어 있다.
   List<PartyRow> get rows => [
     for (final lane in lanes)
@@ -186,8 +189,19 @@ class PartyBoard {
   ///
   /// ⚠️ **합치지 않는다.** 끊긴 상대는 목록에서 빠지는 것으로 끊김을 알리므로,
   /// 기존 값에 덧붙이면 끊긴 콤보가 화면에 영영 남는다.
-  PartyBoard withCombos(RunCombo update) =>
-      _with(combos: {for (final peer in update.peers) peer.userId: peer});
+  PartyBoard withCombos(RunCombo update) {
+    final best = {...bestCombos};
+    for (final peer in update.peers) {
+      final seen = peer.maxComboCount > peer.comboCount
+          ? peer.maxComboCount
+          : peer.comboCount;
+      if (seen > (best[peer.userId] ?? 0)) best[peer.userId] = seen;
+    }
+    return _with(
+      combos: {for (final peer in update.peers) peer.userId: peer},
+      bestCombos: best,
+    );
+  }
 
   /// 명단을 들여온다. 러닝을 시작할 때 한 번.
   ///
@@ -202,70 +216,32 @@ class PartyBoard {
     List<PartyMember>? roster,
     Map<String, RunProgress>? progress,
     Map<String, ComboPeer>? combos,
+    Map<String, int>? bestCombos,
     int? myDistanceMeters,
     String? myUserId,
-  }) {
-    final next = PartyBoard(
-      roster: roster ?? this.roster,
-      progress: progress ?? this.progress,
-      combos: combos ?? this.combos,
-      myDistanceMeters: myDistanceMeters ?? this.myDistanceMeters,
-      myUserId: myUserId ?? this.myUserId,
-      // 내 자리 이름이 바뀌면 옛 기억은 못 쓴다. 처음부터 다시 세운다.
-      order: myUserId == null || myUserId == this.myUserId ? order : const [],
-    );
-    // 기억을 굳힌다. 다음 갱신은 이 순서에서 출발한다.
-    return PartyBoard(
-      roster: next.roster,
-      progress: next.progress,
-      combos: next.combos,
-      myDistanceMeters: next.myDistanceMeters,
-      myUserId: next.myUserId,
-      order: next._reordered(),
-    );
-  }
+  }) => PartyBoard(
+    roster: roster ?? this.roster,
+    progress: progress ?? this.progress,
+    combos: combos ?? this.combos,
+    bestCombos: bestCombos ?? this.bestCombos,
+    myDistanceMeters: myDistanceMeters ?? this.myDistanceMeters,
+    myUserId: myUserId ?? this.myUserId,
+  );
 
-  int _distanceOf(String userId) => userId == myUserId
-      ? myDistanceMeters
-      : progress[userId]?.distanceMeters ?? 0;
-
-  /// 지난 순서에서 출발해 기준값을 넘긴 자리만 바꾼다.
-  List<String> _reordered() {
-    final rank = {
-      for (var i = 0; i < roster.length; i++) roster[i].userId: i,
-      // 명단에 내가 없으면(솔로·재시작) 맨 앞 동률로 둔다.
-      if (!roster.any((member) => member.userId == myUserId)) myUserId: -1,
-    };
-    final ids = <String>{myUserId, ...rank.keys, ...progress.keys};
-
-    // 처음 보는 사람은 거리순으로 뒤에 붙인다. 기억이 없을 때는 전부가 그렇다.
-    final known = order.where(ids.contains).toList();
-    final fresh = ids.where((id) => !known.contains(id)).toList()
-      ..sort((a, b) {
-        final byDistance = _distanceOf(b).compareTo(_distanceOf(a));
-        if (byDistance != 0) return byDistance;
-        // 명단에 없는 사람은 뒤로. 그들끼리는 `userId`로 순서를 고정한다 —
-        // 무엇으로든 고정해야 줄이 깜빡이지 않는다.
-        final ai = rank[a] ?? roster.length;
-        final bi = rank[b] ?? roster.length;
-        return ai != bi ? ai.compareTo(bi) : a.compareTo(b);
-      });
-    final result = [...known, ...fresh];
-
-    // 아래가 위보다 기준값 이상 앞서면 한 칸 올린다. 더 바뀌지 않을 때까지.
-    var swapped = true;
-    while (swapped) {
-      swapped = false;
-      for (var i = 0; i < result.length - 1; i++) {
-        final gap = _distanceOf(result[i + 1]) - _distanceOf(result[i]);
-        if (gap >= swapThresholdMeters) {
-          final upper = result[i];
-          result[i] = result[i + 1];
-          result[i + 1] = upper;
-          swapped = true;
-        }
-      }
-    }
-    return result;
+  /// 나 → 명단 순(나 제외) → 명단에 없는 사람 `userId` 순.
+  ///
+  /// 낯선 사람을 `userId`로 고정하는 이유: 통지가 온 순서로 두면 재시작할 때마다
+  /// 줄이 달라지고, 무엇으로든 고정해야 줄이 깜빡이지 않는다.
+  List<String> _order() {
+    final named = [
+      for (final member in roster)
+        if (member.userId != myUserId) member.userId,
+    ];
+    final strangers =
+        progress.keys
+            .where((id) => id != myUserId && !named.contains(id))
+            .toList()
+          ..sort();
+    return [myUserId, ...named, ...strangers];
   }
 }

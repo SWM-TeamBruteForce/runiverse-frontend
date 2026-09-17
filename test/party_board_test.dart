@@ -36,10 +36,10 @@ void main() {
   test('진행 통지가 줄에 붙는다', () {
     final board = empty.withRoster(members).withProgress(progress('u-2', 1520));
 
-    // 통지가 온 사람이 앞으로 온다 — 나머지는 아직 0m다.
-    expect(board.rows.first.userId, 'u-2');
-    expect(board.rows.first.progress?.distanceMeters, 1520);
-    expect(board.rows.last.progress, isNull);
+    // 자리는 명단 순 그대로다. 통지가 온 사람의 수치만 채워진다.
+    expect(board.rows.last.userId, 'u-2');
+    expect(board.rows.last.progress?.distanceMeters, 1520);
+    expect(board.rows.first.progress, isNull);
   });
 
   test('같은 사람의 통지는 덮는다', () {
@@ -52,34 +52,21 @@ void main() {
     expect(board.rows.first.progress?.distanceMeters, 260);
   });
 
-  test('진행률 높은 순으로 세운다', () {
-    // 정본 S13이 정한 순서다. 금지된 것은 등수 숫자이지 정렬이 아니다.
+  test('⚠️ 거리가 뒤집혀도 명단 순서 그대로다', () {
+    // 2026-09-18 결정: 진행·콤보 통지가 10초마다 같이 오는 화면에서 카드까지
+    // 자리를 옮기면 혼잡하다. 앞뒤는 막대와 격차 문장으로 보인다.
     final board = empty
         .withRoster(members)
         .withProgress(progress('u-2', 3000))
         .withProgress(progress('u-1', 500));
 
-    expect(board.rows.first.userId, 'u-2');
-    expect(board.rows.last.userId, 'u-1');
-  });
-
-  test('⚠️ 같은 거리면 명단 순서를 지킨다', () {
-    // 나란히 달릴 때 통지마다 자리가 바뀌면 줄이 깜빡인다. 기준값 미만으로
-    // 앞서거니 뒤서거니 하는 동안은 처음 순서(명단 순)가 그대로다.
-    final board = empty
-        .withRoster(members)
-        .withProgress(progress('u-2', 5))
-        .withProgress(progress('u-1', 5))
-        .withProgress(progress('u-2', 9));
-
     expect(board.rows.map((row) => row.userId), ['u-1', 'u-2']);
   });
 
-  test('아직 통지가 없는 사람은 뒤로 간다', () {
-    // 0m로 읽는다. 앞에 두면 달리고 있는 사람이 아래로 밀린다.
+  test('아직 통지가 없어도 명단 자리를 지킨다', () {
     final board = empty.withRoster(members).withProgress(progress('u-2', 10));
 
-    expect(board.rows.first.userId, 'u-2');
+    expect(board.rows.map((row) => row.userId), ['u-1', 'u-2']);
   });
 
   test('⚠️ 명단에 없어도 통지가 오면 그린다', () {
@@ -93,14 +80,15 @@ void main() {
     expect(board.rows.single.progress?.distanceMeters, 800);
   });
 
-  test('모르는 사람도 거리대로 섞인다', () {
-    // 이름을 몰라도 함께 달리는 중이다. 뒤로 몰면 화면이 사실과 달라진다.
+  test('모르는 사람은 명단 뒤에 userId 순으로 붙는다', () {
+    // 통지가 온 순서로 두면 재시작할 때마다 줄이 달라진다.
     final board = empty
         .withRoster(members)
         .withProgress(progress('u-9', 800))
+        .withProgress(progress('u-8', 100))
         .withProgress(progress('u-1', 100));
 
-    expect(board.rows.map((row) => row.userId), ['u-9', 'u-1', 'u-2']);
+    expect(board.rows.map((row) => row.userId), ['u-1', 'u-2', 'u-8', 'u-9']);
   });
 
   group('콤보', () {
@@ -134,6 +122,31 @@ void main() {
       expect(board.rows.every((row) => row.combo == null), isTrue);
     });
 
+    test('최고 콤보는 끊겨도 기억한다', () {
+      // 콤보가 끊기면 목록에서 빠져 `maxComboCount`도 같이 사라진다. 카드에
+      // "최고 N"을 남기려면 보드가 따로 들고 있어야 한다.
+      final board = empty
+          .withRoster(members)
+          .withCombos(
+            const RunCombo([
+              ComboPeer(
+                userId: 'u-1',
+                gapMeters: 0,
+                comboCount: 5,
+                maxComboCount: 7,
+              ),
+            ]),
+          )
+          .withCombos(RunCombo([peer('u-1', 9), peer('u-2', 2)]))
+          .withCombos(const RunCombo([]));
+
+      expect(board.bestComboOf('u-1'), 9);
+      expect(board.bestComboOf('u-2'), 2);
+      expect(board.bestComboOf('u-9'), 0);
+      expect(board.myBestCombo, 9);
+      expect(board.rows.every((row) => row.combo == null), isTrue);
+    });
+
     test('콤보를 갈아도 진행은 남는다', () {
       // 둘은 다른 통지다. 하나가 오면 다른 하나를 지워야 할 이유가 없다.
       final board = empty
@@ -145,57 +158,8 @@ void main() {
     });
   });
 
-  group('자리 바꾸기 히스테리시스', () {
-    // FE노트 S13: 순위 교체는 격차가 기준값 이상 확정될 때만. 접전에서 통지마다
-    // 줄이 튀는 것을 막는다. 기준값은 `PartyBoard.swapThresholdMeters` 하나다.
-    test('기준값 미만으로 앞서면 자리를 지킨다', () {
-      final board = empty
-          .withRoster(members)
-          .withProgress(progress('u-1', 1000))
-          .withProgress(progress('u-2', 1000))
-          .withProgress(progress('u-2', 1009));
-
-      expect(board.rows.map((row) => row.userId), ['u-1', 'u-2']);
-    });
-
-    test('기준값만큼 앞서면 자리를 바꾼다', () {
-      final board = empty
-          .withRoster(members)
-          .withProgress(progress('u-1', 1000))
-          .withProgress(progress('u-2', 1000))
-          .withProgress(progress('u-2', 1010));
-
-      expect(board.rows.map((row) => row.userId), ['u-2', 'u-1']);
-    });
-
-    test('⚠️ 바뀐 뒤에는 되돌리는 쪽도 기준값이 필요하다', () {
-      // 5m 다시 앞섰다고 되돌리면 경계에서 줄이 왔다 갔다 한다.
-      final board = empty
-          .withRoster(members)
-          .withProgress(progress('u-1', 1000))
-          .withProgress(progress('u-2', 1010))
-          .withProgress(progress('u-1', 1015));
-
-      expect(board.rows.map((row) => row.userId), ['u-2', 'u-1']);
-      expect(
-        board.withProgress(progress('u-1', 1020)).rows.map((row) => row.userId),
-        ['u-1', 'u-2'],
-      );
-    });
-
-    test('처음 순서는 거리순이다', () {
-      // 기억이 없을 때는 기준값을 적용할 대상이 없다 — 5m 차이도 거리순.
-      final board = empty
-          .withRoster(members)
-          .withProgress(progress('u-2', 1005))
-          .withProgress(progress('u-1', 1000));
-
-      expect(board.rows.first.userId, 'u-2');
-    });
-  });
-
   group('내 레인', () {
-    // 정본 S13은 나를 파티원과 같은 목록에서 진행률순으로 세운다.
+    // 나는 거리와 상관없이 맨 위다.
     test('lanes에는 내가 들어 있고 rows에는 없다', () {
       final board = empty.withRoster(members).withMyDistance(500);
 
@@ -204,19 +168,13 @@ void main() {
       expect(board.lanes, hasLength(3));
     });
 
-    test('내 거리도 같은 규칙으로 섞인다', () {
+    test('⚠️ 내가 뒤처져도 맨 위다', () {
       final board = empty
           .withRoster(members)
           .withProgress(progress('u-1', 1000))
-          .withMyDistance(1005);
+          .withMyDistance(5);
 
-      // 5m 앞선 것으로는 못 올라간다 — 처음 순서는 거리순이지만 이미 기억이 있다.
       expect(board.lanes.map((lane) => lane.userId), [
-        'u-1',
-        PartyBoard.meId,
-        'u-2',
-      ]);
-      expect(board.withMyDistance(1010).lanes.map((lane) => lane.userId), [
         PartyBoard.meId,
         'u-1',
         'u-2',
@@ -328,7 +286,8 @@ void main() {
           .withProgress(progress('u-1', 880))
           .withProgress(progress('u-2', 1160));
 
-      expect(board.rows.map((row) => row.gapMeters), [160, -120]);
+      // 명단 순(u-1, u-2)이다. u-1은 120m 뒤, u-2는 160m 앞.
+      expect(board.rows.map((row) => row.gapMeters), [-120, 160]);
     });
 
     test('통지가 없으면 격차도 없다', () {
