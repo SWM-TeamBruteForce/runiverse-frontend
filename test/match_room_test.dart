@@ -1,6 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/storage/match_room_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/data/fake_match_stream.dart';
+import 'package:runiverse/features/matching/domain/match_failure.dart';
+import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
 import 'package:runiverse/features/matching/domain/match_stream.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
@@ -193,6 +197,73 @@ void main() {
     });
   });
 
+  group('나가기', () {
+    // 누를 수 있는 곳이 둘이다 — 모집 중에는 홈 히어로, 확정 뒤에는 로비.
+    // 순서가 한 곳에 있어야 한쪽만 고쳐지는 일이 없다.
+    ({
+      ProviderContainer container,
+      FakeMatchStream stream,
+      FakeMatchRepository matches,
+    })
+    buildWithRepo({MatchFailure? cancelFailure}) {
+      final stream = FakeMatchStream();
+      final matches = FakeMatchRepository(cancelFailure: cancelFailure);
+      final container = ProviderContainer(
+        overrides: [
+          matchStreamProvider.overrideWithValue(stream),
+          matchRepositoryProvider.overrideWithValue(matches),
+          // 나가기가 남겨 둔 방 번호를 지운다. 진짜는 플랫폼 채널을 탄다.
+          matchRoomStoreProvider.overrideWithValue(InMemoryMatchRoomStore()),
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(matchRoomProvider);
+      return (container: container, stream: stream, matches: matches);
+    }
+
+    test('취소를 보내고 스트림을 닫고 방을 비운다', () async {
+      final app = buildWithRepo();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+      app.stream.emit(MatchRoomUpdated(room(RoomStatus.matching)));
+      await Future<void>.delayed(Duration.zero);
+
+      final left = await app.container.read(matchRoomProvider.notifier).leave();
+
+      expect(left, isTrue);
+      expect(app.matches.cancelCalls, 1);
+      expect(app.stream.closes, greaterThanOrEqualTo(1));
+      expect(app.container.read(matchRoomProvider).room, isNull);
+    });
+
+    test('⚠️ 취소할 것이 없다는 답은 실패가 아니다', () async {
+      // 다른 기기에서 먼저 나갔거나 서버가 방을 닫은 뒤다 — 이미 원하던 상태다.
+      final app = buildWithRepo(cancelFailure: MatchFailure.nothingToCancel);
+
+      final left = await app.container.read(matchRoomProvider.notifier).leave();
+
+      expect(left, isTrue);
+      expect(app.container.read(matchRoomProvider).room, isNull);
+    });
+
+    test('⚠️ 진짜 실패하면 방을 비우지 않는다', () async {
+      // 서버는 아직 이 사람을 참가자로 알고 있다. 화면에서 지우면 나간 줄 안다.
+      final app = buildWithRepo(cancelFailure: MatchFailure.network);
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+      app.stream.emit(MatchRoomUpdated(room(RoomStatus.matched)));
+      await Future<void>.delayed(Duration.zero);
+
+      final left = await app.container.read(matchRoomProvider.notifier).leave();
+
+      expect(left, isFalse);
+      expect(app.container.read(matchRoomProvider).room, isNotNull);
+    });
+  });
+
   group('이벤트를 받는다', () {
     test('갱신은 방을 다시 그린다', () async {
       final app = build();
@@ -208,19 +279,38 @@ void main() {
       );
     });
 
-    test('⚠️ 확정 연출은 MATCH_STARTED에만 붙는다', () async {
-      // 갱신으로도 켜지면 재연결 스냅샷마다 다시 축하하게 된다.
+    test('⚠️ 확정 연출은 상태 전이로 판정한다', () async {
+      // 연동 가이드가 "SSE에 연결하면 MATCH_STARTED를 전송한다"고 정했다 —
+      // 이벤트 종류로 판정하면 앱을 켤 때마다 다시 축하하게 된다.
       final app = build();
       app.container.read(matchRoomProvider.notifier).connect();
       await Future<void>.delayed(Duration.zero);
 
-      app.stream.emit(MatchRoomUpdated(room(RoomStatus.matched)));
+      // 연결 직후 스냅샷. 아직 모집 중이니 축하할 것이 없다.
+      app.stream.emit(MatchStarted(room(RoomStatus.matching)));
       await Future<void>.delayed(Duration.zero);
       expect(app.container.read(matchRoomProvider).justMatched, isFalse);
 
-      app.stream.emit(MatchStarted(room(RoomStatus.matched)));
+      // 모집 중 → 확정으로 넘어간 그 순간이다.
+      app.stream.emit(MatchRoomUpdated(room(RoomStatus.matched)));
       await Future<void>.delayed(Duration.zero);
       expect(app.container.read(matchRoomProvider).justMatched, isTrue);
+    });
+
+    test('⚠️ 확정된 방으로 다시 붙어도 축하하지 않는다', () async {
+      // 재연결 스냅샷은 같은 MATCHED를 실어 온다. 전이가 아니므로 조용하다.
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      app.stream.emit(MatchStarted(room(RoomStatus.matched)));
+      await Future<void>.delayed(Duration.zero);
+      app.container.read(matchRoomProvider.notifier).consumeMatched();
+
+      app.stream.emit(MatchStarted(room(RoomStatus.matched)));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(app.container.read(matchRoomProvider).justMatched, isFalse);
     });
 
     test('연출을 띄우고 나면 내려간다', () async {

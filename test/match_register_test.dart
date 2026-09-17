@@ -3,15 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/storage/match_room_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/data/fake_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/match_slot.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 import 'package:runiverse/features/matching/presentation/match_register_page.dart';
-import 'package:runiverse/features/matching/presentation/match_room_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
@@ -50,6 +51,8 @@ void main() {
       ProviderScope(
         overrides: [
           matchRepositoryProvider.overrideWithValue(matches),
+          // 신청이 방 번호를 남긴다. 진짜는 플랫폼 채널을 탄다.
+          matchRoomStoreProvider.overrideWithValue(InMemoryMatchRoomStore()),
           // 신청에 성공하면 곧바로 스트림에 붙는다. 진짜를 두면 dio가
           // 서버 주소를 찾다 죽는다.
           matchStreamProvider.overrideWithValue(FakeMatchStream()),
@@ -223,14 +226,15 @@ void main() {
       expect(matches.appliedDistance, TargetDistance.km5);
     });
 
-    testWidgets('신청이 되면 대기방으로 간다', (tester) async {
+    testWidgets('신청이 되면 홈으로 돌아간다', (tester) async {
+      // 모집 중에는 갈 화면이 따로 없다. 홈 히어로가 그 상태를 보여준다.
       await pumpRegister(tester);
 
       await pickSlot(tester, '19:00');
       await pickDistance(tester, TargetDistance.km5);
       await tapCta(tester);
 
-      expect(find.byType(MatchRoomPage), findsOneWidget);
+      expect(find.byType(HomePage), findsOneWidget);
       // ⚠️ 등록 화면은 닫는다. 뒤로 가서 또 신청하면 서버가 409로 막는다.
       expect(find.byType(MatchRegisterPage), findsNothing);
     });

@@ -65,9 +65,13 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     final controller = ref.read(runSessionControllerProvider.notifier);
     controller.pause();
 
+    final metrics = _metricsOf(ref.read(runSessionControllerProvider));
+    final target = _targetDistanceMeters();
+
     final action = await showRunStopSheet(
       context,
-      metrics: _metricsOf(ref.read(runSessionControllerProvider)),
+      metrics: metrics,
+      targetDistanceMeters: target,
     );
     if (!mounted) return;
 
@@ -84,10 +88,30 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
         //
         // 끝나면 소켓도 함께 닫힌다 — 안 닫으면 다음 러닝에서 서버가 중복
         // 연결로 보고 이쪽을 4001로 끊는다.
-        unawaited(ref.read(runningConnectionProvider.notifier).finish());
+        // ⚠️ `forced`는 **목표를 채우기 전에 그만두는가**다. 서버가 이 값과
+        // 자기가 확정한 거리를 함께 보고 제재를 정한다 — 앱이 잰 거리로
+        // 단정하지 않는다. 목표가 없는 솔로는 언제나 `false`다.
+        final short =
+            target != null && metrics.distanceMeters < target * _safeRatio;
+        unawaited(
+          ref.read(runningConnectionProvider.notifier).finish(forced: short),
+        );
         if (mounted) context.pushReplacement(AppRoutes.runSummary);
     }
   }
+
+  /// 제재 없이 끝낼 수 있는 선. 연동 가이드가 정한 값이다.
+  static const _safeRatio = 0.8;
+
+  /// 매칭 러닝의 목표 거리. **솔로는 `null`이다** — 목표가 없어 제한도 없다.
+  ///
+  /// 파티원 통지가 실어 오는 값을 쓴다. 통지가 아직 없으면 알 수 없고, 그때는
+  /// 안내를 띄우지 않는다 — 모르면서 겁주지 않는다.
+  int? _targetDistanceMeters() => ref
+      .read(partyProvider)
+      .rows
+      .map((row) => row.progress?.targetDistanceMeters)
+      .firstWhere((value) => value != null, orElse: () => null);
 
   @override
   Widget build(BuildContext context) {

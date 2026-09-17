@@ -69,22 +69,27 @@ void main() {
     await pumpApp(tester, status: const UserStatusIdle());
 
     expect(find.byType(HomePage), findsOneWidget);
-    expect(find.text(AppStrings.homeMatchInProgress), findsNothing);
+    // 기본 히어로다 — 매칭 문구가 없다.
+    expect(find.text(AppStrings.homeMatchCta), findsOneWidget);
+    expect(find.text(AppStrings.homeMatchWaiting), findsNothing);
   });
 
-  testWidgets('⚠️ 매칭 대기면 홈에 배너를 띄운다', (tester) async {
-    // 흔적이 없으면 신청이 사라진 줄 알고 다시 신청하다 409를 맞는다.
+  testWidgets('⚠️ 매칭 대기면 히어로가 흔적을 남긴다', (tester) async {
+    // 방 정보는 스트림이 나르므로 아직 없다. 그래도 기본 히어로를 보여주면
+    // 신청이 사라진 줄 알고 다시 누르고, 서버는 409로 막는다.
     await pumpApp(
       tester,
       status: UserStatusWaiting(runningRoomId: 1, scheduledStartAt: startAt),
     );
 
     expect(find.byType(HomePage), findsOneWidget);
-    expect(find.text(AppStrings.homeMatchInProgress), findsOneWidget);
+    expect(find.text(AppStrings.homeMatchWaiting), findsOneWidget);
+    expect(find.text(AppStrings.homeMatchPending), findsOneWidget);
+    // ⚠️ 다시 신청하러 갈 문이 열려 있으면 안 된다.
+    expect(find.text(AppStrings.homeMatchCta), findsNothing);
   });
 
-  testWidgets('⚠️ 매칭 확정도 배너를 띄운다', (tester) async {
-    // 확정된 뒤에도 매칭 화면이 없어 홈에 남는다. 그래도 알려야 한다.
+  testWidgets('⚠️ 매칭 확정도 마찬가지다', (tester) async {
     await pumpApp(
       tester,
       status: UserStatusReady(
@@ -94,10 +99,11 @@ void main() {
       ),
     );
 
-    expect(find.text(AppStrings.homeMatchInProgress), findsOneWidget);
+    expect(find.text(AppStrings.homeMatchWaiting), findsOneWidget);
   });
 
-  testWidgets('솔로 준비 중에는 배너를 띄우지 않는다', (tester) async {
+  testWidgets('솔로 준비 중에는 기본 히어로다', (tester) async {
+    // 솔로는 매칭이 아니다. 매칭 중이라고 말하면 거짓이다.
     await pumpApp(
       tester,
       status: UserStatusReady(
@@ -107,7 +113,7 @@ void main() {
       ),
     );
 
-    expect(find.text(AppStrings.homeMatchInProgress), findsNothing);
+    expect(find.text(AppStrings.homeMatchWaiting), findsNothing);
   });
 
   testWidgets('⚠️ 상태를 못 읽어도 홈으로 들여보낸다', (tester) async {
@@ -120,7 +126,7 @@ void main() {
 
     expect(find.byType(HomePage), findsOneWidget);
     // 모르는 것을 "진행 중"으로 그리지 않는다.
-    expect(find.text(AppStrings.homeMatchInProgress), findsNothing);
+    expect(find.text(AppStrings.homeMatchWaiting), findsNothing);
   });
 
   testWidgets('⚠️ 진입에 한 번은 반드시 묻는다', (tester) async {

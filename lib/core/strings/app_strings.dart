@@ -1,3 +1,5 @@
+import 'package:runiverse/core/utils/kst_time.dart';
+
 /// UI 문자열 — 화면 코드에 한국어를 직접 쓰지 않는다.
 ///
 /// 한곳에 모아두면 문구 톤을 일괄로 맞출 수 있고, 나중에 다국어를 붙일 때
@@ -385,15 +387,63 @@ abstract final class AppStrings {
   static const homeMatchCta = '지금 매칭하기';
   static const homeSoloCta = '혼자 달리기';
 
-  /// 진행 중인 매칭이 있을 때 홈 상단에 뜬다.
-  ///
-  /// ⚠️ **흔적을 남기지 않으면 다시 신청하려 든다.** 신청해 두고 앱을 껐다 켠
-  /// 사람에게 아무것도 보이지 않으면 신청이 사라진 줄 알고 다시 누르고,
-  /// 서버는 409로 막는다. 매칭 화면이 생기면 이 배너가 그 화면으로 데려간다.
-  static const homeMatchInProgress = '매칭이 진행 중이에요';
+  // 히어로 — 매칭 대기 (S05 상태 2)
+  //
+  // ⚠️ **정본은 히어로가 매칭 상태를 전담한다.** 모집 중에는 갈 화면이 따로
+  // 없고, 여기가 그 상태를 보여주는 유일한 자리다.
 
-  /// 눌러서 갈 곳이 생겼다. 무엇을 하면 되는지 적는다.
-  static const homeMatchInProgressHint = '눌러서 대기방을 봐요';
+  static const homeMatchWaiting = '매칭 중';
+
+  /// ⚠️ 서버는 매칭 중이라는데 방 정보가 아직 안 온 구간.
+  ///
+  /// 인원·마감 시각은 스트림이 나르므로 상태 조회만으로는 그릴 수 없다.
+  /// **그렇다고 기본 히어로를 보여주면 안 된다** — 신청한 적 없는 줄 알고
+  /// 다시 누르고, 서버는 409로 막는다.
+  static const homeMatchPending = '매칭 정보를 불러오는 중이에요';
+
+  /// `현재 2명 매칭됨` — 숫자만 강조색으로 그린다(정본).
+  ///
+  /// 문장을 셋으로 쪼개 두는 이유는 가운데만 색을 달리하기 위해서다.
+  /// 조사가 붙지 않아 쪼개도 어색해지지 않는다.
+  static const homeMatchJoinedPrefix = '현재';
+  static String homeMatchJoinedCount(int count) => '$count명';
+  static const homeMatchJoinedSuffix = '매칭됨';
+
+  /// `19:00 슬롯 · 마감까지 12분`
+  static String homeMatchSlotLine(DateTime startAt, Duration untilClose) =>
+      '${matchSlotTime(startAt)} 슬롯 · 마감까지 ${_minutesText(untilClose)}';
+
+  /// 마감까지 남은 시간. 분 단위로 담담하게 적는다 — 초까지 세면 조급해진다.
+  static String _minutesText(Duration left) {
+    if (left.inMinutes < 1) return '곧';
+    if (left.inHours < 1) return '${left.inMinutes}분';
+    final minutes = left.inMinutes % 60;
+    return minutes == 0 ? '${left.inHours}시간' : '${left.inHours}시간 $minutes분';
+  }
+
+  /// ⚠️ 방 정보를 못 받아 로비로 들어갈 수 없을 때만 히어로에 둔다.
+  /// 평소의 취소·나가기는 로비가 맡는다 — 두 곳에 두면 문구가 갈린다.
+  static const homeMatchCancel = '취소하기';
+
+  /// 모집 중에 들어가는 문.
+  static const homeMatchToLobby = '로비로 가기';
+
+  // 히어로 — 매칭 확정 (S05 상태 3)
+
+  /// `매칭 완료 · 오늘 19:00` — 배지 문구.
+  static String homeMatchConfirmed(DateTime startAt) =>
+      '매칭 완료 · 오늘 ${matchSlotTime(startAt)}';
+
+  static const homeMatchStartLabel = '시작까지';
+
+  /// `파티원 3명` — 겹친 아바타 옆.
+  static String homeMatchParty(int count) => '파티원 $count명';
+
+  /// 확정된 방으로 들어가는 문.
+  ///
+  /// ⚠️ **같은 화면인데 이름이 다르다.** 모집 중에는 로비, 확정 뒤에는
+  /// 대기실이다 — 사람이 보는 단계가 달라서다.
+  static const homeMatchToWaitingRoom = '대기실로 가기';
 
   static const homeSectionCompetition = '다가오는 대회';
   static const homeSectionRecentRun = '최근 러닝';
@@ -421,9 +471,14 @@ abstract final class AppStrings {
   static String matchDistanceText(int km) => '${km}km';
 
   /// `19:00` — 슬롯 표기. 날짜는 오늘뿐이라 시각만 적는다.
-  static String matchSlotTime(DateTime startAt) {
-    final hh = startAt.hour.toString().padLeft(2, '0');
-    final mm = startAt.minute.toString().padLeft(2, '0');
+  ///
+  /// ⚠️ **항상 한국 시각으로 적는다.** 슬롯은 18:00~22:00으로 고정이라,
+  /// 기기 시간대로 옮겨 그리면 있지도 않은 `10:00 슬롯`이 화면에 뜬다.
+  /// 받는 값은 순간(기기 시각)이므로 여기서 벽시계로 되돌린다.
+  static String matchSlotTime(DateTime at) {
+    final wall = KstTime.wallOf(at);
+    final hh = wall.hour.toString().padLeft(2, '0');
+    final mm = wall.minute.toString().padLeft(2, '0');
     return '$hh:$mm';
   }
 
@@ -488,7 +543,12 @@ abstract final class AppStrings {
 
   // ── 대기방 (S10) ─────────────────────────────────────────────
 
-  static const matchRoomTitle = '매칭';
+  /// 화면 이름. **같은 화면인데 단계에 따라 부르는 말이 다르다.**
+  ///
+  /// 모집 중에는 아직 누구와 뛸지 정해지지 않아 `로비`이고, 확정된 뒤에는
+  /// 출발을 기다리는 `대기실`이다.
+  static const matchRoomTitleLobby = '로비';
+  static const matchRoomTitleWaiting = '대기실';
 
   static const matchRoomWaiting = '매칭 중';
   static const matchRoomMatched = '매칭 완료!';
@@ -753,6 +813,17 @@ abstract final class AppStrings {
 
   /// `12콤보` — 지금 이어지고 있는 콤보.
   static String runPartyCombo(int count) => '$count콤보';
+
+  /// ⚠️ 목표의 80%를 채우지 못한 채 끝내려 할 때. **끝내기 전에 알린다** —
+  /// 끝낸 뒤에 알리면 되돌릴 수 없다.
+  ///
+  /// 기준은 서버가 확정한 거리다. 앱이 잰 값과 미세하게 다를 수 있어
+  /// "적용될 수 있다"로 적는다 — 단정하면 안 걸렸을 때 거짓말이 된다.
+  static const runFinishPenaltyNotice = '목표의 80%를 채우지 못하면 20분 동안 매칭을 신청할 수 없어요';
+
+  /// `4.00km 남았어요` — 얼마나 더 가야 제한을 피하는지.
+  static String runFinishRemaining(double km) =>
+      '${km.toStringAsFixed(2)}km 더 달리면 제한 없이 끝낼 수 있어요';
 
   static const runPaceLabel = '페이스';
   static const runTimeLabel = '시간';

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/data/http_match_repository.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
@@ -229,6 +230,15 @@ void main() {
       // 비교하면 CI 시간대에 따라 답이 달라진다. 18:00 KST = 09:00 UTC.
       expect(slots.first.startAt.toUtc(), DateTime.utc(2026, 9, 16, 9));
       expect(slots.last.startAt.toUtc(), DateTime.utc(2026, 9, 16, 13));
+    });
+
+    test('⚠️ 화면에는 항상 한국 시각이 뜬다', () {
+      // 기기가 GMT여도 `18:00 슬롯`이다. 슬롯은 고정된 한국 시각이라
+      // 기기 시간대로 옮겨 그리면 있지도 않은 시각이 화면에 뜬다.
+      final slots = MatchSlot.todayRange(nowWall: noon);
+
+      expect(AppStrings.matchSlotTime(slots.first.startAt), '18:00');
+      expect(AppStrings.matchSlotTime(slots.last.startAt), '22:00');
     });
 
     test('서버 표기를 그대로 만든다', () {

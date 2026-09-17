@@ -29,6 +29,7 @@ enum RunStopAction {
 Future<RunStopAction?> showRunStopSheet(
   BuildContext context, {
   required RunMetrics metrics,
+  int? targetDistanceMeters,
 }) {
   return showModalBottomSheet<RunStopAction>(
     context: context,
@@ -36,14 +37,23 @@ Future<RunStopAction?> showRunStopSheet(
     barrierColor: context.appColors.bgScrim,
     // 실수로 닫히면 안 된다. 멈춘 상태가 화면에 드러나야 한다.
     isDismissible: false,
-    builder: (context) => _StopSheet(metrics: metrics),
+    builder: (context) => _StopSheet(
+      metrics: metrics,
+      targetDistanceMeters: targetDistanceMeters,
+    ),
   );
 }
 
 class _StopSheet extends StatelessWidget {
-  const _StopSheet({required this.metrics});
+  const _StopSheet({required this.metrics, this.targetDistanceMeters});
 
   final RunMetrics metrics;
+
+  /// 매칭 러닝의 목표 거리. **솔로는 `null`이다** — 목표가 없어 제한도 없다.
+  final int? targetDistanceMeters;
+
+  /// 제재 없이 끝낼 수 있는 선. 가이드가 정한 값이다.
+  static const _safeRatio = 0.8;
 
   @override
   Widget build(BuildContext context) {
@@ -90,7 +100,13 @@ class _StopSheet extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: AppSpacing.space6),
+            const SizedBox(height: AppSpacing.space5),
+
+            // ⚠️ 끝내기 전에 알린다. 끝낸 뒤에 알리면 되돌릴 수 없다.
+            if (_shortfallKm case final short?) ...[
+              _PenaltyNotice(remainingKm: short),
+              const SizedBox(height: AppSpacing.space5),
+            ],
 
             AppButton(
               label: AppStrings.runResumeCta,
@@ -108,10 +124,57 @@ class _StopSheet extends StatelessWidget {
     );
   }
 
+  /// 제재를 피하려면 얼마나 더 가야 하는가. 이미 넘었거나 목표가 없으면 `null`.
+  double? get _shortfallKm {
+    final target = targetDistanceMeters;
+    if (target == null || target <= 0) return null;
+    final safe = target * _safeRatio;
+    final left = safe - metrics.distanceMeters;
+    return left <= 0 ? null : left / 1000;
+  }
+
   static String _elapsedText(Duration elapsed) {
     final minutes = elapsed.inMinutes.toString().padLeft(2, '0');
     final seconds = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+}
+
+/// 제재 안내. **경고가 아니라 사실을 적는다** — 그만두는 것이 잘못은 아니다.
+class _PenaltyNotice extends StatelessWidget {
+  const _PenaltyNotice({required this.remainingKm});
+
+  final double remainingKm;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.bgSurface,
+        borderRadius: AppRadius.md,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.space4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              AppStrings.runFinishPenaltyNotice,
+              style: AppTypography.caption.copyWith(
+                color: colors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.space1),
+            Text(
+              AppStrings.runFinishRemaining(remainingKm),
+              style: AppTypography.caption.copyWith(color: colors.primary),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
