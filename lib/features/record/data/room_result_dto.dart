@@ -15,7 +15,10 @@ abstract final class RoomResultDto {
     required Map<String, dynamic> results,
     required Map<String, dynamic> splitResults,
   }) {
+    final players = _players(results['players']);
     final me = _me(results['players']);
+    final myUserId = me?['userId'] as String?;
+    final splitsByPlayer = _splitsByPlayer(splitResults);
 
     return RunDetail(
       runningRoomId: results['runningRoomId'] as int,
@@ -34,8 +37,38 @@ abstract final class RoomResultDto {
           (splitResults['totalElevationGainMeters'] as int?) ??
           (me?['totalElevationGainMeters'] as int?),
       track: _track(results['routes']),
-      rawSplits: _splits(splitResults, myUserId: me?['userId'] as String?),
+      rawSplits: splitsByPlayer[myUserId] ?? const [],
+      players: players,
+      // 내 것은 `rawSplits`에 있다. 두 곳에 두면 언젠가 한쪽만 고쳐진다.
+      splitsByPlayer: {
+        for (final entry in splitsByPlayer.entries)
+          if (entry.key != myUserId) entry.key: entry.value,
+      },
     );
+  }
+
+  /// `players[]` 전원. 서버가 준 순서를 지킨다 — 레인 색의 근거다.
+  ///
+  /// 수치가 `null`인 사람(기록 없음)도 남긴다. 빼면 "같이 달린 적 없는" 것처럼
+  /// 보인다.
+  static List<RunPlayerResult> _players(Object? players) {
+    if (players is! List) return const [];
+    return [
+      for (final player in players)
+        if (player is Map<String, dynamic> && player['userId'] is String)
+          RunPlayerResult(
+            userId: player['userId'] as String,
+            nickname: (player['nickname'] as String?) ?? '',
+            isMe: player['isMe'] == true,
+            isDeleted: player['isDeleted'] == true,
+            profileImageUrl: player['profileImageUrl'] as String?,
+            distanceMeters: player['totalDistanceMeters'] as int?,
+            duration: _seconds(player['totalDurationSeconds']),
+            averagePace: _seconds(player['averagePaceSecondsPerKm']),
+            cadenceSpm: player['averageCadenceSpm'] as int?,
+            caloriesKcal: player['totalCaloriesKcal'] as int?,
+          ),
+    ];
   }
 
   /// `players[]`에서 **본인**을 찾는다.
@@ -77,18 +110,18 @@ abstract final class RoomResultDto {
     return points.length < 2 ? const [] : [points];
   }
 
-  /// 18번의 `splits[]`에서 **본인 몫만** 추린다.
+  /// 18번의 `splits[]`를 **사람별로** 가른다.
   ///
-  /// 구간마다 `players[]`가 있고 그 안에 사람별 수치가 들어 있다. 최상위
-  /// `players`의 `isMe`로 알아낸 `userId`와 맞춰 고른다.
-  static List<RawSplit> _splits(
-    Map<String, dynamic> json, {
-    required String? myUserId,
-  }) {
+  /// 구간마다 `players[]`가 있고 그 안에 사람별 수치가 들어 있다. 구간 경계는
+  /// 방 전체가 같으므로(10m 고정) 사람별 목록의 같은 자리가 같은 구간이다 —
+  /// 다만 늦게 끝난 사람의 목록이 더 길다.
+  static Map<String, List<RawSplit>> _splitsByPlayer(
+    Map<String, dynamic> json,
+  ) {
     final splits = json['splits'];
-    if (splits is! List || myUserId == null) return const [];
+    if (splits is! List) return const {};
 
-    final mine = <RawSplit>[];
+    final byPlayer = <String, List<RawSplit>>{};
     for (final split in splits) {
       if (split is! Map<String, dynamic>) continue;
 
@@ -97,20 +130,23 @@ abstract final class RoomResultDto {
 
       for (final player in players) {
         if (player is! Map<String, dynamic>) continue;
-        if (player['userId'] != myUserId) continue;
+        final userId = player['userId'];
+        final duration = player['durationSeconds'];
+        if (userId is! String || duration is! int) continue;
 
-        mine.add(
-          RawSplit(
-            startDistanceMeters: split['startDistanceMeters'] as int,
-            endDistanceMeters: split['endDistanceMeters'] as int,
-            duration: Duration(seconds: player['durationSeconds'] as int),
-            cadenceSpm: player['averageCadenceSpm'] as int?,
-            caloriesKcal: (player['caloriesKcal'] as int?) ?? 0,
-          ),
-        );
-        break;
+        byPlayer
+            .putIfAbsent(userId, () => [])
+            .add(
+              RawSplit(
+                startDistanceMeters: split['startDistanceMeters'] as int,
+                endDistanceMeters: split['endDistanceMeters'] as int,
+                duration: Duration(seconds: duration),
+                cadenceSpm: player['averageCadenceSpm'] as int?,
+                caloriesKcal: (player['caloriesKcal'] as int?) ?? 0,
+              ),
+            );
       }
     }
-    return mine;
+    return byPlayer;
   }
 }
