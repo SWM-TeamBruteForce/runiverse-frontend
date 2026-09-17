@@ -6,6 +6,7 @@ import 'package:runiverse/core/theme/tokens/app_radius.dart';
 import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/core/theme/tokens/run_palette.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/domain/split_aggregator.dart';
 import 'package:runiverse/features/record/presentation/split_line_chart.dart';
@@ -28,18 +29,43 @@ import 'package:runiverse/core/widgets/run_map_view.dart';
 /// ## Figma에 있는데 여기 없는 것
 ///
 /// - **획득 컬러 카드** — 색 생성 규칙이 아직 없다
-/// - **파티원 비교 · 러너 칩 · 차트의 두 번째 선** — 매칭 러닝이 없어 비교할
-///   대상 자체가 없다
+/// - **팔로우 버튼** — API가 아직 없다
+///
+/// ## 파티원 비교
+///
+/// 매칭 러닝이면 지표 아래에 **파티원 비교 카드**가 붙고, 구간 표 위의 러너
+/// 칩으로 **한 명**을 골라 겹쳐 본다(정본은 두 명 — 첫 버전은 한 명). 고르면
+/// 표의 격차가 내 평균 대비에서 **그 사람 대비**로 바뀌고 두 페이스 그래프에
+/// 그 사람의 선이 겹친다. 색은 러닝 화면의 레인과 같다 — 서버가 준 순서다.
 /// - **구간별 경사** — `GeoPoint.altitude`가 "경사를 내는 데 쓰지 않는다"고
 ///   못 박고 있다. GPS 고도 오차가 ±10~20m다
-class RunResultView extends StatelessWidget {
+class RunResultView extends StatefulWidget {
   const RunResultView({required this.detail, super.key});
 
   final RunDetail detail;
 
   @override
+  State<RunResultView> createState() => _RunResultViewState();
+}
+
+class _RunResultViewState extends State<RunResultView> {
+  /// 겹쳐 보는 파티원. `null`이면 나만 본다.
+  String? _compareTo;
+
+  RunDetail get detail => widget.detail;
+
+  /// 그 사람의 레인 색. 러닝 화면과 같은 순서라 같은 색이다.
+  Color _colorOf(String userId) =>
+      RunPalette.lane(detail.players.indexWhere((p) => p.userId == userId));
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final compare = _compareTo;
+    final compareSamples = compare == null
+        ? null
+        : detail.chartSamplesOf(compare);
+    final compareColor = compare == null ? null : _colorOf(compare);
     // 테이블은 1km, 그래프는 50m다. 같은 러닝을 두 배율로 본다 — 표는
     // "몇 번째 킬로를 몇 분에 뛰었나"를, 그래프는 "어디서 흔들렸나"를 답한다.
     final splits = detail.tableSplits;
@@ -65,9 +91,24 @@ class RunResultView extends StatelessWidget {
                   _MetricGrid(detail: detail),
                   const SizedBox(height: AppSpacing.space6),
 
+                  if (detail.party.isNotEmpty) ...[
+                    _PartyCard(detail: detail, colorOf: _colorOf),
+                    const SizedBox(height: AppSpacing.space6),
+                  ],
+
                   if (splits.isEmpty)
                     const _NoSplits()
                   else ...[
+                    if (detail.party.any((p) => p.hasRecord)) ...[
+                      _RunnerChips(
+                        detail: detail,
+                        selected: compare,
+                        colorOf: _colorOf,
+                        onSelect: (userId) =>
+                            setState(() => _compareTo = userId),
+                      ),
+                      const SizedBox(height: AppSpacing.space3),
+                    ],
                     // 1km 그래프가 먼저다. **러닝 전체의 모양을 먼저 보여
                     // 준다** — 몇 번째 킬로가 무너졌는지는 이쪽이 답한다.
                     SplitLineChart(
@@ -82,6 +123,13 @@ class RunResultView extends StatelessWidget {
                           PaceCalculator.format(Duration(seconds: v.round())),
                       color: colors.primary,
                       hint: AppStrings.runResultChartHint,
+                      secondary: compare == null
+                          ? null
+                          : [
+                              for (final s in detail.tableSplitsOf(compare))
+                                (s.pace ?? Duration.zero).inSeconds.toDouble(),
+                            ],
+                      secondaryColor: compareColor,
                       // ⚠️ 페이스는 작을수록 빠르므로 그대로 올리면 솟은
                       // 봉우리가 "느렸던 구간"이 되어 거꾸로 읽힌다. **두 페이스
                       // 그래프가 같은 방향이어야 한다** — 위아래로 붙어 있는데
@@ -89,7 +137,12 @@ class RunResultView extends StatelessWidget {
                       inverted: true,
                     ),
                     const SizedBox(height: AppSpacing.space4),
-                    _SplitTable(detail: detail),
+                    _SplitTable(
+                      detail: detail,
+                      compareTo: compare == null
+                          ? null
+                          : detail.tableSplitsOf(compare),
+                    ),
                     const SizedBox(height: AppSpacing.space4),
 
                     // ⚠️ **1km 묶음을 다 보여 준 뒤에 50m로 내려간다.**
@@ -108,6 +161,13 @@ class RunResultView extends StatelessWidget {
                           PaceCalculator.format(Duration(seconds: v.round())),
                       color: colors.primary,
                       hint: AppStrings.runResultChartHint,
+                      secondary: compareSamples == null
+                          ? null
+                          : [
+                              for (final s in compareSamples)
+                                (s.pace ?? Duration.zero).inSeconds.toDouble(),
+                            ],
+                      secondaryColor: compareColor,
                       inverted: true,
                       filled: true,
                     ),
@@ -326,11 +386,206 @@ class _Metric extends StatelessWidget {
   }
 }
 
-/// 구간 리스트. 정본의 `경사`는 빼고 `구간 · 페이스(격차) · 소모`만 남았다.
-class _SplitTable extends StatefulWidget {
-  const _SplitTable({required this.detail});
+/// 파티원 비교 카드(S16). 색 점 · 이름 · 시간 · 평균 페이스.
+///
+/// 정본의 `[팔로우]`는 API가 없어 뺐다. 순위 숫자는 두지 않는다 — 순서도
+/// 서버가 준 순서 그대로다.
+class _PartyCard extends StatelessWidget {
+  const _PartyCard({required this.detail, required this.colorOf});
 
   final RunDetail detail;
+  final Color Function(String userId) colorOf;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.bgSurface,
+        border: Border.all(color: colors.borderDefault),
+        borderRadius: AppRadius.lg,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.space4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              AppStrings.runResultPartyTitle,
+              style: AppTypography.micro.copyWith(
+                color: colors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.space3),
+            for (final player in detail.party)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppSpacing.space2,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: AppSpacing.space3,
+                      height: AppSpacing.space3,
+                      decoration: BoxDecoration(
+                        color: colorOf(player.userId),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.space3),
+                    Expanded(
+                      child: Text(
+                        player.nickname,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.body.copyWith(
+                          color: player.isDeleted
+                              ? colors.textTertiary
+                              : colors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    if (player.hasRecord) ...[
+                      Text(
+                        _elapsedText(player.duration!),
+                        style: AppTypography.body.copyWith(
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w500,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.space4),
+                      Text(
+                        PaceCalculator.format(player.averagePace),
+                        style: AppTypography.body.copyWith(
+                          color: colors.textSecondary,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ] else
+                      Text(
+                        AppStrings.runResultNoRecord,
+                        style: AppTypography.caption.copyWith(
+                          color: colors.textTertiary,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 러너 칩(S16.5). 나는 고정, 파티원 중 **한 명**을 골라 겹쳐 본다.
+class _RunnerChips extends StatelessWidget {
+  const _RunnerChips({
+    required this.detail,
+    required this.selected,
+    required this.colorOf,
+    required this.onSelect,
+  });
+
+  final RunDetail detail;
+  final String? selected;
+  final Color Function(String userId) colorOf;
+  final void Function(String? userId) onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    Widget chip({
+      required String label,
+      required Color dot,
+      required bool active,
+      VoidCallback? onTap,
+    }) => InkWell(
+      onTap: onTap,
+      borderRadius: AppRadius.full,
+      child: Container(
+        height: AppSizes.touchDefault - AppSpacing.space2,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space3),
+        decoration: BoxDecoration(
+          color: active ? colors.primaryMuted : colors.bgSurface,
+          border: Border.all(
+            color: active ? colors.primary : colors.borderDefault,
+          ),
+          borderRadius: AppRadius.full,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: AppSpacing.space2,
+              height: AppSpacing.space2,
+              decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: AppSpacing.space2),
+            Text(
+              label,
+              style: AppTypography.caption.copyWith(
+                color: onTap == null && !active
+                    ? colors.textDisabled
+                    : colors.textPrimary,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final me = detail.players.where((p) => p.isMe).firstOrNull;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: AppSpacing.space2,
+          runSpacing: AppSpacing.space2,
+          children: [
+            chip(
+              label: AppStrings.runPartyMe,
+              dot: me == null ? colors.primary : colorOf(me.userId),
+              active: true,
+            ),
+            for (final player in detail.party)
+              chip(
+                label: player.nickname,
+                dot: colorOf(player.userId),
+                active: player.userId == selected,
+                // 기록 없는 사람은 겹칠 선이 없다. 누르지 못하게 둔다.
+                onTap: player.hasRecord
+                    ? () => onSelect(
+                        player.userId == selected ? null : player.userId,
+                      )
+                    : null,
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.space1),
+        Text(
+          AppStrings.runResultCompareHint,
+          style: AppTypography.micro.copyWith(color: colors.textTertiary),
+        ),
+      ],
+    );
+  }
+}
+
+/// 구간 리스트. 정본의 `경사`는 빼고 `구간 · 페이스(격차) · 소모`만 남았다.
+class _SplitTable extends StatefulWidget {
+  const _SplitTable({required this.detail, this.compareTo});
+
+  final RunDetail detail;
+
+  /// 겹쳐 보는 파티원의 1km 묶음. `null`이면 격차는 내 평균 대비다.
+  final List<SplitBucket>? compareTo;
 
   /// 이만큼 넘어가면 접는다. 10km(10구간)에서도 차트 둘이 한 화면에 들어오게.
   static const collapsedCount = 5;
@@ -358,11 +613,16 @@ class _SplitTableState extends State<_SplitTable> {
       child: Column(
         children: [
           const _SplitHead(),
-          for (final split in shown)
+          for (final (i, split) in shown.indexed)
             _SplitRow(
               split: split,
               totalKm: widget.detail.distanceKm,
               average: widget.detail.averagePace,
+              // 같은 경계라 같은 자리가 같은 구간이다. 먼저 끝난 사람은 뒤
+              // 구간이 없다 — 그때는 비교할 것이 없어 내 평균으로 돌아간다.
+              other: widget.compareTo == null || i >= widget.compareTo!.length
+                  ? null
+                  : widget.compareTo![i].pace,
             ),
           if (collapsed)
             InkWell(
@@ -419,19 +679,25 @@ class _SplitRow extends StatelessWidget {
     required this.split,
     required this.totalKm,
     required this.average,
+    this.other,
   });
 
   final SplitBucket split;
   final double totalKm;
   final Duration? average;
 
+  /// 겹쳐 보는 파티원의 같은 구간 페이스. 있으면 격차의 기준이 이쪽이다.
+  final Duration? other;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final burned = split.caloriesKcal;
-    // 평균과의 거리. 순위가 아니라 내 평균 대비다.
+    // 격차의 기준. 파티원을 골랐으면 그 사람, 아니면 내 평균이다. 순위가
+    // 아니라 거리다 — 음수면 내가 빨랐다.
+    final base = other ?? average;
     final pace = split.pace;
-    final gap = (average == null || pace == null) ? null : pace - average!;
+    final gap = (base == null || pace == null) ? null : pace - base;
 
     return Padding(
       padding: const EdgeInsets.symmetric(
