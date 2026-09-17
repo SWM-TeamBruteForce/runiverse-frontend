@@ -33,8 +33,12 @@ class RunPartyView extends StatelessWidget {
     required this.board,
     this.myPace,
     this.targetDistanceMeters,
+    this.now,
     super.key,
   });
+
+  /// 지금. 통지가 오래된 레인을 가려내는 기준이다. 테스트만 넣는다.
+  final DateTime? now;
 
   final PartyBoard board;
 
@@ -81,6 +85,7 @@ class RunPartyView extends StatelessWidget {
             board: board,
             lanes: lanes,
             targetMeters: targetDistanceMeters,
+            now: now ?? DateTime.now(),
           ),
           const SizedBox(height: AppSpacing.space4),
           _Table(board: board, lanes: lanes, myPace: myPace),
@@ -116,11 +121,19 @@ class _LaneCard extends StatelessWidget {
     required this.board,
     required this.lanes,
     required this.targetMeters,
+    required this.now,
   });
 
   final PartyBoard board;
   final List<PartyRow> lanes;
   final int? targetMeters;
+  final DateTime now;
+
+  /// 통지가 끊긴 것으로 보이는가. 서버는 끊김을 알리지 않으므로 시간으로 본다.
+  bool _stale(PartyRow lane) {
+    final at = lane.progress?.receivedAt;
+    return at != null && now.difference(at) > PartyBoard.staleAfter;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -151,6 +164,7 @@ class _LaneCard extends StatelessWidget {
                 meters: _distanceOf(board, lane),
                 targetMeters: target,
                 isMe: lane.isMe,
+                stale: _stale(lane),
               ),
             if (target != null && target > 0) _Axis(targetMeters: target),
           ],
@@ -169,6 +183,7 @@ class _Lane extends StatelessWidget {
     required this.meters,
     required this.targetMeters,
     required this.isMe,
+    this.stale = false,
     super.key,
   });
 
@@ -178,6 +193,11 @@ class _Lane extends StatelessWidget {
   final int meters;
   final int? targetMeters;
   final bool isMe;
+
+  /// 통지가 끊긴 것으로 보이는 레인. 흐리게만 그린다 — 문구로 단정하지 않는다.
+  final bool stale;
+
+  static const _staleOpacity = 0.4;
 
   /// 머리 지름. 막대보다 크고 이름 한 글자가 들어간다.
   static const _head = AppSpacing.space7;
@@ -193,101 +213,106 @@ class _Lane extends StatelessWidget {
         ? null
         : (meters / target).clamp(0.0, 1.0);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.space2),
-      child: Row(
-        children: [
-          SizedBox(
-            width: AppSpacing.space8,
-            child: Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.end,
-              style: AppTypography.micro.copyWith(
-                color: isMe ? colors.textPrimary : colors.textSecondary,
-                fontWeight: isMe ? FontWeight.w700 : FontWeight.w500,
+    return Opacity(
+      opacity: stale ? _staleOpacity : 1,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.space2),
+        child: Row(
+          children: [
+            SizedBox(
+              width: AppSpacing.space8,
+              child: Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.end,
+                style: AppTypography.micro.copyWith(
+                  color: isMe ? colors.textPrimary : colors.textSecondary,
+                  fontWeight: isMe ? FontWeight.w700 : FontWeight.w500,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: AppSpacing.space1 + AppSpacing.space0),
-          Expanded(
-            child: SizedBox(
-              height: _track,
-              child: ratio == null
-                  ? const SizedBox.shrink()
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        // 머리가 끝을 넘지 않게 막대 폭은 머리 반지름만큼 뺀다.
-                        final usable = constraints.maxWidth - _head;
-                        final painted = usable * ratio;
-                        return Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            // 10초마다 값이 튄다. 애니메이션이 없으면 뚝뚝 뛴다.
-                            AnimatedPositioned(
-                              duration: AppMotion.slow,
-                              curve: AppMotion.easeStandard,
-                              left: 0,
-                              top: (_track - _bar) / 2,
-                              width: painted + _head / 2,
-                              height: _bar,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  borderRadius: AppRadius.full,
-                                ),
-                              ),
-                            ),
-                            AnimatedPositioned(
-                              duration: AppMotion.slow,
-                              curve: AppMotion.easeStandard,
-                              left: AppSpacing.space2,
-                              top: _track / 2 - AppSpacing.space0 / 2,
-                              width: (painted - AppSpacing.space2).clamp(
-                                0.0,
-                                double.infinity,
-                              ),
-                              height: AppSpacing.space0,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: colors.textPrimary.withValues(
-                                    alpha: 0.38,
-                                  ),
-                                  borderRadius: AppRadius.full,
-                                ),
-                              ),
-                            ),
-                            for (var i = 0; i < 3; i++)
+            const SizedBox(width: AppSpacing.space1 + AppSpacing.space0),
+            Expanded(
+              child: SizedBox(
+                height: _track,
+                child: ratio == null
+                    ? const SizedBox.shrink()
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          // 머리가 끝을 넘지 않게 막대 폭은 머리 반지름만큼 뺀다.
+                          final usable = constraints.maxWidth - _head;
+                          final painted = usable * ratio;
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              // 10초마다 값이 튄다. 애니메이션이 없으면 뚝뚝 뛴다.
                               AnimatedPositioned(
                                 duration: AppMotion.slow,
                                 curve: AppMotion.easeStandard,
-                                left:
-                                    painted +
-                                    _head +
-                                    i * (AppSpacing.space3 + AppSpacing.space0),
-                                top:
-                                    _track / 2 -
-                                    (AppSpacing.space2 - i * 2) / 2,
-                                child: _Drop(
-                                  color: color,
-                                  size: AppSpacing.space2 - i * 2,
+                                left: 0,
+                                top: (_track - _bar) / 2,
+                                width: painted + _head / 2,
+                                height: _bar,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    borderRadius: AppRadius.full,
+                                  ),
                                 ),
                               ),
-                            AnimatedPositioned(
-                              duration: AppMotion.slow,
-                              curve: AppMotion.easeStandard,
-                              left: painted,
-                              top: (_track - _head) / 2,
-                              child: _Head(initial: initial, color: color),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
+                              AnimatedPositioned(
+                                duration: AppMotion.slow,
+                                curve: AppMotion.easeStandard,
+                                left: AppSpacing.space2,
+                                top: _track / 2 - AppSpacing.space0 / 2,
+                                width: (painted - AppSpacing.space2).clamp(
+                                  0.0,
+                                  double.infinity,
+                                ),
+                                height: AppSpacing.space0,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: colors.textPrimary.withValues(
+                                      alpha: 0.38,
+                                    ),
+                                    borderRadius: AppRadius.full,
+                                  ),
+                                ),
+                              ),
+                              for (var i = 0; i < 3; i++)
+                                AnimatedPositioned(
+                                  duration: AppMotion.slow,
+                                  curve: AppMotion.easeStandard,
+                                  left:
+                                      painted +
+                                      _head +
+                                      i *
+                                          (AppSpacing.space3 +
+                                              AppSpacing.space0),
+                                  top:
+                                      _track / 2 -
+                                      (AppSpacing.space2 - i * 2) / 2,
+                                  child: _Drop(
+                                    color: color,
+                                    size: AppSpacing.space2 - i * 2,
+                                  ),
+                                ),
+                              AnimatedPositioned(
+                                duration: AppMotion.slow,
+                                curve: AppMotion.easeStandard,
+                                left: painted,
+                                top: (_track - _head) / 2,
+                                child: _Head(initial: initial, color: color),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

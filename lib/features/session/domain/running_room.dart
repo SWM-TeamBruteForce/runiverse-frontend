@@ -34,6 +34,12 @@ enum RunningRoomFailure {
 
   sessionExpired,
 
+  /// 서버가 이 사용자를 **이 방의 참가자로 보지 않는다**(WS `NOT_ROOM_PLAYER`).
+  ///
+  /// 명시적으로 나간 사람이 받는 답이다 — 다른 기기에서 취소했거나 서버가
+  /// 방에서 뺀 경우. 재시도해도 같으므로 **러닝을 접고 상태를 다시 읽는다.**
+  notRoomPlayer,
+
   network,
 
   server,

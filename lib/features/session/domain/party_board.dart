@@ -91,6 +91,10 @@ class PartyBoard {
   /// 자리를 바꾸는 데 필요한 격차. 정책값이다.
   static const swapThresholdMeters = 10;
 
+  /// 이만큼 통지가 없으면 끊긴 것으로 **보인다.** 서버가 콤보 판정에서 오래된
+  /// 거리를 빼는 기준(`running-combo.freshness`)과 같다.
+  static const staleAfter = Duration(seconds: 19);
+
   /// 대기방에서 들고 온 명단. **처음 세울 때의 동률 순서다.**
   final List<PartyMember> roster;
 
@@ -148,15 +152,24 @@ class PartyBoard {
   int colorSlotOf(String userId) {
     final index = roster.indexWhere((member) => member.userId == userId);
     if (index >= 0) return index;
-    if (userId == myUserId) return 0;
+
+    // 명단에 내가 없으면(솔로·재시작) 명단 바로 뒤가 내 자리, 낯선 사람은 그 뒤다.
+    // ⚠️ 나를 0으로 두면 명단이 비었을 때 첫 낯선 사람과 같은 색이 된다.
+    final meInRoster = roster.any((member) => member.userId == myUserId);
+    if (userId == myUserId) return roster.length;
+    final base = meInRoster ? roster.length : roster.length + 1;
 
     final strangers =
         progress.keys
-            .where((id) => !roster.any((member) => member.userId == id))
+            .where(
+              (id) =>
+                  id != myUserId &&
+                  !roster.any((member) => member.userId == id),
+            )
             .toList()
           ..sort();
     final offset = strangers.indexOf(userId);
-    return roster.length + (offset < 0 ? 0 : offset);
+    return base + (offset < 0 ? 0 : offset);
   }
 
   /// 파티원 줄만. 솔로면 비어 있다.

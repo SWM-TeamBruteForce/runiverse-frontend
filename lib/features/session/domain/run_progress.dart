@@ -16,9 +16,27 @@ class RunProgress {
     this.targetDistanceMeters,
     this.currentPaceSecondsPerKm,
     this.paused = false,
+    this.receivedAt,
   });
 
   final String userId;
+
+  /// 앱이 이 통지를 받은 시각. 채널이 아니라 provider가 찍는다.
+  ///
+  /// ⚠️ **서버는 끊김을 알리지 않는다.** 상대가 끊기면 통지가 멈출 뿐이라,
+  /// 마지막 통지가 언제였는지가 유일한 단서다. 화면은 이 값이 오래되면
+  /// 레인을 흐리게 그린다 — 끊겼다고 단정하지는 않는다.
+  final DateTime? receivedAt;
+
+  /// 받은 시각을 찍은 사본.
+  RunProgress stamped(DateTime at) => RunProgress(
+    userId: userId,
+    distanceMeters: distanceMeters,
+    targetDistanceMeters: targetDistanceMeters,
+    currentPaceSecondsPerKm: currentPaceSecondsPerKm,
+    paused: paused,
+    receivedAt: at,
+  );
 
   /// **서버가 수신한 좌표로 누적한 값**이다.
   ///

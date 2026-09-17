@@ -160,6 +160,28 @@ void main() {
         expect(container.read(runSessionControllerProvider), isA<RunRunning>());
       });
 
+      test('출발 시각을 뒤로 잡으면 경과 시간이 그만큼이다', () async {
+        // 앱을 껐다 켜서 이어 달릴 때. 서버가 정한 출발 시각부터 잰다.
+        final container = makeContainer();
+        final controller = container.read(
+          runSessionControllerProvider.notifier,
+        );
+        await controller.prepare();
+        location.emit(point(37.5, 127));
+        await settle();
+
+        await controller.startWhenReady(
+          since: clock.subtract(const Duration(minutes: 5)),
+        );
+
+        final state = container.read(runSessionControllerProvider);
+        expect(state, isA<RunRunning>());
+        expect(
+          (state as RunRunning).metrics.elapsed,
+          const Duration(minutes: 5),
+        );
+      });
+
       test('권한이 없으면 출발하지 않는다', () async {
         final container = makeContainer(access: LocationAccess.deniedForever);
         final controller = container.read(

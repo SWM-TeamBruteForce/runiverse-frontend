@@ -256,24 +256,30 @@ class RunSessionController extends Notifier<RunSessionState> {
   /// 미룰 수도 없고([start]는 아무것도 하지 않는다), 신호 없이 달릴 수도 없다 —
   /// 초반 거리가 통째로 빠진다. 그래서 신호가 있으면 지금, 없으면 첫 신호에
   /// 출발한다. 준비를 열지 않았으면 여기서 연다. 권한이 없으면 출발하지 않는다.
-  Future<void> startWhenReady() async {
+  ///
+  /// [since]를 주면 그 시각부터 달린 것으로 잰다 — 앱을 껐다 켜서 이어 달릴 때
+  /// 서버가 정한 출발 시각이다. ⚠️ 거리는 다시 0부터다(로컬 재계산은 아직
+  /// 없다). 기록은 서버가 전체 좌표로 확정하므로 결과에는 영향이 없다.
+  Future<void> startWhenReady({DateTime? since}) async {
     if (state is RunIdle) {
       final access = await prepare();
       if (!access.isGranted) return;
     }
     if (state case RunPreparing(hasFix: true)) {
-      start();
+      start(since: since);
       return;
     }
     _startOnFix = true;
+    _startSince = since;
   }
 
   /// 첫 신호에 출발하기로 했는가. [startWhenReady]가 세우고 [_reset]이 지운다.
   var _startOnFix = false;
+  DateTime? _startSince;
 
-  void start() {
+  void start({DateTime? since}) {
     if (state case RunPreparing(hasFix: true)) {
-      final now = _now();
+      final now = since ?? _now();
       _startedAt = now;
       _resumedAt = now;
       _accumulated = Duration.zero;
@@ -351,7 +357,7 @@ class RunSessionController extends Notifier<RunSessionState> {
       // 준비 중에는 "신호를 받았다"만 알린다. 거리는 아직 세지 않는다.
       case RunPreparing(hasFix: false):
         state = const RunPreparing(hasFix: true);
-        if (_startOnFix) start();
+        if (_startOnFix) start(since: _startSince);
 
       case RunRunning():
         // 진행 방향. **센서 값을 믿을 수 없어 직접 낸다**(`GeoPoint.bearingTo`).
@@ -461,6 +467,7 @@ class RunSessionController extends Notifier<RunSessionState> {
 
   void _reset() {
     _startOnFix = false;
+    _startSince = null;
     _lastRaw = null;
     _points.clear();
     _segments.clear();

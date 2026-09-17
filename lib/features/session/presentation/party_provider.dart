@@ -78,7 +78,8 @@ class PartyController extends Notifier<PartyBoard> {
     }
 
     _progress = channel.progress.listen(
-      (update) => state = state.withProgress(update),
+      // 받은 시각을 여기서 찍는다. 채널은 시계를 모르는 편이 테스트하기 쉽다.
+      (update) => state = state.withProgress(update.stamped(DateTime.now())),
     );
     _combos = channel.combos.listen((update) {
       final before = state.combos.keys.toSet();
