@@ -14,6 +14,9 @@ import 'package:runiverse/core/widgets/color/aura_orb.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/session/domain/run_resume.dart';
+import 'package:runiverse/features/session/domain/user_status.dart';
+import 'package:runiverse/features/session/presentation/run_session_provider.dart';
+import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 스플래시 (S01).
@@ -148,6 +151,25 @@ class _SplashPageState extends ConsumerState<SplashPage> {
         context.go(AppRoutes.home);
         unawaited(context.push(AppRoutes.runPrepare));
       case RunResume.running:
+        // ⚠️ 러닝 화면은 스스로 붙지 않는다. 매칭 방이면 여기서 다시 붙고
+        // 서버가 정한 출발 시각부터 이어 잰다. 이름·거리는 되살리지 못한다 —
+        // `RUNNING_STARTED` 스냅샷이 비어 있고 로컬 재계산은 아직 없다.
+        // 솔로는 방을 새로 만드는 경로(409 → 정리)에 맡긴다.
+        if (status case UserStatusRunning(isSolo: false)) {
+          unawaited(
+            ref
+                .read(runningConnectionProvider.notifier)
+                .openMatched(
+                  status.runningRoomId,
+                  targetDistanceMeters: status.targetDistanceMeters,
+                ),
+          );
+          unawaited(
+            ref
+                .read(runSessionControllerProvider.notifier)
+                .startWhenReady(since: status.scheduledStartAt),
+          );
+        }
         context.go(AppRoutes.home);
         unawaited(context.push(AppRoutes.runSession));
     }
