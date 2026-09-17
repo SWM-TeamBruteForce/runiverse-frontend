@@ -136,8 +136,9 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     final metrics = _metricsOf(state);
 
     ref.listen(runningConnectionProvider.select((s) => s.failure), (_, next) {
-      if (next == RunningRoomFailure.notRoomPlayer)
+      if (next == RunningRoomFailure.notRoomPlayer) {
         unawaited(_leaveKickedOut());
+      }
     });
 
     final party = ref.watch(partyProvider);
