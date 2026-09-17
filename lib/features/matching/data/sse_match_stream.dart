@@ -21,10 +21,14 @@ import 'package:runiverse/features/matching/domain/room_info.dart';
 /// 그 위에 40줄을 얹는 편이 의존을 하나 늘리는 것보다 가볍다. `Last-Event-ID`
 /// 재개도 쓰지 않는다 — 각 이벤트가 전체 상태라 재개할 것이 없다.
 class SseMatchStream implements MatchStream {
-  SseMatchStream(this._store, this._auth);
+  SseMatchStream(this._store, this._auth, {String? baseUrl})
+    : _baseUrl = baseUrl ?? AppConfig.apiBaseUrl;
 
   final TokenStore _store;
   final AuthRepository _auth;
+
+  /// 붙을 서버. 테스트만 루프백 서버를 넣는다. 앱은 빌드에 박힌 값을 쓴다.
+  final String _baseUrl;
 
   static const _path = '/api/v1/running-matches/stream';
 
@@ -89,19 +93,36 @@ class SseMatchStream implements MatchStream {
   Future<void> _pump(StreamController<MatchEvent> controller) async {
     try {
       final stored = await _store.read();
+      // ⚠️ 기다리는 동안 닫혔으면 여기서 끝난다. 닫힌 컨트롤러에 넣으면 던진다.
+      if (controller.isClosed) return;
       var token = stored.accessToken;
       if (token == null) {
         throw const MatchStreamException(MatchStreamFailure.sessionExpired);
       }
 
+      final client = HttpClient()
+        // 열어두는 연결이다. 짧은 요청에 맞춘 제한을 그대로 쓰면 조용할 때 끊긴다.
+        ..idleTimeout = const Duration(minutes: 30)
+        ..connectionTimeout = const Duration(seconds: 10);
+      _client = client;
+
       HttpClientResponse body;
       try {
-        body = await _open(token);
+        body = await _open(client, token);
       } on MatchStreamException catch (error) {
         // 401이면 한 번만 갱신하고 다시 붙는다 — 다른 저장소와 같은 규칙이다.
         if (error.failure != MatchStreamFailure.sessionExpired) rethrow;
         token = await _refreshed(stored.refreshToken);
-        body = await _open(token);
+        if (controller.isClosed) return;
+        body = await _open(client, token);
+      }
+
+      // ⚠️ **연결하는 사이에 닫혔을 수 있다.** 응답을 기다리는 동안 사용자가
+      // 나가면 `close()`가 먼저 돈다. 그 뒤에 온 응답은 쓸 곳이 없고, 살려두면
+      // 서버에 주인 없는 연결이 남는다.
+      if (controller.isClosed) {
+        client.close(force: true);
+        return;
       }
 
       _subscription = decode(_watched(body)).listen(
@@ -116,10 +137,13 @@ class SseMatchStream implements MatchStream {
         onDone: () => unawaited(controller.close()),
       );
     } on MatchStreamException catch (error) {
+      // 닫힌 뒤에 끝난 요청이다. 결과는 누구의 것도 아니다.
+      if (controller.isClosed) return;
       controller.addError(error);
       await controller.close();
     } on IOException {
       // 서버에 닿지 못했다. 소켓·DNS·TLS가 전부 여기로 온다.
+      if (controller.isClosed) return;
       controller.addError(
         const MatchStreamException(MatchStreamFailure.network),
       );
@@ -135,15 +159,12 @@ class SseMatchStream implements MatchStream {
   /// 한쪽에 맞춘 설정이 다른 쪽을 끊는다.
   HttpClient? _client;
 
-  Future<HttpClientResponse> _open(String accessToken) async {
-    final client = HttpClient()
-      // 열어두는 연결이다. 짧은 요청에 맞춘 제한을 그대로 쓰면 조용할 때 끊긴다.
-      ..idleTimeout = const Duration(minutes: 30)
-      ..connectionTimeout = const Duration(seconds: 10);
-    _client = client;
-
+  Future<HttpClientResponse> _open(
+    HttpClient client,
+    String accessToken,
+  ) async {
     debugPrint('[api] → GET $_path');
-    final request = await client.getUrl(Uri.parse('${AppConfig.apiBaseUrl}$_path'));
+    final request = await client.getUrl(Uri.parse('$_baseUrl$_path'));
     request.headers
       ..set(HttpHeaders.authorizationHeader, 'Bearer $accessToken')
       ..set(HttpHeaders.acceptHeader, 'text/event-stream')
@@ -166,24 +187,38 @@ class SseMatchStream implements MatchStream {
 
   @override
   Future<void> close() async {
-    // ⚠️ **해지를 기다리지 않는다.** 살아 있는 HTTP 스트림의 `cancel()`은
-    // 서버가 연결을 붙잡고 있으면 끝나지 않는다 — 기다리면 나가기를 누른
-    // 화면이 영영 안 닫힌다(에뮬레이터에서 확인). 닫는 것이 목적이고 해지는
-    // 그 부수 효과다.
-    unawaited(_subscription?.cancel());
+    // 다음 연결이 이 자리를 곧바로 다시 채울 수 있다. 지금 것만 들고 간다.
+    final subscription = _subscription;
     _subscription = null;
-
-    // ⚠️ **클라이언트까지 닫는다.** 해지를 기다리지 않으므로 소켓이 남을 수
-    // 있는데, 그대로 두면 다시 붙을 때마다 서버에 죽은 연결이 쌓인다.
-    // `force`가 붙어야 지금 열려 있는 스트림도 함께 끊긴다.
     final client = _client;
     _client = null;
-    client?.close(force: true);
-
     final controller = _controller;
     _controller = null;
+
+    // ⚠️ **해지를 먼저 끝내고 소켓을 끊는다.** 순서를 바꾸면 dart:io가 아직
+    // 살아 있는 내부 구독으로 "Connection closed while receiving data"를
+    // 던지는데, 받을 곳이 없어 처리되지 않은 예외로 남는다 — `decode`가
+    // `async*`라 해지가 한 틱 늦게 내려가서 생기는 틈이다.
+    //
+    // 다만 **끝없이 기다리지는 않는다.** 서버가 연결을 붙잡고 있으면 해지가
+    // 늦어질 수 있고, 그동안 나가기를 누른 화면이 안 닫힌다. 상한을 넘기면
+    // 지금까지처럼 강제로 끊는다.
+    if (subscription != null) {
+      await subscription
+          .cancel()
+          .timeout(_cancelGrace, onTimeout: () {})
+          .catchError((_) {});
+    }
+
+    // ⚠️ **클라이언트까지 닫는다.** 소켓이 남으면 다시 붙을 때마다 서버에
+    // 죽은 연결이 쌓인다. `force`가 붙어야 열려 있는 스트림도 함께 끊긴다.
+    client?.close(force: true);
+
     if (controller != null && !controller.isClosed) await controller.close();
   }
+
+  /// 해지를 기다려 주는 상한. 정상이면 한 틱에 끝난다.
+  static const _cancelGrace = Duration(seconds: 1);
 
   /// 바이트 스트림을 이벤트로 옮긴다. **테스트가 직접 부른다.**
   ///
