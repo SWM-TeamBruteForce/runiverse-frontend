@@ -340,7 +340,7 @@ class _Headline extends StatelessWidget {
           Text(
             matching
                 ? AppStrings.matchRoomJoined(room.players.length)
-                : AppStrings.matchRoomWaitingHint,
+                : AppStrings.matchRoomMatchedHint,
             style: AppTypography.body.copyWith(color: colors.textSecondary),
           ),
         ],

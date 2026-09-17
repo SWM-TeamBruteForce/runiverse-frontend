@@ -281,12 +281,22 @@ void main() {
           .withProgress(progress('u-9', 10))
           .withProgress(progress('u-5', 20));
 
-      expect(board.colorSlotOf('u-5'), 2);
-      expect(board.colorSlotOf('u-9'), 3);
+      // 명단(2) 뒤가 내 자리(2), 낯선 사람은 그 뒤(3, 4).
+      expect(board.colorSlotOf(PartyBoard.meId), 2);
+      expect(board.colorSlotOf('u-5'), 3);
+      expect(board.colorSlotOf('u-9'), 4);
     });
 
     test('솔로인 나는 첫 자리다', () {
       expect(empty.colorSlotOf(PartyBoard.meId), 0);
+    });
+
+    test('⚠️ 명단이 비어도 나와 낯선 사람의 색이 다르다', () {
+      // 재시작 뒤 명단이 없을 때. 실주행에서 둘 다 같은 색으로 그려졌다.
+      final board = empty.withProgress(progress('u-9', 800));
+
+      expect(board.colorSlotOf(PartyBoard.meId), 0);
+      expect(board.colorSlotOf('u-9'), 1);
     });
   });
 

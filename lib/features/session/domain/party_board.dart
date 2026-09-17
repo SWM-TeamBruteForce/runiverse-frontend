@@ -152,15 +152,24 @@ class PartyBoard {
   int colorSlotOf(String userId) {
     final index = roster.indexWhere((member) => member.userId == userId);
     if (index >= 0) return index;
-    if (userId == myUserId) return 0;
+
+    // 명단에 내가 없으면(솔로·재시작) 명단 바로 뒤가 내 자리, 낯선 사람은 그 뒤다.
+    // ⚠️ 나를 0으로 두면 명단이 비었을 때 첫 낯선 사람과 같은 색이 된다.
+    final meInRoster = roster.any((member) => member.userId == myUserId);
+    if (userId == myUserId) return roster.length;
+    final base = meInRoster ? roster.length : roster.length + 1;
 
     final strangers =
         progress.keys
-            .where((id) => !roster.any((member) => member.userId == id))
+            .where(
+              (id) =>
+                  id != myUserId &&
+                  !roster.any((member) => member.userId == id),
+            )
             .toList()
           ..sort();
     final offset = strangers.indexOf(userId);
-    return roster.length + (offset < 0 ? 0 : offset);
+    return base + (offset < 0 ? 0 : offset);
   }
 
   /// 파티원 줄만. 솔로면 비어 있다.

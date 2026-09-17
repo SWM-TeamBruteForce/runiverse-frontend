@@ -564,9 +564,11 @@ abstract final class AppStrings {
   /// `현재 3명 모였어요` — 모집 중에 인원을 알린다. 사회적 증거다.
   static String matchRoomJoined(int count) => '현재 $count명 모였어요';
 
+  /// 확정된 뒤 대기실의 안내. 출발 30초 전에 앱이 스스로 출발 대기실로 옮긴다.
+  ///
   /// ⚠️ 알림으로 알려주지 않는다. FCM이 아직 없어 "알림으로 알려줄게요"는
   /// 지킬 수 없는 약속이다. 지금 할 수 있는 말만 적는다.
-  static const matchRoomWaitingHint = '확정되면 이 화면이 바뀌어요';
+  static const matchRoomMatchedHint = '출발 30초 전에 출발 대기실로 옮겨요';
 
   static const matchRoomCloseLabel = '모집 마감까지';
   static const matchRoomStartLabel = '시작까지';
