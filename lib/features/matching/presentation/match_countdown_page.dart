@@ -10,6 +10,8 @@ import 'package:runiverse/core/theme/extensions/app_colors.dart';
 import 'package:runiverse/core/theme/tokens/app_radius.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
@@ -99,6 +101,11 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
     // ⚠️ **명단을 지금 넘긴다.** 러닝이 시작되면 SSE가 닫혀 이 정보를 다시
     // 받을 길이 없다 — 진행·콤보 통지는 `userId`만 싣고, 명세가 정한 출처인
     // `RUNNING_STARTED` 스냅샷은 서버가 비워 보낸다.
+    //
+    // ⚠️ 명단은 **방 전원**이라 나도 들어 있다. 내 `userId`를 함께 넘겨 그 줄을
+    // 내 레인으로 삼는다 — 안 그러면 서버가 내 진행을 보내지 않아 0m에 멈춘
+    // 내 이름이 "나" 레인 옆에 또 뜬다.
+    final auth = ref.read(authControllerProvider);
     ref.read(partyProvider.notifier).setRoster([
       for (final player in room.players)
         PartyMember(
@@ -106,7 +113,7 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
           nickname: player.nickname,
           profileImageUrl: player.profileImageUrl,
         ),
-    ]);
+    ], myUserId: auth is AuthSignedIn ? auth.userId : PartyBoard.meId);
 
     // ⚠️ 연결을 기다리지 않는다. 기다리면 출발이 그만큼 늦고, 늦게 붙어도
     // 좌표는 쌓였다가 한꺼번에 올라간다.
