@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/config/app_config.dart';
 import 'package:runiverse/core/network/ws_client.dart';
+import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/http_running_room_repository.dart';
 import 'package:runiverse/features/session/data/ws_running_channel.dart';
@@ -49,7 +50,15 @@ class RunningConnectionState {
     this.failure,
     this.opening = false,
     this.settling = false,
+    this.trackUnavailable = false,
   });
+
+  /// 서버가 좌표를 저장하지 못하고 있다(`RUNNING_TRACK_UNAVAILABLE`).
+  ///
+  /// **러닝은 계속된다.** 좌표는 앱에 남아 있고 나중에 다시 올라간다. 배치마다
+  /// 같은 오류가 오므로 **알림은 한 장**으로 접는다(연동 가이드) — 잠시 뒤
+  /// 저절로 내려가고, 또 오면 다시 올라온다.
+  final bool trackUnavailable;
 
   /// 서버가 준 방. `null`이면 아직 못 열었다.
   final RunningRoom? room;
@@ -82,6 +91,7 @@ class RunningConnectionState {
     RunningRoomFailure? failure,
     bool? opening,
     bool? settling,
+    bool? trackUnavailable,
   }) => RunningConnectionState(
     room: room ?? this.room,
     connection: connection ?? this.connection,
@@ -89,6 +99,7 @@ class RunningConnectionState {
     failure: failure,
     opening: opening ?? this.opening,
     settling: settling ?? this.settling,
+    trackUnavailable: trackUnavailable ?? this.trackUnavailable,
   );
 }
 
@@ -125,11 +136,30 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// 연속 실패 횟수. backoff 간격을 정한다.
   var _attempt = 0;
 
+  /// 저장 실패 배너를 내리는 시계. 새 오류가 오면 다시 감는다.
+  Timer? _trackNotice;
+
+  /// 저장 실패 배너가 저절로 내려가기까지. 배치 세 번 분량이다 — 그 안에 또
+  /// 오면 계속 떠 있고, 안 오면 풀린 것이다.
+  static const _trackNoticeFor = Duration(seconds: 30);
+
+  void _onServerError(WsErrorCode code) {
+    if (code != WsErrorCode.runningTrackUnavailable) return;
+    _trackNotice?.cancel();
+    _trackNotice = Timer(_trackNoticeFor, () {
+      state = state.copyWith(trackUnavailable: false);
+    });
+    if (!state.trackUnavailable) {
+      state = state.copyWith(trackUnavailable: true);
+    }
+  }
+
   @override
   RunningConnectionState build() {
     // provider가 버려지면 소켓도 닫는다. 안 닫으면 러닝이 끝나도 연결이 남는다.
     ref.onDispose(() {
       _retry?.cancel();
+      _trackNotice?.cancel();
       // ⚠️ 전송기를 먼저 멈춘다. 소켓이 닫힌 뒤에도 타이머가 돌면 매 10초
       // "못 보냈다"만 찍힌다.
       _sender?.stop();
@@ -199,6 +229,7 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     channel.states.listen((connection) {
       state = state.copyWith(connection: connection);
     });
+    channel.errors.listen(_onServerError);
 
     _attempt = 0;
     state = state.copyWith(room: room, opening: false, failure: null);

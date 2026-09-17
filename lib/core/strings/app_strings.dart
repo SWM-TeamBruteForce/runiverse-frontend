@@ -796,6 +796,9 @@ abstract final class AppStrings {
   /// 연결이 없는 채로 달리는 중. **막지 않고 알리기만 한다.**
   static const runOffline = '서버에 연결하는 중이에요';
 
+  /// 서버가 좌표를 저장하지 못하는 중. 러닝은 계속되고 좌표는 앱에 남는다.
+  static const runTrackUnavailable = '기록 저장이 늦어지고 있어요. 앱에 남겨 두고 있어요';
+
   static const runOfflineWhy = '기록은 계속 재고 있어요. 연결되면 자동으로 올라가요.';
 
   /// 위치 권한이 없을 때. 설정 앱으로 보낸다.

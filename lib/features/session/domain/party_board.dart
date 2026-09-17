@@ -91,6 +91,10 @@ class PartyBoard {
   /// 자리를 바꾸는 데 필요한 격차. 정책값이다.
   static const swapThresholdMeters = 10;
 
+  /// 이만큼 통지가 없으면 끊긴 것으로 **보인다.** 서버가 콤보 판정에서 오래된
+  /// 거리를 빼는 기준(`running-combo.freshness`)과 같다.
+  static const staleAfter = Duration(seconds: 19);
+
   /// 대기방에서 들고 온 명단. **처음 세울 때의 동률 순서다.**
   final List<PartyMember> roster;
 

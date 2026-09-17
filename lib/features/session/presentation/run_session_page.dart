@@ -182,7 +182,17 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
               // 연결이 없는 채로 달리는 중이면 알린다. **막지는 않는다** —
               // 기록은 계속 재고, 붙으면 쌓인 좌표가 올라간다(설계 문서 4절).
               if (!ref.watch(runningConnectionProvider).isReady)
-                const _OfflineNotice(),
+                const _Notice(
+                  icon: LucideIcons.cloudOff,
+                  text: AppStrings.runOffline,
+                )
+              else if (ref.watch(
+                runningConnectionProvider.select((s) => s.trackUnavailable),
+              ))
+                const _Notice(
+                  icon: LucideIcons.cloudAlert,
+                  text: AppStrings.runTrackUnavailable,
+                ),
 
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.space5),
@@ -340,12 +350,15 @@ class _Metric extends StatelessWidget {
   }
 }
 
-/// 서버에 아직 못 붙었다.
+/// 서버에 아직 못 붙었거나, 붙었는데 저장이 밀리고 있다.
 ///
 /// ⚠️ **경고가 아니라 안내다.** 기록은 계속 재고 있고, 연결되면 쌓인 좌표가
 /// 올라간다. 빨간색으로 겁을 주면 달리는 사람이 폰을 들여다보게 된다.
-class _OfflineNotice extends StatelessWidget {
-  const _OfflineNotice();
+class _Notice extends StatelessWidget {
+  const _Notice({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
 
   @override
   Widget build(BuildContext context) {
@@ -355,15 +368,11 @@ class _OfflineNotice extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
       child: Row(
         children: [
-          Icon(
-            LucideIcons.cloudOff,
-            size: AppSpacing.space4,
-            color: colors.textTertiary,
-          ),
+          Icon(icon, size: AppSpacing.space4, color: colors.textTertiary),
           const SizedBox(width: AppSpacing.space2),
           Expanded(
             child: Text(
-              AppStrings.runOffline,
+              text,
               style: AppTypography.caption.copyWith(color: colors.textTertiary),
             ),
           ),

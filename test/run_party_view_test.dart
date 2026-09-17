@@ -30,6 +30,7 @@ void main() {
     WidgetTester tester,
     PartyBoard board, {
     int? target = 5000,
+    DateTime? now,
   }) => tester.pumpWidget(
     MaterialApp(
       theme: AppTheme.dark(),
@@ -38,6 +39,7 @@ void main() {
           board: board,
           myPace: const Duration(minutes: 5, seconds: 38),
           targetDistanceMeters: target,
+          now: now,
         ),
       ),
     ),
@@ -104,6 +106,34 @@ void main() {
     expect(find.text('1.20'), findsOneWidget);
     expect(find.text('0'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('⚠️ 통지가 끊긴 사람의 레인은 흐려진다', (tester) async {
+    // 서버는 끊김을 알리지 않는다. 서버가 콤보 판정에서 빼는 것과 같은
+    // 시간(19초)이 지나면 흐리게만 그린다 — 문구로 단정하지 않는다.
+    final now = DateTime(2026, 9, 17, 19, 10);
+    final board = const PartyBoard()
+        .withRoster(everyone.take(3).toList(), myUserId: 'me-1')
+        .withProgress(
+          progress(
+            'u-1',
+            1200,
+          ).stamped(now.subtract(const Duration(seconds: 30))),
+        )
+        .withProgress(
+          progress(
+            'u-2',
+            1100,
+          ).stamped(now.subtract(const Duration(seconds: 5))),
+        );
+    await pump(tester, board, now: now);
+
+    final faded = find.byWidgetPredicate((w) => w is Opacity && w.opacity < 1);
+    expect(faded, findsOneWidget);
+    expect(
+      find.descendant(of: faded, matching: find.text('김도윤')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('아무도 없으면 빈 문구다', (tester) async {

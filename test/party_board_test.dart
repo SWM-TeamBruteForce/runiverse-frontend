@@ -329,6 +329,16 @@ void main() {
     });
   });
 
+  test('통지에 받은 시각을 찍을 수 있다', () {
+    // 서버는 끊김을 알리지 않는다. 마지막 통지가 언제였는지가 유일한 단서다.
+    final at = DateTime(2026, 9, 17, 19, 5);
+    final stamped = progress('u-1', 500).stamped(at);
+
+    expect(stamped.receivedAt, at);
+    expect(stamped.distanceMeters, 500);
+    expect(stamped.userId, 'u-1');
+  });
+
   test('솔로 러닝은 줄이 없다', () {
     // 화면은 줄이 비었는지만 보면 된다 — 솔로인지 매칭인지 따로 묻지 않는다.
     expect(empty.rows, isEmpty);
