@@ -223,6 +223,7 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     final room = RunningRoom(
       runningRoomId,
       targetDistanceMeters: targetDistanceMeters,
+      isMatched: true,
     );
     // 솔로와 같은 이유로 번호를 남긴다. 러닝 중 앱이 죽어도 이 번호로
     // 다시 붙어 끝낼 수 있다.

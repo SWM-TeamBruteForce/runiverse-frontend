@@ -92,12 +92,18 @@ abstract final class RunPalette {
     return _shades[hue]![shade - 1];
   }
 
-  /// 파티원 레인의 색. [slot]은 `PartyBoard.colorSlotOf`가 준 자리 번호다.
+  /// 파티원 카드·레인의 색 4벌 (Figma `runiverse_final` 파티원 상태).
   ///
-  /// 정본 S13은 "각자의 시그니처 컬러"인데 그 기능이 아직 없다. hue를 자리
-  /// 순서로 돌리고 가운데 shade를 쓴다 — 10명이 넘으면 다시 처음부터다.
-  static Color lane(int slot) =>
-      color(RunHue.values[slot % RunHue.values.length], 2);
+  /// 시그니처 컬러가 생기기 전까지 자리 번호로 돌린다. 방은 최대 4명이다.
+  static const _party = <Color>[
+    Color(0xFF227DFF),
+    Color(0xFFFF8335),
+    Color(0xFFFF4FA3),
+    Color(0xFF33D17A),
+  ];
+
+  /// 파티원의 색. [slot]은 `PartyBoard.colorSlotOf`가 준 자리 번호다.
+  static Color lane(int slot) => _party[slot % _party.length];
 
   /// 러닝 색이 "발광"하는 그림자(디자인 시스템 §1-3 글로우). 다크에서 강하게.
   static List<BoxShadow> glow(Color color) => [

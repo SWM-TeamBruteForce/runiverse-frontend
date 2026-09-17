@@ -163,6 +163,9 @@ class WsRunningChannel implements RunningChannel {
         if (progress == null) {
           debugPrint('[running] 읽지 못한 진행 통지를 버렸다');
         } else if (!_progress.isClosed) {
+          debugPrint(
+            '[running] 진행 · ${progress.userId} · ${progress.distanceMeters}m',
+          );
           _progress.add(progress);
         }
 
@@ -172,6 +175,7 @@ class WsRunningChannel implements RunningChannel {
         if (combo == null) {
           debugPrint('[running] 읽지 못한 콤보 통지를 버렸다');
         } else if (!_combos.isClosed) {
+          debugPrint('[running] 콤보 · ${combo.peers.length}명');
           _combos.add(combo);
         }
 
