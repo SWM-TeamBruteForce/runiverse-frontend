@@ -142,7 +142,13 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     });
 
     final party = ref.watch(partyProvider);
-    final hasParty = party.rows.isNotEmpty;
+    // ⚠️ 매칭 방이면 파티원 줄이 비어도 화면을 둔다. 상대가 취소해도, 재시작
+    // 뒤 첫 통지가 오기 전에도 **내 기록은 계속 보여야 한다.** 줄로만 정하면
+    // 그 순간 3페이지가 2페이지로 접히며 내 카드가 사라진다(2026-09-17 21:38).
+    final isMatched = ref.watch(
+      runningConnectionProvider.select((state) => state.room?.isMatched),
+    );
+    final hasParty = isMatched == true || party.rows.isNotEmpty;
     // 목표는 방 정보가 실어 온다. 없으면 파티원 통지로 메운다. 솔로는 `null`.
     final target =
         ref.watch(

@@ -9,7 +9,11 @@
 /// 그래서 이 값은 러닝을 시작하기 전에 반드시 있어야 한다 — WS의 모든 메시지가
 /// `runningRoomId`를 payload에 싣는다.
 class RunningRoom {
-  const RunningRoom(this.id, {this.targetDistanceMeters});
+  const RunningRoom(
+    this.id, {
+    this.targetDistanceMeters,
+    this.isMatched = false,
+  });
 
   /// 서버가 발급한 Long.
   final int id;
@@ -19,6 +23,13 @@ class RunningRoom {
   /// 매칭 방은 신청할 때 정해져 `RoomInfo`가 실어 온다. 여기 실어 두면
   /// 첫 진행 통지(최대 10초)를 기다리지 않고 막대·눈금·80% 판정이 처음부터 선다.
   final int? targetDistanceMeters;
+
+  /// 매칭으로 만들어진 방인가. 솔로는 `false`.
+  ///
+  /// ⚠️ 파티원 화면을 띄울지는 **이 값으로** 정한다. 파티원 줄이 있는지로 정하면
+  /// 상대가 취소했거나 재시작 뒤 첫 통지가 오기 전에 화면이 통째로 사라져
+  /// 내 기록까지 안 보인다.
+  final bool isMatched;
 
   @override
   String toString() => 'RunningRoom($id)';
