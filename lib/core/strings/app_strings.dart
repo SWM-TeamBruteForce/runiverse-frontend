@@ -794,8 +794,21 @@ abstract final class AppStrings {
 
   static const runPartyTitle = '함께 달리는 중';
 
-  /// 순위가 아니라 동행이라는 프레임을 문구로 세운다.
-  static const runPartyHint = '각자의 자리에서 같은 시간을 달려요';
+  /// 순위가 아니라 동행이라는 프레임을 문구로 세운다. 정본 S13의 머리말.
+  static const runPartyHint = '각자의 색으로 칠해요';
+
+  /// 정본 S13의 꼬리말. 위치는 공유되지 않는다는 것을 화면이 스스로 말한다.
+  static const runPartyFooter = '공유되는 것은 진행률과 격차뿐이에요';
+
+  /// 표 머리. 순위 열은 없다.
+  static const runPartyColRunner = '러너';
+  static const runPartyColDistance = '거리';
+
+  /// ⚠️ "평균"이 아니다. 서버가 주는 것은 마지막 좌표의 순간 페이스다.
+  static const runPartyColPace = '페이스';
+
+  /// `3.20` — 표의 거리. 단위는 머리에 있다.
+  static String runPartyKm(int meters) => (meters / 1000).toStringAsFixed(2);
 
   /// 솔로 러닝이거나 아직 아무 통지도 오지 않았을 때.
   static const runPartyEmpty = '아직 함께 달리는 사람이 없어요';

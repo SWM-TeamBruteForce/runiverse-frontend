@@ -170,9 +170,9 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                     if (hasParty)
                       RunPartyView(
                         board: party,
-                        // ⚠️ 내 거리는 앱이 잰 값이다. 서버는 본인 진행을
-                        // 보내지 않고, 표시는 로컬 계산값을 우선한다.
-                        myDistanceMeters: metrics.distanceMeters.round(),
+                        // ⚠️ 내 페이스는 앱이 잰 값이다. 서버는 본인 진행을
+                        // 보내지 않는다. 내 거리는 provider가 보드에 넣는다.
+                        myPace: metrics.currentPace,
                         targetDistanceMeters: target,
                       ),
                   ],

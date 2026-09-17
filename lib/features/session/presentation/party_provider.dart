@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/session/domain/party_board.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
@@ -79,9 +80,16 @@ class PartyController extends Notifier<PartyBoard> {
     _progress = channel.progress.listen(
       (update) => state = state.withProgress(update),
     );
-    _combos = channel.combos.listen(
-      (update) => state = state.withCombos(update),
-    );
+    _combos = channel.combos.listen((update) {
+      final before = state.combos.keys.toSet();
+      state = state.withCombos(update);
+      // 콤보가 새로 이어지거나 끊긴 순간에만 한 번 울린다. 통지는 10초마다
+      // 오는데 그때마다 울리면 달리는 내내 진동한다. 소리는 범위 밖이다.
+      if (!before.containsAll(state.combos.keys) ||
+          !state.combos.keys.toSet().containsAll(before)) {
+        unawaited(HapticFeedback.mediumImpact());
+      }
+    });
   }
 
   void _unbind() {
