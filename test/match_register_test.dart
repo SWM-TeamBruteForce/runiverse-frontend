@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
@@ -142,6 +143,58 @@ void main() {
 
       // 시트가 그대로다 — 눌려서 닫혔다면 마감된 슬롯이 골라진 것이다.
       expect(find.text(AppStrings.matchSlotSheetTitle), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 대기 인원을 못 받아도 시간을 고를 수 있다', (tester) async {
+      // 조회 API(14번)는 MVP 범위 밖이라 없을 수 있다. 신청은 11번만으로
+      // 되므로, 목록을 못 받았다고 매칭 자체를 막으면 안 된다.
+      final matches = FakeMatchRepository(
+        slots: [closed, open],
+        slotsFailure: MatchFailure.unknown,
+      );
+      await pumpRegister(tester, repository: matches);
+
+      await tester.tap(find.text(AppStrings.matchTimePlaceholder));
+      await tester.pumpAndSettle();
+
+      // 앱이 만든 목록이다 — 18:00부터 22:00까지 아홉 칸.
+      expect(find.text('18:00'), findsOneWidget);
+
+      // 시트가 화면 절반이라 마지막 칸은 굴려야 나온다. 화면에 목록이 둘
+      // (등록 화면·시트)이라 시트 쪽을 짚어 굴린다.
+      final sheetList = find.ancestor(
+        of: find.text('18:00'),
+        matching: find.byType(ListView),
+      );
+      await tester.drag(sheetList, const Offset(0, -400));
+      await tester.pumpAndSettle();
+      expect(find.text('22:00'), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 모르는 대기 인원은 적지 않는다', (tester) async {
+      // 0명으로 그리면 아무도 없다고 잘못 알린다.
+      final matches = FakeMatchRepository(
+        slots: [closed, open],
+        slotsFailure: MatchFailure.unknown,
+      );
+      await pumpRegister(tester, repository: matches);
+
+      await tester.tap(find.text(AppStrings.matchTimePlaceholder));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.matchWaitingCount(0)), findsNothing);
+    });
+
+    testWidgets('조회에 실패해도 오류를 띄우지 않는다', (tester) async {
+      // 사용자가 할 수 있는 것이 없고, 화면은 그대로 쓸 수 있다.
+      final matches = FakeMatchRepository(
+        slots: [closed, open],
+        slotsFailure: MatchFailure.unknown,
+      );
+      await pumpRegister(tester, repository: matches);
+
+      expect(find.text(AppStrings.matchFailedUnknown), findsNothing);
+      expect(find.text(AppStrings.matchFailedNetwork), findsNothing);
     });
 
     testWidgets('거리를 고치면 시간대를 다시 받는다', (tester) async {

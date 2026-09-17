@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:runiverse/core/storage/token_store.dart';
+import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
@@ -100,7 +101,11 @@ class SseMatchStream implements MatchStream {
 
   @override
   Future<void> close() async {
-    await _subscription?.cancel();
+    // ⚠️ **해지를 기다리지 않는다.** 살아 있는 HTTP 스트림의 `cancel()`은
+    // 서버가 연결을 붙잡고 있으면 끝나지 않는다 — 기다리면 나가기를 누른
+    // 화면이 영영 안 닫힌다(에뮬레이터에서 확인). 닫는 것이 목적이고 해지는
+    // 그 부수 효과다.
+    unawaited(_subscription?.cancel());
     _subscription = null;
     final controller = _controller;
     _controller = null;
@@ -112,7 +117,14 @@ class SseMatchStream implements MatchStream {
   /// 빈 줄이 하나의 이벤트를 닫는다. `:`로 시작하는 줄은 프록시 유휴 타임아웃을
   /// 막는 keep-alive라 버린다.
   static Stream<MatchEvent> decode(Stream<List<int>> bytes) async* {
-    final lines = bytes.transform(utf8.decoder).transform(const LineSplitter());
+    // ⚠️ `cast`가 없으면 런타임에 터진다. dio가 주는 것은 `Stream<Uint8List>`인데
+    // `utf8.decoder`는 `StreamTransformer<List<int>, String>`이고,
+    // `StreamTransformer`는 입력 타입에 공변이 아니다 — 컴파일은 통과하고
+    // 첫 바이트가 들어오는 순간 죽는다.
+    final lines = bytes
+        .cast<List<int>>()
+        .transform(utf8.decoder)
+        .transform(const LineSplitter());
 
     String? name;
     final data = StringBuffer();
@@ -268,10 +280,9 @@ class SseMatchStream implements MatchStream {
     };
   }
 
-  static DateTime? _dateOrNull(Object? value) {
-    if (value is! String || value.isEmpty) return null;
-    return DateTime.tryParse(value);
-  }
+  /// 서버는 시간대 없는 한국 시각을 준다. [KstTime]이 그것을 기기 시각으로
+  /// 옮긴다 — 기기가 한국이 아니어도 남은 시간이 맞는다.
+  static DateTime? _dateOrNull(Object? value) => KstTime.parse(value);
 
   static int? _intOrNull(Object? value) => value is int ? value : null;
 

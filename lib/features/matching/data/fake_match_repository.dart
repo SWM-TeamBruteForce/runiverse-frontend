@@ -1,3 +1,4 @@
+import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/match_repository.dart';
 import 'package:runiverse/features/matching/domain/match_slot.dart';
@@ -18,43 +19,28 @@ class FakeMatchRepository implements MatchRepository {
     this.cooldownUntil,
   }) : slots = slots ?? defaultSlots();
 
-  /// 18:00~22:00, 30분 간격. 명세가 정한 범위 그대로다.
+  /// 18:00~22:00, 30분 간격에 대기 인원을 얹는다.
   ///
-  /// [now]의 **날짜만** 쓴다. 시각은 슬롯이 정한다 — 서버가 주는 값의 모양을
-  /// 흉내 내야 화면이 진짜 응답에서도 같게 그려진다.
+  /// 목록 자체는 [MatchSlot.todayRange]가 만든다 — 진짜 서버가 없을 때 앱이
+  /// 쓰는 것과 같은 값이어야 화면이 실제와 같게 그려진다.
   static List<MatchSlot> defaultSlots({DateTime? now}) {
-    final today = now ?? DateTime.now();
+    final today = now ?? KstTime.nowWall();
+    final slots = MatchSlot.todayRange(nowWall: today);
     return [
-      for (var half = 0; half <= 8; half++)
-        () {
-          final startAt = DateTime(
-            today.year,
-            today.month,
-            today.day,
-            18 + half ~/ 2,
-            (half % 2) * 30,
-          );
-          return MatchSlot(
-            raw: _isoOf(startAt),
-            startAt: startAt,
-            // 몇 자리에만 대기자를 둔다. 전부 0이면 "대기 인원" 표시를
-            // 시험할 수 없고, 전부 채우면 빈 슬롯을 시험할 수 없다.
-            waitingCount: switch (half) {
-              2 => 3,
-              3 => 1,
-              _ => 0,
-            },
-            selectable: startAt.isAfter(today),
-          );
-        }(),
+      for (var i = 0; i < slots.length; i++)
+        MatchSlot(
+          raw: slots[i].raw,
+          startAt: slots[i].startAt,
+          // 몇 자리에만 대기자를 둔다. 전부 0이면 "대기 인원" 표시를
+          // 시험할 수 없고, 전부 채우면 빈 슬롯을 시험할 수 없다.
+          waitingCount: switch (i) {
+            2 => 3,
+            3 => 1,
+            _ => 0,
+          },
+          selectable: slots[i].selectable,
+        ),
     ];
-  }
-
-  /// 서버가 쓰는 표기 — 시간대 없는 한국 시각, 초 단위까지.
-  static String _isoOf(DateTime time) {
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${time.year}-${two(time.month)}-${two(time.day)}'
-        'T${two(time.hour)}:${two(time.minute)}:00';
   }
 
   /// 답할 목록. **`final`이 아니다** — 마감 경합 뒤에 목록을 다시 받는

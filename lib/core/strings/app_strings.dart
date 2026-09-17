@@ -466,6 +466,13 @@ abstract final class AppStrings {
   /// ⚠️ 앱의 선택지가 서버 규칙과 어긋났다는 신호다. 정상 경로에서는 안 나온다.
   static const matchFailedInvalid = '지금은 등록할 수 없어요. 앱을 업데이트해주세요';
 
+  /// 세션이 끊겼다. **신청 실패와 다른 말이어야 한다** — 사용자가 할 일이
+  /// 다르다(다시 로그인 vs 홈에서 확인).
+  static const matchFailedExpired = '로그인이 만료됐어요. 다시 로그인해주세요';
+
+  /// 어느 갈래로도 읽지 못했다. 신청이 나갔는지조차 알 수 없다.
+  static const matchFailedUnknown = '등록하지 못했어요. 홈에서 상태를 확인해주세요';
+
   /// ⚠️ 재시도 버튼을 주지 않는다. 등록됐는지 알 수 없어서 다시 보내면
   /// 중복 신청이 된다.
   static const matchFailedNetwork = '등록됐는지 확인하지 못했어요. 홈에서 다시 확인해주세요';
