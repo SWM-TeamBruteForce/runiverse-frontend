@@ -31,8 +31,17 @@ class SplitLineChart extends StatefulWidget {
     this.badge,
     this.inverted = false,
     this.filled = false,
+    this.secondary,
+    this.secondaryColor,
     super.key,
   });
+
+  /// 겹쳐 그릴 두 번째 선(파티원). [values]와 같은 자리가 같은 구간이다.
+  /// 더 짧으면 거기까지만 그린다 — 먼저 끝난 사람은 뒤 구간이 없다.
+  final List<double>? secondary;
+
+  /// 두 번째 선의 색. 그 러너의 레인 색이다.
+  final Color? secondaryColor;
 
   /// `구간별 페이스`처럼 카드 왼쪽 위에 붙는 이름.
   final String title;
@@ -91,6 +100,14 @@ class _SplitLineChartState extends State<SplitLineChart> {
     if (next != _focused) setState(() => _focused = next);
   }
 
+  /// 집은 자리의 값. 두 번째 선이 있으면 `5'28" · 5'40"`처럼 나란히 적는다.
+  String _readingAt(int index) {
+    final mine = widget.format(widget.values[index]);
+    final other = widget.secondary;
+    if (other == null || index >= other.length) return mine;
+    return '$mine · ${widget.format(other[index])}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
@@ -142,12 +159,13 @@ class _SplitLineChartState extends State<SplitLineChart> {
                           inset: _inset,
                           inverted: widget.inverted,
                           filled: widget.filled,
+                          secondary: widget.secondary,
+                          secondaryLine:
+                              widget.secondaryColor ?? colors.textTertiary,
                           // ⚠️ 집은 값은 **그 점 바로 위**에 띄운다. 제목 줄
                           // 오른쪽에 두면 눈이 그래프와 카드 모서리를 오가야
                           // 해서 훑는 동안 읽히지 않는다.
-                          reading: focused == null
-                              ? null
-                              : widget.format(widget.values[focused]),
+                          reading: focused == null ? null : _readingAt(focused),
                           // 값만으로는 "어디서" 그랬는지 모른다. x축 라벨은
                           // 솎아 그리므로 짚은 자리가 그 사이면 읽을 수 없다.
                           readingAt:
@@ -334,9 +352,15 @@ class _LinePainter extends CustomPainter {
     required this.bubbleBorder,
     required this.readingColor,
     required this.readingAtColor,
+    this.secondary,
+    required this.secondaryLine,
   });
 
   final List<double> values;
+
+  /// 두 번째 선. 없으면 `null`.
+  final List<double>? secondary;
+  final Color secondaryLine;
   final int? focused;
   final Color line;
   final Color grid;
@@ -369,8 +393,10 @@ class _LinePainter extends CustomPainter {
   }
 
   double _y(double value, Size size) {
-    final min = values.reduce((a, b) => a < b ? a : b);
-    final max = values.reduce((a, b) => a > b ? a : b);
+    // 두 선이 같은 자로 그려져야 비교가 된다. 범위는 둘을 합쳐 잡는다.
+    final all = [...values, ...?secondary];
+    final min = all.reduce((a, b) => a < b ? a : b);
+    final max = all.reduce((a, b) => a > b ? a : b);
     final pad = size.height * _padRatio;
     final usable = size.height - pad * 2;
 
@@ -436,6 +462,8 @@ class _LinePainter extends CustomPainter {
       canvas.drawPath(path, linePaint);
     }
 
+    _paintSecondary(canvas, size);
+
     final index = focused;
     if (index == null || index >= points.length) return;
 
@@ -452,6 +480,35 @@ class _LinePainter extends CustomPainter {
     canvas.drawCircle(at, 4, Paint()..color = line);
 
     _paintReading(canvas, size, at);
+  }
+
+  /// 파티원의 선. 채우지 않고 가늘게 — 주인공은 내 선이다.
+  void _paintSecondary(Canvas canvas, Size size) {
+    final other = secondary;
+    if (other == null || other.isEmpty) return;
+
+    final points = [
+      for (var i = 0; i < other.length && i < values.length; i++)
+        Offset(_x(i, size), _y(other[i], size)),
+    ];
+    if (points.isEmpty) return;
+
+    final paint = Paint()
+      ..color = secondaryLine
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+
+    if (points.length == 1) {
+      canvas.drawCircle(points.first, 3, Paint()..color = secondaryLine);
+      return;
+    }
+    final path = Path()..moveTo(points.first.dx, points.first.dy);
+    for (final point in points.skip(1)) {
+      path.lineTo(point.dx, point.dy);
+    }
+    canvas.drawPath(path, paint);
   }
 
   /// 집은 값을 **그 점 바로 위**에 띄운다.
@@ -530,5 +587,7 @@ class _LinePainter extends CustomPainter {
       old.inverted != inverted ||
       old.filled != filled ||
       old.reading != reading ||
-      old.readingAt != readingAt;
+      old.readingAt != readingAt ||
+      old.secondary != secondary ||
+      old.secondaryLine != secondaryLine;
 }

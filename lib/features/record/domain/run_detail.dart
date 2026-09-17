@@ -26,9 +26,51 @@ class RunDetail {
     this.cadenceSpm,
     this.caloriesKcal,
     this.elevationGainMeters,
+    this.players = const [],
+    this.splitsByPlayer = const {},
   });
 
   final int runningRoomId;
+
+  /// 같은 방에서 달린 사람 전원. **나도 들어 있다**([RunPlayerResult.isMe]).
+  ///
+  /// 서버가 준 순서 그대로다 — 러닝 화면의 레인 색이 이 순서로 정해졌으므로
+  /// 여기서도 같은 사람이 같은 색이다. 솔로면 나 하나다.
+  final List<RunPlayerResult> players;
+
+  /// `userId` → 그 사람의 10m 구간. **파티원 것만 있다** — 내 것은 [rawSplits].
+  ///
+  /// 기록이 없는 사람(너무 짧게 달린 사람)은 여기 없다.
+  final Map<String, List<RawSplit>> splitsByPlayer;
+
+  /// 나를 뺀 파티원. 솔로면 비어 있다.
+  List<RunPlayerResult> get party => [
+    for (final player in players)
+      if (!player.isMe) player,
+  ];
+
+  final Map<String, List<SplitBucket>> _tableSplitsOf = {};
+
+  /// 파티원의 1km 묶음. 내 [tableSplits]와 같은 경계라 줄이 맞는다.
+  List<SplitBucket> tableSplitsOf(String userId) => _tableSplitsOf.putIfAbsent(
+    userId,
+    () => SplitAggregator.bucket(
+      splitsByPlayer[userId] ?? const [],
+      SplitAggregator.tableMeters,
+    ),
+  );
+
+  final Map<String, List<SplitBucket>> _chartSamplesOf = {};
+
+  /// 파티원의 50m 묶음. 그래프의 두 번째 선이 쓴다.
+  List<SplitBucket> chartSamplesOf(String userId) =>
+      _chartSamplesOf.putIfAbsent(
+        userId,
+        () => SplitAggregator.bucket(
+          splitsByPlayer[userId] ?? const [],
+          SplitAggregator.chartMeters,
+        ),
+      );
 
   /// 서버가 확정한 총 거리(m).
   final int distanceMeters;
@@ -83,4 +125,43 @@ class RunDetail {
   String toString() =>
       'RunDetail(room $runningRoomId, ${distanceKm.toStringAsFixed(2)}km, '
       '구간 ${rawSplits.length}개)';
+}
+
+/// 같은 방에서 달린 사람 하나의 결과. `GET /running-rooms/{id}/results`의
+/// `players[]` 한 원소다.
+///
+/// ## 기록이 없을 수 있다
+///
+/// 너무 짧게 달렸거나(서버 기준 100m·60초 미만) 출발하지 않은 사람은 방에는
+/// 있지만 수치가 전부 `null`이다. **0으로 때우지 않는다** — 0km를 달린 것이
+/// 아니라 기록이 없는 것이다.
+class RunPlayerResult {
+  const RunPlayerResult({
+    required this.userId,
+    required this.nickname,
+    required this.isMe,
+    this.profileImageUrl,
+    this.isDeleted = false,
+    this.distanceMeters,
+    this.duration,
+    this.averagePace,
+    this.cadenceSpm,
+    this.caloriesKcal,
+  });
+
+  final String userId;
+
+  /// 탈퇴한 사람은 서버가 익명 처리해서 준다.
+  final String nickname;
+  final bool isMe;
+  final String? profileImageUrl;
+  final bool isDeleted;
+
+  final int? distanceMeters;
+  final Duration? duration;
+  final Duration? averagePace;
+  final int? cadenceSpm;
+  final int? caloriesKcal;
+
+  bool get hasRecord => duration != null;
 }

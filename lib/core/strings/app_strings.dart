@@ -969,6 +969,16 @@ abstract final class AppStrings {
   /// `3km`처럼 구간 끝 지점을 적는다.
   static String runResultSplitLabel(int index) => '${index}km';
 
+  // ── 파티원 비교 (S16 · S16.5) ─────────────────────────────────
+
+  static const runResultPartyTitle = '파티원 비교';
+
+  /// 방에는 있지만 수치가 없는 사람. **0이 아니라 없다.**
+  static const runResultNoRecord = '기록 없음';
+
+  /// 러너 칩 위의 안내. 한 번에 한 명만 겹쳐 본다.
+  static const runResultCompareHint = '한 명을 골라 구간별로 비교해요';
+
   /// 마지막 자투리 구간. `5.4km`처럼 실제로 닿은 지점을 적는다.
   static String runResultPartialLabel(double totalKm) =>
       '${totalKm.toStringAsFixed(2)}km';
