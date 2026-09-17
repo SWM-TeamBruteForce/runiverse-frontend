@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/session/domain/party_board.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
+import 'package:runiverse/features/session/domain/run_session_state.dart';
+import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 
 final partyProvider = NotifierProvider<PartyController, PartyBoard>(
@@ -41,8 +44,24 @@ class PartyController extends Notifier<PartyBoard> {
     );
     ref.onDispose(_unbind);
 
+    // 내 거리도 보드에 넣는다. 내 레인이 파티원과 같은 규칙(기준값 이상 앞서야
+    // 자리 교체)으로 섞이려면 보드가 내 거리를 알아야 한다 — 화면에서 매번
+    // 끼워 넣으면 그 기억이 화면 밖에 남지 않아 경계에서 줄이 튄다.
+    ref.listen(runSessionControllerProvider.select(_myDistanceOf), (_, meters) {
+      // ⚠️ 솔로는 섞을 줄이 없다. 매초 새 보드를 만들어 화면을 다시 그리지 않는다.
+      if (state.roster.isEmpty && state.progress.isEmpty) return;
+      if (meters == state.myDistanceMeters) return;
+      state = state.withMyDistance(meters);
+    });
+
     return const PartyBoard();
   }
+
+  static int _myDistanceOf(RunSessionState state) => switch (state) {
+    RunRunning(:final metrics) ||
+    RunPaused(:final metrics) => metrics.distanceMeters.round(),
+    _ => 0,
+  };
 
   void _bind() {
     _unbind();
@@ -61,9 +80,16 @@ class PartyController extends Notifier<PartyBoard> {
     _progress = channel.progress.listen(
       (update) => state = state.withProgress(update),
     );
-    _combos = channel.combos.listen(
-      (update) => state = state.withCombos(update),
-    );
+    _combos = channel.combos.listen((update) {
+      final before = state.combos.keys.toSet();
+      state = state.withCombos(update);
+      // 콤보가 새로 이어지거나 끊긴 순간에만 한 번 울린다. 통지는 10초마다
+      // 오는데 그때마다 울리면 달리는 내내 진동한다. 소리는 범위 밖이다.
+      if (!before.containsAll(state.combos.keys) ||
+          !state.combos.keys.toSet().containsAll(before)) {
+        unawaited(HapticFeedback.mediumImpact());
+      }
+    });
   }
 
   void _unbind() {
@@ -74,8 +100,10 @@ class PartyController extends Notifier<PartyBoard> {
   }
 
   /// 대기방에서 들고 온 명단을 넣는다. **러닝을 시작할 때 한 번.**
-  void setRoster(List<PartyMember> members) {
-    state = state.withRoster(members);
+  ///
+  /// [myUserId]는 명단에서 나를 가려내는 열쇠다 — 방 전원 명단에는 나도 있다.
+  void setRoster(List<PartyMember> members, {required String myUserId}) {
+    state = state.withRoster(members, myUserId: myUserId);
   }
 
   /// 손으로 비운다. 평소에는 [_bind]가 알아서 한다.

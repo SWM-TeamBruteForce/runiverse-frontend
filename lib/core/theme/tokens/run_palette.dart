@@ -91,4 +91,16 @@ abstract final class RunPalette {
     );
     return _shades[hue]![shade - 1];
   }
+
+  /// 파티원 레인의 색. [slot]은 `PartyBoard.colorSlotOf`가 준 자리 번호다.
+  ///
+  /// 정본 S13은 "각자의 시그니처 컬러"인데 그 기능이 아직 없다. hue를 자리
+  /// 순서로 돌리고 가운데 shade를 쓴다 — 10명이 넘으면 다시 처음부터다.
+  static Color lane(int slot) =>
+      color(RunHue.values[slot % RunHue.values.length], 2);
+
+  /// 러닝 색이 "발광"하는 그림자(디자인 시스템 §1-3 글로우). 다크에서 강하게.
+  static List<BoxShadow> glow(Color color) => [
+    BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 12),
+  ];
 }

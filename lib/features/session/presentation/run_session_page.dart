@@ -105,13 +105,16 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
 
   /// 매칭 러닝의 목표 거리. **솔로는 `null`이다** — 목표가 없어 제한도 없다.
   ///
-  /// 파티원 통지가 실어 오는 값을 쓴다. 통지가 아직 없으면 알 수 없고, 그때는
-  /// 안내를 띄우지 않는다 — 모르면서 겁주지 않는다.
-  int? _targetDistanceMeters() => ref
-      .read(partyProvider)
-      .rows
-      .map((row) => row.progress?.targetDistanceMeters)
-      .firstWhere((value) => value != null, orElse: () => null);
+  /// 방 정보가 실어 온 값을 먼저 쓴다. 그것이 없으면(복구 경로) 파티원 통지가
+  /// 실어 오는 값으로 메운다. 둘 다 없으면 알 수 없고, 그때는 안내를 띄우지
+  /// 않는다 — 모르면서 겁주지 않는다.
+  int? _targetDistanceMeters() =>
+      ref.read(runningConnectionProvider).room?.targetDistanceMeters ??
+      ref
+          .read(partyProvider)
+          .rows
+          .map((row) => row.progress?.targetDistanceMeters)
+          .firstWhere((value) => value != null, orElse: () => null);
 
   @override
   Widget build(BuildContext context) {
@@ -121,10 +124,16 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
 
     final party = ref.watch(partyProvider);
     final hasParty = party.rows.isNotEmpty;
-    // 목표는 파티원 통지가 실어 온다. 솔로 방은 목표가 없어 `null`이다.
-    final target = party.rows
-        .map((row) => row.progress?.targetDistanceMeters)
-        .firstWhere((value) => value != null, orElse: () => null);
+    // 목표는 방 정보가 실어 온다. 없으면 파티원 통지로 메운다. 솔로는 `null`.
+    final target =
+        ref.watch(
+          runningConnectionProvider.select(
+            (state) => state.room?.targetDistanceMeters,
+          ),
+        ) ??
+        party.rows
+            .map((row) => row.progress?.targetDistanceMeters)
+            .firstWhere((value) => value != null, orElse: () => null);
 
     return PopScope(
       // 달리는 도중에 뒤로 나가지 못한다. 나가려면 중지 시트를 거쳐야 한다.
@@ -161,9 +170,9 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                     if (hasParty)
                       RunPartyView(
                         board: party,
-                        // ⚠️ 내 거리는 앱이 잰 값이다. 서버는 본인 진행을
-                        // 보내지 않고, 표시는 로컬 계산값을 우선한다.
-                        myDistanceMeters: metrics.distanceMeters.round(),
+                        // ⚠️ 내 페이스는 앱이 잰 값이다. 서버는 본인 진행을
+                        // 보내지 않는다. 내 거리는 provider가 보드에 넣는다.
+                        myPace: metrics.currentPace,
                         targetDistanceMeters: target,
                       ),
                   ],

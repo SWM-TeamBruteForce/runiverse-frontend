@@ -250,6 +250,27 @@ class RunSessionController extends Notifier<RunSessionState> {
   }
 
   /// 달리기 시작. [RunPreparing]에서 **첫 신호를 받은 뒤에만** 걸린다.
+  /// 첫 신호가 오는 즉시 출발한다. **시각이 정해진 출발(매칭)용이다.**
+  ///
+  /// 매칭 러닝은 서버가 정한 시각에 출발한다. 그 순간 신호가 없다고 출발을
+  /// 미룰 수도 없고([start]는 아무것도 하지 않는다), 신호 없이 달릴 수도 없다 —
+  /// 초반 거리가 통째로 빠진다. 그래서 신호가 있으면 지금, 없으면 첫 신호에
+  /// 출발한다. 준비를 열지 않았으면 여기서 연다. 권한이 없으면 출발하지 않는다.
+  Future<void> startWhenReady() async {
+    if (state is RunIdle) {
+      final access = await prepare();
+      if (!access.isGranted) return;
+    }
+    if (state case RunPreparing(hasFix: true)) {
+      start();
+      return;
+    }
+    _startOnFix = true;
+  }
+
+  /// 첫 신호에 출발하기로 했는가. [startWhenReady]가 세우고 [_reset]이 지운다.
+  var _startOnFix = false;
+
   void start() {
     if (state case RunPreparing(hasFix: true)) {
       final now = _now();
@@ -330,6 +351,7 @@ class RunSessionController extends Notifier<RunSessionState> {
       // 준비 중에는 "신호를 받았다"만 알린다. 거리는 아직 세지 않는다.
       case RunPreparing(hasFix: false):
         state = const RunPreparing(hasFix: true);
+        if (_startOnFix) start();
 
       case RunRunning():
         // 진행 방향. **센서 값을 믿을 수 없어 직접 낸다**(`GeoPoint.bearingTo`).
@@ -438,6 +460,7 @@ class RunSessionController extends Notifier<RunSessionState> {
   }
 
   void _reset() {
+    _startOnFix = false;
     _lastRaw = null;
     _points.clear();
     _segments.clear();
