@@ -14,12 +14,14 @@ import 'package:runiverse/core/widgets/page_indicator.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/session/domain/run_metrics.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
+import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/core/widgets/run_map_view.dart';
 import 'package:runiverse/features/session/presentation/party_provider.dart';
 import 'package:runiverse/features/session/presentation/run_party_view.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/run_stop_sheet.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 /// 러닝 진행 (S13).
@@ -103,6 +105,17 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   /// 제재 없이 끝낼 수 있는 선. 연동 가이드가 정한 값이다.
   static const _safeRatio = 0.8;
 
+  /// 서버가 나를 참가자로 보지 않는다. **종료를 보내지 않는다** — 보내도 같은
+  /// 답이 온다. 세션을 접고, 서버 상태를 다시 읽고, 홈으로 간다.
+  Future<void> _leaveKickedOut() async {
+    ref.read(runSessionControllerProvider.notifier).reset();
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text(AppStrings.runNotRoomPlayer)));
+    context.go(AppRoutes.home);
+    await ref.read(userStatusProvider.notifier).refresh();
+  }
+
   /// 매칭 러닝의 목표 거리. **솔로는 `null`이다** — 목표가 없어 제한도 없다.
   ///
   /// 방 정보가 실어 온 값을 먼저 쓴다. 그것이 없으면(복구 경로) 파티원 통지가
@@ -121,6 +134,11 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     final colors = context.appColors;
     final state = ref.watch(runSessionControllerProvider);
     final metrics = _metricsOf(state);
+
+    ref.listen(runningConnectionProvider.select((s) => s.failure), (_, next) {
+      if (next == RunningRoomFailure.notRoomPlayer)
+        unawaited(_leaveKickedOut());
+    });
 
     final party = ref.watch(partyProvider);
     final hasParty = party.rows.isNotEmpty;

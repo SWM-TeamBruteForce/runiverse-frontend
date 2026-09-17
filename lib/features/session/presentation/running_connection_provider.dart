@@ -144,6 +144,22 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   static const _trackNoticeFor = Duration(seconds: 30);
 
   void _onServerError(WsErrorCode code) {
+    if (code == WsErrorCode.notRoomPlayer) {
+      // 재시도해도 같은 답이다. 보내던 것을 멈추고 소켓을 닫는다 — 화면이
+      // 이 실패를 보고 러닝을 접는다.
+      debugPrint('[running] 이 방의 참가자가 아니다. 러닝을 접는다');
+      _retry?.cancel();
+      _sender?.stop();
+      _sender = null;
+      _channel?.close();
+      _channel = null;
+      state = RunningConnectionState(
+        room: state.room,
+        connection: WsConnectionState.closed,
+        failure: RunningRoomFailure.notRoomPlayer,
+      );
+      return;
+    }
     if (code != WsErrorCode.runningTrackUnavailable) return;
     _trackNotice?.cancel();
     _trackNotice = Timer(_trackNoticeFor, () {

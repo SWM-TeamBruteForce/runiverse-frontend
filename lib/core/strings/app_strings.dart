@@ -796,6 +796,9 @@ abstract final class AppStrings {
   /// 연결이 없는 채로 달리는 중. **막지 않고 알리기만 한다.**
   static const runOffline = '서버에 연결하는 중이에요';
 
+  /// 서버가 이 사용자를 방의 참가자로 보지 않는다. 러닝을 접고 홈으로 간다.
+  static const runNotRoomPlayer = '이 러닝의 참가자가 아니에요. 홈으로 돌아갈게요';
+
   /// 서버가 좌표를 저장하지 못하는 중. 러닝은 계속되고 좌표는 앱에 남는다.
   static const runTrackUnavailable = '기록 저장이 늦어지고 있어요. 앱에 남겨 두고 있어요';
 
