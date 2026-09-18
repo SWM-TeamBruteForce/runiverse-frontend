@@ -255,9 +255,7 @@ void main() {
 
     testWidgets('⚠️ 네트워크 실패에 재시도를 권하지 않는다', (tester) async {
       // 신청됐는지 알 수 없어, 다시 보내면 중복 신청이 된다.
-      final matches = FakeMatchRepository(
-        applyFailure: MatchFailure.network,
-      );
+      final matches = FakeMatchRepository(applyFailure: MatchFailure.network);
       await pumpRegister(tester, repository: matches);
 
       await pickSlot(tester, '19:00');
