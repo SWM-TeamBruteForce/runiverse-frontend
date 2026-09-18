@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/session/domain/party_board.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
+import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 
@@ -44,6 +45,16 @@ class PartyController extends Notifier<PartyBoard> {
     );
     ref.onDispose(_unbind);
 
+    // ⚠️ **첫 build에서도 붙는다.** 위의 `listen`은 방이 *바뀔 때*만 부른다.
+    //
+    // 복구 경로(앱 재시작)는 스플래시가 `openMatched`로 방을 먼저 열고 러닝
+    // 화면을 뒤에 띄운다. 그래서 이 provider를 처음 읽는 시점에 방이 이미 있는
+    // 경우가 있고, 그러면 바뀌는 일이 없어 영영 구독하지 않는다 — 통지는
+    // 채널까지 오는데 보드가 비어 파티원이 한 명도 안 보인다(2026-09-18 실주행).
+    // 둘 중 어느 쪽이 먼저인지는 경합이라, 여기서 한 번 더 확인한다.
+    final opened = ref.read(runningConnectionProvider.notifier).channel;
+    if (opened != null) _subscribe(opened);
+
     // 내 거리도 보드에 넣는다. 내 레인이 파티원과 같은 규칙(기준값 이상 앞서야
     // 자리 교체)으로 섞이려면 보드가 내 거리를 알아야 한다 — 화면에서 매번
     // 끼워 넣으면 그 기억이 화면 밖에 남지 않아 경계에서 줄이 튄다.
@@ -77,6 +88,12 @@ class PartyController extends Notifier<PartyBoard> {
       return;
     }
 
+    _subscribe(channel);
+  }
+
+  /// 채널의 두 스트림을 듣는다. **여기서는 `state`를 건드리지 않는다** —
+  /// `build` 중에 부르는 길이 있어서다.
+  void _subscribe(RunningChannel channel) {
     _progress = channel.progress.listen(
       // 받은 시각을 여기서 찍는다. 채널은 시계를 모르는 편이 테스트하기 쉽다.
       (update) => state = state.withProgress(update.stamped(DateTime.now())),
