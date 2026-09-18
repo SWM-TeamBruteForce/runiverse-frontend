@@ -41,7 +41,20 @@ class RunMapView extends StatefulWidget {
   State<RunMapView> createState() => _RunMapViewState();
 }
 
-class _RunMapViewState extends State<RunMapView> {
+class _RunMapViewState extends State<RunMapView>
+    with AutomaticKeepAliveClientMixin {
+  /// ⚠️ **페이지를 넘겨도 지도를 살려 둔다.**
+  ///
+  /// 이 위젯은 러닝 화면의 `PageView` 안에 있다. 그냥 두면 페이지를 넘길 때마다
+  /// 지도 플랫폼 뷰(SurfaceView)가 사라졌다 다시 생긴다. 넘길 때마다 스타일을
+  /// 다시 받고 경로를 다시 얹으니 느린 것은 물론이고, 에뮬레이터에서는 그
+  /// 되풀이 끝에 **그림이 영영 멈췄다**(2026-09-18).
+  ///
+  /// 한 번 만들고 유지하면 그 되풀이 자체가 없어진다. 살아 있는 동안 메모리를
+  /// 쥐고 있지만, 러닝 화면을 벗어나면 화면과 함께 사라진다.
+  @override
+  bool get wantKeepAlive => true;
+
   /// 스타일 에디터에서 만든 야간 스타일(`runiverse_night_default`).
   ///
   /// ⚠️ **이름이 아니라 My Style ID다.** 이름을 넣으면 서버가 400
@@ -83,6 +96,24 @@ class _RunMapViewState extends State<RunMapView> {
   bool _drawing = false;
   bool _pending = false;
 
+  /// 위젯이 버려졌는가. [_draw]가 `await` 사이에 이것을 본다.
+  bool _gone = false;
+
+  @override
+  void dispose() {
+    // ⚠️ **죽은 지도에 계속 그리지 않는다.**
+    //
+    // 이 위젯은 러닝 화면의 PageView 안에 있어 페이지를 넘기면 통째로 버려진다.
+    // 그런데 컨트롤러와 오버레이를 그대로 들고 있으면, 이미 사라진 플랫폼 뷰로
+    // `setCoords`·`addOverlay`가 계속 나가 `MissingPluginException`이 쏟아진다
+    // (2026-09-18 에뮬레이터에서 수만 건). 그림이 영영 멈추는 것도 그 뒤였다.
+    _gone = true;
+    _controller = null;
+    _overlays.clear();
+    _drawnLengths.clear();
+    super.dispose();
+  }
+
   @override
   void didUpdateWidget(RunMapView oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -117,6 +148,8 @@ class _RunMapViewState extends State<RunMapView> {
 
   @override
   Widget build(BuildContext context) {
+    // `AutomaticKeepAliveClientMixin`이 요구한다. 빼면 유지가 안 된다.
+    super.build(context);
     if (!AppConfig.hasNaverMapClientId) return const _MapUnavailable();
 
     return Padding(
@@ -231,13 +264,14 @@ class _RunMapViewState extends State<RunMapView> {
       do {
         _pending = false;
         await _apply();
-      } while (_pending);
+      } while (_pending && !_gone);
     } finally {
       _drawing = false;
     }
   }
 
   Future<void> _apply() async {
+    if (_gone) return;
     final controller = _controller;
     if (controller == null) return;
 
@@ -262,6 +296,10 @@ class _RunMapViewState extends State<RunMapView> {
       final coords = [
         for (final point in segment) NLatLng(point.latitude, point.longitude),
       ];
+
+      // ⚠️ `await`을 건널 때마다 확인한다. 그 사이에 페이지가 넘어가면
+      // 아래 호출들이 사라진 지도로 나간다.
+      if (_gone) return;
 
       if (i < _overlays.length) {
         _overlays[i].setCoords(coords);
