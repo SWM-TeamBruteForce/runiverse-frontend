@@ -89,7 +89,10 @@ void main() {
     expect(find.text(AppStrings.homeMatchCta), findsNothing);
   });
 
-  testWidgets('⚠️ 매칭 확정도 마찬가지다', (tester) async {
+  testWidgets('⚠️ 매칭이 확정됐으면 방 정보가 없어도 들어갈 수 있다', (tester) async {
+    // 스트림이 스냅샷을 못 줄 때가 있다 — 옛 방을 대신 주거나 늦게 붙거나.
+    // 그때 배너만 띄우면 확정된 사람이 러닝에 들어갈 길을 잃는다. 상태 조회가
+    // 아는 것(방 번호·시작 시각)만으로 카운트다운과 입장 버튼을 세운다.
     await pumpApp(
       tester,
       status: UserStatusReady(
@@ -99,7 +102,11 @@ void main() {
       ),
     );
 
-    expect(find.text(AppStrings.homeMatchWaiting), findsOneWidget);
+    expect(find.text(AppStrings.homeMatchToWaitingRoom), findsOneWidget);
+    // ⚠️ 인원은 모른다. 0명이라고 적으면 혼자 달리는 줄 안다.
+    expect(find.text(AppStrings.homeMatchParty(0)), findsNothing);
+    // 다시 신청하러 갈 문은 여전히 닫혀 있다.
+    expect(find.text(AppStrings.homeMatchCta), findsNothing);
   });
 
   testWidgets('솔로 준비 중에는 기본 히어로다', (tester) async {

@@ -342,6 +342,39 @@ void main() {
       expect(app.stream.closes, greaterThanOrEqualTo(1));
     });
 
+    test('⚠️ 끝난 방은 현재 방으로 삼지 않고 연결도 끊지 않는다', () async {
+      // 2026-09-18: 새 방에 신청했는데 스냅샷으로 두 시간 전에 끝낸 방이 왔다.
+      // 그것을 현재 방으로 저장하니 홈이 "매칭 없음"으로 보였고, 재신청은
+      // 409로 막혀 빠져나갈 길이 없었다. 그때도 상태 조회는 확정을 줬다.
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      app.stream.emit(MatchRoomUpdated(room(RoomStatus.finished)));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(app.container.read(matchRoomProvider).room, isNull);
+      // ⚠️ 끊으면 상태가 확정이라 곧바로 다시 붙고 같은 것을 또 받는다.
+      expect(app.stream.closes, 0);
+    });
+
+    test('⚠️ 끝난 방이 와도 들고 있던 방을 지우지 않는다', () async {
+      // 살아 있는 방을 보고 있는데 옛 방의 마지막 상태가 끼어들 수 있다.
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      app.stream.emit(MatchRoomUpdated(room(RoomStatus.matched)));
+      await Future<void>.delayed(Duration.zero);
+      app.stream.emit(MatchRoomUpdated(room(RoomStatus.finished)));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        app.container.read(matchRoomProvider).room?.status,
+        RoomStatus.matched,
+      );
+    });
+
     test('시작 통지를 들고 있는다', () async {
       final app = build();
       app.container.read(matchRoomProvider.notifier).connect();

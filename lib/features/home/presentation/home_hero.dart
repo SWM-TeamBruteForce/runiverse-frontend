@@ -367,19 +367,23 @@ class _Confirmed extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.space3),
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _StackedAvatars(players: room.players, size: AppSpacing.space8),
-            const SizedBox(width: AppSpacing.space2),
-            Text(
-              AppStrings.homeMatchParty(room.players.length),
-              style: AppTypography.caption.copyWith(
-                color: colors.textSecondary,
+        // ⚠️ 명단을 모르면 **아예 그리지 않는다.** 스냅샷이 없을 때 0명이라
+        // 적으면 혼자 달리는 줄 안다 — 모르는 것과 없는 것은 다르다.
+        if (room.players.isNotEmpty) ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _StackedAvatars(players: room.players, size: AppSpacing.space8),
+              const SizedBox(width: AppSpacing.space2),
+              Text(
+                AppStrings.homeMatchParty(room.players.length),
+                style: AppTypography.caption.copyWith(
+                  color: colors.textSecondary,
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
         const SizedBox(height: AppSpacing.space4),
 
         AppButton(label: AppStrings.homeMatchToWaitingRoom, onPressed: onLobby),

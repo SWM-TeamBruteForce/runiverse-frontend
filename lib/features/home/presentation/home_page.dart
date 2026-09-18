@@ -71,6 +71,13 @@ class _HomePageState extends ConsumerState<HomePage> {
         room != null &&
         (room.status == RoomStatus.matching ||
             room.status == RoomStatus.matched);
+
+    // ⚠️ 스냅샷이 없어도 **확정된 러닝에는 들어갈 수 있어야 한다.**
+    //
+    // 스트림이 옛 방을 주거나 늦게 붙는 동안 방 정보가 비는데, 그때 아무것도
+    // 안 그리면 확정된 사람이 홈에서 길을 잃는다. 상태 조회가 아는 것(방 번호·
+    // 시작 시각·목표)만으로 카운트다운과 입장 버튼을 세운다.
+    final hero = counting ? room : RoomInfo.fromStatus(status);
     // ⚠️ 빌드 중에 타이머를 만들면 그 프레임에서 `setState`가 겹친다. 미룬다.
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _syncTicker(needed: counting),
@@ -90,11 +97,11 @@ class _HomePageState extends ConsumerState<HomePage> {
           children: [
             HomeHero(
               greeting: _greetingText(GreetingRule.of(DateTime.now())),
-              room: counting ? room : null,
+              room: hero,
               // ⚠️ 상태는 매칭 중인데 스냅샷이 아직 안 온 구간. 여기를 비우면
               // 신청한 사람이 기본 히어로를 보고 다시 누른다.
               pending:
-                  room == null &&
+                  hero == null &&
                   status != null &&
                   RunResume.showsMatchBanner(status),
               now: _now,
