@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
+import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 
@@ -33,6 +34,7 @@ class WsRunningChannel implements RunningChannel {
   final _errors = StreamController<WsErrorCode>.broadcast();
   final _progress = StreamController<RunProgress>.broadcast();
   final _combos = StreamController<RunCombo>.broadcast();
+  final _snapshots = StreamController<RunSnapshot>.broadcast();
 
   /// 어느 방에서 달리는가. 재연결 때 `RUNNING_START`를 다시 보내려면 필요하다.
   int? _roomId;
@@ -66,6 +68,9 @@ class WsRunningChannel implements RunningChannel {
 
   @override
   Stream<RunCombo> get combos => _combos.stream;
+
+  @override
+  Stream<RunSnapshot> get snapshots => _snapshots.stream;
 
   @override
   Future<void> start(int runningRoomId) async {
@@ -120,6 +125,7 @@ class WsRunningChannel implements RunningChannel {
     await _errors.close();
     await _progress.close();
     await _combos.close();
+    await _snapshots.close();
     await _client.dispose();
   }
 
@@ -148,8 +154,18 @@ class WsRunningChannel implements RunningChannel {
   void _onMessage(WsMessage message) {
     switch (message.event) {
       case WsEvents.runningStarted:
-        // ack다. 지금은 `data`가 비어 있어 확인할 것이 없다.
-        debugPrint('[running] 시작 확인');
+        // ⚠️ **ack의 몸통이 비어 있지 않은 유일한 메시지다.** 최초 진입과
+        // 재연결에 같은 ack를 쓰기 때문에, 화면을 되살릴 현재 상태가 실려 온다.
+        final snapshot = RunSnapshot.of(message.data);
+        if (snapshot == null) {
+          debugPrint('[running] 시작 확인 · 스냅샷을 읽지 못했다');
+        } else {
+          debugPrint(
+            '[running] 시작 확인 · ${snapshot.players.length}명 · '
+            '콤보 ${snapshot.combos.peers.length}',
+          );
+          if (!_snapshots.isClosed) _snapshots.add(snapshot);
+        }
 
       case WsEvents.runningFinished:
         // 종료 확인이다. **이것이 로컬 트랙을 지워도 되는 유일한 근거다.**

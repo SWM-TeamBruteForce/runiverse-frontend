@@ -212,9 +212,20 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   ///
   /// [targetDistanceMeters]는 방 정보가 실어 온 목표다. 파티원 통지에도 같은
   /// 값이 오지만 그것은 첫 통지까지 최대 10초가 빈다.
-  Future<void> openMatched(
+  Future<void> openMatched(int runningRoomId, {int? targetDistanceMeters}) =>
+      reopen(runningRoomId, targetDistanceMeters: targetDistanceMeters);
+
+  /// 이미 서버에 열려 있는 방에 **다시 붙는다.**
+  ///
+  /// 매칭 방에 처음 들어갈 때와 앱을 껐다 켜서 이어 붙을 때가 같은 길이다 —
+  /// `RUNNING_START`가 최초 진입과 재연결을 구분하지 않기 때문이다.
+  ///
+  /// [matched]가 거짓이면 솔로 방이다. 화면이 이 값으로 파티원 장을 띄울지
+  /// 정하므로, 솔로에 참을 넘기면 빈 파티원 장이 생긴다.
+  Future<void> reopen(
     int runningRoomId, {
     int? targetDistanceMeters,
+    bool matched = true,
   }) async {
     if (state.opening || state.isReady) return;
     _retry?.cancel();
@@ -223,7 +234,7 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     final room = RunningRoom(
       runningRoomId,
       targetDistanceMeters: targetDistanceMeters,
-      isMatched: true,
+      isMatched: matched,
     );
     // 솔로와 같은 이유로 번호를 남긴다. 러닝 중 앱이 죽어도 이 번호로
     // 다시 붙어 끝낼 수 있다.

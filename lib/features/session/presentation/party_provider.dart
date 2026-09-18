@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/domain/party_board.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
+import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
@@ -31,6 +33,7 @@ final partyProvider = NotifierProvider<PartyController, PartyBoard>(
 class PartyController extends Notifier<PartyBoard> {
   StreamSubscription<RunProgress>? _progress;
   StreamSubscription<RunCombo>? _combos;
+  StreamSubscription<RunSnapshot>? _snapshots;
 
   @override
   PartyBoard build() {
@@ -94,6 +97,10 @@ class PartyController extends Notifier<PartyBoard> {
   /// 채널의 두 스트림을 듣는다. **여기서는 `state`를 건드리지 않는다** —
   /// `build` 중에 부르는 길이 있어서다.
   void _subscribe(RunningChannel channel) {
+    // ⚠️ **이름과 사진은 여기서만 온다.** 진행·콤보 통지는 사람을 `userId`로만
+    // 가리키므로, 이것을 놓치면 러닝 내내 "함께 달리는 사람"으로만 보인다.
+    _snapshots = channel.snapshots.listen(_apply);
+
     _progress = channel.progress.listen(
       // 받은 시각을 여기서 찍는다. 채널은 시계를 모르는 편이 테스트하기 쉽다.
       (update) => state = state.withProgress(update.stamped(DateTime.now())),
@@ -110,7 +117,32 @@ class PartyController extends Notifier<PartyBoard> {
     });
   }
 
+  /// 스냅샷 하나를 보드에 통째로 얹는다. 최초 진입과 재연결이 같은 길이다.
+  Future<void> _apply(RunSnapshot snapshot) async {
+    // 명단에는 나도 들어 있다. 나를 가려내야 내 줄이 파티원으로 또 뜨지 않는다.
+    final me = (await ref.read(tokenStoreProvider).read()).userId;
+    if (me == null) return;
+
+    // 서버가 아는 내 누적 거리로 바닥을 메운다. 앱을 껐다 켜면 로컬이 0부터라
+    // 화면만 0.00km가 된다. 이미 우리가 잰 것이 있으면 세션이 알아서 무시한다.
+    final mine = snapshot.myDistanceOf(me);
+    if (mine != null) {
+      ref.read(runSessionControllerProvider.notifier).seedDistance(mine);
+    }
+
+    final at = DateTime.now();
+    var next = state.withRoster(snapshot.roster, myUserId: me);
+    for (final progress in snapshot.progressOf(me)) {
+      next = next.withProgress(progress.stamped(at));
+    }
+    // ⚠️ 시작 직후에는 **빈 목록**이 온다. 아직 아무와도 이어지지 않아서다 —
+    // 못 읽은 것과 다르다. 그대로 얹으면 콤보가 없는 상태로 바르게 그려진다.
+    state = next.withCombos(snapshot.combos);
+  }
+
   void _unbind() {
+    _snapshots?.cancel();
+    _snapshots = null;
     _progress?.cancel();
     _progress = null;
     _combos?.cancel();
