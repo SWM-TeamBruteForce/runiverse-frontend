@@ -77,14 +77,14 @@ android {
         // 그러면 로그인과 러닝 기록이 함께 날아간다.
         debug {
             applicationIdSuffix = ".dev"
-            manifestPlaceholders["appLabel"] = "Runiverse dev"
+            manifestPlaceholders["appLabel"] = "Runiverse-dev"
         }
 
         // `profile`은 Flutter가 만드는 타입이다. DEBUG 리본 없이 돌려보는
         // 용도라 이것도 개발 빌드로 친다. 이미 있으면 그대로 가져온다.
         maybeCreate("profile").apply {
             applicationIdSuffix = ".dev"
-            manifestPlaceholders["appLabel"] = "Runiverse dev"
+            manifestPlaceholders["appLabel"] = "Runiverse-dev"
         }
 
         release {
