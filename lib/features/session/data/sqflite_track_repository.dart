@@ -66,6 +66,19 @@ class SqfliteTrackRepository implements TrackRepository {
   }
 
   @override
+  Future<int> lastSequence(int runningRoomId) async {
+    final db = await _open();
+    final rows = await db.rawQuery(
+      'SELECT MAX(sequence) AS s FROM ${AppDatabase.trackPoints} '
+      'WHERE running_room_id = ?',
+      [runningRoomId],
+    );
+    // ⚠️ 행이 하나도 없으면 `MAX`가 `NULL`이다. 0으로 받아야 첫 좌표가 1이 된다.
+    final value = rows.first['s'];
+    return value is int ? value : 0;
+  }
+
+  @override
   Future<int?> activeRoom() async {
     final db = await _open();
     final rows = await db.query(AppDatabase.activeRun, limit: 1);

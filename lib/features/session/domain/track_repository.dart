@@ -36,6 +36,17 @@ abstract interface class TrackRepository {
   /// 그 러닝에 쌓인 좌표 수. 비어 있으면 0.
   Future<int> count(int runningRoomId);
 
+  /// 그 러닝에 쌓인 **가장 큰 순번.** 아직 없으면 0.
+  ///
+  /// ## ⚠️ [count]로 대신할 수 없다
+  ///
+  /// 순번은 `TrackRecorder`가 1씩 올리며 매기지만, 저장이 실패한 좌표는
+  /// 번호만 쓰고 행이 안 남는다. 그러면 개수가 최대값보다 작아지고, 개수로
+  /// 이어받으면 **이미 쓴 번호를 다시 쓴다.**
+  ///
+  /// 앱이 러닝 도중에 죽었다 살아날 때 순번을 이어받는 유일한 근거다.
+  Future<int> lastSequence(int runningRoomId);
+
   /// 지금 진행 중인 러닝의 방 번호. 없으면 `null`.
   ///
   /// 앱이 죽었다 살아났을 때 **끝내지 못한 방이 있는지** 알아내는 유일한
