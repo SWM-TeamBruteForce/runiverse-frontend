@@ -29,6 +29,12 @@ abstract final class RunRecordDto {
     // ⚠️ **오프셋 없는 KST로 온다**(`2026-07-25T19:00:30`). `DateTime.parse`가
     // 이것을 로컬 시각으로 읽는데, 기기가 KST면 그게 맞다. `.toUtc()`를
     // 붙이면 9시간 밀려 **기록이 다른 날짜 칸에 붙는다.**
+    //
+    // ⚠️ **여기만 `KstTime.parse`를 쓰지 않는다.** 그쪽은 진짜 순간을 주는데,
+    // 이 값은 순간이 아니라 **한국 날짜·시각으로 읽혀야** 한다 — 달력이
+    // `RunRecord.day`로 묶고 목록이 시각을 그대로 적는다. 기기가 KST가 아니면
+    // 둘 다 어긋나므로, 고치려면 파싱만이 아니라 묶는 곳과 그리는 곳까지
+    // `KstTime.wallOf`로 옮겨야 한다(매칭 슬롯이 그렇게 한다).
     startedAt: DateTime.parse(json['startedAt'] as String),
     distanceMeters: json['totalDistanceMeters'] as int,
     duration: Duration(seconds: json['totalDurationSeconds'] as int),

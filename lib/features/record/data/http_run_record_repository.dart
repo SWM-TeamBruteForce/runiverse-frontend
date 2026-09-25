@@ -150,6 +150,10 @@ class HttpRunRecordRepository implements RunRecordRepository {
     final status = error.response?.statusCode ?? 0;
     if (status == 400) return RunRecordFailure.invalidRequest;
     if (status == 401) return RunRecordFailure.sessionExpired;
+    // ⚠️ 이 둘은 **재시도 대상이 아니다.** `server`로 뭉치면 화면이 기다렸다
+    // 다시 해 보라고 권하는데, 기다린다고 달라지지 않는다.
+    if (status == 403) return RunRecordFailure.forbidden;
+    if (status == 404) return RunRecordFailure.notFound;
     if (status >= 500) return RunRecordFailure.server;
     return RunRecordFailure.server;
   }

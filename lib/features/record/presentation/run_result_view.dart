@@ -466,7 +466,11 @@ class _PartyCard extends StatelessWidget {
                       ),
                     ] else
                       Text(
-                        AppStrings.runResultNoRecord,
+                        // ⚠️ 아직 뛰는 중인 것과 기록이 없는 것은 다르다.
+                        // 앞쪽은 곧 생기고, 뒤쪽은 영영 없다.
+                        player.isRunning
+                            ? AppStrings.runResultStillRunning
+                            : AppStrings.runResultNoRecord,
                         style: AppTypography.caption.copyWith(
                           color: colors.textTertiary,
                         ),

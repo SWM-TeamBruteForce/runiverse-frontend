@@ -14,11 +14,12 @@ void main() {
     int? distance = 5000,
     int? seconds = 1800,
     int? pace = 360,
+    String status = 'COMPLETED',
   }) => {
     'userId': id,
     'nickname': name,
     'profileImageUrl': null,
-    'status': 'COMPLETED',
+    'status': status,
     'isDeleted': deleted,
     'isMe': isMe,
     'totalDistanceMeters': distance,
@@ -99,6 +100,38 @@ void main() {
     expect(none.hasRecord, isFalse);
     expect(none.distanceMeters, isNull);
     expect(none.averagePace, isNull);
+  });
+
+  test('⚠️ 아직 달리는 사람은 기록이 확정된 것이 아니다', () {
+    // 먼저 끝낸 사람이 결과를 열면 아직 뛰는 사람의 **중간값**이 실려 온다.
+    // 그것을 최종 기록처럼 그리면 나중에 열었을 때 숫자가 달라져 있다.
+    final detail = RoomResultDto.merge(
+      results: {
+        'runningRoomId': 125,
+        'routes': null,
+        'players': [
+          player('u-1', '나', isMe: true),
+          player('u-2', '김도윤', status: 'RUNNING'),
+        ],
+      },
+      splitResults: const {'splits': []},
+    );
+
+    final running = detail.players.last;
+    expect(running.isRunning, isTrue);
+    // 수치는 실려 왔지만 확정이 아니다.
+    expect(running.duration, isNotNull);
+    expect(running.hasRecord, isFalse);
+  });
+
+  test('끝낸 사람은 기록이 있다', () {
+    final detail = RoomResultDto.merge(
+      results: results,
+      splitResults: splitResults,
+    );
+
+    expect(detail.players.first.isRunning, isFalse);
+    expect(detail.players.first.hasRecord, isTrue);
   });
 
   test('탈퇴한 사람은 표시만 남는다', () {

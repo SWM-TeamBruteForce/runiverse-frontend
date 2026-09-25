@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 
@@ -29,6 +30,7 @@ void main() {
     RoomInfo? withRoom,
     bool pending = false,
     DateTime? now,
+    DateTime? cooldownUntil,
   }) async {
     var match = 0;
     var cancel = 0;
@@ -43,6 +45,7 @@ void main() {
               greeting: AppStrings.homeGreetingEvening,
               room: withRoom,
               pending: pending,
+              cooldownUntil: cooldownUntil,
               now: now ?? DateTime(2026, 9, 16, 18, 30),
               onMatch: () => match++,
               onSolo: () {},
@@ -148,6 +151,96 @@ void main() {
         find.text(AppStrings.matchRoomCountdown(Duration.zero)),
         findsOneWidget,
       );
+    });
+  });
+
+  group('⚠️ 이탈 제재 중', () {
+    // 예전에는 눌러서 409를 받아야만 이유를 알 수 있었다. 서버는 이미
+    // 언제까지인지 말해 줬는데 앱이 그것을 숨기고 있었다.
+    final until = DateTime(2026, 9, 16, 18, 40);
+
+    testWidgets('⚠️ 매칭 신청을 미리 막는다', (tester) async {
+      await pumpHero(tester, cooldownUntil: until);
+
+      final cta = tester.widget<AppButton>(
+        find.widgetWithText(AppButton, AppStrings.homeMatchCta),
+      );
+      expect(cta.onPressed, isNull);
+    });
+
+    testWidgets('언제까지인지 글로 말한다', (tester) async {
+      await pumpHero(tester, cooldownUntil: until);
+
+      expect(find.text(AppStrings.matchFailedCooldown(until)), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 솔로는 막지 않는다', (tester) async {
+      // 제재는 매칭 신청에만 걸린다. 혼자 달리는 것은 누구도 기다리게 하지 않는다.
+      await pumpHero(tester, cooldownUntil: until);
+
+      final solo = tester.widget<AppButton>(
+        find.widgetWithText(AppButton, AppStrings.homeSoloCta),
+      );
+      expect(solo.onPressed, isNotNull);
+    });
+
+    testWidgets('제한이 지났으면 그대로 연다', (tester) async {
+      await pumpHero(
+        tester,
+        cooldownUntil: DateTime(2026, 9, 16, 18, 20),
+        now: DateTime(2026, 9, 16, 18, 30),
+      );
+
+      final cta = tester.widget<AppButton>(
+        find.widgetWithText(AppButton, AppStrings.homeMatchCta),
+      );
+      expect(cta.onPressed, isNotNull);
+      expect(find.textContaining('신청할 수 없어요'), findsNothing);
+    });
+  });
+
+  group('⚠️ 러닝이 이미 시작됐을 때', () {
+    // 예약한 시각이 지나 서버가 러닝을 시작했는데 사용자가 홈 탭에 있는
+    // 자리다. 예전에는 기본 히어로로 떨어져 **달리는 중에 "지금 매칭하기"가
+    // 보였고**, 들어갈 문이 없어 그사이가 통째로 거리에서 빠졌다.
+    testWidgets('기본 히어로로 떨어지지 않는다', (tester) async {
+      await pumpHero(tester, withRoom: room(RoomStatus.started));
+
+      expect(find.text(AppStrings.homeRunStarted), findsOneWidget);
+      expect(find.text(AppStrings.homeMatchCta), findsNothing);
+    });
+
+    testWidgets('⚠️ 들어갈 문이 있다', (tester) async {
+      // `pumpHero`가 돌려주는 횟수는 pump 시점에 굳으므로 여기서는 직접 센다.
+      var entered = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(),
+          home: Scaffold(
+            body: HomeHero(
+              greeting: AppStrings.homeGreetingEvening,
+              room: room(RoomStatus.started),
+              now: DateTime(2026, 9, 16, 19, 5),
+              onMatch: () {},
+              onSolo: () {},
+              onCancel: () {},
+              onLobby: () => entered++,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(AppStrings.homeRunToSession));
+      await tester.pump();
+
+      expect(entered, 1);
+    });
+
+    testWidgets('기다릴 것이 없으니 카운트다운을 그리지 않는다', (tester) async {
+      await pumpHero(tester, withRoom: room(RoomStatus.started));
+
+      expect(find.text(AppStrings.homeMatchStartLabel), findsNothing);
     });
   });
 

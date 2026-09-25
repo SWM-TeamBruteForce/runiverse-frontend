@@ -53,6 +53,14 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
     final colors = context.appColors;
     final state = ref.watch(matchRegisterProvider);
 
+    // ⚠️ **홈이 막아도 여기까지 와 있을 수 있다.** 화면을 열어 둔 사이에 러닝을
+    // 중간에 그만두면 제한이 새로 걸린다 — 그때 보내면 409만 받는다.
+    final cooldownUntil = ref.watch(
+      userStatusProvider.select((status) => status?.cooldownUntil),
+    );
+    final cooling =
+        cooldownUntil != null && cooldownUntil.isAfter(DateTime.now());
+
     // 실패는 스낵바로 알리고 곧바로 지운다. 상태에 남겨두면 화면이 다시
     // 그려질 때마다 같은 말을 되풀이한다.
     ref.listen(matchRegisterProvider.select((state) => state.failure), (
@@ -147,6 +155,24 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
               ),
             ),
 
+            // 잠긴 이유를 글로 말한다. 누를 수도 없고 까닭도 없으면 고장난
+            // 것으로 읽힌다.
+            if (cooling)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.space4,
+                  0,
+                  AppSpacing.space4,
+                  AppSpacing.space2,
+                ),
+                child: Text(
+                  AppStrings.matchFailedCooldown(cooldownUntil),
+                  style: AppTypography.caption.copyWith(
+                    color: colors.textTertiary,
+                  ),
+                ),
+              ),
+
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.space4,
@@ -157,8 +183,8 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
               child: AppButton(
                 label: AppStrings.matchRegisterCta,
                 // 둘 다 골라야 열린다. 보내는 중에도 잠근다 — 두 번 누르면
-                // 중복 신청이 된다.
-                onPressed: state.canSubmit ? _submit : null,
+                // 중복 신청이 된다. 제한 중이면 보낼 이유가 없다.
+                onPressed: state.canSubmit && !cooling ? _submit : null,
               ),
             ),
           ],

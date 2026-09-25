@@ -263,8 +263,26 @@ class MatchRoomController extends Notifier<MatchRoomState> {
       case MatchStarted(:final room) || MatchRoomUpdated(:final room):
         _applyRoom(room);
       case RunningReady():
-        // ⚠️ 받은 순간을 기준으로 발사 시각을 잡는다. `scheduledStartAt`을
-        // 그대로 쓰면 기기 시계가 어긋난 만큼 출발이 어긋난다.
+        // ⚠️ **내 방의 통지인지 먼저 본다.**
+        //
+        // 이 이벤트 하나가 발사 시각을 통째로 정한다. 남의 방 통지를 그대로
+        // 받으면 `startsInMs`가 0(이미 시작 시각이 지난 방)일 때 **받는 즉시**
+        // 출발해 버린다 — 내 러닝은 아직 몇 분 남았는데도.
+        //
+        // 대조 기준은 들고 있는 방, 없으면 상태 조회다. 둘 다 모르면 판단하지
+        // 않고 받는다 — 스냅샷보다 이 통지가 먼저 오는 순서가 있을 수 있다.
+        final expected =
+            state.room?.runningRoomId ?? ref.read(userStatusProvider)?.roomId;
+        if (expected != null && expected != event.runningRoomId) {
+          debugPrint(
+            '[match] 내 방의 시작 통지가 아니다 · 받은 ${event.runningRoomId} · '
+            '내 방 $expected',
+          );
+          return;
+        }
+
+        // 받은 순간을 기준으로 발사 시각을 잡는다. `scheduledStartAt`을 그대로
+        // 쓰면 기기 시계가 어긋난 만큼 출발이 어긋난다.
         state = state.copyWith(
           ready: event,
           launchAt: DateTime.now().add(
@@ -289,6 +307,22 @@ class MatchRoomController extends Notifier<MatchRoomState> {
       '${room.players.length}명 · 팀 평균 ${room.teamAveragePaceSecondsPerKm}s/km',
     );
 
+    // ⚠️ **내 방이 아니면 버린다.**
+    //
+    // 스트림이 남의 방을 보내올 때가 있다 — 2026-09-18 19:52에 방 22를 배정받은
+    // 직후 방 18(참가자는 상대 계정 한 명)의 스냅샷이 왔다. 그대로 믿으면 홈이
+    // 남의 방을 확정 화면으로 띄우고, 거기서 대기실로 들어가면 엉뚱한 방에
+    // 붙는다.
+    //
+    // `users/me/status`가 말하는 방 번호가 유일한 대조 근거다. 그쪽이 모르면
+    // (아직 못 읽었거나 진행 중인 것이 없으면) 판단하지 않고 그냥 받는다 —
+    // 신청 직후 상태 조회보다 스냅샷이 먼저 오는 순서가 정상 경로에 있다.
+    final mine = ref.read(userStatusProvider)?.roomId;
+    if (mine != null && mine != room.runningRoomId) {
+      debugPrint('[match] 내 방이 아니다 · 받은 ${room.runningRoomId} · 상태 $mine');
+      return;
+    }
+
     // ⚠️ **끝난 방은 현재 방으로 들고 있지 않는다.**
     //
     // 스트림이 옛 방의 마지막 상태를 다시 줄 때가 있다 — 2026-09-18에 새 방에
@@ -306,15 +340,28 @@ class MatchRoomController extends Notifier<MatchRoomState> {
       return;
     }
 
+    // ⚠️ 방이 바뀌면 **발사 시각을 버린다.** 옛 방의 통지로 잡아 둔 시각을
+    // 그대로 들고 있으면 새 방의 출발이 그만큼 어긋난다 — `copyWith`는 `??`라
+    // 한 번 들어간 값이 저절로 지워지지 않는다.
+    final movedRoom =
+        state.room != null && state.room!.runningRoomId != room.runningRoomId;
+
     final justMatched =
         state.room?.status != RoomStatus.matched &&
         room.status == RoomStatus.matched;
 
-    state = state.copyWith(
-      room: room,
-      justMatched: justMatched || state.justMatched,
-      failure: null,
-    );
+    state = movedRoom
+        // `copyWith`로는 못 지운다(`??`). 새 방이면 통째로 다시 세운다.
+        ? MatchRoomState(
+            room: room,
+            connected: state.connected,
+            justMatched: justMatched || state.justMatched,
+          )
+        : state.copyWith(
+            room: room,
+            justMatched: justMatched || state.justMatched,
+            failure: null,
+          );
   }
 
   /// 확정 연출을 띄운 뒤에 부른다. 같은 확정으로 두 번 축하하지 않는다.
