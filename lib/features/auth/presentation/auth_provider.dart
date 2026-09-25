@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/network/dio_client.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
@@ -77,6 +80,13 @@ final tokenRefresherProvider = Provider<TokenRefresher>(
   (ref) => TokenRefresher(
     ref.watch(authRepositoryProvider),
     ref.watch(tokenStoreProvider),
+    // ⚠️ **갱신이 거절되면 세션을 끝낸다.** 이걸 안 이으면 리프레시가 죽어도
+    // 아무도 모르고, 러닝 화면이 "서버에 연결하는 중"에서 영영 굳는다.
+    //
+    // `ref.read`로 늦게 잡는다 — 여기서 `watch`하면 인증 컨트롤러가 이
+    // provider를 읽는 순간 순환이 된다.
+    onExpired: () =>
+        unawaited(ref.read(authControllerProvider.notifier).expireSession()),
   ),
 );
 
@@ -319,6 +329,22 @@ class AuthController extends Notifier<AuthState> {
   ///
   /// 로그아웃과 도착지는 같다 — 방금 계정을 지운 사람도 처음 온 사람은 아니라
   /// 온보딩 소개를 다시 보여주지 않는다.
+  /// 갱신이 거절됐다. **재로그인 외에 길이 없다.**
+  ///
+  /// [forgetSession]과 달리 `userId`·`isOnboarded`는 남긴다 — 이 사람은 처음 온
+  /// 것이 아니라 토큰만 죽은 것이다. 로그인 화면이 그 값으로 "돌아온 사람"에
+  /// 맞춰 인사한다. 신체 정보도 남긴다(같은 계정으로 다시 들어온다).
+  ///
+  /// ⚠️ **이미 나가 있으면 아무것도 하지 않는다.** 갱신은 여러 곳에서 동시에
+  /// 막힐 수 있어 이 호출이 겹친다 — 겹칠 때마다 상태를 다시 세우면 화면이
+  /// 로그인으로 몇 번씩 튕긴다.
+  Future<void> expireSession() async {
+    if (state is AuthSignedOut) return;
+    debugPrint('[auth] 갱신이 거절됐다. 세션을 끝낸다');
+    await _store.clearTokens();
+    state = const AuthSignedOut(returning: true);
+  }
+
   Future<void> forgetSession() async {
     await _store.clear();
     // ⚠️ **신체 정보도 함께 지운다.** 계정의 값이라 기기에 남기면 다음 사람이

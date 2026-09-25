@@ -19,12 +19,13 @@ final partyProvider = NotifierProvider<PartyController, PartyBoard>(
 ///
 /// ## 명단과 수치가 다른 곳에서 온다
 ///
-/// **명단**(이름·사진)은 대기방에서 들고 들어오고, **수치**(거리·페이스·콤보)는
-/// 러닝 채널이 10초마다 밀어 준다. 둘을 `userId`로 맞춘다.
+/// **명단**(이름·사진)은 `RUNNING_STARTED` 스냅샷이 실어 오고,
+/// **수치**(거리·페이스·콤보)는 러닝 채널이 10초마다 밀어 준다.
+/// 둘을 `userId`로 맞춘다.
 ///
-/// 명세는 둘 다 `RUNNING_STARTED` 스냅샷에서 받으라고 하지만 서버가 그 ack의
-/// `data`를 비워 보낸다. 그래서 명단만 따로 들고 온다
-/// (`devlog/2026-09-16-버그수정-러닝-파티원-표시정보.md`).
+/// 한동안 서버가 그 ack의 `data`를 비워 보내서 명단을 대기방에서 들고 들어왔다
+/// (`devlog/2026-09-16-버그수정-러닝-파티원-표시정보.md`). 지금은 스냅샷이
+/// 채워져 오고, [setRoster]는 스냅샷이 오기 전 구간을 메우는 용도로만 남았다.
 ///
 /// ## 솔로 러닝에는 아무것도 오지 않는다
 ///
@@ -125,10 +126,15 @@ class PartyController extends Notifier<PartyBoard> {
 
     // 서버가 아는 내 누적 거리로 바닥을 메운다. 앱을 껐다 켜면 로컬이 0부터라
     // 화면만 0.00km가 된다. 이미 우리가 잰 것이 있으면 세션이 알아서 무시한다.
+    final session = ref.read(runSessionControllerProvider.notifier);
     final mine = snapshot.myDistanceOf(me);
-    if (mine != null) {
-      ref.read(runSessionControllerProvider.notifier).seedDistance(mine);
-    }
+    if (mine != null) session.seedDistance(mine);
+
+    // ⚠️ 경과 시간도 같이 맞춘다. 복구는 상태 조회의 **예약 시각**으로 재기
+    // 시작하는데, 솔로 방은 만들어진 순간이 시작이라 그 값과 갈린다.
+    // 스냅샷의 시작 시각이 유일하게 정확하다.
+    final startedAt = snapshot.startedAt;
+    if (startedAt != null) session.seedStartedAt(startedAt);
 
     final at = DateTime.now();
     var next = state.withRoster(snapshot.roster, myUserId: me);

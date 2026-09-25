@@ -26,4 +26,19 @@ class FakeRunningRoomRepository implements RunningRoomRepository {
     if (reason != null) throw RunningRoomException(reason);
     return RunningRoom(roomId);
   }
+
+  /// 취소가 몇 번 불렸는가. **준비 화면을 떠날 때 방을 없애는지** 세는 데 쓴다.
+  var cancels = 0;
+
+  /// 주면 취소가 그 이유로 실패한다. 열기와 따로 둔다 — 취소만 실패하는
+  /// 상황(이미 시작된 방)을 만들어야 한다.
+  RunningRoomFailure? cancelFailure;
+
+  @override
+  Future<void> cancelPending() async {
+    cancels++;
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    final reason = cancelFailure;
+    if (reason != null) throw RunningRoomException(reason);
+  }
 }

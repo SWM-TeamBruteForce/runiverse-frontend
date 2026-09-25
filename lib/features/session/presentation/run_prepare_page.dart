@@ -16,8 +16,10 @@ import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
+import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 출발 준비 — **GPS 첫 신호를 기다린다.**
 ///
@@ -69,10 +71,37 @@ class _RunPreparePageState extends ConsumerState<RunPreparePage> {
     super.dispose();
   }
 
+  /// 복구로 들어온 경우 **서버에 이미 있는 솔로 방.** 평소 경로에서는 `null`이다.
+  ///
+  /// 솔로 방은 `POST /running-rooms/solo` 순간에 `READY`로 태어난다. 그 뒤
+  /// 앱을 껐다 켜면 서버가 여전히 `READY`라고 답하고 스플래시가 이 화면을
+  /// 복구한다 — 그때는 방을 새로 만들 것이 아니라 그 방에 붙어야 한다.
+  UserStatusReady? get _pendingSolo {
+    final status = ref.read(userStatusProvider);
+    return status is UserStatusReady && status.isSolo ? status : null;
+  }
+
+  /// 나가는 중인가. 취소 요청이 도는 동안 두 번 누르는 것을 막는다.
+  var _leaving = false;
+
   /// 카운트다운을 시작하고, **그 뒤에서 서버에 붙는다.**
   void _start() {
+    final connection = ref.read(runningConnectionProvider.notifier);
+    final pending = _pendingSolo;
+
     // 연결을 기다리지 않는다. 3초 안에 되면 좋고, 안 되면 달리면서 계속 시도한다.
-    unawaited(ref.read(runningConnectionProvider.notifier).open());
+    //
+    // ⚠️ **복구로 들어왔으면 있는 방에 붙는다.** 새로 만들면 서버가 409로
+    // 막고, 그 정리 경로는 "끝내지 못한 방"으로 보고 **지금 쓸 방을 끝내 버린다.**
+    unawaited(
+      pending == null
+          ? connection.open()
+          : connection.reopen(
+              pending.runningRoomId,
+              targetDistanceMeters: pending.targetDistanceMeters,
+              matched: false,
+            ),
+    );
 
     setState(() => _countdown = _countdownFrom);
     _ticker = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -129,55 +158,63 @@ class _RunPreparePageState extends ConsumerState<RunPreparePage> {
         ref.watch(runningConnectionProvider).failure ==
         RunningRoomFailure.alreadyRunning;
     if (conflicted) {
-      return _Conflicted(onLeave: () => _leave(context));
+      return _Conflicted(onLeave: () => unawaited(_leave()));
     }
 
     final countdown = _countdown;
     if (countdown != null) return _Countdown(value: countdown);
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: IconButton(
-                onPressed: () => _leave(context),
-                tooltip: AppStrings.authBack,
-                constraints: const BoxConstraints(
-                  minWidth: AppSizes.touchDefault,
-                  minHeight: AppSizes.touchDefault,
-                ),
-                icon: Icon(
-                  LucideIcons.arrowLeft,
-                  size: AppSpacing.space6,
-                  color: colors.textSecondary,
+    return PopScope(
+      // ⚠️ **뒤로 밀기(제스처)도 취소를 거쳐야 한다.** 그냥 pop되면 복구로
+      // 들어온 경우 서버에 `READY` 방이 남는다 — [_leave] 참조.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_leave());
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  onPressed: () => unawaited(_leave()),
+                  tooltip: AppStrings.authBack,
+                  constraints: const BoxConstraints(
+                    minWidth: AppSizes.touchDefault,
+                    minHeight: AppSizes.touchDefault,
+                  ),
+                  icon: Icon(
+                    LucideIcons.arrowLeft,
+                    size: AppSpacing.space6,
+                    color: colors.textSecondary,
+                  ),
                 ),
               ),
-            ),
 
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.space5,
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.space5,
+                  ),
+                  child: access != null && access != LocationAccess.granted
+                      ? _Blocked(access: access, onOpenSettings: _openSettings)
+                      : _Waiting(hasFix: hasFix),
                 ),
-                child: access != null && access != LocationAccess.granted
-                    ? _Blocked(access: access, onOpenSettings: _openSettings)
-                    : _Waiting(hasFix: hasFix),
               ),
-            ),
 
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.space5),
-              child: AppButton(
-                label: AppStrings.runStartCta,
-                size: AppButtonSize.lg,
-                // 신호를 받기 전에는 잠긴다. 이 잠금이 이 화면의 존재 이유다.
-                onPressed: hasFix ? _start : null,
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.space5),
+                child: AppButton(
+                  label: AppStrings.runStartCta,
+                  size: AppButtonSize.lg,
+                  // 신호를 받기 전에는 잠긴다. 이 잠금이 이 화면의 존재 이유다.
+                  onPressed: hasFix ? _start : null,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -185,8 +222,30 @@ class _RunPreparePageState extends ConsumerState<RunPreparePage> {
 
   /// 준비를 그만두고 나간다. **구독을 반드시 끊는다** —
   /// 안 끊으면 홈으로 돌아가서도 GPS가 계속 돌아 배터리를 먹는다.
-  void _leave(BuildContext context) {
+  ///
+  /// ## ⚠️ 복구로 들어왔으면 서버의 방도 없앤다
+  ///
+  /// 그냥 나가면 `READY` 방이 서버에 남고, 이후 매칭 신청이 전부
+  /// 409(`MATCH_ALREADY_IN_PROGRESS`)로 막힌다. 사용자는 아무것도 신청하지
+  /// 않았는데 "이미 진행 중"이라는 말만 듣는다.
+  ///
+  /// **취소에 실패해도 나간다.** 준비 화면에 가둘 이유가 없다 — 남은 방은
+  /// 다음 시작의 409 정리 경로가 다시 맡는다.
+  Future<void> _leave() async {
+    if (_leaving) return;
+    _leaving = true;
+
     ref.read(runSessionControllerProvider.notifier).reset();
+    final pending = _pendingSolo;
+
+    if (pending != null) {
+      await ref.read(runningConnectionProvider.notifier).cancelPending();
+      // 방이 없어졌으니 서버가 아는 상태도 달라졌다. 홈이 옛 값으로 배너를
+      // 그리지 않도록 여기서 다시 읽는다.
+      await ref.read(userStatusProvider.notifier).refresh();
+    }
+
+    if (!mounted) return;
     context.pop();
   }
 

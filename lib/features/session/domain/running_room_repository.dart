@@ -14,4 +14,26 @@ abstract interface class RunningRoomRepository {
   ///
   /// 실패: `alreadyRunning`(409) · `sessionExpired` · `network` · `server`
   Future<RunningRoom> openSolo();
+
+  /// 아직 시작하지 않은 방을 **서버에서 없앤다**(`DELETE /running-matches`).
+  ///
+  /// ## 왜 준비 화면이 이것을 부르는가
+  ///
+  /// 솔로 방은 `POST /running-rooms/solo` 순간에 `READY`로 태어난다. 그 뒤
+  /// 앱을 껐다 켜면 서버는 여전히 `READY`라고 답하고, 앱은 준비 화면을
+  /// 복구한다. **거기서 그냥 나가면 방이 서버에 남아** 이후 매칭 신청이 전부
+  /// 409(`MATCH_ALREADY_IN_PROGRESS`)로 막힌다.
+  ///
+  /// ## ⚠️ 매칭 저장소에도 같은 호출이 있다
+  ///
+  /// 엔드포인트가 하나이고 매칭 취소와 솔로 준비 취소가 같은 것을 지운다.
+  /// 여기에 사본을 두는 이유는 **의존 방향** 때문이다 — `matching → session`
+  /// 한 방향만 허용이라 session이 matching의 저장소를 부를 수 없다.
+  /// 서버 계약이 바뀌면 `HttpMatchRepository.cancel`과 **함께** 고쳐야 한다.
+  ///
+  /// 이미 없으면(404) 성공으로 본다 — 원하던 상태다.
+  ///
+  /// 실패: `alreadyRunning`(409, 이미 시작됨) · `sessionExpired` ·
+  /// `network` · `server`
+  Future<void> cancelPending();
 }

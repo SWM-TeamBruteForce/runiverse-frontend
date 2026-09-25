@@ -204,6 +204,10 @@ class WsRunningChannel implements RunningChannel {
         // ⚠️ **서버에 이 사용자의 러닝 세션이 없다는 뜻이다.** 다시 알리지
         // 않으면 그 뒤 좌표가 전부 같은 오류로 거절된다 — 그런데 좌표에는
         // ack가 없어 앱은 아무것도 모른 채 계속 보낸다.
+        //
+        // ⚠️ **여기서 곧바로 다시 보내는 것은 경합뿐이다.** 서버 장애나 방
+        // 상태 문제는 같은 답이 돌아오므로, 간격과 상태 확인이 필요하다 —
+        // 그것은 연결을 가진 쪽이 한다([WsErrorCode.needsDelayedRestart]).
         if (code.needsRestart) {
           debugPrint('[running] 세션이 없다. RUNNING_START를 다시 보낸다');
           _sendStart();

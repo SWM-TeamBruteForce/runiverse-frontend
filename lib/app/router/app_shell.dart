@@ -92,6 +92,16 @@ class _AppShellState extends ConsumerState<AppShell> {
     unawaited(ref.read(userStatusProvider.notifier).refresh());
   }
 
+  /// 로그인 화면으로 데리고 나간다.
+  ///
+  /// ⚠️ **빌드 도중에 옮기지 않는다.** `ref.listen` 콜백이 빌드 중에 불릴 수
+  /// 있어, 그 자리에서 라우터를 건드리면 그리는 도중에 트리를 바꾸는 셈이다.
+  void _leaveForSignIn() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.go(AppRoutes.signIn);
+    });
+  }
+
   /// 프로필이 없으면 관문을 세운다.
   ///
   /// `build` 중에 `showModalBottomSheet`를 부를 수 없다(그리는 도중에 트리를
@@ -150,6 +160,20 @@ class _AppShellState extends ConsumerState<AppShell> {
     // 채운 사람도 잠깐 갇힌다.
     final auth = ref.watch(authControllerProvider);
     if (auth is AuthSignedIn) _gateIfNeeded(auth.isOnboarded);
+
+    // ⚠️ **세션이 끝나면 여기서 데리고 나간다.**
+    //
+    // 갱신이 거절되면 `TokenRefresher`가 `AuthController.expireSession`을 부르고
+    // 상태가 `AuthSignedOut`이 된다. 그것을 듣는 곳이 없으면 화면은 그대로
+    // 남는데, **러닝 중이면 "서버에 연결하는 중"에서 영영 굳는다** — 끝낼
+    // 수도, 다시 로그인할 수도 없다(2026-09-18 23:47 실주행).
+    //
+    // 화면마다 처리하지 않고 여기 하나만 둔다. 러닝·대기실은 셸 위에 얹히므로
+    // `go`가 스택째 바꿔 그 화면들도 함께 빠져나온다.
+    ref.listen(authControllerProvider, (before, after) {
+      if (before is! AuthSignedIn || after is! AuthSignedOut) return;
+      _leaveForSignIn();
+    });
 
     // 매칭 스트림을 여기서 살려둔다. **화면이 소유하면 탭을 옮기는 사이에
     // 확정 통지를 놓친다.** 붙을지 끊을지는 provider가 유저 상태를 보고 정한다.

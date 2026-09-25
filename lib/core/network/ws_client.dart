@@ -60,7 +60,16 @@ class WsClient {
     required this.token,
     this.healthCheckInterval = const Duration(seconds: 30),
     this.connect = _connectIo,
+    this.authFailureLimit = 6,
   });
+
+  /// 인증이 막혔을 때 갱신을 몇 번까지 다시 해보나.
+  ///
+  /// backoff가 1·2·4·8·16·30…이라 기본값이면 **2분 남짓**을 버틴다 — 터널이나
+  /// 서버 순간 장애를 넘기기에 넉넉하고, 정말 죽은 세션을 붙들고 있기에는 짧다.
+  ///
+  /// **테스트가 갈아 끼운다.** 2분을 실제로 기다리게 할 수 없다.
+  final int authFailureLimit;
 
   /// `wss://host/api/v1/ws/running`
   final String url;
@@ -96,6 +105,9 @@ class WsClient {
 
   /// 다음에 붙을 때 토큰을 갱신해서 받아야 하는가.
   var _needsFreshToken = false;
+
+  /// 인증이 연달아 막힌 횟수. 붙으면 0으로 돌아간다.
+  var _authFailures = 0;
 
   /// 이번 연결 시도에서 이미 갱신을 써봤는가.
   ///
@@ -183,9 +195,8 @@ class WsClient {
     _needsFreshToken = false;
 
     if (accessToken == null) {
-      // 줄 토큰이 없다. 재연결해도 같으므로 멈춘다.
-      debugPrint('[ws] 토큰이 없다. 재연결하지 않는다');
-      _moveTo(WsConnectionState.closed);
+      // 토큰을 못 받았다. **여기서 멈추지 않는다** — 아래 주석 참조.
+      _onAuthFailure('토큰을 받지 못했다');
       return;
     }
 
@@ -206,6 +217,8 @@ class WsClient {
 
       _attempt = 0;
       _refreshed = false;
+      // 붙었으면 지난 인증 실패는 지나간 일이다.
+      _authFailures = 0;
       _moveTo(WsConnectionState.connected);
       _startHealthCheck();
     } on Object catch (error) {
@@ -226,8 +239,8 @@ class WsClient {
     _channel = null;
 
     if (_refreshed) {
-      debugPrint('[ws] 갱신하고도 401이다. 재로그인이 필요하다');
-      _moveTo(WsConnectionState.closed);
+      // 이번 시도에서는 갱신까지 써봤다. 그래도 곧바로 포기하지는 않는다.
+      _onAuthFailure('갱신하고도 401이다');
       return;
     }
 
@@ -235,6 +248,41 @@ class WsClient {
     _refreshed = true;
     _needsFreshToken = true;
     if (!_closedByUs) await _attach();
+  }
+
+  /// 인증이 막혔다. **backoff를 두고 갱신부터 다시 해본다.**
+  ///
+  /// ## ⚠️ 한 번 만에 포기하면 달리는 사람이 갇힌다
+  ///
+  /// 예전에는 토큰을 못 받거나 갱신하고도 401이면 곧바로 [closed]로 갔다. 그
+  /// 순간 재연결이 영영 멈춰서, **러닝 중이면 `RUNNING_FINISH`를 보낼 길이
+  /// 사라진다** — 화면은 "서버에 연결하는 중"에서 굳고, 서버는 그 러닝을
+  /// 계속 진행 중으로 들고 있으며, 다음 매칭 신청이 409로 막힌다
+  /// (2026-09-18 23:47 실주행).
+  ///
+  /// 갱신이 막히는 이유는 대개 지나간다 — 터널·엘리베이터, 서버의 순간 5xx,
+  /// 갱신 회전이 겹친 경합. 그래서 간격을 두고 여러 번 해본다.
+  ///
+  /// ## ⚠️ 그래도 무한히 두드리지는 않는다
+  ///
+  /// 리프레시 토큰이 **정말로 죽었으면** 앱이 스스로 되살릴 방법이 없다 —
+  /// 비밀번호를 들고 있지 않고, 들고 있어서도 안 된다. 영원히 재시도하면
+  /// 화면이 "연결하는 중"에서 영영 굳는데, 그것이 바로 위의 그 버그다.
+  /// [_authFailureLimit]번을 넘으면 [closed]로 알려 위층이 재로그인으로
+  /// 보내게 한다.
+  void _onAuthFailure(String why) {
+    _authFailures++;
+    if (_authFailures > authFailureLimit) {
+      debugPrint('[ws] $why · ${_authFailures - 1}번 다시 해봤다. 재로그인이 필요하다');
+      _moveTo(WsConnectionState.closed);
+      return;
+    }
+
+    debugPrint('[ws] $why · 갱신부터 다시 해본다 ($_authFailures/$authFailureLimit)');
+    // 다음 시도는 저장된 값이 아니라 **갱신해서** 받는다.
+    _needsFreshToken = true;
+    _refreshed = false;
+    _scheduleRetry();
   }
 
   void _onData(dynamic raw) {

@@ -116,12 +116,30 @@ enum WsErrorCode {
   /// 명세에 없는 코드. 서버가 늘렸을 수 있다.
   unknown;
 
-  /// `RUNNING_START`를 다시 보내야 하는가.
+  /// `RUNNING_START`를 **곧바로** 다시 보내야 하는가.
   ///
   /// 서버에 이 사용자의 러닝 세션이 없다는 뜻이라, 다시 보내지 않으면
   /// **그 뒤 좌표가 전부 같은 오류로 거절된다.**
-  bool get needsRestart =>
-      this == runningNotStarted || this == runningSessionUnavailable;
+  ///
+  /// 재연결 직후 `RUNNING_START`보다 좌표가 먼저 나간 경합이라, 다시 보내면
+  /// 대개 그 자리에서 풀린다.
+  bool get needsRestart => this == runningNotStarted;
+
+  /// `RUNNING_START`를 **간격을 두고** 다시 보내야 하는가.
+  ///
+  /// ## ⚠️ 곧바로 다시 보내면 안 되는 이유
+  ///
+  /// 이쪽은 앱이 이길 수 없는 실패다. 서버가 외부 저장소 장애로 세션을 못
+  /// 만들었거나(`RUNNING_SESSION_UNAVAILABLE`), 방이 아직·이미 `RUNNING`이
+  /// 아니다(`INVALID_ROOM_STATE`). 곧바로 다시 보내면 같은 답이 오고, 답마다
+  /// 다시 보내면 **스스로 증폭한다.**
+  ///
+  /// 명세도 `RUNNING_SESSION_UNAVAILABLE`을 "잠시 뒤 재시도"로 정했다.
+  ///
+  /// 부르는 쪽은 보내기 전에 **서버가 아는 상태를 다시 확인해야 한다** —
+  /// 방이 이미 끝났으면 몇 번을 보내도 같은 답이다.
+  bool get needsDelayedRestart =>
+      this == runningSessionUnavailable || this == invalidRoomState;
 
   static WsErrorCode fromWire(Object? value) => switch (value) {
     'MALFORMED_MESSAGE' => WsErrorCode.malformedMessage,

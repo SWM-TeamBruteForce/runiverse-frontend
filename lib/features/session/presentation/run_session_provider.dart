@@ -306,6 +306,35 @@ class RunSessionController extends Notifier<RunSessionState> {
     if (state is RunRunning) state = RunRunning(_metrics());
   }
 
+  /// 스냅샷으로 시작 시각을 한 번 맞췄는가.
+  var _timeSeeded = false;
+
+  /// 서버가 아는 **러닝 시작 시각**으로 경과를 맞춘다. 한 러닝에 한 번뿐이다.
+  ///
+  /// ## ⚠️ 복구할 때 `scheduledStartAt`으로는 어긋난다
+  ///
+  /// 복구는 상태 조회가 주는 **예약 시각**으로 경과를 재기 시작한다. 매칭 방은
+  /// 그 시각에 서버가 시작하므로 대개 맞지만, 솔로 방은 만들어진 순간이
+  /// 시작이라 예약 시각과 갈린다. `RUNNING_STARTED` 스냅샷이 싣고 오는
+  /// **방의 실제 시작 시각**이 유일하게 정확한 값이다.
+  ///
+  /// ⚠️ 일시정지 구간은 되살리지 못한다. 서버가 돌려주지 않는다 — 앱이 죽어
+  /// 있던 동안은 달린 것으로 친다.
+  ///
+  /// [seedDistance]와 같은 규칙으로 **이어 달리는 러닝에서만** 맞춘다. 새로
+  /// 시작한 러닝은 앱이 잰 시각이 더 정확하다.
+  void seedStartedAt(DateTime at) {
+    if (!_resumed || _timeSeeded) return;
+    _timeSeeded = true;
+    // 일시정지 중이면 건드리지 않는다. `_resumedAt`을 세우면 멈춘 시계가 다시 간다.
+    if (state is! RunRunning) return;
+
+    _startedAt = at;
+    _resumedAt = at;
+    _accumulated = Duration.zero;
+    state = RunRunning(_metrics());
+  }
+
   /// 첫 신호에 출발하기로 했는가. [startWhenReady]가 세우고 [_reset]이 지운다.
   var _startOnFix = false;
   DateTime? _startSince;
@@ -511,6 +540,7 @@ class RunSessionController extends Notifier<RunSessionState> {
     _smoother.reset();
     _distanceMeters = 0;
     _seeded = false;
+    _timeSeeded = false;
     _resumed = false;
     _accumulated = Duration.zero;
     _resumedAt = null;

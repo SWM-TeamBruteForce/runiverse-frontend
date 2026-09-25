@@ -8,15 +8,18 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_track_repository.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
+import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/session/presentation/party_provider.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 파티 보드가 **통지에 붙는 시점.**
 ///
@@ -51,6 +54,18 @@ void main() {
         tokenStoreProvider.overrideWithValue(tokens),
         locationRepositoryProvider.overrideWithValue(location),
         trackRepositoryProvider.overrideWithValue(FakeTrackRepository()),
+        // ⚠️ 시작 확인을 받으면 연결이 상태를 다시 읽는다. 기본값(`IDLE`)을
+        // 두면 "서버가 이미 끝냈다"로 읽혀 소켓이 닫히고 보드가 비워진다 —
+        // 이 파일의 테스트는 전부 **달리는 중**을 전제로 한다.
+        userStatusRepositoryProvider.overrideWithValue(
+          FakeUserStatusRepository(
+            status: UserStatusRunning(
+              runningRoomId: 13,
+              isSolo: false,
+              scheduledStartAt: DateTime(2026, 9, 18, 15, 5),
+            ),
+          ),
+        ),
         runningChannelFactoryProvider.overrideWithValue((_) => channel),
       ],
     );
@@ -108,11 +123,13 @@ void main() {
       required List<RunPlayer> players,
       List<ComboPeer> combos = const [],
       int? target = 3000,
+      DateTime? startedAt,
     }) => RunSnapshot(
       runningRoomId: 13,
       players: players,
       combos: RunCombo(combos),
       targetDistanceMeters: target,
+      startedAt: startedAt,
     );
 
     RunPlayer player(String id, String name, int meters, {int? pace}) =>
@@ -223,6 +240,67 @@ void main() {
       await settle();
 
       expect(distanceOf(container), 1520);
+    });
+
+    test('⚠️ 경과 시간을 서버의 실제 시작 시각으로 맞춘다', () async {
+      // 복구는 상태 조회의 **예약 시각**으로 재기 시작한다. 솔로 방은 만들어진
+      // 순간이 시작이라 그 값과 갈린다 — 스냅샷이 유일하게 정확하다.
+      final container = await makeContainer();
+      final session = container.read(runSessionControllerProvider.notifier);
+      await container
+          .read(runningConnectionProvider.notifier)
+          .openMatched(13, targetDistanceMeters: 3000);
+      container.read(partyProvider);
+
+      await session.prepare();
+      location.emit(point(37.5, 127));
+      await settle();
+      // 예약 시각을 받은 러닝 = 이어 붙은 러닝이다.
+      session.start(since: DateTime.now().subtract(const Duration(minutes: 1)));
+
+      channel.snapshots_.add(
+        snapshot(
+          players: [player('u-1', '러너42', 0)],
+          startedAt: DateTime.now().subtract(const Duration(minutes: 30)),
+        ),
+      );
+      await settle();
+      await settle();
+
+      final state = container.read(runSessionControllerProvider);
+      expect(state, isA<RunRunning>());
+      // 예약 시각(1분 전)이 아니라 실제 시작(30분 전)부터 잰다.
+      expect(
+        (state as RunRunning).metrics.elapsed,
+        greaterThan(const Duration(minutes: 25)),
+      );
+    });
+
+    test('⚠️ 새로 시작한 러닝은 시작 시각을 덮지 않는다', () async {
+      // 앱이 잰 시각이 더 정확하다. 스냅샷은 복구용이다.
+      final container = await makeContainer();
+      final session = container.read(runSessionControllerProvider.notifier);
+      await container
+          .read(runningConnectionProvider.notifier)
+          .openMatched(13, targetDistanceMeters: 3000);
+      container.read(partyProvider);
+
+      await session.prepare();
+      location.emit(point(37.5, 127));
+      await settle();
+      session.start();
+
+      channel.snapshots_.add(
+        snapshot(
+          players: [player('u-1', '러너42', 0)],
+          startedAt: DateTime(2020),
+        ),
+      );
+      await settle();
+      await settle();
+
+      final state = container.read(runSessionControllerProvider) as RunRunning;
+      expect(state.metrics.elapsed, lessThan(const Duration(minutes: 1)));
     });
 
     test('⚠️ 새로 시작한 러닝은 스냅샷이 거리를 덮지 않는다', () async {

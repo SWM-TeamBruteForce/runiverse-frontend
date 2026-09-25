@@ -129,13 +129,25 @@ void main() {
       expect(sentEvents(), ['RUNNING_START']);
     });
 
-    test('RUNNING_SESSION_UNAVAILABLE도 다시 보낸다', () async {
+    test('⚠️ 서버 장애에는 여기서 다시 보내지 않는다', () async {
+      // 앱이 이길 수 없는 실패다. 곧바로 다시 보내면 같은 답이 오고, 답마다
+      // 다시 보내면 스스로 증폭한다. 간격과 상태 확인이 필요해서 연결을
+      // 가진 쪽이 맡는다(`running_connection_provider._restartLater`).
       await channel.start(roomId);
       socket.sent.clear();
 
       await receive('ERROR', {'code': 'RUNNING_SESSION_UNAVAILABLE'});
 
-      expect(sentEvents(), ['RUNNING_START']);
+      expect(sentEvents(), isEmpty);
+    });
+
+    test('⚠️ 방 상태가 어긋나도 여기서 다시 보내지 않는다', () async {
+      await channel.start(roomId);
+      socket.sent.clear();
+
+      await receive('ERROR', {'code': 'INVALID_ROOM_STATE'});
+
+      expect(sentEvents(), isEmpty);
     });
 
     test('⚠️ 좌표 저장 실패에는 다시 보내지 않는다', () async {

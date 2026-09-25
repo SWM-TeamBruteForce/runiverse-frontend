@@ -24,10 +24,22 @@ import 'package:runiverse/features/auth/domain/auth_repository.dart';
 /// 쓰는 쪽은 대개 `core`에 있으므로 **함수 하나만 넘겨받는다** — `WsClient`는
 /// 이 클래스를 모르고 `Future<String?> Function()`만 안다.
 class TokenRefresher {
-  TokenRefresher(this._auth, this._store);
+  TokenRefresher(this._auth, this._store, {this.onExpired});
 
   final AuthRepository _auth;
   final TokenStore _store;
+
+  /// 갱신이 **거절**됐을 때 부른다. 네트워크 실패에는 부르지 않는다.
+  ///
+  /// ## 왜 여기서 로그아웃하지 않고 알리기만 하나
+  ///
+  /// 세션을 끝내는 것은 화면·인증 쪽의 판단이다. 이 클래스는 토큰만 다룬다 —
+  /// 여기서 저장소를 비우면 `AuthController`가 모르는 채로 상태가 어긋난다.
+  ///
+  /// ⚠️ **이걸 아무도 안 들으면 달리는 사람이 갇힌다.** 리프레시가 죽었는데
+  /// 알릴 곳이 없으면 앱은 "연결하는 중"만 되풀이하고, 러닝을 끝낼 수도
+  /// 재로그인할 수도 없다(2026-09-18 23:47 실주행).
+  final void Function()? onExpired;
 
   /// 지금 나가 있는 갱신. 없으면 `null`.
   Future<String?>? _inflight;
@@ -62,9 +74,14 @@ class TokenRefresher {
         refreshToken: tokens.refreshToken,
       );
       return tokens.accessToken;
-    } on AuthException {
-      // 갱신이 거절됐다. 여기서 저장소를 비우지 않는다 — 로그아웃 시점을
-      // 정하는 것은 화면 쪽의 판단이고, 네트워크 오류일 수도 있다.
+    } on AuthException catch (error) {
+      // 여기서 저장소를 비우지 않는다 — 로그아웃 시점을 정하는 것은 화면 쪽의
+      // 판단이다.
+      //
+      // ⚠️ **거절과 실패를 가른다.** 네트워크·5xx는 지나가므로 다시 해보면
+      // 되지만, `sessionExpired`는 몇 번을 해도 같은 답이다. 그것만 알린다 —
+      // 터널에 들어갔다고 로그아웃시키면 안 된다.
+      if (error.failure == AuthFailure.sessionExpired) onExpired?.call();
       return null;
     }
   }

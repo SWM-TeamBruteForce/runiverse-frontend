@@ -23,6 +23,10 @@ class HttpRunningRoomRepository implements RunningRoomRepository {
 
   static const _soloPath = '/api/v1/running-rooms/solo';
 
+  /// ⚠️ **`HttpMatchRepository`에도 같은 경로가 있다.** 인터페이스의
+  /// `cancelPending` 주석 참조 — 바뀌면 둘 다 고친다.
+  static const _cancelPath = '/api/v1/running-matches';
+
   @override
   Future<RunningRoom> openSolo() async {
     final stored = await _store.read();
@@ -43,6 +47,54 @@ class HttpRunningRoomRepository implements RunningRoomRepository {
         throw RunningRoomException(_failureOf(retried));
       }
     }
+  }
+
+  @override
+  Future<void> cancelPending() async {
+    final stored = await _store.read();
+    final accessToken = stored.accessToken;
+    if (accessToken == null) {
+      throw const RunningRoomException(RunningRoomFailure.sessionExpired);
+    }
+
+    try {
+      await _delete(accessToken);
+    } on DioException catch (error) {
+      if (error.response?.statusCode != 401) {
+        _rethrowCancel(error);
+        return;
+      }
+      try {
+        await _delete(await _refreshed());
+      } on DioException catch (retried) {
+        _rethrowCancel(retried);
+      }
+    }
+  }
+
+  Future<void> _delete(String accessToken) => _dio.delete<void>(
+    _cancelPath,
+    options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+  );
+
+  /// ⚠️ **404는 실패가 아니다.** 지울 것이 없다는 뜻이고, 그것이 부른 쪽이
+  /// 원하던 상태다 — 다른 기기에서 이미 취소했거나 서버가 방을 닫은 뒤다.
+  /// 그때만 조용히 돌아가고, 나머지는 던진다.
+  void _rethrowCancel(DioException error) {
+    if (error.response?.statusCode == 404) return;
+    throw RunningRoomException(_cancelFailureOf(error));
+  }
+
+  RunningRoomFailure _cancelFailureOf(DioException error) {
+    if (error.type != DioExceptionType.badResponse) {
+      return RunningRoomFailure.network;
+    }
+    // 이미 시작한 방은 취소할 수 없다(`MATCH_ALREADY_STARTED`). 앱이 상태를
+    // 늦게 알고 있다는 신호라, 부른 쪽은 상태를 다시 읽어야 한다.
+    if (error.response?.statusCode == 409) {
+      return RunningRoomFailure.alreadyRunning;
+    }
+    return _failureOf(error);
   }
 
   Future<RunningRoom> _post(String accessToken) async {
