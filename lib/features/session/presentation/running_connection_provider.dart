@@ -12,7 +12,9 @@ import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/domain/running_room_repository.dart';
 import 'package:runiverse/features/session/domain/track_sender.dart';
+import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 final runningRoomRepositoryProvider = Provider<RunningRoomRepository>(
   (ref) => HttpRunningRoomRepository(
@@ -39,6 +41,20 @@ final runningChannelFactoryProvider = Provider<RunningChannelFactory>(
       ),
 );
 
+/// `RUNNING_START`가 거절됐을 때 다시 보내기까지의 간격.
+///
+/// 길이가 곧 **재시도 횟수 상한**이다. 서버 장애가 풀릴 시간을 주되, 무한히
+/// 두드려 장애를 키우지는 않는다.
+///
+/// **테스트가 갈아 끼운다.** 2·5·15초를 실제로 기다리게 할 수 없다.
+final runningRestartBackoffProvider = Provider<List<Duration>>(
+  (ref) => const [
+    Duration(seconds: 2),
+    Duration(seconds: 5),
+    Duration(seconds: 15),
+  ],
+);
+
 /// 서버와 이어진 상태.
 ///
 /// 방과 연결이 **따로** 있는 이유는 실패 지점이 둘이기 때문이다 —
@@ -51,7 +67,20 @@ class RunningConnectionState {
     this.opening = false,
     this.settling = false,
     this.trackUnavailable = false,
+    this.finishedRoomId,
   });
+
+  /// **방금 끝낸 방.** 종료 확인(`RUNNING_FINISHED`)을 받은 방 번호다.
+  ///
+  /// ## ⚠️ 서버 상태가 이걸 따라오는 데 시간이 걸린다
+  ///
+  /// 종료 ack를 받은 뒤에도 `GET /users/me/status`가 잠시 `RUNNING`을 돌려준다.
+  /// 그 값만 믿으면 홈이 **방금 끝낸 러닝으로 돌아가는 문**을 띄우고, 눌러도
+  /// `NOT_ROOM_PLAYER`만 받는다(2026-09-19 01:40 실주행).
+  ///
+  /// 그 구간에서는 **앱이 서버보다 잘 안다.** 끝낸 방을 기억해 두고 그 방은
+  /// 다시 들어갈 곳으로 내놓지 않는다.
+  final int? finishedRoomId;
 
   /// 서버가 좌표를 저장하지 못하고 있다(`RUNNING_TRACK_UNAVAILABLE`).
   ///
@@ -92,7 +121,9 @@ class RunningConnectionState {
     bool? opening,
     bool? settling,
     bool? trackUnavailable,
+    int? finishedRoomId,
   }) => RunningConnectionState(
+    finishedRoomId: finishedRoomId ?? this.finishedRoomId,
     room: room ?? this.room,
     connection: connection ?? this.connection,
     // ⚠️ `??`를 쓰지 않는다. 다시 시도해서 성공하면 실패를 **지워야** 한다.
@@ -160,6 +191,10 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       );
       return;
     }
+    if (code.needsDelayedRestart) {
+      unawaited(_restartLater(code));
+      return;
+    }
     if (code != WsErrorCode.runningTrackUnavailable) return;
     _trackNotice?.cancel();
     _trackNotice = Timer(_trackNoticeFor, () {
@@ -172,6 +207,18 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
 
   @override
   RunningConnectionState build() {
+    // ⚠️ **서버가 `IDLE`이라고 하면 러닝은 이미 끝난 것이다.**
+    //
+    // 예전에는 매칭 스트림만 이 값을 봤다. 그래서 서버가 러닝을 강제 종료해도
+    // 소켓·좌표 전송 타이머·헬스체크가 그대로 살아, 앱이 **이미 끝난 방에
+    // 10초마다 좌표를 계속 올렸다.**
+    //
+    // 복구 가이드 1절이 정한 정리다. 화면이 아니라 여기서 듣는 이유는 소켓을
+    // 가진 쪽이 여기이기 때문이다 — 화면에 맡기면 홈·기록 탭에 있을 때 안 돈다.
+    ref.listen(userStatusProvider, (_, status) {
+      if (status is UserStatusIdle) unawaited(_closeOnIdle());
+    });
+
     // provider가 버려지면 소켓도 닫는다. 안 닫으면 러닝이 끝나도 연결이 남는다.
     ref.onDispose(() {
       _retry?.cancel();
@@ -182,6 +229,104 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       _channel?.close();
     });
     return const RunningConnectionState();
+  }
+
+  /// `RUNNING_START`가 거절됐다. **상태를 확인하고 간격을 두고 다시 보낸다.**
+  ///
+  /// ## ⚠️ 이것이 없으면 그 러닝은 영영 시작되지 않는다
+  ///
+  /// 서버가 세션을 못 만들었거나(`RUNNING_SESSION_UNAVAILABLE`) 방이 아직
+  /// `RUNNING`이 아니면(`INVALID_ROOM_STATE`) 시작 메시지가 거절된다. 예전에는
+  /// 로그만 찍고 끝나서, 한 번 거절되면 앱은 **좌표를 계속 올리는데 서버는
+  /// 전부 버리는** 상태로 러닝이 끝났다.
+  ///
+  /// ## 보내기 전에 서버가 아는 상태를 다시 읽는다
+  ///
+  /// 방이 이미 끝났으면 몇 번을 보내도 같은 답이다. 상태가 `IDLE`이면
+  /// [_closeOnIdle]이 알아서 정리하므로 여기서는 물러나기만 하면 된다.
+  ///
+  /// 간격은 [_restartBackoff]를 따라 벌어지고 [_restartLimit]번에서 멈춘다.
+  /// 무한히 두드리면 서버 장애를 앱이 키운다.
+  Future<void> _restartLater(WsErrorCode code) async {
+    if (_restarts >= _restartLimit) return;
+    // 한 번에 하나만 돈다. 오류는 좌표를 보낼 때마다 오므로 그대로 두면
+    // 예약이 겹쳐 쌓인다.
+    if (_restarting) return;
+    _restarting = true;
+
+    try {
+      final backoff = ref.read(runningRestartBackoffProvider);
+      final wait = backoff[_restarts.clamp(0, backoff.length - 1)];
+      _restarts++;
+      debugPrint('[running] 시작이 거절됐다 · $code · $wait 뒤 다시');
+      await Future<void>.delayed(wait);
+
+      final room = state.room;
+      if (room == null || _channel == null) return;
+
+      // 서버가 아는 상태를 먼저 본다. 끝난 방이면 다시 보낼 이유가 없다.
+      final status = await ref.read(userStatusProvider.notifier).refresh();
+      if (status is! UserStatusRunning || status.runningRoomId != room.id) {
+        debugPrint('[running] 서버가 이 방을 달리는 중으로 보지 않는다. 그만둔다');
+        return;
+      }
+
+      await _channel?.start(room.id);
+    } finally {
+      _restarting = false;
+    }
+  }
+
+  /// 몇 번까지 다시 보내나. 넘으면 그만둔다 — 앱이 서버 장애를 키우지 않는다.
+  int get _restartLimit => ref.read(runningRestartBackoffProvider).length;
+
+  var _restarts = 0;
+  var _restarting = false;
+
+  /// 방금 끝낸 방. [RunningConnectionState.finishedRoomId] 참조.
+  int? _finishedRoomId;
+
+  /// 아직 시작하지 않은 방을 **서버에서 없애고** 앱에서도 내려놓는다.
+  ///
+  /// 준비 화면을 떠날 때 부른다. 복구로 들어온 솔로 준비는 서버에 이미
+  /// `READY` 방이 있어서, 그냥 나가면 그 방이 남아 **이후 매칭 신청이 전부
+  /// 409로 막힌다.**
+  ///
+  /// ⚠️ **실패해도 화면은 나간다.** 사용자를 준비 화면에 가둘 이유가 없다 —
+  /// 남은 방은 다음 시작의 409 정리 경로가 다시 맡는다. 돌려주는 값은 서버가
+  /// 받아들였는가이고, 부른 쪽이 상태를 다시 읽을지 정하는 데 쓴다.
+  Future<bool> cancelPending() async {
+    await close();
+    try {
+      await ref.read(runningRoomRepositoryProvider).cancelPending();
+      return true;
+    } on RunningRoomException catch (error) {
+      debugPrint('[running] 준비 중인 방을 없애지 못했다 · ${error.failure.name}');
+      return false;
+    }
+  }
+
+  /// 서버가 끝낸 러닝을 내려놓는다. [close]가 소켓·전송기·재시도를 전부 멈추고,
+  /// 방이 사라지면 파티 보드도 스스로 비운다.
+  ///
+  /// ## ⚠️ 붙어 있지 않으면 아무것도 하지 않는다
+  ///
+  /// 러닝을 막 끝낸 직후가 그렇다. [finish]가 소켓을 닫고 **방 번호만 남겨**
+  /// 요약 화면이 상세를 부를 수 있게 해 두는데, 그 뒤 상태를 다시 읽으면
+  /// 당연히 `IDLE`이다. 여기서 비우면 `자세한 기록 보기`가 영영 잠긴다.
+  ///
+  /// ⚠️ 시작 직전에 떠난 상태 조회가 연결된 뒤에 도착하면 방금 연 러닝을 닫는
+  /// 좁은 경합이 남는다. 상태 조회는 포그라운드 복귀에서만 도는데 그 순간
+  /// 사용자가 시작을 누르는 경우라, 한 번의 왕복만큼이다.
+  Future<void> _closeOnIdle() async {
+    if (_channel == null) return;
+    debugPrint('[running] 서버가 진행 중인 것이 없다고 한다. 연결을 내려놓는다');
+    await close();
+    // ⚠️ [close]가 상태를 통째로 비우므로 이유를 뒤에 세운다. 화면이 이것을
+    // 보고 러닝을 접는다.
+    state = const RunningConnectionState(
+      failure: RunningRoomFailure.endedByServer,
+    );
   }
 
   /// 방을 열고 연결한다. 이미 준비됐으면 아무것도 하지 않는다.
@@ -259,7 +404,33 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     });
     channel.errors.listen(_onServerError);
 
+    // ⚠️ **시작 확인을 받으면 서버가 아는 상태를 다시 읽는다.**
+    //
+    // 매칭 SSE는 상태가 `RUNNING`이 되면 닫히는데(`MatchRoomController._syncWith`),
+    // 그것을 알려 줄 사람이 없었다. 그래서 러닝 내내 SSE가 열린 채 남아 있다가
+    // **30초 무음 감시 → 재연결 → 상태 조회**라는 먼 길로 겨우 닫혔다.
+    //
+    // 연결마다 한 번씩만 온다(ack가 그렇다). 재연결로 또 와도 같은 답이라 해롭지 않다.
+    channel.snapshots.listen((_) {
+      debugPrint('[running] 시작이 확인됐다. 상태를 다시 읽는다');
+      // ⚠️ **실패해도 러닝은 계속된다.** 이건 곁다리 정리라 여기서 던지면
+      // 아무도 받지 않는 비동기 오류가 되어 달리는 중에 앱이 죽는다.
+      // 못 읽으면 SSE가 조금 늦게 닫힐 뿐이다(30초 무음 감시가 받아 준다).
+      unawaited(
+        ref.read(userStatusProvider.notifier).refresh().catchError((
+          Object error,
+        ) {
+          debugPrint('[running] 시작 뒤 상태를 읽지 못했다 · $error');
+          return null;
+        }),
+      );
+    });
+
     _attempt = 0;
+    // 새 러닝이다. 지난 러닝에서 쌓인 시작 재시도 횟수를 들고 오지 않는다.
+    _restarts = 0;
+    // 끝냈다는 표식도 지운다 — 이제 다시 달린다.
+    _finishedRoomId = null;
     state = state.copyWith(room: room, opening: false, failure: null);
 
     // ⚠️ **방을 알게 된 순간 좌표 기록기에 알린다.** 방이 늦게 생기는 동안
@@ -433,8 +604,12 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       // 다 보냈으면 타이머를 세운다. ack를 기다리는 동안 또 돌 이유가 없다.
       _sender?.stop();
 
+      final finishedId = state.room?.id;
       final acked = await channel.finish(forced: forced);
       if (acked) {
+        // ⚠️ **끝냈다는 사실을 남긴다.** 서버 상태가 따라오기 전까지 홈이
+        // 이 방으로 돌아가는 문을 띄우지 않게 한다.
+        _finishedRoomId = finishedId;
         await ref.read(trackRecorderProvider).discard();
         // ⚠️ 좌표와 **같은 순간에** 지운다. 번호만 남으면 다음 러닝이 이미 끝난
         // 방을 정리하려 들고, 좌표만 남으면 지울 사람이 없어진다.
@@ -454,7 +629,12 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       // 여기 남은 번호가 다음 러닝을 방해하지 않는다.
       final finished = state.room;
       await close();
-      if (finished != null) state = RunningConnectionState(room: finished);
+      if (finished != null) {
+        state = RunningConnectionState(
+          room: finished,
+          finishedRoomId: _finishedRoomId,
+        );
+      }
     }
   }
 
@@ -464,6 +644,7 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     _retry?.cancel();
     _retry = null;
     _attempt = 0;
+    _restarts = 0;
     _sender?.stop();
     _sender = null;
     await _channel?.close();

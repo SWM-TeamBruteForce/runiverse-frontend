@@ -163,16 +163,29 @@ void main() {
       expect(WsErrorCode.fromWire(null), WsErrorCode.unknown);
     });
 
-    test('⚠️ 세션이 없다는 두 코드만 재시작을 요구한다', () {
-      // 다시 알리지 않으면 그 뒤 좌표가 전부 같은 오류로 거절되는데,
-      // 좌표에는 ack가 없어 앱은 아무것도 모른 채 계속 보낸다.
+    test('⚠️ 곧바로 다시 보낼 코드는 경합 하나뿐이다', () {
+      // 재연결 직후 `RUNNING_START`보다 좌표가 먼저 나간 경합이다. 다시
+      // 보내면 그 자리에서 풀린다 — 다시 알리지 않으면 그 뒤 좌표가 전부
+      // 같은 오류로 거절되는데, 좌표에는 ack가 없어 앱은 모른 채 계속 보낸다.
       expect(WsErrorCode.runningNotStarted.needsRestart, isTrue);
-      expect(WsErrorCode.runningSessionUnavailable.needsRestart, isTrue);
 
       // 좌표 저장 실패는 러닝이 계속된다. 재시작할 이유가 없다.
       expect(WsErrorCode.runningTrackUnavailable.needsRestart, isFalse);
       expect(WsErrorCode.roomNotFound.needsRestart, isFalse);
       expect(WsErrorCode.unknown.needsRestart, isFalse);
+    });
+
+    test('⚠️ 앱이 이길 수 없는 실패는 간격을 두고 다시 보낸다', () {
+      // 곧바로 다시 보내면 같은 답이 오고, 답마다 다시 보내면 증폭한다.
+      expect(WsErrorCode.runningSessionUnavailable.needsDelayedRestart, isTrue);
+      expect(WsErrorCode.invalidRoomState.needsDelayedRestart, isTrue);
+
+      // 두 갈래는 겹치지 않는다. 겹치면 즉시와 예약이 같이 돈다.
+      expect(WsErrorCode.runningNotStarted.needsDelayedRestart, isFalse);
+      expect(WsErrorCode.runningTrackUnavailable.needsDelayedRestart, isFalse);
+      // 참가자가 아니라는 답은 재시도 대상이 아니다. 러닝을 접는다.
+      expect(WsErrorCode.notRoomPlayer.needsDelayedRestart, isFalse);
+      expect(WsErrorCode.unknown.needsDelayedRestart, isFalse);
     });
   });
 }

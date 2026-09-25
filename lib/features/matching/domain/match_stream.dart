@@ -52,6 +52,15 @@ abstract interface class MatchStream {
   /// 다시 붙을지는 유저 상태를 다시 읽어 정할 일이다.
   Stream<MatchEvent> connect();
 
-  /// 스스로 끊는다. `RUNNING_STARTED` ack를 받은 뒤에 부른다.
+  /// 스스로 끊는다.
+  ///
+  /// ## 러닝이 시작되면 닫혀야 한다
+  ///
+  /// 그 판단은 **유저 상태가 이끈다** — `RUNNING_STARTED` ack를 받은 쪽이
+  /// `/users/me/status`를 다시 읽고(`RunningConnectionController._connect`),
+  /// 상태가 `RUNNING`이 되면 `MatchRoomController._syncWith`가 여기를 부른다.
+  ///
+  /// ⚠️ ack를 받은 쪽이 직접 부르지 않는다. session이 matching을 부르면 의존
+  /// 방향이 뒤집힌다 — 지금은 `matching → session` 한 방향뿐이다.
   Future<void> close();
 }

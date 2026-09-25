@@ -83,23 +83,56 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
         // 화면은 러닝 중으로 보인다.
         controller.resume();
       case RunStopAction.finish:
-        controller.finish();
-        // ⚠️ **기다리지 않는다.** 남은 좌표를 보내고 서버 확인까지 받는 데
-        // 몇 초가 걸리는데, 요약에 뜨는 값은 러닝 중 계산한 것이라 그것과
-        // 무관하다. 기다리게 하면 신호가 나쁜 곳에서 요약을 못 본다.
-        //
-        // 끝나면 소켓도 함께 닫힌다 — 안 닫으면 다음 러닝에서 서버가 중복
-        // 연결로 보고 이쪽을 4001로 끊는다.
         // ⚠️ `forced`는 **목표를 채우기 전에 그만두는가**다. 서버가 이 값과
         // 자기가 확정한 거리를 함께 보고 제재를 정한다 — 앱이 잰 거리로
         // 단정하지 않는다. 목표가 없는 솔로는 언제나 `false`다.
         final short =
             target != null && metrics.distanceMeters < target * _safeRatio;
-        unawaited(
-          ref.read(runningConnectionProvider.notifier).finish(forced: short),
-        );
-        if (mounted) context.pushReplacement(AppRoutes.runSummary);
+        _finishRun(forced: short);
     }
+  }
+
+  /// 러닝을 끝내고 요약으로 간다. **손으로 멈출 때와 목표에 닿을 때가 같은 길이다.**
+  ///
+  /// ## 순서가 명세로 정해져 있다
+  ///
+  /// `RUNNING_FINISH` → `RUNNING_FINISHED` ack → 로컬 트랙 삭제 → 결과 조회.
+  /// 앞의 셋은 [RunningConnectionController.finish]가 맡고, 결과 조회는 요약
+  /// 화면이 [RunningConnectionState.settling]이 풀린 뒤에만 연다.
+  ///
+  /// ⚠️ **ack를 기다리지 않고 요약으로 넘어간다.** 요약에 뜨는 값은 러닝 중
+  /// 계산한 것이라 서버 확정과 무관하다. 기다리게 하면 신호가 나쁜 곳에서
+  /// 요약조차 못 본다. 서버가 확정한 값을 읽는 **상세**만 기다린다.
+  void _finishRun({required bool forced}) {
+    if (_finishing) return;
+    _finishing = true;
+
+    ref.read(runSessionControllerProvider.notifier).finish();
+    // 끝나면 소켓도 함께 닫힌다 — 안 닫으면 다음 러닝에서 서버가 중복 연결로
+    // 보고 이쪽을 4001로 끊는다.
+    unawaited(
+      ref.read(runningConnectionProvider.notifier).finish(forced: forced),
+    );
+    if (mounted) context.pushReplacement(AppRoutes.runSummary);
+  }
+
+  /// 끝내는 중인가. 목표 도달과 중지 시트가 겹쳐 두 번 보내는 것을 막는다.
+  var _finishing = false;
+
+  /// 목표 거리에 닿았다. **사용자가 누르기를 기다리지 않는다.**
+  ///
+  /// ## ⚠️ `forced`는 거짓이다
+  ///
+  /// 명세가 `forced`를 **"목표 거리 달성 전 사용자의 종료 의사"** 로 정의한다.
+  /// 목표를 채우고 끝나는 것은 의사 표시가 아니라 완주라, 참이면 서버가 조기
+  /// 종료로 읽는다. 최종 완주·이탈 판정은 어차피 서버가 확정 거리로 한다.
+  void _finishIfTargetReached(RunSessionState state) {
+    if (_finishing || state is! RunRunning) return;
+    final target = _targetDistanceMeters();
+    if (target == null || state.metrics.distanceMeters < target) return;
+
+    debugPrint('[running] 목표 ${target}m에 닿았다. 종료를 보낸다');
+    _finishRun(forced: false);
   }
 
   /// 제재 없이 끝낼 수 있는 선. 연동 가이드가 정한 값이다.
@@ -114,6 +147,15 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     ).showSnackBar(const SnackBar(content: Text(AppStrings.runNotRoomPlayer)));
     context.go(AppRoutes.home);
     await ref.read(userStatusProvider.notifier).refresh();
+  }
+
+  /// 서버가 러닝을 끝냈다. 세션을 접고 홈으로 간다.
+  ///
+  /// ⚠️ **상태를 다시 읽지 않는다.** 이 화면이 여기 온 근거가 방금 읽은
+  /// `IDLE`이다 — 다시 물으면 같은 답을 받고 정리가 한 번 더 돈다.
+  void _leaveEnded() {
+    ref.read(runSessionControllerProvider.notifier).reset();
+    context.go(AppRoutes.home);
   }
 
   /// 매칭 러닝의 목표 거리. **솔로는 `null`이다** — 목표가 없어 제한도 없다.
@@ -136,9 +178,28 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     final metrics = _metricsOf(state);
 
     ref.listen(runningConnectionProvider.select((s) => s.failure), (_, next) {
-      if (next == RunningRoomFailure.notRoomPlayer) {
-        unawaited(_leaveKickedOut());
+      switch (next) {
+        case RunningRoomFailure.notRoomPlayer:
+          unawaited(_leaveKickedOut());
+        // 서버가 이미 끝낸 러닝이다. **요약을 띄우지 않는다** — 화면의 수치는
+        // 앱이 잰 것이라 서버가 확정한 기록과 다르고, 요약을 보여 주면 그것이
+        // 남은 기록이라고 읽힌다. 기록 탭에서 서버가 만든 것을 본다.
+        case RunningRoomFailure.endedByServer:
+          _leaveEnded();
+        case _:
+          break;
       }
+    });
+
+    // ⚠️ **목표에 닿으면 스스로 끝낸다.** 명세가 정한 순서는
+    // `RUNNING_FINISH` → ack → 로컬 트랙 삭제 → 결과 조회인데, 예전에는 그
+    // 첫 줄이 **사용자가 중지를 누를 때만** 나갔다. 목표를 채우고도 안 누르면
+    // 서버는 그 러닝을 계속 진행 중으로 들고 있는다.
+    //
+    // `listen`으로 듣는다 — `build` 안에서 바로 판정하면 그리는 도중에
+    // 화면을 옮기게 된다.
+    ref.listen(runSessionControllerProvider, (_, next) {
+      _finishIfTargetReached(next);
     });
 
     final party = ref.watch(partyProvider);

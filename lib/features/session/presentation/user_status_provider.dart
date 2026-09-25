@@ -40,6 +40,10 @@ class UserStatusController extends Notifier<UserStatus?> {
   Future<UserStatus?> refresh() async {
     try {
       final status = await ref.read(userStatusRepositoryProvider).fetch();
+      // ⚠️ **값까지 남긴다.** 상태 코드만 찍으면 서버가 `IDLE`이라 했는지
+      // `READY`라 했는지 로그로 알 수 없어, 화면이 왜 그렇게 그려졌는지를
+      // 되짚을 수 없다 — 2026-09-19에 두 번 이것 때문에 막혔다.
+      debugPrint('[status] ${_label(status)}');
       state = status;
       return status;
     } on UserStatusException catch (error) {
@@ -51,4 +55,20 @@ class UserStatusController extends Notifier<UserStatus?> {
 
   /// 로그아웃·탈퇴처럼 **더 볼 것이 없을 때** 비운다.
   void clear() => state = null;
+
+  /// 로그 한 줄. **방 번호와 쿨다운까지** 넣는다 — 화면이 왜 그렇게 그려졌는지는
+  /// 대개 그 둘로 갈린다.
+  static String _label(UserStatus status) {
+    final cooldown = status.cooldownUntil;
+    final tail = cooldown == null ? '' : ' · 쿨다운 $cooldown';
+    return switch (status) {
+      UserStatusIdle() => 'IDLE$tail',
+      UserStatusWaiting(:final runningRoomId) =>
+        'WAITING · 방 $runningRoomId$tail',
+      UserStatusReady(:final runningRoomId, :final isSolo) =>
+        'READY · 방 $runningRoomId · ${isSolo ? 'SOLO' : 'MATCH'}$tail',
+      UserStatusRunning(:final runningRoomId, :final isSolo) =>
+        'RUNNING · 방 $runningRoomId · ${isSolo ? 'SOLO' : 'MATCH'}$tail',
+    };
+  }
 }

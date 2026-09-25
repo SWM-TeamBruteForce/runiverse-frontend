@@ -108,6 +108,51 @@ void main() {
     expect((state as AuthSignedIn).isOnboarded, isFalse);
   });
 
+  /// 갱신이 거절돼 세션이 끝나는 자리. 예전에는 이 길이 없어서 러닝 화면이
+  /// "서버에 연결하는 중"에서 영영 굳었다(2026-09-18 실주행).
+  group('세션 만료', () {
+    test('⚠️ 토큰만 지우고 돌아온 사람으로 남긴다', () async {
+      final store = InMemoryTokenStore();
+      final container = makeContainer(store: store);
+      final controller = container.read(authControllerProvider.notifier);
+      await controller.signUp(
+        verificationTicket: ticketFor(container, 'a@example.com'),
+        password: 'runi123!',
+      );
+
+      await controller.expireSession();
+
+      expect(container.read(authControllerProvider), isA<AuthSignedOut>());
+      expect(
+        (container.read(authControllerProvider) as AuthSignedOut).returning,
+        isTrue,
+        reason: '처음 온 사람이 아니다. 소개 화면으로 보내면 안 된다',
+      );
+      final stored = await store.read();
+      expect(stored.accessToken, isNull);
+      expect(stored.refreshToken, isNull);
+      // ⚠️ 같은 계정으로 다시 들어온다. 누구였는지는 남긴다.
+      expect(stored.userId, isNotNull);
+    });
+
+    test('⚠️ 이미 나가 있으면 아무것도 하지 않는다', () async {
+      // 갱신은 여러 곳에서 동시에 막힌다. 겹칠 때마다 상태를 다시 세우면
+      // 화면이 로그인으로 몇 번씩 튕긴다.
+      final container = makeContainer();
+      final controller = container.read(authControllerProvider.notifier);
+      await controller.signUp(
+        verificationTicket: ticketFor(container, 'a@example.com'),
+        password: 'runi123!',
+      );
+
+      await controller.expireSession();
+      final first = container.read(authControllerProvider);
+      await controller.expireSession();
+
+      expect(identical(container.read(authControllerProvider), first), isTrue);
+    });
+  });
+
   group('/users/me', () {
     test('로그인하면 서버가 답한 내 정보가 상태에 담긴다', () async {
       final container = makeContainer();

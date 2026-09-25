@@ -34,6 +34,7 @@ void main() {
     Duration healthCheck = const Duration(seconds: 30),
     List<int?> statuses = const [],
     String? refreshedToken = 'fresh',
+    int authFailureLimit = 6,
   }) {
     connectCalls = 0;
     refreshCalls = 0;
@@ -50,6 +51,7 @@ void main() {
         return 'token';
       },
       healthCheckInterval: healthCheck,
+      authFailureLimit: authFailureLimit,
       connect: (url, token) {
         sentTokens.add(token);
         final status = connectCalls < handshakeStatuses.length
@@ -134,27 +136,51 @@ void main() {
       expect(sentTokens, ['token', 'fresh'], reason: '갱신된 토큰을 써야 한다');
     });
 
-    test('⚠️ 갱신하고도 401이면 멈춘다', () async {
-      // 토큰 문제가 아니라 계정 문제다. 계속하면 갱신 API만 두드린다.
+    test('⚠️ 갱신하고도 401이면 곧바로 포기하지 않는다', () async {
+      // 예전에는 여기서 멈췄다. 그 순간 재연결이 영영 끊겨, **러닝 중이면
+      // `RUNNING_FINISH`를 보낼 길이 사라진다** — 화면이 "서버에 연결하는
+      // 중"에서 굳고 서버는 그 러닝을 계속 들고 있다(2026-09-18 실주행).
+      //
+      // 갱신이 막히는 이유는 대개 지나간다(터널·순간 5xx·회전 경합).
       client = makeClient(statuses: [401, 401]);
 
       await client.open();
-      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
 
-      expect(client.state, WsConnectionState.closed);
-      expect(refreshCalls, 1, reason: '갱신은 한 번뿐이어야 한다');
-      expect(connectCalls, 2);
+      expect(client.state, WsConnectionState.reconnecting);
     });
 
-    test('⚠️ 갱신이 실패하면 붙지 않는다', () async {
-      // 재로그인 말고는 방법이 없다. 재연결로 시간을 끌지 않는다.
+    test('⚠️ 다시 붙을 때 갱신부터 새로 한다', () async {
+      // 저장된 값으로 다시 붙어 봐야 같은 401이다.
+      client = makeClient(statuses: [401, 401]);
+
+      await client.open();
+      await Future<void>.delayed(const Duration(milliseconds: 1300));
+
+      expect(refreshCalls, greaterThan(1), reason: '갱신을 다시 해봐야 한다');
+      expect(connectCalls, greaterThan(2));
+    });
+
+    test('⚠️ 토큰을 못 받아도 재연결을 멈추지 않는다', () async {
+      // 갱신이 네트워크 때문에 실패했을 수도 있다. 한 번으로 단정하지 않는다.
       client = makeClient(statuses: [401], refreshedToken: null);
 
       await client.open();
-      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      expect(client.state, WsConnectionState.reconnecting);
+      expect(connectCalls, 1, reason: '토큰 없이 소켓을 열면 안 된다');
+    });
+
+    test('⚠️ 그래도 한도를 넘으면 멈춘다', () async {
+      // 리프레시가 정말 죽었으면 앱이 되살릴 방법이 없다. 영원히 재시도하면
+      // 화면이 "연결하는 중"에서 영영 굳는데, 그것이 고치려던 바로 그 버그다.
+      client = makeClient(statuses: [401, 401, 401, 401], authFailureLimit: 1);
+
+      await client.open();
+      await Future<void>.delayed(const Duration(milliseconds: 1400));
 
       expect(client.state, WsConnectionState.closed);
-      expect(connectCalls, 1, reason: '토큰 없이 소켓을 열면 안 된다');
     });
 
     test('401이 아닌 실패는 갱신하지 않고 backoff로 간다', () async {
