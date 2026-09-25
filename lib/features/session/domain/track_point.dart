@@ -79,6 +79,24 @@ class TrackPoint {
     recordedAt: point.recordedAt,
   );
 
+  /// 순번만 바꾼 사본.
+  ///
+  /// **아직 저장도 전송도 안 된 좌표에만 쓴다.** 앱이 러닝 도중에 죽었다
+  /// 살아나면 방을 알기 전에 들어온 좌표가 1번부터 번호를 받는데, 그 번호는
+  /// 재시작 전에 이미 쓴 것이다. 저장소에 쓰기 직전 뒤로 밀어야 한다.
+  TrackPoint withSequence(int sequence) => TrackPoint(
+    sequence: sequence,
+    latitude: latitude,
+    longitude: longitude,
+    accuracyMeters: accuracyMeters,
+    speedMetersPerSecond: speedMetersPerSecond,
+    recordedAt: recordedAt,
+    altitudeMeters: altitudeMeters,
+    headingDegrees: headingDegrees,
+    cadenceSpm: cadenceSpm,
+    currentPaceSecondsPerKm: currentPaceSecondsPerKm,
+  );
+
   /// 서버가 받는 모양 그대로.
   ///
   /// **`runningRoomId`는 여기 없다.** 방 번호는 `RUNNING_START`에서 한 번만

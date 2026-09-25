@@ -26,7 +26,16 @@ class FakeTrackRepository implements TrackRepository {
   Future<void> add(int runningRoomId, TrackPoint point) async {
     final reason = failure;
     if (reason != null) throw reason;
-    saved.putIfAbsent(runningRoomId, () => []).add(point);
+
+    // ⚠️ **진짜 저장소처럼 같은 순번을 덮어쓴다**(PK가 `(방, 순번)`이다).
+    // 쌓아두면 순번이 겹치는 버그가 가짜에서만 무해해 보인다.
+    final points = saved.putIfAbsent(runningRoomId, () => []);
+    final at = points.indexWhere((p) => p.sequence == point.sequence);
+    if (at < 0) {
+      points.add(point);
+    } else {
+      points[at] = point;
+    }
   }
 
   @override
@@ -56,6 +65,13 @@ class FakeTrackRepository implements TrackRepository {
   @override
   Future<int> count(int runningRoomId) async =>
       saved[runningRoomId]?.length ?? 0;
+
+  @override
+  Future<int> lastSequence(int runningRoomId) async {
+    final points = saved[runningRoomId];
+    if (points == null || points.isEmpty) return 0;
+    return points.map((p) => p.sequence).reduce((a, b) => a > b ? a : b);
+  }
 
   /// 지금 진행 중이라고 남긴 방. 테스트가 직접 세팅해 **끝내지 못한 방이
   /// 남아 있는 상황**을 만든다.

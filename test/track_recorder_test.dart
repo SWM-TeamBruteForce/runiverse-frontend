@@ -114,6 +114,57 @@ void main() {
       expect(repository.saved[8]?.single.sequence, 1);
     });
   });
+
+  /// 앱이 러닝 도중에 죽었다 살아난 자리다. 기록기는 새로 태어나지만 저장소의
+  /// 좌표는 남아 있다 — 1번부터 다시 매기면 그것을 덮어쓴다.
+  group('⚠️ 이어 달리기', () {
+    /// 재시작 전에 쌓여 있던 좌표.
+    void seed(int roomId, int count) {
+      for (var i = 1; i <= count; i++) {
+        repository.saved
+            .putIfAbsent(roomId, () => [])
+            .add(TrackPoint.from(geo(i), sequence: i));
+      }
+    }
+
+    test('쌓인 좌표가 있으면 그 뒤 번호부터 매긴다', () async {
+      seed(7, 500);
+
+      await recorder.bind(7);
+      await recorder.add(geo(1));
+      await recorder.add(geo(2));
+
+      expect(
+        repository.saved[7]?.map((p) => p.sequence).toList().sublist(500),
+        [501, 502],
+      );
+    });
+
+    test('⚠️ 예전 좌표를 하나도 덮어쓰지 않는다', () async {
+      seed(7, 500);
+
+      await recorder.bind(7);
+      await recorder.add(geo(1));
+
+      expect(repository.saved[7], hasLength(501));
+    });
+
+    test('⚠️ 방을 알기 전에 들어온 좌표도 뒤로 밀린다', () async {
+      // 복구 경로에서는 위치 구독이 `bind`보다 먼저 붙는다. 그 좌표들이
+      // 1번부터 번호를 받아 놓은 상태로 들어온다.
+      seed(7, 500);
+
+      await recorder.add(geo(1));
+      await recorder.add(geo(2));
+      await recorder.bind(7);
+
+      expect(repository.saved[7], hasLength(502));
+      expect(
+        repository.saved[7]?.map((p) => p.sequence).toList().sublist(500),
+        [501, 502],
+      );
+    });
+  });
 }
 
 class _FakeRepository implements TrackRepository {
@@ -122,7 +173,15 @@ class _FakeRepository implements TrackRepository {
 
   @override
   Future<void> add(int runningRoomId, TrackPoint point) async {
-    saved.putIfAbsent(runningRoomId, () => []).add(point);
+    // ⚠️ 진짜 저장소는 PK가 `(방, 순번)`이라 같은 순번을 **덮어쓴다.**
+    // 쌓아두면 순번이 겹치는 버그가 여기서만 무해해 보인다.
+    final points = saved.putIfAbsent(runningRoomId, () => []);
+    final at = points.indexWhere((p) => p.sequence == point.sequence);
+    if (at < 0) {
+      points.add(point);
+    } else {
+      points[at] = point;
+    }
   }
 
   @override
@@ -156,4 +215,11 @@ class _FakeRepository implements TrackRepository {
   @override
   Future<int> count(int runningRoomId) async =>
       saved[runningRoomId]?.length ?? 0;
+
+  @override
+  Future<int> lastSequence(int runningRoomId) async {
+    final points = saved[runningRoomId];
+    if (points == null || points.isEmpty) return 0;
+    return points.map((p) => p.sequence).reduce((a, b) => a > b ? a : b);
+  }
 }

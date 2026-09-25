@@ -36,15 +36,41 @@ class TrackRecorder {
   int get pendingCount => _pending.length;
 
   /// 방 번호를 알게 됐다. **기다리던 좌표를 전부 쓴다.**
+  ///
+  /// ## ⚠️ 이미 쌓인 좌표가 있으면 그 뒤부터 매긴다
+  ///
+  /// 앱이 러닝 도중에 죽으면 이 객체는 사라지고 [_sequence]가 0으로 다시
+  /// 태어나는데, **저장소의 좌표는 그대로 남아 있다.** 그 상태로 1번부터
+  /// 매기면 저장소가 예전 1번을 덮어쓰고(PK가 `(방, 순번)`이다), 서버는 이미
+  /// 받은 번호라며 새 좌표를 전부 버린다 — **재시작 이후 달린 구간이 기록에
+  /// 안 남는다.**
+  ///
+  /// 기다리던 좌표도 같은 이유로 번호를 다시 받는다. 아직 저장도 전송도 안 된
+  /// 것이라 밀어도 잃는 것이 없다. 순서는 그대로다.
   Future<void> bind(int runningRoomId) async {
     _roomId = runningRoomId;
-    if (_pending.isEmpty) return;
+
+    final last = await _repository.lastSequence(runningRoomId);
+    if (_pending.isEmpty) {
+      if (last > 0) _sequence = last;
+      return;
+    }
 
     // 복사해서 돌린다. 쓰는 동안 새 좌표가 들어와도 목록이 흔들리지 않는다.
     final waiting = List<TrackPoint>.from(_pending);
     _pending.clear();
+
+    if (last == 0) {
+      // 새 러닝이다. 기다리던 번호가 곧 맞는 번호다.
+      for (final point in waiting) {
+        await _repository.add(runningRoomId, point);
+      }
+      return;
+    }
+
+    _sequence = last;
     for (final point in waiting) {
-      await _repository.add(runningRoomId, point);
+      await _repository.add(runningRoomId, point.withSequence(++_sequence));
     }
   }
 
