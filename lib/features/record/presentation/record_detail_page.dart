@@ -7,6 +7,7 @@ import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
+import 'package:runiverse/features/record/domain/run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record/presentation/run_result_view.dart';
 
@@ -58,10 +59,14 @@ class _RecordDetailPageState extends ConsumerState<RecordDetailPage> {
     return detail.when(
       data: (value) => RunResultView(detail: value),
       loading: () => const _Frame(child: CircularProgressIndicator()),
-      error: (_, _) => _Frame(
+      // ⚠️ 오류 종류를 본다. 404·403은 **다시 시도해도 같은 답**이라 재시도를
+      // 권하면 몇 번을 눌러도 같은 화면만 돌아온다.
+      error: (error, _) => _Frame(
         child: _Failed(
-          onRetry: () =>
-              ref.invalidate(runDetailProvider(widget.runningRoomId)),
+          error: error,
+          onRetry: () {
+            ref.invalidate(runDetailProvider(widget.runningRoomId));
+          },
         ),
       ),
     );
@@ -98,9 +103,26 @@ class _Frame extends StatelessWidget {
 }
 
 class _Failed extends StatelessWidget {
-  const _Failed({required this.onRetry});
+  const _Failed({required this.error, required this.onRetry});
 
+  final Object error;
   final VoidCallback onRetry;
+
+  /// 다시 눌러 볼 만한 실패인가.
+  bool get _retryable =>
+      error is! RunRecordException ||
+      switch ((error as RunRecordException).failure) {
+        RunRecordFailure.notFound || RunRecordFailure.forbidden => false,
+        _ => true,
+      };
+
+  String get _message => switch (error) {
+    RunRecordException(failure: RunRecordFailure.notFound) =>
+      AppStrings.recordDetailMissing,
+    RunRecordException(failure: RunRecordFailure.forbidden) =>
+      AppStrings.recordDetailForbidden,
+    _ => AppStrings.recordError,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -118,17 +140,19 @@ class _Failed extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.space3),
           Text(
-            AppStrings.recordError,
+            _message,
             textAlign: TextAlign.center,
             style: AppTypography.body.copyWith(color: colors.textSecondary),
           ),
-          const SizedBox(height: AppSpacing.space4),
-          AppButton(
-            label: AppStrings.recordRetry,
-            variant: AppButtonVariant.secondary,
-            size: AppButtonSize.md,
-            onPressed: onRetry,
-          ),
+          if (_retryable) ...[
+            const SizedBox(height: AppSpacing.space4),
+            AppButton(
+              label: AppStrings.recordRetry,
+              variant: AppButtonVariant.secondary,
+              size: AppButtonSize.md,
+              onPressed: onRetry,
+            ),
+          ],
         ],
       ),
     );

@@ -449,6 +449,16 @@ abstract final class AppStrings {
   /// 대기실이다 — 사람이 보는 단계가 달라서다.
   static const homeMatchToWaitingRoom = '대기실로 가기';
 
+  // 히어로 — 러닝이 이미 시작됨
+
+  /// 예약한 시각이 지나 서버가 러닝을 시작했는데 사용자가 홈에 있는 자리다.
+  ///
+  /// ⚠️ **"시작할까요"가 아니다.** 이미 달리는 중으로 서버에 기록되고 있고,
+  /// 여기서 머무는 만큼이 거리에서 빠진다.
+  static const homeRunStarted = '러닝이 시작됐어요';
+  static const homeRunStartedHint = '지금 들어가지 않으면 거리가 빠져요';
+  static const homeRunToSession = '러닝 화면으로 가기';
+
   static const homeSectionCompetition = '다가오는 대회';
   static const homeSectionRecentRun = '최근 러닝';
 
@@ -1001,6 +1011,11 @@ abstract final class AppStrings {
   /// 방에는 있지만 수치가 없는 사람. **0이 아니라 없다.**
   static const runResultNoRecord = '기록 없음';
 
+  /// 아직 뛰고 있는 사람. **"기록 없음"과 다르다** — 곧 생긴다.
+  ///
+  /// 중간값이 실려 오지만 확정된 것이 아니라 숫자를 그리지 않는다.
+  static const runResultStillRunning = '달리는 중';
+
   /// 러너 칩 위의 안내. 한 번에 한 명만 겹쳐 본다.
   static const runResultCompareHint = '한 명을 골라 구간별로 비교해요';
 
@@ -1033,6 +1048,10 @@ abstract final class AppStrings {
   static const recordMonthEmpty = '이 달에는 기록이 없어요';
 
   static const recordError = '기록을 불러오지 못했어요';
+
+  /// 404·403 — **다시 시도해도 같은 답이다.** 그래서 재시도를 권하지 않는다.
+  static const recordDetailMissing = '이 러닝의 기록이 없어요';
+  static const recordDetailForbidden = '이 러닝의 참가자가 아니에요';
   static const recordRetry = '다시 시도';
 
   /// 캘린더 요일 머리. 일요일부터 시작한다(정본 S21).

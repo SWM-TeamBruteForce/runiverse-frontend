@@ -102,10 +102,23 @@ class RoomInfo {
   ///
   /// ⚠️ **참가자는 비어 있다.** 이름도 인원도 스냅샷에만 있다 — 화면은 이
   /// 목록이 비면 인원 줄을 아예 그리지 않는다. 0명이라고 적으면 거짓이다.
+  /// ## ⚠️ 이미 시작한 러닝도 세운다
+  ///
+  /// 매칭 러닝은 예약한 시각에 서버가 시작한다. 그때 사용자가 홈 탭에 있으면
+  /// 아무 일도 일어나지 않았다 — 방 스냅샷의 `STARTED`도, 상태 조회의
+  /// `RUNNING`도 홈이 그리지 않아 **달리고 있는데 화면은 "지금 매칭하기"였다.**
+  /// 들어갈 길을 여기서 만든다.
   static RoomInfo? fromStatus(UserStatus? status) => switch (status) {
     UserStatusReady(isSolo: false) => RoomInfo(
       runningRoomId: status.runningRoomId,
       status: RoomStatus.matched,
+      scheduledStartAt: status.scheduledStartAt,
+      targetDistanceMeters: status.targetDistanceMeters,
+      players: const [],
+    ),
+    UserStatusRunning(isSolo: false) => RoomInfo(
+      runningRoomId: status.runningRoomId,
+      status: RoomStatus.started,
       scheduledStartAt: status.scheduledStartAt,
       targetDistanceMeters: status.targetDistanceMeters,
       players: const [],

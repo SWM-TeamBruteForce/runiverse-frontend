@@ -392,6 +392,62 @@ void main() {
       expect(app.container.read(matchRoomProvider).ready?.startsInMs, 10000);
     });
 
+    test('⚠️ 남의 방 시작 통지는 발사 시각을 잡지 않는다', () async {
+      // 2026-09-18: 서버가 남의 방 스냅샷을 보내는 것을 확인했다. 시작 통지도
+      // 같은 일이 나면, `startsInMs`가 0인 통지 하나로 **받는 즉시** 출발한다.
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      app.stream.emit(MatchRoomUpdated(room(RoomStatus.matched)));
+      await Future<void>.delayed(Duration.zero);
+      app.stream.emit(
+        RunningReady(
+          runningRoomId: 999,
+          scheduledStartAt: startAt,
+          startsInMs: 0,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final state = app.container.read(matchRoomProvider);
+      expect(state.ready, isNull);
+      // 발사 시각은 여전히 방이 말하는 시작 시각이다.
+      expect(state.launch?.at, startAt);
+    });
+
+    test('⚠️ 방이 바뀌면 옛 방의 발사 시각을 버린다', () async {
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      app.stream.emit(MatchRoomUpdated(room(RoomStatus.matched)));
+      await Future<void>.delayed(Duration.zero);
+      app.stream.emit(
+        RunningReady(
+          runningRoomId: 125,
+          scheduledStartAt: startAt,
+          startsInMs: 10000,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(app.container.read(matchRoomProvider).ready, isNotNull);
+
+      // 다른 방으로 옮겨졌다.
+      final moved = RoomInfo(
+        runningRoomId: 126,
+        status: RoomStatus.matching,
+        scheduledStartAt: startAt.add(const Duration(minutes: 5)),
+        players: const [],
+      );
+      app.stream.emit(MatchRoomUpdated(moved));
+      await Future<void>.delayed(Duration.zero);
+
+      final state = app.container.read(matchRoomProvider);
+      expect(state.ready, isNull);
+      expect(state.launch?.at, moved.scheduledStartAt);
+    });
+
     test('⚠️ 끊겨도 방 정보는 남는다', () async {
       // 잠깐 끊겼다고 대기방을 비우면 사람이 홈으로 튕긴다.
       final app = build();
@@ -420,6 +476,70 @@ void main() {
         app.container.read(matchRoomProvider).failure,
         MatchStreamFailure.noActiveMatch,
       );
+    });
+  });
+
+  /// 스냅샷이 없을 때 상태 조회만으로 세우는 대타 방.
+  group('RoomInfo.fromStatus', () {
+    final startAt = DateTime(2026, 9, 18, 19);
+
+    test('확정된 매칭은 확정 방이 된다', () {
+      final room = RoomInfo.fromStatus(
+        UserStatusReady(
+          runningRoomId: 7,
+          isSolo: false,
+          scheduledStartAt: startAt,
+        ),
+      );
+
+      expect(room?.status, RoomStatus.matched);
+      expect(room?.runningRoomId, 7);
+      // ⚠️ 인원은 스냅샷에만 있다. 0명이라고 적으면 거짓이다.
+      expect(room?.players, isEmpty);
+    });
+
+    test('⚠️ 이미 달리는 중이면 시작된 방이 된다', () {
+      // 여기가 `null`이면 홈이 기본 히어로로 떨어져, 달리는 중에 화면이
+      // "지금 매칭하기"가 되고 들어갈 문이 없어진다.
+      final room = RoomInfo.fromStatus(
+        UserStatusRunning(
+          runningRoomId: 7,
+          isSolo: false,
+          scheduledStartAt: startAt,
+        ),
+      );
+
+      expect(room?.status, RoomStatus.started);
+      expect(room?.runningRoomId, 7);
+    });
+
+    test('솔로는 매칭 방을 세우지 않는다', () {
+      // 솔로는 매칭이 아니다. 매칭 히어로를 띄우면 거짓이다.
+      expect(
+        RoomInfo.fromStatus(
+          UserStatusRunning(
+            runningRoomId: 7,
+            isSolo: true,
+            scheduledStartAt: startAt,
+          ),
+        ),
+        isNull,
+      );
+      expect(
+        RoomInfo.fromStatus(
+          UserStatusReady(
+            runningRoomId: 7,
+            isSolo: true,
+            scheduledStartAt: startAt,
+          ),
+        ),
+        isNull,
+      );
+    });
+
+    test('쉬는 중이거나 모르면 방이 없다', () {
+      expect(RoomInfo.fromStatus(const UserStatusIdle()), isNull);
+      expect(RoomInfo.fromStatus(null), isNull);
     });
   });
 }

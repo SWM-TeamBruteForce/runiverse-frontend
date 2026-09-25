@@ -44,6 +44,7 @@ class HomeHero extends StatelessWidget {
     required this.now,
     this.room,
     this.pending = false,
+    this.cooldownUntil,
     super.key,
   });
 
@@ -67,6 +68,11 @@ class HomeHero extends StatelessWidget {
 
   /// 속한 방. `null`이면 매칭 중이 아니거나 아직 방 정보를 못 받았다.
   final RoomInfo? room;
+
+  /// 매칭 신청이 풀리는 시각. 없거나 지났으면 제한이 없다.
+  ///
+  /// 이탈·조기 종료 제재다. **매칭 신청만 막고 솔로는 열어 둔다.**
+  final DateTime? cooldownUntil;
 
   /// ⚠️ 서버는 매칭 중이라는데 [room]이 아직 없는 구간인가.
   ///
@@ -102,8 +108,6 @@ class HomeHero extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(AppSpacing.space6),
               child: switch (current?.status) {
-                // 모집 중과 확정만 히어로가 맡는다. 러닝이 시작된 뒤에는
-                // 라우터가 이미 러닝 화면으로 보냈다.
                 RoomStatus.matching => _Waiting(
                   room: current!,
                   now: now,
@@ -114,11 +118,17 @@ class HomeHero extends StatelessWidget {
                   now: now,
                   onLobby: onLobby,
                 ),
+                // ⚠️ **여기를 비워두면 달리는 중에 홈이 "지금 매칭하기"가 된다.**
+                // 예약한 시각이 지나 서버가 러닝을 시작했는데 사용자가 홈 탭에
+                // 있으면 아무도 데려가지 않았다 — 그사이가 통째로 거리에서 빠진다.
+                RoomStatus.started => _Started(onEnter: onLobby),
                 _ when pending => _Pending(onCancel: onCancel),
                 _ => _Idle(
                   greeting: greeting,
                   onMatch: onMatch,
                   onSolo: onSolo,
+                  now: now,
+                  cooldownUntil: cooldownUntil,
                 ),
               },
             ),
@@ -135,15 +145,28 @@ class _Idle extends StatelessWidget {
     required this.greeting,
     required this.onMatch,
     required this.onSolo,
+    required this.now,
+    this.cooldownUntil,
   });
 
   final String greeting;
   final VoidCallback onMatch;
   final VoidCallback onSolo;
 
+  /// 지금. **부르는 쪽이 갈아끼운다** — 제한이 풀리는 순간 버튼이 열려야 한다.
+  final DateTime now;
+
+  /// 매칭 신청이 풀리는 시각. 지났거나 없으면 제한이 없다.
+  ///
+  /// ⚠️ **솔로는 막지 않는다.** 제재는 매칭 신청에만 걸린다 — 혼자 달리는 것은
+  /// 누구를 기다리게 하지도, 방을 비우지도 않는다.
+  final DateTime? cooldownUntil;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final until = cooldownUntil;
+    final locked = until != null && until.isAfter(now);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -161,9 +184,22 @@ class _Idle extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.space6),
 
-        AppButton(label: AppStrings.homeMatchCta, onPressed: onMatch),
+        // ⚠️ **눌러 보고 409를 받게 두지 않는다.** 서버가 이미 언제까지인지
+        // 말해 줬는데 그것을 숨기면, 사용자는 눌러야만 이유를 알 수 있다.
+        AppButton(
+          label: AppStrings.homeMatchCta,
+          onPressed: locked ? null : onMatch,
+        ),
+        if (locked) ...[
+          const SizedBox(height: AppSpacing.space2),
+          Text(
+            AppStrings.matchFailedCooldown(until),
+            style: AppTypography.caption.copyWith(color: colors.textTertiary),
+          ),
+        ],
         const SizedBox(height: AppSpacing.space2),
 
+        // 솔로는 제한과 무관하게 열려 있다.
         AppButton(
           label: AppStrings.homeSoloCta,
           onPressed: onSolo,
@@ -387,6 +423,40 @@ class _Confirmed extends StatelessWidget {
         const SizedBox(height: AppSpacing.space4),
 
         AppButton(label: AppStrings.homeMatchToWaitingRoom, onPressed: onLobby),
+      ],
+    );
+  }
+}
+
+/// 서버가 이미 시작한 러닝. **들어갈 문 하나만 둔다.**
+///
+/// 카운트다운도 파티원 줄도 그리지 않는다 — 기다릴 것이 없고, 이 화면에서
+/// 머무는 시간이 그대로 기록에서 빠진다.
+class _Started extends StatelessWidget {
+  const _Started({required this.onEnter});
+
+  final VoidCallback onEnter;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          AppStrings.homeRunStarted,
+          style: AppTypography.h2.copyWith(color: colors.textPrimary),
+        ),
+        const SizedBox(height: AppSpacing.space2),
+        Text(
+          AppStrings.homeRunStartedHint,
+          textAlign: TextAlign.center,
+          style: AppTypography.caption.copyWith(color: colors.textSecondary),
+        ),
+        const SizedBox(height: AppSpacing.space4),
+
+        AppButton(label: AppStrings.homeRunToSession, onPressed: onEnter),
       ],
     );
   }

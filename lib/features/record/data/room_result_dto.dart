@@ -61,6 +61,8 @@ abstract final class RoomResultDto {
             nickname: (player['nickname'] as String?) ?? '',
             isMe: player['isMe'] == true,
             isDeleted: player['isDeleted'] == true,
+            // 먼저 끝낸 사람이 결과를 열면 아직 뛰는 사람이 섞여 온다.
+            isRunning: player['status'] == 'RUNNING',
             profileImageUrl: player['profileImageUrl'] as String?,
             distanceMeters: player['totalDistanceMeters'] as int?,
             duration: _seconds(player['totalDurationSeconds']),

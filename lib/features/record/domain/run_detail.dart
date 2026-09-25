@@ -142,6 +142,7 @@ class RunPlayerResult {
     required this.isMe,
     this.profileImageUrl,
     this.isDeleted = false,
+    this.isRunning = false,
     this.distanceMeters,
     this.duration,
     this.averagePace,
@@ -157,11 +158,19 @@ class RunPlayerResult {
   final String? profileImageUrl;
   final bool isDeleted;
 
+  /// 아직 달리는 중인가(`status == 'RUNNING'`).
+  ///
+  /// ⚠️ **그 사람의 수치는 확정된 것이 아니다.** 먼저 끝낸 사람이 결과를 열면
+  /// 아직 뛰는 사람의 중간값이 실려 오는데, 그것을 최종 기록처럼 그리면
+  /// 나중에 열었을 때 숫자가 달라져 있다.
+  final bool isRunning;
+
   final int? distanceMeters;
   final Duration? duration;
   final Duration? averagePace;
   final int? cadenceSpm;
   final int? caloriesKcal;
 
-  bool get hasRecord => duration != null;
+  /// 확정된 기록이 있는가. **달리는 중이면 아직 아니다.**
+  bool get hasRecord => duration != null && !isRunning;
 }
