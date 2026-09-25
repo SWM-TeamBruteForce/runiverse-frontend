@@ -1,3 +1,5 @@
+import 'package:runiverse/features/session/domain/user_status.dart';
+
 /// 방이 어느 단계인가.
 ///
 /// 화면을 가르는 값이다 — 잘못 읽으면 취소된 방의 대기실에 사람을 묶어두거나,
@@ -90,6 +92,26 @@ class RoomInfo {
   final int? teamAveragePaceSecondsPerKm;
 
   final List<RoomPlayer> players;
+
+  /// 상태 조회만으로 세운 방. **스냅샷이 없을 때의 대타다.**
+  ///
+  /// 확정된 방인데 스트림이 스냅샷을 주지 못하는 경우가 있다 — 옛 방을 대신
+  /// 주거나(2026-09-18 실측), 연결이 늦거나. 그때 홈이 아무것도 못 그리면
+  /// 사용자는 확정된 러닝에 들어갈 길을 잃는다. 상태 조회는 방 번호와 시작
+  /// 시각을 알고 있으므로 그것만으로 카운트다운과 입장 버튼을 세운다.
+  ///
+  /// ⚠️ **참가자는 비어 있다.** 이름도 인원도 스냅샷에만 있다 — 화면은 이
+  /// 목록이 비면 인원 줄을 아예 그리지 않는다. 0명이라고 적으면 거짓이다.
+  static RoomInfo? fromStatus(UserStatus? status) => switch (status) {
+    UserStatusReady(isSolo: false) => RoomInfo(
+      runningRoomId: status.runningRoomId,
+      status: RoomStatus.matched,
+      scheduledStartAt: status.scheduledStartAt,
+      targetDistanceMeters: status.targetDistanceMeters,
+      players: const [],
+    ),
+    _ => null,
+  };
 
   /// 혼자 확정된 방인가. **나가도 제재가 없다.**
   bool get isAlone => players.length <= 1;

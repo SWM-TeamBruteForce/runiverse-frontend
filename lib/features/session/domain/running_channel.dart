@@ -1,6 +1,7 @@
 import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
+import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 
 /// 러닝 중 서버와 주고받는 것.
@@ -19,6 +20,12 @@ abstract interface class RunningChannel {
 
   /// 서버가 거절했을 때. **연결은 유지된다.**
   Stream<WsErrorCode> get errors;
+
+  /// 러닝의 현재 상태 전부. **`RUNNING_START`를 보낼 때마다 한 번씩 온다** —
+  /// 최초 진입이든 재연결이든 같다.
+  ///
+  /// 이름·사진은 여기에만 있다. 진행·콤보 통지는 사람을 `userId`로만 가리킨다.
+  Stream<RunSnapshot> get snapshots;
 
   /// 파티원 한 명의 진행이 바뀔 때마다.
   ///

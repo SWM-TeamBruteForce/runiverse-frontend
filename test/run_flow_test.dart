@@ -19,6 +19,7 @@ import 'package:runiverse/features/session/data/fake_track_repository.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
+import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
@@ -537,6 +538,9 @@ class _SilentChannel implements RunningChannel {
 
   @override
   Stream<RunCombo> get combos => const Stream.empty();
+
+  @override
+  Stream<RunSnapshot> get snapshots => const Stream.empty();
 
   @override
   Future<void> start(int runningRoomId) async {}

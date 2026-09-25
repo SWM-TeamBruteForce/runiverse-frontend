@@ -258,8 +258,7 @@ class RunSessionController extends Notifier<RunSessionState> {
   /// 출발한다. 준비를 열지 않았으면 여기서 연다. 권한이 없으면 출발하지 않는다.
   ///
   /// [since]를 주면 그 시각부터 달린 것으로 잰다 — 앱을 껐다 켜서 이어 달릴 때
-  /// 서버가 정한 출발 시각이다. ⚠️ 거리는 다시 0부터다(로컬 재계산은 아직
-  /// 없다). 기록은 서버가 전체 좌표로 확정하므로 결과에는 영향이 없다.
+  /// 서버가 정한 출발 시각이다. 거리는 [seedDistance]가 스냅샷으로 메운다.
   Future<void> startWhenReady({DateTime? since}) async {
     if (state is RunIdle) {
       final access = await prepare();
@@ -273,12 +272,49 @@ class RunSessionController extends Notifier<RunSessionState> {
     _startSince = since;
   }
 
+  /// 앱을 껐다 켜서 이어 붙은 러닝인가. [start]가 출발 시각을 받았으면 참이다.
+  var _resumed = false;
+
+  /// 스냅샷으로 바닥을 한 번 올렸는가. 두 번 올리면 거리가 부풀려진다.
+  var _seeded = false;
+
+  /// 서버가 아는 **내 누적 거리**로 바닥을 올린다. 한 러닝에 한 번뿐이다.
+  ///
+  /// 앱을 껐다 켜면 로컬 누적이 0부터 다시 시작한다. 좌표는 서버에 이미 쌓여
+  /// 있는데 화면만 0.00km를 보여주고, 요약의 평균 페이스까지 부풀려진다.
+  /// `RUNNING_STARTED` 스냅샷이 실어 오는 값으로 그 바닥을 메운다.
+  ///
+  /// ## ⚠️ **이어 달리는 러닝에서만** 올린다
+  ///
+  /// 명세가 "화면 표시는 로컬 계산값 우선, 스냅샷은 복구용"으로 정했다. 서버
+  /// 누적과 앱 누적은 늘 미세하게 다르므로, 스냅샷이 올 때마다 맞추면 화면의
+  /// 숫자가 왔다 갔다 한다. 연결만 끊겼다 붙은 경우가 특히 그렇다 — 로컬은
+  /// 멀쩡한데 서버 쪽이 조금 앞서 있어서, 맞추면 거리가 툭 뛴다.
+  ///
+  /// 그래서 **[start]에 출발 시각을 받은 러닝**, 즉 앱을 껐다 켜서 이어 붙은
+  /// 경우에만 허용한다. 새로 시작한 러닝은 애초에 메울 바닥이 없다.
+  /// 한 러닝에 한 번뿐이다.
+  ///
+  /// ⚠️ 지도 선은 되살아나지 않는다. 좌표 자체는 서버에만 있고 앱이 받아오는
+  /// 길이 없다. 숫자만 이어지고 선은 재시작 지점부터 그려진다.
+  void seedDistance(int meters) {
+    if (!_resumed || _seeded) return;
+    _seeded = true;
+    if (meters <= _distanceMeters) return;
+
+    _distanceMeters = meters.toDouble();
+    if (state is RunRunning) state = RunRunning(_metrics());
+  }
+
   /// 첫 신호에 출발하기로 했는가. [startWhenReady]가 세우고 [_reset]이 지운다.
   var _startOnFix = false;
   DateTime? _startSince;
 
   void start({DateTime? since}) {
     if (state case RunPreparing(hasFix: true)) {
+      // 출발 시각을 받았다 = 이미 시작된 러닝에 이어 붙는다. 그때만 서버가
+      // 아는 누적 거리로 바닥을 메울 수 있다([seedDistance]).
+      _resumed = since != null;
       final now = since ?? _now();
       _startedAt = now;
       _resumedAt = now;
@@ -474,6 +510,8 @@ class RunSessionController extends Notifier<RunSessionState> {
     // ⚠️ 안 비우면 다음 러닝의 첫 좌표가 **지난 러닝의 마지막 위치로 끌려온다.**
     _smoother.reset();
     _distanceMeters = 0;
+    _seeded = false;
+    _resumed = false;
     _accumulated = Duration.zero;
     _resumedAt = null;
     _startedAt = null;

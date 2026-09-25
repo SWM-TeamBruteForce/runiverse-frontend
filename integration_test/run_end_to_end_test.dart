@@ -14,6 +14,7 @@ import 'package:runiverse/features/session/data/fake_running_room_repository.dar
 import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
+import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
@@ -235,6 +236,9 @@ class _RecordingChannel implements RunningChannel {
 
   @override
   Stream<RunCombo> get combos => const Stream.empty();
+
+  @override
+  Stream<RunSnapshot> get snapshots => const Stream.empty();
 
   @override
   Future<void> start(int runningRoomId) async {

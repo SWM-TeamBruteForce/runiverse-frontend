@@ -289,6 +289,17 @@ class MatchRoomController extends Notifier<MatchRoomState> {
       '${room.players.length}명 · 팀 평균 ${room.teamAveragePaceSecondsPerKm}s/km',
     );
 
+    // ⚠️ **끝난 방은 현재 방으로 들고 있지 않는다.**
+    //
+    // 스트림이 옛 방의 마지막 상태를 다시 줄 때가 있다 — 2026-09-18에 새 방에
+    // 신청했는데 스냅샷으로 두 시간 전에 끝낸 방이 왔다. 그것을 현재 방으로
+    // 저장하면 홈이 "매칭 없음"으로 보이는데, 재신청은 409로 막혀서 빠져나갈
+    // 길이 없어진다. 그때도 `users/me/status`는 맞는 값(확정)을 줬다.
+    //
+    // 무시만 하고 **연결은 끊지 않는다.** 끊으면 상태가 확정이라 곧바로 다시
+    // 붙고, 같은 스냅샷을 또 받아 되풀이가 된다. 화면은 상태 조회가 이끈다.
+    if (room.status == RoomStatus.finished) return;
+
     if (room.status == RoomStatus.cancelled) {
       // 참가자가 모두 빠졌다. 들고 있을 방이 없다.
       unawaited(disconnect());
