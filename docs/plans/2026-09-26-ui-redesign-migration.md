@@ -835,6 +835,50 @@ EOF
 
 ---
 
+### Task 4.5: 디자인 아이콘을 들인다
+
+⚠️ **계획을 쓸 때 몰랐던 작업이다.** 사용자가 알려준 디자인 소스 폴더
+저장소 밖 `design_system/runiverse_design_product/runiverse/icon` 에
+**자체 아이콘 SVG 33개**(24×24, 합 141KB)가 있다. 시안의 하단 탭 넷
+(`Home`·`Book`·`Photo`·`Profile`)이 바로 이것들이다.
+
+CLAUDE.md 는 "아이콘은 Lucide 만 쓴다"고 되어 있다. **사용자가 `flutter_svg`
+추가를 승인했다**(2026-09-27). 교체가 끝나면 Lucide 를 빼는 규칙으로 정리한다.
+
+**Files:**
+- Modify: `pubspec.yaml` (`flutter_svg` 의존성 + `assets:` 절)
+- Create: `assets/icons/` (SVG 33개)
+- Create: `lib/core/widgets/v2/app_icon.dart`
+- Test: `test/v2_app_icon_test.dart`
+
+**Interfaces:**
+- Consumes: Task 3 의 `AppColorsV2`
+- Produces: `AppIcon` 위젯과 `AppIcons` 이름 목록 — 옮긴 화면이 쓴다
+
+- [ ] **Step 1: 패키지를 더한다**
+
+```powershell
+.\.fvmlutter_sdkinlutter.bat pub add flutter_svg
+```
+
+- [ ] **Step 2: SVG 를 복사하고 `assets:` 에 등록한다**
+
+`pubspec.yaml` 의 `flutter:` 절에 `assets: - assets/icons/` 를 더한다.
+지금은 `assets:` 절 자체가 없다(주석만 있다).
+
+- [ ] **Step 3: `AppIcon` 위젯을 만든다**
+
+색을 `AppColorsV2` 에서 받아 `ColorFilter` 로 입힌다. 크기 기본 24.
+
+- [ ] **Step 4: 33개가 다 로드되는지 테스트한다**
+
+파일 존재와 이름 목록 일치를 본다. **없는 이름을 부르면 런타임에야 빈
+자리로 나타나므로** 테스트로 잡는다.
+
+- [ ] **Step 5: 검증과 커밋**
+
+---
+
 ### Task 5: 화면 하나를 옮겨 본다 — 매칭 대기방
 
 **`match_room_page` 를 고른 이유**는 셋이다. 전용 테스트 파일이 있어(`match_room_page_test.dart`, 16개 중 구조 결합 6건) **깨지는 수를 잴 수 있고**, 하단 탭이 없어 탭 4개 결정과 얽히지 않으며, 시안(`158:3415` `매칭 완료 / 세션 로비 페이지`)이 명확하다.

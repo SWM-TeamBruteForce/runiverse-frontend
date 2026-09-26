@@ -78,6 +78,7 @@ dependencies:
   # 없으면 `canLaunchUrl`이 조용히 false를 돌려주고 링크가 안 열린다 —
   # 에러도 로그도 없다. 매니페스트를 함께 본다.
   url_launcher: ^6.3.2
+  flutter_svg: ^2.3.0
 
 dev_dependencies:
   flutter_test:
@@ -137,6 +138,11 @@ flutter:
           weight: 700
         - asset: assets/fonts/SUIT-ExtraBold.ttf
           weight: 800
+
+  assets:
+    # 새 디자인의 아이콘. 시안이 자체 SVG 33개를 쓴다 — Lucide 로는 모양이
+    # 미세하게 달라진다. 옮긴 화면만 이쪽을 쓴다.
+    - assets/icons/
 
   # To add assets to your application, add an assets section, like this:
   # assets:
