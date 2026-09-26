@@ -72,11 +72,7 @@ void main() {
     store = await signedIn();
     var expired = 0;
     final auth = _FailingAuth(AuthFailure.sessionExpired);
-    final refresher = TokenRefresher(
-      auth,
-      store,
-      onExpired: () => expired++,
-    );
+    final refresher = TokenRefresher(auth, store, onExpired: () => expired++);
 
     await Future.wait([refresher.refresh(), refresher.refresh()]);
 
