@@ -88,32 +88,43 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Finder saveButton() =>
-      find.widgetWithText(TextButton, AppStrings.profileEditSave);
+  /// 저장 버튼. **문구로 찾는다** — `TextButton` 인지 무엇인지에 기대지 않는다.
+  Finder saveButton() => find.text(AppStrings.profileEditSave);
 
-  bool saveEnabled(WidgetTester tester) =>
-      tester.widget<TextButton>(saveButton()).onPressed != null;
+  /// 소개글 입력. **부품 타입이 아니라 키로 찾는다** — 디자인을 바꿔도 키만
+  /// 이어받으면 이 테스트가 산다.
+  final introductionField = find.byKey(const ValueKey('profile-introduction'));
+
+  /// 저장이 열려 있는가. **부품의 `onPressed` 를 보지 않는다.**
+  ///
+  /// 눌러 보고 **서버로 나갔는지**로 판단한다. 잠김은 부품의 속성이 아니라
+  /// 화면의 약속이고, 디자인이 바뀌어도 그 약속은 그대로다.
+  Future<bool> saveOpens(WidgetTester tester) async {
+    await tester.tap(saveButton());
+    await tester.pumpAndSettle();
+    return repo.updated != null;
+  }
 
   testWidgets('⚠️ 바꾼 게 없으면 저장이 잠긴다', (tester) async {
     await pumpEdit(tester);
 
     // 열자마자 눌리면 아무것도 안 바꾸고 요청이 나간다.
-    expect(saveEnabled(tester), isFalse);
+    expect(await saveOpens(tester), isFalse);
   });
 
   testWidgets('소개글을 고치면 저장이 열린다', (tester) async {
     await pumpEdit(tester);
 
-    await tester.enterText(find.byType(TextField), '즐겁게 달려요');
+    await tester.enterText(introductionField, '즐겁게 달려요');
     await tester.pumpAndSettle();
 
-    expect(saveEnabled(tester), isTrue);
+    expect(await saveOpens(tester), isTrue);
   });
 
   testWidgets('⚠️ 바뀐 것만 보낸다', (tester) async {
     await pumpEdit(tester);
 
-    await tester.enterText(find.byType(TextField), '즐겁게 달려요');
+    await tester.enterText(introductionField, '즐겁게 달려요');
     await tester.pumpAndSettle();
     await tester.tap(saveButton());
     await tester.pumpAndSettle();
@@ -125,7 +136,7 @@ void main() {
   testWidgets('저장에 성공하면 화면이 닫힌다', (tester) async {
     await pumpEdit(tester);
 
-    await tester.enterText(find.byType(TextField), '즐겁게 달려요');
+    await tester.enterText(introductionField, '즐겁게 달려요');
     await tester.pumpAndSettle();
     await tester.tap(saveButton());
     await tester.pumpAndSettle();
@@ -137,7 +148,7 @@ void main() {
     // 입력을 잃지 않는다. 다시 채우게 하지 않는 것이 이 화면의 약속이다.
     await pumpEdit(tester, editFails: ProfileEditFailure.network);
 
-    await tester.enterText(find.byType(TextField), '즐겁게 달려요');
+    await tester.enterText(introductionField, '즐겁게 달려요');
     await tester.pumpAndSettle();
     await tester.tap(saveButton());
     await tester.pumpAndSettle();
@@ -168,7 +179,7 @@ void main() {
   testWidgets('바꾼 게 있는데 나가려 하면 묻는다', (tester) async {
     await pumpEdit(tester);
 
-    await tester.enterText(find.byType(TextField), '즐겁게 달려요');
+    await tester.enterText(introductionField, '즐겁게 달려요');
     await tester.pumpAndSettle();
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
