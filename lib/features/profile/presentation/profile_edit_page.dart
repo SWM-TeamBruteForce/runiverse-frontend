@@ -318,6 +318,11 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                       _Label(AppStrings.profileIntroductionLabel),
                       const SizedBox(height: AppSpacing.space2),
                       AppInput(
+                        // ⚠️ **테스트가 이 입력을 찾는 유일한 손잡이다.**
+                        // 부품이 `TextField` 인지 무엇인지에 기대면 디자인을
+                        // 바꿀 때 테스트가 통째로 깨진다. 디자인을 바꿔도
+                        // **이 키는 이어받는다.**
+                        key: const ValueKey('profile-introduction'),
                         controller: _introduction,
                         hint: AppStrings.profileIntroductionHint,
                         helper: _introductionTooLong
