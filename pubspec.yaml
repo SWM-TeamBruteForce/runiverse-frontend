@@ -122,6 +122,22 @@ flutter:
         - asset: assets/fonts/Pretendard-ExtraBold.otf
           weight: 800
 
+    # 새 디자인의 글꼴. 화면을 하나씩 옮기는 동안 Pretendard 와 함께 실린다 —
+    # 옮긴 화면만 이쪽을 쓴다. 마지막 화면을 옮기면 Pretendard 를 뺀다.
+    # 라이선스: SIL OFL 1.1 (assets/fonts/SUIT-OFL.txt)
+    - family: SUIT
+      fonts:
+        - asset: assets/fonts/SUIT-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/SUIT-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/SUIT-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/SUIT-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/SUIT-ExtraBold.ttf
+          weight: 800
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
