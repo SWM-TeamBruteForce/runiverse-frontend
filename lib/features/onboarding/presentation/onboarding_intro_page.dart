@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_motion.dart';
-import 'package:runiverse/core/theme/tokens/app_sizes.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/theme/tokens/run_palette.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_motion.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/theme/v2/run_palette.dart';
 import 'package:runiverse/core/widgets/color/run_color_orb.dart';
-import 'package:runiverse/core/widgets/page_indicator.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/core/widgets/v2/page_indicator.dart';
 
 /// 온보딩 소개 (S02) — 카드 3장.
 ///
@@ -78,7 +78,7 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Scaffold(
       body: SafeArea(
@@ -99,11 +99,11 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
                       AppSizes.touchDefault,
                       AppSizes.touchDefault,
                     ),
-                    foregroundColor: colors.textTertiary,
+                    foregroundColor: colors.textSecondary,
                   ),
                   child: Text(
                     AppStrings.onboardingSkip,
-                    style: AppTypography.caption,
+                    style: AppTypographyV2.body11,
                   ),
                 ),
               ),
@@ -118,7 +118,7 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
               ),
             ),
 
-            PageIndicator(count: _cards.length, currentIndex: _index),
+            PageIndicatorV2(count: _cards.length, currentIndex: _index),
             const SizedBox(height: AppSpacing.space6),
 
             Padding(
@@ -128,7 +128,7 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
                 AppSpacing.space4,
                 AppSpacing.space4,
               ),
-              child: AppButton(
+              child: AppButtonV2(
                 // 마지막 장에서 라벨이 바뀐다 — 다음이 없다는 신호다.
                 label: _isLast
                     ? AppStrings.onboardingStart
@@ -168,7 +168,7 @@ class _IntroCardView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space6),
@@ -177,20 +177,23 @@ class _IntroCardView extends StatelessWidget {
         children: [
           // 아우라가 아니라 또렷한 오브다. 여기서는 "이게 그 색"이라고 짚어야 해서
           // 경계가 살아 있어야 한다. 섞이는 연출은 스플래시(S01)가 맡는다.
-          RunColorOrb(color: RunPalette.color(card.hue, 2), size: _orbSize),
+          RunColorOrb(color: RunPaletteV2.color(card.hue, 2), size: _orbSize),
           const SizedBox(height: AppSpacing.space6),
 
           Text(
             card.title,
             textAlign: TextAlign.center,
-            style: AppTypography.h1.copyWith(color: colors.textPrimary),
+            // 시안의 제목이 26 ExtraBold 다 — heading04 가 그 값이다.
+            style: AppTypographyV2.heading04.copyWith(
+              color: colors.textPrimary,
+            ),
           ),
           const SizedBox(height: AppSpacing.space4),
 
           Text(
             card.body,
             textAlign: TextAlign.center,
-            style: AppTypography.body.copyWith(color: colors.textSecondary),
+            style: AppTypographyV2.body06.copyWith(color: colors.textTertiary),
           ),
         ],
       ),
