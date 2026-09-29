@@ -6,12 +6,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_radius.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/theme/tokens/run_palette.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/theme/v2/run_palette.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/core/widgets/v2/fact_card.dart';
+import 'package:runiverse/core/widgets/v2/party_chip.dart';
+import 'package:runiverse/core/widgets/v2/surface_card.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
@@ -160,7 +163,7 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final state = ref.watch(matchRoomProvider);
     final room = state.room;
     final launch = state.launch;
@@ -182,15 +185,12 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
                 // 마지막 3초에 눈이 흩어진다.
                 ? Column(
                     children: [
-                      _Head(
-                        subtitle: AppStrings.matchCountdownSoon,
-                        colors: colors,
-                      ),
+                      _Head(subtitle: AppStrings.matchCountdownSoon),
                       Expanded(
                         child: Center(
                           child: Text(
                             '$number',
-                            style: AppTypography.display.copyWith(
+                            style: AppTypographyV2.heading01.copyWith(
                               color: colors.primary,
                               fontFeatures: const [
                                 FontFeature.tabularFigures(),
@@ -210,7 +210,6 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
                             ? AppStrings.matchCountdownSoon
                             : '${AppStrings.matchRoomStartLabel} '
                                   '${AppStrings.matchRoomCountdown(launch.remaining(_now))}',
-                        colors: colors,
                       ),
                       const SizedBox(height: AppSpacing.space4),
                       if (room != null) _SessionBar(room: room),
@@ -226,7 +225,7 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
                         alignment: Alignment.centerLeft,
                         child: Text(
                           AppStrings.matchCountdownParty,
-                          style: AppTypography.caption.copyWith(
+                          style: AppTypographyV2.body12.copyWith(
                             color: colors.textSecondary,
                             fontWeight: FontWeight.w600,
                           ),
@@ -242,7 +241,7 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
                       Text(
                         AppStrings.matchCountdownAuto,
                         textAlign: TextAlign.center,
-                        style: AppTypography.body.copyWith(
+                        style: AppTypographyV2.body07.copyWith(
                           color: colors.textSecondary,
                         ),
                       ),
@@ -250,7 +249,7 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
                       Text(
                         AppStrings.matchCountdownHint,
                         textAlign: TextAlign.center,
-                        style: AppTypography.caption.copyWith(
+                        style: AppTypographyV2.body12.copyWith(
                           color: colors.textTertiary,
                         ),
                       ),
@@ -263,32 +262,53 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
   }
 }
 
+/// 제목과, 무엇을 세고 있는지 알리는 알약 배지.
+///
+/// 시안(`158:3458`)은 **카운트다운을 배지 안에** 둔다. 대기방처럼 크게
+/// 띄우지 않는다 — 이 화면에는 지도와 참여자가 함께 있어서 숫자가 크면
+/// 눈이 흩어진다.
 class _Head extends StatelessWidget {
-  const _Head({required this.subtitle, required this.colors});
+  const _Head({required this.subtitle});
 
   final String subtitle;
-  final AppColors colors;
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Text(
-        AppStrings.matchCountdownTitle,
-        style: AppTypography.h3.copyWith(color: colors.textPrimary),
-      ),
-      const SizedBox(height: AppSpacing.space0),
-      Text(
-        subtitle,
-        style: AppTypography.caption.copyWith(
-          color: colors.textSecondary,
-          fontFeatures: const [FontFeature.tabularFigures()],
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Column(
+      children: [
+        Text(
+          AppStrings.matchCountdownTitle,
+          style: AppTypographyV2.heading06.copyWith(color: colors.textPrimary),
         ),
-      ),
-    ],
-  );
+        const SizedBox(height: AppSpacing.space3),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: colors.primaryMuted,
+            borderRadius: AppRadius.full,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.space5,
+              vertical: AppSpacing.space3,
+            ),
+            child: Text(
+              subtitle,
+              style: AppTypographyV2.body11.copyWith(
+                color: colors.matchWaiting,
+                // 1초마다 갈리는 숫자다. 자릿수가 흔들리면 글자가 춤춘다.
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-/// 시작 시각 │ 목표 거리. 값 위, 라벨 아래 — 정본 S11의 세션 바.
+/// 시작 시각과 목표 거리 — 시안은 카드 두 장이다(`158:3462`·`158:3466`).
 class _SessionBar extends StatelessWidget {
   const _SessionBar({required this.room});
 
@@ -296,54 +316,28 @@ class _SessionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
     final km = TargetDistance.fromMeters(room.targetDistanceMeters)?.km;
 
-    Widget cell(String value, String label) => Expanded(
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: AppTypography.h3.copyWith(color: colors.textPrimary),
+    return Row(
+      children: [
+        Expanded(
+          child: FactCard(
+            label: AppStrings.matchRoomStartTimeLabel,
+            value: AppStrings.matchSlotTime(room.scheduledStartAt),
           ),
-          const SizedBox(height: AppSpacing.space0),
-          Text(
-            label,
-            style: AppTypography.micro.copyWith(color: colors.textTertiary),
+        ),
+        const SizedBox(width: AppSpacing.space3),
+        Expanded(
+          child: FactCard(
+            label: AppStrings.matchDistanceLabel,
+            // 거리를 모르면 그렇다고 적는다. 임의의 값을 넣으면 목표가
+            // 달라 보인다.
+            value: km == null
+                ? AppStrings.runUnavailable
+                : AppStrings.matchDistanceText(km),
           ),
-        ],
-      ),
-    );
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.bgSurface,
-        borderRadius: AppRadius.md,
-        border: Border.all(color: colors.borderDefault),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.space2,
-          vertical: AppSpacing.space3,
         ),
-        child: Row(
-          children: [
-            cell(
-              AppStrings.matchSlotTime(room.scheduledStartAt),
-              AppStrings.matchRoomStartTimeLabel,
-            ),
-            SizedBox(
-              width: 1,
-              height: AppSpacing.space7,
-              child: ColoredBox(color: colors.borderDefault),
-            ),
-            cell(
-              km == null ? AppStrings.runUnavailable : '${km}km',
-              AppStrings.matchDistanceLabel,
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 }
@@ -357,7 +351,7 @@ class _GpsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final session = ref.watch(runSessionControllerProvider);
     final hasFix = session is RunPreparing && session.hasFix;
     // ⚠️ 구독을 연 뒤에 실패하는 경우가 있다. 상태의 실패를 먼저 본다.
@@ -371,12 +365,7 @@ class _GpsCard extends ConsumerWidget {
         ? (AppStrings.matchCountdownGpsReady, colors.success)
         : (AppStrings.matchCountdownGpsWaiting, colors.warning);
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.bgSurface,
-        borderRadius: AppRadius.xl,
-        border: Border.all(color: colors.borderDefault),
-      ),
+    return SurfaceCard(
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -387,30 +376,29 @@ class _GpsCard extends ConsumerWidget {
               decoration: BoxDecoration(
                 color: dot,
                 shape: BoxShape.circle,
-                boxShadow: RunPalette.glow(dot),
+                boxShadow: RunPaletteV2.glow(dot),
               ),
             ),
             const SizedBox(height: AppSpacing.space4),
             Text(
               label,
-              style: AppTypography.body.copyWith(color: colors.textPrimary),
+              style: AppTypographyV2.body07.copyWith(color: colors.textPrimary),
             ),
             if (blocked == null && !hasFix) ...[
               const SizedBox(height: AppSpacing.space1),
               Text(
                 AppStrings.runWaitingFixWhy,
                 textAlign: TextAlign.center,
-                style: AppTypography.caption.copyWith(
+                style: AppTypographyV2.body12.copyWith(
                   color: colors.textTertiary,
                 ),
               ),
             ],
             if (blocked != null) ...[
               const SizedBox(height: AppSpacing.space4),
-              AppButton(
+              AppButtonV2(
                 label: AppStrings.runPermissionOpenSettings,
-                variant: AppButtonVariant.secondary,
-                size: AppButtonSize.md,
+                variant: AppButtonV2Variant.secondary,
                 expand: false,
                 onPressed: onOpenSettings,
               ),
@@ -436,45 +424,21 @@ class _PartyAvatars extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
-
     return Wrap(
       alignment: WrapAlignment.center,
-      spacing: AppSpacing.space3,
-      runSpacing: AppSpacing.space2,
+      spacing: AppSpacing.space4,
+      runSpacing: AppSpacing.space3,
       children: [
         for (var i = 0; i < players.length; i++)
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: size,
-                height: size,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: RunPalette.lane(i),
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  players[i].nickname.isEmpty
-                      ? ''
-                      : players[i].nickname.characters.first,
-                  style: AppTypography.body.copyWith(
-                    color: colors.textOnPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              if (withNames) ...[
-                const SizedBox(height: AppSpacing.space1),
-                Text(
-                  players[i].nickname,
-                  style: AppTypography.caption.copyWith(
-                    color: colors.textSecondary,
-                  ),
-                ),
-              ],
-            ],
+          PartyChip(
+            name: players[i].nickname,
+            imageUrl: players[i].profileImageUrl,
+            // ⚠️ **자리 번호별 색을 유지한다.** 시안은 이 링을 준비 상태에
+            // 쓰지만 우리는 그 값을 받지 못한다. 대신 누가 누구인지 색으로
+            // 구분하던 기존 뜻을 링으로 옮긴다.
+            accent: RunPaletteV2.lane(i),
+            size: size,
+            showName: withNames,
           ),
       ],
     );
