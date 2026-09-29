@@ -1,6 +1,13 @@
 import 'package:flutter/painting.dart';
 import 'package:runiverse/core/theme/tokens/run_palette.dart';
 
+/// [RunHue] 를 함께 내보낸다.
+///
+/// enum 은 복제하지 않기로 했는데(아래 주석), 그러면 화면이 색을 쓰려고
+/// **옛 경로를 한 줄 더 import** 하게 되고 세대 혼용 테스트가 그것을 막는다.
+/// 값만 새로 들고 이름은 그대로 통과시킨다.
+export 'package:runiverse/core/theme/tokens/run_palette.dart' show RunHue;
+
 /// 새 디자인의 러닝 색 — 시안 `162:4905`의 `거리`~`악조건 극복` 10군.
 ///
 /// ## [RunHue]는 여기서 새로 만들지 않는다
