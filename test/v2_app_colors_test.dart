@@ -24,13 +24,30 @@ void main() {
     }
   });
 
-  test('⚠️ 글자 넷이 점점 흐려진다', () {
-    // 시안이 불투명도로 위계를 만든다. 순서가 뒤집히면 보조 글자가 본문보다
-    // 진해져서 화면의 강약이 거꾸로 선다.
+  test('⚠️ 글자 넷이 배경에 점점 가까워진다', () {
+    // 시안은 위계를 한 가지 방법으로 만들지 않는다 — 본문은 램프(#FAFAFA),
+    // 보조는 흰색 70%, 작은 라벨은 다시 램프(#575757)다. 그래서 불투명도만
+    // 보면 순서가 뒤집힌 것처럼 나온다.
+    //
+    // 실제로 지켜야 하는 것은 **배경과의 밝기 차**다. 이게 뒤집히면 보조
+    // 글자가 본문보다 진해져 화면의 강약이 거꾸로 선다.
+    double gap(Color fg, Color bg) =>
+        (Color.alphaBlend(fg, bg).computeLuminance() - bg.computeLuminance())
+            .abs();
+
     for (final c in themes) {
-      expect(c.textPrimary.a, greaterThan(c.textSecondary.a));
-      expect(c.textSecondary.a, greaterThan(c.textTertiary.a));
-      expect(c.textTertiary.a, greaterThan(c.textDisabled.a));
+      expect(
+        gap(c.textPrimary, c.bgBase),
+        greaterThan(gap(c.textSecondary, c.bgBase)),
+      );
+      expect(
+        gap(c.textSecondary, c.bgBase),
+        greaterThan(gap(c.textTertiary, c.bgBase)),
+      );
+      expect(
+        gap(c.textTertiary, c.bgBase),
+        greaterThan(gap(c.textDisabled, c.bgBase)),
+      );
     }
   });
 

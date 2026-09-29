@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
 import 'package:runiverse/core/theme/extensions/app_elevation.dart';
 import 'package:runiverse/core/theme/extensions/app_glow.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 
 /// 앱 테마 조립 — 토큰을 `ThemeData`에 실어 위젯 트리 전체에 내려보낸다.
@@ -72,5 +73,12 @@ abstract final class AppTheme {
     AppColors colors,
     AppElevation elevation,
     AppGlow glow,
-  ) => [colors, elevation, glow];
+  ) => [
+    colors,
+    elevation,
+    glow,
+    // 새 디자인으로 옮긴 화면이 쓴다. **밝기로 고른다** — 옛 확장과 짝이
+    // 맞아야 두 세대가 같은 테마에서 같은 명암으로 보인다.
+    colors == AppColors.dark ? AppColorsV2.dark : AppColorsV2.light,
+  ];
 }

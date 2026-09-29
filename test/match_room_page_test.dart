@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/data/fake_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
@@ -129,24 +128,24 @@ void main() {
     });
 
     testWidgets('⚠️ 단계에 따라 화면 이름이 갈린다', (tester) async {
-      // 같은 화면이다. 모집 중에는 누구와 뛸지 아직 모르니 로비이고,
-      // 확정 뒤에는 출발을 기다리는 대기실이다.
+      // 같은 화면이 두 단계를 맡는다. **제목이 그 단계를 알리는 유일한
+      // 자리다** — 상태를 따로 적는 줄이 없다.
       await pumpRoom(
         tester,
         snapshot: room(status: RoomStatus.matching, closeAt: closeAtSoon),
       );
 
-      expect(find.text(AppStrings.matchRoomTitleLobby), findsOneWidget);
-      expect(find.text(AppStrings.matchRoomTitleWaiting), findsNothing);
+      expect(find.text(AppStrings.matchRoomWaiting), findsOneWidget);
+      expect(find.text(AppStrings.matchRoomMatched), findsNothing);
     });
 
-    testWidgets('확정되면 대기실이다', (tester) async {
+    testWidgets('확정되면 제목이 매칭 완료로 바뀐다', (tester) async {
       await pumpRoom(
         tester,
         snapshot: room(status: RoomStatus.matched, closeAt: closedAlready),
       );
 
-      expect(find.text(AppStrings.matchRoomTitleWaiting), findsOneWidget);
+      expect(find.text(AppStrings.matchRoomMatched), findsOneWidget);
     });
 
     testWidgets('모집 중에는 마감까지 세고 인원을 알린다', (tester) async {
@@ -285,9 +284,7 @@ void main() {
         snapshot: room(status: RoomStatus.matched, closeAt: closedAlready),
       );
 
-      await tester.tap(
-        find.widgetWithText(AppButton, AppStrings.matchRoomLeave),
-      );
+      await tester.tap(find.text(AppStrings.matchRoomLeave));
       await tick(tester);
 
       expect(find.text(AppStrings.matchRoomLeaveTitle), findsOneWidget);
@@ -300,9 +297,7 @@ void main() {
         snapshot: room(status: RoomStatus.matched, closeAt: closedAlready),
       );
 
-      await tester.tap(
-        find.widgetWithText(AppButton, AppStrings.matchRoomLeave),
-      );
+      await tester.tap(find.text(AppStrings.matchRoomLeave));
       await tick(tester);
       await tester.tap(find.text(AppStrings.matchRoomStay));
       await tick(tester);
@@ -317,9 +312,7 @@ void main() {
         snapshot: room(status: RoomStatus.matched, closeAt: closedAlready),
       );
 
-      await tester.tap(
-        find.widgetWithText(AppButton, AppStrings.matchRoomLeave),
-      );
+      await tester.tap(find.text(AppStrings.matchRoomLeave));
       await tick(tester);
       await tester.tap(find.text(AppStrings.matchRoomLeaveConfirm));
       await tick(tester);
@@ -335,10 +328,7 @@ void main() {
         snapshot: room(status: RoomStatus.matching, closeAt: closeAtSoon),
       );
 
-      expect(
-        find.widgetWithText(AppButton, AppStrings.matchRoomCancel),
-        findsOneWidget,
-      );
+      expect(find.text(AppStrings.matchRoomCancel), findsOneWidget);
     });
   });
 }

@@ -9,12 +9,18 @@ import 'package:runiverse/core/theme/v2/app_palette.dart';
 /// **러닝 색은 여기 없다.** 테마가 아니라 데이터여서 한 화면에 여러 개가
 /// 동시에 뜬다(컬렉션 30색). `RunPaletteV2`가 따로 든다.
 ///
-/// ## 글자는 램프가 아니라 불투명도다
+/// ## 글자 넷은 램프와 불투명도를 섞어 쓴다
 ///
-/// 시안이 그렇게 쓴다 — `매칭실패` 화면(`158:3048`)의 제목이 `text-white`,
-/// 본문이 `rgba(255,255,255,0.7)`다. 팔레트에 불투명도 램프가 따로 있는
-/// 이유이기도 하다. 그래서 글자 넷은 **흰색(어두운 쪽)·[AppPaletteV2.label]
-/// (밝은 쪽)에 100 / 70 / 50 / 30%** 를 건다.
+/// 시안이 그렇게 쓴다. 한 규칙으로 통일하려다 두 번 틀렸다.
+///
+/// - **본문**은 [AppPaletteV2.neutral50] — 시안이 `Primary-50-FAFAFA` 라는
+///   이름 붙은 스타일로 들고 있다(`158:3415`)
+/// - **보조**는 흰색 70% — `매칭실패`(`158:3048`)의 본문이 그렇다
+/// - **작은 라벨**은 [AppPaletteV2.neutral600] — `시작 시간`·`목표 거리`·
+///   `참여자`가 전부 `#575757` 이다(`158:3415`)
+///
+/// 그래서 위계는 불투명도가 아니라 **배경과의 밝기 차**로 선다. 테스트도
+/// 그것을 본다.
 ///
 /// ## ⚠️ 시안이 정해 주지 않은 값이 있다
 ///
@@ -112,11 +118,11 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     bgScrim: Color(0x99000000),
     borderDefault: AppPaletteV2.neutral800,
     borderStrong: AppPaletteV2.neutral700,
-    textPrimary: Color(0xFFFFFFFF),
+    textPrimary: AppPaletteV2.neutral50,
     textSecondary: Color(0xB3FFFFFF),
-    textTertiary: Color(0x80FFFFFF),
-    textDisabled: Color(0x4DFFFFFF),
-    textOnPrimary: Color(0xFFFFFFFF),
+    textTertiary: AppPaletteV2.neutral600,
+    textDisabled: AppPaletteV2.neutral700,
+    textOnPrimary: AppPaletteV2.neutral50,
     primary: AppPaletteV2.brand,
     primaryHover: Color(0xFF7CB5FF),
     primaryMuted: AppPaletteV2.brandDeep,
@@ -139,8 +145,8 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     borderStrong: AppPaletteV2.neutral300,
     textPrimary: AppPaletteV2.label,
     textSecondary: Color(0xB3171719),
-    textTertiary: Color(0x80171719),
-    textDisabled: Color(0x4D171719),
+    textTertiary: AppPaletteV2.neutral500,
+    textDisabled: AppPaletteV2.neutral400,
     textOnPrimary: Color(0xFFFFFFFF),
     primary: AppPaletteV2.brand,
     primaryHover: Color(0xFF1556B8),
