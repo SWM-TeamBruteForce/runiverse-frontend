@@ -80,18 +80,27 @@ void main() {
   /// ⚠️ `pumpAndSettle`을 쓰지 못한다. 신청에 성공하면 대기방으로 가는데,
   /// 그 화면이 카운트다운 때문에 1초 타이머를 계속 돌려 영영 잠잠해지지 않는다.
   Future<void> tapCta(WidgetTester tester) async {
-    await tester.tap(
-      find.widgetWithText(AppButton, AppStrings.matchRegisterCta),
-    );
+    await tester.tap(find.text(AppStrings.matchRegisterCta));
     for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
   }
 
-  /// CTA를 찾는다. `onPressed`가 `null`이면 잠긴 것이다.
-  AppButton cta(WidgetTester tester) => tester.widget<AppButton>(
-    find.widgetWithText(AppButton, AppStrings.matchRegisterCta),
-  );
+  /// CTA가 열려 있는가. **부품의 `onPressed`를 보지 않는다.**
+  ///
+  /// 눌러 보고 **서버로 나갔는지**로 판단한다. 잠김은 부품의 속성이 아니라
+  /// 화면의 약속이고, 디자인이 바뀌어도 그 약속은 그대로다.
+  ///
+  /// ⚠️ 먼저 기록을 비운다. 앞서 실패한 신청도 `appliedSlotRaw`를 남겨서,
+  /// 비우지 않으면 잠긴 버튼을 열렸다고 읽는다.
+  Future<bool> ctaOpens(
+    WidgetTester tester,
+    FakeMatchRepository matches,
+  ) async {
+    matches.appliedSlotRaw = null;
+    await tapCta(tester);
+    return matches.appliedSlotRaw != null;
+  }
 
   group('고르기', () {
     testWidgets('들어오면 시간대를 갖춘다', (tester) async {
@@ -103,14 +112,14 @@ void main() {
 
     testWidgets('⚠️ 둘 다 골라야 CTA가 열린다', (tester) async {
       // 하나만으로 열면 서버가 400으로 거절하고, 사용자는 왜인지 모른다.
-      await pumpRegister(tester);
-      expect(cta(tester).onPressed, isNull);
+      final matches = await pumpRegister(tester);
+      expect(await ctaOpens(tester, matches), isFalse);
 
       await pickSlot(tester, '19:00');
-      expect(cta(tester).onPressed, isNull);
+      expect(await ctaOpens(tester, matches), isFalse);
 
       await pickDistance(tester, TargetDistance.km5);
-      expect(cta(tester).onPressed, isNotNull);
+      expect(await ctaOpens(tester, matches), isTrue);
     });
 
     testWidgets('고른 시간이 보인다', (tester) async {
@@ -204,9 +213,7 @@ void main() {
 
       await pickSlot(tester, '19:00');
       await pickDistance(tester, TargetDistance.km5);
-      await tester.tap(
-        find.widgetWithText(AppButton, AppStrings.matchRegisterCta),
-      );
+      await tester.tap(find.text(AppStrings.matchRegisterCta));
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.matchFailedAlready), findsOneWidget);
@@ -224,9 +231,7 @@ void main() {
 
       await pickSlot(tester, '19:00');
       await pickDistance(tester, TargetDistance.km5);
-      await tester.tap(
-        find.widgetWithText(AppButton, AppStrings.matchRegisterCta),
-      );
+      await tester.tap(find.text(AppStrings.matchRegisterCta));
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.matchFailedCooldown(until)), findsOneWidget);
@@ -243,14 +248,12 @@ void main() {
       await pickDistance(tester, TargetDistance.km5);
 
       // 이 사이에 마감됐다 — 서버가 409로 알려주고, 화면이 그 슬롯만 잠근다.
-      await tester.tap(
-        find.widgetWithText(AppButton, AppStrings.matchRegisterCta),
-      );
+      await tester.tap(find.text(AppStrings.matchRegisterCta));
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.matchFailedSlotClosed), findsOneWidget);
       expect(find.text(AppStrings.matchTimePlaceholder), findsOneWidget);
-      expect(cta(tester).onPressed, isNull);
+      expect(await ctaOpens(tester, matches), isFalse);
     });
 
     testWidgets('⚠️ 네트워크 실패에 재시도를 권하지 않는다', (tester) async {
@@ -260,9 +263,7 @@ void main() {
 
       await pickSlot(tester, '19:00');
       await pickDistance(tester, TargetDistance.km5);
-      await tester.tap(
-        find.widgetWithText(AppButton, AppStrings.matchRegisterCta),
-      );
+      await tester.tap(find.text(AppStrings.matchRegisterCta));
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.matchFailedNetwork), findsOneWidget);
