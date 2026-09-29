@@ -583,13 +583,6 @@ abstract final class AppStrings {
   static const matchRoomCloseLabel = '모집 마감까지';
   static const matchRoomStartLabel = '시작까지';
 
-  /// `19:00 시작` — 세션 정보 바 왼쪽.
-  static String matchRoomStartAt(DateTime startAt) =>
-      '${matchSlotTime(startAt)} 시작';
-
-  /// `5km 목표` — 세션 정보 바 오른쪽.
-  static String matchRoomTarget(int km) => '${km}km 목표';
-
   /// `파티원 (3명)`
   static String matchRoomPlayers(int count) => '파티원 ($count명)';
 

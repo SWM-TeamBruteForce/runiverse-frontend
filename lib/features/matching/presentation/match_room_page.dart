@@ -3,20 +3,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_radius.dart';
-import 'package:runiverse/core/theme/tokens/app_sizes.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 
-/// 대기방 (S10).
+/// 대기방 (S10). 시안 `158:3415` `매칭 완료 / 세션 로비 페이지`.
 ///
 /// **모집 중과 확정 뒤를 한 화면이 맡는다.** 확정은 순간이고, 그 앞뒤로 사람이
 /// 보는 것은 같은 질문이다 — 누가 함께 뛰고, 언제 출발하는가.
@@ -28,10 +27,18 @@ import 'package:runiverse/features/matching/presentation/match_room_provider.dar
 /// - **리액션 버튼(👍🔥💪👋)** — 주고받을 API가 없다. 눌러도 아무 데도 가지
 ///   않는 버튼을 두면 고장으로 읽힌다
 /// - **시그니처 컬러 아바타** — 색을 모으는 기능이 아직 없다. 프로필 사진과
-///   머리글자로 대신한다
+///   기본 아이콘으로 대신한다
 ///
 /// 취소 문구도 고쳤다. 정본의 "우선순위가 낮아져요"는 실제 정책이 아니다 —
 /// **확정 뒤에 나가면 20분 동안 다시 신청할 수 없다.**
+///
+/// ## 시안과 다르게 둔 것
+///
+/// - **나가기 안내 한 줄을 남겼다.** 시안에는 없지만 20분 제재를 알리는
+///   유일한 자리다. 없애면 사람이 모르고 나간다
+/// - **오른쪽 위 아이콘을 넣지 않았다.** 시안에 있지만 무엇을 하는지 정해진
+///   바가 없고, 하단에 이미 나가기 버튼이 있다
+/// - **한 줄 소개를 뺐다.** 시안의 참여자 카드는 사진과 이름만 보여준다
 class MatchRoomPage extends ConsumerStatefulWidget {
   const MatchRoomPage({super.key});
 
@@ -68,7 +75,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final state = ref.watch(matchRoomProvider);
     final room = state.room;
 
@@ -86,28 +93,21 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
     if (room == null) {
       return Scaffold(
         backgroundColor: colors.bgBase,
-        appBar: AppBar(
-          backgroundColor: colors.bgBase,
-          surfaceTintColor: Colors.transparent,
-          title: Text(AppStrings.matchRoomTitleLobby, style: AppTypography.h3),
-        ),
+        appBar: _appBar(colors, AppStrings.matchRoomTitleLobby),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
       backgroundColor: colors.bgBase,
-      appBar: AppBar(
-        backgroundColor: colors.bgBase,
-        surfaceTintColor: Colors.transparent,
-        title: Text(
-          // ⚠️ 같은 화면인데 단계에 따라 부르는 말이 다르다. 모집 중에는
-          // 누구와 뛸지 아직 모르니 로비이고, 확정 뒤에는 대기실이다.
-          room.status == RoomStatus.matching
-              ? AppStrings.matchRoomTitleLobby
-              : AppStrings.matchRoomTitleWaiting,
-          style: AppTypography.h3,
-        ),
+      appBar: _appBar(
+        colors,
+        // ⚠️ **제목이 곧 상태다.** 시안(`158:3416`)이 여기에 `매칭완료`를
+        // 둔다. 상태를 따로 표시하는 줄이 없으므로, 제목을 `로비`·`대기실`
+        // 같은 장소 이름으로 두면 지금이 어느 단계인지 알 길이 사라진다.
+        room.status == RoomStatus.matching
+            ? AppStrings.matchRoomWaiting
+            : AppStrings.matchRoomMatched,
       ),
       body: SafeArea(
         top: false,
@@ -117,7 +117,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.space4,
-                  AppSpacing.space2,
+                  AppSpacing.space6,
                   AppSpacing.space4,
                   AppSpacing.space6,
                 ),
@@ -129,30 +129,19 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
                   // 다시 붙는 데 실패한 경우에만 여기가 켜진다.
                   if (state.failure != null)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.space4),
+                      padding: const EdgeInsets.only(bottom: AppSpacing.space6),
                       child: _Notice(AppStrings.matchRoomDisconnected),
                     ),
 
                   _Headline(room: room, now: _now),
-                  const SizedBox(height: AppSpacing.space6),
+                  const SizedBox(height: AppSpacing.space10),
 
-                  _SessionBar(room: room),
-                  const SizedBox(height: AppSpacing.space6),
+                  _SessionCards(room: room),
+                  const SizedBox(height: AppSpacing.space5),
 
-                  Text(
-                    AppStrings.matchRoomPlayers(room.players.length),
-                    style: AppTypography.caption.copyWith(
-                      color: colors.textTertiary,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.space3),
+                  _PartyCard(players: room.players),
 
-                  for (final player in room.players) ...[
-                    _PlayerRow(player: player),
-                    const SizedBox(height: AppSpacing.space2),
-                  ],
-
-                  const SizedBox(height: AppSpacing.space4),
+                  const SizedBox(height: AppSpacing.space5),
                   _Notice(_leaveNotice(room)),
                 ],
               ),
@@ -165,11 +154,11 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
                 AppSpacing.space4,
                 AppSpacing.space4,
               ),
-              child: AppButton(
+              child: AppButtonV2(
                 label: room.status == RoomStatus.matching
                     ? AppStrings.matchRoomCancel
                     : AppStrings.matchRoomLeave,
-                variant: AppButtonVariant.secondary,
+                variant: AppButtonV2Variant.secondary,
                 onPressed: _leaving ? null : () => _confirmLeave(room),
               ),
             ),
@@ -178,6 +167,17 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
       ),
     );
   }
+
+  /// 제목만 가운데 두는 헤더. 시안이 그렇게 생겼다.
+  PreferredSizeWidget _appBar(AppColorsV2 colors, String title) => AppBar(
+    backgroundColor: colors.bgBase,
+    surfaceTintColor: Colors.transparent,
+    centerTitle: true,
+    title: Text(
+      title,
+      style: AppTypographyV2.heading06.copyWith(color: colors.textPrimary),
+    ),
+  );
 
   /// 출발이 가까우면 대기실로 옮긴다.
   ///
@@ -215,21 +215,18 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
   }
 
   Future<void> _confirmLeave(RoomInfo room) async {
+    final colors = context.appColorsV2;
     final agreed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: context.appColors.bgElevated,
+        backgroundColor: colors.bgElevated,
         title: Text(
           AppStrings.matchRoomLeaveTitle,
-          style: AppTypography.h3.copyWith(
-            color: context.appColors.textPrimary,
-          ),
+          style: AppTypographyV2.heading06.copyWith(color: colors.textPrimary),
         ),
         content: Text(
           _leaveNotice(room),
-          style: AppTypography.body.copyWith(
-            color: context.appColors.textSecondary,
-          ),
+          style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
         ),
         actions: [
           TextButton(
@@ -273,7 +270,7 @@ class _Headline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final matching = room.status == RoomStatus.matching;
     final started = room.status == RoomStatus.started;
 
@@ -289,48 +286,43 @@ class _Headline extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: AppSpacing.space2,
-              height: AppSpacing.space2,
-              decoration: BoxDecoration(
-                color: matching ? colors.matchWaiting : colors.matchConfirmed,
-                borderRadius: AppRadius.full,
-              ),
+        // 무엇을 세고 있는지. 시안의 알약 배지다(`158:3420`).
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: colors.primaryMuted,
+            borderRadius: AppRadius.full,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.space5,
+              vertical: AppSpacing.space3,
             ),
-            const SizedBox(width: AppSpacing.space2),
-            Text(
+            child: Text(
               started
                   ? AppStrings.matchRoomStarted
                   : matching
-                  ? AppStrings.matchRoomWaiting
-                  : AppStrings.matchRoomMatched,
-              style: AppTypography.bodyLg.copyWith(color: colors.textPrimary),
+                  ? AppStrings.matchRoomCloseLabel
+                  : AppStrings.matchRoomStartLabel,
+              style: AppTypographyV2.body06.copyWith(
+                color: colors.matchWaiting,
+              ),
             ),
-          ],
+          ),
         ),
-        const SizedBox(height: AppSpacing.space4),
+        const SizedBox(height: AppSpacing.space3),
 
         if (started)
           Text(
             AppStrings.matchRoomStartedHint,
-            style: AppTypography.body.copyWith(color: colors.textSecondary),
+            style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
           )
         else ...[
-          Text(
-            matching
-                ? AppStrings.matchRoomCloseLabel
-                : AppStrings.matchRoomStartLabel,
-            style: AppTypography.caption.copyWith(color: colors.textTertiary),
-          ),
-          const SizedBox(height: AppSpacing.space1),
           Text(
             remaining == null
                 ? '--:--'
                 : AppStrings.matchRoomCountdown(remaining),
-            style: AppTypography.h1.copyWith(
+            textAlign: TextAlign.center,
+            style: AppTypographyV2.heading01.copyWith(
               color: colors.textPrimary,
               // 1초마다 갈리는 숫자다. 자릿수가 흔들리면 글자가 춤춘다.
               fontFeatures: const [FontFeature.tabularFigures()],
@@ -341,7 +333,8 @@ class _Headline extends StatelessWidget {
             matching
                 ? AppStrings.matchRoomJoined(room.players.length)
                 : AppStrings.matchRoomMatchedHint,
-            style: AppTypography.body.copyWith(color: colors.textSecondary),
+            textAlign: TextAlign.center,
+            style: AppTypographyV2.body06.copyWith(color: colors.textTertiary),
           ),
         ],
       ],
@@ -349,40 +342,74 @@ class _Headline extends StatelessWidget {
   }
 }
 
-/// 시작 시각과 목표 거리 2분할.
-class _SessionBar extends StatelessWidget {
-  const _SessionBar({required this.room});
+/// 시작 시각과 목표 거리 — 시안은 카드 두 장이다(`158:3425`·`158:3429`).
+class _SessionCards extends StatelessWidget {
+  const _SessionCards({required this.room});
 
   final RoomInfo room;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
     final km = TargetDistance.fromMeters(room.targetDistanceMeters)?.km;
+
+    // ⚠️ 값에는 **숫자와 단위만** 둔다. 카드가 `시작 시간`·`목표 거리`를
+    // 이미 이고 있어서, 값에 다시 `시작`·`목표`를 붙이면 같은 말이
+    // 두 번 나온다.
+
+    return Row(
+      children: [
+        Expanded(
+          child: _FactCard(
+            label: AppStrings.matchRoomStartTimeLabel,
+            value: AppStrings.matchSlotTime(room.scheduledStartAt),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.space3),
+        Expanded(
+          // 거리를 모르면 칸을 비운다. 임의의 값을 넣으면 목표가 달라 보인다.
+          child: km == null
+              ? const SizedBox.shrink()
+              : _FactCard(
+                  label: AppStrings.matchDistanceLabel,
+                  value: AppStrings.matchDistanceText(km),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 라벨 위, 값 아래. 카드 두 장이 같은 모양이라 따로 뺐다.
+class _FactCard extends StatelessWidget {
+  const _FactCard({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
 
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colors.bgSurface,
-        borderRadius: AppRadius.md,
+        borderRadius: AppRadius.card,
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.space4,
-          vertical: AppSpacing.space3,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.space6),
+        child: Column(
           children: [
             Text(
-              AppStrings.matchRoomStartAt(room.scheduledStartAt),
-              style: AppTypography.body.copyWith(color: colors.textPrimary),
-            ),
-            // 거리를 모르면 칸을 비운다. 임의의 값을 넣으면 목표가 달라 보인다.
-            if (km != null)
-              Text(
-                AppStrings.matchRoomTarget(km),
-                style: AppTypography.body.copyWith(color: colors.textPrimary),
+              label,
+              style: AppTypographyV2.body13.copyWith(
+                color: colors.textTertiary,
               ),
+            ),
+            const SizedBox(height: AppSpacing.space2),
+            Text(
+              value,
+              style: AppTypographyV2.body02.copyWith(color: colors.textPrimary),
+            ),
           ],
         ),
       ),
@@ -390,81 +417,103 @@ class _SessionBar extends StatelessWidget {
   }
 }
 
-/// 파티원 한 줄.
+/// 함께 뛸 사람들 — 시안은 카드 하나에 아바타를 가로로 늘어놓는다(`158:3435`).
 ///
 /// ⚠️ **페이스를 적지 않는다.** 정본이 뺀 항목이다 — 경쟁이 아니라 동행이다.
-class _PlayerRow extends StatelessWidget {
-  const _PlayerRow({required this.player});
+class _PartyCard extends StatelessWidget {
+  const _PartyCard({required this.players});
 
-  final RoomPlayer player;
+  final List<RoomPlayer> players;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.bgSurface,
+        borderRadius: AppRadius.card,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.space4,
+          vertical: AppSpacing.space5,
+        ),
+        child: Column(
+          children: [
+            Text(
+              AppStrings.matchRoomPlayers(players.length),
+              style: AppTypographyV2.body13.copyWith(
+                color: colors.textTertiary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.space4),
+            // 방은 최대 4명이지만 가로가 모자라면 접힌다.
+            Wrap(
+              spacing: AppSpacing.space4,
+              runSpacing: AppSpacing.space3,
+              alignment: WrapAlignment.center,
+              children: [
+                for (final player in players) _PlayerChip(player: player),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 아바타 위, 이름 아래.
+class _PlayerChip extends StatelessWidget {
+  const _PlayerChip({required this.player});
+
+  final RoomPlayer player;
+
+  /// 시안의 아바타가 30px다.
+  static const _avatar = 30.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
     final name = player.isDeleted
         ? AppStrings.matchRoomDeletedPlayer
         : player.nickname;
     final image = player.profileImageUrl;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.bgSurface,
-        borderRadius: AppRadius.md,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.space3),
-        child: Row(
-          children: [
-            Container(
-              width: AppSizes.touchDefault,
-              height: AppSizes.touchDefault,
-              decoration: BoxDecoration(
-                color: colors.primaryMuted,
-                borderRadius: AppRadius.full,
-                image: image == null || player.isDeleted
-                    ? null
-                    : DecorationImage(
-                        image: NetworkImage(image),
-                        fit: BoxFit.cover,
-                      ),
-              ),
-              alignment: Alignment.center,
-              child: image != null && !player.isDeleted
-                  ? null
-                  : Icon(
-                      LucideIcons.user,
-                      size: AppSpacing.space5,
-                      color: colors.primary,
-                    ),
-            ),
-            const SizedBox(width: AppSpacing.space3),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: AppTypography.body.copyWith(
-                      color: player.isDeleted
-                          ? colors.textTertiary
-                          : colors.textPrimary,
-                    ),
+    // 탈퇴한 사람은 흐리게. 시안은 준비 상태로 이 대비를 쓰는데, 우리는
+    // 서버가 참가자 상태를 안 줘서 표시할 것이 없다.
+    final accent = player.isDeleted ? colors.textTertiary : colors.primary;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: _avatar,
+          height: _avatar,
+          decoration: BoxDecoration(
+            color: colors.primaryMuted,
+            borderRadius: AppRadius.full,
+            border: Border.all(color: accent, width: 1.5),
+            image: image == null || player.isDeleted
+                ? null
+                : DecorationImage(
+                    image: NetworkImage(image),
+                    fit: BoxFit.cover,
                   ),
-                  if (!player.isDeleted && player.introduction != null)
-                    Text(
-                      player.introduction!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.caption.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
+          ),
+          alignment: Alignment.center,
+          child: image != null && !player.isDeleted
+              ? null
+              : AppIcon(
+                  AppIcons.profile,
+                  size: AppSpacing.space4,
+                  color: accent,
+                ),
         ),
-      ),
+        const SizedBox(height: AppSpacing.space2),
+        Text(name, style: AppTypographyV2.body11.copyWith(color: accent)),
+      ],
     );
   }
 }
@@ -477,13 +526,13 @@ class _Notice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          LucideIcons.info,
+        AppIcon(
+          AppIcons.guide,
           size: AppSpacing.space4,
           color: colors.textTertiary,
         ),
@@ -491,7 +540,7 @@ class _Notice extends StatelessWidget {
         Expanded(
           child: Text(
             text,
-            style: AppTypography.caption.copyWith(color: colors.textTertiary),
+            style: AppTypographyV2.body12.copyWith(color: colors.textTertiary),
           ),
         ),
       ],

@@ -1,0 +1,92 @@
+import 'package:flutter/material.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+
+/// 새 디자인의 버튼 변형.
+enum AppButtonV2Variant {
+  /// 채운 브랜드 색. **화면당 하나만 둔다.**
+  primary,
+
+  /// 테두리만. 시안 `158:3433`의 `취소하기`가 이것이다.
+  secondary,
+}
+
+/// 새 디자인의 버튼 — 시안 `Button-Solid` 컴포넌트.
+///
+/// ## 왜 기존 [AppButton]을 안 쓰나
+///
+/// 모양이 다르다. 기존 버튼은 **알약**(`AppRadius.full`)이고 시안은
+/// **반경 16의 둥근 사각형**이다. 기존 것을 그대로 쓰면 옮긴 화면이
+/// 반쯤 옛날 모습이 된다.
+///
+/// 색도 다르다 — 기존 버튼은 옛 토큰을 읽는다. 한 화면 안에서 두 세대가
+/// 섞이는 것을 `test/theme_generation_test.dart`가 막는 이유이기도 하다.
+///
+/// ## API는 기존 것과 맞췄다
+///
+/// `label` · `onPressed` · `variant` · `expand`. 화면을 옮길 때 이름을
+/// 갈아끼우는 일이 얹히지 않게 하려는 것이다.
+class AppButtonV2 extends StatelessWidget {
+  const AppButtonV2({
+    required this.label,
+    required this.onPressed,
+    this.variant = AppButtonV2Variant.primary,
+    this.expand = true,
+    super.key,
+  });
+
+  final String label;
+
+  /// `null`이면 비활성.
+  final VoidCallback? onPressed;
+
+  final AppButtonV2Variant variant;
+
+  /// 가로를 꽉 채울지. 화면 하단 CTA는 채우고, 인라인 액션은 끈다.
+  final bool expand;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+    final enabled = onPressed != null;
+    final filled = variant == AppButtonV2Variant.primary;
+
+    // 비활성은 **투명도가 아니라 색으로** 표현한다. 투명도를 쓰면 뒤 배경이
+    // 비쳐서 카드 위와 화면 위의 같은 버튼이 다르게 보인다.
+    final accent = enabled ? colors.primary : colors.textDisabled;
+
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      child: Material(
+        color: filled && enabled ? accent : Colors.transparent,
+        borderRadius: AppRadius.lg,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: AppRadius.lg,
+          child: Container(
+            height: AppSizes.touchRunning,
+            width: expand ? double.infinity : null,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space6),
+            decoration: BoxDecoration(
+              borderRadius: AppRadius.lg,
+              border: filled ? null : Border.all(color: accent),
+              color: filled && !enabled ? colors.bgSurface : null,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: AppTypographyV2.body05.copyWith(
+                color: filled ? colors.textOnPrimary : accent,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
