@@ -255,13 +255,23 @@ abstract final class AppStrings {
   static const authApple = 'Apple로 계속하기';
 
   /// 이메일 로그인과 소셜 버튼 사이의 구분선.
-  static const authOr = '또는';
+  ///
+  /// 시안(`158:2927`)은 여기에 `또는` 대신 **아래가 무엇인지**를 적는다.
+  /// 구분선이 두 선택지를 가르는 것이 아니라 소셜 묶음의 이름표가 된다.
+  static const authOr = '간편한 로그인';
 
   /// 카카오·애플을 눌렀을 때. 버튼을 회색으로 잠그지 않는 이유는
   /// 피드·대회일정 탭과 같다 — 눌리고, 준비 중임을 알린다.
   static const authSocialComingSoon = '아직 준비 중이에요';
 
-  static const authSignInTitle = '로그인';
+  /// 로그인 화면의 머리글. 시안(`158:2916`)의 문구다.
+  ///
+  /// **CTA([authSignInCta])와 글자가 달라야 한다.** 같으면 `find.text`가
+  /// 화면에서 둘을 찾아 위젯 테스트가 "여러 개를 찾았다"로 죽는다.
+  static const authSignInTitle = '오늘도 당신의 러닝은 이어집니다';
+
+  /// 머리글 아래 한 줄. 시안 `158:2917`.
+  static const authSignInSubtitle = '달리고, 연결되고, 새로운 기록을 만들어보세요';
 
   static const authBack = '뒤로';
 

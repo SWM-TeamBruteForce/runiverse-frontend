@@ -1,24 +1,26 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_radius.dart';
-import 'package:runiverse/core/theme/tokens/app_sizes.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
-import 'package:runiverse/core/widgets/app_input.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/core/widgets/v2/app_input.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/email_rule.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/domain/sign_in_method.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
-import 'package:runiverse/features/auth/presentation/password_field.dart';
+import 'package:runiverse/features/auth/presentation/password_field_v2.dart';
 
 /// 로그인 (S02.5).
 ///
@@ -152,125 +154,137 @@ class _SignInPageState extends ConsumerState<SignInPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final emailStatus = EmailRule.of(_email.text);
 
     return Scaffold(
-      body: SafeArea(
+      backgroundColor: colors.bgBase,
+      // ⚠️ SafeArea 로 감싸지 않는다. 시안은 사진을 상태바 **뒤까지** 깐다.
+      // 아래쪽 여백만 아래에서 따로 준다.
+      body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.space5,
-                  AppSpacing.space8,
-                  AppSpacing.space5,
-                  AppSpacing.space4,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      AppStrings.authSignInTitle,
-                      style: AppTypography.h1.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.space7),
+            const _Hero(),
 
-                    AppInput(
-                      controller: _email,
-                      label: AppStrings.authEmailLabel,
-                      hint: AppStrings.authEmailHint,
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      onChanged: _onChanged,
-                      // 입력하는 도중에 "형식이 아니에요"가 뜨면 안 된다.
-                      // 아직 다 치지 않았을 뿐이다. 빈 칸도 오류가 아니다.
-                      tone: emailStatus == EmailStatus.invalid
-                          ? AppInputTone.error
-                          : AppInputTone.neutral,
-                      helper: emailStatus == EmailStatus.invalid
-                          ? AppStrings.authEmailInvalid
-                          : null,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.space6,
+                AppSpacing.space9,
+                AppSpacing.space6,
+                AppSpacing.space6,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    AppStrings.authSignInTitle,
+                    style: AppTypographyV2.heading05.copyWith(
+                      color: colors.textPrimary,
                     ),
-                    const SizedBox(height: AppSpacing.space5),
-
-                    PasswordField(
-                      controller: _password,
-                      label: AppStrings.authPasswordLabel,
-                      textInputAction: TextInputAction.done,
-                      onChanged: _onChanged,
-                      onSubmitted: (_) => _submit(),
+                  ),
+                  const SizedBox(height: AppSpacing.space3),
+                  Text(
+                    AppStrings.authSignInSubtitle,
+                    style: AppTypographyV2.body12.copyWith(
+                      color: colors.textSecondary,
                     ),
+                  ),
+                  const SizedBox(height: AppSpacing.space6),
 
-                    const SizedBox(height: AppSpacing.space2),
-                    _RememberEmail(
-                      value: _rememberEmail,
-                      onChanged: (on) => setState(() => _rememberEmail = on),
-                    ),
+                  AppInputV2(
+                    controller: _email,
+                    // ⚠️ 라벨을 넘기지 않는다. 시안의 로그인 칸은 힌트만 있고,
+                    // 라벨을 주면 칸이 회원가입 쪽 큰 모양으로 바뀐다.
+                    hint: AppStrings.authEmailLabel,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    onChanged: _onChanged,
+                    // 입력하는 도중에 "형식이 아니에요"가 뜨면 안 된다.
+                    // 아직 다 치지 않았을 뿐이다. 빈 칸도 오류가 아니다.
+                    tone: emailStatus == EmailStatus.invalid
+                        ? AppInputToneV2.error
+                        : AppInputToneV2.neutral,
+                    helper: emailStatus == EmailStatus.invalid
+                        ? AppStrings.authEmailInvalid
+                        : null,
+                  ),
+                  const SizedBox(height: AppSpacing.space2),
 
-                    if (_failure != null) ...[
-                      const SizedBox(height: AppSpacing.space4),
-                      _FailureNotice(failure: _failure!),
-                    ],
+                  PasswordFieldV2(
+                    controller: _password,
+                    hint: AppStrings.authPasswordLabel,
+                    textInputAction: TextInputAction.done,
+                    onChanged: _onChanged,
+                    onSubmitted: (_) => _submit(),
+                  ),
 
-                    const SizedBox(height: AppSpacing.space6),
-                    // 높이를 고정해 로딩 중에 아래 버튼들이 밀려 올라가지 않게 한다.
-                    SizedBox(
-                      height: AppButtonSize.lg.height,
-                      child: _busy
-                          ? Center(
-                              child: SizedBox.square(
-                                dimension: AppSpacing.space6,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: colors.primary,
-                                ),
-                              ),
-                            )
-                          : AppButton(
-                              label: AppStrings.authSignInCta,
-                              onPressed: _canSubmit ? _submit : null,
-                            ),
-                    ),
+                  const SizedBox(height: AppSpacing.space2),
+                  _RememberEmail(
+                    value: _rememberEmail,
+                    onChanged: (on) => setState(() => _rememberEmail = on),
+                  ),
 
-                    const SizedBox(height: AppSpacing.space6),
-                    const _OrDivider(),
-                    const SizedBox(height: AppSpacing.space6),
-
-                    // 카카오·애플을 지우지 않는다. 정본에 셋 다 있고, 나중에 붙일 때
-                    // 레이아웃을 다시 잡지 않아도 된다. **회색으로 잠그지도 않는다** —
-                    // 잠긴 버튼이 둘이면 앱이 미완성으로 읽힌다. 눌리고, 준비 중임을 알린다.
-                    _LastUsedMark(
-                      show: _lastMethod == SignInMethod.kakao,
-                      child: AppButton(
-                        label: AppStrings.authKakao,
-                        variant: AppButtonVariant.secondary,
-                        onPressed: _busy ? null : _startKakao,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.space3),
-                    AppButton(
-                      label: AppStrings.authApple,
-                      variant: AppButtonVariant.secondary,
-                      onPressed: () => _notReady(context),
-                    ),
-
-                    const SizedBox(height: AppSpacing.space6),
-                    AppButton(
-                      label: AppStrings.authToSignUp,
-                      variant: AppButtonVariant.ghost,
-                      size: AppButtonSize.md,
-                      // 가입은 **약관 동의부터** 시작한다. 동의를 받기 전에
-                      // 이메일·비밀번호를 받아두면 동의 없이 개인정보를 쥐게 된다.
-                      //
-                      // push라 뒤로가기 한 번에 로그인으로 돌아온다.
-                      onPressed: () => context.push(AppRoutes.terms),
-                    ),
+                  if (_failure != null) ...[
+                    const SizedBox(height: AppSpacing.space4),
+                    _FailureNotice(failure: _failure!),
                   ],
-                ),
+
+                  const SizedBox(height: AppSpacing.space6),
+                  // 높이를 고정해 로딩 중에 아래 버튼들이 밀려 올라가지 않게 한다.
+                  SizedBox(
+                    height: AppSizes.touchRunning,
+                    child: _busy
+                        ? Center(
+                            child: SizedBox.square(
+                              dimension: AppSpacing.space6,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: colors.primary,
+                              ),
+                            ),
+                          )
+                        : AppButtonV2(
+                            label: AppStrings.authSignInCta,
+                            onPressed: _canSubmit ? _submit : null,
+                          ),
+                  ),
+
+                  const SizedBox(height: AppSpacing.space5),
+                  const _OrDivider(),
+                  const SizedBox(height: AppSpacing.space6),
+
+                  // 카카오·애플을 지우지 않는다. **회색으로 잠그지도 않는다** —
+                  // 잠긴 버튼이 둘이면 앱이 미완성으로 읽힌다. 눌리고, 준비 중임을 알린다.
+                  //
+                  // ⚠️ 시안은 이 자리에 아이콘 타일 둘(구글·카카오)을 둔다. 구글은
+                  // 붙일 구현이 없고, 두 브랜드의 아이콘이 디자인 아이콘 33개에
+                  // 없어 **버튼 모양을 그대로 뒀다.**
+                  _LastUsedMark(
+                    show: _lastMethod == SignInMethod.kakao,
+                    child: AppButtonV2(
+                      label: AppStrings.authKakao,
+                      variant: AppButtonV2Variant.secondary,
+                      onPressed: _busy ? null : _startKakao,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.space3),
+                  AppButtonV2(
+                    label: AppStrings.authApple,
+                    variant: AppButtonV2Variant.secondary,
+                    onPressed: () => _notReady(context),
+                  ),
+
+                  const SizedBox(height: AppSpacing.space6),
+                  _TextLink(
+                    label: AppStrings.authToSignUp,
+                    // 가입은 **약관 동의부터** 시작한다. 동의를 받기 전에
+                    // 이메일·비밀번호를 받아두면 동의 없이 개인정보를 쥐게 된다.
+                    //
+                    // push라 뒤로가기 한 번에 로그인으로 돌아온다.
+                    onPressed: () => context.push(AppRoutes.terms),
+                  ),
+                ],
               ),
             ),
           ],
@@ -360,7 +374,7 @@ class _SignInPageState extends ConsumerState<SignInPage> {
   }
 
   void _notReady(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     // 이전 안내가 남아 있으면 겹쳐서 쌓인다. 하나만 띄운다.
     ScaffoldMessenger.of(context)
@@ -369,7 +383,7 @@ class _SignInPageState extends ConsumerState<SignInPage> {
         SnackBar(
           content: Text(
             AppStrings.authSocialComingSoon,
-            style: AppTypography.body.copyWith(color: colors.textPrimary),
+            style: AppTypographyV2.body07.copyWith(color: colors.textPrimary),
           ),
           backgroundColor: colors.bgElevated,
           behavior: SnackBarBehavior.floating,
@@ -379,10 +393,89 @@ class _SignInPageState extends ConsumerState<SignInPage> {
   }
 }
 
-/// `───── 또는 ─────`
+/// 화면 맨 위의 사진. 아래로 갈수록 배경색에 녹는다.
 ///
-/// 이메일 로그인과 소셜 로그인이 **대등한 선택지**임을 보인다.
-/// 구분선이 없으면 카카오·애플 버튼이 이메일 로그인의 하위 단계처럼 읽힌다.
+/// 비율은 시안 그대로다(412×392). 가로에 맞춰 늘어나므로 폭이 다른 기기에서도
+/// 사진이 잘리지 않는다.
+///
+/// ## ⚠️ 높이에 천장을 둔다
+///
+/// 비율만 지키면 넓은 화면에서 사진이 화면을 삼킨다 — 폭 800이면 높이가 761이라
+/// 로그인 칸이 접힌 곳 아래로 밀려난다. 시안에서 사진이 화면의 43%를 차지하므로
+/// 그 비율을 넘지 않게 막는다.
+///
+/// 그라데이션이 **아래 절반**에만 걸린다. 사진 전체를 덮으면 사진이 흐려지고,
+/// 경계에만 걸면 선이 보인다.
+class _Hero extends StatelessWidget {
+  const _Hero();
+
+  /// 시안의 사진 크기 412×392.
+  static const _ratio = 412 / 392;
+
+  /// 시안에서 사진이 차지하는 세로 비율 (392 / 917).
+  static const _maxHeightRatio = 392 / 917;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+    final size = MediaQuery.sizeOf(context);
+    final height = math.min(size.width / _ratio, size.height * _maxHeightRatio);
+
+    return SizedBox(
+      height: height,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset('assets/images/sign_in_hero.png', fit: BoxFit.cover),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.center,
+                end: Alignment.bottomCenter,
+                colors: [colors.bgBase.withValues(alpha: 0), colors.bgBase],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 버튼이 아닌 글자 링크. 가입으로 가는 한 줄이 이것이다.
+///
+/// ⚠️ **시안에 이 줄이 없다.** 없으면 가입할 길이 사라지므로 남겼고,
+/// `AppButtonV2`에는 테두리도 면도 없는 변형이 없어 여기서 만든다.
+/// 다른 화면이 같은 것을 필요로 하면 그때 `core/widgets/v2/`로 올린다.
+class _TextLink extends StatelessWidget {
+  const _TextLink({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: AppRadius.md,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: AppRadius.md,
+        child: Container(
+          height: AppSizes.touchDefault,
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: AppTypographyV2.body11.copyWith(color: colors.textSecondary),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// `☐ 아이디 저장` — 라벨까지 눌린다.
 ///
 /// 체크박스만 과녁으로 두면 44를 못 채우고, 옆의 글자를 눌러도 안 켜지면
@@ -395,36 +488,73 @@ class _RememberEmail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Semantics(
       checked: value,
       child: InkWell(
         onTap: () => onChanged(!value),
         borderRadius: AppRadius.md,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.space1),
+        // 손가락이 닿는 칸을 44 아래로 내리지 않는다. 네모를 44 상자 안에
+        // 가운데 두면 **입력 칸보다 안쪽에서 시작해** 왼쪽 줄이 어긋난다.
+        // 줄 전체를 44로 세우고 네모는 왼쪽 끝에 붙인다.
+        child: Container(
+          height: AppSizes.touchDefault,
+          alignment: Alignment.centerLeft,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 손가락이 닿는 칸을 44 아래로 내리지 않는다.
-              SizedBox.square(
-                dimension: AppSizes.touchDefault,
-                child: Icon(
-                  value ? LucideIcons.squareCheck : LucideIcons.square,
-                  size: AppSpacing.space5,
-                  color: value ? colors.primary : colors.textTertiary,
-                ),
-              ),
+              _CheckBox(checked: value),
+              const SizedBox(width: AppSpacing.space3),
               Text(
                 AppStrings.authRememberEmail,
-                style: AppTypography.body.copyWith(
+                style: AppTypographyV2.body12.copyWith(
                   color: value ? colors.textPrimary : colors.textSecondary,
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 네모 체크 표시.
+///
+/// ⚠️ **디자인 아이콘 33개에 빈 네모가 없다.** `check`·`check_2`는 둘 다 체크
+/// 표시라 꺼진 상태를 그릴 것이 없다. 그래서 네모는 여기서 그리고 안에만
+/// 디자인 아이콘을 넣는다 — 빈 네모 아이콘이 오면 이 클래스를 지운다.
+class _CheckBox extends StatelessWidget {
+  const _CheckBox({required this.checked});
+
+  final bool checked;
+
+  static const _size = 20.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return SizedBox.square(
+      dimension: _size,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: checked ? colors.primary : Colors.transparent,
+          borderRadius: AppRadius.xs,
+          border: Border.all(
+            color: checked ? colors.primary : colors.borderStrong,
+          ),
+        ),
+        // 꺼져 있으면 **빈 네모**다. 회색 체크를 그려두면 켜진 것처럼 읽힌다.
+        // 켜진 쪽은 면이 차므로 색 말고 모양으로도 구분된다.
+        child: checked
+            ? AppIcon(
+                AppIcons.check,
+                size: AppSpacing.space4,
+                color: colors.textOnPrimary,
+              )
+            : null,
       ),
     );
   }
@@ -443,7 +573,7 @@ class _LastUsedMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!show) return child;
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Stack(
       alignment: Alignment.centerRight,
@@ -462,7 +592,7 @@ class _LastUsedMark extends StatelessWidget {
             ),
             child: Text(
               AppStrings.authLastUsed,
-              style: AppTypography.micro.copyWith(color: colors.primary),
+              style: AppTypographyV2.body22.copyWith(color: colors.primary),
             ),
           ),
         ),
@@ -476,19 +606,19 @@ class _OrDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Row(
       children: [
-        Expanded(child: Divider(color: colors.borderDefault, height: 1)),
+        Expanded(child: Divider(color: colors.borderStrong, height: 1)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space3),
           child: Text(
             AppStrings.authOr,
-            style: AppTypography.caption.copyWith(color: colors.textTertiary),
+            style: AppTypographyV2.body17.copyWith(color: colors.textSecondary),
           ),
         ),
-        Expanded(child: Divider(color: colors.borderDefault, height: 1)),
+        Expanded(child: Divider(color: colors.borderStrong, height: 1)),
       ],
     );
   }
@@ -541,21 +671,17 @@ class _FailureNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          LucideIcons.circleAlert,
-          size: AppSpacing.space5,
-          color: colors.error,
-        ),
+        AppIcon(AppIcons.alert, size: AppSpacing.space5, color: colors.error),
         const SizedBox(width: AppSpacing.space2),
         Expanded(
           child: Text(
             _message,
-            style: AppTypography.caption.copyWith(color: colors.error),
+            style: AppTypographyV2.body20.copyWith(color: colors.error),
           ),
         ),
       ],
