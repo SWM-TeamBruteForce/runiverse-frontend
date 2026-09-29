@@ -176,8 +176,8 @@ void main() {
         snapshot: room(status: RoomStatus.matched, closeAt: closedAlready),
       );
 
-      expect(find.text(AppStrings.matchRoomStartAt(startAt)), findsOneWidget);
-      expect(find.text(AppStrings.matchRoomTarget(5)), findsOneWidget);
+      expect(find.text(AppStrings.matchSlotTime(startAt)), findsOneWidget);
+      expect(find.text(AppStrings.matchDistanceText(5)), findsOneWidget);
       expect(find.text(AppStrings.matchRoomPlayers(3)), findsOneWidget);
       expect(find.text('러너0'), findsOneWidget);
     });

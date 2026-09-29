@@ -352,12 +352,16 @@ class _SessionCards extends StatelessWidget {
   Widget build(BuildContext context) {
     final km = TargetDistance.fromMeters(room.targetDistanceMeters)?.km;
 
+    // ⚠️ 값에는 **숫자와 단위만** 둔다. 카드가 `시작 시간`·`목표 거리`를
+    // 이미 이고 있어서, 값에 다시 `시작`·`목표`를 붙이면 같은 말이
+    // 두 번 나온다.
+
     return Row(
       children: [
         Expanded(
           child: _FactCard(
             label: AppStrings.matchRoomStartTimeLabel,
-            value: AppStrings.matchRoomStartAt(room.scheduledStartAt),
+            value: AppStrings.matchSlotTime(room.scheduledStartAt),
           ),
         ),
         const SizedBox(width: AppSpacing.space3),
@@ -367,7 +371,7 @@ class _SessionCards extends StatelessWidget {
               ? const SizedBox.shrink()
               : _FactCard(
                   label: AppStrings.matchDistanceLabel,
-                  value: AppStrings.matchRoomTarget(km),
+                  value: AppStrings.matchDistanceText(km),
                 ),
         ),
       ],
