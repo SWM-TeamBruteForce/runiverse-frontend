@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:geolocator/geolocator.dart';
@@ -43,13 +44,15 @@ class GeolocatorLocationRepository implements LocationRepository {
   /// GPS 칩이 켜져 있는 것 자체가 주 소모원이라 샘플 수의 영향이 작다.
   static const _interval = Duration(seconds: 1);
 
-  static LocationSettings get _settings {
+  /// [fused]가 `false`면 Play 서비스를 건너뛰고 플랫폼 `LocationManager`를
+  /// 직접 쓴다. [watchPosition]의 폴백이 그렇게 부른다.
+  static LocationSettings _settingsFor({required bool fused}) {
     if (Platform.isAndroid) {
       return AndroidSettings(
         accuracy: LocationAccuracy.best,
         distanceFilter: 0,
-        // ⚠️ `true`로 바꾸면 FusedLocationProviderClient를 쓰지 않는다.
-        forceLocationManager: false,
+        // ⚠️ `true`면 FusedLocationProviderClient를 쓰지 않는다.
+        forceLocationManager: !fused,
         // ⚠️ **이것이 `null`이 아니어야 화면을 꺼도 좌표가 들어온다.**
         //
         // geolocator가 이 설정을 보고 위치 수집을 포그라운드 서비스로 띄운다.
@@ -117,18 +120,71 @@ class GeolocatorLocationRepository implements LocationRepository {
   /// `FusedLocationProviderClient`의 설정 검사가 하고, 그 검사는 GPS 말고
   /// network provider까지 본다. 두 답이 어긋나는 순간이 있다.
   ///
+  /// ## 그때 플랫폼 `LocationManager`로 한 번 더 시도한다
+  ///
+  /// 2026-09-29 확인: Android 17 · Play 서비스 26.32.34 에뮬레이터 두 대에서
+  /// **프로바이더가 전부 켜져 있는데도** Fused가 "위치 꺼짐"으로 답했다.
+  /// GPS만 쓰는 경로로 바꾸면 곧바로 좌표가 들어왔다.
+  ///
+  /// ⚠️ **플랫폼도 꺼졌다고 하면 폴백하지 않는다.** 진짜로 위치가 꺼진 경우를
+  /// 가려 버리면, 사용자는 설정을 켜라는 안내 대신 영영 안 오는 좌표를
+  /// 기다리게 된다.
+  ///
+  /// ⚠️ **한 번만 내려간다.** 폴백까지 실패하면 그대로 올린다 — 두 경로를
+  /// 오가며 재시도하면 실패를 알리지 못한 채 배터리만 쓴다.
+  ///
   /// 패키지 예외를 그대로 흘리지 않고 [LocationUnavailable]로 바꾼다.
   @override
-  Stream<GeoPoint> watchPosition() =>
-      Geolocator.getPositionStream(locationSettings: _settings)
-          .handleError((Object error) {
-            throw LocationUnavailable(
-              error is LocationServiceDisabledException
-                  ? LocationAccess.serviceDisabled
-                  : LocationAccess.denied,
-            );
-          })
-          .map(_toPoint);
+  Stream<GeoPoint> watchPosition() {
+    final out = StreamController<GeoPoint>();
+    StreamSubscription<Position>? source;
+    var fellBack = false;
+
+    Future<void> fail(Object error) async {
+      out.addError(
+        LocationUnavailable(
+          error is LocationServiceDisabledException
+              ? LocationAccess.serviceDisabled
+              : LocationAccess.denied,
+        ),
+      );
+    }
+
+    void listen({required bool fused}) {
+      source =
+          Geolocator.getPositionStream(
+            locationSettings: _settingsFor(fused: fused),
+          ).listen(
+            (position) => out.add(_toPoint(position)),
+            onError: (Object error) async {
+              final worthRetry =
+                  fused &&
+                  !fellBack &&
+                  error is LocationServiceDisabledException &&
+                  // 플랫폼이 켜졌다고 하는데 Fused만 아니라고 할 때가 폴백할 자리다.
+                  await Geolocator.isLocationServiceEnabled();
+
+              if (!worthRetry) {
+                await fail(error);
+                return;
+              }
+
+              fellBack = true;
+              await source?.cancel();
+              if (out.isClosed) return;
+              listen(fused: false);
+            },
+            onDone: out.close,
+          );
+    }
+
+    out.onListen = () => listen(fused: true);
+    out.onCancel = () async {
+      await source?.cancel();
+    };
+
+    return out.stream;
+  }
 
   @override
   Future<void> openSettings() async {
