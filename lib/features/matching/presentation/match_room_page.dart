@@ -11,6 +11,9 @@ import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/core/widgets/v2/fact_card.dart';
+import 'package:runiverse/core/widgets/v2/party_chip.dart';
+import 'package:runiverse/core/widgets/v2/surface_card.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
@@ -359,7 +362,7 @@ class _SessionCards extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: _FactCard(
+          child: FactCard(
             label: AppStrings.matchRoomStartTimeLabel,
             value: AppStrings.matchSlotTime(room.scheduledStartAt),
           ),
@@ -369,50 +372,12 @@ class _SessionCards extends StatelessWidget {
           // 거리를 모르면 칸을 비운다. 임의의 값을 넣으면 목표가 달라 보인다.
           child: km == null
               ? const SizedBox.shrink()
-              : _FactCard(
+              : FactCard(
                   label: AppStrings.matchDistanceLabel,
                   value: AppStrings.matchDistanceText(km),
                 ),
         ),
       ],
-    );
-  }
-}
-
-/// 라벨 위, 값 아래. 카드 두 장이 같은 모양이라 따로 뺐다.
-class _FactCard extends StatelessWidget {
-  const _FactCard({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColorsV2;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.bgSurface,
-        borderRadius: AppRadius.card,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.space6),
-        child: Column(
-          children: [
-            Text(
-              label,
-              style: AppTypographyV2.body13.copyWith(
-                color: colors.textTertiary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.space2),
-            Text(
-              value,
-              style: AppTypographyV2.body02.copyWith(color: colors.textPrimary),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -429,96 +394,44 @@ class _PartyCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.bgSurface,
-        borderRadius: AppRadius.card,
+    return SurfaceCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.space4,
+        vertical: AppSpacing.space5,
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.space4,
-          vertical: AppSpacing.space5,
-        ),
-        child: Column(
-          children: [
-            Text(
-              AppStrings.matchRoomPlayers(players.length),
-              style: AppTypographyV2.body13.copyWith(
-                color: colors.textTertiary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.space4),
-            // 방은 최대 4명이지만 가로가 모자라면 접힌다.
-            Wrap(
-              spacing: AppSpacing.space4,
-              runSpacing: AppSpacing.space3,
-              alignment: WrapAlignment.center,
-              children: [
-                for (final player in players) _PlayerChip(player: player),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 아바타 위, 이름 아래.
-class _PlayerChip extends StatelessWidget {
-  const _PlayerChip({required this.player});
-
-  final RoomPlayer player;
-
-  /// 시안의 아바타가 30px다.
-  static const _avatar = 30.0;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColorsV2;
-    final name = player.isDeleted
-        ? AppStrings.matchRoomDeletedPlayer
-        : player.nickname;
-    final image = player.profileImageUrl;
-
-    // 탈퇴한 사람은 흐리게. 시안은 준비 상태로 이 대비를 쓰는데, 우리는
-    // 서버가 참가자 상태를 안 줘서 표시할 것이 없다.
-    final accent = player.isDeleted ? colors.textTertiary : colors.primary;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: _avatar,
-          height: _avatar,
-          decoration: BoxDecoration(
-            color: colors.primaryMuted,
-            borderRadius: AppRadius.full,
-            border: Border.all(color: accent, width: 1.5),
-            image: image == null || player.isDeleted
-                ? null
-                : DecorationImage(
-                    image: NetworkImage(image),
-                    fit: BoxFit.cover,
-                  ),
+      child: Column(
+        children: [
+          Text(
+            AppStrings.matchRoomPlayers(players.length),
+            style: AppTypographyV2.body13.copyWith(color: colors.textTertiary),
           ),
-          alignment: Alignment.center,
-          child: image != null && !player.isDeleted
-              ? null
-              : AppIcon(
-                  AppIcons.profile,
-                  size: AppSpacing.space4,
-                  color: accent,
+          const SizedBox(height: AppSpacing.space4),
+          // 방은 최대 4명이지만 가로가 모자라면 접힌다.
+          Wrap(
+            spacing: AppSpacing.space4,
+            runSpacing: AppSpacing.space3,
+            alignment: WrapAlignment.center,
+            children: [
+              for (final player in players)
+                PartyChip(
+                  name: player.isDeleted
+                      ? AppStrings.matchRoomDeletedPlayer
+                      : player.nickname,
+                  imageUrl: player.isDeleted ? null : player.profileImageUrl,
+                  // 탈퇴한 사람은 흐리게. 시안은 이 대비를 준비 상태에 쓰는데,
+                  // 우리는 서버가 참가자 상태를 안 줘서 표시할 것이 없다.
+                  accent: player.isDeleted
+                      ? colors.textTertiary
+                      : colors.primary,
                 ),
-        ),
-        const SizedBox(height: AppSpacing.space2),
-        Text(name, style: AppTypographyV2.body11.copyWith(color: accent)),
-      ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
-/// 알아야 하는 한 줄.
 class _Notice extends StatelessWidget {
   const _Notice(this.text);
 
