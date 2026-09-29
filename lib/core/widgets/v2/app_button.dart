@@ -12,6 +12,12 @@ enum AppButtonV2Variant {
 
   /// 테두리만. 시안 `158:3433`의 `취소하기`가 이것이다.
   secondary,
+
+  /// 브랜드 색을 옅게 깐 면. 시안 `158:3790`의 `자세한 기록 보기`가 이것이다.
+  ///
+  /// [primary] 옆에 둘 때 쓴다 — 테두리만 있는 [secondary]보다 무게가 있어서
+  /// 둘 중 어느 쪽도 "덜 중요해" 보이지 않는다.
+  tonal,
 }
 
 /// 새 디자인의 버튼 — 시안 `Button-Solid` 컴포넌트.
@@ -53,16 +59,27 @@ class AppButtonV2 extends StatelessWidget {
     final colors = context.appColorsV2;
     final enabled = onPressed != null;
     final filled = variant == AppButtonV2Variant.primary;
+    final tonal = variant == AppButtonV2Variant.tonal;
 
     // 비활성은 **투명도가 아니라 색으로** 표현한다. 투명도를 쓰면 뒤 배경이
     // 비쳐서 카드 위와 화면 위의 같은 버튼이 다르게 보인다.
     final accent = enabled ? colors.primary : colors.textDisabled;
 
+    // 면을 까는 변형 둘. 잠기면 둘 다 같은 회색 면이 된다 — 무엇이 주
+    // 버튼이었는지는 눌리지 않는 순간 의미가 없다.
+    final surface = !enabled
+        ? (filled || tonal ? colors.bgSurface : null)
+        : filled
+        ? accent
+        : tonal
+        ? colors.primaryMuted
+        : null;
+
     return Semantics(
       button: true,
       enabled: enabled,
       child: Material(
-        color: filled && enabled ? accent : Colors.transparent,
+        color: surface ?? Colors.transparent,
         borderRadius: AppRadius.lg,
         child: InkWell(
           onTap: onPressed,
@@ -73,15 +90,16 @@ class AppButtonV2 extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space6),
             decoration: BoxDecoration(
               borderRadius: AppRadius.lg,
-              border: filled ? null : Border.all(color: accent),
-              color: filled && !enabled ? colors.bgSurface : null,
+              // 테두리는 secondary 만 두른다. 면이 있는 쪽에 테두리까지
+              // 두르면 모서리가 두 겹으로 보인다.
+              border: filled || tonal ? null : Border.all(color: accent),
             ),
             alignment: Alignment.center,
             child: Text(
               label,
               textAlign: TextAlign.center,
               style: AppTypographyV2.body05.copyWith(
-                color: filled ? colors.textOnPrimary : accent,
+                color: filled && enabled ? colors.textOnPrimary : accent,
               ),
             ),
           ),
