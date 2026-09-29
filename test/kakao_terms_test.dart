@@ -6,7 +6,7 @@ import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/data/fake_oauth_code_source.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
@@ -24,6 +24,16 @@ import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.
 /// ⚠️ **인가가 끝나면 서버가 곧바로 계정을 만들고 이메일을 저장한다.**
 /// 그러므로 "동의 전에 인가하지 않는다"가 여기서 가장 중요한 확인이다.
 /// 그것이 새면 이 작업 전체가 무의미하다.
+/// 눌리기 전에 **보이게 한다.**
+///
+/// ⚠️ 로그인 화면이 시안의 사진 때문에 길어져 접힌 곳 아래로 내려가는 것이 생겼다.
+/// `tester.tap`은 스크롤하지 않고, 화면 밖 위젯을 누르면 hit test 에서 죽는다.
+Future<void> tapVisible(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
+}
+
 void main() {
   /// 로그인 화면을 띄운다. [agreed]가 이 기기가 이미 동의했는지다.
   ///
@@ -61,7 +71,10 @@ void main() {
   }
 
   Future<void> tapKakao(WidgetTester tester) async {
-    await tester.tap(find.widgetWithText(AppButton, AppStrings.authKakao));
+    await tapVisible(
+      tester,
+      find.widgetWithText(AppButtonV2, AppStrings.authKakao),
+    );
     await tester.pumpAndSettle();
   }
 
@@ -88,9 +101,9 @@ void main() {
     final app = await pumpSignIn(tester, agreed: false);
     await tapKakao(tester);
 
-    await tester.tap(find.text(AppStrings.termsAgreeAll));
+    await tapVisible(tester, find.text(AppStrings.termsAgreeAll));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.termsCta));
+    await tapVisible(tester, find.text(AppStrings.termsCta));
     await tester.pumpAndSettle();
 
     expect(app.kakao.callCount, 1);
@@ -103,7 +116,7 @@ void main() {
     await tapKakao(tester);
 
     // 동의하지 않고 물러났다. 그만둔 사람을 인가로 밀어 넣지 않는다.
-    await tester.tap(find.byTooltip(AppStrings.authBack));
+    await tapVisible(tester, find.byTooltip(AppStrings.authBack));
     await tester.pumpAndSettle();
 
     expect(app.kakao.callCount, 0);
@@ -126,9 +139,9 @@ void main() {
     final app = await pumpSignIn(tester, agreed: false);
     await tapKakao(tester);
 
-    await tester.tap(find.text(AppStrings.termsAgreeAll));
+    await tapVisible(tester, find.text(AppStrings.termsAgreeAll));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.termsCta));
+    await tapVisible(tester, find.text(AppStrings.termsCta));
     await tester.pumpAndSettle();
 
     // 저장소를 직접 본다. 화면을 다시 띄워 확인하려 하면 라우터가 이미 홈에
@@ -142,7 +155,7 @@ void main() {
     final app = await pumpSignIn(tester, agreed: false);
     await tapKakao(tester);
 
-    await tester.tap(find.byTooltip(AppStrings.authBack));
+    await tapVisible(tester, find.byTooltip(AppStrings.authBack));
     await tester.pumpAndSettle();
 
     // 화면을 봤다는 것과 동의했다는 것은 다르다.
@@ -154,15 +167,15 @@ void main() {
     await tapKakao(tester);
 
     // 필수만 켠다. 선택이 CTA를 막으면 그것은 선택이 아니다.
-    await tester.tap(find.text(AppStrings.termsAge));
+    await tapVisible(tester, find.text(AppStrings.termsAge));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.termsService));
+    await tapVisible(tester, find.text(AppStrings.termsService));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.termsPrivacy));
+    await tapVisible(tester, find.text(AppStrings.termsPrivacy));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.termsHealth));
+    await tapVisible(tester, find.text(AppStrings.termsHealth));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.termsCta));
+    await tapVisible(tester, find.text(AppStrings.termsCta));
     await tester.pumpAndSettle();
 
     expect(app.kakao.callCount, 1);

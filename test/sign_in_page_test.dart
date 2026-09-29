@@ -8,7 +8,7 @@ import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/data/fake_oauth_code_source.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
@@ -25,6 +25,16 @@ import 'package:runiverse/features/onboarding/presentation/profile_setup_page.da
 ///
 /// 라우터를 태워서 띄운다. 성공했을 때 **홈으로 가는지**까지가 이 화면의 계약이라
 /// 화면만 떼어놓으면 그 절반을 볼 수 없다.
+/// 눌리기 전에 **보이게 한다.**
+///
+/// ⚠️ 로그인 화면이 시안의 사진 때문에 길어져 접힌 곳 아래로 내려가는 것이 생겼다.
+/// `tester.tap`은 스크롤하지 않고, 화면 밖 위젯을 누르면 hit test 에서 죽는다.
+Future<void> tapVisible(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
+}
+
 void main() {
   Future<void> pumpSignIn(
     WidgetTester tester, {
@@ -68,10 +78,10 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  /// CTA가 눌리는 상태인가. [AppButton]은 `onPressed`가 null이면 비활성이다.
+  /// CTA가 눌리는 상태인가. [AppButtonV2]은 `onPressed`가 null이면 비활성이다.
   bool ctaEnabled(WidgetTester tester) {
-    final cta = tester.widget<AppButton>(
-      find.widgetWithText(AppButton, AppStrings.authSignInCta),
+    final cta = tester.widget<AppButtonV2>(
+      find.widgetWithText(AppButtonV2, AppStrings.authSignInCta),
     );
     return cta.onPressed != null;
   }
@@ -136,7 +146,7 @@ void main() {
     await fill(tester, email: FakeAuthRepository.seedEmail, password: '러너러너러너');
     expect(ctaEnabled(tester), isTrue);
 
-    await tester.tap(find.text(AppStrings.authSignInCta));
+    await tapVisible(tester, find.text(AppStrings.authSignInCta));
     await tester.pumpAndSettle();
 
     expect(find.text(AppStrings.authFailedCredentials), findsOneWidget);
@@ -151,7 +161,7 @@ void main() {
       password: 'wrong123!',
     );
 
-    await tester.tap(find.text(AppStrings.authSignInCta));
+    await tapVisible(tester, find.text(AppStrings.authSignInCta));
     await tester.pumpAndSettle();
 
     expect(find.text(AppStrings.authFailedCredentials), findsOneWidget);
@@ -167,7 +177,7 @@ void main() {
       password: FakeAuthRepository.seedPassword,
     );
 
-    await tester.tap(find.text(AppStrings.authSignInCta));
+    await tapVisible(tester, find.text(AppStrings.authSignInCta));
     await tester.pumpAndSettle();
 
     expect(find.byType(HomePage), findsOneWidget);
@@ -184,7 +194,7 @@ void main() {
     await pumpSignIn(tester, repository: repository);
     await fill(tester, email: 'new@example.com', password: 'runi123!');
 
-    await tester.tap(find.text(AppStrings.authSignInCta));
+    await tapVisible(tester, find.text(AppStrings.authSignInCta));
     await tester.pumpAndSettle();
 
     // 프로필은 **있어야 쓸 수 있다.** 매칭도 기록도 그 값들 위에 선다.
@@ -201,7 +211,7 @@ void main() {
       email: FakeAuthRepository.seedEmail,
       password: 'wrong123!',
     );
-    await tester.tap(find.text(AppStrings.authSignInCta));
+    await tapVisible(tester, find.text(AppStrings.authSignInCta));
     await tester.pumpAndSettle();
 
     // 고치는 중에도 빨간 글씨가 남아 있으면 방금 고친 것이 반영됐는지 알 수 없다.
@@ -220,7 +230,10 @@ void main() {
       // 만들고 isOnboarded=false로 답한다. 그러니 첫 로그인은 이메일의 *가입*이다.
       await pumpSignIn(tester);
 
-      await tester.tap(find.widgetWithText(AppButton, AppStrings.authKakao));
+      await tapVisible(
+        tester,
+        find.widgetWithText(AppButtonV2, AppStrings.authKakao),
+      );
       await tester.pumpAndSettle();
 
       expect(find.byType(ProfileSetupPage), findsOneWidget);
@@ -237,7 +250,10 @@ void main() {
 
       await pumpSignIn(tester, repository: repository);
 
-      await tester.tap(find.widgetWithText(AppButton, AppStrings.authKakao));
+      await tapVisible(
+        tester,
+        find.widgetWithText(AppButtonV2, AppStrings.authKakao),
+      );
       await tester.pumpAndSettle();
 
       expect(find.byType(HomePage), findsOneWidget);
@@ -251,7 +267,10 @@ void main() {
         codeSource: FakeOauthCodeSource(failure: AuthFailure.oauthCancelled),
       );
 
-      await tester.tap(find.widgetWithText(AppButton, AppStrings.authKakao));
+      await tapVisible(
+        tester,
+        find.widgetWithText(AppButtonV2, AppStrings.authKakao),
+      );
       await tester.pumpAndSettle();
 
       // 로그인 화면에 그대로 머문다.
@@ -267,7 +286,10 @@ void main() {
         codeSource: FakeOauthCodeSource(failure: AuthFailure.oauthFailed),
       );
 
-      await tester.tap(find.widgetWithText(AppButton, AppStrings.authKakao));
+      await tapVisible(
+        tester,
+        find.widgetWithText(AppButtonV2, AppStrings.authKakao),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.authFailedOauth), findsOneWidget);
@@ -284,7 +306,10 @@ void main() {
 
       await pumpSignIn(tester, repository: repository);
 
-      await tester.tap(find.widgetWithText(AppButton, AppStrings.authKakao));
+      await tapVisible(
+        tester,
+        find.widgetWithText(AppButtonV2, AppStrings.authKakao),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.authFailedEmailTaken), findsOneWidget);
@@ -300,7 +325,10 @@ void main() {
     );
     expect(ctaEnabled(tester), isTrue);
 
-    await tester.tap(find.widgetWithText(AppButton, AppStrings.authKakao));
+    await tapVisible(
+      tester,
+      find.widgetWithText(AppButtonV2, AppStrings.authKakao),
+    );
     // ⚠️ pumpAndSettle을 쓰면 안 된다. 잠긴 화면은 스피너가 영원히 돌아
     // **영영 안정되지 않고**, 단언에 닿기 전에 타임아웃으로 죽는다
     // (`docs/implementation-notes.md` §10-3). 정해진 횟수만 pump한다.
@@ -314,7 +342,7 @@ void main() {
     // **이메일 로그인까지 같이 막힌다** — 카카오를 한 번 잘못 누른 사람은
     // 앱을 다시 켜기 전에는 어떤 방법으로도 로그인할 수 없다.
     expect(
-      find.widgetWithText(AppButton, AppStrings.authSignInCta),
+      find.widgetWithText(AppButtonV2, AppStrings.authSignInCta),
       findsOneWidget,
       reason: 'CTA가 사라졌다면 _busy가 true로 굳은 것이다',
     );

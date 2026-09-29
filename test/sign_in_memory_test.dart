@@ -7,7 +7,7 @@ import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/domain/sign_in_method.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
@@ -23,6 +23,16 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 ///
 /// ⚠️ 앱을 지웠다 깔거나 기기를 바꾸면 기록이 없다. 그 한계는 테스트로 막을 수
 /// 없고, 서버가 409에 `provider`를 실어 주는 것이 진짜 해법이다.
+/// 눌리기 전에 **보이게 한다.**
+///
+/// ⚠️ 로그인 화면이 시안의 사진 때문에 길어져 접힌 곳 아래로 내려가는 것이 생겼다.
+/// `tester.tap`은 스크롤하지 않고, 화면 밖 위젯을 누르면 hit test 에서 죽는다.
+Future<void> tapVisible(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
+}
+
 void main() {
   late InMemorySignInMemoryStore memory;
   late FakeAuthRepository auth;
@@ -69,7 +79,10 @@ void main() {
     await tester.enterText(find.byType(TextField).first, email);
     await tester.enterText(find.byType(TextField).last, password);
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(AppButton, AppStrings.authSignInCta));
+    await tapVisible(
+      tester,
+      find.widgetWithText(AppButtonV2, AppStrings.authSignInCta),
+    );
     await tester.pumpAndSettle();
   }
 
@@ -86,7 +99,7 @@ void main() {
     testWidgets('켜고 로그인하면 다음에 채워진다', (tester) async {
       await pumpSignIn(tester);
 
-      await tester.tap(rememberBox());
+      await tapVisible(tester, rememberBox());
       await tester.pumpAndSettle();
       await fillAndSubmit(tester);
 
@@ -105,13 +118,14 @@ void main() {
       // 틀린 이메일을 기억해 주면 다음에도 틀린 값으로 시작한다.
       await pumpSignIn(tester);
 
-      await tester.tap(rememberBox());
+      await tapVisible(tester, rememberBox());
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).first, 'wrong@example.com');
       await tester.enterText(find.byType(TextField).last, password);
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.widgetWithText(AppButton, AppStrings.authSignInCta),
+      await tapVisible(
+        tester,
+        find.widgetWithText(AppButtonV2, AppStrings.authSignInCta),
       );
       await tester.pumpAndSettle();
 
@@ -147,8 +161,9 @@ void main() {
       await tester.enterText(find.byType(TextField).first, 'wrong@example.com');
       await tester.enterText(find.byType(TextField).last, password);
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.widgetWithText(AppButton, AppStrings.authSignInCta),
+      await tapVisible(
+        tester,
+        find.widgetWithText(AppButtonV2, AppStrings.authSignInCta),
       );
       await tester.pumpAndSettle();
 

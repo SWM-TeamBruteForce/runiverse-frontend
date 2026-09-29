@@ -20,6 +20,11 @@ import 'package:flutter/painting.dart';
 ///
 /// [sm]과 [xl]은 아직 시안에서 확인하지 못했다. 기존 값을 그대로 둔다.
 abstract final class AppRadius {
+  /// 20px 안팎의 작은 조작 요소용. **시안에서 온 값이 아니다** —
+  /// 로그인의 `아이디 저장` 체크 네모를 그리다 더했다. 8을 주면 20px 네모가
+  /// 거의 원이 되어 단일 선택(라디오)처럼 읽힌다.
+  static const xs = BorderRadius.all(Radius.circular(6));
+
   static const sm = BorderRadius.all(Radius.circular(8));
   static const md = BorderRadius.all(Radius.circular(12));
   static const lg = BorderRadius.all(Radius.circular(16));

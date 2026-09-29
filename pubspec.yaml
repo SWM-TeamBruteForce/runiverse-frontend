@@ -144,6 +144,9 @@ flutter:
     # 미세하게 달라진다. 옮긴 화면만 이쪽을 쓴다.
     - assets/icons/
 
+    # 시안이 쓰는 사진. 지금은 로그인 히어로 한 장뿐이다.
+    - assets/images/
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
