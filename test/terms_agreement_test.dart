@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.dart';
 
@@ -32,9 +32,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  /// CTA가 눌리는 상태인가. [AppButton]은 `onPressed`가 null이면 비활성이다.
+  /// CTA가 눌리는 상태인가. [AppButtonV2]은 `onPressed`가 null이면 비활성이다.
   bool ctaEnabled(WidgetTester tester) =>
-      tester.widget<AppButton>(find.byType(AppButton)).onPressed != null;
+      tester.widget<AppButtonV2>(find.byType(AppButtonV2)).onPressed != null;
 
   Future<void> tap(WidgetTester tester, String label) async {
     await tester.tap(find.text(label));

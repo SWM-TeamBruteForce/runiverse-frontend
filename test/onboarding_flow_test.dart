@@ -10,7 +10,7 @@ import 'package:runiverse/features/session/data/fake_user_status_repository.dart
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/auth/presentation/sign_in_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_up_page.dart';
 import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.dart';
@@ -156,16 +156,16 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    final locked = tester.widget<AppButton>(
-      find.widgetWithText(AppButton, AppStrings.termsCta),
+    final locked = tester.widget<AppButtonV2>(
+      find.widgetWithText(AppButtonV2, AppStrings.termsCta),
     );
     expect(locked.onPressed, isNull);
 
     await tester.tap(find.text(AppStrings.termsAge));
     await tester.pumpAndSettle();
 
-    final unlocked = tester.widget<AppButton>(
-      find.widgetWithText(AppButton, AppStrings.termsCta),
+    final unlocked = tester.widget<AppButtonV2>(
+      find.widgetWithText(AppButtonV2, AppStrings.termsCta),
     );
     expect(unlocked.onPressed, isNotNull);
   });
@@ -198,8 +198,8 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    final cta = tester.widget<AppButton>(
-      find.widgetWithText(AppButton, AppStrings.termsCta),
+    final cta = tester.widget<AppButtonV2>(
+      find.widgetWithText(AppButtonV2, AppStrings.termsCta),
     );
     expect(cta.onPressed, isNull);
   });
@@ -276,8 +276,8 @@ void main() {
 
     // 동의가 남아 있어야 한다. `go`로 넘어갔다면 약관 화면이 새로 만들어져
     // 체크가 풀리고, 사용자는 같은 일을 두 번 하게 된다.
-    final cta = tester.widget<AppButton>(
-      find.widgetWithText(AppButton, AppStrings.termsCta),
+    final cta = tester.widget<AppButtonV2>(
+      find.widgetWithText(AppButtonV2, AppStrings.termsCta),
     );
     expect(cta.onPressed, isNotNull);
   });
