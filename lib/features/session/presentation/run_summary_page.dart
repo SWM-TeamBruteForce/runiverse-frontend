@@ -321,6 +321,8 @@ class _NothingToShow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    // 같은 화면의 다른 분기와 배경이 달라지면 안 된다.
+    backgroundColor: context.appColorsV2.bgBase,
     body: Center(
       child: AppButtonV2(
         label: AppStrings.runSummaryHome,

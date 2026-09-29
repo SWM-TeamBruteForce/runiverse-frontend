@@ -81,6 +81,10 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
     final colors = context.appColorsV2;
 
     return Scaffold(
+      // 앱 테마는 아직 옛 세대라 scaffold 배경이 푸른 회색(#0B0E14)이다.
+      // 옮긴 화면은 자기 배경을 직접 깐다 — 전역 테마를 바꾸는 것은
+      // 마지막 화면이 넘어온 뒤의 일이다.
+      backgroundColor: colors.bgBase,
       body: SafeArea(
         child: Column(
           children: [
