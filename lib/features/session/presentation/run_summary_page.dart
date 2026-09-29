@@ -76,14 +76,18 @@ class RunSummaryPage extends ConsumerWidget {
                 _TopBar(onClose: () => _leave(ref, context)),
 
                 Expanded(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.space4,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.space4,
+                    ),
+                    child: Column(
+                      children: [
+                        // ⚠️ **가운데가 아니라 위쪽에 얹는다.** 시안(`158:3770`)은
+                        // 수치 묶음을 화면 높이의 21%에서 시작해 53%에서 끝낸다 —
+                        // 아래 절반은 비워 둔다. `Center`로 감싸면 묶음이 통째로
+                        // 내려앉아 빛과 숫자가 화면 한가운데 몰린다.
+                        const Spacer(),
+                        ...[
                           _Distance(meters: metrics.distanceMeters),
                           const SizedBox(height: AppSpacing.space8),
 
@@ -107,7 +111,8 @@ class RunSummaryPage extends ConsumerWidget {
                             ],
                           ),
                         ],
-                      ),
+                        const Spacer(flex: 4),
+                      ],
                     ),
                   ),
                 ),
