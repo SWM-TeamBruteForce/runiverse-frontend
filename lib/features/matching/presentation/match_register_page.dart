@@ -3,15 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
+
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_radius.dart';
-import 'package:runiverse/core/theme/tokens/app_sizes.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
-import 'package:runiverse/core/widgets/preset_chip.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/core/widgets/v2/preset_chip.dart';
+import 'package:runiverse/core/widgets/v2/surface_card.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
@@ -50,7 +52,7 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final state = ref.watch(matchRegisterProvider);
 
     // ⚠️ **홈이 막아도 여기까지 와 있을 수 있다.** 화면을 열어 둔 사이에 러닝을
@@ -73,13 +75,19 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
     });
 
     final selected = state.selected;
+    // 슬롯을 아직 안 골랐거나 서버가 안 알려주면 0으로 본다. `int?`라 그대로
+    // 넘기면 배너가 "null명 대기"를 그린다.
+    final waiting = selected?.waitingCount ?? 0;
 
     return Scaffold(
       backgroundColor: colors.bgBase,
       appBar: AppBar(
         backgroundColor: colors.bgBase,
         surfaceTintColor: Colors.transparent,
-        title: Text(AppStrings.matchRegisterTitle, style: AppTypography.h3),
+        title: Text(
+          AppStrings.matchRegisterTitle,
+          style: AppTypographyV2.heading06.copyWith(color: colors.textPrimary),
+        ),
       ),
       body: SafeArea(
         top: false,
@@ -94,40 +102,41 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                   AppSpacing.space6,
                 ),
                 children: [
-                  Text(
-                    AppStrings.matchTimeLabel,
-                    style: AppTypography.h3.copyWith(color: colors.textPrimary),
-                  ),
+                  _Label(AppStrings.matchTimeLabel),
                   const SizedBox(height: AppSpacing.space3),
 
                   _SlotTrigger(
                     label: selected == null
                         ? AppStrings.matchTimePlaceholder
                         : AppStrings.matchSlotTime(selected.startAt),
-                    waitingCount: selected?.waitingCount ?? 0,
                     onTap: _pickSlot,
                   ),
+
+                  // ⚠️ 대기 인원을 **시각 카드에서 떼어냈다.** 시안(`158:3186`)이
+                  // 별도 줄로 둔다 — 시각은 내가 고르는 것이고 대기 인원은
+                  // 그 결과라, 한 줄에 섞으면 무엇이 입력인지 흐려진다.
+                  if (waiting > 0) ...[
+                    const SizedBox(height: AppSpacing.space3),
+                    _WaitingBanner(count: waiting),
+                  ],
                   const SizedBox(height: AppSpacing.space3),
 
                   Text(
                     AppStrings.matchTimeHint,
-                    style: AppTypography.caption.copyWith(
+                    style: AppTypographyV2.body12.copyWith(
                       color: colors.textTertiary,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.space6),
 
-                  Text(
-                    AppStrings.matchDistanceLabel,
-                    style: AppTypography.h3.copyWith(color: colors.textPrimary),
-                  ),
+                  _Label(AppStrings.matchDistanceLabel),
                   const SizedBox(height: AppSpacing.space3),
 
                   Row(
                     children: [
                       for (final distance in TargetDistance.values) ...[
                         Expanded(
-                          child: PresetChip(
+                          child: PresetChipV2(
                             label: AppStrings.matchDistanceText(distance.km),
                             selected: state.distance == distance,
                             onTap: () => ref
@@ -142,10 +151,11 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                   ),
                   const SizedBox(height: AppSpacing.space6),
 
-                  const _NoticeCard(
-                    icon: LucideIcons.gauge,
-                    message: AppStrings.matchPaceAuto,
-                  ),
+                  // ⚠️ 시안에는 이 셋의 자리가 없다. **그래도 남긴다** —
+                  // 사용자가 고르지 않는 조건(페이스·인원)과 20분 제재를
+                  // 알리는 유일한 자리다. 시안은 `도움말 / 취소정책` 카드로
+                  // 대신하는데, 우리에겐 그 화면이 없어 눌러도 갈 곳이 없다.
+                  const _NoticeCard(message: AppStrings.matchPaceAuto),
                   const SizedBox(height: AppSpacing.space4),
 
                   _Note(AppStrings.matchPlayerCountInfo),
@@ -167,7 +177,7 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                 ),
                 child: Text(
                   AppStrings.matchFailedCooldown(cooldownUntil),
-                  style: AppTypography.caption.copyWith(
+                  style: AppTypographyV2.body12.copyWith(
                     color: colors.textTertiary,
                   ),
                 ),
@@ -180,7 +190,7 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                 AppSpacing.space4,
                 AppSpacing.space4,
               ),
-              child: AppButton(
+              child: AppButtonV2(
                 label: AppStrings.matchRegisterCta,
                 // 둘 다 골라야 열린다. 보내는 중에도 잠근다 — 두 번 누르면
                 // 중복 신청이 된다. 제한 중이면 보낼 이유가 없다.
@@ -251,66 +261,60 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
 }
 
 /// 시간대를 고르는 트리거. 고른 뒤에는 시각과 대기 인원을 함께 보여준다.
+/// 화면 안의 작은 제목.
+class _Label extends StatelessWidget {
+  const _Label(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: AppTypographyV2.body05.copyWith(
+      color: context.appColorsV2.textStrong,
+    ),
+  );
+}
+
+/// 시각을 고르는 자리. 시안 `158:3218`.
 class _SlotTrigger extends StatelessWidget {
-  const _SlotTrigger({
-    required this.label,
-    required this.waitingCount,
-    required this.onTap,
-  });
+  const _SlotTrigger({required this.label, required this.onTap});
 
   final String label;
-  final int waitingCount;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
+    final picked = onTap != null;
 
     return Material(
       type: MaterialType.transparency,
       child: InkWell(
         onTap: onTap,
-        borderRadius: AppRadius.md,
+        borderRadius: AppRadius.lg,
         child: Container(
           constraints: const BoxConstraints(minHeight: AppSizes.touchDefault),
           decoration: BoxDecoration(
             color: colors.bgSurface,
-            borderRadius: AppRadius.md,
-            border: Border.all(color: colors.borderDefault),
+            borderRadius: AppRadius.lg,
           ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.space4,
-            vertical: AppSpacing.space3,
-          ),
+          padding: const EdgeInsets.all(AppSpacing.space5),
           child: Row(
             children: [
-              Icon(
-                LucideIcons.clock,
-                size: AppSpacing.space5,
-                color: colors.textSecondary,
-              ),
-              const SizedBox(width: AppSpacing.space3),
-              Text(
-                label,
-                style: AppTypography.bodyLg.copyWith(
-                  color: colors.textPrimary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-              if (waitingCount > 0) ...[
-                const SizedBox(width: AppSpacing.space3),
-                Text(
-                  AppStrings.matchWaitingCount(waitingCount),
-                  style: AppTypography.caption.copyWith(
-                    color: colors.matchWaiting,
+              Expanded(
+                child: Text(
+                  label,
+                  style: AppTypographyV2.body04.copyWith(
+                    color: colors.textTertiary,
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
-              ],
-              const Spacer(),
-              Icon(
-                LucideIcons.chevronRight,
-                size: AppSpacing.space5,
-                color: colors.textTertiary,
+              ),
+              AppIcon(
+                AppIcons.right,
+                size: AppSpacing.space6,
+                color: picked ? colors.textTertiary : colors.textDisabled,
               ),
             ],
           ),
@@ -320,16 +324,15 @@ class _SlotTrigger extends StatelessWidget {
   }
 }
 
-/// 사용자가 입력하지 않는 조건을 밝히는 카드.
-class _NoticeCard extends StatelessWidget {
-  const _NoticeCard({required this.icon, required this.message});
+/// 고른 시각에 몇 명이 기다리는지. 시안 `158:3186`.
+class _WaitingBanner extends StatelessWidget {
+  const _WaitingBanner({required this.count});
 
-  final IconData icon;
-  final String message;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -337,19 +340,58 @@ class _NoticeCard extends StatelessWidget {
         borderRadius: AppRadius.md,
       ),
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.space4),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.space5,
+          vertical: AppSpacing.space3,
+        ),
         child: Row(
           children: [
-            Icon(icon, size: AppSpacing.space5, color: colors.textSecondary),
+            AppIcon(
+              AppIcons.people,
+              size: AppSpacing.space6,
+              color: colors.matchWaiting,
+            ),
             const SizedBox(width: AppSpacing.space3),
-            Expanded(
-              child: Text(
-                message,
-                style: AppTypography.body.copyWith(color: colors.textSecondary),
-              ),
+            Text(
+              AppStrings.matchWaitingCount(count),
+              style: AppTypographyV2.body11.copyWith(color: colors.textPrimary),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 사용자가 입력하지 않는 조건을 밝히는 카드.
+class _NoticeCard extends StatelessWidget {
+  const _NoticeCard({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return SurfaceCard(
+      padding: const EdgeInsets.all(AppSpacing.space4),
+      child: Row(
+        children: [
+          AppIcon(
+            AppIcons.running,
+            size: AppSpacing.space5,
+            color: colors.textSecondary,
+          ),
+          const SizedBox(width: AppSpacing.space3),
+          Expanded(
+            child: Text(
+              message,
+              style: AppTypographyV2.body12.copyWith(
+                color: colors.textSecondary,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -363,13 +405,13 @@ class _Note extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          LucideIcons.info,
+        AppIcon(
+          AppIcons.guide,
           size: AppSpacing.space4,
           color: colors.textTertiary,
         ),
@@ -377,7 +419,7 @@ class _Note extends StatelessWidget {
         Expanded(
           child: Text(
             text,
-            style: AppTypography.caption.copyWith(color: colors.textTertiary),
+            style: AppTypographyV2.body12.copyWith(color: colors.textTertiary),
           ),
         ),
       ],
