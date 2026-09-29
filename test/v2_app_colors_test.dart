@@ -36,6 +36,12 @@ void main() {
             .abs();
 
     for (final c in themes) {
+      // textStrong 이 맨 앞이다. 화면에서 제일 먼저 읽혀야 하는 수치 하나에
+      // 쓰는데, 본문보다 흐리면 그 뜻이 사라진다.
+      expect(
+        gap(c.textStrong, c.bgBase),
+        greaterThan(gap(c.textPrimary, c.bgBase)),
+      );
       expect(
         gap(c.textPrimary, c.bgBase),
         greaterThan(gap(c.textSecondary, c.bgBase)),
