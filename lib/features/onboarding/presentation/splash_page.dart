@@ -5,11 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/theme/tokens/run_palette.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/theme/v2/run_palette.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/color/aura_orb.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
@@ -191,7 +191,7 @@ class _SplashPageState extends ConsumerState<SplashPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Scaffold(
       body: GestureDetector(
@@ -208,7 +208,7 @@ class _SplashPageState extends ConsumerState<SplashPage> {
               children: [
                 AuraOrb(
                   colors: [
-                    for (final hue in _auraHues) RunPalette.color(hue, 2),
+                    for (final hue in _auraHues) RunPaletteV2.color(hue, 2),
                   ],
                   size: _auraSize,
                   // 와이어프레임이 정한 값. 살짝 눌러 워드마크에 시선을 남긴다.
@@ -237,14 +237,14 @@ class _SplashPageState extends ConsumerState<SplashPage> {
                   children: [
                     Text(
                       AppStrings.brandName,
-                      style: AppTypography.display.copyWith(
+                      style: AppTypographyV2.heading01.copyWith(
                         color: colors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.space2),
                     Text(
                       AppStrings.brandTagline,
-                      style: AppTypography.body.copyWith(
+                      style: AppTypographyV2.body07.copyWith(
                         color: colors.textSecondary,
                       ),
                     ),
@@ -253,7 +253,7 @@ class _SplashPageState extends ConsumerState<SplashPage> {
                       const SizedBox(height: AppSpacing.space6),
                       Text(
                         AppStrings.splashOffline,
-                        style: AppTypography.body.copyWith(
+                        style: AppTypographyV2.body07.copyWith(
                           color: colors.textPrimary,
                         ),
                       ),
@@ -261,15 +261,14 @@ class _SplashPageState extends ConsumerState<SplashPage> {
                       Text(
                         AppStrings.splashOfflineHint,
                         textAlign: TextAlign.center,
-                        style: AppTypography.caption.copyWith(
+                        style: AppTypographyV2.body12.copyWith(
                           color: colors.textTertiary,
                         ),
                       ),
                       const SizedBox(height: AppSpacing.space4),
-                      AppButton(
+                      AppButtonV2(
                         label: AppStrings.splashRetry,
-                        variant: AppButtonVariant.secondary,
-                        size: AppButtonSize.md,
+                        variant: AppButtonV2Variant.secondary,
                         expand: false,
                         onPressed: _retry,
                       ),
