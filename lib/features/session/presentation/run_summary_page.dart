@@ -85,7 +85,7 @@ class RunSummaryPage extends ConsumerWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           _Distance(meters: metrics.distanceMeters),
-                          const SizedBox(height: AppSpacing.space10),
+                          const SizedBox(height: AppSpacing.space8),
 
                           // 거리 하나만 키우고 나머지 둘은 나란히 눕힌다. 셋을
                           // 같은 크기로 두면 무엇을 봐야 하는지가 사라진다.
@@ -181,12 +181,16 @@ class _Glow extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
+          // ⚠️ **같은 색의 투명도만 낮춰 내려간다.** 중간에 다른 색을 끼우면
+          // 경계가 띠로 보인다 — 빛이 번지는 것이 아니라 두 면이 만난 것처럼
+          // 된다.
           colors: [
-            colors.primary.withValues(alpha: 0.35),
-            colors.primaryMuted.withValues(alpha: 0.35),
+            colors.primary.withValues(alpha: 0.48),
+            colors.primary.withValues(alpha: 0.22),
             colors.bgBase,
           ],
-          stops: const [0, 0.35, 0.72],
+          // 시안(`158:3765`)의 파란 면이 화면 높이의 3분의 2까지 내려온다.
+          stops: const [0, 0.36, 0.82],
         ),
       ),
     );
@@ -281,7 +285,16 @@ class _Distance extends StatelessWidget {
             Text(
               (meters / 1000).toStringAsFixed(2),
               style: AppTypographyV2.heading01.copyWith(
-                color: colors.textPrimary,
+                color: colors.textStrong,
+                // 파란 빛 위에 얹히는 흰 글자다. 굵기를 한 칸 올리고 뒤에
+                // 어두운 그림자를 깔아야 가장자리가 뭉개지지 않는다.
+                fontWeight: FontWeight.w800,
+                shadows: [
+                  Shadow(
+                    color: colors.bgBase.withValues(alpha: 0.55),
+                    blurRadius: AppSpacing.space6,
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: AppSpacing.space1),

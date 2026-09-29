@@ -42,6 +42,7 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     required this.bgScrim,
     required this.borderDefault,
     required this.borderStrong,
+    required this.textStrong,
     required this.textPrimary,
     required this.textSecondary,
     required this.textTertiary,
@@ -73,6 +74,14 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
 
   final Color borderDefault;
   final Color borderStrong;
+
+  /// **한 화면에서 제일 먼저 읽혀야 하는 수치 하나.**
+  ///
+  /// [textPrimary]보다 한 칸 더 밝다(어두운 테마) 또는 더 어둡다(밝은 테마).
+  /// 시안이 러닝 종료 요약의 총거리에만 순백을 쓴다 — 나머지는 전부
+  /// [textPrimary]다. **화면당 한 번만 쓴다.** 둘 이상이면 무엇을 먼저
+  /// 봐야 하는지가 흐려진다.
+  final Color textStrong;
 
   /// 본문·제목·러닝 수치.
   final Color textPrimary;
@@ -118,6 +127,7 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     bgScrim: Color(0x99000000),
     borderDefault: AppPaletteV2.neutral800,
     borderStrong: AppPaletteV2.neutral700,
+    textStrong: AppPaletteV2.white,
     textPrimary: AppPaletteV2.neutral50,
     textSecondary: Color(0xB3FFFFFF),
     textTertiary: AppPaletteV2.neutral600,
@@ -143,6 +153,7 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     bgScrim: Color(0x66171719),
     borderDefault: AppPaletteV2.neutral200,
     borderStrong: AppPaletteV2.neutral300,
+    textStrong: AppPaletteV2.black,
     textPrimary: AppPaletteV2.label,
     textSecondary: Color(0xB3171719),
     textTertiary: AppPaletteV2.neutral500,
@@ -168,6 +179,7 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     Color? bgScrim,
     Color? borderDefault,
     Color? borderStrong,
+    Color? textStrong,
     Color? textPrimary,
     Color? textSecondary,
     Color? textTertiary,
@@ -190,6 +202,7 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     bgScrim: bgScrim ?? this.bgScrim,
     borderDefault: borderDefault ?? this.borderDefault,
     borderStrong: borderStrong ?? this.borderStrong,
+    textStrong: textStrong ?? this.textStrong,
     textPrimary: textPrimary ?? this.textPrimary,
     textSecondary: textSecondary ?? this.textSecondary,
     textTertiary: textTertiary ?? this.textTertiary,
@@ -218,6 +231,7 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
       bgScrim: c(bgScrim, other.bgScrim),
       borderDefault: c(borderDefault, other.borderDefault),
       borderStrong: c(borderStrong, other.borderStrong),
+      textStrong: c(textStrong, other.textStrong),
       textPrimary: c(textPrimary, other.textPrimary),
       textSecondary: c(textSecondary, other.textSecondary),
       textTertiary: c(textTertiary, other.textTertiary),

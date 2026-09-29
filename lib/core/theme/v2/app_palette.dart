@@ -31,6 +31,16 @@ abstract final class AppPaletteV2 {
   /// 같은 군의 100. 어두운 배경 위에서 브랜드색 면으로 쓴다.
   static const brandDeep = Color(0xFF202B43);
 
+  /// 가장 밝은 끝. [neutral50]보다 한 칸 더 나간 값이다.
+  ///
+  /// 시안이 러닝 종료 요약의 큰 수치(`158:3775`)에만 `text-white`를 쓴다.
+  /// 나머지 글자는 전부 [neutral50]이다 — **한 화면에서 제일 먼저 읽혀야
+  /// 하는 숫자 하나**를 위한 값이다.
+  static const white = Color(0xFFFFFFFF);
+
+  /// 가장 어두운 끝. 밝은 테마에서 [white]와 짝이 된다.
+  static const black = Color(0xFF000000);
+
   /// 본문 글자. 시안이 `--label/normal`로 쓰는 값이다.
   ///
   /// [neutral900]과 두 자리만 다르다(`171717` / `171719`). 시안이 둘을 따로
