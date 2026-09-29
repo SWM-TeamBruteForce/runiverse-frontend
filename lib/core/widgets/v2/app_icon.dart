@@ -8,6 +8,13 @@ import 'package:runiverse/core/theme/v2/app_colors.dart';
 /// 뿐 아무 오류도 나지 않아서, 오타를 눈으로 찾게 된다.
 abstract final class AppIcons {
   static const addFriend = 'add_friend';
+
+  /// ⚠️ **디자인 원본이 아니라 우리가 그린 것이다.**
+  ///
+  /// 시안 아이콘 33개에 경고·오류 개념이 없는데 다섯 화면이 그것을 쓴다
+  /// (스펙 10절). 같은 기하로 맞춰 그렸다 — 반지름 8 원, 선 굵기 1.5,
+  /// 둥근 끝, 단일 채움 패스. **디자이너 것이 오면 갈아끼운다.**
+  static const alert = 'alert';
   static const badge = 'badge';
   static const bell = 'bell';
   static const book = 'book';
@@ -44,6 +51,7 @@ abstract final class AppIcons {
   /// 전부. 테스트가 파일과 대조하는 데 쓴다.
   static const all = <String>[
     addFriend,
+    alert,
     badge,
     bell,
     book,
