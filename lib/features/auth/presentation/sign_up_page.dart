@@ -4,21 +4,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_sizes.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
-import 'package:runiverse/core/widgets/app_input.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/core/widgets/v2/app_input.dart';
+import 'package:runiverse/core/widgets/v2/field_action.dart';
+import 'package:runiverse/core/widgets/v2/step_progress.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/email_rule.dart';
 import 'package:runiverse/features/auth/domain/password_rule.dart';
 import 'package:runiverse/features/auth/domain/verification_code_rule.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
-import 'package:runiverse/features/auth/presentation/password_field.dart';
+import 'package:runiverse/features/auth/presentation/password_field_v2.dart';
+
+/// 시안의 뒤로가기 화살표만 28이다. 나머지 아이콘은 전부 24.
+const _backIconSize = 28.0;
 
 /// 가입 2 · 정보 입력 — 이메일 인증 + 비밀번호.
 ///
@@ -57,10 +62,14 @@ import 'package:runiverse/features/auth/presentation/password_field.dart';
 /// **만료 판정은 저장소(서버)가 한다.** 화면 타이머로 판정하면 앱을 백그라운드에
 /// 두거나 기기 시계를 돌렸을 때 어긋난다. 여기 타이머는 남은 시간을 그리기만 한다.
 ///
-/// ## 비밀번호 확인 칸이 없다
+/// ## ⚠️ 비밀번호 확인 칸이 있다 (2026-09-30 결정)
 ///
-/// 서버가 확인값을 받지 않고, 칸이 하나 늘면 화면이 그만큼 길어진다.
-/// 오타는 [PasswordField]의 눈 아이콘으로 막는다.
+/// 오래 없었다. 서버가 확인값을 받지 않고, 칸이 하나 늘면 화면이 그만큼
+/// 길어지며, 오타는 눈 아이콘으로 막을 수 있다는 이유였다.
+///
+/// 시안(`158:2749`)에 그 칸이 있어 넣기로 했다. **서버가 여전히 확인값을 받지
+/// 않으므로 두 값이 다른 것을 막는 곳은 앱뿐이다** — [_passwordsMatch]가
+/// 그 일을 한다. 서버 검증이 생기면 이 판정을 지우지 말고 둘 다 둔다.
 class SignUpPage extends ConsumerStatefulWidget {
   const SignUpPage({super.key});
 
@@ -72,6 +81,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
   final _email = TextEditingController();
   final _code = TextEditingController();
   final _password = TextEditingController();
+  final _passwordConfirm = TextEditingController();
 
   /// 인증번호를 보낸 이메일. 현재 입력과 다르면 보낸 적 없는 것으로 친다.
   String? _codeSentTo;
@@ -107,6 +117,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
     _email.dispose();
     _code.dispose();
     _password.dispose();
+    _passwordConfirm.dispose();
     super.dispose();
   }
 
@@ -139,8 +150,23 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
 
   bool get _busy => _sending || _verifying || _submitting;
 
+  /// 두 비밀번호가 같은가.
+  ///
+  /// ⚠️ **확인 칸이 비어 있을 때는 틀렸다고 하지 않는다.** 아직 안 친 것뿐이다 —
+  /// 치는 도중에 빨간 글씨가 뜨면 무엇이 잘못됐는지 알 수 없다.
+  /// 대신 [_canSubmit]은 비어 있으면 열리지 않는다.
+  bool get _passwordsMatch => _password.text == _passwordConfirm.text;
+
+  /// 확인 칸에 무언가 쳤는데 다른가. 오류 문구를 띄울 조건이다.
+  bool get _passwordMismatch =>
+      _passwordConfirm.text.isNotEmpty && !_passwordsMatch;
+
   bool get _canSubmit =>
-      !_busy && _verified && PasswordRule.of(_password.text).isValid;
+      !_busy &&
+      _verified &&
+      PasswordRule.of(_password.text).isValid &&
+      _passwordConfirm.text.isNotEmpty &&
+      _passwordsMatch;
 
   void _startCountdown() {
     _ticker?.cancel();
@@ -281,11 +307,13 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final emailStatus = EmailRule.of(_email.text);
     final passwordStatus = PasswordRule.of(_password.text);
 
     return Scaffold(
+      // 앱 테마는 아직 옛 세대라 scaffold 배경이 푸른 회색이다.
+      backgroundColor: colors.bgBase,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -299,20 +327,28 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                   minWidth: AppSizes.touchDefault,
                   minHeight: AppSizes.touchDefault,
                 ),
-                icon: Icon(
-                  LucideIcons.arrowLeft,
-                  size: AppSpacing.space6,
-                  color: colors.textSecondary,
+                icon: AppIcon(
+                  AppIcons.left,
+                  size: _backIconSize,
+                  color: colors.textPrimary,
                 ),
               ),
+            ),
+
+            // 가입 흐름의 두 걸음째. 약관 → **회원가입** → 프로필 등록.
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.space6,
+              ),
+              child: const StepProgressV2(step: 2, total: 3),
             ),
 
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.space5,
-                  AppSpacing.space4,
-                  AppSpacing.space5,
+                  AppSpacing.space6,
+                  AppSpacing.space7,
+                  AppSpacing.space6,
                   AppSpacing.space4,
                 ),
                 child: Column(
@@ -320,14 +356,17 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                   children: [
                     Text(
                       AppStrings.authSignUpTitle,
-                      style: AppTypography.h1.copyWith(
+                      style: AppTypographyV2.heading04.copyWith(
                         color: colors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.space7),
 
                     // ── 1단계 · 이메일 ────────────────────────────
-                    AppInput(
+                    //
+                    // 시안(`158:2724`)은 보내기 버튼을 **칸 안**에 둔다.
+                    // 칸 밖에 두면 이메일과 그 이메일로 할 일이 떨어져 보인다.
+                    AppInputV2(
                       controller: _email,
                       label: AppStrings.authEmailLabel,
                       hint: AppStrings.authEmailHint,
@@ -336,29 +375,20 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                       onChanged: _onEmailChanged,
                       tone: _emailTone(emailStatus),
                       helper: _emailHelper(emailStatus),
+                      suffix: _verified
+                          ? null
+                          : _sending
+                          ? _Spinner(color: colors.primary)
+                          : FieldActionV2(
+                              label: AppStrings.authVerifySend,
+                              onPressed: _emailValid && !_busy ? _send : null,
+                            ),
                     ),
-
-                    if (!_verified) ...[
-                      const SizedBox(height: AppSpacing.space3),
-                      SizedBox(
-                        height: AppButtonSize.md.height,
-                        child: _sending
-                            ? _Spinner(color: colors.primary)
-                            : AppButton(
-                                label: _codeSent
-                                    ? AppStrings.authVerifyResend
-                                    : AppStrings.authVerifySend,
-                                variant: AppButtonVariant.secondary,
-                                size: AppButtonSize.md,
-                                onPressed: _emailValid && !_busy ? _send : null,
-                              ),
-                      ),
-                    ],
 
                     // ── 2단계 · 인증번호 ──────────────────────────
                     if (_codeSent && !_verified) ...[
-                      const SizedBox(height: AppSpacing.space5),
-                      AppInput(
+                      const SizedBox(height: AppSpacing.space2),
+                      AppInputV2(
                         controller: _code,
                         label: AppStrings.authVerifyLabel,
                         hint: AppStrings.authVerifyHint,
@@ -373,23 +403,31 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                         onChanged: _onCodeChanged,
                         onSubmitted: (_) => _verify(),
                         tone: _codeExpired
-                            ? AppInputTone.error
-                            : AppInputTone.neutral,
+                            ? AppInputToneV2.error
+                            : AppInputToneV2.neutral,
                         helper: _codeHelper(),
                         // 만료되면 남은 시간을 지운다. `0:00`이 남아 있으면
                         // 아직 셀 것이 있는 것처럼 보인다.
                         counter: _codeExpired
                             ? null
                             : _formatRemaining(_remaining),
+                        // 시안(`158:2737`)은 여기에 재전송을 둔다.
+                        suffix: FieldActionV2(
+                          label: AppStrings.authVerifyResend,
+                          onPressed: _emailValid && !_busy ? _send : null,
+                        ),
                       ),
                       const SizedBox(height: AppSpacing.space3),
                       SizedBox(
-                        height: AppButtonSize.md.height,
+                        height: AppSizes.touchDefault,
                         child: _verifying
                             ? _Spinner(color: colors.primary)
-                            : AppButton(
+                            // ⚠️ 시안에 이 버튼이 없다. 서버가 코드를 판정하므로
+                            // 보낼 자리가 필요하다 — 시안은 네 칸만 그린 정적
+                            // 목업이라 이 동작을 담지 못했다고 읽었다.
+                            : AppButtonV2(
                                 label: AppStrings.authVerifyConfirm,
-                                size: AppButtonSize.md,
+                                variant: AppButtonV2Variant.tonal,
                                 onPressed:
                                     VerificationCodeRule.of(
                                           _code.text,
@@ -405,16 +443,30 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                     // ── 3단계 · 비밀번호 ──────────────────────────
                     if (_verified) ...[
                       const SizedBox(height: AppSpacing.space3),
-                      _VerifiedNotice(),
-                      const SizedBox(height: AppSpacing.space5),
-                      PasswordField(
+                      const _VerifiedNotice(),
+                      const SizedBox(height: AppSpacing.space4),
+                      PasswordFieldV2(
                         controller: _password,
                         label: AppStrings.authPasswordLabel,
+                        textInputAction: TextInputAction.next,
+                        onChanged: _onPasswordChanged,
+                        tone: _passwordTone(passwordStatus),
+                        helper: _passwordHelper(passwordStatus),
+                      ),
+                      const SizedBox(height: AppSpacing.space2),
+                      PasswordFieldV2(
+                        controller: _passwordConfirm,
+                        label: AppStrings.authPasswordConfirmLabel,
                         textInputAction: TextInputAction.done,
                         onChanged: _onPasswordChanged,
                         onSubmitted: (_) => _submit(),
-                        tone: _passwordTone(passwordStatus),
-                        helper: _passwordHelper(passwordStatus),
+                        // ⚠️ 비어 있으면 오류로 그리지 않는다. 아직 안 친 것뿐이다.
+                        tone: _passwordMismatch
+                            ? AppInputToneV2.error
+                            : AppInputToneV2.neutral,
+                        helper: _passwordMismatch
+                            ? AppStrings.authPasswordMismatch
+                            : null,
                       ),
                     ],
 
@@ -425,10 +477,10 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
 
                     const SizedBox(height: AppSpacing.space6),
                     SizedBox(
-                      height: AppButtonSize.lg.height,
+                      height: AppSizes.touchRunning,
                       child: _submitting
                           ? _Spinner(color: colors.primary)
-                          : AppButton(
+                          : AppButtonV2(
                               label: AppStrings.authSignUpCta,
                               onPressed: _canSubmit ? _submit : null,
                             ),
@@ -443,10 +495,10 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
     );
   }
 
-  AppInputTone _emailTone(EmailStatus status) {
-    if (status == EmailStatus.invalid) return AppInputTone.error;
-    if (_verificationReset) return AppInputTone.error;
-    return AppInputTone.neutral;
+  AppInputToneV2 _emailTone(EmailStatus status) {
+    if (status == EmailStatus.invalid) return AppInputToneV2.error;
+    if (_verificationReset) return AppInputToneV2.error;
+    return AppInputToneV2.neutral;
   }
 
   String? _emailHelper(EmailStatus status) {
@@ -468,10 +520,10 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
 
   /// 아직 아무것도 안 쳤을 때는 중립이다. 화면을 열자마자 빨간 글씨가 뜨면
   /// 시작도 전에 혼난 것처럼 보인다.
-  AppInputTone _passwordTone(PasswordStatus status) => switch (status) {
-    PasswordStatus.empty => AppInputTone.neutral,
-    PasswordStatus.valid => AppInputTone.success,
-    _ => AppInputTone.error,
+  AppInputToneV2 _passwordTone(PasswordStatus status) => switch (status) {
+    PasswordStatus.empty => AppInputToneV2.neutral,
+    PasswordStatus.valid => AppInputToneV2.success,
+    _ => AppInputToneV2.error,
   };
 
   /// 비어 있을 때는 **규칙 전체**를 보여준다. 무엇을 쳐야 하는지 미리 알린다.
@@ -514,21 +566,25 @@ class _Spinner extends StatelessWidget {
 /// **색만으로 알리지 않는다.** 초록 테두리만 남으면 색을 구분하지 못하는
 /// 사용자에게는 아무 정보가 아니다 (디자인 시스템 §1-5).
 class _VerifiedNotice extends StatelessWidget {
+  const _VerifiedNotice();
+
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Row(
       children: [
-        Icon(
-          LucideIcons.circleCheck,
+        // ⚠️ 디자인 아이콘 33개에 **동그라미 안의 체크**가 없다.
+        // `check_2`가 그 모양이라 그것으로 대신한다.
+        AppIcon(
+          AppIcons.check2,
           size: AppSpacing.space5,
           color: colors.success,
         ),
         const SizedBox(width: AppSpacing.space2),
         Text(
           AppStrings.authVerifyDone,
-          style: AppTypography.caption.copyWith(color: colors.success),
+          style: AppTypographyV2.body12.copyWith(color: colors.success),
         ),
       ],
     );
@@ -568,21 +624,17 @@ class _FailureNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          LucideIcons.circleAlert,
-          size: AppSpacing.space5,
-          color: colors.error,
-        ),
+        AppIcon(AppIcons.alert, size: AppSpacing.space5, color: colors.error),
         const SizedBox(width: AppSpacing.space2),
         Expanded(
           child: Text(
             _message,
-            style: AppTypography.caption.copyWith(color: colors.error),
+            style: AppTypographyV2.body12.copyWith(color: colors.error),
           ),
         ),
       ],

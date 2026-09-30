@@ -15,6 +15,7 @@ import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/legal_document.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/core/widgets/v2/step_progress.dart';
 // 저장소를 고르는 provider는 auth에 모여 있다. `onboarding_provider.dart`가
 // `tokenStoreProvider`를 가져다 쓰는 것과 같은 규칙이다 — 화면이 아니라 인프라다.
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
@@ -169,6 +170,14 @@ class _TermsAgreementPageState extends ConsumerState<TermsAgreementPage> {
                   color: colors.textPrimary,
                 ),
               ),
+            ),
+
+            // 가입 흐름의 첫 걸음. **약관** → 회원가입 → 프로필 등록.
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.space6,
+              ),
+              child: const StepProgressV2(step: 1, total: 3),
             ),
 
             Expanded(
