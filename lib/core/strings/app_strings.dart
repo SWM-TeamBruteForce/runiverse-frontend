@@ -64,16 +64,42 @@ abstract final class AppStrings {
   /// 마지막 카드에서 [onboardingNext] 대신 쓴다.
   static const onboardingStart = '시작하기';
 
-  static const onboardingCard1Title = '같은 시각에\n함께 달려요';
+  /// 1장 — 함께 달린다. 시안 `158:2699`의 문구 그대로다.
+  static const onboardingCard1Title = '함께 달리면\n더 멀리 갈 수 있어요';
   static const onboardingCard1Body =
-      '서로 다른 장소에 있어도 30분 슬롯으로 매칭돼요.\n2~4명이 같은 시각에 함께 출발해요.';
+      '같은 시간, 다른 장소에서도 괜찮아요.\n나와 맞는 러너를 만나 함께 달려보세요.';
 
-  static const onboardingCard2Title = '달린 만큼\n색이 쌓여요';
-  static const onboardingCard2Body =
-      '거리·페이스·꾸준함이 각자의 색이 돼요.\n함께 달린 사람들의 색과 섞이기도 해요.';
+  /// 2장 — 콤보.
+  ///
+  /// ⚠️ **30m는 앱이 실제로 쓰는 기준이다** ([runPartyComboHint]와 같은 값).
+  /// 숫자를 바꾸려면 서버의 콤보 판정부터 바꿔야 한다.
+  static const onboardingCard2Title = '나란히 달리면\n콤보가 쌓여요';
+  static const onboardingCard2Body = '서로의 거리가 30m 안으로 좁혀지면\n콤보가 시작되고 계속 쌓여요.';
 
-  static const onboardingCard3Title = '달린 날만\n남겨요';
-  static const onboardingCard3Body = '빠진 날을 세지 않아요.\n달린 날에 얻은 색만 기록에 남아요.';
+  /// 3장 — 기록카드와 AI 음악.
+  ///
+  /// ⚠️ **둘 다 아직 없는 기능이다.** 그래서 이 장에만 [onboardingComingSoon]
+  /// 배지가 붙는다. 배지를 떼는 것은 두 기능이 실제로 들어온 뒤다.
+  static const onboardingCard3Title = '달린 날이\n사진과 음악으로 남아요';
+  static const onboardingCard3Body = '사진과 소감을 기록카드에 담고,\n함께 달린 데이터로 만든 곡을 받아요.';
+
+  /// 아직 만들지 않은 기능을 소개하는 장에 붙는 배지.
+  ///
+  /// 온보딩은 설치 직후 첫 화면이다. 없는 것을 있는 것처럼 말하면 바로 들통난다.
+  static const onboardingComingSoon = '런칭 준비 중';
+
+  // ── 3장 그림 속 예시 값 ──────────────────────────────────────
+  //
+  // ⚠️ **사용자의 기록이 아니라 그림이다.** 기록카드 화면이 아직 없어 온보딩이
+  // 직접 그리고 있고, 그 안의 숫자와 문장은 전부 예시다. 화면이 생기면 이
+  // 문자열들은 지운다 — 남겨 두면 언젠가 진짜 값으로 오해받는다.
+
+  static const onboardingSampleDistance = '5.02';
+  static const onboardingSampleUnit = 'km';
+  static const onboardingSampleDuration = '28:14';
+  static const onboardingSampleNote = '비 온 뒤라 공기가 좋았다.';
+  static const onboardingSampleSong = '그날의 곡';
+  static const onboardingSampleSongMeta = '85 BPM · 12콤보 구간 포함';
 
   // ── 약관 동의 (S03) ──────────────────────────────────────────
   //
