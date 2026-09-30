@@ -5,7 +5,6 @@ import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/storage/match_room_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/data/fake_match_stream.dart';
@@ -57,7 +56,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(AppButton, AppStrings.homeMatchCta));
+    // 홈 CTA 는 `AppButtonV2` 로 옮겼다. 여기서 보는 건 등록 화면이지
+    // 홈의 버튼 종류가 아니라, 글자로만 찾는다.
+    await tester.tap(find.text(AppStrings.homeMatchCta));
     await tester.pumpAndSettle();
     return matches;
   }

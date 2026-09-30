@@ -3,8 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/core/widgets/empty_state_card.dart';
+import 'package:runiverse/core/widgets/v2/action_tile.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
@@ -41,56 +41,33 @@ void main() {
   }
 
   group('히어로', () {
-    testWidgets('버튼 두 개가 있다', (tester) async {
+    testWidgets('매칭 버튼이 있다', (tester) async {
       await pumpHome(tester);
 
       expect(find.byType(HomeHero), findsOneWidget);
-      expect(
-        find.widgetWithText(AppButton, AppStrings.homeMatchCta),
-        findsOneWidget,
-      );
-      expect(
-        find.widgetWithText(AppButton, AppStrings.homeSoloCta),
-        findsOneWidget,
-      );
+      expect(find.text(AppStrings.homeMatchCta), findsOneWidget);
     });
 
-    testWidgets('매칭 버튼이 primary, 1인 러닝이 secondary다', (tester) async {
-      await pumpHome(tester);
-
-      final match = tester.widget<AppButton>(
-        find.widgetWithText(AppButton, AppStrings.homeMatchCta),
-      );
-      final solo = tester.widget<AppButton>(
-        find.widgetWithText(AppButton, AppStrings.homeSoloCta),
-      );
-
-      expect(match.variant, AppButtonVariant.primary);
-      expect(solo.variant, AppButtonVariant.secondary);
-    });
-
-    testWidgets('시간대 인사가 넷 중 하나로 나온다', (tester) async {
-      await pumpHome(tester);
-
-      // 어느 시각에 돌려도 통과해야 한다. CI 시각을 고정할 수 없다.
-      const greetings = [
-        AppStrings.homeGreetingMorning,
-        AppStrings.homeGreetingAfternoon,
-        AppStrings.homeGreetingEvening,
-        AppStrings.homeGreetingNight,
-      ];
-      final shown = greetings.where((g) => find.text(g).evaluate().isNotEmpty);
-
-      expect(shown, hasLength(1));
-    });
+    // ⚠️ **`시간대 인사`가 빠졌다.** 시안 `158:2848`이 인사 대신 이름을
+    // 부른다(`김지원님`). `GreetingRule`은 도메인에 그대로 남아 있다.
   });
 
-  group('히어로의 두 버튼', () {
+  group('아래 두 칸', () {
+    // 시안이 솔로·동행을 히어로 밖 칸 둘로 옮겼다(`158:2875` `158:2881`).
+
+    testWidgets('두 칸이 다 있다', (tester) async {
+      await pumpHome(tester);
+
+      expect(find.byType(ActionTileV2), findsNWidgets(2));
+      expect(find.text(AppStrings.homeSoloCta), findsOneWidget);
+      expect(find.text(AppStrings.homeWithFriendCta), findsOneWidget);
+    });
+
     testWidgets('매칭을 누르면 등록 화면으로 간다', (tester) async {
       // 홈에서 바로 신청하면 시간대도 거리도 정할 수 없다. S08을 거친다.
       await pumpHome(tester);
 
-      await tester.tap(find.widgetWithText(AppButton, AppStrings.homeMatchCta));
+      await tester.tap(find.text(AppStrings.homeMatchCta));
       await tester.pumpAndSettle();
 
       expect(find.byType(MatchRegisterPage), findsOneWidget);
@@ -101,26 +78,23 @@ void main() {
       // GPS 첫 신호를 기다릴 자리가 없어 초반 거리가 통째로 빠진다.
       await pumpHome(tester);
 
-      await tester.tap(find.widgetWithText(AppButton, AppStrings.homeSoloCta));
+      await tester.tap(find.text(AppStrings.homeSoloCta));
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.runWaitingFix), findsOneWidget);
     });
   });
 
-  group('빈 상태', () {
-    testWidgets('대회와 최근 러닝 자리가 비어 있다', (tester) async {
+  group('⚠️ 시안에서 빠진 것', () {
+    testWidgets('대회와 최근 러닝 섹션이 없다', (tester) async {
+      // 시안 홈(`158:2848`)에 두 섹션이 없다. 대회일정 탭을 뺀 결정(#106)과
+      // 같은 방향이고, **기능을 지운 것**이라 여기서 못 박는다 — 누가
+      // 되살리면 시안과 어긋난 채로 조용히 굴러간다.
       await pumpHome(tester);
 
-      expect(find.byType(EmptyStateCard), findsNWidgets(2));
-      expect(find.text(AppStrings.homeEmptyCompetition), findsOneWidget);
-      expect(find.text(AppStrings.homeEmptyRecentRun), findsOneWidget);
-    });
-
-    testWidgets('최근 러닝 빈 자리는 무엇을 하면 채워지는지 알려준다', (tester) async {
-      await pumpHome(tester);
-
-      expect(find.text(AppStrings.homeEmptyRecentRunHint), findsOneWidget);
+      expect(find.byType(EmptyStateCard), findsNothing);
+      expect(find.text('다가오는 대회'), findsNothing);
+      expect(find.text('최근 러닝'), findsNothing);
     });
   });
 

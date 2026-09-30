@@ -1,16 +1,18 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/widgets/empty_state_card.dart';
-import 'package:runiverse/features/home/domain/greeting.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/action_tile.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
@@ -64,7 +66,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     // 매칭 상태는 `AppShell`이 살려 둔 provider가 나른다 — 홈이 소유하지 않는다.
     final room = ref.watch(matchRoomProvider.select((state) => state.room));
     // 서버가 아는 상태. 방 정보가 오기 전 구간을 메우는 데 쓴다.
@@ -113,20 +115,27 @@ class _HomePageState extends ConsumerState<HomePage> {
       (_) => _syncTicker(needed: counting || cooling),
     );
 
-    // 프로필 유도는 여기 없다. **`AppShell`이 관문으로 막아선다** —
-    // 프로필 없이는 어느 탭도 쓸 수 없으므로 홈만 막는 것은 뜻이 없다.
+    // 부를 이름. **없을 수 있다** — `/me`가 오기 전이거나 온보딩 전이다.
+    final auth = ref.watch(authControllerProvider);
+    final signedIn = auth is AuthSignedIn ? auth : null;
+
     return Scaffold(
+      backgroundColor: colors.bgBase,
       body: SafeArea(
+        // ⚠️ 탭 바가 본문 위에 떠서(#106) 바닥 여백을 따로 안 받는다.
+        // 아래 `padding` 이 대신 낸다.
+        bottom: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(
+          padding: EdgeInsets.fromLTRB(
             AppSpacing.space4,
             AppSpacing.space4,
             AppSpacing.space4,
-            AppSpacing.space8,
+            // 떠 있는 탭 바 높이. `Scaffold`가 `extendBody`라 여기 실려 온다.
+            AppSpacing.space4 + MediaQuery.paddingOf(context).bottom,
           ),
           children: [
             HomeHero(
-              greeting: _greetingText(GreetingRule.of(DateTime.now())),
+              name: signedIn?.user?.nickname,
               room: hero,
               // ⚠️ 상태는 매칭 중인데 스냅샷이 아직 안 온 구간. 여기를 비우면
               // 신청한 사람이 기본 히어로를 보고 다시 누른다.
@@ -139,9 +148,6 @@ class _HomePageState extends ConsumerState<HomePage> {
               // 조건을 고르는 화면(S08)을 거친다. 홈에서 바로 신청하면
               // 시간대도 거리도 정할 수 없다.
               onMatch: () => context.push(AppRoutes.matchRegister),
-              // 준비 화면을 거친다. GPS 첫 신호를 기다릴 자리가 필요하다 —
-              // 신호 전에 출발하면 초반 거리가 통째로 빠진다.
-              onSolo: () => context.push(AppRoutes.runPrepare),
               onCancel: _confirmCancel,
               // ⚠️ **이미 시작한 방은 대기실이 아니라 러닝 화면이다.**
               // 대기실로 보내면 카운트다운이 0인 화면에서 한 번 더 눌러야 한다.
@@ -150,27 +156,46 @@ class _HomePageState extends ConsumerState<HomePage> {
                   : context.push(AppRoutes.matchRoom),
             ),
 
-            const SizedBox(height: AppSpacing.space7),
+            // ⚠️ **`다가오는 대회`와 `최근 러닝`을 뺐다.** 시안 홈(`158:2848`)에
+            // 없다. 대회일정 탭을 뺀 결정(#106)과 같은 방향이다.
+            const SizedBox(height: AppSpacing.space4),
 
-            _SectionLabel(AppStrings.homeSectionCompetition),
-            const SizedBox(height: AppSpacing.space3),
-            const EmptyStateCard(
-              icon: LucideIcons.trophy,
-              message: AppStrings.homeEmptyCompetition,
-            ),
-            const SizedBox(height: AppSpacing.space6),
+            // 프로필을 아직 안 채운 사람에게만. 채운 사람에게는 자리조차 없다.
+            //
+            // ⚠️ **관문은 여기가 아니다.** `AppShell`이 시트로 막아선다 —
+            // 이건 그 시트를 닫고 돌아왔을 때 남는 두 번째 안내다.
+            if (signedIn != null && !signedIn.isOnboarded) ...[
+              const _ProfilePromptCard(),
+              const SizedBox(height: AppSpacing.space4),
+            ],
 
-            _SectionLabel(AppStrings.homeSectionRecentRun),
-            const SizedBox(height: AppSpacing.space3),
-            const EmptyStateCard(
-              icon: LucideIcons.footprints,
-              message: AppStrings.homeEmptyRecentRun,
-              hint: AppStrings.homeEmptyRecentRunHint,
+            Row(
+              children: [
+                Expanded(
+                  child: ActionTileV2(
+                    icon: AppIcons.running,
+                    label: AppStrings.homeSoloCta,
+                    // 준비 화면을 거친다. GPS 첫 신호를 기다릴 자리가 필요하다 —
+                    // 신호 전에 출발하면 초반 거리가 통째로 빠진다.
+                    onTap: () => context.push(AppRoutes.runPrepare),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.space4),
+                Expanded(
+                  child: ActionTileV2(
+                    icon: AppIcons.people2,
+                    label: AppStrings.homeWithFriendCta,
+                    emphasized: false,
+                    // ⚠️ 아직 갈 곳이 없다. 시안의 `친구 목록`(`158:3230`)이
+                    // 이 묶음 밖이라, 문구 결정이 나면 함께 잇는다.
+                    onTap: _comingSoon,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
-      backgroundColor: colors.bgBase,
     );
   }
 
@@ -181,18 +206,18 @@ class _HomePageState extends ConsumerState<HomePage> {
   Future<void> _confirmCancel() async {
     if (_leaving) return;
 
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final agreed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: colors.bgElevated,
         title: Text(
           AppStrings.matchRoomLeaveTitle,
-          style: AppTypography.h3.copyWith(color: colors.textPrimary),
+          style: AppTypographyV2.heading06.copyWith(color: colors.textStrong),
         ),
         content: Text(
           AppStrings.matchRoomLeaveFree,
-          style: AppTypography.body.copyWith(color: colors.textSecondary),
+          style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
         ),
         actions: [
           TextButton(
@@ -288,27 +313,90 @@ class _HomePageState extends ConsumerState<HomePage> {
   /// 상태를 못 읽었을 때 쓸 방. 화면이 들고 있던 것이다.
   RoomInfo? _fallbackRoom;
 
-  /// 시간대 → 문구. 판정은 [GreetingRule]이 하고 여기서는 문구만 고른다.
-  static String _greetingText(Greeting greeting) => switch (greeting) {
-    Greeting.morning => AppStrings.homeGreetingMorning,
-    Greeting.afternoon => AppStrings.homeGreetingAfternoon,
-    Greeting.evening => AppStrings.homeGreetingEvening,
-    Greeting.night => AppStrings.homeGreetingNight,
-  };
+  /// `친구랑 뛰기` — 아직 갈 곳이 없다.
+  ///
+  /// ⚠️ **버튼을 지우지 않는다.** 시안에 있고, 없애면 문구 결정이 난 뒤에
+  /// 자리를 다시 만들어야 한다. 누르면 준비 중이라고 말한다.
+  void _comingSoon() {
+    final colors = context.appColorsV2;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          AppStrings.comingSoonTitle,
+          style: AppTypographyV2.body11.copyWith(color: colors.textStrong),
+        ),
+        // ⚠️ **기본값을 그대로 쓰면 다크 화면에 흰 띠가 뜬다.** 앱 테마의
+        // `SnackBar`가 아직 옛 세대라, 여기서 면과 글자를 직접 준다.
+        backgroundColor: colors.bgElevated,
+        behavior: SnackBarBehavior.floating,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.md),
+        // ⚠️ **탭 바 높이를 여기서 더하지 않는다.** `floating`이 이미
+        // 셸의 `bottomNavigationBar` 위로 올려 준다 — 한 번 더 더하면
+        // 화면 한가운데로 떠서 아래 칸들을 덮는다(에뮬레이터에서 확인).
+        margin: const EdgeInsets.all(AppSpacing.space4),
+      ),
+    );
+  }
 }
 
-/// 카드 묶음 위에 붙는 라벨. 무엇이 아니라 **무엇의 목록**인지 알려준다.
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
+/// 프로필을 아직 안 채운 사람에게 뜨는 안내 — 시안 `158:2849`.
+///
+/// ⚠️ **누를 수 없다.** 시안에도 버튼이 없고, 프로필로 데려가는 일은
+/// `AppShell`의 시트가 맡는다. 여기서 또 데려가면 들어가는 문이 둘이 된다.
+class _ProfilePromptCard extends StatelessWidget {
+  const _ProfilePromptCard();
 
-  final String text;
+  /// 시안 `158:2852`의 동그란 표장.
+  static const _markSize = 58.0;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: AppTypography.caption.copyWith(
-        color: context.appColors.textTertiary,
+    final colors = context.appColorsV2;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.space5),
+      decoration: BoxDecoration(
+        color: colors.bgSurface,
+        borderRadius: AppRadius.lg,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: _markSize,
+            height: _markSize,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: colors.borderStrong),
+            ),
+            child: Center(
+              child: AppIcon(AppIcons.verified, color: colors.textStrong),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.space5),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  AppStrings.homeProfilePromptTitle,
+                  style: AppTypographyV2.body13.copyWith(
+                    color: colors.textStrong,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.space2),
+                Text(
+                  AppStrings.homeProfilePromptBody,
+                  style: AppTypographyV2.body19.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

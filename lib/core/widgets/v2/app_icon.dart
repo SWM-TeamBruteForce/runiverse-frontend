@@ -2,7 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 
-/// 디자인 아이콘 33개의 이름.
+/// 디자인 아이콘의 이름.
 ///
 /// **문자열을 직접 쓰지 않는다.** 없는 이름을 넘기면 화면에 빈 자리가 생길
 /// 뿐 아무 오류도 나지 않아서, 오타를 눈으로 찾게 된다.
@@ -35,6 +35,11 @@ abstract final class AppIcons {
   static const map2 = 'map_2';
   static const microphone = 'microphone';
   static const people = 'people';
+
+  /// ⚠️ **`people` 과 다른 글리프다.** 시안의 `친구랑 뛰기` 칸(`158:2883`)이
+  /// 쓰는 세 사람짜리 채움 아이콘이고, `people` 은 두 사람 선 아이콘이다.
+  /// 뷰박스가 20 이라 24 로 늘려 쓴다.
+  static const people2 = 'people_2';
   static const photo = 'photo';
   static const profile = 'profile';
   static const right = 'right';
@@ -72,6 +77,7 @@ abstract final class AppIcons {
     map2,
     microphone,
     people,
+    people2,
     photo,
     profile,
     right,

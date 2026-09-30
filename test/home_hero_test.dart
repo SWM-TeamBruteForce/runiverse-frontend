@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 
@@ -31,6 +30,10 @@ void main() {
     bool pending = false,
     DateTime? now,
     DateTime? cooldownUntil,
+    String? name,
+    // ⚠️ 돌려주는 기록은 **pump 시점에 굳는다**(레코드라 값이 복사된다).
+    // 누른 뒤의 횟수를 보려면 부르는 쪽이 살아 있는 카운터를 넘겨야 한다.
+    VoidCallback? onMatch,
   }) async {
     var match = 0;
     var cancel = 0;
@@ -42,13 +45,12 @@ void main() {
         home: Scaffold(
           body: SingleChildScrollView(
             child: HomeHero(
-              greeting: AppStrings.homeGreetingEvening,
+              name: name,
               room: withRoom,
               pending: pending,
               cooldownUntil: cooldownUntil,
               now: now ?? DateTime(2026, 9, 16, 18, 30),
-              onMatch: () => match++,
-              onSolo: () {},
+              onMatch: onMatch ?? () => match++,
               onCancel: () => cancel++,
               onLobby: () => lobby++,
             ),
@@ -61,11 +63,33 @@ void main() {
   }
 
   group('기본', () {
-    testWidgets('두 버튼을 보여준다', (tester) async {
+    testWidgets('매칭 버튼을 보여준다', (tester) async {
       await pumpHero(tester);
 
       expect(find.text(AppStrings.homeMatchCta), findsOneWidget);
-      expect(find.text(AppStrings.homeSoloCta), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 솔로 버튼은 여기 없다', (tester) async {
+      // 시안 `158:2848`이 카드 밖 하단 칸으로 옮겼다. 둘 다 있으면 같은 일을
+      // 하는 버튼이 한 화면에 둘이 된다.
+      await pumpHero(tester);
+
+      expect(find.text(AppStrings.homeSoloCta), findsNothing);
+    });
+
+    testWidgets('이름이 있으면 부른다', (tester) async {
+      await pumpHero(tester, name: '러너42');
+
+      expect(find.textContaining('러너42님'), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 이름이 없으면 그 줄을 통째로 뺀다', (tester) async {
+      // `/me`가 오기 전이거나 온보딩 전이면 비어 있다. `님`만 남으면
+      // 이름을 잃어버린 것처럼 보인다.
+      await pumpHero(tester);
+
+      expect(find.text(AppStrings.homeHeroPrompt), findsOneWidget);
+      expect(find.textContaining('님'), findsNothing);
     });
   });
 
@@ -160,12 +184,15 @@ void main() {
     final until = DateTime(2026, 9, 16, 18, 40);
 
     testWidgets('⚠️ 매칭 신청을 미리 막는다', (tester) async {
-      await pumpHero(tester, cooldownUntil: until);
+      // ⚠️ **눌러서 본다.** 위젯의 `onPressed`가 null 인지만 재면, 그 위에
+      // 다른 것이 얹혀 눌리는 경우를 못 잡는다(스펙 9절).
+      var matched = 0;
+      await pumpHero(tester, cooldownUntil: until, onMatch: () => matched++);
 
-      final cta = tester.widget<AppButton>(
-        find.widgetWithText(AppButton, AppStrings.homeMatchCta),
-      );
-      expect(cta.onPressed, isNull);
+      await tester.tap(find.text(AppStrings.homeMatchCta));
+      await tester.pumpAndSettle();
+
+      expect(matched, 0, reason: '잠겼는데 눌렸다');
     });
 
     testWidgets('언제까지인지 글로 말한다', (tester) async {
@@ -174,27 +201,22 @@ void main() {
       expect(find.text(AppStrings.matchFailedCooldown(until)), findsOneWidget);
     });
 
-    testWidgets('⚠️ 솔로는 막지 않는다', (tester) async {
-      // 제재는 매칭 신청에만 걸린다. 혼자 달리는 것은 누구도 기다리게 하지 않는다.
-      await pumpHero(tester, cooldownUntil: until);
-
-      final solo = tester.widget<AppButton>(
-        find.widgetWithText(AppButton, AppStrings.homeSoloCta),
-      );
-      expect(solo.onPressed, isNotNull);
-    });
+    // ⚠️ **`솔로는 막지 않는다`가 여기서 빠졌다.** 솔로 버튼이 카드 밖
+    // `ActionTileV2`로 나가서, 이 화면에는 막을 것도 열 것도 없다.
+    // 그 단정은 `home_page_test`가 이어받는다.
 
     testWidgets('제한이 지났으면 그대로 연다', (tester) async {
+      var matched = 0;
       await pumpHero(
         tester,
         cooldownUntil: DateTime(2026, 9, 16, 18, 20),
         now: DateTime(2026, 9, 16, 18, 30),
+        onMatch: () => matched++,
       );
+      await tester.tap(find.text(AppStrings.homeMatchCta));
+      await tester.pumpAndSettle();
 
-      final cta = tester.widget<AppButton>(
-        find.widgetWithText(AppButton, AppStrings.homeMatchCta),
-      );
-      expect(cta.onPressed, isNotNull);
+      expect(matched, 1);
       expect(find.textContaining('신청할 수 없어요'), findsNothing);
     });
   });
@@ -218,11 +240,9 @@ void main() {
           theme: AppTheme.dark(),
           home: Scaffold(
             body: HomeHero(
-              greeting: AppStrings.homeGreetingEvening,
               room: room(RoomStatus.started),
               now: DateTime(2026, 9, 16, 19, 5),
               onMatch: () {},
-              onSolo: () {},
               onCancel: () {},
               onLobby: () => entered++,
             ),
