@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_palette.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_sizes.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
@@ -254,25 +256,31 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                   const _OrDivider(),
                   const SizedBox(height: AppSpacing.space6),
 
-                  // 카카오·애플을 지우지 않는다. **회색으로 잠그지도 않는다** —
-                  // 잠긴 버튼이 둘이면 앱이 미완성으로 읽힌다. 눌리고, 준비 중임을 알린다.
+                  // 시안(`158:2929` `158:2946`)의 간편 로그인은 **글자 없는
+                  // 아이콘 타일 둘**이다. 각 서비스의 로고만으로 무엇인지
+                  // 알아보게 하는 방식이라, 라벨은 툴팁과 스크린리더에만 준다.
                   //
-                  // ⚠️ 시안은 이 자리에 아이콘 타일 둘(구글·카카오)을 둔다. 구글은
-                  // 붙일 구현이 없고, 두 브랜드의 아이콘이 디자인 아이콘 33개에
-                  // 없어 **버튼 모양을 그대로 뒀다.**
-                  _LastUsedMark(
-                    show: _lastMethod == SignInMethod.kakao,
-                    child: AppButtonV2(
-                      label: AppStrings.authKakao,
-                      variant: AppButtonV2Variant.secondary,
-                      onPressed: _busy ? null : _startKakao,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.space3),
-                  AppButtonV2(
-                    label: AppStrings.authApple,
-                    variant: AppButtonV2Variant.secondary,
-                    onPressed: () => _notReady(context),
+                  // **회색으로 잠그지 않는다** — 잠긴 타일이 있으면 앱이
+                  // 미완성으로 읽힌다. 눌리고, 준비 중임을 알린다.
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _SocialTile(
+                        label: AppStrings.authGoogle,
+                        logo: Image.asset('assets/brand/google.png'),
+                        background: AppPaletteV2.neutral50,
+                        // 구글 로그인은 아직 붙일 구현이 없다.
+                        onPressed: () => _notReady(context),
+                      ),
+                      const SizedBox(width: AppSpacing.space4),
+                      _SocialTile(
+                        label: AppStrings.authKakao,
+                        logo: SvgPicture.asset('assets/brand/kakao.svg'),
+                        background: AppPaletteV2.kakaoYellow,
+                        lastUsed: _lastMethod == SignInMethod.kakao,
+                        onPressed: _busy ? null : _startKakao,
+                      ),
+                    ],
                   ),
 
                   const SizedBox(height: AppSpacing.space6),
@@ -560,43 +568,109 @@ class _CheckBox extends StatelessWidget {
   }
 }
 
-/// 버튼 오른쪽에 붙는 `최근 사용` 표시.
+/// 로고 하나만 놓인 간편 로그인 타일. 시안 `158:2929` · `158:2946`.
 ///
-/// **버튼을 감싸되 크기는 건드리지 않는다** — 표시가 붙고 떨어질 때 버튼이
-/// 움직이면 누르려던 자리가 어긋난다.
-class _LastUsedMark extends StatelessWidget {
-  const _LastUsedMark({required this.show, required this.child});
+/// ## 글자가 없다
+///
+/// 시안이 로고만으로 알아보게 한다. 그래서 [label]은 화면에 그려지지 않고
+/// **툴팁과 스크린리더에만** 들어간다 — 아이콘만 있는 버튼에 이름이 없으면
+/// 스크린리더가 읽을 것이 없다. 위젯 테스트도 이 이름으로 타일을 찾는다.
+///
+/// ## ⚠️ 바탕색을 테마에서 가져오지 않는다
+///
+/// 구글의 흰색도 카카오의 노랑도 **그쪽이 정한 값**이다. 다크·라이트에서
+/// 갈리는 [AppColorsV2] 대신 팔레트의 고정값을 쓴다.
+class _SocialTile extends StatelessWidget {
+  const _SocialTile({
+    required this.label,
+    required this.logo,
+    required this.background,
+    required this.onPressed,
+    this.lastUsed = false,
+  });
 
-  final bool show;
-  final Widget child;
+  final String label;
+
+  /// 로고 그림. ⚠️ **파일 형식이 서비스마다 다르다** — 카카오는 경로 하나짜리
+  /// SVG 라 그대로 쓰지만, 구글의 G 는 시안에서 마스크와 색층을 겹쳐 만든
+  /// 것이라 SVG 로 옮기면 깨진다. Figma 가 렌더한 PNG 를 쓴다.
+  final Widget logo;
+
+  final Color background;
+  final VoidCallback? onPressed;
+
+  /// 이 기기에서 마지막으로 성공한 방법인가.
+  final bool lastUsed;
+
+  /// 시안 실측. 로고 26, 좌우 여백 16, 위아래 14 → 58×54.
+  static const _logoSize = 26.0;
+  static const _padX = 16.0;
+  static const _padY = 14.0;
+
+  /// `최근 사용` 점의 지름.
+  static const _dotSize = 10.0;
 
   @override
   Widget build(BuildContext context) {
-    if (!show) return child;
     final colors = context.appColorsV2;
 
-    return Stack(
-      alignment: Alignment.centerRight,
-      children: [
-        child,
-        Padding(
-          padding: const EdgeInsets.only(right: AppSpacing.space4),
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.space2,
-              vertical: AppSpacing.space0,
-            ),
-            decoration: BoxDecoration(
-              color: colors.primaryMuted,
-              borderRadius: AppRadius.full,
-            ),
-            child: Text(
-              AppStrings.authLastUsed,
-              style: AppTypographyV2.body22.copyWith(color: colors.primary),
-            ),
-          ),
+    final tile = Material(
+      color: background,
+      borderRadius: AppRadius.lg,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: AppRadius.lg,
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: _padX, vertical: _padY),
+          child: SizedBox.square(dimension: _logoSize),
         ),
-      ],
+      ),
+    );
+
+    return Tooltip(
+      // ⚠️ 툴팁은 [lastUsed]와 무관하게 늘 같은 문구다. 위젯 테스트가 이것으로
+      // 타일을 찾으므로, 여기에 상태를 섞으면 표시가 붙는 순간 못 찾게 된다.
+      message: label,
+      child: Semantics(
+        button: true,
+        // 점만 찍으면 스크린리더가 읽을 것이 없다. 이름에 함께 넣는다.
+        label: lastUsed ? '$label, ${AppStrings.authLastUsed}' : label,
+        enabled: onPressed != null,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // 로고는 [InkWell] 밖에 얹는다. 안에 두면 잉크 리플이 로고 위를
+            // 덮어 브랜드 색이 흐려진다.
+            tile,
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Center(
+                  child: SizedBox.square(dimension: _logoSize, child: logo),
+                ),
+              ),
+            ),
+
+            // 지난번에 쓴 방법 표시. ⚠️ 타일 **밖으로** 나간다 — 안에 넣으면
+            // 로고를 가리고, 타일을 키우면 두 타일의 크기가 달라진다.
+            if (lastUsed)
+              Positioned(
+                top: -_dotSize / 3,
+                right: -_dotSize / 3,
+                child: IgnorePointer(
+                  child: Container(
+                    width: _dotSize,
+                    height: _dotSize,
+                    decoration: BoxDecoration(
+                      color: colors.primary,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: colors.bgBase, width: 2),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

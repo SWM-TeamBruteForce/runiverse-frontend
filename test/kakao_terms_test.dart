@@ -6,7 +6,6 @@ import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/data/fake_oauth_code_source.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
@@ -73,7 +72,7 @@ void main() {
   Future<void> tapKakao(WidgetTester tester) async {
     await tapVisible(
       tester,
-      find.widgetWithText(AppButtonV2, AppStrings.authKakao),
+      find.byTooltip(AppStrings.authKakao),
     );
     await tester.pumpAndSettle();
   }

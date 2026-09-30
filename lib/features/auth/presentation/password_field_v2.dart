@@ -72,22 +72,39 @@ class _PasswordFieldV2State extends State<PasswordFieldV2> {
       onChanged: widget.onChanged,
       onSubmitted: widget.onSubmitted,
       obscureText: !_revealed,
-      suffix: IconButton(
-        onPressed: () => setState(() => _revealed = !_revealed),
-        // 아이콘만으로는 스크린리더가 읽을 것이 없다.
-        tooltip: _revealed
-            ? AppStrings.authPasswordHide
-            : AppStrings.authPasswordShow,
-        // IconButton 기본 크기는 48이다. 칸(53) 안에서 넘치지 않게 맞춘다.
-        constraints: const BoxConstraints(
-          minWidth: AppSizes.touchDefault,
-          minHeight: AppSizes.touchDefault,
-        ),
-        padding: EdgeInsets.zero,
-        icon: AppIcon(
-          _revealed ? AppIcons.view2 : AppIcons.view,
-          size: _eyeSize,
-          color: colors.textTertiary,
+      // ## ⚠️ 눈 아이콘이 칸의 높이를 정하면 안 된다
+      //
+      // 44px 짜리 [IconButton] 을 넣었더니 칸이 **53 → 79** 로 커졌다.
+      // 시안(`158:2920`)의 칸은 53이고 아이콘은 20이다 — 위아래 여백 16이
+      // 아이콘이 아니라 글자 높이를 감싸야 나오는 값이다.
+      //
+      // 그래서 자리는 20만 차지하고 **누르는 영역만 44로 넘쳐 나가게** 한다.
+      // [OverflowBox] 가 부모에게는 20이라고 말하고 자식에게는 44를 준다.
+      suffix: SizedBox(
+        width: AppSizes.touchDefault,
+        height: _eyeSize,
+        child: OverflowBox(
+          maxHeight: AppSizes.touchDefault,
+          child: Tooltip(
+            message: _revealed
+                ? AppStrings.authPasswordHide
+                : AppStrings.authPasswordShow,
+            child: InkWell(
+              onTap: () => setState(() => _revealed = !_revealed),
+              customBorder: const CircleBorder(),
+              child: SizedBox(
+                width: AppSizes.touchDefault,
+                height: AppSizes.touchDefault,
+                child: Center(
+                  child: AppIcon(
+                    _revealed ? AppIcons.view2 : AppIcons.view,
+                    size: _eyeSize,
+                    color: colors.textTertiary,
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

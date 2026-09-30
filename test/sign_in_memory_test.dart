@@ -171,9 +171,17 @@ void main() {
     });
 
     testWidgets('기록이 있으면 그 방법에 표시가 뜬다', (tester) async {
+      // ⚠️ 표시는 글자가 아니라 **점**이다(시안의 타일에 글자가 들어갈 자리가
+      // 없다). 점만으로는 스크린리더가 읽을 것이 없어 타일 이름에 함께 넣었고,
+      // 여기서 보는 것도 그 이름이다 — 점의 색이나 위치가 아니라.
+      final semantics = tester.ensureSemantics();
       await pumpSignIn(tester, lastMethod: SignInMethod.kakao);
 
-      expect(find.text(AppStrings.authLastUsed), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(RegExp(AppStrings.authLastUsed)),
+        findsOneWidget,
+      );
+      semantics.dispose();
     });
   });
 }

@@ -232,7 +232,7 @@ void main() {
 
       await tapVisible(
         tester,
-        find.widgetWithText(AppButtonV2, AppStrings.authKakao),
+        find.byTooltip(AppStrings.authKakao),
       );
       await tester.pumpAndSettle();
 
@@ -252,7 +252,7 @@ void main() {
 
       await tapVisible(
         tester,
-        find.widgetWithText(AppButtonV2, AppStrings.authKakao),
+        find.byTooltip(AppStrings.authKakao),
       );
       await tester.pumpAndSettle();
 
@@ -269,7 +269,7 @@ void main() {
 
       await tapVisible(
         tester,
-        find.widgetWithText(AppButtonV2, AppStrings.authKakao),
+        find.byTooltip(AppStrings.authKakao),
       );
       await tester.pumpAndSettle();
 
@@ -288,7 +288,7 @@ void main() {
 
       await tapVisible(
         tester,
-        find.widgetWithText(AppButtonV2, AppStrings.authKakao),
+        find.byTooltip(AppStrings.authKakao),
       );
       await tester.pumpAndSettle();
 
@@ -308,7 +308,7 @@ void main() {
 
       await tapVisible(
         tester,
-        find.widgetWithText(AppButtonV2, AppStrings.authKakao),
+        find.byTooltip(AppStrings.authKakao),
       );
       await tester.pumpAndSettle();
 
@@ -327,7 +327,7 @@ void main() {
 
     await tapVisible(
       tester,
-      find.widgetWithText(AppButtonV2, AppStrings.authKakao),
+      find.byTooltip(AppStrings.authKakao),
     );
     // ⚠️ pumpAndSettle을 쓰면 안 된다. 잠긴 화면은 스피너가 영원히 돌아
     // **영영 안정되지 않고**, 단언에 닿기 전에 타임아웃으로 죽는다
