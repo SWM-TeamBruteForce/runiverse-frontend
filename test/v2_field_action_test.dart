@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_sizes.dart';
 import 'package:runiverse/core/widgets/v2/field_action.dart';
 
@@ -54,6 +55,35 @@ void main() {
     await pump(tester, const FieldActionV2(label: '재전송', onPressed: null));
 
     expect(tester.widget<InkWell>(find.byType(InkWell)).onTap, isNull);
+  });
+
+  testWidgets('⚠️ 잠겨도 글자가 면에 묻히지 않는다', (tester) async {
+    // 처음엔 잠긴 글자에 `textDisabled`를 썼는데, 다크에서 그 값이 이 버튼의
+    // 면(`borderStrong`)과 **같은 #434343**이라 글자 없는 회색 알약으로 보였다.
+    // 에뮬레이터에서야 드러난 종류라 여기서 못 박는다.
+    await pump(tester, const FieldActionV2(label: '재전송', onPressed: null));
+
+    final colors = Theme.of(
+      tester.element(find.byType(FieldActionV2)),
+    ).extension<AppColorsV2>()!;
+    final face =
+        tester
+                .widget<Container>(
+                  find
+                      .ancestor(
+                        of: find.text('재전송'),
+                        matching: find.byType(Container),
+                      )
+                      .first,
+                )
+                .decoration!
+            as BoxDecoration;
+
+    expect(
+      tester.widget<Text>(find.text('재전송')).style?.color,
+      isNot(face.color),
+    );
+    expect(face.color, colors.borderStrong);
   });
 
   testWidgets('글자가 그대로 보인다', (tester) async {

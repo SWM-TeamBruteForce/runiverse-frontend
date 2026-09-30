@@ -341,8 +341,17 @@ abstract final class AppStrings {
 
   // ── 회원가입 ─────────────────────────────────────────────────
 
-  static const authSignUpTitle = '가입하기';
+  /// 시안(`158:2722`)의 문구다. 약관·프로필 등록과 같은 `~해주세요` 꼴이라
+  /// 가입 흐름 세 화면의 말투가 맞는다.
+  static const authSignUpTitle = '이메일과 비밀번호를\n설정해주세요';
   static const authSignUpCta = '가입하고 시작하기';
+
+  /// 비밀번호 확인 칸. 시안 `158:2751`.
+  static const authPasswordConfirmLabel = '비밀번호 확인';
+
+  /// ⚠️ **서버는 확인값을 받지 않는다.** 두 값이 다른 것을 막는 곳이 앱뿐이라,
+  /// 이 문구가 뜨는 동안 가입 버튼도 함께 잠긴다.
+  static const authPasswordMismatch = '비밀번호가 서로 달라요';
 
   /// 규칙을 미리 보여준다. 서버가 막기 전에 화면이 먼저 알려준다.
   /// ⚠️ 이 문구는 `PasswordRule`의 값과 같아야 한다. 규칙을 바꾸면 함께 고친다.

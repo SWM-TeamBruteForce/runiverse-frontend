@@ -20,6 +20,12 @@ import 'package:runiverse/core/theme/v2/app_typography.dart';
 ///
 /// 시안은 `#767676`을 `#434343` 면에 얹는데 대비가 **2.18:1**이라 어떤 기준도
 /// 넘지 못한다. 한 단계 밝은 [AppColorsV2.textSecondary]를 쓴다(약 5.7:1).
+///
+/// ## ⚠️ 잠긴 글자에 `textDisabled`를 쓰지 않는다
+///
+/// 다크에서 `textDisabled`가 `#434343`인데 **이 버튼의 면과 같은 값이다.**
+/// 그대로 쓰면 잠긴 버튼이 글자 없는 회색 알약으로 보인다 — 에뮬레이터에서
+/// 실제로 그렇게 나왔다. 한 단계 밝은 [AppColorsV2.textTertiary]를 쓴다.
 class FieldActionV2 extends StatelessWidget {
   const FieldActionV2({
     required this.label,
@@ -66,7 +72,7 @@ class FieldActionV2 extends StatelessWidget {
             child: Text(
               label,
               style: AppTypographyV2.body21.copyWith(
-                color: enabled ? colors.textSecondary : colors.textDisabled,
+                color: enabled ? colors.textSecondary : colors.textTertiary,
               ),
             ),
           ),

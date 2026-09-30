@@ -6,7 +6,8 @@ import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/core/widgets/v2/field_action.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
@@ -59,11 +60,32 @@ void main() {
     await tester.pump(const Duration(milliseconds: 16));
   }
 
+  /// 버튼이 눌리는 상태인가.
+  ///
+  /// ⚠️ **두 종류가 섞여 있다.** 큰 버튼은 [AppButtonV2], 입력 칸 **안**의 작은
+  /// 버튼은 [FieldActionV2]다(`인증번호 받기` `다시 받기`). 둘 다 `onPressed`가
+  /// null이면 잠긴 것이라, 어느 쪽인지 찾아서 같은 것을 본다.
   bool enabled(WidgetTester tester, String label) {
-    final button = tester.widget<AppButton>(
-      find.widgetWithText(AppButton, label),
-    );
-    return button.onPressed != null;
+    final big = find.widgetWithText(AppButtonV2, label);
+    if (big.evaluate().isNotEmpty) {
+      return tester.widget<AppButtonV2>(big).onPressed != null;
+    }
+    final small = find.widgetWithText(FieldActionV2, label);
+    return tester.widget<FieldActionV2>(small).onPressed != null;
+  }
+
+  /// 인증을 마친 뒤 비밀번호와 확인을 함께 채운다.
+  ///
+  /// ⚠️ **확인 칸이 생겼다**(2026-09-30). 비밀번호만 치면 CTA 가 열리지 않는다 —
+  /// 서버가 확인값을 받지 않아 두 값이 다른 것을 막는 곳이 앱뿐이다.
+  Future<void> enterPassword(
+    WidgetTester tester,
+    String password, {
+    String? confirm,
+  }) async {
+    await tester.enterText(find.byType(TextField).at(1), password);
+    await tester.enterText(find.byType(TextField).at(2), confirm ?? password);
+    await tester.pumpAndSettle();
   }
 
   Future<void> enterEmail(WidgetTester tester, String email) async {
@@ -168,13 +190,47 @@ void main() {
 
     expect(enabled(tester, AppStrings.authSignUpCta), isFalse);
 
-    await tester.enterText(find.byType(TextField).at(1), 'abcdef');
-    await tester.pumpAndSettle();
+    await enterPassword(tester, 'abcdef');
     expect(enabled(tester, AppStrings.authSignUpCta), isFalse);
     expect(find.text(AppStrings.authPasswordMissingKind), findsOneWidget);
 
+    await enterPassword(tester, 'runi123!');
+    expect(enabled(tester, AppStrings.authSignUpCta), isTrue);
+  });
+
+  testWidgets('⚠️ 두 비밀번호가 다르면 가입할 수 없다', (tester) async {
+    // 서버는 확인값을 받지 않는다. 막는 곳이 여기뿐이다.
+    await pumpSignUp(tester);
+    await verifyEmail(tester);
+
+    await enterPassword(tester, 'runi123!', confirm: 'runi456!');
+
+    expect(enabled(tester, AppStrings.authSignUpCta), isFalse);
+    expect(find.text(AppStrings.authPasswordMismatch), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 확인 칸이 비어 있으면 틀렸다고 하지 않는다', (tester) async {
+    // 아직 안 친 것뿐이다. 치는 도중에 빨간 글씨가 뜨면 무엇이 잘못됐는지
+    // 알 수 없다. 대신 버튼은 열리지 않는다.
+    await pumpSignUp(tester);
+    await verifyEmail(tester);
+
     await tester.enterText(find.byType(TextField).at(1), 'runi123!');
     await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.authPasswordMismatch), findsNothing);
+    expect(enabled(tester, AppStrings.authSignUpCta), isFalse);
+  });
+
+  testWidgets('다시 같게 고치면 열린다', (tester) async {
+    await pumpSignUp(tester);
+    await verifyEmail(tester);
+
+    await enterPassword(tester, 'runi123!', confirm: 'runi456!');
+    expect(enabled(tester, AppStrings.authSignUpCta), isFalse);
+
+    await enterPassword(tester, 'runi123!');
+    expect(find.text(AppStrings.authPasswordMismatch), findsNothing);
     expect(enabled(tester, AppStrings.authSignUpCta), isTrue);
   });
 
@@ -182,7 +238,7 @@ void main() {
     await pumpSignUp(tester);
     await verifyEmail(tester);
 
-    await tester.enterText(find.byType(TextField).at(1), '러너abc12!');
+    await enterPassword(tester, '러너abc12!');
     await tester.pumpAndSettle();
 
     expect(enabled(tester, AppStrings.authSignUpCta), isFalse);
@@ -235,8 +291,7 @@ void main() {
     await verifyEmail(tester);
     repository.seedAccount(email: 'new@example.com', password: 'runi123!');
 
-    await tester.enterText(find.byType(TextField).at(1), 'runi123!');
-    await tester.pumpAndSettle();
+    await enterPassword(tester, 'runi123!');
     await tester.tap(find.text(AppStrings.authSignUpCta));
     await tester.pumpAndSettle();
 
@@ -251,8 +306,7 @@ void main() {
     await pumpSignUp(tester);
     await verifyEmail(tester);
 
-    await tester.enterText(find.byType(TextField).at(1), 'runi123!');
-    await tester.pumpAndSettle();
+    await enterPassword(tester, 'runi123!');
     await tester.tap(find.text(AppStrings.authSignUpCta));
     await tester.pumpAndSettle();
 
