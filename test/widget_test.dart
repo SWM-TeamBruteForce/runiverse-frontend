@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/coming_soon_page.dart';
+import 'package:runiverse/core/widgets/v2/app_tab_bar.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
@@ -38,10 +38,15 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  /// 탭 바 안의 라벨만 찾는다. 화면 본문이 같은 글자를 그려도 헷갈리지 않는다.
+  /// 탭을 이름으로 찾는다.
+  ///
+  /// ⚠️ **글자로는 못 찾는다.** 탭 바가 아이콘만 두기로 바뀌어서
+  /// (2026-09-30, 시안 `158:2899`) 화면에 라벨이 아예 안 그려진다.
+  /// 이름은 `Semantics`에만 남아 있고, **그것이 스크린리더가 가진 전부**다 —
+  /// 여기서 그걸 쓰는 것이 곧 그 이름이 살아 있는지 보는 것이기도 하다.
   Finder tabLabel(String label) => find.descendant(
-    of: find.byType(NavigationBar),
-    matching: find.text(label),
+    of: find.byType(AppTabBarV2),
+    matching: find.bySemanticsLabel(label),
   );
 
   Future<void> tapTab(WidgetTester tester, String label) async {
@@ -50,24 +55,50 @@ void main() {
   }
 
   testWidgets('앱을 켜면 홈 탭이 열려 있다', (tester) async {
+    final handle = tester.ensureSemantics();
     await pumpApp(tester);
 
     expect(find.byType(HomePage), findsOneWidget);
     expect(tabLabel(AppStrings.tabHome), findsOneWidget);
+    handle.dispose();
   });
 
   testWidgets('기록 탭을 누르면 기록 화면이 열린다', (tester) async {
+    final handle = tester.ensureSemantics();
     await pumpApp(tester);
     await tapTab(tester, AppStrings.tabRecord);
 
     expect(find.byType(RecordPage), findsOneWidget);
+    handle.dispose();
   });
 
-  testWidgets('피드 탭은 숨겨지지 않고 준비 중 화면을 연다', (tester) async {
+  testWidgets('기록카드 탭은 숨겨지지 않고 준비 중 화면을 연다', (tester) async {
+    final handle = tester.ensureSemantics();
     await pumpApp(tester);
-    await tapTab(tester, AppStrings.tabFeed);
+    await tapTab(tester, AppStrings.tabRecordCard);
 
     expect(find.byType(ComingSoonPage), findsOneWidget);
     expect(find.text(AppStrings.comingSoonTitle), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('⚠️ 탭은 넷이고, 뺀 둘은 없다', (tester) async {
+    // 피드·대회일정을 뺀 결정(CLAUDE.md Scope)이 코드에 남아 있는지 본다.
+    // branch 를 지우고 탭만 지우면 라우터에 닿을 수 없는 화면이 남는다.
+    final handle = tester.ensureSemantics();
+    await pumpApp(tester);
+
+    expect(find.byType(AppTabBarV2), findsOneWidget);
+    for (final name in [
+      AppStrings.tabHome,
+      AppStrings.tabRecord,
+      AppStrings.tabRecordCard,
+      AppStrings.tabProfile,
+    ]) {
+      expect(tabLabel(name), findsOneWidget, reason: '$name 탭이 없다');
+    }
+    expect(tabLabel('피드'), findsNothing);
+    expect(tabLabel('대회일정'), findsNothing);
+    handle.dispose();
   });
 }

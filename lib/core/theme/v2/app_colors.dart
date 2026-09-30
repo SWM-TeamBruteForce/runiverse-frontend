@@ -40,6 +40,8 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     required this.bgSurface,
     required this.bgElevated,
     required this.bgScrim,
+    required this.bgInverse,
+    required this.bgGlass,
     required this.borderDefault,
     required this.borderStrong,
     required this.textStrong,
@@ -71,6 +73,22 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
 
   /// 모달 뒤 딤.
   final Color bgScrim;
+
+  /// **램프를 뒤집은 면.** 어두운 테마에서 밝고, 밝은 테마에서 어둡다.
+  ///
+  /// 시안 탭 바(`158:2899`)의 선택 알약이 `#FAFAFA`다. 값만 보면
+  /// [textPrimary]와 같지만 **글자색을 면으로 쓰지 않는다** — 뜻이 다른
+  /// 것을 같은 이름으로 부르면 한쪽을 고칠 때 다른 쪽이 따라 움직인다.
+  ///
+  /// 위에 얹는 것은 [primary]다. [textPrimary]를 얹으면 안 보인다.
+  final Color bgInverse;
+
+  /// **반투명 면.** 뒤가 비쳐 보이는 것이 목적이다.
+  ///
+  /// 시안 탭 바가 흰색 10%에 블러 10을 건다. 불투명한 면으로 바꾸면
+  /// 떠 있다는 느낌이 사라진다 — 본문이 그 아래로 지나가는 것이 보여야
+  /// 바가 본문 위에 얹혀 있다고 읽힌다.
+  final Color bgGlass;
 
   final Color borderDefault;
   final Color borderStrong;
@@ -125,6 +143,8 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     bgSurface: AppPaletteV2.neutral900,
     bgElevated: AppPaletteV2.neutral800,
     bgScrim: Color(0x99000000),
+    bgInverse: AppPaletteV2.neutral50,
+    bgGlass: Color(0x1AFFFFFF),
     borderDefault: AppPaletteV2.neutral800,
     borderStrong: AppPaletteV2.neutral700,
     textStrong: AppPaletteV2.white,
@@ -151,6 +171,8 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     bgSurface: AppPaletteV2.neutral50,
     bgElevated: AppPaletteV2.neutral100,
     bgScrim: Color(0x66171719),
+    bgInverse: AppPaletteV2.neutral900,
+    bgGlass: Color(0x14171719),
     borderDefault: AppPaletteV2.neutral200,
     borderStrong: AppPaletteV2.neutral300,
     textStrong: AppPaletteV2.black,
@@ -177,6 +199,8 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     Color? bgSurface,
     Color? bgElevated,
     Color? bgScrim,
+    Color? bgInverse,
+    Color? bgGlass,
     Color? borderDefault,
     Color? borderStrong,
     Color? textStrong,
@@ -200,6 +224,8 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     bgSurface: bgSurface ?? this.bgSurface,
     bgElevated: bgElevated ?? this.bgElevated,
     bgScrim: bgScrim ?? this.bgScrim,
+    bgInverse: bgInverse ?? this.bgInverse,
+    bgGlass: bgGlass ?? this.bgGlass,
     borderDefault: borderDefault ?? this.borderDefault,
     borderStrong: borderStrong ?? this.borderStrong,
     textStrong: textStrong ?? this.textStrong,
@@ -229,6 +255,8 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
       bgSurface: c(bgSurface, other.bgSurface),
       bgElevated: c(bgElevated, other.bgElevated),
       bgScrim: c(bgScrim, other.bgScrim),
+      bgInverse: c(bgInverse, other.bgInverse),
+      bgGlass: c(bgGlass, other.bgGlass),
       borderDefault: c(borderDefault, other.borderDefault),
       borderStrong: c(borderStrong, other.borderStrong),
       textStrong: c(textStrong, other.textStrong),

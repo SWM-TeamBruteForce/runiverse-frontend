@@ -70,11 +70,21 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ),
 
               Padding(
-                padding: const EdgeInsets.fromLTRB(
+                // ⚠️ **바닥 여백에 탭 바 높이를 더한다.**
+                //
+                // 탭 바가 본문 위에 뜨게 바뀌면서(2026-09-30) 이 화면만
+                // 위험해졌다 — 위의 `SafeArea(bottom: false)`가 시스템 여백을
+                // 일부러 안 받기 때문에, 그냥 두면 **맨 아래 카드가 바 뒤로
+                // 들어간다.** 지금은 내용이 짧아 안 보이지만 컬렉션이 차면
+                // 드러난다.
+                //
+                // `padding.bottom`은 `Scaffold`가 `extendBody`일 때 탭 바
+                // 높이를 실어 준다. 숫자를 여기 적지 않는 이유다.
+                padding: EdgeInsets.fromLTRB(
                   AppSpacing.space5,
                   0,
                   AppSpacing.space5,
-                  AppSpacing.space8,
+                  AppSpacing.space8 + MediaQuery.paddingOf(context).bottom,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,

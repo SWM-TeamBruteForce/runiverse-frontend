@@ -94,11 +94,11 @@ abstract final class AppRoutes {
   static String recordDetailOf(int runningRoomId) =>
       '$record/detail/$runningRoomId';
 
-  /// 피드 — 준비 중
-  static const feed = '/feed';
-
-  /// 대회일정 — 준비 중
-  static const competition = '/competition';
+  /// 기록카드 — 준비 중.
+  ///
+  /// 그때 뛴 경험을 사진·회고로 남기는 탭이다. 온보딩 3장이 이걸 소개한다.
+  /// 시안에 화면이 없어 [ComingSoonPage]를 띄운다.
+  static const recordCard = '/record-card';
 
   /// 본인 프로필 (S20)
   static const profile = '/profile';
