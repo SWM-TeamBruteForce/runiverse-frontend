@@ -3,18 +3,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/core/widgets/v2/app_tab_bar.dart';
 import 'package:runiverse/core/widgets/profile_prompt_sheet.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
-/// 하단 탭 셸 — 5개 탭의 공통 껍데기.
+/// 하단 탭 셸 — 4개 탭의 공통 껍데기.
 ///
 /// [StatefulNavigationShell]이 탭별 [Navigator]를 들고 있고, 이 위젯은
 /// 그것을 `body`에 꽂고 아래에 탭 바를 붙인다. **탭을 옮겨도 이 위젯은 살아있다** —
@@ -34,7 +34,7 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 /// `StatefulShellRoute.indexedStack`은 한 번 열린 탭을 살려두므로, 탭마다 띄우면
 /// 시트가 겹쳐 쌓인다.
 ///
-/// 여기 두면 다섯 탭 전부가 같은 관문을 지난다. 그것이 "프로필 없이는 앱을 쓸 수
+/// 여기 두면 네 탭 전부가 같은 관문을 지난다. 그것이 "프로필 없이는 앱을 쓸 수
 /// 없다"는 규칙과도 맞는다 — 홈만 막으면 다른 탭으로 돌아 들어갈 수 있다.
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({required this.navigationShell, super.key});
@@ -132,15 +132,16 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   /// 탭 바 항목. 순서가 곧 라우터의 branch 순서이고, 어긋나면 엉뚱한 탭이 열린다.
   ///
-  /// 아이콘은 **Lucide 2px 스트로크**다(와이어프레임_최종 C1).
-  /// 어느 글리프를 쓸지는 문서가 정해두지 않아 뜻이 가장 가까운 것을 골랐다 —
-  /// 피드는 카드 리스트 화면(S19)이라 `layoutList`를 썼다.
-  static const _tabs = <_TabSpec>[
-    _TabSpec(AppStrings.tabHome, LucideIcons.house),
-    _TabSpec(AppStrings.tabRecord, LucideIcons.calendarDays),
-    _TabSpec(AppStrings.tabFeed, LucideIcons.layoutList),
-    _TabSpec(AppStrings.tabCompetition, LucideIcons.flag),
-    _TabSpec(AppStrings.tabProfile, LucideIcons.user),
+  /// 아이콘 넷은 **고른 것이 아니라 시안(`158:2899`)이 쓰는 것 그대로**다 —
+  /// 내보낸 SVG 가 `assets/icons/`의 넷과 바이트까지 같았다.
+  ///
+  /// ⚠️ **라벨은 화면에 안 그려진다.** 시안이 아이콘만 두기로 해서
+  /// (CLAUDE.md Scope) 스크린리더가 읽는 이름으로만 쓰인다.
+  static const _tabs = <AppTabSpec>[
+    AppTabSpec(icon: AppIcons.home, label: AppStrings.tabHome),
+    AppTabSpec(icon: AppIcons.book, label: AppStrings.tabRecord),
+    AppTabSpec(icon: AppIcons.photo, label: AppStrings.tabRecordCard),
+    AppTabSpec(icon: AppIcons.profile, label: AppStrings.tabProfile),
   ];
 
   void _onDestinationSelected(int index) {
@@ -154,7 +155,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     // ⚠️ `AuthUnknown`이면 세우지 않는다. 모르는 상태에서 막아서면 이미 프로필을
     // 채운 사람도 잠깐 갇힌다.
@@ -180,49 +181,17 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.watch(matchRoomProvider);
 
     return Scaffold(
+      backgroundColor: colors.bgBase,
+      // ⚠️ **탭 바가 본문 위에 뜬다.** 이걸 안 켜면 바는 그대로 떠 보이는데
+      // 그 아래 빈 띠가 생긴다. 켜면 본문이 바 뒤까지 내려오고, 바 높이가
+      // `MediaQuery.padding.bottom`에 실려 본문 쪽 `SafeArea`가 알아서 비켜난다.
+      extendBody: true,
       body: widget.navigationShell,
-      bottomNavigationBar: DecoratedBox(
-        // 탭 바와 본문 사이 경계선. NavigationBar 자체에는 테두리 옵션이 없다.
-        decoration: BoxDecoration(
-          border: Border(top: BorderSide(color: colors.borderDefault)),
-        ),
-        child: NavigationBar(
-          selectedIndex: widget.navigationShell.currentIndex,
-          onDestinationSelected: _onDestinationSelected,
-          backgroundColor: colors.bgSurface,
-          // 다크에서는 그림자 대신 면 밝기로 높이를 표현한다. M3 기본 틴트도 함께 꺼진다.
-          elevation: 0,
-          indicatorColor: colors.primaryMuted,
-          labelTextStyle: WidgetStateProperty.resolveWith((states) {
-            final selected = states.contains(WidgetState.selected);
-            return AppTypography.caption.copyWith(
-              color: selected ? colors.primary : colors.textTertiary,
-              fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
-            );
-          }),
-          destinations: [
-            for (final tab in _tabs)
-              NavigationDestination(
-                label: tab.label,
-                icon: Icon(tab.icon, color: colors.textTertiary),
-                // 같은 글리프에 색만 바꾼다. Lucide는 채움 변형이 없다.
-                selectedIcon: Icon(tab.icon, color: colors.primary),
-              ),
-          ],
-        ),
+      bottomNavigationBar: AppTabBarV2(
+        tabs: _tabs,
+        currentIndex: widget.navigationShell.currentIndex,
+        onSelected: _onDestinationSelected,
       ),
     );
   }
-}
-
-/// 탭 하나의 명세. 라벨과 아이콘.
-///
-/// 선택 상태에 다른 글리프를 쓰지 않는다. Lucide는 스트로크 전용이라 채움 변형이 없다.
-/// 그래도 **색만으로 구분하지는 않는다** — M3 `NavigationBar`가 선택 항목 뒤에
-/// pill 인디케이터를 깔아주고, 라벨 웨이트도 함께 올라간다.
-class _TabSpec {
-  const _TabSpec(this.label, this.icon);
-
-  final String label;
-  final IconData icon;
 }

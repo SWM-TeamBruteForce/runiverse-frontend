@@ -1,4 +1,4 @@
-import 'package:go_router/go_router.dart';
+﻿import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/app/router/app_shell.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
@@ -179,30 +179,18 @@ GoRouter createAppRouter({String? initialLocation}) {
             ],
           ),
 
-          // 2 · 피드 — 화면이 생기면 여기만 갈아끼운다.
+          // 2 · 기록카드 — 화면이 생기면 여기만 갈아끼운다.
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: AppRoutes.feed,
+                path: AppRoutes.recordCard,
                 builder: (context, state) =>
-                    const ComingSoonPage(featureName: AppStrings.tabFeed),
+                    const ComingSoonPage(featureName: AppStrings.tabRecordCard),
               ),
             ],
           ),
 
-          // 3 · 대회일정 — 화면이 생기면 여기만 갈아끼운다.
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoutes.competition,
-                builder: (context, state) => const ComingSoonPage(
-                  featureName: AppStrings.tabCompetition,
-                ),
-              ),
-            ],
-          ),
-
-          // 4 · 프로필 (S22 — 본인)
+          // 3 · 프로필 (S22 — 본인)
           //
           // ⚠️ **S20은 타인 프로필이다.** Figma 페이지 이름이 `S20–S21`이라
           // 헷갈리기 쉽다. 정본은 `와이어프레임_최종.md`다.

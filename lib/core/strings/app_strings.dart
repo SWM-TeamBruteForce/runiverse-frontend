@@ -18,13 +18,17 @@ import 'package:runiverse/core/utils/kst_time.dart';
 abstract final class AppStrings {
   // ── 하단 탭 ──────────────────────────────────────────────────
   //
-  // 탭 5개는 홈 / 기록 / 피드 / 대회일정 / 프로필이다.
+  // 탭 4개는 홈 / 기록 / 기록카드 / 프로필이다(시안 158:2899).
+  // 피드와 대회일정은 2026-09-30 에 탭에서 뺐다.
   // 일부 기획 문서의 '홈/러닝/기록/피드/마이'는 낡은 것이다.
+  //
+  // ⚠️ **이 글자들은 화면에 안 그려진다.** 탭 바가 아이콘만 두기로 해서
+  // 스크린리더가 읽는 이름으로만 쓰인다. 그래도 지우면 안 된다 — 지우면
+  // 보이지 않는 사람에게 이 바는 빈 그림 네 개가 된다.
 
   static const tabHome = '홈';
   static const tabRecord = '기록';
-  static const tabFeed = '피드';
-  static const tabCompetition = '대회일정';
+  static const tabRecordCard = '기록카드';
   static const tabProfile = '프로필';
 
   // ── 준비 중 화면 ─────────────────────────────────────────────
@@ -179,6 +183,7 @@ abstract final class AppStrings {
 
   static const profileHeightLabel = '키';
   static const profileWeightLabel = '몸무게';
+
   /// ⚠️ 숫자를 힌트로 두면 **이미 채워진 값처럼 읽힌다.** 단위만 둔다.
   static const profileHeightHint = 'cm';
   static const profileWeightHint = 'kg';
