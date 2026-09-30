@@ -147,6 +147,11 @@ flutter:
     # 시안이 쓰는 사진. 지금은 로그인 히어로 한 장뿐이다.
     - assets/images/
 
+    # 남의 로고. ⚠️ assets/icons/ 에 두지 않는다 — 그쪽은 AppIcons 목록과
+    # 파일이 1:1 이어야 하고(test/v2_app_icon_test.dart), 단색 틴트를 입힌다.
+    # 브랜드 로고는 제 색을 지켜야 한다.
+    - assets/brand/
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

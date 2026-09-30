@@ -41,6 +41,13 @@ abstract final class AppPaletteV2 {
   /// 가장 어두운 끝. 밝은 테마에서 [white]와 짝이 된다.
   static const black = Color(0xFF000000);
 
+  /// 카카오의 노랑. 시안 `158:2946`의 간편 로그인 타일 바탕이다.
+  ///
+  /// ⚠️ **우리 색이 아니다.** 카카오가 정한 값이라 테마가 바뀌어도 이 값이다 —
+  /// 다크·라이트에서 갈리는 [AppColorsV2]에 두지 않고 팔레트에 둔다.
+  /// 같은 이유로 구글 타일의 바탕은 [neutral50]이 아니라 흰색 계열 고정값이다.
+  static const kakaoYellow = Color(0xFFFFE600);
+
   /// 본문 글자. 시안이 `--label/normal`로 쓰는 값이다.
   ///
   /// [neutral900]과 두 자리만 다르다(`171717` / `171719`). 시안이 둘을 따로
