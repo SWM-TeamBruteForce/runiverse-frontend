@@ -164,6 +164,34 @@ abstract final class AppStrings {
   /// 세션이 끊겨 다시 로그인해야 할 때. 사용자는 아무것도 틀리지 않았다.
   static const profileSubmitExpired = '로그인이 만료됐어요. 다시 로그인해주세요';
 
+  /// 화면 머리글. 시안 `158:2759`.
+  static const profileSetupTitle = '기본 프로필을\n등록해주세요';
+
+  // ── 한 화면 폼으로 바뀌며 생긴 문구 (2026-09-30) ──────────────
+  //
+  // 고르던 값을 **치게** 되면서 못 만들던 값이 만들어진다. 무엇이 잘못됐는지
+  // 자리마다 다르게 말해야 고칠 수 있다.
+
+  static const profileBirthHint = 'ex. 19990116';
+  static const profileBirthMalformed = '8자리 숫자로 적어주세요 (예: 19990116)';
+  static const profileBirthFuture = '아직 오지 않은 날이에요';
+  static const profileBirthTooOld = '날짜를 다시 확인해주세요';
+
+  static const profileHeightLabel = '키';
+  static const profileWeightLabel = '몸무게';
+  /// ⚠️ 숫자를 힌트로 두면 **이미 채워진 값처럼 읽힌다.** 단위만 둔다.
+  static const profileHeightHint = 'cm';
+  static const profileWeightHint = 'kg';
+
+  /// ⚠️ 범위는 `BodyRule`이 정한다. 숫자를 여기 직접 적으면 규칙과 갈린다.
+  static String profileHeightOutOfRange(int min, int max) =>
+      '$min~$max cm 사이로 적어주세요';
+  static String profileWeightOutOfRange(int min, int max) =>
+      '$min~$max kg 사이로 적어주세요';
+
+  /// 페이스 칸의 자리 표시. 누르면 시트가 열린다.
+  static const profilePaceHint = '페이스 선택';
+
   // 닉네임
   static const profileNicknameLabel = '닉네임';
   static const profileNicknameQuestion = '뭐라고 부를까요';

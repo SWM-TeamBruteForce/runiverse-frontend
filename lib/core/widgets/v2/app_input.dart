@@ -56,6 +56,7 @@ class AppInputV2 extends StatefulWidget {
     this.obscureText = false,
     this.suffix,
     this.autofocus = false,
+    this.focusNode,
     super.key,
   });
 
@@ -93,6 +94,12 @@ class AppInputV2 extends StatefulWidget {
 
   final bool autofocus;
 
+  /// 바깥에서 포커스를 옮기고 싶을 때만 준다.
+  ///
+  /// ⚠️ **주면 버리는 것도 준 쪽의 몫이다.** 프로필 등록이 "이미 있는 닉네임"을
+  /// 들었을 때 그 칸으로 데려오려고 쓴다.
+  final FocusNode? focusNode;
+
   @override
   State<AppInputV2> createState() => _AppInputV2State();
 }
@@ -100,8 +107,14 @@ class AppInputV2 extends StatefulWidget {
 class _AppInputV2State extends State<AppInputV2> {
   /// 포커스를 직접 든다. ⚠️ **시안에 포커스 상태가 없다.** 그렇다고 두면 키보드로
   /// 옮겨 다니는 사람이 지금 어느 칸에 있는지 알 방법이 없다. 테두리를 primary로
-  /// 준다 — PR에 "시안에 없어 정한 값"으로 적는다.
-  late final FocusNode _focus = FocusNode()..addListener(_onFocusChange);
+  /// 준다.
+  ///
+  /// ⚠️ 바깥에서 [AppInputV2.focusNode]를 주면 그것을 쓴다. **그때는 버리지
+  /// 않는다** — 남의 것을 버리면 준 쪽이 다음에 쓸 때 죽는다.
+  late final FocusNode _focus = (widget.focusNode ?? FocusNode())
+    ..addListener(_onFocusChange);
+
+  bool get _ownsFocus => widget.focusNode == null;
 
   bool _focused = false;
 
@@ -112,9 +125,8 @@ class _AppInputV2State extends State<AppInputV2> {
 
   @override
   void dispose() {
-    _focus
-      ..removeListener(_onFocusChange)
-      ..dispose();
+    _focus.removeListener(_onFocusChange);
+    if (_ownsFocus) _focus.dispose();
     super.dispose();
   }
 
@@ -148,12 +160,11 @@ class _AppInputV2State extends State<AppInputV2> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
-          padding: labeled
-              ? const EdgeInsets.symmetric(
-                  horizontal: _labeledPadX,
-                  vertical: _labeledPadY,
-                )
-              : const EdgeInsets.all(AppSpacing.space4),
+          // ⚠️ **세로 여백은 여기 두지 않는다.** 여기 두면 suffix 가 그만큼
+          // 좁아져(71 → 43) 44 를 못 채운다. 글자 쪽에만 준다.
+          padding: EdgeInsets.symmetric(
+            horizontal: labeled ? _labeledPadX : AppSpacing.space4,
+          ),
           decoration: BoxDecoration(
             color: colors.bgSurface,
             borderRadius: labeled ? AppRadius.lg : AppRadius.md,
@@ -161,54 +172,71 @@ class _AppInputV2State extends State<AppInputV2> {
             // 커져 포커스를 옮길 때마다 줄이 흔들린다.
             border: Border.all(color: border),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (labeled) ...[
-                      Text(
-                        widget.label!,
-                        style: AppTypographyV2.body22.copyWith(
-                          color: colors.textTertiary,
-                        ),
-                      ),
-                      const SizedBox(height: _labelGap),
-                    ],
-                    TextField(
-                      controller: widget.controller,
-                      focusNode: _focus,
-                      autofocus: widget.autofocus,
-                      keyboardType: widget.keyboardType,
-                      inputFormatters: widget.inputFormatters,
-                      textInputAction: widget.textInputAction,
-                      onChanged: widget.onChanged,
-                      onSubmitted: widget.onSubmitted,
-                      obscureText: widget.obscureText,
-                      style: valueStyle.copyWith(color: colors.textPrimary),
-                      cursorColor: colors.primary,
-                      // 칸은 바깥 [Container]가 그린다. [TextField]가 제 여백과
-                      // 테두리를 또 그리면 시안의 높이(71 · 53)를 맞출 수 없다.
-                      decoration: InputDecoration(
-                        hintText: widget.hint,
-                        hintStyle: valueStyle.copyWith(
-                          color: colors.textTertiary,
-                        ),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
+          // ⚠️ [IntrinsicHeight] + stretch 로 **suffix 에 칸의 높이를 물려준다.**
+          //
+          // Flutter 는 부모의 경계 밖을 히트 테스트하지 않는다. suffix 가 제
+          // 크기(36)만 차지하면 그만큼만 눌리고, 44 규칙을 지킬 길이 없다 —
+          // `OverflowBox` 로도 음수 `Positioned` 로도 **레이아웃만 커지고 탭
+          // 영역은 안 넓어진다.** 칸이 이미 53~71 이므로 그 높이를 주면 된다.
+          //
+          // 칸의 높이는 그대로다. `IntrinsicHeight` 가 자식들의 고유 높이 중
+          // 큰 쪽을 쓰는데, 글자 쪽이 suffix 보다 크다.
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      vertical: labeled ? _labeledPadY : AppSpacing.space4,
                     ),
-                  ],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (labeled) ...[
+                          Text(
+                            widget.label!,
+                            style: AppTypographyV2.body22.copyWith(
+                              color: colors.textTertiary,
+                            ),
+                          ),
+                          const SizedBox(height: _labelGap),
+                        ],
+                        TextField(
+                          controller: widget.controller,
+                          focusNode: _focus,
+                          autofocus: widget.autofocus,
+                          keyboardType: widget.keyboardType,
+                          inputFormatters: widget.inputFormatters,
+                          textInputAction: widget.textInputAction,
+                          onChanged: widget.onChanged,
+                          onSubmitted: widget.onSubmitted,
+                          obscureText: widget.obscureText,
+                          style: valueStyle.copyWith(color: colors.textPrimary),
+                          cursorColor: colors.primary,
+                          // 칸은 바깥 [Container]가 그린다. [TextField]가 제 여백과
+                          // 테두리를 또 그리면 시안의 높이(71 · 53)를 맞출 수 없다.
+                          decoration: InputDecoration(
+                            hintText: widget.hint,
+                            hintStyle: valueStyle.copyWith(
+                              color: colors.textTertiary,
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-              if (widget.suffix != null) ...[
-                const SizedBox(width: AppSpacing.space3),
-                widget.suffix!,
+                if (widget.suffix != null) ...[
+                  const SizedBox(width: AppSpacing.space3),
+                  widget.suffix!,
+                ],
               ],
-            ],
+            ),
           ),
         ),
 

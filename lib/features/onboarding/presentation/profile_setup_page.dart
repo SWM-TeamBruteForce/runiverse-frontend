@@ -3,23 +3,25 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_motion.dart';
-import 'package:runiverse/core/theme/tokens/app_radius.dart';
-import 'package:runiverse/core/theme/tokens/app_sizes.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_motion.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/utils/age_rule.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
-import 'package:runiverse/core/widgets/app_input.dart';
-import 'package:runiverse/core/widgets/preset_chip.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/core/widgets/v2/app_input.dart';
+import 'package:runiverse/core/widgets/v2/field_action.dart';
+import 'package:runiverse/core/widgets/v2/step_progress.dart';
 import 'package:runiverse/core/widgets/wheel_picker_sheet.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/onboarding/domain/body_rule.dart';
 import 'package:runiverse/features/onboarding/domain/gender.dart';
 import 'package:runiverse/features/onboarding/domain/nickname_rule.dart';
 import 'package:runiverse/features/onboarding/domain/onboarding_failure.dart';
@@ -27,43 +29,42 @@ import 'package:runiverse/features/onboarding/domain/onboarding_profile.dart';
 import 'package:runiverse/features/onboarding/domain/pace_level.dart';
 import 'package:runiverse/features/onboarding/presentation/onboarding_provider.dart';
 
-/// 답한 줄과 시트를 여는 줄의 공통 높이.
+/// 프로필 등록 (S04). 시안 `158:2758`.
 ///
-/// 44px는 **눌리는 최소 크기**지 보기 좋은 크기가 아니다. 이 화면은 답이 다섯 줄까지만
-/// 쌓여 아래가 크게 비는데, 줄마다 조금씩 키우면 그 여백이 줄고 줄 사이도 읽기 쉬워진다.
+/// ## ⚠️ 한 번에 하나씩 묻던 화면이었다 (2026-09-30에 뒤집었다)
 ///
-/// 두 줄이 **같은 값을 쓰는 것이 중요하다** — 답한 줄과 아직 안 채운 줄의 높이가 다르면
-/// 목록이 들쭉날쭉해 보인다. 56은 토큰이 아니라 `터치 최소 + space3`으로 만든 값이다.
-const _rowHeight = AppSizes.touchDefault + AppSpacing.space3; // 56
-
-/// 프로필 등록 (S04).
+/// 오래 **답하면 다음 질문이 아래에 붙고 답한 것은 위에 쌓이는** 화면이었다.
+/// 그렇게 만든 이유가 있었고, 그대로 옮겨 적는다.
 ///
-/// ## 한 번에 하나만 묻는다
+/// > 와이어프레임은 여섯 항목을 한 화면에 늘어놓는다. 답을 시작하기 전에
+/// > 분량부터 가늠하게 되는 배치라, 온보딩 3분 안에서는 이탈 신호다.
+/// >
+/// > 생년월일·키·몸무게는 휠 시트로 고른다. 숫자를 치게 하면 2월 31일이나
+/// > 키 700cm처럼 만들 수 없어야 할 값이 만들어지고, 키보드가 화면 절반을 가린다.
 ///
-/// 와이어프레임은 여섯 항목을 한 화면에 늘어놓는다. 답을 시작하기 전에 분량부터
-/// 가늠하게 되는 배치라, 온보딩 3분 안에서는 이탈 신호다.
-/// 여기서는 **답하면 다음 질문이 아래에 붙고, 답한 것은 위에 쌓인다.**
-/// 쌓인 줄이 곧 진행 상황이라 진행 인디케이터가 따로 필요 없다.
+/// 시안을 따르기로 하면서 그 판단을 뒤집었다. **되돌린 것이 아니라 새로 정한
+/// 것이다** — 다음 사람이 "왜 예전 방식으로 돌아갔나"를 다시 묻지 않도록 남긴다.
 ///
-/// 쌓인 줄은 아무 때나 눌러 그 질문으로 돌아갈 수 있다. **이게 없으면 자동 진행은
-/// 밀려가는 느낌만 준다.**
+/// 걱정하던 두 가지는 이렇게 막는다.
 ///
-/// ## 타이핑은 닉네임 하나뿐이다
+/// - **못 만들 값** — [BodyRule]이 막는다. 휠이 하던 일을 규칙이 대신한다.
+///   ⚠️ 휠도 2월 31일은 못 막았다(일 칸이 달과 무관하게 1~31이었다). 이제 막힌다
+/// - **키보드가 가리는 것** — 폼이 스크롤되고 `Scaffold`가 키보드만큼 밀어 올린다
 ///
-/// 생년월일·키·몸무게는 휠 시트로 고른다. 숫자를 치게 하면 2월 31일이나 키 700cm처럼
-/// 만들 수 없어야 할 값이 만들어지고, 키보드가 화면 절반을 가린다.
+/// ## 타이핑은 넷, 고르는 것은 둘
 ///
-/// 성별·페이스는 시트를 쓰지 않는다. 선택지가 3~4개뿐이라 시트를 열면
-/// `열기 → 고르기`로 **탭이 하나 늘어난다.** 인라인 칩이 1탭이다.
+/// 닉네임·생년월일·키·몸무게는 친다. 성별은 토글, 페이스는 시트다 —
+/// 페이스는 `분`과 `초` 두 칸이라 치게 하면 오히려 번거롭다.
+///
+/// ## 페이스는 비워도 된다
+///
+/// `null`은 **미측정**이다. 기본값을 몰래 채우면 그 숫자가 그대로 시그니처
+/// 컬러가 되고, 사용자는 자기가 고르지 않은 색을 갖게 된다.
 ///
 /// ## 상태를 provider로 올리지 않는다
 ///
-/// 서버 전송이 붙었지만 **화면 밖에서 이 값을 알 필요가 여전히 없다.**
-/// 여기서 모아 한 번 보내고 화면을 떠나면 버리는 값이다.
-/// provider에서 가져오는 것은 값이 아니라 **보낼 곳**(`onboardingRepositoryProvider`)뿐이다.
-///
-/// 전송 중·실패 상태(`_submitting` · `_submitFailure`)도 화면이 들고 있다 —
-/// "버튼이 도는 중"은 화면의 상태지 앱 전체의 상태가 아니다(`auth_provider.dart`와 같은 규칙).
+/// 여기서 모아 한 번 보내고 화면을 떠나면 버리는 값이다. provider에서 가져오는
+/// 것은 값이 아니라 **보낼 곳**(`onboardingRepositoryProvider`)뿐이다.
 class ProfileSetupPage extends ConsumerStatefulWidget {
   const ProfileSetupPage({super.key});
 
@@ -73,27 +74,17 @@ class ProfileSetupPage extends ConsumerStatefulWidget {
 
 class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
     with SingleTickerProviderStateMixin {
-  /// 질문 순서. 쉬운 것(이름) → 민감한 것(몸) → 흥미로운 것(페이스) 순이다.
-  static const _stepCount = 5;
-  static const _stepNickname = 0;
-  static const _stepBirth = 1;
-  static const _stepGender = 2;
-  static const _stepBody = 3;
-  static const _stepPace = 4;
-
-  final _scroll = ScrollController();
   final _nickname = TextEditingController();
+  final _birth = TextEditingController();
+  final _height = TextEditingController();
+  final _weight = TextEditingController();
 
-  /// 지금 묻고 있는 질문. [_stepCount]에 닿으면 다 채운 것이다.
-  int _step = 0;
+  /// 닉네임 칸. 서버가 "이미 있다"고 하면 여기로 데려온다.
+  final _nicknameFocus = FocusNode();
 
-  DateTime? _birth;
   Gender? _gender;
-  int? _height;
-  int? _weight;
 
-  /// 1km당 초. **`null`은 '미측정'이지 '아직 안 물어봄'이 아니다** —
-  /// 물어봤는지는 [_step]이 안다.
+  /// 1km당 초. **`null`은 '미측정'이다** — 비워 두고 넘어갈 수 있다.
   int? _paceSeconds;
 
   /// 전송 중. 버튼이 두 번 눌리는 것을 막는다.
@@ -145,8 +136,11 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
     _limitTimer?.cancel();
     _checkTimer?.cancel();
     _shake.dispose();
-    _scroll.dispose();
     _nickname.dispose();
+    _birth.dispose();
+    _height.dispose();
+    _weight.dispose();
+    _nicknameFocus.dispose();
     super.dispose();
   }
 
@@ -159,7 +153,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
   NicknameStatus get _nicknameStatus =>
       NicknameRule.of(_nicknameLength, _nickname.text.trim());
 
-  /// 12자를 넘겨 치려 한 순간. 잘라내기만 하면 고장난 것으로 읽힌다.
+  /// 16자를 넘겨 치려 한 순간. 잘라내기만 하면 고장난 것으로 읽힌다.
   void _onNicknameRejected() {
     _limitTimer?.cancel();
     _shake.forward(from: 0);
@@ -170,8 +164,6 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
   }
 
   /// 이름이 바뀌었다. **서버가 한 말은 전부 낡은 말이 된다.**
-  ///
-  /// 지난 답을 버리고, 형식을 통과했으면 손이 멎기를 기다렸다가 다시 묻는다.
   void _onNicknameChanged() {
     _checkTimer?.cancel();
     setState(() {
@@ -184,8 +176,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
     });
 
     // ⚠️ 형식이 틀리면 묻지 않는다. 서버도 400으로 거절하는데, 그 400은
-    // **앱 규칙이 서버와 어긋났다는 신호**로만 써야 한다. 정상 경로에서
-    // 400을 만들면 그 신호가 죽는다.
+    // **앱 규칙이 서버와 어긋났다는 신호**로만 써야 한다.
     if (!_nicknameStatus.isValid) return;
 
     _checkTimer = Timer(_checkDebounce, () {
@@ -193,13 +184,12 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
     });
   }
 
-  /// 서버에 겹치는지 묻고 **결과만 남긴다.** 단계를 넘기지 않는다.
+  /// 서버에 겹치는지 묻고 **결과만 남긴다.**
   Future<void> _checkNickname() async {
     if (!_nicknameStatus.isValid) return;
 
     // ⚠️ 앞 요청이 아직 안 끝났다. 여기서 그냥 돌아가면 **이 이름은 영영
-    // 안 물어본다** — 타이머는 이미 소진됐고 다시 걸어주는 사람이 없어서,
-    // 화면이 "확인할게요"에 멈춘 채로 남는다. 뒤로 미뤄 다시 건다.
+    // 안 물어본다** — 타이머는 이미 소진됐고 다시 걸어주는 사람이 없다.
     if (_checkingNickname) {
       _checkTimer?.cancel();
       _checkTimer = Timer(_checkDebounce, () {
@@ -244,132 +234,87 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
   ///
   /// ⚠️ 물어봤다는 것만으로는 모자란다. 실패한 확인도 `_checkedNickname`을
   /// 남기는데 그것을 답으로 치면 '확인'이 재시도 분기를 건너뛰어,
-  /// **눌리는데 아무 일도 일어나지 않는 버튼**이 된다. 그때 사용자가 빠져나갈
-  /// 길은 이름을 고치는 것뿐이다.
+  /// **눌리는데 아무 일도 일어나지 않는 버튼**이 된다.
   bool get _hasFreshAnswer =>
       _checkedAvailable != null && _checkedNickname == _nickname.text.trim();
 
-  /// '확인'을 눌렀다. **묻는 것은 입력 중에 이미 끝났을 수 있다.**
-  ///
-  /// 제출 때까지 미루지 않는 이유는 닉네임이 첫 질문이어서다. 다섯 개를 다 채운
-  /// 뒤에 알면 네 질문을 거슬러 여기로 돌아와야 한다.
-  Future<void> _submitNickname() async {
+  /// '중복확인'을 눌렀다. 디바운스를 기다리는 중이었다면 지금 묻는다.
+  Future<void> _confirmNickname() async {
     if (!_nicknameStatus.isValid || _checkingNickname) return;
-
-    // 디바운스를 기다리는 중이었다면 지금 묻는다 — 기다릴 이유가 없다.
-    if (!_hasFreshAnswer) {
-      _checkTimer?.cancel();
-      await _checkNickname();
-      if (!mounted) return;
-    }
-
-    if (_hasFreshAnswer && _checkedAvailable == true) _advance();
+    _checkTimer?.cancel();
+    await _checkNickname();
   }
 
-  // ── 진행 ──────────────────────────────────────────────────
+  // ── 값 읽기 ───────────────────────────────────────────────
 
-  void _advance() {
-    setState(() => _step++);
-    _scrollToBottom();
-  }
+  DateTime? get _birthDate => BodyRule.parseBirth(_birth.text);
+  int? get _heightCm => BodyRule.parseNumber(_height.text);
+  int? get _weightKg => BodyRule.parseNumber(_weight.text);
 
-  void _goBackTo(int step) {
-    setState(() => _step = step);
-  }
+  /// 생년월일 칸의 오류 문구. **비어 있으면 아무 말도 하지 않는다** —
+  /// 아직 안 친 것뿐이다.
+  String? get _birthError {
+    if (_birth.text.isEmpty) return null;
 
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scroll.hasClients) return;
-      _scroll.animateTo(
-        _scroll.position.maxScrollExtent,
-        duration: AppMotion.slow,
-        curve: AppMotion.easeSlow,
-      );
-    });
-  }
+    final date = _birthDate;
+    if (date == null) return AppStrings.profileBirthMalformed;
 
-  Future<void> _pickBirth() async {
     final now = DateTime.now();
-    final current = _birth ?? DateTime(now.year - 27, 4, 12);
-
-    final picked = await showWheelPickerSheet(
-      context,
-      title: AppStrings.profileBirthLabel,
-      columns: [
-        WheelColumn(
-          unit: AppStrings.profileUnitYear,
-          // ⚠️ 상한은 `AgeRule`이 정한다. 여기서 숫자를 직접 적으면
-          // 프로필 수정 화면과 갈린다.
-          values: [
-            for (var y = now.year - 80; y <= AgeRule.latestYear(now); y++) y,
-          ],
-          initial: current.year,
-        ),
-        WheelColumn(
-          unit: AppStrings.profileUnitMonth,
-          values: [for (var m = 1; m <= 12; m++) m],
-          initial: current.month,
-        ),
-        WheelColumn(
-          unit: AppStrings.profileUnitDay,
-          values: [for (var d = 1; d <= 31; d++) d],
-          initial: current.day,
-          // 일 목록은 년·월에 달렸다. 다음 달 0일 = 이번 달 마지막 날.
-          valuesFor: (picked) => [
-            for (var d = 1; d <= DateTime(picked[0], picked[1] + 1, 0).day; d++)
-              d,
-          ],
-        ),
-      ],
-    );
-    if (picked == null) return;
-
-    final birth = DateTime(picked[0], picked[1], picked[2]);
-    setState(() => _birth = birth);
-
-    // ⚠️ **막혔으면 다음으로 넘기지 않는다.** 고른 값은 그대로 두어 무엇을
-    // 골랐는지 보이게 하고, 아래에 이유를 띄운다. 값을 지워버리면 왜 안
-    // 넘어가는지 알 수 없다.
-    if (_birthTooYoung) return;
-    _advance();
+    // ⚠️ 미래를 먼저 본다. 나이 판정에도 걸리지만 그때 나오는 말은
+    // "너무 어려요"라, 무엇이 잘못됐는지 알 수 없다.
+    if (BodyRule.isFutureBirth(date, now: now)) {
+      return AppStrings.profileBirthFuture;
+    }
+    if (BodyRule.isTooOldBirth(date, now: now)) {
+      return AppStrings.profileBirthTooOld;
+    }
+    if (!AgeRule.isAllowed(date, now: now)) {
+      return AppStrings.profileBirthTooYoung;
+    }
+    return null;
   }
 
-  /// 만 14세 미만인가. 아직 안 골랐으면 `false`다 — 고르기 전에 경고를
-  /// 띄울 이유가 없다.
-  bool get _birthTooYoung {
-    final birth = _birth;
-    if (birth == null) return false;
-    return !AgeRule.isAllowed(birth, now: DateTime.now());
+  String? get _heightError {
+    if (_height.text.isEmpty) return null;
+    final cm = _heightCm;
+    if (cm == null || !BodyRule.isAllowedHeight(cm)) {
+      return AppStrings.profileHeightOutOfRange(
+        BodyRule.minHeight,
+        BodyRule.maxHeight,
+      );
+    }
+    return null;
   }
 
-  Future<void> _pickBody() async {
-    final picked = await showWheelPickerSheet(
-      context,
-      title: AppStrings.profileBodyLabel,
-      columns: [
-        WheelColumn(
-          unit: AppStrings.profileUnitHeight,
-          values: [for (var h = 130; h <= 210; h++) h],
-          initial: _height ?? 172,
-        ),
-        WheelColumn(
-          unit: AppStrings.profileUnitWeight,
-          values: [for (var w = 30; w <= 140; w++) w],
-          initial: _weight ?? 63,
-        ),
-      ],
-    );
-    if (picked == null) return;
-
-    setState(() {
-      _height = picked[0];
-      _weight = picked[1];
-    });
-    _advance();
+  String? get _weightError {
+    if (_weight.text.isEmpty) return null;
+    final kg = _weightKg;
+    if (kg == null || !BodyRule.isAllowedWeight(kg)) {
+      return AppStrings.profileWeightOutOfRange(
+        BodyRule.minWeight,
+        BodyRule.maxWeight,
+      );
+    }
+    return null;
   }
+
+  /// 다 채웠는가. **페이스는 보지 않는다** — 미측정으로 넘어갈 수 있다.
+  bool get _done =>
+      _nicknameStatus.isValid &&
+      _hasFreshAnswer &&
+      _checkedAvailable == true &&
+      _birth.text.isNotEmpty &&
+      _birthError == null &&
+      _gender != null &&
+      _height.text.isNotEmpty &&
+      _heightError == null &&
+      _weight.text.isNotEmpty &&
+      _weightError == null;
+
+  // ── 페이스 ────────────────────────────────────────────────
 
   Future<void> _pickPace() async {
-    final current = _paceSeconds ?? PaceRule.intermediateBelow;
+    final current = _paceSeconds ?? PaceRule.toSeconds(6, 0);
 
     final picked = await showWheelPickerSheet(
       context,
@@ -384,8 +329,6 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
         ),
         WheelColumn(
           unit: AppStrings.profileUnitSecond,
-          // 5초 단위. 스스로 신고하는 값에 1초 정확도는 의미가 없고,
-          // 59칸을 굴리게 하면 고르기가 일이 된다.
           values: [for (var s = 0; s < 60; s += PaceRule.secondStep) s],
           initial: (current % 60) ~/ PaceRule.secondStep * PaceRule.secondStep,
         ),
@@ -394,20 +337,20 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
     if (picked == null) return;
 
     setState(() => _paceSeconds = PaceRule.toSeconds(picked[0], picked[1]));
-    _advance();
   }
 
-  /// 아직 재본 적 없다. **아무 값도 넣지 않고** 다음으로 간다.
-  ///
-  /// 기본값을 몰래 채우면 그 숫자가 그대로 시그니처 컬러가 되고, 사용자는
-  /// 자기가 고르지 않은 색을 갖게 된다. 미측정은 미측정으로 남긴다.
-  void _skipPace() {
-    setState(() => _paceSeconds = null);
-    _advance();
+  /// `5'42" /km` 형태. 미측정이면 `null`.
+  String? get _paceLabel {
+    final total = _paceSeconds;
+    if (total == null) return null;
+    final seconds = (total % 60).toString().padLeft(2, '0');
+    return "${total ~/ 60}'$seconds\" ${AppStrings.profilePacePerKm}";
   }
+
+  // ── 보내기 ────────────────────────────────────────────────
 
   Future<void> _finish() async {
-    if (_submitting) return;
+    if (_submitting || !_done) return;
     setState(() {
       _submitting = true;
       _submitFailure = null;
@@ -416,10 +359,10 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
     final profile = OnboardingProfile(
       nickname: _nickname.text.trim(),
       gender: _gender!,
-      birthday: _birth!,
+      birthday: _birthDate!,
       paceSecondsPerKm: _paceSeconds,
-      heightCm: _height!,
-      weightKg: _weight!,
+      heightCm: _heightCm!,
+      weightKg: _weightKg!,
     );
 
     OnboardingFailure? failure;
@@ -442,32 +385,29 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
       failure = error.failure;
     }
 
-    // await 사이에 화면이 사라졌을 수 있다. setState나 context를 쓰기 전에 반드시 본다.
+    // await 사이에 화면이 사라졌을 수 있다.
     if (!mounted) return;
 
     if (failure != null) {
-      // 입력은 그대로 둔다. 다섯 개를 다시 채우게 하지 않는다.
+      // 입력은 그대로 둔다. 여섯 개를 다시 채우게 하지 않는다.
       setState(() {
         _submitting = false;
         _submitFailure = failure;
-        // 닉네임 중복만 **고칠 자리가 정해져 있다.** 마지막 화면에 세워두면
-        // 어디를 고쳐야 하는지 스스로 찾아야 한다.
-        if (failure == OnboardingFailure.nicknameTaken) _step = _stepNickname;
       });
+      // 닉네임 중복만 **고칠 자리가 정해져 있다.** 한 화면 폼이라 스크롤로
+      // 가려져 있을 수 있어, 그 칸으로 데려온다.
+      if (failure == OnboardingFailure.nicknameTaken) {
+        _nicknameFocus.requestFocus();
+      }
       return;
     }
 
     // ⚠️ 원래는 시그니처 컬러 리빌(S04.5)로 간다. 그 화면이 아직 없어 여기서 끝난다.
     //
-    // 리빌이 생기면 PaceRule.levelOf(_paceSeconds)를 넘긴다.
-    // 그 값의 needsPracticeNudge가 홈의 '혼자 연습하기' 유도를 켠다.
-    //
     // **왔던 자리로 돌려보낸다.** 프로필 탭의 유도 시트에서 시작했으면 그 탭으로
-    // 돌아가 방금 채운 이름이 그 자리에 뜬다. 홈으로 던지면 "내가 쓴 게 어디 갔지"
-    // 하고 다시 찾아가야 한다.
+    // 돌아가 방금 채운 이름이 그 자리에 뜬다.
     //
-    // 인증 직후에는 `go`로 열려 스택에 이 화면뿐이다 — 돌아갈 곳이 없으므로
-    // 그때만 홈이다. 처음 온 사람이 볼 것은 자기 프로필이 아니라 매칭이다.
+    // 인증 직후에는 `go`로 열려 스택에 이 화면뿐이다 — 그때만 홈이다.
     if (context.canPop()) {
       context.pop();
     } else {
@@ -477,86 +417,130 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
 
   // ── 그리기 ────────────────────────────────────────────────
 
-  String get _birthLabel {
-    final b = _birth!;
-    final month = b.month.toString().padLeft(2, '0');
-    final day = b.day.toString().padLeft(2, '0');
-    return '${b.year}. $month. $day';
-  }
-
-  String _answerOf(int step) => switch (step) {
-    _stepNickname => _nickname.text.trim(),
-    _stepBirth => _birthLabel,
-    _stepGender => _genderLabel(_gender!),
-    _stepBody =>
-      '$_height ${AppStrings.profileUnitHeight} · $_weight ${AppStrings.profileUnitWeight}',
-    _ => _paceLabel ?? AppStrings.profilePaceUnmeasured,
-  };
-
-  /// `5'42" /km` 형태. 미측정이면 `null`.
-  String? get _paceLabel {
-    final total = _paceSeconds;
-    if (total == null) return null;
-    final seconds = (total % 60).toString().padLeft(2, '0');
-    return "${total ~/ 60}'$seconds\" ${AppStrings.profilePacePerKm}";
-  }
-
-  /// [Gender]를 화면 문구로. **변환을 여기 한 곳에만 둔다** —
-  /// 칩 목록과 답한 줄이 각자 변환하면 언젠가 둘이 갈린다.
-  String _genderLabel(Gender gender) => switch (gender) {
-    Gender.male => AppStrings.profileGenderMale,
-    Gender.female => AppStrings.profileGenderFemale,
-  };
-
-  String _labelOf(int step) => switch (step) {
-    _stepNickname => AppStrings.profileNicknameLabel,
-    _stepBirth => AppStrings.profileBirthLabel,
-    _stepGender => AppStrings.profileGenderLabel,
-    _stepBody => AppStrings.profileBodyLabel,
-    _ => AppStrings.profilePaceLabel,
-  };
-
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
-    final done = _step >= _stepCount;
+    final colors = context.appColorsV2;
 
     return Scaffold(
+      // 앱 테마는 아직 옛 세대라 scaffold 배경이 푸른 회색이다.
+      backgroundColor: colors.bgBase,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // ⚠️ 시안에는 뒤로가기와 건너뛰기가 있다. 둘 다 넣지 않는다 —
+            // 프로필은 채워야 앱을 쓸 수 있고(라우터가 여기로 돌려보낸다),
+            // 인증 직후에는 `go`로 열려 뒤로 갈 곳도 없다.
+            //
+            // 대신 그 줄만큼 비운다. 약관·회원가입은 뒤로가기 줄 아래에
+            // 진행 바가 오는데, 여기만 위로 붙으면 넘길 때 바가 튄다.
+            const SizedBox(height: AppSizes.touchDefault + AppSpacing.space6),
+
+            // 가입 흐름의 마지막 걸음. 약관 → 회원가입 → **프로필 등록**.
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.space6,
+              ),
+              child: const StepProgressV2(step: 3, total: 3),
+            ),
+
             Expanded(
               child: SingleChildScrollView(
-                controller: _scroll,
                 padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.space5,
+                  AppSpacing.space6,
                   AppSpacing.space7,
-                  AppSpacing.space5,
+                  AppSpacing.space6,
                   AppSpacing.space4,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      AppStrings.profileTitle,
-                      style: AppTypography.h1.copyWith(
+                      AppStrings.profileSetupTitle,
+                      style: AppTypographyV2.heading04.copyWith(
                         color: colors.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.space6),
+                    const SizedBox(height: AppSpacing.space7),
 
-                    // 답한 것 — 누르면 그 질문으로 돌아간다.
-                    for (var i = 0; i < _step; i++)
-                      _AnsweredRow(
-                        label: _labelOf(i),
-                        value: _answerOf(i),
-                        onTap: () => _goBackTo(i),
-                      ),
+                    _nicknameField(),
+                    const SizedBox(height: AppSpacing.space2),
 
-                    if (!done) ...[
-                      const SizedBox(height: AppSpacing.space6),
-                      _currentQuestion(),
+                    AppInputV2(
+                      controller: _birth,
+                      label: AppStrings.profileBirthLabel,
+                      hint: AppStrings.profileBirthHint,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(BodyRule.birthDigits),
+                      ],
+                      textInputAction: TextInputAction.next,
+                      onChanged: (_) => setState(() {}),
+                      tone: _birthError == null
+                          ? AppInputToneV2.neutral
+                          : AppInputToneV2.error,
+                      helper: _birthError,
+                    ),
+                    const SizedBox(height: AppSpacing.space2),
+
+                    _GenderToggle(
+                      value: _gender,
+                      onChanged: (gender) => setState(() => _gender = gender),
+                    ),
+                    const SizedBox(height: AppSpacing.space2),
+
+                    // 키와 몸무게는 나란히. 시안 `158:2792` · `158:2797`.
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: AppInputV2(
+                            controller: _height,
+                            label: AppStrings.profileHeightLabel,
+                            hint: AppStrings.profileHeightHint,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(3),
+                            ],
+                            textInputAction: TextInputAction.next,
+                            onChanged: (_) => setState(() {}),
+                            tone: _heightError == null
+                                ? AppInputToneV2.neutral
+                                : AppInputToneV2.error,
+                            helper: _heightError,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.space2),
+                        Expanded(
+                          child: AppInputV2(
+                            controller: _weight,
+                            label: AppStrings.profileWeightLabel,
+                            hint: AppStrings.profileWeightHint,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(3),
+                            ],
+                            textInputAction: TextInputAction.done,
+                            onChanged: (_) => setState(() {}),
+                            tone: _weightError == null
+                                ? AppInputToneV2.neutral
+                                : AppInputToneV2.error,
+                            helper: _weightError,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.space2),
+
+                    _PaceField(value: _paceLabel, onTap: _pickPace),
+
+                    if (_submitFailure != null &&
+                        _submitFailure != OnboardingFailure.nicknameTaken) ...[
+                      const SizedBox(height: AppSpacing.space4),
+                      _FailureNotice(failure: _submitFailure!),
                     ],
                   ],
                 ),
@@ -565,48 +549,27 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
 
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                AppSpacing.space4,
+                AppSpacing.space6,
                 0,
-                AppSpacing.space4,
-                AppSpacing.space4,
+                AppSpacing.space6,
+                AppSpacing.space6,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // 닉네임 중복은 여기 쓰지 않는다. **고칠 입력칸 바로 아래**에
-                  // 띄운다 — 화면 맨 아래에 두면 무엇을 고치라는 말인지 멀다.
-                  if (_submitFailure != null &&
-                      _submitFailure != OnboardingFailure.nicknameTaken) ...[
-                    Text(
-                      _submitFailure == OnboardingFailure.sessionExpired
-                          ? AppStrings.profileSubmitExpired
-                          : AppStrings.profileSubmitFailed,
-                      textAlign: TextAlign.center,
-                      style: AppTypography.caption.copyWith(
-                        color: colors.error,
+              child: SizedBox(
+                height: AppSizes.touchRunning,
+                child: _submitting
+                    ? Center(
+                        child: SizedBox.square(
+                          dimension: AppSpacing.space6,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: colors.primary,
+                          ),
+                        ),
+                      )
+                    : AppButtonV2(
+                        label: AppStrings.profileNext,
+                        onPressed: _done ? _finish : null,
                       ),
-                    ),
-                    const SizedBox(height: AppSpacing.space3),
-                  ],
-                  AppButton(
-                    label: AppStrings.profileNext,
-                    // 마지막 답까지 채워야 열린다. 중간에 누를 일이 없으므로
-                    // '무엇이 남았는지' 안내는 두지 않았다 — 남은 건 늘 바로 아래 하나다.
-                    //
-                    // 전송 중에도 잠근다. 두 번 누르면 요청이 두 번 나간다.
-                    onPressed: (done && !_submitting) ? _finish : null,
-                  ),
-
-                  // 여기 있던 `나중에 하기`를 없앴다. **인증 직후에는 채우고 지나간다.**
-                  //
-                  // 나가는 문을 눈에 보이게 두면 대부분 그것을 누르고, 프로필 없는
-                  // 사람이 늘어난다. 매칭도 기록도 이 값들 위에 서므로 그만큼 쓸 수
-                  // 없는 앱이 된다.
-                  //
-                  // 여전히 갇히지는 않는다 — 앱을 끄고 다시 열면 자동 로그인이
-                  // 홈으로 보내고, 거기서 `ProfilePromptCard`가 이어받는다.
-                ],
               ),
             ),
           ],
@@ -615,171 +578,68 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
     );
   }
 
-  Widget _currentQuestion() => switch (_step) {
-    _stepNickname => _Question(
-      key: const ValueKey(_stepNickname),
-      question: AppStrings.profileNicknameQuestion,
-      why: AppStrings.profileNicknameWhy,
-      child: _nicknameField(),
-    ),
-    _stepBirth => _Question(
-      key: const ValueKey(_stepBirth),
-      question: AppStrings.profileBirthQuestion,
-      why: AppStrings.profileBirthWhy,
-      child: _PickerRow(
-        value: _birth == null ? null : _birthLabel,
-        onTap: _pickBirth,
-        // 만 14세 미만이면 여기서 멈춘다. 서버도 400으로 막지만 그 메시지는
-        // 화면에 닿지 않는다.
-        error: _birthTooYoung ? AppStrings.profileBirthTooYoung : null,
-      ),
-    ),
-    _stepGender => _Question(
-      key: const ValueKey(_stepGender),
-      question: AppStrings.profileGenderQuestion,
-      why: AppStrings.profileGenderWhy,
-      child: _ChipRow(
-        options: const [
-          AppStrings.profileGenderMale,
-          AppStrings.profileGenderFemale,
-        ],
-        selected: _gender == null ? null : _genderLabel(_gender!),
-        onPick: (value) {
-          setState(() {
-            _gender = value == AppStrings.profileGenderMale
-                ? Gender.male
-                : Gender.female;
-          });
-          _advance();
-        },
-      ),
-    ),
-    _stepBody => _Question(
-      key: const ValueKey(_stepBody),
-      question: AppStrings.profileBodyQuestion,
-      why: AppStrings.profileBodyWhy,
-      child: _PickerRow(
-        value: _height == null ? null : _answerOf(_stepBody),
-        onTap: _pickBody,
-      ),
-    ),
-    _ => _Question(
-      key: const ValueKey(_stepPace),
-      question: AppStrings.profilePaceQuestion,
-      why: AppStrings.profilePaceWhy,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _PickerRow(value: _paceLabel, onTap: _pickPace),
-          const SizedBox(height: AppSpacing.space6),
-
-          // 재본 적 없는 사람의 출구. 이게 없으면 입문자가 아무 값이나 찍고 넘어가고,
-          // 그 값이 그대로 시그니처 컬러가 된다.
-          //
-          // 눈썹 문구가 **먼저** 온다. 누구를 위한 길인지 밝히지 않으면
-          // 페이스를 아는 사람도 이쪽을 편한 길로 여긴다.
-          Text(
-            AppStrings.profilePaceSkipEyebrow,
-            textAlign: TextAlign.center,
-            style: AppTypography.micro.copyWith(
-              color: context.appColors.textTertiary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.space2),
-
-          // secondary는 테두리만 있고 배경이 없다. 버튼으로 보이면서도
-          // 하단의 primary CTA와 무게가 겹치지 않는다.
-          // 가로를 채우지 않는 것도 같은 이유다 — 채우면 두 번째 CTA처럼 읽힌다.
-          Align(
-            child: AppButton(
-              label: AppStrings.profilePaceSkip,
-              variant: AppButtonVariant.secondary,
-              size: AppButtonSize.md,
-              expand: false,
-              onPressed: _skipPace,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.space3),
-          Text(
-            AppStrings.profilePaceSkipWhy,
-            textAlign: TextAlign.center,
-            style: AppTypography.caption.copyWith(
-              color: context.appColors.textTertiary,
-            ),
-          ),
-        ],
-      ),
-    ),
-  };
-
   Widget _nicknameField() {
     final status = _nicknameStatus;
 
     // 경고가 떠 있는 동안은 일반 안내가 덮어쓰지 않는다.
-    // 안 그러면 경고가 뜨자마자 '쓸 수 있는 이름이에요'로 지워진다.
     // 아래 셋은 전부 형식을 통과한 뒤의 이야기라, switch가 '쓸 수 있는
     // 이름이에요'라고 답하는 것을 덮어야 한다.
-    final (String helper, AppInputTone tone) = _limitHit
-        ? (AppStrings.profileNicknameTooLong, AppInputTone.error)
+    final (String helper, AppInputToneV2 tone) = _limitHit
+        ? (AppStrings.profileNicknameTooLong, AppInputToneV2.error)
         : _checkingNickname
-        ? (AppStrings.profileNicknameChecking, AppInputTone.neutral)
-        // ⚠️ 물어보지 못한 것과 이미 있는 것을 가른다. 묶으면 네트워크가 잠깐
-        // 끊긴 것 때문에 쓸 수 있는 이름을 버리게 된다.
+        ? (AppStrings.profileNicknameChecking, AppInputToneV2.neutral)
+        // ⚠️ 물어보지 못한 것과 이미 있는 것을 가른다.
         : _nicknameCheckFailed
-        ? (AppStrings.profileNicknameCheckFailed, AppInputTone.error)
+        ? (AppStrings.profileNicknameCheckFailed, AppInputToneV2.error)
         : _submitFailure == OnboardingFailure.nicknameTaken
-        ? (AppStrings.profileNicknameTaken, AppInputTone.error)
+        ? (AppStrings.profileNicknameTaken, AppInputToneV2.error)
         // ⚠️ 형식을 통과했어도 **서버가 답하기 전까지는** 쓸 수 있다고 말하지
         // 않는다. 곧 "이미 있다"로 뒤집힐 수 있는 말이다.
         : (status.isValid && !_hasFreshAnswer)
-        ? (AppStrings.profileNicknameCheckPending, AppInputTone.neutral)
+        ? (AppStrings.profileNicknameCheckPending, AppInputToneV2.neutral)
         : switch (status) {
             NicknameStatus.empty => (
               AppStrings.profileNicknameGuide,
-              AppInputTone.neutral,
+              AppInputToneV2.neutral,
             ),
             NicknameStatus.tooShort => (
               AppStrings.profileNicknameTooShort,
-              AppInputTone.error,
+              AppInputToneV2.error,
             ),
             NicknameStatus.tooLong => (
               AppStrings.profileNicknameTooLong,
-              AppInputTone.error,
+              AppInputToneV2.error,
             ),
             NicknameStatus.invalidChars => (
               AppStrings.profileNicknameInvalidChars,
-              AppInputTone.error,
+              AppInputToneV2.error,
             ),
             NicknameStatus.valid => (
               AppStrings.profileNicknameOk,
-              AppInputTone.success,
+              AppInputToneV2.success,
             ),
           };
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AnimatedBuilder(
-          animation: _shakeOffset,
-          builder: (context, child) => Transform.translate(
-            offset: Offset(_shakeOffset.value, 0),
-            child: child,
-          ),
-          child: AppInput(
-            controller: _nickname,
-            autofocus: true,
-            hint: AppStrings.profileNicknameHint,
-            helper: helper,
-            counter: '$_nicknameLength/${NicknameRule.max}',
-            tone: tone,
-            textInputAction: TextInputAction.done,
-            inputFormatters: [_NicknameLimiter(_onNicknameRejected)],
-            onChanged: (_) => _onNicknameChanged(),
-            onSubmitted: (_) => _submitNickname(),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.space4),
-        AppButton(
+    return AnimatedBuilder(
+      animation: _shakeOffset,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(_shakeOffset.value, 0),
+        child: child,
+      ),
+      child: AppInputV2(
+        controller: _nickname,
+        focusNode: _nicknameFocus,
+        label: AppStrings.profileNicknameLabel,
+        hint: AppStrings.profileNicknameHint,
+        helper: helper,
+        counter: '$_nicknameLength/${NicknameRule.max}',
+        tone: tone,
+        textInputAction: TextInputAction.next,
+        inputFormatters: [_NicknameLimiter(_onNicknameRejected)],
+        onChanged: (_) => _onNicknameChanged(),
+        onSubmitted: (_) => _confirmNickname(),
+        // 시안(`158:2778`)은 중복확인을 칸 안에 둔다.
+        suffix: FieldActionV2(
           label: AppStrings.profileNicknameConfirm,
           // 묻는 중에도 잠근다. 두 번 누르면 요청이 두 번 나가고,
           // 늦게 온 답이 이긴다.
@@ -790,277 +650,243 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
               (status.isValid &&
                   !_checkingNickname &&
                   !(_hasFreshAnswer && _checkedAvailable == false))
-              ? _submitNickname
+              ? _confirmNickname
               : null,
+        ),
+      ),
+    );
+  }
+}
+
+/// `[ 남자 ][ 여자 ]` 두 갈래 토글. 시안 `158:2760`.
+///
+/// ⚠️ **여기서만 쓴다.** "두 번째로 쓰이는 순간 `core/widgets/v2/`로 올린다"는
+/// 규칙대로, 프로필 수정 화면이 같은 것을 필요로 할 때 올린다.
+class _GenderToggle extends StatelessWidget {
+  const _GenderToggle({required this.value, required this.onChanged});
+
+  final Gender? value;
+  final ValueChanged<Gender> onChanged;
+
+  /// 시안 실측. 바깥 상자 72 · 안쪽 버튼 56.
+  static const _outerHeight = 72.0;
+  static const _innerHeight = 56.0;
+  static const _pad = (_outerHeight - _innerHeight) / 2;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Container(
+      height: _outerHeight,
+      padding: const EdgeInsets.all(_pad),
+      decoration: BoxDecoration(
+        color: colors.bgSurface,
+        borderRadius: AppRadius.lg,
+      ),
+      child: Row(
+        children: [
+          for (final gender in Gender.values) ...[
+            if (gender != Gender.values.first)
+              const SizedBox(width: AppSpacing.space2),
+            Expanded(
+              child: _GenderOption(
+                gender: gender,
+                selected: value == gender,
+                onTap: () => onChanged(gender),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _GenderOption extends StatelessWidget {
+  const _GenderOption({
+    required this.gender,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Gender gender;
+  final bool selected;
+  final VoidCallback onTap;
+
+  /// [Gender]를 화면 문구로. **변환을 여기 한 곳에만 둔다.**
+  String get _label => switch (gender) {
+    Gender.male => AppStrings.profileGenderMale,
+    Gender.female => AppStrings.profileGenderFemale,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected ? colors.primary : Colors.transparent,
+        borderRadius: AppRadius.md,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadius.md,
+          child: Center(
+            child: Text(
+              _label,
+              // 고른 쪽은 굵기까지 바뀐다. 색만으로 알리지 않는다.
+              style:
+                  (selected ? AppTypographyV2.body05 : AppTypographyV2.body06)
+                      .copyWith(
+                        color: selected
+                            ? colors.textOnPrimary
+                            : colors.textTertiary,
+                      ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 누르면 시트가 열리는 칸. 페이스는 `분`과 `초` 두 칸이라 치게 하면 번거롭다.
+///
+/// 비워 두고 넘어갈 수 있다 — `null`은 **미측정**이다.
+class _PaceField extends StatelessWidget {
+  const _PaceField({required this.value, required this.onTap});
+
+  /// 고른 값. `null`이면 아직 안 골랐다.
+  final String? value;
+  final VoidCallback onTap;
+
+  /// 시안의 큰 칸과 같은 71. `AppInputV2`의 라벨 있는 칸에 맞춘다.
+  static const _height = 71.0;
+  static const _padX = 18.0;
+  static const _padY = 14.0;
+  static const _labelGap = 6.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+    final filled = value != null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          button: true,
+          label: AppStrings.profilePaceLabel,
+          value: value ?? AppStrings.profilePaceHint,
+          child: Material(
+            color: colors.bgSurface,
+            borderRadius: AppRadius.lg,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: AppRadius.lg,
+              child: Container(
+                height: _height,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: _padX,
+                  vertical: _padY,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            AppStrings.profilePaceLabel,
+                            style: AppTypographyV2.body22.copyWith(
+                              color: colors.textTertiary,
+                            ),
+                          ),
+                          const SizedBox(height: _labelGap),
+                          Text(
+                            value ?? AppStrings.profilePaceHint,
+                            style: AppTypographyV2.body04.copyWith(
+                              color: filled
+                                  ? colors.textPrimary
+                                  : colors.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    AppIcon(AppIcons.down, color: colors.textTertiary),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.space2),
+        // 비워도 넘어갈 수 있다는 것을 알린다. 이 줄이 없으면 필수로 읽힌다.
+        Text(
+          AppStrings.profilePaceSkipWhy,
+          style: AppTypographyV2.body20.copyWith(color: colors.textTertiary),
         ),
       ],
     );
   }
 }
 
-/// 12자를 넘기면 잘라내되, **잘렸다는 사실을 알린다.**
+/// 16자를 넘기면 잘라내되, **잘렸다는 사실을 알린다.**
 ///
 /// [LengthLimitingTextInputFormatter]에 자르기를 맡긴다. 자소 클러스터 계산을
 /// 직접 하면 이모지에서 틀리고, 화면 카운터와 기준이 어긋난다.
 class _NicknameLimiter extends TextInputFormatter {
-  const _NicknameLimiter(this.onRejected);
+  _NicknameLimiter(this.onRejected);
 
   final VoidCallback onRejected;
 
-  // LengthLimitingTextInputFormatter는 const 생성자가 아니다.
-  static final _limit = LengthLimitingTextInputFormatter(NicknameRule.max);
+  late final _limiter = LengthLimitingTextInputFormatter(NicknameRule.max);
 
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final limited = _limit.formatEditUpdate(oldValue, newValue);
-    if (limited.text != newValue.text) onRejected();
-    return limited;
+    final result = _limiter.formatEditUpdate(oldValue, newValue);
+    // 자르기가 실제로 일어났을 때만 알린다.
+    if (result.text != newValue.text) onRejected();
+    return result;
   }
 }
 
-/// 답이 끝난 항목 한 줄. 누르면 그 질문으로 돌아간다.
-class _AnsweredRow extends StatelessWidget {
-  const _AnsweredRow({
-    required this.label,
-    required this.value,
-    required this.onTap,
-  });
+/// 전송 실패 안내 — 아이콘 + 문구.
+///
+/// **색만으로 알리지 않는다.**
+class _FailureNotice extends StatelessWidget {
+  const _FailureNotice({required this.failure});
 
-  final String label;
-  final String value;
-  final VoidCallback onTap;
+  final OnboardingFailure failure;
 
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColors;
-
-    return Semantics(
-      button: true,
-      label: '$label ${AppStrings.profileEditHint}',
-      value: value,
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: AppRadius.sm,
-          splashFactory: InkSparkle.splashFactory,
-          child: Container(
-            constraints: const BoxConstraints(minHeight: _rowHeight),
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space1),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: colors.borderDefault)),
-            ),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 78,
-                  child: Text(
-                    label,
-                    style: AppTypography.caption.copyWith(
-                      color: colors.textTertiary,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    value,
-                    style: AppTypography.body.copyWith(
-                      color: colors.textPrimary,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                ),
-                Icon(
-                  LucideIcons.squarePen,
-                  size: AppSpacing.space5,
-                  color: colors.textTertiary,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 지금 묻고 있는 질문 한 덩어리. 나타날 때 아래에서 올라온다.
-class _Question extends StatelessWidget {
-  const _Question({
-    required this.question,
-    required this.why,
-    required this.child,
-    super.key,
-  });
-
-  final String question;
-  final String why;
-  final Widget child;
+  String get _message => switch (failure) {
+    OnboardingFailure.sessionExpired => AppStrings.profileSubmitExpired,
+    // 닉네임 중복은 그 칸의 helper가 말한다. 여기까지 오지 않는다.
+    _ => AppStrings.profileSubmitFailed,
+  };
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
-    return TweenAnimationBuilder<double>(
-      key: key,
-      tween: Tween(begin: 0, end: 1),
-      duration: AppMotion.base,
-      curve: AppMotion.easeStandard,
-      builder: (context, t, child) => Opacity(
-        opacity: t,
-        child: Transform.translate(
-          offset: Offset(0, 10 * (1 - t)),
-          child: child,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            question,
-            style: AppTypography.h2.copyWith(color: colors.textPrimary),
-          ),
-          const SizedBox(height: AppSpacing.space1),
-          Text(
-            why,
-            style: AppTypography.caption.copyWith(color: colors.textTertiary),
-          ),
-          const SizedBox(height: AppSpacing.space4),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-/// 시트를 여는 줄. 값이 있으면 그 값을, 없으면 자리 표시를 보여준다.
-class _PickerRow extends StatelessWidget {
-  const _PickerRow({required this.value, required this.onTap, this.error});
-
-  final String? value;
-  final VoidCallback onTap;
-
-  /// 고른 값이 조건에 맞지 않을 때 아래에 띄우는 이유. `null`이면 정상이다.
-  final String? error;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColors;
-    final filled = value != null;
-    final message = error;
-
-    final row = Material(
-      type: MaterialType.transparency,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: AppRadius.md,
-        splashFactory: InkSparkle.splashFactory,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: _rowHeight),
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-          decoration: BoxDecoration(
-            color: colors.bgSurface,
-            borderRadius: AppRadius.md,
-            border: Border.all(color: colors.borderDefault),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  value ?? AppStrings.profileTapToPick,
-                  style: AppTypography.body.copyWith(
-                    color: filled ? colors.textPrimary : colors.textDisabled,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-              Icon(
-                LucideIcons.chevronDown,
-                size: AppSpacing.space5,
-                color: colors.textTertiary,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    if (message == null) return row;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        row,
-        const SizedBox(height: AppSpacing.space2),
-        Text(
-          message,
-          style: AppTypography.caption.copyWith(color: colors.error),
+        AppIcon(AppIcons.alert, size: AppSpacing.space5, color: colors.error),
+        const SizedBox(width: AppSpacing.space2),
+        Expanded(
+          child: Text(
+            _message,
+            style: AppTypographyV2.body20.copyWith(color: colors.error),
+          ),
         ),
-      ],
-    );
-  }
-}
-
-/// 단일 선택 칩. 고르면 곧바로 다음 질문으로 넘어간다.
-///
-/// ## 2열 격자인 이유
-///
-/// 칩을 글자 크기대로 늘어놓으면 왼쪽으로 쏠려 보인다. 그렇다고 페이스 4개를
-/// **한 줄에 균등 배치하면 칸이 87px밖에 안 나와** `잘 몰라요`가 잘린다.
-///
-/// 2열로 두면 칸이 182px로 넉넉하고, 무엇보다 **성별(2개)과 페이스(4개)의 칩 크기가
-/// 같아진다.** 질문이 바뀔 때 버튼 크기가 출렁이지 않는다.
-class _ChipRow extends StatelessWidget {
-  const _ChipRow({
-    required this.options,
-    required this.selected,
-    required this.onPick,
-  });
-
-  static const _columns = 2;
-
-  final List<String> options;
-  final String? selected;
-  final ValueChanged<String> onPick;
-
-  @override
-  Widget build(BuildContext context) {
-    final rows = <Widget>[];
-
-    for (var start = 0; start < options.length; start += _columns) {
-      final slice = options.skip(start).take(_columns).toList();
-      rows.add(
-        Row(
-          children: [
-            for (var i = 0; i < _columns; i++) ...[
-              if (i > 0) const SizedBox(width: AppSpacing.space2),
-              // 홀수 개로 끝나면 마지막 칸을 빈 자리로 채운다.
-              // 남은 하나가 폭을 다 먹으면 옆줄과 크기가 어긋난다.
-              Expanded(
-                child: i < slice.length
-                    ? PresetChip(
-                        label: slice[i],
-                        selected: slice[i] == selected,
-                        onTap: () => onPick(slice[i]),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-            ],
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (var i = 0; i < rows.length; i++) ...[
-          if (i > 0) const SizedBox(height: AppSpacing.space2),
-          rows[i],
-        ],
       ],
     );
   }
