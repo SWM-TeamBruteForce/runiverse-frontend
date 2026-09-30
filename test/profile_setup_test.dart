@@ -1,26 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
+import 'package:runiverse/core/storage/body_profile_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/features/onboarding/domain/nickname_rule.dart';
+import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/core/widgets/v2/field_action.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/onboarding/data/fake_onboarding_repository.dart';
+import 'package:runiverse/features/onboarding/domain/body_rule.dart';
+import 'package:runiverse/features/onboarding/domain/nickname_rule.dart';
 import 'package:runiverse/features/onboarding/domain/onboarding_failure.dart';
 import 'package:runiverse/features/onboarding/presentation/onboarding_provider.dart';
-import 'package:runiverse/core/theme/app_theme.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 
-/// 프로필 등록(S04)의 상태 전이 — 질문이 하나씩 열리는가.
+/// 프로필 등록(S04) — **한 화면 폼**이 지키는 것.
 ///
-/// 이 화면의 핵심 규칙은 두 가지다.
-/// **답하기 전에는 다음 질문이 보이지 않는다**, 그리고 **답한 것은 눌러서 되돌아갈 수 있다.**
-/// 되돌아가기가 없으면 자동 진행은 밀려가는 느낌만 준다.
+/// ## ⚠️ 2026-09-30에 화면이 바뀌었다
 ///
-/// 휠 시트는 여기서 다루지 않는다. 시트 안 동작은 별개 위젯의 몫이고,
-/// 여기서 볼 것은 화면이 단계를 어떻게 넘기느냐다.
+/// 한 번에 하나씩 묻던 화면이었다. 그때 보던 것들은 이제 없다.
+///
+/// | 사라진 규칙 | 왜 |
+/// |---|---|
+/// | 답하기 전에는 다음 질문이 안 보인다 | 여섯 칸이 처음부터 다 보인다 |
+/// | 답한 줄을 누르면 그 질문으로 돌아간다 | 아무 칸이나 바로 고친다 |
+/// | 칩을 고르면 곧바로 다음으로 넘어간다 | 넘어갈 단계가 없다 |
+///
+/// 대신 **고르던 값을 치게 되면서** 지켜야 할 것이 생겼다 — 못 만들 값을
+/// 막는 일이다. 규칙 자체는 `body_rule_test.dart`가 보고, 여기서는 화면이
+/// 그 규칙을 **쓰는지**를 본다.
+///
+/// 닉네임 규칙은 화면이 바뀌어도 그대로다. 그 부분은 옮겨 왔다.
 void main() {
   Future<void> pumpPage(
     WidgetTester tester, {
@@ -30,7 +45,6 @@ void main() {
       ProviderScope(
         overrides: [
           // 앱은 SecureTokenStore를 쓰는데 그것은 플랫폼 채널을 부른다.
-          // 테스트에는 채널이 없다.
           tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
           signInMemoryStoreProvider.overrideWithValue(
             InMemorySignInMemoryStore(),
@@ -38,35 +52,72 @@ void main() {
           onboardingRepositoryProvider.overrideWithValue(
             onboarding ?? FakeOnboardingRepository(latency: Duration.zero),
           ),
+          // ⚠️ 전송에 성공하면 신체 정보를 기기에 남긴다. 기본 구현이
+          // 플랫폼 채널을 부르는데 테스트에는 채널이 없어 거기서 멈춘다.
+          bodyProfileStoreProvider.overrideWithValue(
+            InMemoryBodyProfileStore(),
+          ),
         ],
-        child: MaterialApp(
+        // ⚠️ 라우터를 붙인다. 전송에 성공하면 화면을 떠나는데, `MaterialApp`
+        // 만으로는 `context.canPop()`(go_router)이 설 자리가 없어 거기서
+        // 죽는다 — 옛 테스트가 성공 제출을 한 번도 안 눌러본 이유다.
+        child: MaterialApp.router(
           theme: AppTheme.dark(),
-          home: const ProfileSetupPage(),
+          routerConfig: GoRouter(
+            initialLocation: '/setup',
+            routes: [
+              GoRoute(
+                path: '/setup',
+                builder: (_, _) => const ProfileSetupPage(),
+              ),
+              GoRoute(
+                path: AppRoutes.home,
+                builder: (_, _) => const SizedBox.shrink(),
+              ),
+            ],
+          ),
         ),
       ),
     );
     await tester.pumpAndSettle();
   }
 
-  /// 하단 CTA. 화면에 [AppButton]이 여럿 있을 수 있어 라벨로 집는다.
-  bool nextEnabled(WidgetTester tester) {
-    final button = tester.widget<AppButton>(
-      find.widgetWithText(AppButton, AppStrings.profileNext),
-    );
-    return button.onPressed != null;
-  }
+  // 칸 순서. 페이스는 [TextField]가 아니라 누르면 시트가 열리는 칸이다.
+  const nicknameField = 0;
+  const birthField = 1;
+  const heightField = 2;
+  const weightField = 3;
 
-  Future<void> typeNickname(WidgetTester tester, String value) async {
-    await tester.enterText(find.byType(TextField), value);
+  Future<void> type(WidgetTester tester, int index, String value) async {
+    await tester.enterText(find.byType(TextField).at(index), value);
     await tester.pumpAndSettle();
   }
 
-  /// 닉네임 단계의 '확인'. 겹치는 것을 이미 알고 있으면 잠겨 있어야 한다.
-  bool confirmEnabled(WidgetTester tester) {
-    final button = tester.widget<AppButton>(
-      find.widgetWithText(AppButton, AppStrings.profileNicknameConfirm),
+  /// 하단 CTA가 눌리는가.
+  bool nextEnabled(WidgetTester tester) {
+    final button = tester.widget<AppButtonV2>(
+      find.widgetWithText(AppButtonV2, AppStrings.profileNext),
     );
     return button.onPressed != null;
+  }
+
+  /// 닉네임 칸 안의 '중복확인'. 겹치는 것을 이미 알면 잠겨 있어야 한다.
+  bool confirmEnabled(WidgetTester tester) {
+    final action = tester.widget<FieldActionV2>(
+      find.widgetWithText(FieldActionV2, AppStrings.profileNicknameConfirm),
+    );
+    return action.onPressed != null;
+  }
+
+  /// 닉네임 칸 안의 '중복확인'을 누른다.
+  ///
+  /// ⚠️ 글자가 아니라 **버튼 자체**를 겨냥한다. 누르는 영역이 알약보다 넓어
+  /// 글자 위를 `InkWell` 이 덮고 있다 — 글자를 겨냥하면 "안 닿는다"고 경고한다.
+  Future<void> confirmNickname(WidgetTester tester) async {
+    await tester.tap(
+      find.widgetWithText(FieldActionV2, AppStrings.profileNicknameConfirm),
+    );
+    await tester.pumpAndSettle();
   }
 
   /// 입력이 멎은 뒤 자동 확인이 돌 만큼 시간을 보낸다.
@@ -75,364 +126,360 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> confirmNickname(WidgetTester tester) async {
-    await tester.tap(find.text(AppStrings.profileNicknameConfirm));
-    await tester.pumpAndSettle();
+  /// 만 14세를 넉넉히 넘긴 생일. `yyyyMMdd` 여덟 자리.
+  String adultBirth() {
+    final year = DateTime.now().year - 30;
+    return '${year}0116';
   }
 
-  /// 다섯 질문을 끝까지 채운다.
-  ///
-  /// 휠은 굴리지 않고 **확인만 누른다** — 초기값이 그대로 답이 된다. 무슨 값이
-  /// 들어갔는지는 여기서 볼 것이 아니고, 필요한 건 "다 채운 상태"뿐이다.
-  /// 휠 시트를 열고 초기값 그대로 닫는다.
-  Future<void> pickThroughSheet(WidgetTester tester) async {
-    await tester.tap(find.text(AppStrings.profileTapToPick));
+  /// 페이스를 뺀 전부를 채운다. **페이스는 비워도 넘어간다.**
+  Future<void> fillForm(WidgetTester tester) async {
+    await type(tester, nicknameField, '러너42');
+    await confirmNickname(tester);
+    await type(tester, birthField, adultBirth());
+    await tester.tap(find.text(AppStrings.profileGenderMale));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('확인'));
-    await tester.pumpAndSettle();
+    await type(tester, heightField, '175');
+    await type(tester, weightField, '65');
   }
 
-  Future<void> fillEverything(WidgetTester tester) async {
-    await typeNickname(tester, '러너42');
-    await confirmNickname(tester);
+  group('한 화면 폼', () {
+    testWidgets('⚠️ 여섯 항목이 처음부터 다 보인다', (tester) async {
+      // 단계형에서는 닉네임 하나만 보였다. 그 규칙이 사라진 자리다.
+      await pumpPage(tester);
 
-    // ⚠️ 단계를 **하나씩 적는다.** "칩이 보이면 누른다" 같은 조건으로 돌리면
-    // 답한 줄에 남은 `남성`을 눌러 성별 질문으로 되돌아간다 —
-    // `_AnsweredRow`가 고른 값을 그대로 글자로 그리기 때문이다.
-    await pickThroughSheet(tester); // 생년월일
-    await tester.tap(find.text(AppStrings.profileGenderMale)); // 칩은 즉시 넘어간다
-    await tester.pumpAndSettle();
-    await pickThroughSheet(tester); // 키·몸무게
+      expect(find.text(AppStrings.profileNicknameLabel), findsOneWidget);
+      expect(find.text(AppStrings.profileBirthLabel), findsOneWidget);
+      expect(find.text(AppStrings.profileGenderMale), findsOneWidget);
+      expect(find.text(AppStrings.profileHeightLabel), findsOneWidget);
+      expect(find.text(AppStrings.profileWeightLabel), findsOneWidget);
+      expect(find.text(AppStrings.profilePaceLabel), findsOneWidget);
+    });
 
-    // 페이스는 건너뛴다. 재본 적 없는 사람의 길이고, 값이 `null`이어도 제출된다.
-    await tester.tap(find.text(AppStrings.profilePaceSkip));
-    await tester.pumpAndSettle();
-  }
+    testWidgets('아무것도 안 채우면 다음이 잠겨 있다', (tester) async {
+      await pumpPage(tester);
 
-  testWidgets('처음에는 닉네임 질문 하나만 보인다', (tester) async {
-    await pumpPage(tester);
+      expect(nextEnabled(tester), isFalse);
+    });
 
-    expect(find.text(AppStrings.profileNicknameQuestion), findsOneWidget);
-    // 아직 묻지 않은 질문은 그려지지 않는다.
-    expect(find.text(AppStrings.profileBirthQuestion), findsNothing);
-    expect(find.text(AppStrings.profileGenderQuestion), findsNothing);
-    expect(nextEnabled(tester), isFalse);
+    testWidgets('⚠️ 채우지 않고 나가는 문이 없다', (tester) async {
+      // 프로필을 비워두면 매칭도 기록도 설 자리가 없다.
+      // 시안에는 뒤로가기와 건너뛰기가 있지만 넣지 않았다.
+      await pumpPage(tester);
+
+      expect(find.text(AppStrings.onboardingSkip), findsNothing);
+      expect(find.byType(BackButton), findsNothing);
+    });
+
+    testWidgets('⚠️ 페이스를 비워도 다음이 열린다', (tester) async {
+      // `null`은 미측정이다. 기본값을 몰래 채우면 고르지 않은 색을 갖게 된다.
+      await pumpPage(tester);
+      await fillForm(tester);
+
+      expect(nextEnabled(tester), isTrue);
+    });
+
+    testWidgets('하나라도 비면 다음이 잠긴다', (tester) async {
+      await pumpPage(tester);
+      await fillForm(tester);
+      expect(nextEnabled(tester), isTrue);
+
+      await type(tester, weightField, '');
+      expect(nextEnabled(tester), isFalse);
+    });
+
+    testWidgets('성별을 안 고르면 다음이 잠긴다', (tester) async {
+      await pumpPage(tester);
+      await type(tester, nicknameField, '러너42');
+      await confirmNickname(tester);
+      await type(tester, birthField, adultBirth());
+      await type(tester, heightField, '175');
+      await type(tester, weightField, '65');
+
+      expect(nextEnabled(tester), isFalse);
+
+      await tester.tap(find.text(AppStrings.profileGenderFemale));
+      await tester.pumpAndSettle();
+      expect(nextEnabled(tester), isTrue);
+    });
   });
 
-  testWidgets('닉네임이 2자 미만이면 확인이 눌리지 않는다', (tester) async {
-    await pumpPage(tester);
-    await typeNickname(tester, '가');
+  group('⚠️ 휠이 막아주던 값', () {
+    testWidgets('없는 날짜를 치면 알려주고 잠근다', (tester) async {
+      await pumpPage(tester);
+      await fillForm(tester);
 
-    final confirm = tester.widget<AppButton>(
-      find.widgetWithText(AppButton, AppStrings.profileNicknameConfirm),
-    );
-    expect(confirm.onPressed, isNull);
-    expect(find.text(AppStrings.profileNicknameTooShort), findsOneWidget);
+      await type(tester, birthField, '19990231');
+
+      expect(find.text(AppStrings.profileBirthMalformed), findsOneWidget);
+      expect(nextEnabled(tester), isFalse);
+    });
+
+    testWidgets('아직 오지 않은 날을 치면 그렇게 말한다', (tester) async {
+      // ⚠️ 나이 판정에도 걸리지만 그때 나오는 말은 "너무 어려요"다.
+      // 미래 날짜에 그 문구를 보이면 무엇이 잘못됐는지 모른다.
+      await pumpPage(tester);
+      await fillForm(tester);
+
+      final year = DateTime.now().year + 1;
+      await type(tester, birthField, '${year}0116');
+
+      expect(find.text(AppStrings.profileBirthFuture), findsOneWidget);
+      expect(find.text(AppStrings.profileBirthTooYoung), findsNothing);
+      expect(nextEnabled(tester), isFalse);
+    });
+
+    testWidgets('만 14세 미만이면 잠근다', (tester) async {
+      await pumpPage(tester);
+      await fillForm(tester);
+
+      final year = DateTime.now().year - 10;
+      await type(tester, birthField, '${year}0116');
+
+      expect(find.text(AppStrings.profileBirthTooYoung), findsOneWidget);
+      expect(nextEnabled(tester), isFalse);
+    });
+
+    testWidgets('범위 밖의 키를 치면 잠근다', (tester) async {
+      await pumpPage(tester);
+      await fillForm(tester);
+
+      // 휠에서는 고를 수 없던 값이다.
+      await type(tester, heightField, '700');
+
+      expect(
+        find.text(
+          AppStrings.profileHeightOutOfRange(
+            BodyRule.minHeight,
+            BodyRule.maxHeight,
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(nextEnabled(tester), isFalse);
+    });
+
+    testWidgets('범위 밖의 몸무게를 치면 잠근다', (tester) async {
+      await pumpPage(tester);
+      await fillForm(tester);
+
+      await type(tester, weightField, '5');
+
+      expect(
+        find.text(
+          AppStrings.profileWeightOutOfRange(
+            BodyRule.minWeight,
+            BodyRule.maxWeight,
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(nextEnabled(tester), isFalse);
+    });
+
+    testWidgets('⚠️ 빈 칸을 틀렸다고 하지 않는다', (tester) async {
+      // 아직 안 친 것뿐이다. 화면을 열자마자 빨간 글씨가 셋이면 겁을 준다.
+      await pumpPage(tester);
+
+      expect(find.text(AppStrings.profileBirthMalformed), findsNothing);
+      expect(find.textContaining('cm 사이로'), findsNothing);
+      expect(find.textContaining('kg 사이로'), findsNothing);
+    });
   });
 
-  testWidgets('상한을 넘겨 붙여넣으면 잘리고 경고가 뜬다', (tester) async {
-    await pumpPage(tester);
-    // 상한을 상수로 잡는다. 숫자를 박아두면 규칙이 바뀔 때 테스트가
-    // **잘못된 상한을 지키라고** 우기게 된다 — 서버가 16자인데 12자로 막던
-    // 자리가 그랬다.
-    await typeNickname(tester, '가' * (NicknameRule.max + 3));
+  group('닉네임', () {
+    testWidgets('2자 미만이면 중복확인이 눌리지 않는다', (tester) async {
+      await pumpPage(tester);
+      await type(tester, nicknameField, '가');
 
-    final field = tester.widget<TextField>(find.byType(TextField));
-    expect(field.controller!.text.characters.length, NicknameRule.max);
-    expect(find.text(AppStrings.profileNicknameTooLong), findsOneWidget);
-  });
+      expect(confirmEnabled(tester), isFalse);
+      expect(find.text(AppStrings.profileNicknameTooShort), findsOneWidget);
+    });
 
-  testWidgets('닉네임을 확인하면 다음 질문이 나타난다', (tester) async {
-    await pumpPage(tester);
-    await typeNickname(tester, '러너42');
-    await confirmNickname(tester);
+    testWidgets('상한을 넘겨 붙여넣으면 잘리고 경고가 뜬다', (tester) async {
+      // 상한을 상수로 잡는다. 숫자를 박아두면 규칙이 바뀔 때 테스트가
+      // **잘못된 상한을 지키라고** 우기게 된다.
+      await pumpPage(tester);
+      await type(tester, nicknameField, '가' * (NicknameRule.max + 3));
 
-    expect(find.text(AppStrings.profileBirthQuestion), findsOneWidget);
-    // 답한 것은 라벨과 함께 위에 남는다.
-    expect(find.text(AppStrings.profileNicknameLabel), findsOneWidget);
-    expect(find.text('러너42'), findsOneWidget);
-  });
+      final field = tester.widget<TextField>(
+        find.byType(TextField).at(nicknameField),
+      );
+      expect(field.controller!.text.characters.length, NicknameRule.max);
+      expect(find.text(AppStrings.profileNicknameTooLong), findsOneWidget);
+    });
 
-  testWidgets('답한 줄을 누르면 그 질문으로 돌아간다', (tester) async {
-    await pumpPage(tester);
-    await typeNickname(tester, '러너42');
-    await confirmNickname(tester);
-    expect(find.text(AppStrings.profileBirthQuestion), findsOneWidget);
+    testWidgets('입력이 멎으면 누르지 않아도 알아서 확인한다', (tester) async {
+      final repo = FakeOnboardingRepository(latency: Duration.zero);
+      await pumpPage(tester, onboarding: repo);
 
-    await tester.tap(find.text(AppStrings.profileNicknameLabel));
-    await tester.pumpAndSettle();
+      await type(tester, nicknameField, '러너42');
+      expect(repo.availabilityCalls, 0);
 
-    expect(find.text(AppStrings.profileNicknameQuestion), findsOneWidget);
-    expect(find.text(AppStrings.profileBirthQuestion), findsNothing);
-  });
+      await settleAutoCheck(tester);
+      expect(repo.availabilityCalls, 1);
+      expect(find.text(AppStrings.profileNicknameOk), findsOneWidget);
+    });
 
-  testWidgets('칩을 고르면 곧바로 다음 질문으로 넘어간다', (tester) async {
-    await pumpPage(tester);
-    await typeNickname(tester, '러너42');
-    await confirmNickname(tester);
+    testWidgets('⚠️ 타이핑하는 동안에는 요청이 한 번만 나간다', (tester) async {
+      final repo = FakeOnboardingRepository(latency: Duration.zero);
+      await pumpPage(tester, onboarding: repo);
 
-    // 생년월일은 시트라 여기서 건너뛸 수 없다. 성별 단계까지 못 가므로
-    // 칩 자동 진행은 성별 화면이 열린 뒤에 확인한다.
-    expect(find.text(AppStrings.profileGenderQuestion), findsNothing);
-  });
+      await type(tester, nicknameField, '러');
+      await type(tester, nicknameField, '러너');
+      await type(tester, nicknameField, '러너4');
+      await type(tester, nicknameField, '러너42');
+      await settleAutoCheck(tester);
 
-  testWidgets('마지막 답이 채워지기 전에는 다음이 잠겨 있다', (tester) async {
-    await pumpPage(tester);
-    await typeNickname(tester, '러너42');
-    await confirmNickname(tester);
+      expect(repo.availabilityCalls, 1);
+    });
 
-    expect(nextEnabled(tester), isFalse);
-  });
+    testWidgets('⚠️ 형식만 통과한 것을 쓸 수 있다고 말하지 않는다', (tester) async {
+      // 곧 "이미 있다"로 뒤집힐 수 있는 말이다.
+      await pumpPage(tester);
+      await type(tester, nicknameField, '러너42');
 
-  testWidgets('⚠️ 채우지 않고 나가는 문이 없다', (tester) async {
-    await pumpPage(tester);
+      expect(find.text(AppStrings.profileNicknameCheckPending), findsOneWidget);
+      expect(find.text(AppStrings.profileNicknameOk), findsNothing);
+    });
 
-    // **인증 직후에는 채우고 지나간다.** 나가는 문을 눈에 보이게 두면 대부분
-    // 그것을 누르고, 매칭도 기록도 쓸 수 없는 사람이 늘어난다.
-    //
-    // 갇히지는 않는다 — 앱을 끄고 다시 열면 자동 로그인이 홈으로 보내고
-    // 거기서 `ProfilePromptCard`가 이어받는다. 그 경로는 이 화면 밖의 일이다.
-    expect(find.byType(TextButton), findsNothing);
-    expect(nextEnabled(tester), isFalse);
-  });
+    testWidgets('겹치는 이름은 알려주고 중복확인을 잠근다', (tester) async {
+      final repo = FakeOnboardingRepository(latency: Duration.zero)
+        ..taken.add('러너42');
+      await pumpPage(tester, onboarding: repo);
 
-  // ── 입력 중 자동 확인 ────────────────────────────────────────
+      await type(tester, nicknameField, '러너42');
+      await settleAutoCheck(tester);
 
-  testWidgets('입력이 멎으면 누르지 않아도 알아서 확인한다', (tester) async {
-    final onboarding = FakeOnboardingRepository(latency: Duration.zero);
-    await pumpPage(tester, onboarding: onboarding);
+      expect(find.text(AppStrings.profileNicknameTaken), findsOneWidget);
+      expect(confirmEnabled(tester), isFalse);
+      expect(nextEnabled(tester), isFalse);
+    });
 
-    await typeNickname(tester, '러너42');
-    // 아직 손을 뗀 직후다. 글자마다 물으면 요청이 이름 길이만큼 나간다.
-    expect(onboarding.availabilityCalls, 0);
-
-    await settleAutoCheck(tester);
-
-    expect(onboarding.availabilityCalls, 1);
-    expect(find.text(AppStrings.profileNicknameOk), findsOneWidget);
-  });
-
-  testWidgets('⚠️ 타이핑하는 동안에는 요청이 한 번만 나간다', (tester) async {
-    final onboarding = FakeOnboardingRepository(latency: Duration.zero);
-    await pumpPage(tester, onboarding: onboarding);
-
-    for (final value in ['러', '러너', '러너4', '러너42']) {
-      await tester.enterText(find.byType(TextField), value);
-      await tester.pump(const Duration(milliseconds: 120));
-    }
-    await settleAutoCheck(tester);
-
-    // 네 글자를 쳤다고 네 번 물으면 서버가 그만큼 맞는다.
-    expect(onboarding.availabilityCalls, 1);
-  });
-
-  testWidgets('겹치는 이름은 누르기 전에 알려주고 확인을 잠근다', (tester) async {
-    final onboarding = FakeOnboardingRepository(latency: Duration.zero)
-      ..taken.add('러너42');
-    await pumpPage(tester, onboarding: onboarding);
-
-    await typeNickname(tester, '러너42');
-    await settleAutoCheck(tester);
-
-    expect(find.text(AppStrings.profileNicknameTaken), findsOneWidget);
-    // 잠그지 않으면 눌러볼 수 있고, 누르면 같은 답을 받으러 한 번 더 나간다.
-    expect(confirmEnabled(tester), isFalse);
-    expect(find.text(AppStrings.profileBirthQuestion), findsNothing);
-  });
-
-  testWidgets('⚠️ 형식만 통과한 것을 쓸 수 있다고 말하지 않는다', (tester) async {
-    // 서버에 묻기 전이다. 여기서 '쓸 수 있는 이름이에요'가 뜨면
-    // **곧 이미 있다고 뒤집힐 말**을 먼저 해버리는 셈이다.
-    final onboarding = FakeOnboardingRepository(
-      latency: const Duration(seconds: 5),
-    );
-    await pumpPage(tester, onboarding: onboarding);
-
-    await typeNickname(tester, '러너42');
-
-    expect(find.text(AppStrings.profileNicknameOk), findsNothing);
-    expect(find.text(AppStrings.profileNicknameCheckPending), findsOneWidget);
-  });
-
-  testWidgets('자동 확인이 끝났으면 확인을 눌러도 다시 묻지 않는다', (tester) async {
-    final onboarding = FakeOnboardingRepository(latency: Duration.zero);
-    await pumpPage(tester, onboarding: onboarding);
-
-    await typeNickname(tester, '러너42');
-    await settleAutoCheck(tester);
-    await confirmNickname(tester);
-
-    // 방금 받은 답이 그대로 유효하다. 한 번 더 묻는 것은 낭비다.
-    expect(onboarding.availabilityCalls, 1);
-    expect(find.text(AppStrings.profileBirthQuestion), findsOneWidget);
-  });
-
-  // ── 닉네임 중복 확인 ─────────────────────────────────────────
-
-  testWidgets('확인을 누르면 서버에 겹치는지 묻는다', (tester) async {
-    final onboarding = FakeOnboardingRepository(latency: Duration.zero);
-    await pumpPage(tester, onboarding: onboarding);
-    await typeNickname(tester, '러너42');
-    await confirmNickname(tester);
-
-    expect(onboarding.availabilityCalls, 1);
-    expect(find.text(AppStrings.profileBirthQuestion), findsOneWidget);
-  });
-
-  testWidgets('⚠️ 이미 있는 이름이면 다음 질문이 열리지 않는다', (tester) async {
-    // 제출 때까지 미루면 네 질문을 지나 다시 여기로 돌아와야 한다.
-    final onboarding = FakeOnboardingRepository(latency: Duration.zero)
-      ..taken.add('러너42');
-    await pumpPage(tester, onboarding: onboarding);
-    await typeNickname(tester, '러너42');
-    await confirmNickname(tester);
-
-    expect(find.text(AppStrings.profileNicknameTaken), findsOneWidget);
-    expect(find.text(AppStrings.profileBirthQuestion), findsNothing);
-  });
-
-  testWidgets('⚠️ 물어보지 못한 것을 이미 있다고 말하지 않는다', (tester) async {
-    // 둘을 묶으면 네트워크가 잠깐 끊긴 것 때문에 쓸 수 있는 이름을 버리게 된다.
-    await pumpPage(
-      tester,
-      onboarding: FakeOnboardingRepository(
+    testWidgets('⚠️ 물어보지 못한 것을 이미 있다고 말하지 않는다', (tester) async {
+      // 묶으면 네트워크가 잠깐 끊긴 것 때문에 쓸 수 있는 이름을 버리게 된다.
+      final repo = FakeOnboardingRepository(
         latency: Duration.zero,
         availabilityFailure: OnboardingFailure.network,
-      ),
-    );
-    await typeNickname(tester, '러너42');
-    await confirmNickname(tester);
+      );
+      await pumpPage(tester, onboarding: repo);
 
-    expect(find.text(AppStrings.profileNicknameCheckFailed), findsOneWidget);
-    expect(find.text(AppStrings.profileNicknameTaken), findsNothing);
-    // 판정하지 못했으니 넘기지도 않는다.
-    expect(find.text(AppStrings.profileBirthQuestion), findsNothing);
-  });
+      await type(tester, nicknameField, '러너42');
+      await settleAutoCheck(tester);
 
-  testWidgets('⚠️ 확인에 실패한 뒤 다시 누르면 다시 물어본다', (tester) async {
-    // 실패는 **다시 눌러보라는 안내**와 함께 뜬다. 그런데 버튼이 눌리기만 하고
-    // 요청이 안 나가면, 빠져나갈 길은 이름을 고치는 것 하나뿐이다 —
-    // 쓸 수 있는 이름을 네트워크가 잠깐 끊겼다는 이유로 포기하게 된다.
-    final onboarding = FakeOnboardingRepository(
-      latency: Duration.zero,
-      availabilityFailure: OnboardingFailure.network,
-    );
-    await pumpPage(tester, onboarding: onboarding);
-    await typeNickname(tester, '러너42');
-    await confirmNickname(tester);
+      expect(find.text(AppStrings.profileNicknameCheckFailed), findsOneWidget);
+      expect(find.text(AppStrings.profileNicknameTaken), findsNothing);
+    });
 
-    expect(find.text(AppStrings.profileNicknameCheckFailed), findsOneWidget);
-    expect(onboarding.availabilityCalls, 1);
-
-    // 눌리는 버튼은 반드시 무언가를 해야 한다.
-    expect(confirmEnabled(tester), isTrue, reason: '재시도할 방법이 없다');
-    await confirmNickname(tester);
-
-    expect(onboarding.availabilityCalls, 2, reason: '눌렀는데 요청이 안 나갔다');
-  });
-
-  testWidgets('⚠️ 묻는 중에 이름을 고치면 그 이름도 자동으로 확인한다', (tester) async {
-    // 자동 확인이 **앞 요청과 겹치면 조용히 사라지는** 문제다. 화면은
-    // "확인할게요"에서 영영 멈추고, 사용자는 왜 안 되는지 알 수 없다.
-    //
-    // 기존 자동 확인 테스트가 전부 `latency: Duration.zero`라서 이 구간을
-    // 지나칠 수 없었다. 여기서만 지연을 준다.
-    //
-    // ⚠️ 지연은 **디바운스(500ms)보다 넉넉히 길어야** 한다. 짧으면 앞 요청이
-    // 새 디바운스가 만료되기 전에 끝나버려서 겹치는 구간 자체가 안 생긴다.
-    final onboarding = FakeOnboardingRepository(
-      latency: const Duration(seconds: 2),
-    );
-    await pumpPage(tester, onboarding: onboarding);
-
-    await tester.enterText(find.byType(TextField), '러너4');
-    // 디바운스가 만료돼 요청이 나갔다. 아직 답은 오지 않았다.
-    await tester.pump(const Duration(seconds: 1));
-    expect(onboarding.availabilityCalls, 1);
-
-    await tester.enterText(find.byType(TextField), '러너42');
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pumpAndSettle();
-
-    expect(onboarding.availabilityCalls, 2, reason: '고친 이름을 안 물어봤다');
-  });
-
-  testWidgets('묻는 동안 확인이 잠긴다', (tester) async {
-    await pumpPage(
-      tester,
-      onboarding: FakeOnboardingRepository(
-        latency: const Duration(milliseconds: 200),
-      ),
-    );
-    await typeNickname(tester, '러너42');
-    await tester.tap(find.text(AppStrings.profileNicknameConfirm));
-    await tester.pump();
-
-    // 두 번 누르면 요청이 두 번 나가고 늦게 온 답이 이긴다.
-    final confirm = tester.widget<AppButton>(
-      find.widgetWithText(AppButton, AppStrings.profileNicknameConfirm),
-    );
-    expect(confirm.onPressed, isNull);
-    expect(find.text(AppStrings.profileNicknameChecking), findsOneWidget);
-
-    await tester.pumpAndSettle();
-  });
-
-  // ── 제출 실패 ───────────────────────────────────────────────
-
-  /// 다 채우고 제출해 [failure]로 실패시킨다.
-  Future<void> submitFailing(
-    WidgetTester tester,
-    OnboardingFailure failure,
-  ) async {
-    await pumpPage(
-      tester,
-      onboarding: FakeOnboardingRepository(
+    testWidgets('⚠️ 확인에 실패한 뒤 다시 누르면 다시 물어본다', (tester) async {
+      // 실패한 확인도 답을 남기는데 그것을 답으로 치면 **눌리는데 아무 일도
+      // 일어나지 않는 버튼**이 된다.
+      final repo = FakeOnboardingRepository(
         latency: Duration.zero,
-        failWith: failure,
-      ),
-    );
-    await fillEverything(tester);
-    expect(nextEnabled(tester), isTrue, reason: '다 채웠는데 다음이 잠겨 있다');
+        availabilityFailure: OnboardingFailure.network,
+      );
+      await pumpPage(tester, onboarding: repo);
 
-    await tester.tap(find.text(AppStrings.profileNext));
-    await tester.pumpAndSettle();
-  }
+      await type(tester, nicknameField, '러너42');
+      await settleAutoCheck(tester);
 
-  testWidgets('⚠️ 닉네임이 겹치면 닉네임 질문으로 되돌아간다', (tester) async {
-    // 서버는 **이미 온보딩됨**과 **닉네임 중복**을 같은 409로 던진다.
-    // 이 이유만 고칠 자리가 정해져 있으므로 거기로 데려간다 —
-    // 마지막 화면에 세워두면 무엇을 고쳐야 하는지 스스로 찾아야 한다.
-    await submitFailing(tester, OnboardingFailure.nicknameTaken);
+      expect(find.text(AppStrings.profileNicknameCheckFailed), findsOneWidget);
+      expect(repo.availabilityCalls, 1);
 
-    expect(find.text(AppStrings.profileNicknameQuestion), findsOneWidget);
-    expect(find.text(AppStrings.profileNicknameTaken), findsOneWidget);
-    // 아래에 같은 말이 또 뜨면 안 된다.
-    expect(find.text(AppStrings.profileSubmitFailed), findsNothing);
+      // 눌리는 버튼은 반드시 무언가를 해야 한다.
+      expect(confirmEnabled(tester), isTrue, reason: '재시도할 방법이 없다');
+      await confirmNickname(tester);
+      expect(repo.availabilityCalls, 2);
+    });
+
+    testWidgets('이름을 고치면 지난 답이 사라진다', (tester) async {
+      final repo = FakeOnboardingRepository(latency: Duration.zero)
+        ..taken.add('러너42');
+      await pumpPage(tester, onboarding: repo);
+
+      await type(tester, nicknameField, '러너42');
+      await settleAutoCheck(tester);
+      expect(find.text(AppStrings.profileNicknameTaken), findsOneWidget);
+
+      await type(tester, nicknameField, '러너43');
+      expect(find.text(AppStrings.profileNicknameTaken), findsNothing);
+    });
+
+    testWidgets('⚠️ 서버가 답하기 전에는 다음이 열리지 않는다', (tester) async {
+      // 형식만 맞는 이름으로 넘어가면 서버가 409로 거절한다.
+      //
+      // ⚠️ 닉네임을 **마지막에** 친다. 다른 칸을 치는 동안 `pumpAndSettle` 이
+      // 시간을 흘려보내 자동 확인이 이미 끝나 버린다.
+      await pumpPage(tester);
+      await type(tester, birthField, adultBirth());
+      await tester.tap(find.text(AppStrings.profileGenderMale));
+      await tester.pumpAndSettle();
+      await type(tester, heightField, '175');
+      await type(tester, weightField, '65');
+
+      await tester.enterText(find.byType(TextField).at(nicknameField), '러너42');
+      await tester.pump();
+      expect(nextEnabled(tester), isFalse, reason: '아직 물어보지 않았다');
+
+      await settleAutoCheck(tester);
+      expect(nextEnabled(tester), isTrue);
+    });
   });
 
-  testWidgets('이름을 고치면 겹친다는 말이 사라진다', (tester) async {
-    await submitFailing(tester, OnboardingFailure.nicknameTaken);
+  group('보내기', () {
+    testWidgets('다 채우고 누르면 보낸다', (tester) async {
+      final repo = FakeOnboardingRepository(latency: Duration.zero);
+      await pumpPage(tester, onboarding: repo);
+      await fillForm(tester);
 
-    // 고치는 순간 서버의 거절은 낡은 말이 된다.
-    await typeNickname(tester, '러너99');
+      await tester.tap(find.text(AppStrings.profileNext));
+      await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.profileNicknameTaken), findsNothing);
-    // ⚠️ 아직 **쓸 수 있다고는 말하지 않는다.** 새 이름은 물어본 적이 없다.
-    expect(find.text(AppStrings.profileNicknameOk), findsNothing);
-    expect(find.text(AppStrings.profileNicknameCheckPending), findsOneWidget);
+      expect(repo.submitted, isNotNull);
+      expect(repo.submitted!.nickname, '러너42');
+      expect(repo.submitted!.heightCm, 175);
+      expect(repo.submitted!.weightKg, 65);
+      // 페이스를 안 골랐으니 미측정이다.
+      expect(repo.submitted!.paceSecondsPerKm, isNull);
+    });
 
-    // 손을 멈추면 알아서 묻고, 그때 비로소 쓸 수 있다고 말한다.
-    await settleAutoCheck(tester);
-    expect(find.text(AppStrings.profileNicknameOk), findsOneWidget);
-  });
+    testWidgets('⚠️ 실패해도 채운 것을 지우지 않는다', (tester) async {
+      final repo = FakeOnboardingRepository(
+        latency: Duration.zero,
+        failWith: OnboardingFailure.network,
+      );
+      await pumpPage(tester, onboarding: repo);
+      await fillForm(tester);
 
-  testWidgets('다른 실패는 채운 것을 그대로 두고 마지막에 알린다', (tester) async {
-    await submitFailing(tester, OnboardingFailure.network);
+      await tester.tap(find.text(AppStrings.profileNext));
+      await tester.pumpAndSettle();
 
-    // 다섯 개를 다시 채우게 하지 않는다.
-    expect(find.text(AppStrings.profileSubmitFailed), findsOneWidget);
-    expect(find.text(AppStrings.profileNicknameQuestion), findsNothing);
-    expect(nextEnabled(tester), isTrue);
+      expect(find.text(AppStrings.profileSubmitFailed), findsOneWidget);
+      expect(
+        tester
+            .widget<TextField>(find.byType(TextField).at(nicknameField))
+            .controller!
+            .text,
+        '러너42',
+      );
+      expect(nextEnabled(tester), isTrue);
+    });
+
+    testWidgets('⚠️ 닉네임이 겹치면 그 칸에서 말한다', (tester) async {
+      // 단계형에서는 그 질문으로 되돌아갔다. 한 화면 폼에서는 되돌아갈 곳이
+      // 없으니 **그 칸의 helper**가 말한다 — 아래 실패 줄에 묻히면 안 된다.
+      final repo = FakeOnboardingRepository(
+        latency: Duration.zero,
+        failWith: OnboardingFailure.nicknameTaken,
+      );
+      await pumpPage(tester, onboarding: repo);
+      await fillForm(tester);
+
+      await tester.tap(find.text(AppStrings.profileNext));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.profileNicknameTaken), findsOneWidget);
+      expect(find.text(AppStrings.profileSubmitFailed), findsNothing);
+    });
   });
 }

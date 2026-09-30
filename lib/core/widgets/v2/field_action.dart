@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
-import 'package:runiverse/core/theme/v2/app_sizes.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 
 /// 입력 칸 **안**에 앉는 작은 버튼.
 /// 시안 `158:2729`(인증하기) · `158:2742`(재전송) · `158:2778`(중복확인).
 ///
-/// ## ⚠️ 작아야 하고, 그러면서 44를 지켜야 한다
+/// ## ⚠️ 작아 보이되, 누르는 곳은 칸만큼 넓다
 ///
 /// 시안의 이 버튼은 높이가 35다. 44짜리를 그대로 넣으면 **칸이 밀린다** —
 /// 비밀번호 칸이 53에서 79로 커진 적이 있다(PR #100).
 ///
-/// 그래서 [OverflowBox]로 나눈다. **자리는 35만 차지하고 누르는 영역만 44로
-/// 넘쳐 나간다.** 부모에게는 작다고 말하고 자식에게는 넉넉히 준다 —
-/// `password_field_v2.dart`의 눈 아이콘이 같은 방법을 쓴다.
+/// 처음엔 `OverflowBox`로, 다음엔 음수 `Positioned`로 "자리는 36, 탭은 44"를
+/// 만들려 했는데 **둘 다 틀렸다.** Flutter 는 부모의 경계 밖을 히트 테스트하지
+/// 않아서 레이아웃 크기만 커지고 **실제로는 36만 눌렸다.** 크기를 재던 테스트는
+/// 그대로 통과했다 — 눌리는지를 안 보고 있었다.
+///
+/// 지금은 반대로 한다. 알약은 [_height]로 그리고 **누르는 영역은 부모가 주는
+/// 높이를 다 쓴다.** [AppInputV2]가 `IntrinsicHeight`로 칸의 높이(53~71)를
+/// 물려주므로 44는 저절로 넘는다. 칸의 높이는 글자 쪽이 정하므로 그대로다.
 ///
 /// ## 글자 색을 시안보다 올렸다
 ///
@@ -45,55 +49,39 @@ class FieldActionV2 extends StatelessWidget {
   static const _padX = 14.0;
   static const _height = 36.0;
 
-  /// 누르는 영역이 44가 되도록 위아래로 넘치는 양.
-  static const _reach = (AppSizes.touchDefault - _height) / 2;
-
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
     final enabled = onPressed != null;
 
+    final pill = Container(
+      height: _height,
+      padding: const EdgeInsets.symmetric(horizontal: _padX),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: colors.borderStrong,
+        borderRadius: AppRadius.md,
+      ),
+      child: Text(
+        label,
+        style: AppTypographyV2.body21.copyWith(
+          color: enabled ? colors.textSecondary : colors.textTertiary,
+        ),
+      ),
+    );
+
     return Semantics(
       button: true,
       enabled: enabled,
-      child: Stack(
-        // ⚠️ 넘치는 것을 자르지 않는다. 자르면 누르는 영역이 도로 36이 된다.
-        clipBehavior: Clip.none,
-        children: [
-          // 면과 글자. **자리를 차지하는 것은 이것뿐이고**, 이 위젯의 크기를 정한다.
-          Container(
-            height: _height,
-            padding: const EdgeInsets.symmetric(horizontal: _padX),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: colors.borderStrong,
-              borderRadius: AppRadius.md,
-            ),
-            child: Text(
-              label,
-              style: AppTypographyV2.body21.copyWith(
-                color: enabled ? colors.textSecondary : colors.textTertiary,
-              ),
-            ),
-          ),
-
-          // 누르는 영역만 위아래로 넘쳐 나간다. 음수 [Positioned]라
-          // 부모의 크기 계산에 들어가지 않는다.
-          Positioned(
-            top: -_reach,
-            bottom: -_reach,
-            left: 0,
-            right: 0,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onPressed,
-                borderRadius: AppRadius.md,
-                child: const SizedBox.expand(),
-              ),
-            ),
-          ),
-        ],
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: AppRadius.md,
+          // ⚠️ `widthFactor: 1`은 **가로만** 알약에 맞추라는 뜻이다. 세로는
+          // 부모가 주는 만큼 늘어나고, 그 전체가 누르는 영역이 된다.
+          child: Center(widthFactor: 1, child: pill),
+        ),
       ),
     );
   }
