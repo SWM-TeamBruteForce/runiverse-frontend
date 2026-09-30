@@ -8,6 +8,7 @@ import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/theme/tokens/run_palette.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/core/widgets/color/aura_orb.dart';
+import 'package:runiverse/features/home/presentation/home_idle.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 
 /// 홈 히어로 (S05).
@@ -20,12 +21,20 @@ import 'package:runiverse/features/matching/domain/room_info.dart';
 ///
 /// 상태는 [room]이 정한다 — `null`이면 기본, 모집 중이면 대기, 확정이면 확정.
 ///
-/// ## 아우라를 텍스트 뒤에 깔지 않는다
+/// ## ⚠️ 상태마다 배경이 다르다
 ///
-/// 정본 와이어프레임은 히어로 가운데에 아우라 글로우를 두지만,
-/// `docs/implementation-notes.md` §3-4가 **글로우를 텍스트 뒤에 깔지 말라**고 못 박았다.
-/// 러닝 색은 채도가 높아 그 위 글자가 대비 기준을 통과하지 못한다.
-/// 그래서 우측 상단 밖으로 흘려보내고, 글자는 깨끗한 배경 위에 둔다.
+/// 시안이 상태별로 다른 배경을 준다 — 기본은 아래에서 올라오는 파란 빛
+/// (`158:2848`), 나머지는 아직 옛 아우라다. **배경을 껍데기가 정하지 않고
+/// 상태가 들고 온다.** 껍데기가 하나로 정하면 상태를 하나 옮길 때마다
+/// 껍데기를 고치게 되고, 그때 다른 상태가 같이 흔들린다.
+///
+/// 기본 상태의 빛은 **이미지다**(`assets/images/home_hero_light.webp`).
+/// 시안이 blur 레이어 일곱 겹을 `plus-lighter`로 겹쳐 만든 것이라 손으로
+/// 그리면 맞출 수 없다. 부드러운 그러데이션이라 WebP 로 5KB 에 들어간다.
+///
+/// 글자는 빛의 **위쪽**에 둔다. `docs/implementation-notes.md` §3-4가
+/// **글로우를 텍스트 뒤에 깔지 말라**고 못 박았는데, 시안의 빛은 아래가 밝고
+/// 위가 어두워서 제목이 앉는 자리는 여전히 어둡다.
 ///
 /// ## 정본에서 뺀 것
 ///
@@ -36,26 +45,24 @@ import 'package:runiverse/features/matching/domain/room_info.dart';
 ///   확정으로 끝난다"고 정해져 있어 정본의 이 갈래는 낡았다
 class HomeHero extends StatelessWidget {
   const HomeHero({
-    required this.greeting,
     required this.onMatch,
-    required this.onSolo,
     required this.onCancel,
     required this.onLobby,
     required this.now,
+    this.name,
     this.room,
     this.pending = false,
     this.cooldownUntil,
     super.key,
   });
 
-  /// 시간대 인사. 어느 문구인지는 부르는 쪽이 정한다.
-  final String greeting;
+  /// 부를 이름. **없을 수 있다** — `/me`가 오기 전이거나 온보딩 전이다.
+  ///
+  /// 시안 `158:2848`이 `김지원님`으로 시작한다. 없으면 그 줄을 통째로 뺀다.
+  final String? name;
 
   /// 매칭 등록 화면으로. 기본 상태에서만 쓴다.
   final VoidCallback onMatch;
-
-  /// 1인 러닝 시작.
-  final VoidCallback onSolo;
 
   /// 방 정보를 못 받았을 때만 쓴다. 평소의 취소는 로비가 맡는다.
   final VoidCallback onCancel;
@@ -80,12 +87,64 @@ class HomeHero extends StatelessWidget {
   /// 그 사이에 기본 히어로를 보여주면 신청한 적 없는 줄 알고 다시 누른다.
   final bool pending;
 
-  /// 기록이 없을 때의 아우라 밝기.
+  /// 기록이 없을 때의 아우라 밝기. 아직 안 옮긴 상태들만 쓴다.
   static const _restingVitality = 0.5;
 
   @override
   Widget build(BuildContext context) {
     final current = room;
+
+    // ⚠️ **옮긴 상태는 자기 카드를 통째로 그린다.**
+    //
+    // 껍데기를 함께 쓰면 껍데기가 두 세대의 토큰을 같이 읽게 되고,
+    // `theme_generation_test`가 그것을 막는다. 상태를 하나씩 옮기는 동안
+    // **옮긴 것만 자기 파일로 나간다** — 남은 넷은 아래 껍데기를 그대로 쓴다.
+    if (current == null && !pending) {
+      return HomeIdle(
+        name: name,
+        onMatch: onMatch,
+        now: now,
+        cooldownUntil: cooldownUntil,
+      );
+    }
+
+    final shell = Stack(
+      children: [
+        Positioned(
+          top: -AppSpacing.space10,
+          right: -AppSpacing.space10,
+          child: AuraOrb(
+            colors: [RunPalette.shadesOf(RunHue.company)[1]],
+            size: 240,
+            vitality: _restingVitality,
+          ),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.all(AppSpacing.space6),
+          child: switch (current?.status) {
+            RoomStatus.matching => _Waiting(
+              room: current!,
+              now: now,
+              onLobby: onLobby,
+            ),
+            RoomStatus.matched => _Confirmed(
+              room: current!,
+              now: now,
+              onLobby: onLobby,
+            ),
+            // ⚠️ **여기를 비워두면 달리는 중에 홈이 "지금 매칭하기"가 된다.**
+            // 예약한 시각이 지나 서버가 러닝을 시작했는데 사용자가 홈 탭에
+            // 있으면 아무도 데려가지 않았다 — 그사이가 통째로 거리에서 빠진다.
+            RoomStatus.started => _Started(onEnter: onLobby),
+            // 기본 상태는 위에서 이미 돌아갔다. 여기 오는 `_` 는 모집 중인데
+            // 방 정보가 아직 없는 구간이거나 **모르는 상태값**이고, 그때도
+            // 비워 두지 않는다.
+            _ => _Pending(onCancel: onCancel),
+          },
+        ),
+      ],
+    );
 
     return ClipRRect(
       // 아우라가 히어로 밖으로 새어 아래 카드를 덮지 않게 자른다.
@@ -93,123 +152,13 @@ class HomeHero extends StatelessWidget {
       child: ConstrainedBox(
         // 정본이 정한 히어로 최소 높이.
         constraints: const BoxConstraints(minHeight: 236),
-        child: Stack(
-          children: [
-            Positioned(
-              top: -AppSpacing.space10,
-              right: -AppSpacing.space10,
-              child: AuraOrb(
-                colors: [RunPalette.shadesOf(RunHue.company)[1]],
-                size: 240,
-                vitality: _restingVitality,
-              ),
-            ),
-
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.space6),
-              child: switch (current?.status) {
-                RoomStatus.matching => _Waiting(
-                  room: current!,
-                  now: now,
-                  onLobby: onLobby,
-                ),
-                RoomStatus.matched => _Confirmed(
-                  room: current!,
-                  now: now,
-                  onLobby: onLobby,
-                ),
-                // ⚠️ **여기를 비워두면 달리는 중에 홈이 "지금 매칭하기"가 된다.**
-                // 예약한 시각이 지나 서버가 러닝을 시작했는데 사용자가 홈 탭에
-                // 있으면 아무도 데려가지 않았다 — 그사이가 통째로 거리에서 빠진다.
-                RoomStatus.started => _Started(onEnter: onLobby),
-                _ when pending => _Pending(onCancel: onCancel),
-                _ => _Idle(
-                  greeting: greeting,
-                  onMatch: onMatch,
-                  onSolo: onSolo,
-                  now: now,
-                  cooldownUntil: cooldownUntil,
-                ),
-              },
-            ),
-          ],
-        ),
+        child: shell,
       ),
     );
   }
 }
 
 /// 기본 — 아직 매칭 중이 아니다.
-class _Idle extends StatelessWidget {
-  const _Idle({
-    required this.greeting,
-    required this.onMatch,
-    required this.onSolo,
-    required this.now,
-    this.cooldownUntil,
-  });
-
-  final String greeting;
-  final VoidCallback onMatch;
-  final VoidCallback onSolo;
-
-  /// 지금. **부르는 쪽이 갈아끼운다** — 제한이 풀리는 순간 버튼이 열려야 한다.
-  final DateTime now;
-
-  /// 매칭 신청이 풀리는 시각. 지났거나 없으면 제한이 없다.
-  ///
-  /// ⚠️ **솔로는 막지 않는다.** 제재는 매칭 신청에만 걸린다 — 혼자 달리는 것은
-  /// 누구를 기다리게 하지도, 방을 비우지도 않는다.
-  final DateTime? cooldownUntil;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColors;
-    final until = cooldownUntil;
-    final locked = until != null && until.isAfter(now);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          greeting,
-          style: AppTypography.body.copyWith(color: colors.textSecondary),
-        ),
-        const SizedBox(height: AppSpacing.space1),
-
-        Text(
-          AppStrings.homeHeroPrompt,
-          style: AppTypography.h1.copyWith(color: colors.textPrimary),
-        ),
-        const SizedBox(height: AppSpacing.space6),
-
-        // ⚠️ **눌러 보고 409를 받게 두지 않는다.** 서버가 이미 언제까지인지
-        // 말해 줬는데 그것을 숨기면, 사용자는 눌러야만 이유를 알 수 있다.
-        AppButton(
-          label: AppStrings.homeMatchCta,
-          onPressed: locked ? null : onMatch,
-        ),
-        if (locked) ...[
-          const SizedBox(height: AppSpacing.space2),
-          Text(
-            AppStrings.matchFailedCooldown(until),
-            style: AppTypography.caption.copyWith(color: colors.textTertiary),
-          ),
-        ],
-        const SizedBox(height: AppSpacing.space2),
-
-        // 솔로는 제한과 무관하게 열려 있다.
-        AppButton(
-          label: AppStrings.homeSoloCta,
-          onPressed: onSolo,
-          variant: AppButtonVariant.secondary,
-        ),
-      ],
-    );
-  }
-}
-
 /// 매칭 중인데 방 정보가 아직 없다.
 ///
 /// 짧게 지나가는 구간이지만 **비워 둘 수 없다.** 여기가 비면 매칭을 신청한

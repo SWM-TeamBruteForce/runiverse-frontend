@@ -470,11 +470,30 @@ abstract final class AppStrings {
   static const homeGreetingEvening = '좋은 저녁이에요';
   static const homeGreetingNight = '늦은 밤이네요';
 
-  /// 히어로 문구. 줄바꿈 위치를 고정해 두 줄로 읽히게 한다.
-  static const homeHeroPrompt = '오늘도 누군가와\n같은 시간에 뛰어볼까요?';
+  /// 히어로 제목. **이름을 부른다** — 시안 `158:2848`이 `김지원님`으로 시작한다.
+  ///
+  /// ⚠️ **이름이 없을 수 있다.** `/me`가 오기 전이거나 온보딩 전이면 비어 있다.
+  /// 그때는 부르는 줄을 통째로 뺀다 — `님`만 남으면 이름을 잃은 것처럼 보인다.
+  static String homeHeroName(String nickname) => '$nickname님';
+  static const homeHeroPrompt = '오늘도 함께 달려볼까요?';
 
-  static const homeMatchCta = '지금 매칭하기';
-  static const homeSoloCta = '혼자 달리기';
+  /// ⚠️ **시안은 `매칭시작`·`혼자연습하기`로 붙여 쓴다.** 한국어 맞춤법상
+  /// 띄는 것이 맞아 띄웠다. 디자인 확인이 필요하다.
+  static const homeMatchCta = '매칭 시작';
+  static const homeSoloCta = '혼자 연습하기';
+
+  /// ⚠️ **CLAUDE.md는 "친구"를 금지한다**(요청→수락 모델). 시안이 이 말을
+  /// 쓰고, 프로필 시안의 `팔로워/팔로우`와 **한 덩어리 결정**이라 일단
+  /// 시안대로 뒀다. 기획 확인이 필요하다.
+  static const homeWithFriendCta = '친구랑 뛰기';
+
+  /// 히어로 부제. 줄바꿈 위치를 고정해 두 줄로 읽히게 한다.
+  static const homeHeroSubtitle = '나와 비슷한 러너를 만나\n같은 시간, 각자의 자리에서 함께 달려보세요.';
+
+  /// 프로필을 아직 안 채운 사람에게 뜨는 안내.
+  static const homeProfilePromptTitle = '매칭을 시작하려면 프로필을 완성해주세요';
+  static const homeProfilePromptBody =
+      '러닝 수준과 기본 정보를 입력하면 나와 잘 맞는 러너를 찾을 수 있어요.';
 
   // 히어로 — 매칭 대기 (S05 상태 2)
   //
@@ -543,15 +562,6 @@ abstract final class AppStrings {
   static const homeRunStarted = '러닝이 시작됐어요';
   static const homeRunStartedHint = '지금 들어가지 않으면 거리가 빠져요';
   static const homeRunToSession = '러닝 화면으로 가기';
-
-  static const homeSectionCompetition = '다가오는 대회';
-  static const homeSectionRecentRun = '최근 러닝';
-
-  static const homeEmptyCompetition = '등록된 대회가 없어요';
-  static const homeEmptyRecentRun = '아직 달린 기록이 없어요';
-
-  /// 빈 상태에 붙는 한 줄. 무엇을 하면 채워지는지 알려준다.
-  static const homeEmptyRecentRunHint = '혼자 달리기로 첫 기록을 남겨보세요';
 
   // ── 매칭 등록 (S08) ──────────────────────────────────────────
 
