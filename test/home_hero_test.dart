@@ -31,6 +31,7 @@ void main() {
     DateTime? now,
     DateTime? cooldownUntil,
     String? name,
+    String? myUserId,
     VoidCallback? onLobby,
     // ⚠️ 돌려주는 기록은 **pump 시점에 굳는다**(레코드라 값이 복사된다).
     // 누른 뒤의 횟수를 보려면 부르는 쪽이 살아 있는 카운터를 넘겨야 한다.
@@ -47,6 +48,7 @@ void main() {
           body: SingleChildScrollView(
             child: HomeHero(
               name: name,
+              myUserId: myUserId,
               room: withRoom,
               pending: pending,
               cooldownUntil: cooldownUntil,
@@ -95,7 +97,7 @@ void main() {
   });
 
   group('모집 중', () {
-    testWidgets('몇 명 모였는지와 마감을 알린다', (tester) async {
+    testWidgets('기다리는 중이라고 말한다', (tester) async {
       await pumpHero(
         tester,
         withRoom: room(
@@ -105,24 +107,65 @@ void main() {
         ),
       );
 
-      expect(find.text(AppStrings.homeMatchWaiting), findsOneWidget);
-      // 숫자만 강조색이라 `Text.rich`다 — `findRichText`가 없으면 못 읽는다.
+      expect(find.text(AppStrings.homeMatchWaitingTitle), findsOneWidget);
       expect(
-        find.text(
-          '${AppStrings.homeMatchJoinedPrefix} '
-          '${AppStrings.homeMatchJoinedCount(2)} '
-          '${AppStrings.homeMatchJoinedSuffix}',
-          findRichText: true,
-        ),
+        find.textContaining(AppStrings.homeMatchWaitingOthers(2)),
         findsOneWidget,
       );
-      // 20분 남았다. 초까지 세지 않는다 — 조급해진다.
+    });
+
+    testWidgets('⚠️ 나는 둘레에서 빠진다', (tester) async {
+      // 가운데가 나다. 서버 명단에 내가 들어 있으면 둘이 되는데, 명단에
+      // 나를 넣는지 아닌지는 서버 사정이라 **아이디로 거른다.**
+      await pumpHero(
+        tester,
+        withRoom: room(RoomStatus.matching, players: 2),
+        myUserId: 'u-0',
+      );
+
       expect(
-        find.text(
-          AppStrings.homeMatchSlotLine(startAt, const Duration(minutes: 20)),
-        ),
+        find.textContaining(AppStrings.homeMatchWaitingOthers(1)),
         findsOneWidget,
       );
+    });
+
+    testWidgets('⚠️ 인원이 셋이 아니어도 고르게 흩어진다', (tester) async {
+      // 시안은 세 사람을 손으로 배치했다. 우리 방은 2~4명이라 둘레에 설
+      // 사람이 1~3명으로 변한다 — **각도를 박아 두면 그때 겹친다.**
+      final handle = tester.ensureSemantics();
+
+      for (final count in [1, 2, 3, 4]) {
+        await pumpHero(
+          tester,
+          withRoom: room(RoomStatus.matching, players: count),
+        );
+
+        final spots = <Offset>[];
+        for (var i = 0; i < count; i++) {
+          spots.add(tester.getCenter(find.bySemanticsLabel('러너$i')));
+        }
+        for (var a = 0; a < spots.length; a++) {
+          for (var b = a + 1; b < spots.length; b++) {
+            expect(
+              (spots[a] - spots[b]).distance,
+              greaterThan(40),
+              reason: '$count명일 때 $a번과 $b번이 겹친다',
+            );
+          }
+        }
+      }
+      handle.dispose();
+    });
+
+    testWidgets('⚠️ 아직 나뿐이면 0명이라 적지 않는다', (tester) async {
+      // 신청 직후에는 둘레가 빈다. **시안에 없는 구간이다.**
+      await pumpHero(tester, withRoom: room(RoomStatus.matching, players: 0));
+
+      expect(
+        find.textContaining(AppStrings.homeMatchWaitingAlone),
+        findsOneWidget,
+      );
+      expect(find.textContaining('0명'), findsNothing);
     });
 
     testWidgets('⚠️ 다시 신청하러 갈 문이 없다', (tester) async {
@@ -130,7 +173,7 @@ void main() {
       await pumpHero(tester, withRoom: room(RoomStatus.matching));
 
       expect(find.text(AppStrings.homeMatchCta), findsNothing);
-      expect(find.text(AppStrings.homeMatchToLobby), findsOneWidget);
+      expect(find.text(AppStrings.homeMatchWaitingCta), findsOneWidget);
     });
 
     testWidgets('⚠️ 취소는 히어로에 두지 않는다', (tester) async {
@@ -140,11 +183,14 @@ void main() {
       expect(find.text(AppStrings.homeMatchCancel), findsNothing);
     });
 
-    testWidgets('파티원 이름이 보인다', (tester) async {
+    testWidgets('⚠️ 파티원 이름을 읽어 준다', (tester) async {
+      // 시안이 둘레에 **사진만** 둔다. 글자가 없어 `Semantics`가 유일한 길이다.
+      final handle = tester.ensureSemantics();
       await pumpHero(tester, withRoom: room(RoomStatus.matching));
 
-      expect(find.text('러너0'), findsOneWidget);
-      expect(find.text('러너1'), findsOneWidget);
+      expect(find.bySemanticsLabel('러너0'), findsOneWidget);
+      expect(find.bySemanticsLabel('러너1'), findsOneWidget);
+      handle.dispose();
     });
   });
 

@@ -500,6 +500,23 @@ abstract final class AppStrings {
   // ⚠️ **정본은 히어로가 매칭 상태를 전담한다.** 모집 중에는 갈 화면이 따로
   // 없고, 여기가 그 상태를 보여주는 유일한 자리다.
 
+  /// 카드 제목. 시안 `158:2971`.
+  static const homeMatchWaitingTitle = '매칭 대기 중';
+
+  /// 부제 둘째 줄. 두 경우가 같은 말로 끝난다.
+  static const homeMatchWaitingHint = '잠시만 기다려주세요';
+
+  /// `3명의 러너가 함께 달릴 준비를 하고 있어요` — **나를 뺀 수**다.
+  static String homeMatchWaitingOthers(int count) =>
+      '$count명의 러너가 함께 달릴 준비를 하고 있어요';
+
+  /// ⚠️ **시안에 없는 구간이다.** 신청 직후에는 아직 나뿐이라 궤도가 빈다.
+  /// 그때 `0명의 러너가 준비를 하고 있어요`라고 적으면 말이 안 된다.
+  static const homeMatchWaitingAlone = '아직 함께 달릴 러너를 찾고 있어요';
+
+  /// 잠긴 CTA. 누를 수 없고, 지금 무엇을 하는 중인지만 말한다.
+  static const homeMatchWaitingCta = '매칭 대기중';
+
   static const homeMatchWaiting = '매칭 중';
 
   /// ⚠️ 서버는 매칭 중이라는데 방 정보가 아직 안 온 구간.
