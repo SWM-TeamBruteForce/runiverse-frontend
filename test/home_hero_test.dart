@@ -244,6 +244,60 @@ void main() {
       expect(find.text(AppStrings.homeMatchUnknownValue), findsOneWidget);
     });
 
+    testWidgets('⚠️ 나 혼자인 방은 혼자 달린다고 알린다', (tester) async {
+      // 서버는 마감 10분 전까지 상대를 못 찾으면 **그 방을 1인 러닝으로
+      // 돌린다.** 확정 카드를 그리면 참여자 줄에 나 혼자 서 있고, 왜 그런지는
+      // 아무 데도 안 적힌다.
+      await pumpHero(
+        tester,
+        withRoom: room(RoomStatus.matched, players: 1),
+        myUserId: 'u-0',
+      );
+
+      expect(find.text(AppStrings.homeMatchSoloTitle), findsOneWidget);
+      expect(find.text(AppStrings.homeMatchConfirmedTitle), findsNothing);
+    });
+
+    testWidgets('⚠️ 명단을 모르는 것은 혼자가 아니다', (tester) async {
+      // 스냅샷이 늦으면 `RoomInfo.fromStatus()`가 **빈 명단**으로 대타 방을
+      // 세운다. 그걸 혼자로 읽으면 멀쩡한 4인 방에 이 화면이 뜬다.
+      // (`RoomInfo.isAlone`이 `players.length <= 1`이라 그대로 쓰면 틀린다.)
+      await pumpHero(
+        tester,
+        withRoom: room(RoomStatus.matched, players: 0),
+        myUserId: 'u-0',
+      );
+
+      expect(find.text(AppStrings.homeMatchSoloTitle), findsNothing);
+      expect(find.text(AppStrings.homeMatchConfirmedTitle), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 남이 있으면 혼자가 아니다', (tester) async {
+      await pumpHero(
+        tester,
+        withRoom: room(RoomStatus.matched, players: 2),
+        myUserId: 'u-0',
+      );
+
+      expect(find.text(AppStrings.homeMatchSoloTitle), findsNothing);
+    });
+
+    testWidgets('⚠️ 혼자여도 들어갈 문은 열린다', (tester) async {
+      // 예약한 시각에 달릴 방이다. 여기서 못 들어가면 러닝을 통째로 놓친다.
+      var entered = 0;
+      await pumpHero(
+        tester,
+        withRoom: room(RoomStatus.matched, players: 1),
+        myUserId: 'u-0',
+        onLobby: () => entered++,
+      );
+
+      await tester.tap(find.text(AppStrings.homeMatchToWaitingRoom));
+      await tester.pumpAndSettle();
+
+      expect(entered, 1);
+    });
+
     testWidgets('⚠️ 확정 뒤에도 취소가 히어로에 없다', (tester) async {
       // 확정 이탈은 제재가 붙는다. 대기실에서 문구를 보고 결정하게 한다.
       await pumpHero(tester, withRoom: room(RoomStatus.matched));

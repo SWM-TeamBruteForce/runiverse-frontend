@@ -10,6 +10,7 @@ import 'package:runiverse/core/widgets/color/aura_orb.dart';
 import 'package:runiverse/features/home/presentation/home_confirmed.dart';
 import 'package:runiverse/features/home/presentation/home_waiting.dart';
 import 'package:runiverse/features/home/presentation/home_idle.dart';
+import 'package:runiverse/features/home/presentation/home_solo_room.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 
 /// 홈 히어로 (S05).
@@ -117,7 +118,12 @@ class HomeHero extends StatelessWidget {
       );
     }
     if (current != null && current.status == RoomStatus.matched) {
-      return HomeConfirmed(room: current, now: now, onLobby: onLobby);
+      // ⚠️ **혼자 달리게 된 방을 먼저 가른다.** 상대를 못 만나면 서버가 그
+      // 방을 1인 러닝으로 돌리는데, 확정 카드를 그리면 참여자 줄에 나 혼자
+      // 서 있고 왜 그런지는 아무 데도 안 적힌다.
+      return HomeSoloRoom.shows(current, myUserId: myUserId)
+          ? HomeSoloRoom(room: current, now: now, onLobby: onLobby)
+          : HomeConfirmed(room: current, now: now, onLobby: onLobby);
     }
     if (current != null && current.status == RoomStatus.matching) {
       return HomeWaiting(
