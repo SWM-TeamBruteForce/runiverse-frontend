@@ -136,6 +136,9 @@ class _HomePageState extends ConsumerState<HomePage> {
           children: [
             HomeHero(
               name: signedIn?.user?.nickname,
+              photoUrl: signedIn?.user?.profileImageUrl,
+              // 대기 중 카드가 **둘레에서 나를 빼는 데** 쓴다.
+              myUserId: signedIn?.userId,
               room: hero,
               // ⚠️ 상태는 매칭 중인데 스냅샷이 아직 안 온 구간. 여기를 비우면
               // 신청한 사람이 기본 히어로를 보고 다시 누른다.

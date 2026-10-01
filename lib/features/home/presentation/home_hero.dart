@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
 import 'package:runiverse/core/theme/tokens/app_radius.dart';
-import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/theme/tokens/run_palette.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/core/widgets/color/aura_orb.dart';
 import 'package:runiverse/features/home/presentation/home_confirmed.dart';
+import 'package:runiverse/features/home/presentation/home_waiting.dart';
 import 'package:runiverse/features/home/presentation/home_idle.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 
@@ -51,6 +51,8 @@ class HomeHero extends StatelessWidget {
     required this.onLobby,
     required this.now,
     this.name,
+    this.photoUrl,
+    this.myUserId,
     this.room,
     this.pending = false,
     this.cooldownUntil,
@@ -61,6 +63,12 @@ class HomeHero extends StatelessWidget {
   ///
   /// 시안 `158:2848`이 `김지원님`으로 시작한다. 없으면 그 줄을 통째로 뺀다.
   final String? name;
+
+  /// 내 프로필 사진. 대기 중 카드가 가운데에 쓴다.
+  final String? photoUrl;
+
+  /// 내 아이디. 대기 중 카드가 **둘레에서 나를 빼는 데** 쓴다.
+  final String? myUserId;
 
   /// 매칭 등록 화면으로. 기본 상태에서만 쓴다.
   final VoidCallback onMatch;
@@ -111,6 +119,15 @@ class HomeHero extends StatelessWidget {
     if (current != null && current.status == RoomStatus.matched) {
       return HomeConfirmed(room: current, now: now, onLobby: onLobby);
     }
+    if (current != null && current.status == RoomStatus.matching) {
+      return HomeWaiting(
+        room: current,
+        onLobby: onLobby,
+        myUserId: myUserId,
+        myNickname: name,
+        myPhotoUrl: photoUrl,
+      );
+    }
 
     final shell = Stack(
       children: [
@@ -127,11 +144,6 @@ class HomeHero extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.all(AppSpacing.space6),
           child: switch (current?.status) {
-            RoomStatus.matching => _Waiting(
-              room: current!,
-              now: now,
-              onLobby: onLobby,
-            ),
             // ⚠️ **여기를 비워두면 달리는 중에 홈이 "지금 매칭하기"가 된다.**
             // 예약한 시각이 지나 서버가 러닝을 시작했는데 사용자가 홈 탭에
             // 있으면 아무도 데려가지 않았다 — 그사이가 통째로 거리에서 빠진다.
@@ -216,86 +228,6 @@ class _Pending extends StatelessWidget {
 }
 
 /// 모집 중 — 몇 명이 모였고 언제 마감되는가.
-class _Waiting extends StatelessWidget {
-  const _Waiting({
-    required this.room,
-    required this.now,
-    required this.onLobby,
-  });
-
-  final RoomInfo room;
-  final DateTime now;
-  final VoidCallback onLobby;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColors;
-    final closeAt = room.closeAt;
-    final untilClose = closeAt == null
-        ? null
-        : closeAt.difference(now).isNegative
-        ? Duration.zero
-        : closeAt.difference(now);
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: AppSpacing.space2,
-              height: AppSpacing.space2,
-              decoration: BoxDecoration(
-                color: colors.matchWaiting,
-                borderRadius: AppRadius.full,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.space2),
-            Text(
-              AppStrings.homeMatchWaiting,
-              style: AppTypography.caption.copyWith(
-                color: colors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.space1),
-
-        // 숫자만 강조색이다. 문장 전체를 칠하면 몇 명인지가 묻힌다.
-        Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(text: '${AppStrings.homeMatchJoinedPrefix} '),
-              TextSpan(
-                text: AppStrings.homeMatchJoinedCount(room.players.length),
-                style: TextStyle(color: colors.matchWaiting),
-              ),
-              TextSpan(text: ' ${AppStrings.homeMatchJoinedSuffix}'),
-            ],
-          ),
-          style: AppTypography.h1.copyWith(color: colors.textPrimary),
-        ),
-        const SizedBox(height: AppSpacing.space4),
-
-        _Avatars(players: room.players, size: AppSizes.touchDefault),
-        const SizedBox(height: AppSpacing.space4),
-
-        if (untilClose != null)
-          Text(
-            AppStrings.homeMatchSlotLine(room.scheduledStartAt, untilClose),
-            style: AppTypography.caption.copyWith(color: colors.textTertiary),
-          ),
-        const SizedBox(height: AppSpacing.space4),
-
-        // ⚠️ 취소는 여기 두지 않는다. 로비가 제재 여부를 문구로 알려주고
-        // 거기서 결정하게 한다 — 두 곳에 두면 한쪽 문구만 고쳐진다.
-        AppButton(label: AppStrings.homeMatchToLobby, onPressed: onLobby),
-      ],
-    );
-  }
-}
-
 /// 확정 — 언제 출발하고 누구와 뛰는가.
 /// 서버가 이미 시작한 러닝. **들어갈 문 하나만 둔다.**
 ///
@@ -334,74 +266,3 @@ class _Started extends StatelessWidget {
 /// 참가자 동그라미들.
 ///
 /// ⚠️ **시그니처 컬러를 쓰지 못한다.** 색을 모으는 기능이 아직 없어 한 가지
-/// 톤으로 그린다. 정본은 각자의 색으로 칠하고 글로우를 두른다.
-class _Avatars extends StatelessWidget {
-  const _Avatars({required this.players, required this.size});
-
-  final List<RoomPlayer> players;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final player in players)
-          Padding(
-            padding: EdgeInsets.only(
-              right: player == players.last ? 0 : AppSpacing.space2,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _Circle(player: player, size: size),
-                const SizedBox(height: AppSpacing.space1),
-                SizedBox(
-                  width: size + AppSpacing.space2,
-                  child: Text(
-                    player.nickname,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: AppTypography.caption.copyWith(
-                      color: context.appColors.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _Circle extends StatelessWidget {
-  const _Circle({required this.player, required this.size});
-
-  final RoomPlayer player;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColors;
-
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: colors.primaryMuted,
-        borderRadius: AppRadius.full,
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        _initial(player),
-        style: AppTypography.body.copyWith(color: colors.primary),
-      ),
-    );
-  }
-
-  /// 첫 글자. 탈퇴한 사람은 이름이 익명 처리돼 오므로 그대로 쓴다.
-  static String _initial(RoomPlayer player) =>
-      player.nickname.isEmpty ? '?' : player.nickname.characters.first;
-}
