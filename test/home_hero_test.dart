@@ -31,6 +31,7 @@ void main() {
     DateTime? now,
     DateTime? cooldownUntil,
     String? name,
+    VoidCallback? onLobby,
     // ⚠️ 돌려주는 기록은 **pump 시점에 굳는다**(레코드라 값이 복사된다).
     // 누른 뒤의 횟수를 보려면 부르는 쪽이 살아 있는 카운터를 넘겨야 한다.
     VoidCallback? onMatch,
@@ -52,7 +53,7 @@ void main() {
               now: now ?? DateTime(2026, 9, 16, 18, 30),
               onMatch: onMatch ?? () => match++,
               onCancel: () => cancel++,
-              onLobby: () => lobby++,
+              onLobby: onLobby ?? () => lobby++,
             ),
           ),
         ),
@@ -151,10 +152,50 @@ void main() {
     testWidgets('출발까지 세고 로비로 가는 문을 연다', (tester) async {
       await pumpHero(tester, withRoom: room(RoomStatus.matched, players: 3));
 
-      expect(find.text(AppStrings.homeMatchConfirmed(startAt)), findsOneWidget);
+      expect(find.text(AppStrings.homeMatchConfirmedTitle), findsOneWidget);
       expect(find.text(AppStrings.homeMatchStartLabel), findsOneWidget);
-      expect(find.text(AppStrings.homeMatchParty(3)), findsOneWidget);
       expect(find.text(AppStrings.homeMatchToWaitingRoom), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 그 문이 실제로 열린다', (tester) async {
+      // 글자가 있는지만 보면 **문을 통째로 막아도 초록이다**(직접 부숴
+      // 확인했다). 확정된 방으로 들어가는 유일한 문이라 눌러서 본다.
+      var entered = 0;
+      await pumpHero(
+        tester,
+        withRoom: room(RoomStatus.matched, players: 3),
+        onLobby: () => entered++,
+      );
+
+      await tester.tap(find.text(AppStrings.homeMatchToWaitingRoom));
+      await tester.pumpAndSettle();
+
+      expect(entered, 1, reason: '로비로 가는 문이 안 열린다');
+    });
+
+    testWidgets('⚠️ 함께 달릴 사람을 이름으로 보여준다', (tester) async {
+      // 시안이 겹친 동그라미 대신 이름을 붙인 얼굴 셋을 둔다. 누가 함께
+      // 달리는지가 이 카드의 요점이다.
+      await pumpHero(tester, withRoom: room(RoomStatus.matched, players: 3));
+
+      expect(find.text(AppStrings.homeMatchPartyLabel), findsOneWidget);
+      expect(find.text('러너0'), findsOneWidget);
+      expect(find.text('러너2'), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 세 칸을 라벨과 함께 보여준다', (tester) async {
+      await pumpHero(tester, withRoom: room(RoomStatus.matched, players: 3));
+
+      expect(find.text(AppStrings.homeMatchStartAtLabel), findsOneWidget);
+      expect(find.text(AppStrings.homeMatchDistanceLabel), findsOneWidget);
+      expect(find.text(AppStrings.matchSlotTime(startAt)), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 목표 거리를 모르면 지어내지 않는다', (tester) async {
+      // 서버가 안 줄 수 있다. 0km 라고 적으면 목표가 달라 보인다.
+      await pumpHero(tester, withRoom: room(RoomStatus.matched, players: 3));
+
+      expect(find.text(AppStrings.homeMatchUnknownValue), findsOneWidget);
     });
 
     testWidgets('⚠️ 확정 뒤에도 취소가 히어로에 없다', (tester) async {

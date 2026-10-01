@@ -103,8 +103,9 @@ void main() {
     );
 
     expect(find.text(AppStrings.homeMatchToWaitingRoom), findsOneWidget);
-    // ⚠️ 인원은 모른다. 0명이라고 적으면 혼자 달리는 줄 안다.
-    expect(find.text(AppStrings.homeMatchParty(0)), findsNothing);
+    // ⚠️ 인원은 모른다. 명단이 없으면 **참여자 줄을 아예 그리지 않는다** —
+    // 빈 줄을 두면 아무도 없는 것처럼 보인다.
+    expect(find.text(AppStrings.homeMatchPartyLabel), findsNothing);
     // 다시 신청하러 갈 문은 여전히 닫혀 있다.
     expect(find.text(AppStrings.homeMatchCta), findsNothing);
   });

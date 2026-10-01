@@ -8,6 +8,7 @@ import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/theme/tokens/run_palette.dart';
 import 'package:runiverse/core/widgets/app_button.dart';
 import 'package:runiverse/core/widgets/color/aura_orb.dart';
+import 'package:runiverse/features/home/presentation/home_confirmed.dart';
 import 'package:runiverse/features/home/presentation/home_idle.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 
@@ -107,6 +108,9 @@ class HomeHero extends StatelessWidget {
         cooldownUntil: cooldownUntil,
       );
     }
+    if (current != null && current.status == RoomStatus.matched) {
+      return HomeConfirmed(room: current, now: now, onLobby: onLobby);
+    }
 
     final shell = Stack(
       children: [
@@ -124,11 +128,6 @@ class HomeHero extends StatelessWidget {
           padding: const EdgeInsets.all(AppSpacing.space6),
           child: switch (current?.status) {
             RoomStatus.matching => _Waiting(
-              room: current!,
-              now: now,
-              onLobby: onLobby,
-            ),
-            RoomStatus.matched => _Confirmed(
               room: current!,
               now: now,
               onLobby: onLobby,
@@ -298,85 +297,6 @@ class _Waiting extends StatelessWidget {
 }
 
 /// 확정 — 언제 출발하고 누구와 뛰는가.
-class _Confirmed extends StatelessWidget {
-  const _Confirmed({
-    required this.room,
-    required this.now,
-    required this.onLobby,
-  });
-
-  final RoomInfo room;
-  final DateTime now;
-  final VoidCallback onLobby;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColors;
-    final left = room.scheduledStartAt.difference(now);
-    final remaining = left.isNegative ? Duration.zero : left;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: colors.matchConfirmed.withValues(alpha: 0.16),
-            borderRadius: AppRadius.sm,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.space2,
-              vertical: AppSpacing.space1,
-            ),
-            child: Text(
-              AppStrings.homeMatchConfirmed(room.scheduledStartAt),
-              style: AppTypography.caption.copyWith(
-                color: colors.matchConfirmed,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.space3),
-
-        Text(
-          AppStrings.homeMatchStartLabel,
-          style: AppTypography.caption.copyWith(color: colors.textTertiary),
-        ),
-        Text(
-          AppStrings.matchRoomCountdown(remaining),
-          style: AppTypography.display.copyWith(
-            color: colors.textPrimary,
-            // 1초마다 갈리는 숫자다. 자릿수가 흔들리면 글자가 춤춘다.
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.space3),
-
-        // ⚠️ 명단을 모르면 **아예 그리지 않는다.** 스냅샷이 없을 때 0명이라
-        // 적으면 혼자 달리는 줄 안다 — 모르는 것과 없는 것은 다르다.
-        if (room.players.isNotEmpty) ...[
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _StackedAvatars(players: room.players, size: AppSpacing.space8),
-              const SizedBox(width: AppSpacing.space2),
-              Text(
-                AppStrings.homeMatchParty(room.players.length),
-                style: AppTypography.caption.copyWith(
-                  color: colors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ],
-        const SizedBox(height: AppSpacing.space4),
-
-        AppButton(label: AppStrings.homeMatchToWaitingRoom, onPressed: onLobby),
-      ],
-    );
-  }
-}
-
 /// 서버가 이미 시작한 러닝. **들어갈 문 하나만 둔다.**
 ///
 /// 카운트다운도 파티원 줄도 그리지 않는다 — 기다릴 것이 없고, 이 화면에서
@@ -456,54 +376,11 @@ class _Avatars extends StatelessWidget {
   }
 }
 
-/// 겹쳐 놓은 동그라미들. 확정 상태에서 쓴다 — 이름은 아래 카드가 맡는다.
-///
-/// ⚠️ **음수 패딩으로 겹치지 않는다.** `Padding`은 음수를 받지 못해 레이아웃이
-/// 통째로 깨진다(테스트에서 99,336px 오버플로로 드러났다). 겹침은 [Stack]이
-/// 만들고 폭은 직접 센다.
-class _StackedAvatars extends StatelessWidget {
-  const _StackedAvatars({required this.players, required this.size});
-
-  final List<RoomPlayer> players;
-  final double size;
-
-  /// 옆 동그라미를 얼마나 덮는가.
-  static const _bite = AppSpacing.space2;
-
-  @override
-  Widget build(BuildContext context) {
-    if (players.isEmpty) return const SizedBox.shrink();
-
-    final step = size - _bite;
-    return SizedBox(
-      width: size + step * (players.length - 1),
-      height: size,
-      child: Stack(
-        children: [
-          for (var i = 0; i < players.length; i++)
-            Positioned(
-              left: step * i,
-              child: _Circle(player: players[i], size: size, bordered: true),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 동그라미 하나.
 class _Circle extends StatelessWidget {
-  const _Circle({
-    required this.player,
-    required this.size,
-    this.bordered = false,
-  });
+  const _Circle({required this.player, required this.size});
 
   final RoomPlayer player;
   final double size;
-
-  /// 겹칠 때는 테두리로 서로를 갈라 준다.
-  final bool bordered;
 
   @override
   Widget build(BuildContext context) {
@@ -515,7 +392,6 @@ class _Circle extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.primaryMuted,
         borderRadius: AppRadius.full,
-        border: bordered ? Border.all(color: colors.bgSurface, width: 2) : null,
       ),
       alignment: Alignment.center,
       child: Text(
