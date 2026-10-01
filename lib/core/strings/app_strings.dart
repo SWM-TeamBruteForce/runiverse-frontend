@@ -536,22 +536,28 @@ abstract final class AppStrings {
   /// 모집 중에 들어가는 문.
   static const homeMatchToLobby = '로비로 가기';
 
-  // 히어로 — 매칭 확정 (S05 상태 3)
+  // 히어로 — 매칭 확정 (S05 상태 3) · 시안 158:3102
 
-  /// `매칭 완료 · 오늘 19:00` — 배지 문구.
-  static String homeMatchConfirmed(DateTime startAt) =>
-      '매칭 완료 · 오늘 ${matchSlotTime(startAt)}';
+  /// 카드 제목. 시안이 제목으로 상태를 말한다 — 따로 배지를 두지 않는다.
+  static const homeMatchConfirmedTitle = '매칭 완료';
 
+  static const homeMatchStartAtLabel = '시작 시간';
+  static const homeMatchDistanceLabel = '목표거리';
   static const homeMatchStartLabel = '시작까지';
 
-  /// `파티원 3명` — 겹친 아바타 옆.
-  static String homeMatchParty(int count) => '파티원 $count명';
+  /// ⚠️ **서버가 목표 거리를 안 줄 수 있다.** 0 으로 메우면 지어낸 값이
+  /// 화면에 뜬다. 모른다는 것을 모른다고 적는다.
+  static const homeMatchUnknownValue = '-';
+
+  /// 아바타 줄 위의 라벨.
+  static const homeMatchPartyLabel = '참여자';
 
   /// 확정된 방으로 들어가는 문.
   ///
-  /// ⚠️ **같은 화면인데 이름이 다르다.** 모집 중에는 로비, 확정 뒤에는
-  /// 대기실이다 — 사람이 보는 단계가 달라서다.
-  static const homeMatchToWaitingRoom = '대기실로 가기';
+  /// ⚠️ **시안은 `로비이동`이다.** 모집 중(`로비로 가기`)과 확정 뒤를 같은
+  /// 말로 부르게 되는데, 사람이 보는 단계가 다르다. 시안을 따르되 **디자인
+  /// 확인이 필요하다.**
+  static const homeMatchToWaitingRoom = '로비 이동';
 
   // 히어로 — 러닝이 이미 시작됨
 
