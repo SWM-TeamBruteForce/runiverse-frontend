@@ -375,7 +375,13 @@ class _Metric extends StatelessWidget {
       children: [
         Text(
           value,
-          style: AppTypographyV2.heading03.copyWith(color: colors.textPrimary),
+          style: AppTypographyV2.heading03.copyWith(
+            color: colors.textPrimary,
+            // ⚠️ **v1 `metricMd` 가 품고 있던 것이다.** `heading03` 에는
+            // 없어서 토큰을 갈아끼우며 조용히 빠졌다. 지금 화면은 멈춘
+            // 수치라 티가 안 나지만, 러닝 수치에는 이것을 붙인다(CLAUDE.md).
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
         ),
         Text(
           label,
