@@ -14,7 +14,6 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 import 'package:runiverse/features/profile/data/fake_profile_image_repository.dart';
 import 'package:runiverse/features/profile/data/fake_profile_repository.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/features/profile/presentation/profile_edit_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
@@ -84,7 +83,8 @@ void main() {
 
     // ⚠️ **프로필 탭을 거쳐 들어간다.** 편집 화면을 첫 화면으로 띄우면 뒤에
     // 아무것도 없어 `pop`이 죽는다 — 실제 앱에서는 늘 탭 위에 쌓인다.
-    await tester.tap(find.byIcon(LucideIcons.pencil));
+    // ⚠️ 연필 아이콘이 아니라 **글자 버튼**이다(시안 `158:3933`).
+    await tester.tap(find.text(AppStrings.profileEditOpen));
     await tester.pumpAndSettle();
   }
 
