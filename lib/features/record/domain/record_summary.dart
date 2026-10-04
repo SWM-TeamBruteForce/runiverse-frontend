@@ -119,6 +119,25 @@ Map<DateTime, List<RunRecord>> groupRecordsByDay(Iterable<RunRecord> records) {
 ///
 /// 날짜 산술에 [Duration]을 쓰지 않는다 — `DateTime(년, 월, 일 ± n)`이
 /// 월말·윤년을 알아서 넘겨 주고 서머타임에도 흔들리지 않는다.
+/// [date]를 **가운데 둔** 7일. 앞뒤로 3일씩이다.
+///
+/// 기록 탭의 가로 스트립이 쓴다.
+///
+/// ## ⚠️ [weekOf]와 다른 7일이다
+///
+/// 그쪽은 월~일 한 주이고 **주간 차트의 가로축**이다. 이쪽은 날짜를 고르는
+/// 자리라 오늘이 가운데에 선다 — 어제와 내일이 같은 거리에 보여야 한다.
+///
+/// 시안(`158:3848`)은 오늘을 맨 왼쪽에 두고 여섯 칸을 그리는데, 그러면
+/// **지난 날을 볼 수가 없다.** 가운데로 옮기고 일곱 칸으로 늘렸다.
+List<DateTime> stripAround(DateTime date) {
+  final day = DateTime(date.year, date.month, date.day);
+  return [
+    for (var offset = -3; offset <= 3; offset++)
+      DateTime(day.year, day.month, day.day + offset),
+  ];
+}
+
 List<DateTime> weekOf(DateTime date) {
   final day = DateTime(date.year, date.month, date.day);
   // `weekday`는 월=1 … 일=7이다. 그만큼 되돌리면 그 주 월요일이다.

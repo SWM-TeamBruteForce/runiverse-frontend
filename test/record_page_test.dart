@@ -161,6 +161,97 @@ void main() {
     });
   });
 
+  group('캘린더 — 주간 스트립과 월 달력', () {
+    testWidgets('⚠️ 처음에는 일곱 날만 보인다', (tester) async {
+      // 달 전체를 늘 펼쳐 두면 어제와 오늘이 서른 칸 사이에 묻힌다.
+      await pump(tester);
+      await scrollTo(tester, find.byType(RecordCalendar));
+
+      // ⚠️ `IconButton` 도 `GestureDetector` 를 만든다. 칸만 세려면 **날짜
+      // 글자를 가진 것**으로 좁혀야 한다.
+      final today = DateTime(2026, 9, 30);
+      for (var offset = -3; offset <= 3; offset++) {
+        final day = DateTime(2026, 9, 30 + offset).day;
+        expect(
+          find.descendant(
+            of: find.byType(RecordCalendar),
+            matching: find.text('$day'),
+          ),
+          findsOneWidget,
+          reason: '$day 일 칸이 없다',
+        );
+      }
+      // 여덟째 날은 없다 — 스트립은 일곱 칸이다.
+      final outside = today.subtract(const Duration(days: 4)).day;
+      expect(
+        find.descendant(
+          of: find.byType(RecordCalendar),
+          matching: find.text('$outside'),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('⚠️ 오늘이 가운데 선다', (tester) async {
+      // 시안은 오늘을 맨 왼쪽에 두는데 그러면 **지난 날을 볼 수가 없다.**
+      final today = DateTime(2026, 9, 30);
+      await pump(tester, today: today);
+      await scrollTo(tester, find.byType(RecordCalendar));
+
+      final days = [
+        for (var offset = -3; offset <= 3; offset++)
+          DateTime(2026, 9, 30 + offset).day,
+      ];
+      expect(days[3], today.day, reason: '가운데가 오늘이 아니다');
+
+      for (final day in days) {
+        expect(
+          find.descendant(
+            of: find.byType(RecordCalendar),
+            matching: find.text('$day'),
+          ),
+          findsWidgets,
+          reason: '$day 일 칸이 없다',
+        );
+      }
+    });
+
+    testWidgets('⚠️ 달력 아이콘을 누르면 달 전체가 펴진다', (tester) async {
+      // 스트립 밖의 날은 여기서 고른다 — 스트립을 좌우로 넘기게 만들면
+      // 어디까지 왔는지 알 수 없다.
+      await pump(tester);
+      await scrollTo(tester, find.byType(RecordCalendar));
+
+      expect(
+        find.text(AppStrings.recordMonthLabel(DateTime(2026, 9))),
+        findsNothing,
+      );
+
+      await tester.tap(find.byTooltip(AppStrings.recordCalendarExpand));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(AppStrings.recordMonthLabel(DateTime(2026, 9))),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('다시 누르면 접힌다', (tester) async {
+      await pump(tester);
+      await scrollTo(tester, find.byType(RecordCalendar));
+
+      await tester.tap(find.byTooltip(AppStrings.recordCalendarExpand));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip(AppStrings.recordCalendarCollapse));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(AppStrings.recordMonthLabel(DateTime(2026, 9))),
+        findsNothing,
+      );
+    });
+  });
+
   group('날짜 고르기', () {
     testWidgets('⚠️ 안 뛴 날을 고르면 그 날은 비었다고 말한다', (tester) async {
       await pump(tester, repository: empty);

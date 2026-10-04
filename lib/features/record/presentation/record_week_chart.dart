@@ -54,7 +54,7 @@ class RecordWeekChart extends StatelessWidget {
     final days = data.weekDays;
     final meters = [
       for (final day in days)
-        RecordSummary.of(data.weekByDay[day] ?? const []).totalMeters,
+        RecordSummary.of(data.rangeByDay[day] ?? const []).totalMeters,
     ];
     final selected = days.indexWhere((day) => day == data.selectedDay);
 
