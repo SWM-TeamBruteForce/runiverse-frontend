@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/storage/consent_store.dart';
@@ -198,48 +197,53 @@ void main() {
     expect(find.text(AppStrings.profileSheetCta), findsOneWidget);
   });
 
-  testWidgets('컬렉션 10범주가 전부 잠긴 채로 선다', (tester) async {
-    await pumpProfile(tester, onboarded: true);
+  group('⚠️ 일단 뺀 것 — 되살아나면 알아차려야 한다', () {
+    // 2026-10-05에 컬러 도감·블렌드·피드를 걷어냈다(요청). 시안에는 있는
+    // 것들이라, **시안을 보고 작업하다 무심코 되살리기 쉽다.** 되살릴 때는
+    // 이 그물이 먼저 걸린다 — 그때 지우면 된다.
 
-    for (final label in const [
-      AppStrings.hueDistance,
-      AppStrings.hueSpeed,
-      AppStrings.hueEndurance,
-      AppStrings.hueConsistency,
-      AppStrings.hueCadence,
-      AppStrings.hueInterval,
-      AppStrings.hueHills,
-      AppStrings.hueRecovery,
-      AppStrings.hueCompany,
-      AppStrings.hueAdversity,
-    ]) {
-      expect(find.text(label), findsOneWidget, reason: '$label 칸이 없다');
-    }
+    testWidgets('컬러 도감 10범주가 없다', (tester) async {
+      await pumpProfile(tester, onboarded: true);
 
-    // 분모는 10범주 × 셰이드 3 = 30이다.
-    expect(
-      find.text(
-        AppStrings.profileCollected(
-          0,
-          RunHue.values.length * RunPalette.shadeCount,
+      for (final label in const [
+        AppStrings.hueDistance,
+        AppStrings.hueSpeed,
+        AppStrings.hueEndurance,
+        AppStrings.hueConsistency,
+        AppStrings.hueCadence,
+        AppStrings.hueInterval,
+        AppStrings.hueHills,
+        AppStrings.hueRecovery,
+        AppStrings.hueCompany,
+        AppStrings.hueAdversity,
+      ]) {
+        expect(find.text(label), findsNothing, reason: '$label 칸이 남아 있다');
+      }
+    });
+
+    testWidgets('모은 색 수를 세지 않는다', (tester) async {
+      await pumpProfile(tester, onboarded: true);
+
+      expect(
+        find.text(
+          AppStrings.profileCollected(
+            0,
+            RunHue.values.length * RunPalette.shadeCount,
+          ),
         ),
-      ),
-      findsOneWidget,
-    );
-  });
+        findsNothing,
+      );
+    });
 
-  testWidgets('⚠️ 블렌드 러너 수는 눌리지 않는다', (tester) async {
-    await pumpProfile(tester, onboarded: true);
+    testWidgets('블렌드 러너 수가 없다', (tester) async {
+      await pumpProfile(
+        tester,
+        onboarded: true,
+        summary: FakeProfileRepository(nickname: '서버이름', friendCount: 3),
+      );
 
-    // 서버에 목록 API가 없다. 누를 수 있게 만들면 반응이 없을 때
-    // 고장으로 읽힌다.
-    expect(
-      find.ancestor(
-        of: find.text(AppStrings.profileBlendRunners),
-        matching: find.byType(InkWell),
-      ),
-      findsNothing,
-    );
+      expect(find.text(AppStrings.profileBlendRunners), findsNothing);
+    });
   });
 
   // ── 프로필 요약 ─────────────────────────────────────────────
@@ -260,18 +264,6 @@ void main() {
 
     expect(find.text('서버이름'), findsOneWidget);
     expect(find.text('아침에 달려요'), findsOneWidget);
-  });
-
-  testWidgets('블렌드 러너 수를 그린다', (tester) async {
-    await pumpProfile(
-      tester,
-      onboarded: true,
-      summary: FakeProfileRepository(nickname: '서버이름', friendCount: 3),
-    );
-
-    // ⚠️ "친구"라는 말을 쓰지 않는다 — 요청→수락 모델이다(CLAUDE.md).
-    expect(find.text(AppStrings.profileBlendRunners), findsOneWidget);
-    expect(find.text('3'), findsOneWidget);
   });
 
   testWidgets('⚠️ 서버가 실패해도 저장해 둔 닉네임이 남는다', (tester) async {
