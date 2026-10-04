@@ -5,6 +5,7 @@ import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_sizes.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 
 /// 고른 날의 기록들 — 시안 `158:3877`~`158:3887`.
@@ -105,21 +106,32 @@ class _DayHeader extends StatelessWidget {
 
 /// 러닝 한 건 — 시안 `158:3887`.
 ///
-/// `17:00:00 시작 · 2.5 km · 00:30:00 소요`
+/// `06:40 시작 · 5.2 km · 31분 소요` 한 줄에, 오른쪽 끝에 화살표.
+///
+/// ## ⚠️ 시안보다 버튼처럼 그린다
+///
+/// 시안은 면도 테두리도 없는 글자 줄이다. 그런데 **이 줄을 누르면 상세로
+/// 간다** — 눌러서 무엇이 열린다는 것을 글자만으로는 알 수 없다. 면·테두리·
+/// 화살표 셋을 얹고 높이를 키웠다.
 class _Row extends StatelessWidget {
   const _Row({required this.record, required this.onOpen});
 
   final RunRecord record;
   final ValueChanged<RunRecord>? onOpen;
 
-  /// ⚠️ **눌리는 높이를 여기서 보장한다.**
+  /// ⚠️ **눌리는 높이의 바닥이다. 실제 높이가 아니다.**
   ///
-  /// 글자(14 × 1.5 ≈ 21)에 위아래 여백만 주면 45가 나오지만, 글꼴이나 배율이
-  /// 바뀌면 44 아래로 내려갈 수 있다. 바닥을 못 박아 둔다.
+  /// 실제 높이는 위아래 [AppSpacing.space5]와 글자(14 × 1.5 ≈ 21)가 만든다
+  /// — 약 61. 이 상수는 글꼴이나 배율이 바뀌어 그 셈이 틀어져도 44 아래로는
+  /// 내려가지 않게 하는 보험이다(`AppSizes` 주석).
   static const _minHeight = AppSizes.touchDefault;
 
   /// 줄 앞의 점. 러닝 하나라는 표시다.
   static const _bulletSize = 6.0;
+
+  /// 오른쪽 화살표. 24는 이 줄에서 글자보다 커 보인다 — 토큰 주석이 허용하는
+  /// 글리프 범위(17~24) 안에서 줄였다. 히트 박스는 줄 전체라 그대로다.
+  static const _chevronSize = 20.0;
 
   @override
   Widget build(BuildContext context) {
@@ -129,13 +141,15 @@ class _Row extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.space2),
       child: Material(
-        color: Colors.transparent,
-        // ⚠️ **면을 깔지 않고 테두리만 두른다.** 이 줄은 캘린더 카드 **안**에
-        // 있어서, 면까지 깔면 카드 안의 카드가 되어 테두리가 두 겹으로 보인다.
-        // 테두리만 있으면 "누를 자리"로 읽힌다.
+        // 카드(`bgSurface`) 위에 한 단 올라온 면이다. 눌리는 것으로 읽히려면
+        // 바탕과 갈라져야 한다.
+        color: colors.bgElevated,
+        // ⚠️ **`borderDefault`가 아니라 `borderStrong`이다.** 다크에서
+        // `bgElevated`와 `borderDefault`가 둘 다 `neutral800`이라, 면을 깐
+        // 순간 테두리가 면에 묻혀 사라진다.
         shape: RoundedRectangleBorder(
           borderRadius: AppRadius.md,
-          side: BorderSide(color: colors.borderDefault),
+          side: BorderSide(color: colors.borderStrong),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -144,7 +158,7 @@ class _Row extends StatelessWidget {
             constraints: const BoxConstraints(minHeight: _minHeight),
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.space4,
-              vertical: AppSpacing.space3,
+              vertical: AppSpacing.space5,
             ),
             child: Row(
               children: [
@@ -173,6 +187,15 @@ class _Row extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                ),
+                const SizedBox(width: AppSpacing.space2),
+
+                // ⚠️ **이것이 "눌러서 연다"를 말한다.** 면과 테두리는 누를
+                // 수 있다는 것까지만 알린다. 무엇이 열리는지는 화살표가 맡는다.
+                AppIcon(
+                  AppIcons.right,
+                  size: _chevronSize,
+                  color: colors.textTertiary,
                 ),
               ],
             ),

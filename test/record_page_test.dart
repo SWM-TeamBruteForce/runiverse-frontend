@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record/domain/run_record_repository.dart';
@@ -311,7 +312,7 @@ void main() {
       expect(opened.single.id, 1);
     });
 
-    testWidgets('⚠️ 손가락이 닿는 높이가 44를 넘는다', (tester) async {
+    testWidgets('⚠️ 버튼으로 읽히는 높이다', (tester) async {
       // 캘린더 카드 안에 줄로 쌓여 있어 **그냥 두면 글자 높이만큼만** 눌린다.
       await tester.pumpWidget(
         MaterialApp(
@@ -338,14 +339,73 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      // 44 는 손가락이 닿는 **바닥**이고, 이 줄은 눌러서 상세를 여는 버튼이라
+      // 그보다 넉넉해야 한다. 바닥만 지키면 글자 줄로 되돌아가도 안 걸린다.
       expect(
         tester.getSize(find.byType(InkWell).first).height,
-        greaterThanOrEqualTo(44),
+        greaterThanOrEqualTo(56),
       );
     });
 
-    testWidgets('⚠️ 줄에 테두리가 둘려 있다', (tester) async {
-      // 테두리가 없으면 글자만 떠 있어 **누를 자리로 보이지 않는다.**
+    for (final (name, theme) in [
+      ('다크', AppTheme.dark()),
+      ('라이트', AppTheme.light()),
+    ])
+      testWidgets('⚠️ 줄에 테두리가 둘려 있다 · $name', (tester) async {
+        // 테두리가 없으면 글자만 떠 있어 **누를 자리로 보이지 않는다.**
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            home: Scaffold(
+              body: RecordDayList(
+                day: DateTime(2026, 9, 30),
+                records: [
+                  RunRecord(
+                    id: 1,
+                    runningRoomId: 10,
+                    startedAt: DateTime(2026, 9, 30, 17),
+                    distanceMeters: 2500,
+                    duration: const Duration(minutes: 30),
+                    averagePace: const Duration(seconds: 720),
+                    routePolyline: '',
+                    playerCount: 1,
+                  ),
+                ],
+                onOpen: (_) {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final material = tester.widget<Material>(
+          find
+              .ancestor(
+                of: find.byType(InkWell).first,
+                matching: find.byType(Material),
+              )
+              .first,
+        );
+        final shape = material.shape;
+        expect(shape, isA<RoundedRectangleBorder>());
+        expect(
+          (shape! as RoundedRectangleBorder).side.style,
+          BorderStyle.solid,
+        );
+
+        // ⚠️ **테두리가 면에 묻히면 안 된다.** 다크에서 `bgElevated`와
+        // `borderDefault`가 둘 다 `neutral800`이라, 무심코 `borderDefault`를
+        // 쓰면 테두리가 있는데 안 보인다 — 눈으로만 보면 못 찾는다.
+        expect(
+          (shape as RoundedRectangleBorder).side.color,
+          isNot(material.color),
+          reason: '테두리 색이 면 색과 같으면 테두리가 없는 것과 같다',
+        );
+      });
+
+    testWidgets('⚠️ 눌러서 무엇이 열리는지 화살표가 말한다', (tester) async {
+      // 면과 테두리는 "누를 수 있다"까지만 알린다. 상세로 간다는 것은
+      // 화살표가 맡는다 — 없으면 그냥 강조된 줄로 읽힌다.
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.dark(),
@@ -371,17 +431,15 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final material = tester.widget<Material>(
-        find
-            .ancestor(
-              of: find.byType(InkWell).first,
-              matching: find.byType(Material),
-            )
-            .first,
+      expect(
+        find.descendant(
+          of: find.byType(InkWell).first,
+          matching: find.byWidgetPredicate(
+            (widget) => widget is AppIcon && widget.name == AppIcons.right,
+          ),
+        ),
+        findsOneWidget,
       );
-      final shape = material.shape;
-      expect(shape, isA<RoundedRectangleBorder>());
-      expect((shape! as RoundedRectangleBorder).side.style, BorderStyle.solid);
     });
 
     testWidgets('⚠️ 뱃지 줄은 없다', (tester) async {
