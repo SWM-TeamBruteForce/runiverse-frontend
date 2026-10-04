@@ -37,7 +37,7 @@ import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 /// | 시안 | 여기 | 왜 |
 /// |---|---|---|
 /// | 좌우 여백 14 | `space4`(16) | 14는 토큰이 아니다. 가장 가까운 토큰이다 |
-/// | 편집 버튼 높이 41 | 56 | **41은 44 미만이라 애초에 못 쓴다.** [AppButtonV2]가 한 높이만 갖는다 |
+/// | 편집 버튼 높이 41 | 44 | **41은 44 미만이라 못 쓴다.** 가장 가까운 값이다 |
 /// | 설정 버튼 41 | 44 | 같은 이유. 글리프만 줄인다(`AppSizes` 주석) |
 class ProfileHeader extends ConsumerWidget {
   const ProfileHeader({
@@ -101,9 +101,10 @@ class ProfileHeader extends ConsumerWidget {
           const SizedBox(height: AppSpacing.space2),
 
           Row(
-            // 시안은 버튼 아래끝이 아바타보다 조금 더 내려와 있다. 한 줄로
-            // 맞출 수 있는 가장 가까운 정렬이 아래 맞춤이다.
-            crossAxisAlignment: CrossAxisAlignment.end,
+            // ⚠️ **아래 맞춤에서 가운데 맞춤으로 바꿨다.** 아래로 맞추면 88 짜리
+            // 아바타와 44 짜리 버튼의 **윗변이 44 어긋나** 두 덩어리가 서로
+            // 다른 줄에 선 것처럼 보인다. 가운데로 맞추면 한 축에 선다.
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // 이 화면에서는 눌리지 않는다. 사진을 바꾸는 자리도 편집 화면이다.
               ProfileAvatar(url: photoUrl),
@@ -117,6 +118,10 @@ class ProfileHeader extends ConsumerWidget {
               // 다시 받지 않으면 이 화면이 편집 전 값을 그린다.
               AppButtonV2(
                 label: AppStrings.profileEditOpen,
+                // ⚠️ **아바타 옆에 서는 인라인 액션이다.** 기본 크기(56)로 두면
+                // 아바타(88)와 덩치가 맞먹고, 화면에서 유일하게 색이 있는
+                // 요소라 더 튄다. 측정값이 121×54 였다(시안 99×41).
+                size: AppButtonV2Size.compact,
                 expand: false,
                 onPressed: () async {
                   await context.push(AppRoutes.profileEdit);

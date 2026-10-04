@@ -30,6 +30,32 @@ enum AppButtonV2Variant {
   danger,
 }
 
+/// 버튼 높이 — 터치 타깃 규칙과 직결된다.
+///
+/// ## ⚠️ v1 에 있던 것을 되살렸다
+///
+/// 옛 `AppButton`에는 `AppButtonSize {md(44), lg(56)}`가 있었는데, v2 로 오면서
+/// 56 하나로 못 박혔다. 그래서 **아바타 옆에 서는 작은 액션 버튼도 화면 하단
+/// CTA 와 같은 덩치**가 됐다 — 프로필 탭의 `프로필 편집`이 121×54 로 측정됐고,
+/// 시안(`158:3933`)은 99×41 이다.
+///
+/// 높이뿐 아니라 **가로 여백과 글자 크기까지** 함께 간다. 셋이 따로 놀면
+/// 높이만 줄어든 납작한 버튼이 된다.
+enum AppButtonV2Size {
+  /// 56 — 화면 하단 CTA, 러닝 중 화면. **기본값이다.**
+  regular(AppSizes.touchRunning, AppSpacing.space6),
+
+  /// 44 — 내용 옆에 서는 인라인 액션. 44 는 손가락이 닿는 바닥이다.
+  ///
+  /// 시안의 41 보다 3 크다. 41 은 44 미만이라 쓸 수 없다.
+  compact(AppSizes.touchDefault, AppSpacing.space4);
+
+  const AppButtonV2Size(this.height, this.horizontalPadding);
+
+  final double height;
+  final double horizontalPadding;
+}
+
 /// 새 디자인의 버튼 — 시안 `Button-Solid` 컴포넌트.
 ///
 /// ## 왜 기존 [AppButton]을 안 쓰나
@@ -50,6 +76,7 @@ class AppButtonV2 extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.variant = AppButtonV2Variant.primary,
+    this.size = AppButtonV2Size.regular,
     this.expand = true,
     super.key,
   });
@@ -60,6 +87,9 @@ class AppButtonV2 extends StatelessWidget {
   final VoidCallback? onPressed;
 
   final AppButtonV2Variant variant;
+
+  /// 높이·가로 여백·글자 크기를 함께 정한다. 기본은 [AppButtonV2Size.regular].
+  final AppButtonV2Size size;
 
   /// 가로를 꽉 채울지. 화면 하단 CTA는 채우고, 인라인 액션은 끈다.
   final bool expand;
@@ -100,9 +130,9 @@ class AppButtonV2 extends StatelessWidget {
           onTap: onPressed,
           borderRadius: AppRadius.lg,
           child: Container(
-            height: AppSizes.touchRunning,
+            height: size.height,
             width: expand ? double.infinity : null,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space6),
+            padding: EdgeInsets.symmetric(horizontal: size.horizontalPadding),
             decoration: BoxDecoration(
               borderRadius: AppRadius.lg,
               // 테두리는 secondary 만 두른다. 면이 있는 쪽에 테두리까지
@@ -113,9 +143,18 @@ class AppButtonV2 extends StatelessWidget {
             child: Text(
               label,
               textAlign: TextAlign.center,
-              style: AppTypographyV2.body05.copyWith(
-                color: filled && enabled ? colors.textOnPrimary : accent,
-              ),
+              // ⚠️ 글자도 함께 줄인다. 시안의 작은 버튼은 14 SemiBold 다
+              // (`158:3934`). 16 을 그대로 두면 높이만 줄어 납작해지고,
+              // 가로도 글자 폭 때문에 안 줄어든다.
+              style:
+                  (size == AppButtonV2Size.compact
+                          ? AppTypographyV2.body10
+                          : AppTypographyV2.body05)
+                      .copyWith(
+                        color: filled && enabled
+                            ? colors.textOnPrimary
+                            : accent,
+                      ),
             ),
           ),
         ),
