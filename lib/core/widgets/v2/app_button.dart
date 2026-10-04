@@ -18,6 +18,16 @@ enum AppButtonV2Variant {
   /// [primary] 옆에 둘 때 쓴다 — 테두리만 있는 [secondary]보다 무게가 있어서
   /// 둘 중 어느 쪽도 "덜 중요해" 보이지 않는다.
   tonal,
+
+  /// 되돌릴 수 없는 것. 탈퇴가 이것이다.
+  ///
+  /// ⚠️ **시안에 이 변형이 없다.** 설정·탈퇴 화면이 시안에 없어서 색을
+  /// `AppColorsV2.error`로 정했다 — 디자인 확인이 필요하다.
+  ///
+  /// ⚠️ 러닝 중단처럼 **한 번 누르면 끝나는 것**은 이 버튼으로 만들지 않는다.
+  /// hold-to-end(2초)나 2단계 확인을 쓴다(`docs/implementation-notes.md` §4).
+  /// 탈퇴가 이것을 써도 되는 이유는 **시트가 이미 2단계**이기 때문이다.
+  danger,
 }
 
 /// 새 디자인의 버튼 — 시안 `Button-Solid` 컴포넌트.
@@ -58,12 +68,17 @@ class AppButtonV2 extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
     final enabled = onPressed != null;
-    final filled = variant == AppButtonV2Variant.primary;
+    final danger = variant == AppButtonV2Variant.danger;
+    final filled = variant == AppButtonV2Variant.primary || danger;
     final tonal = variant == AppButtonV2Variant.tonal;
 
     // 비활성은 **투명도가 아니라 색으로** 표현한다. 투명도를 쓰면 뒤 배경이
     // 비쳐서 카드 위와 화면 위의 같은 버튼이 다르게 보인다.
-    final accent = enabled ? colors.primary : colors.textDisabled;
+    final accent = !enabled
+        ? colors.textDisabled
+        : danger
+        ? colors.error
+        : colors.primary;
 
     // 면을 까는 변형 둘. 잠기면 둘 다 같은 회색 면이 된다 — 무엇이 주
     // 버튼이었는지는 눌리지 않는 순간 의미가 없다.
