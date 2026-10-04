@@ -791,6 +791,13 @@ abstract final class AppStrings {
   /// 막아서기 때문이다. 딥링크처럼 그 관문을 지나치는 길에 대비해 남긴다.
   static const profileNicknameEmpty = '프로필을 완성해주세요';
 
+  /// 프로필 탭의 편집 버튼 — 시안 `158:3934`.
+  ///
+  /// 편집 **화면**의 제목([profileEditTitle])과 글자가 같지만 따로 둔다.
+  /// 하나를 고칠 때 다른 하나까지 끌려가면 안 된다 — 버튼은 가는 곳의 이름이고
+  /// 제목은 그 화면의 이름이다.
+  static const profileEditOpen = '프로필 편집';
+
   static const profileSignatureLabel = '시그니처 컬러';
 
   /// 시그니처 컬러가 아직 없을 때. **"없어요"라고 하지 않는다** —

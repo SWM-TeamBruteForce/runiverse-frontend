@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -285,7 +286,8 @@ void main() {
 
   /// 우측 상단 ✎. 눌러 **편집 화면(S22.1)으로 간다.**
   Future<void> openEditPage(WidgetTester tester) async {
-    await tester.tap(find.byIcon(LucideIcons.pencil));
+    // ⚠️ 연필 아이콘이 아니라 **글자 버튼**이다(시안 `158:3933`).
+    await tester.tap(find.text(AppStrings.profileEditOpen));
     await tester.pumpAndSettle();
   }
 
@@ -363,7 +365,41 @@ void main() {
     expect(find.byIcon(LucideIcons.type), findsNothing);
   });
 
-  testWidgets('✎를 누르면 편집 화면이 열린다', (tester) async {
+  group('⚠️ 시안대로 바꾼 것', () {
+    testWidgets('편집은 아이콘이 아니라 글자 버튼이다', (tester) async {
+      // 연필 하나로는 **무엇을** 고치는지 알 수 없다. 시안 `158:3933`.
+      await pumpProfile(tester, onboarded: true);
+
+      expect(find.text(AppStrings.profileEditOpen), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 설정 버튼은 글자가 없다 — 읽을 이름을 붙인다', (tester) async {
+      // 글리프뿐이라 이름을 안 붙이면 스크린리더가 읽을 것이 없다.
+      await pumpProfile(tester, onboarded: true);
+
+      expect(find.bySemanticsLabel(AppStrings.settingsTitle), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 설정 버튼이 손가락에 닿는다', (tester) async {
+      // 시안은 41이다. 44 미만은 빗나간다.
+      await pumpProfile(tester, onboarded: true);
+
+      // ⚠️ `bySemanticsLabel`은 의미 노드를 잡는다. 누르는 `InkWell`은
+      // 그 **자손**이지 조상이 아니다.
+      final settings = find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.label == AppStrings.settingsTitle,
+      );
+      final size = tester.getSize(
+        find.descendant(of: settings, matching: find.byType(InkWell)).first,
+      );
+      expect(size.width, greaterThanOrEqualTo(44));
+      expect(size.height, greaterThanOrEqualTo(44));
+    });
+  });
+
+  testWidgets('프로필 편집 버튼을 누르면 편집 화면이 열린다', (tester) async {
     await pumpProfile(
       tester,
       onboarded: true,
