@@ -1214,11 +1214,22 @@ abstract final class AppStrings {
   /// 오늘을 가리키는 칩. 시안 `158:3879`.
   static const recordToday = 'Today';
 
-  /// `17:00:00 시작 · 2.5 km · 00:30:00 소요` — 시안 `158:3887`.
+  /// `06:40 시작 · 5.0 km · 30분 소요` — 시안 `158:3887`.
+  ///
+  /// ⚠️ **시작 시각과 소요 시간은 다른 포맷이다.**
+  ///
+  /// 처음엔 둘 다 [recordRunDuration]으로 찍었다가 기기에서 `6:40:00 시작`과
+  /// `19:00 소요`가 나왔다 — 시작 시각에 **초는 뜻이 없고**, 소요 쪽은
+  /// 19분인지 19시간인지 알 수가 없다. 시각은 `HH:MM`, 소요는 말로 적는다.
   static String recordRunLine(DateTime startedAt, double km, Duration took) =>
-      '${recordRunDuration(Duration(hours: startedAt.hour, minutes: startedAt.minute))} 시작'
+      '${_clockOf(startedAt)} 시작'
       ' · ${km.toStringAsFixed(1)} km'
-      ' · ${recordRunDuration(took)} 소요';
+      ' · ${recordDurationText(took)} 소요';
+
+  /// `06:40`. 벽시계 그대로 — 시간대를 옮기지 않는다.
+  static String _clockOf(DateTime at) =>
+      '${at.hour.toString().padLeft(2, '0')}:'
+      '${at.minute.toString().padLeft(2, '0')}';
 
   static String recordDayLabel(DateTime day, int count) =>
       '${day.month}월 ${day.day}일 · 러닝 $count회';
