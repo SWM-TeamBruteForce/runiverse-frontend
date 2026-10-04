@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:geolocator/geolocator.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/features/session/domain/altitude_rule.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
 
@@ -201,9 +202,17 @@ class GeolocatorLocationRepository implements LocationRepository {
     accuracy: position.accuracy,
     // 칼만 필터의 프로세스 노이즈를 정하는 값이다. 센서가 못 구하면 음수가 온다.
     speed: position.speed,
-    // 못 구하면 `null`로 든다. 안드로이드는 값이 없을 때 0을 주기도 해서
-    // 0과 "정말 해수면"을 구분할 수 없지만, 서버도 이 값을 참고용으로만 쓴다.
-    altitude: position.altitude,
+    // ⚠️ **서버가 이 값으로 누적 상승 고도를 계산한다.** 참고용이 아니다 —
+    // 예전 주석이 그렇게 적혀 있었는데, 기록 목록 API 가 누적 경사를 싣게
+    // 되면서 바뀌었다(📅 기록 탭 연동 가이드 3-2).
+    //
+    // 안드로이드는 못 구하면 `0.0`을 주므로 거르지 않으면 **못 재는 기기는
+    // 누적 경사가 0 m 가 되고, 간헐적으로 섞이면 부풀려진다.** 기록은 저장한
+    // 뒤에 고치지 않는다.
+    altitude: AltitudeRule.trusted(
+      altitude: position.altitude,
+      accuracy: position.altitudeAccuracy,
+    ),
     // ⚠️ 방향을 못 구하면 음수나 0이 온다. 음수는 "모른다"로 옮긴다 —
     // 0을 그대로 두면 "정북"이라는 뜻이 되어 거짓이 된다.
     heading: position.heading < 0 ? null : position.heading,
