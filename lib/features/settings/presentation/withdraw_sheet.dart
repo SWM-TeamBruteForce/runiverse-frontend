@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_radius.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
 
 /// 탈퇴를 한 번 더 묻는다. 확인하면 `true`.
 ///
@@ -35,7 +35,7 @@ class _WithdrawSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Container(
       width: double.infinity,
@@ -68,24 +68,26 @@ class _WithdrawSheet extends StatelessWidget {
           const SizedBox(height: AppSpacing.space5),
           Text(
             AppStrings.withdrawTitle,
-            style: AppTypography.h2.copyWith(color: colors.textPrimary),
+            style: AppTypographyV2.heading05.copyWith(
+              color: colors.textPrimary,
+            ),
           ),
           const SizedBox(height: AppSpacing.space3),
           Text(
             AppStrings.withdrawBody,
-            style: AppTypography.body.copyWith(color: colors.textSecondary),
+            style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.space6),
           // ⚠️ **취소가 먼저다.** 되돌릴 수 없는 쪽을 엄지 자리에 두지 않는다.
-          AppButton(
+          AppButtonV2(
             label: AppStrings.settingsCancel,
-            variant: AppButtonVariant.secondary,
+            variant: AppButtonV2Variant.secondary,
             onPressed: () => Navigator.of(context).pop(false),
           ),
           const SizedBox(height: AppSpacing.space2),
-          AppButton(
+          AppButtonV2(
             label: AppStrings.withdrawConfirm,
-            variant: AppButtonVariant.danger,
+            variant: AppButtonV2Variant.danger,
             onPressed: () => Navigator.of(context).pop(true),
           ),
         ],

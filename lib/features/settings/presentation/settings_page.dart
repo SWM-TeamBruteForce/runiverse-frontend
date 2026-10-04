@@ -3,17 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/config/legal_links.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_radius.dart';
-import 'package:runiverse/core/theme/tokens/app_sizes.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/legal_document.dart';
-import 'package:runiverse/core/widgets/preset_chip.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/core/widgets/v2/preset_chip.dart';
 import 'package:runiverse/features/auth/domain/login_type.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
@@ -96,7 +96,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: context.appColors.bgElevated,
+        backgroundColor: context.appColorsV2.bgElevated,
         title: const Text(AppStrings.settingsSignOutTitle),
         content: const Text(AppStrings.settingsSignOutBody),
         actions: [
@@ -170,7 +170,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final state = ref.watch(settingsControllerProvider);
     final settings = state.settings;
     // 계정 정보는 `/users/me`가 실어 온다 — 설정이 따로 조회하지 않는다.
@@ -187,7 +187,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       appBar: AppBar(
         backgroundColor: colors.bgBase,
         surfaceTintColor: Colors.transparent,
-        title: Text(AppStrings.settingsTitle, style: AppTypography.h3),
+        title: Text(AppStrings.settingsTitle, style: AppTypographyV2.heading06),
       ),
       body: SafeArea(
         top: false,
@@ -295,8 +295,8 @@ class _SectionLabel extends StatelessWidget {
     ),
     child: Text(
       text,
-      style: AppTypography.caption.copyWith(
-        color: context.appColors.textSecondary,
+      style: AppTypographyV2.body15.copyWith(
+        color: context.appColorsV2.textSecondary,
       ),
     ),
   );
@@ -310,7 +310,7 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Container(
       decoration: BoxDecoration(
@@ -351,7 +351,7 @@ class _SwitchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final enabled = onChanged != null;
     final text = description;
 
@@ -368,7 +368,7 @@ class _SwitchRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: AppTypography.body.copyWith(
+                  style: AppTypographyV2.body07.copyWith(
                     color: enabled ? colors.textPrimary : colors.textDisabled,
                   ),
                 ),
@@ -376,7 +376,7 @@ class _SwitchRow extends StatelessWidget {
                   const SizedBox(height: AppSpacing.space0),
                   Text(
                     text,
-                    style: AppTypography.caption.copyWith(
+                    style: AppTypographyV2.body15.copyWith(
                       color: colors.textTertiary,
                     ),
                   ),
@@ -404,7 +404,7 @@ class _ValueRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final text = value;
 
     return Container(
@@ -415,7 +415,7 @@ class _ValueRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(label, style: AppTypography.body),
+          Text(label, style: AppTypographyV2.body07),
           const Spacer(),
           if (text != null)
             Flexible(
@@ -423,7 +423,9 @@ class _ValueRow extends StatelessWidget {
                 text,
                 textAlign: TextAlign.end,
                 overflow: TextOverflow.ellipsis,
-                style: AppTypography.body.copyWith(color: colors.textSecondary),
+                style: AppTypographyV2.body07.copyWith(
+                  color: colors.textSecondary,
+                ),
               ),
             )
           else
@@ -450,7 +452,7 @@ class _ActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final color = danger ? colors.error : colors.textPrimary;
 
     return Material(
@@ -465,9 +467,9 @@ class _ActionRow extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Text(label, style: AppTypography.body.copyWith(color: color)),
+              Text(label, style: AppTypographyV2.body07.copyWith(color: color)),
               const Spacer(),
-              Icon(LucideIcons.chevronRight, size: 18, color: color),
+              AppIcon(AppIcons.right, size: 18, color: color),
             ],
           ),
         ),
@@ -487,7 +489,7 @@ class _VisibilityChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final selected = value;
     final change = onChanged;
 
@@ -499,7 +501,7 @@ class _VisibilityChips extends StatelessWidget {
             for (final option in ProfileVisibility.values) ...[
               if (option != ProfileVisibility.values.first)
                 const SizedBox(width: AppSpacing.space2),
-              PresetChip(
+              PresetChipV2(
                 label: _label(option),
                 selected: option == selected,
                 // 아직 못 읽었으면 눌러도 아무 일도 없다. 누른 것이 지금 값과
@@ -515,7 +517,9 @@ class _VisibilityChips extends StatelessWidget {
             padding: const EdgeInsets.only(left: AppSpacing.space1),
             child: Text(
               _description(selected),
-              style: AppTypography.caption.copyWith(color: colors.textTertiary),
+              style: AppTypographyV2.body15.copyWith(
+                color: colors.textTertiary,
+              ),
             ),
           ),
         ],
@@ -556,7 +560,7 @@ class _ErrorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.space5),
@@ -569,7 +573,7 @@ class _ErrorCard extends StatelessWidget {
         children: [
           Text(
             AppStrings.settingsLoadFailed,
-            style: AppTypography.body.copyWith(color: colors.textSecondary),
+            style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.space3),
           TextButton(
