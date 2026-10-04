@@ -49,20 +49,6 @@ class FakeRunRecordRepository implements RunRecordRepository {
   }
 
   @override
-  Future<RunRecordPage> recent({String? cursor, int limit = 20}) async {
-    calls++;
-    if (delay > Duration.zero) await Future<void>.delayed(delay);
-
-    final items = _all().toList()
-      ..sort((a, b) => b.startedAt.compareTo(a.startedAt));
-    return RunRecordPage(
-      items: items.take(limit).toList(),
-      // 목은 한 페이지뿐이다. 무한 스크롤을 시험하려면 여기를 늘린다.
-      nextCursor: null,
-    );
-  }
-
-  @override
   Future<RunDetail> byRoom(int runningRoomId) async {
     calls++;
     if (delay > Duration.zero) await Future<void>.delayed(delay);
@@ -166,6 +152,10 @@ class FakeRunRecordRepository implements RunRecordRepository {
         ),
         // 목록 카드는 아직 경로를 그리지 않는다. 빈 문자열로 둔다.
         routePolyline: '',
+        // 짝수 번째는 매칭, 홀수 번째는 솔로로 둔다. **셋째는 매칭인데 혼자**다
+        // — `MATCH` + `playerCount 1` 조합을 화면이 만나 보게 한다.
+        kind: i % 2 == 0 ? RunKind.match : RunKind.solo,
+        playerCount: i % 2 == 0 ? (i == 2 ? 1 : 3) : 1,
       );
     }
   }

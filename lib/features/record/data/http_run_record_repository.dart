@@ -43,15 +43,8 @@ class HttpRunRecordRepository implements RunRecordRepository {
       throw const RunRecordException(RunRecordFailure.invalidRequest);
     }
 
-    final page = await _get({'from': _day(from), 'to': _day(to)});
-    return page.items;
+    return _get({'from': _day(from), 'to': _day(to)});
   }
-
-  @override
-  Future<RunRecordPage> recent({String? cursor, int limit = 20}) =>
-      // `?cursor` — 첫 페이지면 키 자체를 빼야 한다. `null`을 실어 보내면
-      // 서버가 두 모드를 섞은 요청으로 볼 수 있다.
-      _get({'cursor': ?cursor, 'limit': limit});
 
   @override
   Future<RunDetail> byRoom(int runningRoomId) async {
@@ -82,7 +75,7 @@ class HttpRunRecordRepository implements RunRecordRepository {
     return detail;
   }
 
-  Future<RunRecordPage> _get(Map<String, dynamic> query) async {
+  Future<List<RunRecord>> _get(Map<String, dynamic> query) async {
     final data = await _authorized(
       (token) => _dio.get<Map<String, dynamic>>(
         _path,
@@ -90,7 +83,7 @@ class HttpRunRecordRepository implements RunRecordRepository {
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       ),
     );
-    return RunRecordDto.pageFrom(data);
+    return RunRecordDto.listFrom(data);
   }
 
   /// 토큰을 실어 보내고, **401이면 한 번만** 갱신해서 다시 부른다.
