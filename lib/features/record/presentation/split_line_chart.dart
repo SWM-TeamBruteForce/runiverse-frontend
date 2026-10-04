@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_radius.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
 
 /// 구간별 꺾은선 하나. Figma `47:90`(페이스)·`47:152`(케이던스)가 같은 모양이다.
 ///
@@ -110,7 +110,7 @@ class _SplitLineChartState extends State<SplitLineChart> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final focused = _focused;
 
     return DecoratedBox(
@@ -196,7 +196,9 @@ class _SplitLineChartState extends State<SplitLineChart> {
             Text(
               widget.hint,
               textAlign: TextAlign.center,
-              style: AppTypography.micro.copyWith(color: colors.textTertiary),
+              style: AppTypographyV2.body18.copyWith(
+                color: colors.textTertiary,
+              ),
             ),
           ],
         ),
@@ -214,7 +216,7 @@ class _Title extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final label = badge;
 
     return Padding(
@@ -223,7 +225,7 @@ class _Title extends StatelessWidget {
         children: [
           Text(
             title,
-            style: AppTypography.micro.copyWith(
+            style: AppTypographyV2.body18.copyWith(
               color: colors.textSecondary,
               fontWeight: FontWeight.w600,
             ),
@@ -231,7 +233,7 @@ class _Title extends StatelessWidget {
           const SizedBox(width: AppSpacing.space1),
           Text(
             unit,
-            style: AppTypography.micro.copyWith(color: colors.textTertiary),
+            style: AppTypographyV2.body18.copyWith(color: colors.textTertiary),
           ),
           if (label != null) ...[
             const SizedBox(width: AppSpacing.space2),
@@ -251,7 +253,7 @@ class _Badge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -265,7 +267,7 @@ class _Badge extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: AppTypography.micro.copyWith(color: colors.textTertiary),
+          style: AppTypographyV2.body18.copyWith(color: colors.textTertiary),
         ),
       ),
     );
@@ -327,7 +329,7 @@ class _Labels extends StatelessWidget {
                 child: Text(
                   labels[i],
                   textAlign: TextAlign.center,
-                  style: AppTypography.micro.copyWith(color: color),
+                  style: AppTypographyV2.body18.copyWith(color: color),
                 ),
               ),
           ],
@@ -526,7 +528,7 @@ class _LinePainter extends CustomPainter {
         children: [
           TextSpan(
             text: value,
-            style: AppTypography.micro.copyWith(
+            style: AppTypographyV2.body18.copyWith(
               color: readingColor,
               fontWeight: FontWeight.w600,
               // 훑는 동안 자릿수가 바뀌면 말풍선이 좌우로 떤다.
@@ -538,7 +540,7 @@ class _LinePainter extends CustomPainter {
               // 한 줄로 붙인다. 말풍선이 두 줄이면 점 위 공간을 많이 먹어
               // 그래프 위쪽 구간에서 자주 뒤집힌다.
               text: '  $readingAt',
-              style: AppTypography.micro.copyWith(
+              style: AppTypographyV2.body18.copyWith(
                 color: readingAtColor,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
