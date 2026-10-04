@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_radius.dart';
-import 'package:runiverse/core/theme/tokens/app_sizes.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/theme/tokens/run_palette.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/theme/v2/run_palette.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/domain/split_aggregator.dart';
 import 'package:runiverse/features/record/presentation/split_line_chart.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/core/widgets/run_map_view.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
 
 /// 러닝 결과 (S16) — Figma `46:69`에 `47:65`(S16.5)를 이어 붙인 한 화면.
 ///
@@ -56,11 +56,11 @@ class _RunResultViewState extends State<RunResultView> {
 
   /// 그 사람의 레인 색. 러닝 화면과 같은 순서라 같은 색이다.
   Color _colorOf(String userId) =>
-      RunPalette.lane(detail.players.indexWhere((p) => p.userId == userId));
+      RunPaletteV2.lane(detail.players.indexWhere((p) => p.userId == userId));
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final compare = _compareTo;
     final compareSamples = compare == null
         ? null
@@ -232,7 +232,7 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Row(
       children: [
@@ -243,15 +243,15 @@ class _Header extends StatelessWidget {
             minWidth: AppSizes.touchDefault,
             minHeight: AppSizes.touchDefault,
           ),
-          icon: Icon(
-            LucideIcons.chevronLeft,
+          icon: AppIcon(
+            AppIcons.left,
             size: AppSpacing.space6,
             color: colors.textPrimary,
           ),
         ),
         Text(
           AppStrings.runResultTitle,
-          style: AppTypography.h3.copyWith(color: colors.textPrimary),
+          style: AppTypographyV2.heading06.copyWith(color: colors.textPrimary),
         ),
       ],
     );
@@ -267,7 +267,7 @@ class _RouteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return ClipRRect(
       borderRadius: AppRadius.lg,
@@ -293,7 +293,7 @@ class _RouteCard extends StatelessWidget {
                     '${detail.distanceKm.toStringAsFixed(2)}'
                     '${AppStrings.runSummaryUnitKm} · '
                     '${_elapsedText(detail.duration)}',
-                    style: AppTypography.caption.copyWith(
+                    style: AppTypographyV2.body15.copyWith(
                       color: colors.textSecondary,
                     ),
                   ),
@@ -368,18 +368,24 @@ class _Metric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           value,
-          style: AppTypography.metricMd.copyWith(color: colors.textPrimary),
+          style: AppTypographyV2.heading03.copyWith(
+            color: colors.textPrimary,
+            // ⚠️ **v1 `metricMd` 가 품고 있던 것이다.** `heading03` 에는
+            // 없어서 토큰을 갈아끼우며 조용히 빠졌다. 지금 화면은 멈춘
+            // 수치라 티가 안 나지만, 러닝 수치에는 이것을 붙인다(CLAUDE.md).
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
         ),
         Text(
           label,
-          style: AppTypography.caption.copyWith(color: colors.textTertiary),
+          style: AppTypographyV2.body15.copyWith(color: colors.textTertiary),
         ),
       ],
     );
@@ -398,7 +404,7 @@ class _PartyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -413,7 +419,7 @@ class _PartyCard extends StatelessWidget {
           children: [
             Text(
               AppStrings.runResultPartyTitle,
-              style: AppTypography.micro.copyWith(
+              style: AppTypographyV2.body18.copyWith(
                 color: colors.textSecondary,
                 fontWeight: FontWeight.w600,
               ),
@@ -440,7 +446,7 @@ class _PartyCard extends StatelessWidget {
                         player.nickname,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppTypography.body.copyWith(
+                        style: AppTypographyV2.body07.copyWith(
                           color: player.isDeleted
                               ? colors.textTertiary
                               : colors.textPrimary,
@@ -450,7 +456,7 @@ class _PartyCard extends StatelessWidget {
                     if (player.hasRecord) ...[
                       Text(
                         _elapsedText(player.duration!),
-                        style: AppTypography.body.copyWith(
+                        style: AppTypographyV2.body07.copyWith(
                           color: colors.textPrimary,
                           fontWeight: FontWeight.w500,
                           fontFeatures: const [FontFeature.tabularFigures()],
@@ -459,7 +465,7 @@ class _PartyCard extends StatelessWidget {
                       const SizedBox(width: AppSpacing.space4),
                       Text(
                         PaceCalculator.format(player.averagePace),
-                        style: AppTypography.body.copyWith(
+                        style: AppTypographyV2.body07.copyWith(
                           color: colors.textSecondary,
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),
@@ -471,7 +477,7 @@ class _PartyCard extends StatelessWidget {
                         player.isRunning
                             ? AppStrings.runResultStillRunning
                             : AppStrings.runResultNoRecord,
-                        style: AppTypography.caption.copyWith(
+                        style: AppTypographyV2.body15.copyWith(
                           color: colors.textTertiary,
                         ),
                       ),
@@ -501,7 +507,7 @@ class _RunnerChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     Widget chip({
       required String label,
@@ -532,7 +538,7 @@ class _RunnerChips extends StatelessWidget {
             const SizedBox(width: AppSpacing.space2),
             Text(
               label,
-              style: AppTypography.caption.copyWith(
+              style: AppTypographyV2.body15.copyWith(
                 color: onTap == null && !active
                     ? colors.textDisabled
                     : colors.textPrimary,
@@ -575,7 +581,7 @@ class _RunnerChips extends StatelessWidget {
         const SizedBox(height: AppSpacing.space1),
         Text(
           AppStrings.runResultCompareHint,
-          style: AppTypography.micro.copyWith(color: colors.textTertiary),
+          style: AppTypographyV2.body18.copyWith(color: colors.textTertiary),
         ),
       ],
     );
@@ -603,7 +609,7 @@ class _SplitTableState extends State<_SplitTable> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final all = widget.detail.tableSplits;
     final collapsed = !_expanded && all.length > _SplitTable.collapsedCount;
     final shown = collapsed ? all.take(_SplitTable.collapsedCount) : all;
@@ -636,7 +642,7 @@ class _SplitTableState extends State<_SplitTable> {
                 child: Center(
                   child: Text(
                     AppStrings.runResultMoreSplits,
-                    style: AppTypography.caption.copyWith(
+                    style: AppTypographyV2.body15.copyWith(
                       color: colors.textSecondary,
                     ),
                   ),
@@ -654,8 +660,8 @@ class _SplitHead extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
-    final style = AppTypography.micro.copyWith(color: colors.textTertiary);
+    final colors = context.appColorsV2;
+    final style = AppTypographyV2.body18.copyWith(color: colors.textTertiary);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -695,7 +701,7 @@ class _SplitRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final burned = split.caloriesKcal;
     // 격차의 기준. 파티원을 골랐으면 그 사람, 아니면 내 평균이다. 순위가
     // 아니라 거리다 — 음수면 내가 빨랐다.
@@ -716,7 +722,9 @@ class _SplitRow extends StatelessWidget {
               split.isPartialOf(SplitAggregator.tableMeters)
                   ? AppStrings.runResultPartialLabel(totalKm)
                   : AppStrings.runResultSplitLabel(split.index),
-              style: AppTypography.body.copyWith(color: colors.textSecondary),
+              style: AppTypographyV2.body07.copyWith(
+                color: colors.textSecondary,
+              ),
             ),
           ),
           Expanded(
@@ -726,7 +734,7 @@ class _SplitRow extends StatelessWidget {
               children: [
                 Text(
                   PaceCalculator.format(split.pace),
-                  style: AppTypography.body.copyWith(
+                  style: AppTypographyV2.body07.copyWith(
                     color: colors.textPrimary,
                     fontWeight: FontWeight.w500,
                   ),
@@ -741,7 +749,7 @@ class _SplitRow extends StatelessWidget {
                     // ⚠️ **0은 어느 쪽도 아니다.** `isNegative`만 보면 0이
                     // 느린 쪽으로 빨갛게 칠해진다 — 평균과 같은 구간을
                     // 나무라는 셈이다.
-                    style: AppTypography.micro.copyWith(
+                    style: AppTypographyV2.body18.copyWith(
                       color: switch (gap.inSeconds) {
                         < 0 => colors.success,
                         > 0 => colors.error,
@@ -755,7 +763,7 @@ class _SplitRow extends StatelessWidget {
           ),
           Text(
             '$burned${AppStrings.runResultUnitKcal}',
-            style: AppTypography.caption.copyWith(color: colors.textSecondary),
+            style: AppTypographyV2.body15.copyWith(color: colors.textSecondary),
           ),
         ],
       ),
@@ -780,7 +788,7 @@ class _NoCadence extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -797,7 +805,7 @@ class _NoCadence extends StatelessWidget {
               children: [
                 Text(
                   AppStrings.runResultCadenceDetailChart,
-                  style: AppTypography.micro.copyWith(
+                  style: AppTypographyV2.body18.copyWith(
                     color: colors.textSecondary,
                     fontWeight: FontWeight.w600,
                   ),
@@ -805,7 +813,7 @@ class _NoCadence extends StatelessWidget {
                 const SizedBox(width: AppSpacing.space1),
                 Text(
                   AppStrings.runResultCadenceDetailUnit,
-                  style: AppTypography.micro.copyWith(
+                  style: AppTypographyV2.body18.copyWith(
                     color: colors.textTertiary,
                   ),
                 ),
@@ -814,7 +822,9 @@ class _NoCadence extends StatelessWidget {
             const SizedBox(height: AppSpacing.space3),
             Text(
               AppStrings.runResultNoCadence,
-              style: AppTypography.micro.copyWith(color: colors.textTertiary),
+              style: AppTypographyV2.body18.copyWith(
+                color: colors.textTertiary,
+              ),
             ),
           ],
         ),
@@ -828,14 +838,14 @@ class _NoSplits extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.space8),
       child: Text(
         AppStrings.runResultNoSplits,
         textAlign: TextAlign.center,
-        style: AppTypography.body.copyWith(color: colors.textTertiary),
+        style: AppTypographyV2.body07.copyWith(color: colors.textTertiary),
       ),
     );
   }

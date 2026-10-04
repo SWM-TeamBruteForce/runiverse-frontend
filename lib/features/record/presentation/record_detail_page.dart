@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/domain/run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
@@ -81,7 +81,7 @@ class _Frame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -90,11 +90,11 @@ class _Frame extends StatelessWidget {
         leading: IconButton(
           onPressed: () => Navigator.of(context).maybePop(),
           tooltip: AppStrings.runResultBack,
-          icon: Icon(LucideIcons.chevronLeft, color: colors.textPrimary),
+          icon: AppIcon(AppIcons.left, color: colors.textPrimary),
         ),
         title: Text(
           AppStrings.runResultTitle,
-          style: AppTypography.h3.copyWith(color: colors.textPrimary),
+          style: AppTypographyV2.heading06.copyWith(color: colors.textPrimary),
         ),
       ),
       body: Center(child: child),
@@ -126,15 +126,15 @@ class _Failed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.space6),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            LucideIcons.circleAlert,
+          AppIcon(
+            AppIcons.alert,
             size: AppSpacing.space7,
             color: colors.textTertiary,
           ),
@@ -142,14 +142,14 @@ class _Failed extends StatelessWidget {
           Text(
             _message,
             textAlign: TextAlign.center,
-            style: AppTypography.body.copyWith(color: colors.textSecondary),
+            style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
           ),
           if (_retryable) ...[
             const SizedBox(height: AppSpacing.space4),
-            AppButton(
+            AppButtonV2(
               label: AppStrings.recordRetry,
-              variant: AppButtonVariant.secondary,
-              size: AppButtonSize.md,
+              variant: AppButtonV2Variant.secondary,
+              expand: false,
               onPressed: onRetry,
             ),
           ],
