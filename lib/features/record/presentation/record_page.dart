@@ -10,7 +10,6 @@ import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/stat_row.dart';
 import 'package:runiverse/features/record/presentation/record_calendar.dart';
-import 'package:runiverse/features/record/presentation/record_day_list.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record/presentation/record_state.dart';
 import 'package:runiverse/features/record/presentation/record_week_chart.dart';
@@ -111,24 +110,21 @@ class _Loaded extends StatelessWidget {
         RecordWeekChart(data: data, onSelect: controller.select),
         const SizedBox(height: AppSpacing.space4),
 
+        // ⚠️ **그날 목록이 이 카드 안에 있다.** 시안이 캘린더와 그날 기록을
+        // 한 카드로 묶는다.
         RecordCalendar(
           data: data,
           onSelect: controller.select,
           onMoveMonth: controller.moveMonth,
+          // 러닝을 막 끝냈을 때와 **같은 화면**(S16)을 연다.
+          onOpen: (record) =>
+              context.push(AppRoutes.recordDetailOf(record.runningRoomId)),
         ),
-        const SizedBox(height: AppSpacing.space5),
 
-        // 달에 기록이 하나도 없으면 날짜별 목록 대신 한 줄로 알린다.
-        if (data.monthSummary.isEmpty)
-          _MonthEmpty()
-        else
-          RecordDayList(
-            day: data.selectedDay,
-            records: data.selectedRecords,
-            // 러닝을 막 끝냈을 때와 **같은 화면**(S16)을 연다.
-            onOpen: (record) =>
-                context.push(AppRoutes.recordDetailOf(record.runningRoomId)),
-          ),
+        if (data.monthSummary.isEmpty) ...[
+          const SizedBox(height: AppSpacing.space5),
+          _MonthEmpty(),
+        ],
       ],
     );
   }

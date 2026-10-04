@@ -255,11 +255,13 @@ void main() {
   group('날짜 고르기', () {
     testWidgets('⚠️ 안 뛴 날을 고르면 그 날은 비었다고 말한다', (tester) async {
       await pump(tester, repository: empty);
-      await scrollTo(tester, find.text(AppStrings.recordMonthEmpty));
+      await scrollTo(tester, find.text(AppStrings.recordDayEmpty));
 
-      // 달에 기록이 없으면 날짜별 목록 대신 한 줄로 알린다.
-      expect(find.byType(RecordDayList), findsNothing);
-      expect(find.text(AppStrings.recordMonthEmpty), findsOneWidget);
+      // ⚠️ **그날 줄은 늘 있다.** 시안이 캘린더와 그날 기록을 한 카드로
+      // 묶어서, 비었을 때도 그 자리에 "안 달렸다"고 적는다 — 자리째 사라지면
+      // 날짜를 고른 것이 아무 일도 안 한 것처럼 보인다.
+      expect(find.byType(RecordDayList), findsOneWidget);
+      expect(find.text(AppStrings.recordDayEmpty), findsOneWidget);
     });
 
     testWidgets('⚠️ 기록이 있는 날을 고르면 그날 것만 보인다', (tester) async {
@@ -267,6 +269,55 @@ void main() {
       await scrollTo(tester, find.byType(RecordDayList));
 
       expect(find.byType(RecordDayList), findsOneWidget);
+    });
+  });
+
+  group('그날 기록 줄', () {
+    testWidgets('⚠️ 기록을 누르면 그 기록을 들려준다', (tester) async {
+      // ⚠️ **`InkWell` 이 있는지만 보면 안 된다.** `onTap` 을 null 로 만들어도
+      // 초록이었다(직접 부숴 확인했다). 눌러서 **콜백이 오는지**를 본다.
+      //
+      // 화면 전체 대신 이 위젯만 띄운다 — 페이지 하네스에는 라우터가 없어
+      // 상세로 가는 것까지는 확인할 수 없다.
+      final opened = <RunRecord>[];
+      final record = RunRecord(
+        id: 1,
+        runningRoomId: 10,
+        startedAt: DateTime(2026, 9, 30, 17),
+        distanceMeters: 2500,
+        duration: const Duration(minutes: 30),
+        averagePace: const Duration(seconds: 720),
+        routePolyline: '',
+        playerCount: 1,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(),
+          home: Scaffold(
+            body: RecordDayList(
+              day: DateTime(2026, 9, 30),
+              records: [record],
+              onOpen: opened.add,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(InkWell).first);
+      await tester.pumpAndSettle();
+
+      expect(opened.single.id, 1);
+    });
+
+    testWidgets('⚠️ 뱃지 줄은 없다', (tester) async {
+      // 시안이 `언덕 정복자 뱃지를 획득했습니다` 같은 줄을 그리는데
+      // **백엔드에 뱃지 기능이 아직 없다.** 지어내지 않는다.
+      await pump(tester);
+      await scrollTo(tester, find.byType(RecordDayList));
+
+      expect(find.textContaining('뱃지'), findsNothing);
     });
   });
 }

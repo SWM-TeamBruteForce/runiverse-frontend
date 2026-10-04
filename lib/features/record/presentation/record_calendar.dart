@@ -6,6 +6,8 @@ import 'package:runiverse/core/theme/v2/app_sizes.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/features/record/domain/run_record.dart';
+import 'package:runiverse/features/record/presentation/record_day_list.dart';
 import 'package:runiverse/features/record/presentation/record_state.dart';
 
 /// 기록 캘린더 — 시안 `158:3847`.
@@ -34,6 +36,7 @@ class RecordCalendar extends StatefulWidget {
     required this.data,
     required this.onSelect,
     required this.onMoveMonth,
+    this.onOpen,
     super.key,
   });
 
@@ -42,6 +45,9 @@ class RecordCalendar extends StatefulWidget {
 
   /// `-1`이면 이전 달, `+1`이면 다음 달.
   final ValueChanged<int> onMoveMonth;
+
+  /// 기록 한 줄을 눌렀을 때. `null`이면 줄이 눌리지 않는다.
+  final ValueChanged<RunRecord>? onOpen;
 
   @override
   State<RecordCalendar> createState() => _RecordCalendarState();
@@ -144,6 +150,19 @@ class _RecordCalendarState extends State<RecordCalendar> {
 
               _Grid(data: data, onSelect: widget.onSelect),
             ],
+
+            // ⚠️ **그날 내용이 같은 카드 안에 있다.** 시안 `158:3847`이
+            // 캘린더와 그날 기록을 한 카드로 묶는다 — 날짜를 고르는 것과
+            // 그 결과가 떨어져 있으면 무엇이 바뀌었는지 눈이 못 따라간다.
+            const SizedBox(height: AppSpacing.space5),
+            Divider(height: 1, color: colors.borderDefault),
+            const SizedBox(height: AppSpacing.space5),
+
+            RecordDayList(
+              day: data.selectedDay,
+              records: data.selectedRecords,
+              onOpen: widget.onOpen,
+            ),
           ],
         ),
       ),
