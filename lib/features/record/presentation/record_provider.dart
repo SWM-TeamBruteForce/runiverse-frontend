@@ -88,10 +88,18 @@ class RecordController extends Notifier<RecordState> {
 
     try {
       final days = weekOf(now);
+      final strip = stripAround(now);
+
+      // ⚠️ **두 7일이 겹치지 않을 수 있다.** 차트는 월~일이고 스트립은
+      // 오늘 ±3일이라, 달 초에는 서로 다른 날을 가리킨다. 한 번에 넓게
+      // 받아 나눠 쓴다 — 조회를 하나 더 두면 왕복이 세 번이 된다.
+      final from = days.first.isBefore(strip.first) ? days.first : strip.first;
+      final to = days.last.isAfter(strip.last) ? days.last : strip.last;
+
       // 둘을 동시에 보낸다. 줄 세우면 왕복이 두 배가 된다.
       final results = await Future.wait([
         _repository.byDateRange(from: target, to: _lastDayOf(target)),
-        _repository.byDateRange(from: days.first, to: days.last),
+        _repository.byDateRange(from: from, to: to),
       ]);
 
       state = RecordData(
@@ -100,8 +108,9 @@ class RecordController extends Notifier<RecordState> {
             ? _initialDay(target, now)
             : DateTime(select.year, select.month, select.day),
         monthRecords: results[0],
-        weekRecords: results[1],
+        rangeRecords: results[1],
         weekDays: days,
+        stripDays: strip,
       );
     } on RunRecordException catch (error) {
       debugPrint('[record] 기록을 못 읽었다 · ${error.failure}');

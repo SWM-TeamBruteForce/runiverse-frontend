@@ -41,9 +41,10 @@ void main() {
     selectedDay: selectedDay,
     // 9월 조회 결과 — 8월 기록은 들어 있지 않다.
     monthRecords: [september],
-    // 최근 7일 조회 결과 — 달을 넘어 8월이 섞인다.
-    weekRecords: [august, september],
+    // 넓게 받은 구간 — 달을 넘어 8월이 섞인다.
+    rangeRecords: [august, september],
     weekDays: weekOf(today),
+    stripDays: stripAround(today),
   );
 
   test('이번 달 날짜는 월 조회 결과에서 찾는다', () {

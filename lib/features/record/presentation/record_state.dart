@@ -29,12 +29,19 @@ class RecordData extends RecordState {
     required this.month,
     required this.selectedDay,
     required List<RunRecord> monthRecords,
-    required List<RunRecord> weekRecords,
+    required List<RunRecord> rangeRecords,
     required this.weekDays,
+    required this.stripDays,
   }) : byDay = groupRecordsByDay(monthRecords),
        monthSummary = RecordSummary.of(monthRecords),
-       weekByDay = groupRecordsByDay(weekRecords),
-       weekSummary = RecordSummary.of(weekRecords);
+       rangeByDay = groupRecordsByDay(rangeRecords),
+       // ⚠️ **[rangeRecords] 전부를 더하지 않는다.** 그 구간은 주간 차트의
+       // 7일과 가로 스트립의 7일을 **합친 것**이라 월~일 밖의 날이 섞인다.
+       // 통째로 더하면 `주간 누적 거리`가 한 주보다 커진다.
+       weekSummary = RecordSummary.of([
+         for (final record in rangeRecords)
+           if (weekDays.contains(record.day)) record,
+       ]);
 
   /// 캘린더가 보고 있는 달. 항상 그 달 **1일 0시**다.
   final DateTime month;
@@ -54,8 +61,16 @@ class RecordData extends RecordState {
   /// 섞이므로 캘린더와 **별도로 조회한** 결과를 쓴다.
   final List<DateTime> weekDays;
 
-  /// 최근 7일 기록을 날짜별로 묶은 것. 막대 높이를 여기서 낸다.
-  final Map<DateTime, List<RunRecord>> weekByDay;
+  /// 가로 스트립이 보여주는 7일. **오늘이 가운데**이고 앞뒤로 3일씩이다.
+  ///
+  /// ⚠️ [weekDays]와 **다른 7일이다.** 그쪽은 월~일 한 주이고 차트의 가로축
+  /// 이다. 이쪽은 날짜를 고르는 자리라 오늘을 중심에 둔다.
+  final List<DateTime> stripDays;
+
+  /// [weekDays]와 [stripDays]를 **합친 구간**의 기록을 날짜별로 묶은 것.
+  ///
+  /// 둘이 겹치지 않을 수 있어(달 초) 한 번에 넓게 받아 나눠 쓴다.
+  final Map<DateTime, List<RunRecord>> rangeByDay;
 
   /// 주간 요약 — 누적 거리 · 누적 시간 · 누적 경사.
   final RecordSummary weekSummary;
@@ -69,10 +84,10 @@ class RecordData extends RecordState {
   /// [byDay]만 보면 "막대는 10km인데 목록은 0회"라고 말하게 된다 — 실제로
   /// 그렇게 났다.
   ///
-  /// [weekByDay]까지 뒤진다. 이번 달 날짜는 [byDay]가 완전하므로(한 달을
+  /// [rangeByDay]까지 뒤진다. 이번 달 날짜는 [byDay]가 완전하므로(한 달을
   /// 통째로 조회한다) 먼저 보고, 없을 때만 주간을 본다.
   List<RunRecord> get selectedRecords =>
-      byDay[selectedDay] ?? weekByDay[selectedDay] ?? const <RunRecord>[];
+      byDay[selectedDay] ?? rangeByDay[selectedDay] ?? const <RunRecord>[];
 
   /// 주간 차트에서 가장 긴 하루의 거리(m). 막대 높이의 기준이다.
   ///
@@ -80,7 +95,7 @@ class RecordData extends RecordState {
   int get weekPeakMeters {
     var peak = 0;
     for (final day in weekDays) {
-      final meters = RecordSummary.of(weekByDay[day] ?? const []).totalMeters;
+      final meters = RecordSummary.of(rangeByDay[day] ?? const []).totalMeters;
       if (meters > peak) peak = meters;
     }
     return peak;
@@ -88,13 +103,14 @@ class RecordData extends RecordState {
 
   /// [day]에 뛴 거리(m). 안 뛰었으면 0이다.
   int metersOn(DateTime day) =>
-      RecordSummary.of(weekByDay[day] ?? const []).totalMeters;
+      RecordSummary.of(rangeByDay[day] ?? const []).totalMeters;
 
   RecordData copyWith({DateTime? selectedDay}) => RecordData(
     month: month,
     selectedDay: selectedDay ?? this.selectedDay,
     monthRecords: [for (final list in byDay.values) ...list],
-    weekRecords: [for (final list in weekByDay.values) ...list],
+    rangeRecords: [for (final list in rangeByDay.values) ...list],
     weekDays: weekDays,
+    stripDays: stripDays,
   );
 }

@@ -1167,6 +1167,14 @@ abstract final class AppStrings {
   static const recordMonthDistance = '누적 거리';
   static const recordMonthTime = '누적 시간';
 
+  /// 캘린더 카드 제목. 시안 `158:3882`.
+  static const recordCalendarTitle = '기록 캘린더';
+
+  /// 스트립 ↔ 월 달력 토글. **상태를 말한다** — 누르면 무엇이 되는지가 아니라
+  /// 지금 무엇을 할 수 있는지다.
+  static const recordCalendarExpand = '달 전체 보기';
+  static const recordCalendarCollapse = '주간으로 접기';
+
   static const recordPrevMonth = '이전 달';
   static const recordNextMonth = '다음 달';
 
