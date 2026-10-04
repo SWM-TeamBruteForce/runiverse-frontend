@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_radius.dart';
-import 'package:runiverse/core/theme/tokens/app_sizes.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
 
 /// 사진 시트에서 고른 것.
 enum ProfilePhotoAction {
@@ -37,7 +38,7 @@ Future<ProfilePhotoAction?> showProfilePhotoSheet(
   return showModalBottomSheet<ProfilePhotoAction>(
     context: context,
     backgroundColor: Colors.transparent,
-    barrierColor: context.appColors.bgScrim,
+    barrierColor: context.appColorsV2.bgScrim,
     builder: (context) => _PhotoSheet(hasPhoto: hasPhoto),
   );
 }
@@ -49,7 +50,7 @@ class _PhotoSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return SafeArea(
       top: false,
@@ -82,18 +83,23 @@ class _PhotoSheet extends StatelessWidget {
 
             Text(
               AppStrings.profilePhotoSheetTitle,
-              style: AppTypography.h3.copyWith(color: colors.textPrimary),
+              style: AppTypographyV2.heading06.copyWith(
+                color: colors.textPrimary,
+              ),
             ),
             const SizedBox(height: AppSpacing.space3),
 
             _SheetItem(
-              icon: LucideIcons.image,
+              icon: AppIcons.photo,
               label: AppStrings.profilePhotoPick,
               onTap: () => Navigator.of(context).pop(ProfilePhotoAction.pick),
             ),
             if (hasPhoto)
               _SheetItem(
-                icon: LucideIcons.trash2,
+                // ⚠️ **시안 아이콘 33개에 "지우기"가 없다.** `AppIcons.close`는
+                // 닫기지 지우기가 아니라 뜻이 어긋난다. 디자이너 것이 오기
+                // 전까지 Lucide 로 둔다 — `record_page`의 경고 아이콘과 같다.
+                lucide: LucideIcons.trash2,
                 label: AppStrings.profilePhotoReset,
                 onTap: () =>
                     Navigator.of(context).pop(ProfilePhotoAction.reset),
@@ -105,20 +111,29 @@ class _PhotoSheet extends StatelessWidget {
   }
 }
 
+/// 시트의 한 줄.
+///
+/// ⚠️ **글리프를 두 가지로 받는다.** [icon]은 시안 세트([AppIcons]), [lucide]는
+/// 시안에 없어 아직 Lucide 로 남은 것이다. 둘 중 하나만 준다.
 class _SheetItem extends StatelessWidget {
   const _SheetItem({
-    required this.icon,
     required this.label,
     required this.onTap,
-  });
+    this.icon,
+    this.lucide,
+  }) : assert(
+         (icon == null) != (lucide == null),
+         '글리프는 하나만 준다 — 시안 세트가 있으면 그쪽을 쓴다',
+       );
 
-  final IconData icon;
+  final String? icon;
+  final IconData? lucide;
   final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return InkWell(
       onTap: onTap,
@@ -133,15 +148,21 @@ class _SheetItem extends StatelessWidget {
             // 손가락이 닿는 칸을 44 아래로 내리지 않는다.
             SizedBox(
               width: AppSizes.touchDefault,
-              child: Icon(
-                icon,
-                size: AppSpacing.space5,
-                color: colors.textSecondary,
-              ),
+              child: icon != null
+                  ? AppIcon(
+                      icon!,
+                      size: AppSpacing.space5,
+                      color: colors.textSecondary,
+                    )
+                  : Icon(
+                      lucide,
+                      size: AppSpacing.space5,
+                      color: colors.textSecondary,
+                    ),
             ),
             Text(
               label,
-              style: AppTypography.body.copyWith(color: colors.textPrimary),
+              style: AppTypographyV2.body07.copyWith(color: colors.textPrimary),
             ),
           ],
         ),
