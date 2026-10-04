@@ -9,14 +9,13 @@ import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record/domain/run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_state.dart';
+import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 
 /// 기록을 누가 읽어 오나.
 ///
-/// ## ⚠️ 목록은 아직 서버가 없다
-///
-/// 상세(17·18번)는 열려 있지만 목록 19번(`GET /users/me/running-records`)은
-/// `개발전`이다 — 서버가 `NoResourceFoundException`으로 답하는 것을 확인했다.
-/// 목록이 필요한 테스트는 `FakeRunRecordRepository`를 덮어써서 쓴다.
+/// 목록 19번(`GET /users/me/running-records`)도 열렸다. 2026-10-04 에뮬레이터에서
+/// 1인 러닝을 끝내고 `200`과 그 기록을 받았다 — 예전 주석이 `개발전`이라 적어
+/// 두었던 것은 그때 이야기다. 테스트는 그래도 `FakeRunRecordRepository`를 쓴다.
 final runRecordRepositoryProvider = Provider<RunRecordRepository>(
   (ref) => HttpRunRecordRepository(
     ref.watch(dioProvider),
@@ -58,18 +57,50 @@ final recordControllerProvider =
 /// 두 번 한다. 겹치는 날은 서버가 같은 기록을 두 번 주지만, 각각 따로
 /// 묶으므로 문제없다.
 ///
-/// ## ⚠️ 탭을 옮기면 다시 읽는다
+/// ## ⚠️ 탭을 옮겨도 다시 읽지 않는다
 ///
-/// 숨은 탭의 provider는 실제로 dispose된다(`implementation-notes` 5-1).
-/// 기록은 러닝만큼 자주 바뀌지 않으므로 매번 다시 읽어도 무방하고, 오히려
-/// 러닝을 마치고 돌아왔을 때 최신이라는 이점이 있다. **`keepAlive`를 붙이지
-/// 않는 것이 의도다.**
+/// 예전 주석은 그 반대로 적어 두었다 — "숨은 탭의 provider는 실제로
+/// dispose된다"(`implementation-notes` 5-1). **`StatefulShellRoute.indexedStack`
+/// 에는 해당하지 않는다.** 한 번 연 탭은 트리에 남아 계속 구독하므로 이
+/// provider는 버려지지 않고 [build]가 두 번 돌지 않는다.
+///
+/// 그래서 러닝을 마치고 기록 탭에 들어가면 **방금 달린 것이 목록에 없었다.**
+/// 앱을 껐다 켜야 보였다 — 2026-10-04 에뮬레이터에서 1인 러닝 1.22km 를
+/// 끝내고 확인했다. 기록이 바뀌는 순간을 직접 듣는다([_watchRunFinish]).
 class RecordController extends Notifier<RecordState> {
   @override
   RecordState build() {
+    _watchRunFinish();
     // build 안에서 await하지 않는다. 먼저 loading을 내보내고 뒤에서 읽는다.
     Future.microtask(load);
     return const RecordLoading();
+  }
+
+  /// 러닝이 **서버에 확정되면** 목록을 다시 읽는다.
+  ///
+  /// ⚠️ **[RunFinished]가 아니라 `finishedRoomId`를 본다.** 화면이 요약으로
+  /// 넘어가는 시점과 서버가 `RUNNING_FINISH`를 처리하는 시점이 다르다. 앞엣것에
+  /// 맞춰 읽으면 그 기록이 아직 없어서, **다시 읽고도 똑같이 비어 있다** —
+  /// 고치기 전과 구분되지 않는 실패라 더 나쁘다.
+  void _watchRunFinish() {
+    ref.listen(runningConnectionProvider.select((it) => it.finishedRoomId), (
+      previous,
+      next,
+    ) {
+      if (next == null || next == previous) return;
+      unawaited(reload());
+    });
+  }
+
+  /// 보고 있던 달과 고른 날을 그대로 두고 다시 읽는다.
+  ///
+  /// 그냥 [load]를 부르면 이번 달 오늘로 되돌아간다. 사용자가 지난달을 펼쳐
+  /// 둔 채 러닝을 끝냈을 때 화면이 제멋대로 움직인다.
+  Future<void> reload() {
+    final current = state;
+    return current is RecordData
+        ? load(month: current.month, select: current.selectedDay)
+        : load();
   }
 
   RunRecordRepository get _repository => ref.read(runRecordRepositoryProvider);
