@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/widgets/empty_state_card.dart';
 import 'package:runiverse/core/widgets/v2/action_tile.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
@@ -92,7 +91,9 @@ void main() {
       // 되살리면 시안과 어긋난 채로 조용히 굴러간다.
       await pumpHome(tester);
 
-      expect(find.byType(EmptyStateCard), findsNothing);
+      // `EmptyStateCard` 를 찾던 줄이 있었는데, 그 위젯을 지우면서 뺐다.
+      // ⚠️ **없어진 타입을 찾는 `findsNothing` 은 늘 통과한다** — 지키는 것이
+      // 없었다. 아래 두 줄이 의도를 지킨다.
       expect(find.text('다가오는 대회'), findsNothing);
       expect(find.text('최근 러닝'), findsNothing);
     });
