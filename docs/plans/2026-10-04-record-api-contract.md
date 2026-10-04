@@ -1,4 +1,4 @@
-# 기록 API 계약 맞추기 — 실행 계획
+# 기록 API 계약 맞추기 — 실행 계획 ✅ **끝남 (2026-10-04)**
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -71,14 +71,14 @@
 - Modify: `lib/features/session/data/geolocator_location_repository.dart`
 - Test: `test/geolocator_altitude_test.dart` (신설)
 
-- [ ] **Step 1: `upstream/dev`에서 딴다**
+- [x] **Step 1: `upstream/dev`에서 딴다**
 
 ```bash
 git fetch upstream
 git checkout -b fix/altitude-zero upstream/dev
 ```
 
-- [ ] **Step 2: 거르는 규칙을 순수 함수로 뺀다**
+- [x] **Step 2: 거르는 규칙을 순수 함수로 뺀다**
 
 위젯도 플랫폼도 없이 시험할 수 있어야 한다.
 
@@ -95,7 +95,7 @@ static double? altitudeOrNull(double altitude, double accuracy) {
 }
 ```
 
-- [ ] **Step 3: 테스트를 쓴다**
+- [x] **Step 3: 테스트를 쓴다**
 
 ```dart
 test('⚠️ 정확도가 음수면 버린다', ...);
@@ -106,11 +106,11 @@ test('평범한 값은 그대로 통과한다', ...);
 
 ⚠️ **세 번째가 핵심이다.** `altitude == 0`만 보고 버리면 **실제로 해발 0 m 인 곳**에서 달린 기록을 잃는다. 정확도까지 함께 봐야 하는 이유다.
 
-- [ ] **Step 4: 부른 자리를 바꾼다** (`:206`)
+- [x] **Step 4: 부른 자리를 바꾼다** (`:206`)
 
-- [ ] **Step 5: 일부러 부순다** — 규칙을 `return altitude;` 한 줄로 되돌려 넷 중 둘이 빨개지는지 본다
+- [x] **Step 5: 일부러 부순다** — 규칙을 `return altitude;` 한 줄로 되돌려 넷 중 둘이 빨개지는지 본다
 
-- [ ] **Step 6: 검증하고 커밋·PR**
+- [x] **Step 6: 검증하고 커밋·PR**
 
 **💬 리뷰 포인트에 적을 것:** 이미 저장된 기록은 **고쳐지지 않는다.** 서버 쪽에서 과거 데이터를 어떻게 할지 백엔드와 정해야 한다.
 
@@ -129,9 +129,9 @@ test('평범한 값은 그대로 통과한다', ...);
 **Interfaces:**
 - Produces: `RunRecord.type` · `RunRecord.playerCount` — 다음 묶음의 목록 카드가 쓴다
 
-- [ ] **Step 1: 앞 PR 머지 후 `upstream/dev`에서 딴다**
+- [x] **Step 1: 앞 PR 머지 후 `upstream/dev`에서 딴다**
 
-- [ ] **Step 2: DTO 를 새 응답에 맞춘다**
+- [x] **Step 2: DTO 를 새 응답에 맞춘다**
 
 ```dart
 // `items` → `runningRecords`, `nextCursor` 없음
@@ -140,7 +140,7 @@ final items = json['runningRecords'];
 
 ⚠️ **페이지가 사라졌으므로 `RunRecordPage`도 없앤다.** 빈 껍데기를 남겨 두면 다음 사람이 커서가 있는 줄 안다.
 
-- [ ] **Step 3: `type` · `playerCount` 를 엔티티에 더한다**
+- [x] **Step 3: `type` · `playerCount` 를 엔티티에 더한다**
 
 ```dart
 /// 러닝 방식. 서버가 `SOLO` 또는 `MATCH` 로 준다.
@@ -158,7 +158,7 @@ enum RunKind { solo, match;
 final int playerCount;
 ```
 
-- [ ] **Step 4: 커서 조회를 걷어낸다**
+- [x] **Step 4: 커서 조회를 걷어낸다**
 
 `recent({cursor, limit})` 를 `run_record_repository.dart`(인터페이스)·구현·가짜 구현에서 지운다. **쓰는 곳이 있으면 `byDateRange`로 옮긴다.**
 
@@ -166,7 +166,7 @@ final int playerCount;
 grep -rn "\.recent(" lib/ test/
 ```
 
-- [ ] **Step 5: ⚠️ 날짜 묶기를 앞 10자리로 바꿀지 **재어 보고** 정한다**
+- [x] **Step 5: ⚠️ 날짜 묶기를 앞 10자리로 바꿀지 **재어 보고** 정한다**
 
 가이드 3-1 은 `startedAt`의 **앞 10자리를 그대로 쓰라**고 한다. 지금은
 `DateTime.parse`로 로컬 시각을 만들고 `RunRecord.day`로 묶는다.
@@ -177,7 +177,7 @@ grep -rn "\.recent(" lib/ test/
 → **이 PR 범위를 넘는다.** 테스트로 **기기 시간대를 바꿨을 때 날짜가 밀리는지**만
 확인해 적어 두고, 고치는 것은 따로 뺀다.
 
-- [ ] **Step 6: 테스트를 쓴다**
+- [x] **Step 6: 테스트를 쓴다**
 
 ```dart
 test('새 응답 모양을 읽는다', ...);              // runningRecords[]
@@ -187,15 +187,15 @@ test('누적 경사가 null 로 올 수 있다', ...);
 test('⚠️ MATCH + playerCount 1 을 가려낸다', ...);
 ```
 
-- [ ] **Step 7: 일부러 부순다** — 응답 키를 `items`로 되돌려 빨개지는지 본다
+- [x] **Step 7: 일부러 부순다** — 응답 키를 `items`로 되돌려 빨개지는지 본다
 
-- [ ] **Step 8: 검증하고 에뮬레이터에서 본다**
+- [x] **Step 8: 검증하고 에뮬레이터에서 본다**
 
 ⚠️ **로그인해서 기록 탭을 연다.** 이 PR 의 목적이 "데이터가 보이는 것"이라
 빈 상태만 보면 확인한 것이 아니다. 기록이 없으면 **솔로 러닝을 한 번 돌려**
 기록을 만든다. 어떻게 봤는지 PR 에 적는다.
 
-- [ ] **Step 9: 커밋하고 PR**
+- [x] **Step 9: 커밋하고 PR**
 
 **💬 리뷰 포인트에 적을 것:**
 - 누적 경사는 **null 이 섞이면 합계가 실제보다 작다**(가이드 3-2). 다음 묶음의 상단 3칸에서 **확정값처럼 보이지 않게** 그려야 한다
@@ -203,11 +203,14 @@ test('⚠️ MATCH + playerCount 1 을 가려낸다', ...);
 
 ---
 
-## Task 3: 기록 상세가 삭제된 API 를 안 쓰는지 확인한다
+## Task 3: 기록 상세가 삭제된 API 를 안 쓰는지 확인한다 ✅
+
+> **확인했다.** `byRoom()`이 이미 `results` + `split-results` 둘을 동시에
+> 부른다. 가이드 5장과 맞아 **손대지 않았다.**
 
 가이드 5장이 **기록 상세(옛 20번)는 삭제**됐고 `runningRoomId`로 러닝 결과·구간 결과를 쓰라고 한다.
 
-- [ ] **Step 1: 지금 무엇을 부르는지 본다**
+- [x] **Step 1: 지금 무엇을 부르는지 본다**
 
 ```bash
 grep -rn "running-records/\|/results\|split-results" lib/features/record/data/
@@ -216,7 +219,7 @@ grep -rn "running-records/\|/results\|split-results" lib/features/record/data/
 `http_run_record_repository.byRoom()`이 이미 `results` + `split-results` 둘을
 동시에 부르는 것으로 보인다. **맞으면 이 Task 는 확인만 하고 닫는다.**
 
-- [ ] **Step 2: 아니면 고치고, 맞으면 PR 없이 넘어간다**
+- [x] **Step 2: 아니면 고치고, 맞으면 PR 없이 넘어간다**
 
 ⚠️ **확인했다는 사실은 남긴다** — 다음 사람이 같은 걱정을 다시 하지 않도록
 Task 2 의 PR 본문에 한 줄 적는다.
