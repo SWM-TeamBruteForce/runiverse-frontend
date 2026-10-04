@@ -9,6 +9,7 @@ import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/tokens/run_palette.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
@@ -291,6 +292,19 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// `AppIcon`을 이름으로 찾는다.
+  ///
+  /// ⚠️ **`find.byIcon`으로는 못 찾는다.** `AppIcon`은 `Icon`이 아니라 SVG를
+  /// 그리는 우리 위젯이다.
+  ///
+  /// ⚠️ **위험한 쪽은 `findsNothing`이다.** 아이콘을 v2로 옮긴 뒤에도 옛
+  /// `find.byIcon`을 그대로 두면, `findsOneWidget`은 소리 내며 실패하지만
+  /// `findsNothing`은 **아무것도 못 찾아서 그냥 통과한다.** 없다는 것을 거는
+  /// 그물이 조용히 죽는다.
+  Finder appIcon(String name) => find.byWidgetPredicate(
+    (widget) => widget is AppIcon && widget.name == name,
+  );
+
   /// 편집 화면으로 가서 아바타를 눌러 사진 시트를 연다.
   ///
   /// **홈에서는 아바타가 눌리지 않는다.** 바꾸는 자리는 편집 화면 하나다.
@@ -361,8 +375,32 @@ void main() {
       summary: FakeProfileRepository(nickname: '별밤러너'),
     );
 
-    expect(find.byIcon(LucideIcons.camera), findsNothing);
+    expect(appIcon(AppIcons.camera), findsNothing);
     expect(find.byIcon(LucideIcons.type), findsNothing);
+  });
+
+  group('⚠️ 토큰 충돌 — 테두리가 면에 묻히면 안 된다', () {
+    testWidgets('아바타 테두리가 보인다', (tester) async {
+      // 다크에서 `bgElevated`와 `borderDefault`가 둘 다 `neutral800`이다.
+      // 면을 깐 원에 `borderDefault`를 두르면 **있는데 안 보인다** —
+      // 눈으로만 보면 못 찾는 종류의 결함이다. 기록 탭에서도 겪었다(#126).
+      await pumpProfile(tester, onboarded: true);
+
+      final box = tester.widget<Container>(
+        find
+            .descendant(
+              of: find.byType(ProfileAvatar),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      final decoration = box.decoration! as BoxDecoration;
+      expect(
+        decoration.border!.top.color,
+        isNot(decoration.color),
+        reason: '테두리 색이 면 색과 같으면 테두리가 없는 것과 같다',
+      );
+    });
   });
 
   group('⚠️ 시안대로 바꾼 것', () {
@@ -410,7 +448,7 @@ void main() {
 
     expect(find.text(AppStrings.profileEditTitle), findsOneWidget);
     // 거기서는 사진을 바꿀 수 있다.
-    expect(find.byIcon(LucideIcons.camera), findsOneWidget);
+    expect(appIcon(AppIcons.camera), findsOneWidget);
   });
 
   testWidgets('편집 화면에서 닉네임을 누르면 변경 시트가 열린다', (tester) async {
