@@ -350,7 +350,7 @@ void main() {
     for (final (name, theme) in [
       ('다크', AppTheme.dark()),
       ('라이트', AppTheme.light()),
-    ])
+    ]) {
       testWidgets('⚠️ 줄에 테두리가 둘려 있다 · $name', (tester) async {
         // 테두리가 없으면 글자만 떠 있어 **누를 자리로 보이지 않는다.**
         await tester.pumpWidget(
@@ -402,6 +402,7 @@ void main() {
           reason: '테두리 색이 면 색과 같으면 테두리가 없는 것과 같다',
         );
       });
+    }
 
     testWidgets('⚠️ 눌러서 무엇이 열리는지 화살표가 말한다', (tester) async {
       // 면과 테두리는 "누를 수 있다"까지만 알린다. 상세로 간다는 것은
