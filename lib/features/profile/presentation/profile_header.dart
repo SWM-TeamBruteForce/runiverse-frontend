@@ -12,23 +12,27 @@ import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 
-/// 프로필 헤더 — 아바타 · 닉네임 · 시그니처 컬러 · 팔로워/팔로잉.
+/// 프로필 헤더 — 아바타 · 닉네임 · 한 줄 소개.
 ///
-/// ## 정본에서 뺀 것 둘
+/// ## ⚠️ 시안에 있는데 여기 없는 것
 ///
-/// **컬러 밴드와 아우라를 그리지 않는다.** 아직 색을 모으지 않은 사람이 대부분이라
-/// 밴드에 깔 색이 없다. ⚠️ 밴드를 빼면 **스크림도 함께 빠진다** — 스크림은
-/// *러닝 색 위에 얹은 텍스트*의 대비를 지키는 장치지(디자인 시스템 §1-4),
-/// 배경에 색이 없으면 어두운 판을 한 겹 더 까는 셈이라 오히려 탁해진다.
+/// 2026-10-05에 **컬러 · 뱃지 · 팔로워/팔로잉을 일단 뺐다**(요청). 시안
+/// `158:3905`는 닉네임 아래에 `팔로워 · 24` `팔로우 · 32` `컬러 · 1/30`
+/// `뱃지 · 1/10` 네 줄을 세우고, 그 아래를 도감이 채운다.
 ///
-/// **대표 기록 대시보드도 뺐다.** 세 값이 전부 러닝 기록에서 나오는데 기록 기능이
-/// 없다. 넣으면 `0 km · 상위 --%`가 나란히 서서 화면이 고장 난 것처럼 읽힌다.
+/// 빼고 보면 남는 것이 아바타 · 닉네임 · 소개뿐이다. **화면이 비는 것은
+/// 알고 둔 것이다** — 그 자리에 도감이 들어온다.
+///
+/// 그 밖에 시안과 다른 것:
+///
+/// - **커버 사진이 없다.** `ProfileSummary`에 필드가 없다 — 서버가 주지 않는다
+/// - **알림 벨이 없다.** 알림을 보낼 채널이 아직 없어, 눌러도 가는 곳이 없다
+/// - **닉네임 옆 인증 배지가 없다.** 인증이라는 개념이 앱에도 서버에도 없다
 class ProfileHeader extends ConsumerWidget {
   const ProfileHeader({
     this.nickname,
     this.introduction,
     this.isOnboarded = true,
-    this.blendRunners = 0,
     this.photoUrl,
     super.key,
   });
@@ -51,12 +55,6 @@ class ProfileHeader extends ConsumerWidget {
   /// 한 줄 소개. 정본의 인사말("78일째…") 자리를 대신 쓴다 —
   /// 가입일을 서버가 주지 않아 날수를 셀 수 없다.
   final String? introduction;
-
-  /// 서로 수락해 함께 달리는 사람 수. 서버 `friendCount`다.
-  ///
-  /// ⚠️ **눌리지 않는다.** 서버에 목록 API가 없다. 누를 수 있게 만들면
-  /// 반응이 없을 때 고장으로 읽힌다. 자리만 잡아 둔다.
-  final int blendRunners;
 
   /// 프로필 사진 열람 주소. 아바타에 그대로 내려보낸다 — [ProfileAvatar.url] 참조.
   final String? photoUrl;
@@ -146,10 +144,6 @@ class ProfileHeader extends ConsumerWidget {
                         ),
                       ),
                     ],
-                    const SizedBox(height: AppSpacing.space2),
-                    const SignatureColorRow(),
-                    const SizedBox(height: AppSpacing.space3),
-                    _BlendCount(count: blendRunners),
                   ],
                 ),
               ),
@@ -181,88 +175,6 @@ class _NicknamePlaceholder extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// 시그니처 컬러 한 줄 — `시그니처 컬러 │ 코발트 블루 ●`
-///
-/// [color]가 `null`이면 색을 아직 모으지 않은 사람이다. 구분선과 색 원을 그리지 않고
-/// **초대 문구 하나만** 남긴다 — 빈 원을 그리면 "색이 있는데 못 불러왔다"로 읽힌다.
-class SignatureColorRow extends StatelessWidget {
-  const SignatureColorRow({this.color, this.name, super.key});
-
-  final Color? color;
-  final String? name;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColors;
-    final color = this.color;
-    final name = this.name;
-
-    if (color == null || name == null) {
-      return Text(
-        AppStrings.profileSignatureEmpty,
-        style: AppTypography.micro.copyWith(color: colors.textTertiary),
-      );
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          AppStrings.profileSignatureLabel,
-          style: AppTypography.micro.copyWith(color: colors.textSecondary),
-        ),
-        Container(
-          width: 1,
-          height: AppSpacing.space3,
-          margin: const EdgeInsets.symmetric(horizontal: AppSpacing.space2),
-          color: colors.borderStrong,
-        ),
-        Text(
-          name,
-          style: AppTypography.micro.copyWith(color: colors.textPrimary),
-        ),
-        const SizedBox(width: AppSpacing.space1),
-        Container(
-          width: AppSpacing.space2,
-          height: AppSpacing.space2,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-      ],
-    );
-  }
-}
-
-/// 블렌드 러너 수. **`InkWell`을 두지 않는다** — 위 ⚠️ 참조.
-class _BlendCount extends StatelessWidget {
-  const _BlendCount({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColors;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '$count',
-          // 숫자가 늘어도 라벨이 흔들리지 않게 tabular를 쓴다.
-          style: AppTypography.body.copyWith(
-            color: colors.textPrimary,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.space1),
-        Text(
-          AppStrings.profileBlendRunners,
-          style: AppTypography.caption.copyWith(color: colors.textSecondary),
-        ),
-      ],
     );
   }
 }

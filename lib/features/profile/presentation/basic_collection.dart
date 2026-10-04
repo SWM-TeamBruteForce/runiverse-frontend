@@ -7,6 +7,11 @@ import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/theme/tokens/run_palette.dart';
 
+/// ⚠️ **2026-10-05 현재 아무도 쓰지 않는다. 지우지 않고 세워 둔 것이다.**
+///
+/// 프로필 탭에서 컬러 도감을 일단 뺐다(요청). 컬러가 들어오면 그대로 되살린다
+/// — `profile_page.dart`의 빈 본문 주석을 함께 본다.
+///
 /// 기본 컬렉션 2×5 — 10범주 × 셰이드 3개 = 30색.
 ///
 /// ## ⚠️ 잠긴 칸도 자기 색을 비춘다

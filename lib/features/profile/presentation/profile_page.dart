@@ -1,13 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/run_palette.dart';
-import 'package:runiverse/core/widgets/empty_state_card.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
-import 'package:runiverse/features/profile/presentation/basic_collection.dart';
 import 'package:runiverse/features/profile/presentation/profile_header.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 
@@ -61,7 +56,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ProfileHeader(
                 nickname: summary?.nickname,
                 introduction: summary?.introduction,
-                blendRunners: summary?.friendCount ?? 0,
                 photoUrl: summary?.profileImageUrl,
                 // ⚠️ 닉네임이 없는 이유를 헤더가 갈라야 한다. 이 값을 빼면
                 // `/users/me`가 잠깐 실패하는 것만으로 **이미 프로필을 채운
@@ -69,58 +63,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 isOnboarded: signedIn?.isOnboarded ?? true,
               ),
 
-              Padding(
-                // ⚠️ **바닥 여백에 탭 바 높이를 더한다.**
-                //
-                // 탭 바가 본문 위에 뜨게 바뀌면서(2026-09-30) 이 화면만
-                // 위험해졌다 — 위의 `SafeArea(bottom: false)`가 시스템 여백을
-                // 일부러 안 받기 때문에, 그냥 두면 **맨 아래 카드가 바 뒤로
-                // 들어간다.** 지금은 내용이 짧아 안 보이지만 컬렉션이 차면
-                // 드러난다.
-                //
-                // `padding.bottom`은 `Scaffold`가 `extendBody`일 때 탭 바
-                // 높이를 실어 준다. 숫자를 여기 적지 않는 이유다.
-                padding: EdgeInsets.fromLTRB(
-                  AppSpacing.space5,
-                  0,
-                  AppSpacing.space5,
-                  AppSpacing.space8 + MediaQuery.paddingOf(context).bottom,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    ProfileSectionTitle(
-                      title: AppStrings.profileBasicCollection,
-                      trailing: AppStrings.profileCollected(
-                        0,
-                        RunHue.values.length * RunPalette.shadeCount,
-                      ),
-                      hint: AppStrings.profileCollectionHint,
-                    ),
-                    const SizedBox(height: AppSpacing.space4),
-                    const ProfileSectionCard(child: BasicCollection()),
-                    const SizedBox(height: AppSpacing.space7),
-
-                    ProfileSectionTitle(
-                      title: AppStrings.profileBlendCollection,
-                      trailing: AppStrings.profileBlendCount(0),
-                    ),
-                    const SizedBox(height: AppSpacing.space3),
-                    const EmptyStateCard(
-                      icon: LucideIcons.blend,
-                      message: AppStrings.profileBlendEmpty,
-                      hint: AppStrings.profileBlendEmptyHint,
-                    ),
-                    const SizedBox(height: AppSpacing.space7),
-
-                    const ProfileSectionTitle(title: AppStrings.profileFeed),
-                    const SizedBox(height: AppSpacing.space3),
-                    const EmptyStateCard(
-                      icon: LucideIcons.image,
-                      message: AppStrings.profileFeedEmpty,
-                    ),
-                  ],
-                ),
+              // ⚠️ **본문이 비어 있다. 빠뜨린 것이 아니다.**
+              //
+              // 여기 있던 `기본 컬러 도감` · `블렌드 컬렉션` · `피드` 셋을
+              // 2026-10-05에 걷어냈다(요청). 시안 `158:3905`도 이 자리를 도감이
+              // 채우므로, 컬러 · 뱃지가 들어오면 그대로 되살아난다
+              // (`basic_collection.dart`를 지우지 않고 세워 둔 이유다).
+              //
+              // ⚠️ **바닥 여백에 탭 바 높이를 더한다.** 위의
+              // `SafeArea(bottom: false)`가 시스템 여백을 일부러 안 받기 때문에,
+              // 그냥 두면 맨 아래가 떠 있는 탭 바 뒤로 들어간다.
+              SizedBox(
+                height:
+                    AppSpacing.space8 + MediaQuery.paddingOf(context).bottom,
               ),
             ],
           ),
