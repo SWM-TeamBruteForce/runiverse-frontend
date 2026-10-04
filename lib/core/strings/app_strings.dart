@@ -1154,8 +1154,11 @@ abstract final class AppStrings {
   // ── 기록 탭 S21 ──────────────────────────────────────────────
 
   /// 주간 요약 줄. 누적 거리 · 누적 시간 · 누적 경사를 나란히 놓는다.
+  ///
+  /// ⚠️ 시안(`158:3797`)이 첫 칸만 `주간 누적 거리`로 길게 쓴다 — 나머지
+  /// 둘에는 `주간`이 없다. 그 줄만 읽으면 어느 기간인지 모르기 때문이다.
   static const recordWeekTitle = '이번 주';
-  static const recordWeekDistance = '누적 거리';
+  static const recordWeekDistance = '주간 누적 거리';
   static const recordWeekTime = '누적 시간';
   static const recordWeekElevation = '누적 경사';
 
@@ -1181,6 +1184,16 @@ abstract final class AppStrings {
   static const recordDetailMissing = '이 러닝의 기록이 없어요';
   static const recordDetailForbidden = '이 러닝의 참가자가 아니에요';
   static const recordRetry = '다시 시도';
+
+  /// 주간 기록 카드의 제목. 시안 `158:3809`.
+  static const recordWeekChartTitle = '주간 기록';
+
+  /// 그 날짜의 요일 한 글자. 주간 차트 가로축이 쓴다.
+  ///
+  /// ⚠️ **날짜에서 뽑는다.** 고정 배열을 인덱스로 읽으면 주 시작 요일이
+  /// 바뀔 때 라벨만 어긋난다 — 그것이 눈에 안 띄어 오래 간다.
+  static String recordWeekdayOf(DateTime day) =>
+      recordWeekdays[day.weekday % 7];
 
   /// 캘린더 요일 머리. 일요일부터 시작한다(정본 S21).
   static const recordWeekdays = ['일', '월', '화', '수', '목', '금', '토'];

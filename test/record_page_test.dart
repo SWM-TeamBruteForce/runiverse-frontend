@@ -119,33 +119,16 @@ void main() {
     });
   });
 
-  group('⚠️ 잔디가 아니다', () {
-    // 월 전체를 칠하면 안 뛴 날이 **결손**으로 읽혀 잔디의 죄책감 문제를
-    // 답습한다(디자인 시스템 v1.1 §5-5).
+  group('⚠️ 안 뛴 날이 사라지지 않는다', () {
+    // 옛 규칙은 **"안 뛴 날에 막대가 서지 않는다"**였다(디자인 시스템 v1.1
+    // §5-5, 잔디의 죄책감 문제). 그 제약은 2026-10-04 에 걷혔다 — 화면
+    // 정본이 Figma 시안으로 바뀌었고 주간 기록이 **면적 그래프**가 됐다.
     //
-    // ⚠️ 다음 PR 이 막대를 면적 그래프로 바꾼다. **면적 그래프는 0을 지나는
-    // 선을 그리므로** 이 약속을 지키는 방법이 달라진다 — 그때 이 그룹이
-    // 무엇을 지켜야 하는지 말해 준다.
-
-    testWidgets('뛴 날과 안 뛴 날의 자국 높이가 다르다', (tester) async {
-      await pump(tester);
-
-      final heights = tester
-          .widgetList<Container>(
-            find.descendant(
-              of: find.byType(RecordWeekChart),
-              matching: find.byType(Container),
-            ),
-          )
-          .map((it) => it.constraints?.maxHeight)
-          .whereType<double>()
-          .toSet();
-
-      expect(heights.length, greaterThan(1), reason: '막대가 전부 같은 높이다');
-    });
+    // 지키려던 것은 남는다: **안 뛴 날이 결손으로 읽히지 않을 것.**
+    // 면적 그래프에서는 그 날도 점을 찍고 선이 바닥을 지나간다.
 
     testWidgets('⚠️ 기록이 하나도 없어도 요일 일곱 칸이 남는다', (tester) async {
-      // 칸을 지우면 어디가 빈 날인지 읽을 수 없다. 자국은 남긴다.
+      // 칸을 지우면 어디가 빈 날인지 읽을 수 없다.
       await pump(tester, repository: empty);
 
       for (final label in AppStrings.recordWeekdays) {
@@ -158,6 +141,23 @@ void main() {
           reason: '$label 칸이 없다',
         );
       }
+    });
+
+    testWidgets('⚠️ 안 뛴 날의 칸도 눌린다', (tester) async {
+      // 누를 수 없으면 그 날은 없는 것과 같다. 빈 날을 골라야 "이 날은
+      // 달리지 않았어요"를 볼 수 있다.
+      await pump(tester, repository: empty);
+
+      final column = find.descendant(
+        of: find.byType(RecordWeekChart),
+        matching: find.byType(GestureDetector),
+      );
+
+      expect(column, findsNWidgets(AppStrings.recordWeekdays.length));
+      await tester.tap(column.first);
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
     });
   });
 

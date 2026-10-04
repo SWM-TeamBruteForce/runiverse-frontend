@@ -4,10 +4,11 @@ import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/core/widgets/v2/stat_row.dart';
 import 'package:runiverse/features/record/presentation/record_calendar.dart';
 import 'package:runiverse/features/record/presentation/record_day_list.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
@@ -38,7 +39,7 @@ class RecordPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final state = ref.watch(recordControllerProvider);
     final controller = ref.read(recordControllerProvider.notifier);
 
@@ -63,7 +64,7 @@ class _Loaded extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(
@@ -75,9 +76,37 @@ class _Loaded extends StatelessWidget {
       children: [
         Text(
           AppStrings.tabRecord,
-          style: AppTypography.h1.copyWith(color: colors.textPrimary),
+          style: AppTypographyV2.heading05.copyWith(color: colors.textStrong),
         ),
-        const SizedBox(height: AppSpacing.space4),
+        const SizedBox(height: AppSpacing.space6),
+
+        // ⚠️ **카드 밖이다.** 시안(`158:3796`)이 세 수치를 차트 카드에서 빼
+        // 화면 맨 위에 둔다 — 카드를 안 봐도 이번 주가 어땠는지 읽힌다.
+        StatRowV2(
+          stats: [
+            Stat(
+              label: AppStrings.recordWeekDistance,
+              value: AppStrings.recordSummaryDistanceText(
+                data.weekSummary.totalKm,
+              ),
+            ),
+            Stat(
+              label: AppStrings.recordWeekTime,
+              value: AppStrings.recordDurationText(
+                data.weekSummary.totalDuration,
+              ),
+            ),
+            Stat(
+              label: AppStrings.recordWeekElevation,
+              // ⚠️ 하나라도 모르면 `RecordSummary`가 통째로 `null`을 준다 —
+              // 아는 것만 더하면 실제보다 작은 값이 확정값처럼 보인다.
+              value: AppStrings.recordElevationText(
+                data.weekSummary.elevationGainMeters,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.space6),
 
         RecordWeekChart(data: data, onSelect: controller.select),
         const SizedBox(height: AppSpacing.space4),
@@ -108,7 +137,7 @@ class _Loaded extends StatelessWidget {
 class _MonthEmpty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.space6),
@@ -122,7 +151,7 @@ class _MonthEmpty extends StatelessWidget {
           const SizedBox(height: AppSpacing.space3),
           Text(
             AppStrings.recordMonthEmpty,
-            style: AppTypography.body.copyWith(color: colors.textTertiary),
+            style: AppTypographyV2.body07.copyWith(color: colors.textTertiary),
           ),
         ],
       ),
@@ -137,7 +166,7 @@ class _Error extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Center(
       child: Padding(
@@ -154,13 +183,15 @@ class _Error extends StatelessWidget {
             Text(
               AppStrings.recordError,
               textAlign: TextAlign.center,
-              style: AppTypography.body.copyWith(color: colors.textSecondary),
+              style: AppTypographyV2.body07.copyWith(
+                color: colors.textSecondary,
+              ),
             ),
             const SizedBox(height: AppSpacing.space4),
-            AppButton(
+            AppButtonV2(
               label: AppStrings.recordRetry,
-              variant: AppButtonVariant.secondary,
-              size: AppButtonSize.md,
+              variant: AppButtonV2Variant.secondary,
+              expand: false,
               onPressed: onRetry,
             ),
           ],
