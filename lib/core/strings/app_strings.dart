@@ -1211,6 +1211,15 @@ abstract final class AppStrings {
       '${month.year}년 ${month.month}월';
 
   /// `7월 13일 · 러닝 2회`
+  /// 오늘을 가리키는 칩. 시안 `158:3879`.
+  static const recordToday = 'Today';
+
+  /// `17:00:00 시작 · 2.5 km · 00:30:00 소요` — 시안 `158:3887`.
+  static String recordRunLine(DateTime startedAt, double km, Duration took) =>
+      '${recordRunDuration(Duration(hours: startedAt.hour, minutes: startedAt.minute))} 시작'
+      ' · ${km.toStringAsFixed(1)} km'
+      ' · ${recordRunDuration(took)} 소요';
+
   static String recordDayLabel(DateTime day, int count) =>
       '${day.month}월 ${day.day}일 · 러닝 $count회';
 
