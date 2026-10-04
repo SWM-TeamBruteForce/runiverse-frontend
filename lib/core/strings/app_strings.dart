@@ -1180,7 +1180,8 @@ abstract final class AppStrings {
 
   /// 값을 모를 때. **0이 아니라 모른다는 뜻이다.**
   ///
-  /// 지금은 누적 경사가 늘 이 값이다 — 목록 API가 고도를 주지 않는다.
+  /// 누적 경사가 이것이면 서버가 표본이 부족하다고 답한 것이다. 목록 API는
+  /// 2026-10-04 기준 고도를 **준다** — 예전 주석이 반대로 적혀 있었다.
   static const recordUnknown = '--';
 
   static const recordDayEmpty = '이 날은 달리지 않았어요';
