@@ -222,6 +222,12 @@ abstract final class AppStrings {
   static const profileNicknameOk = '쓸 수 있는 이름이에요';
   static const profileNicknameConfirm = '확인';
 
+  /// 휠 바텀시트(생년월일 · 키 · 몸무게)의 확인 버튼.
+  ///
+  /// ⚠️ 이 글자가 **위젯 안에 직접 박혀 있었다.** 화면에 나가는 말은 전부
+  /// 여기 둔다(CLAUDE.md) — 박아 두면 번역·문구 통일에서 빠진다.
+  static const wheelPickerConfirm = '확인';
+
   /// 서버에 묻는 동안. 확인 버튼이 잠기는 이유를 말해준다.
   static const profileNicknameChecking = '확인하는 중이에요';
 
