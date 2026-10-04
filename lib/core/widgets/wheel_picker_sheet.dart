@@ -1,12 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_motion.dart';
-import 'package:runiverse/core/theme/tokens/app_radius.dart';
-import 'package:runiverse/core/theme/tokens/app_sizes.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_motion.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
 
 /// 휠 한 칸.
 class WheelColumn {
@@ -53,7 +54,7 @@ Future<List<int>?> showWheelPickerSheet(
   return showModalBottomSheet<List<int>>(
     context: context,
     backgroundColor: Colors.transparent,
-    barrierColor: context.appColors.bgScrim,
+    barrierColor: context.appColorsV2.bgScrim,
     isScrollControlled: true,
     builder: (context) => _WheelSheet(title: title, columns: columns),
   );
@@ -144,7 +145,7 @@ class _WheelSheetState extends State<_WheelSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return SafeArea(
       top: false,
@@ -177,7 +178,9 @@ class _WheelSheetState extends State<_WheelSheet> {
 
             Text(
               widget.title,
-              style: AppTypography.h3.copyWith(color: colors.textPrimary),
+              style: AppTypographyV2.heading06.copyWith(
+                color: colors.textPrimary,
+              ),
             ),
             const SizedBox(height: AppSpacing.space4),
 
@@ -207,8 +210,8 @@ class _WheelSheetState extends State<_WheelSheet> {
             ),
             const SizedBox(height: AppSpacing.space5),
 
-            AppButton(
-              label: '확인',
+            AppButtonV2(
+              label: AppStrings.wheelPickerConfirm,
               onPressed: () => Navigator.of(context).pop(_picked),
             ),
           ],
@@ -218,7 +221,7 @@ class _WheelSheetState extends State<_WheelSheet> {
   }
 
   Widget _column(int i) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final values = _values[i];
     final selected = _picked[i];
 
@@ -255,7 +258,7 @@ class _WheelSheetState extends State<_WheelSheet> {
                   return Center(
                     child: Text(
                       '$value',
-                      style: AppTypography.bodyLg.copyWith(
+                      style: AppTypographyV2.body07.copyWith(
                         color: isOn ? colors.textPrimary : colors.textTertiary,
                         fontWeight: isOn ? FontWeight.w600 : FontWeight.w400,
                         fontFeatures: const [FontFeature.tabularFigures()],
@@ -270,7 +273,7 @@ class _WheelSheetState extends State<_WheelSheet> {
         const SizedBox(height: AppSpacing.space2),
         Text(
           widget.columns[i].unit,
-          style: AppTypography.micro.copyWith(color: colors.textTertiary),
+          style: AppTypographyV2.body21.copyWith(color: colors.textTertiary),
         ),
       ],
     );
