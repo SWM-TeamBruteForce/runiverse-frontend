@@ -5,7 +5,7 @@ import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/profile/data/fake_profile_repository.dart';
 import 'package:runiverse/features/profile/domain/nickname_change_failure.dart';
@@ -82,13 +82,13 @@ void main() {
 
   Finder submitButton() => find.text(AppStrings.profileNicknameChangeSubmit);
 
-  /// `AppButton`은 `Material` + `InkWell`이라 `ElevatedButton`이 아니다.
+  /// `AppButtonV2`는 `Material` + `InkWell`이라 `ElevatedButton`이 아니다.
   /// 잠겼는지는 **위젯이 받은 콜백**으로 본다.
   bool submitEnabled(WidgetTester tester) =>
       tester
-          .widget<AppButton>(
+          .widget<AppButtonV2>(
             find.widgetWithText(
-              AppButton,
+              AppButtonV2,
               AppStrings.profileNicknameChangeSubmit,
             ),
           )
