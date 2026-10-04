@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_radius.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
-import 'package:runiverse/core/widgets/app_input.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_input.dart';
 import 'package:runiverse/features/onboarding/domain/nickname_rule.dart';
 import 'package:runiverse/features/profile/domain/nickname_change_failure.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
@@ -28,7 +28,7 @@ Future<bool?> showNicknameSheet(BuildContext context, {String? current}) {
   return showModalBottomSheet<bool>(
     context: context,
     backgroundColor: Colors.transparent,
-    barrierColor: context.appColors.bgScrim,
+    barrierColor: context.appColorsV2.bgScrim,
     // ⚠️ 없으면 키보드가 시트를 덮는다. 입력이 있는 시트는 항상 켠다.
     isScrollControlled: true,
     builder: (context) => _NicknameSheet(current: current),
@@ -215,7 +215,7 @@ class _NicknameSheetState extends ConsumerState<_NicknameSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final (helper, tone) = _helper();
 
     return SafeArea(
@@ -254,11 +254,13 @@ class _NicknameSheetState extends ConsumerState<_NicknameSheet> {
 
               Text(
                 AppStrings.profileNicknameChangeTitle,
-                style: AppTypography.h3.copyWith(color: colors.textPrimary),
+                style: AppTypographyV2.heading06.copyWith(
+                  color: colors.textPrimary,
+                ),
               ),
               const SizedBox(height: AppSpacing.space4),
 
-              AppInput(
+              AppInputV2(
                 controller: _nickname,
                 autofocus: true,
                 hint: AppStrings.profileNicknameHint,
@@ -280,12 +282,12 @@ class _NicknameSheetState extends ConsumerState<_NicknameSheet> {
                 const SizedBox(height: AppSpacing.space2),
                 Text(
                   _messageOf(_submitFailure!),
-                  style: AppTypography.caption.copyWith(color: colors.error),
+                  style: AppTypographyV2.body15.copyWith(color: colors.error),
                 ),
               ],
               const SizedBox(height: AppSpacing.space4),
 
-              AppButton(
+              AppButtonV2(
                 label: AppStrings.profileNicknameChangeSubmit,
                 onPressed: _canSubmit ? _submit : null,
               ),
@@ -300,47 +302,47 @@ class _NicknameSheetState extends ConsumerState<_NicknameSheet> {
   ///
   /// **순서가 규칙이다.** 뒤로 갈수록 일반적인 말이라, 앞의 구체적인 사정이
   /// 있으면 그것이 이긴다.
-  (String, AppInputTone) _helper() {
+  (String, AppInputToneV2) _helper() {
     if (_submitFailure == NicknameChangeFailure.taken ||
         (_hasFreshAnswer && _checkedAvailable == false)) {
-      return (AppStrings.profileNicknameTaken, AppInputTone.error);
+      return (AppStrings.profileNicknameTaken, AppInputToneV2.error);
     }
     if (_checking) {
-      return (AppStrings.profileNicknameChecking, AppInputTone.neutral);
+      return (AppStrings.profileNicknameChecking, AppInputToneV2.neutral);
     }
     if (_checkFailed) {
-      return (AppStrings.profileNicknameCheckFailed, AppInputTone.error);
+      return (AppStrings.profileNicknameCheckFailed, AppInputToneV2.error);
     }
     // 형식은 맞지만 지금 쓰는 이름 그대로다. 오류가 아니라 **할 일이 없는
     // 상태**라 중립으로 말한다.
     if (_isUnchanged && _status.isValid) {
-      return (AppStrings.profileNicknameUnchanged, AppInputTone.neutral);
+      return (AppStrings.profileNicknameUnchanged, AppInputToneV2.neutral);
     }
     // ⚠️ 형식을 통과했어도 **서버가 답하기 전까지는** 쓸 수 있다고 말하지
     // 않는다. 곧 "이미 있다"로 뒤집힐 수 있는 말이다.
     if (_status.isValid && !_hasFreshAnswer) {
-      return (AppStrings.profileNicknameCheckPending, AppInputTone.neutral);
+      return (AppStrings.profileNicknameCheckPending, AppInputToneV2.neutral);
     }
     return switch (_status) {
       NicknameStatus.empty => (
         AppStrings.profileNicknameGuide,
-        AppInputTone.neutral,
+        AppInputToneV2.neutral,
       ),
       NicknameStatus.tooShort => (
         AppStrings.profileNicknameTooShort,
-        AppInputTone.error,
+        AppInputToneV2.error,
       ),
       NicknameStatus.tooLong => (
         AppStrings.profileNicknameTooLong,
-        AppInputTone.error,
+        AppInputToneV2.error,
       ),
       NicknameStatus.invalidChars => (
         AppStrings.profileNicknameInvalidChars,
-        AppInputTone.error,
+        AppInputToneV2.error,
       ),
       NicknameStatus.valid => (
         AppStrings.profileNicknameOk,
-        AppInputTone.success,
+        AppInputToneV2.success,
       ),
     };
   }
