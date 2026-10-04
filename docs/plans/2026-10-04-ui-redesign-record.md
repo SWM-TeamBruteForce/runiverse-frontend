@@ -1,4 +1,4 @@
-# UI 전면 교체 — 기록·설정 계획
+# UI 전면 교체 — 기록·설정 계획 ✅ **끝남 (2026-10-04)**
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -111,14 +111,14 @@
 - Create: `lib/core/widgets/v2/legal_document.dart` (기존 것이 없다면)
 - Test: `test/settings_page_test.dart`
 
-- [ ] **Step 1: `upstream/dev`에서 딴다**
+- [x] **Step 1: `upstream/dev`에서 딴다**
 
 ```bash
 git fetch upstream
 git checkout -b style/settings-redesign upstream/dev
 ```
 
-- [ ] **Step 2: `LegalDocumentV2`가 이미 있는지 본다**
+- [x] **Step 2: `LegalDocumentV2`가 이미 있는지 본다**
 
 ```bash
 grep -rn "LegalDocument" lib/
@@ -126,24 +126,24 @@ grep -rn "LegalDocument" lib/
 
 약관 동의 화면(#95)을 옮길 때 만들었을 수 있다. 있으면 그대로 쓰고, 없으면 만든다.
 
-- [ ] **Step 3: 토큰을 v2로 바꾼다**
+- [x] **Step 3: 토큰을 v2로 바꾼다**
 
 `context.appColors` → `appColorsV2`, `AppTypography.x` → `AppTypographyV2.yy`,
 `AppButton` → `AppButtonV2`, Lucide → `AppIcon`.
 
 ⚠️ **한 파일 안에서 전부 바꾼다.** 반만 바꾸면 `theme_generation_test`가 막는다.
 
-- [ ] **Step 4: 깨진 테스트를 고친다** (9개 중 구조 결합 1건)
+- [x] **Step 4: 깨진 테스트를 고친다** (9개 중 구조 결합 1건)
 
-- [ ] **Step 5: 일부러 부순다**
+- [x] **Step 5: 일부러 부순다**
 
 로그아웃 버튼을 눌러도 아무 일이 없게 만들어 본다. ⚠️ 안 빨개지면 **부순 자리를 눈으로 확인한다.**
 
-- [ ] **Step 6: 검증하고 에뮬레이터에서 본다**
+- [x] **Step 6: 검증하고 에뮬레이터에서 본다**
 
 설정은 프로필 탭 → 톱니바퀴로 들어간다. 로그인이 필요하면 임시 경로를 쓴다.
 
-- [ ] **Step 7: 커밋하고 PR, 머지 뒤 탐침 되돌린 빌드를 다시 설치**
+- [x] **Step 7: 커밋하고 PR, 머지 뒤 탐침 되돌린 빌드를 다시 설치**
 
 ---
 
@@ -157,9 +157,9 @@ grep -rn "LegalDocument" lib/
 **Interfaces:**
 - Consumes: `recordControllerProvider` · `runRecordRepositoryProvider`(`FakeRunRecordRepository`가 이미 있다)
 
-- [ ] **Step 1: `upstream/dev`에서 딴다**
+- [x] **Step 1: `upstream/dev`에서 딴다**
 
-- [ ] **Step 2: 지금 화면이 지키는 것을 찾아 적는다**
+- [x] **Step 2: 지금 화면이 지키는 것을 찾아 적는다**
 
 코드 주석이 근거다. 적어도 이 넷:
 
@@ -170,11 +170,11 @@ testWidgets('기록이 없으면 빈 상태를 보여준다', ...);
 testWidgets('날짜를 고르면 그날 목록이 바뀐다', ...);
 ```
 
-- [ ] **Step 3: 일부러 부숴 그물을 확인한다**
+- [x] **Step 3: 일부러 부숴 그물을 확인한다**
 
 **넷을 하나씩** 부수고 각각 빨개지는지 본다. ⚠️ 여기서 헛도는 단정을 걸러내지 못하면 Task 3이 그물 없이 가는 것과 같다.
 
-- [ ] **Step 4: 커밋하고 PR**
+- [x] **Step 4: 커밋하고 PR**
 
 **코드 변경 없음 · 테스트만.** 리뷰가 "무엇을 지키기로 했는가"를 먼저 보게 된다.
 
@@ -193,23 +193,23 @@ testWidgets('날짜를 고르면 그날 목록이 바뀐다', ...);
 - Consumes: Task 2의 그물
 - Produces: `StatRowV2` — 프로필의 `컬러 1/30 · 뱃지 1/10` 줄이 나중에 쓸 수 있다
 
-- [ ] **Step 1: 앞 PR 머지 후 `upstream/dev`에서 딴다**
+- [x] **Step 1: 앞 PR 머지 후 `upstream/dev`에서 딴다**
 
-- [ ] **Step 2: 시안을 읽는다** — ⚠️ **`get_design_context`까지 연다**
+- [x] **Step 2: 시안을 읽는다** — ⚠️ **`get_design_context`까지 연다**
 
 스크린샷만 보고 계획을 쓴 탓에 홈에서 전제가 둘 틀렸다(스펙 9절). 치수·색·불투명도를 받는다.
 
-- [ ] **Step 3: 상단 3칸을 만든다**
+- [x] **Step 3: 상단 3칸을 만든다**
 
 ⚠️ `FactRowV2`와 **다른 것**이다 — 그쪽은 면이 깔린 패널이고 이쪽은 배경 없이 글자만 선다. 같은 부품으로 합치려 들지 않는다.
 
-- [ ] **Step 4: 주간 차트를 면적 그래프로 바꾼다**
+- [x] **Step 4: 주간 차트를 면적 그래프로 바꾼다**
 
 ⚠️ **"잔디가 아니다" 규칙은 그대로 지킨다**(`record_week_chart.dart:11`). 안 뛴 날을 결손으로 보이게 하지 않는다. 면적 그래프에서 0인 날을 어떻게 그릴지 **PR에 적고 디자인 확인을 받는다.**
 
 ⚠️ 시안의 `173 spm` 툴팁은 **빼고 만든다**(2절).
 
-- [ ] **Step 5: 캘린더를 가로 주간 스트립으로 바꾼다**
+- [x] **Step 5: 캘린더를 가로 주간 스트립으로 바꾼다**
 
 ⚠️ **여기서 주 시작 요일이 저절로 통일된다.** 지금 월 달력
 (`record_calendar.dart:148`)은 **일요일**, 주간 계산(`weekOf`)은 **월요일**로
@@ -219,15 +219,15 @@ testWidgets('날짜를 고르면 그날 목록이 바뀐다', ...);
 ⚠️ 연동 가이드 4장은 **일요일을 권한다.** 근거가 "월 달력과 같은 기준"인데
 그 달력이 사라지므로 전제가 바뀐다 — **PR 에 적어 확인받는다.**
 
-- [ ] **Step 6: 날짜별 목록을 옮긴다.** ⚠️ 뱃지 줄은 **빼고** 만든다(2절).
+- [x] **Step 6: 날짜별 목록을 옮긴다.** ⚠️ 뱃지 줄은 **빼고** 만든다(2절).
 
-- [ ] **Step 7: 깨진 테스트를 고치고 일부러 부순다**
+- [x] **Step 7: 깨진 테스트를 고치고 일부러 부순다**
 
-- [ ] **Step 8: 검증하고 에뮬레이터에서 본다**
+- [x] **Step 8: 검증하고 에뮬레이터에서 본다**
 
 ⚠️ **데이터가 있어야 보인다.** 로그인해서 기록이 없으면 빈 상태만 확인된다 — `FakeRunRecordRepository`로 임시 override해서 데이터 상태도 본다. 어떻게 봤는지 PR에 적는다.
 
-- [ ] **Step 9: 커밋하고 PR**
+- [x] **Step 9: 커밋하고 PR**
 
 ---
 
@@ -238,9 +238,9 @@ testWidgets('날짜를 고르면 그날 목록이 바뀐다', ...);
 **Files:**
 - Create: `test/record_detail_page_test.dart`
 
-- [ ] **Step 1: 앞 PR 머지 후 `upstream/dev`에서 딴다**
+- [x] **Step 1: 앞 PR 머지 후 `upstream/dev`에서 딴다**
 
-- [ ] **Step 2: 지금 화면이 지키는 것을 찾아 적는다**
+- [x] **Step 2: 지금 화면이 지키는 것을 찾아 적는다**
 
 ```dart
 testWidgets('loading · data · error 셋을 다 그린다', ...);
@@ -251,8 +251,8 @@ testWidgets('없는 값(케이던스·칼로리)을 0 으로 메우지 않는다
 
 ⚠️ **CLAUDE.md 금지 둘을 여기서 못 박는다.** 지금 지키고 있더라도, 토큰을 갈아끼우다 실수로 되살릴 수 있다.
 
-- [ ] **Step 3: 일부러 부숴 그물을 확인한다**
-- [ ] **Step 4: 커밋하고 PR** (테스트만)
+- [x] **Step 3: 일부러 부숴 그물을 확인한다**
+- [x] **Step 4: 커밋하고 PR** (테스트만)
 
 ---
 
@@ -263,43 +263,35 @@ testWidgets('없는 값(케이던스·칼로리)을 0 으로 메우지 않는다
 **Files:**
 - Modify: `record_detail_page.dart` · `run_result_view.dart` · `split_line_chart.dart`
 
-- [ ] **Step 1: 앞 PR 머지 후 `upstream/dev`에서 딴다**
+- [x] **Step 1: 앞 PR 머지 후 `upstream/dev`에서 딴다**
 
-- [ ] **Step 2: 세 파일의 토큰을 v2로 바꾼다**
+- [x] **Step 2: 세 파일의 토큰을 v2로 바꾼다**
 
 ⚠️ **`split_line_chart`는 `CustomPainter`다.** 색을 받는 지점만 바꾸고 **곡선 계산에는 손대지 않는다.**
 
 ⚠️ 세 파일이 서로를 import하므로 **한 PR에서 셋을 다 바꾼다.** 하나만 바꾸면 `theme_generation_test`가 막는다.
 
-- [ ] **Step 3: 깨진 테스트를 고치고 일부러 부순다**
-- [ ] **Step 4: 검증하고 에뮬레이터에서 본다** (기록 → 날짜 → 상세)
-- [ ] **Step 5: 커밋하고 PR**
+- [x] **Step 3: 깨진 테스트를 고치고 일부러 부순다**
+- [x] **Step 4: 검증하고 에뮬레이터에서 본다** (기록 → 날짜 → 상세)
+- [x] **Step 5: 커밋하고 PR**
 
 ⚠️ **파일 셋에 1,601줄이라 PR 한도(20파일 / 500줄)를 넘을 수 있다.** 넘으면 사유를 PR에 적는다(CLAUDE.md).
 
 ---
 
-## Task 6: 잰 것을 적는다
+## Task 6: 잰 것을 적는다 ✅
 
-**Files:**
-- Modify: `docs/specs/2026-09-25-ui-redesign-workspace-design.md`
+- [x] 9절에 다섯 번째 묶음 — 깨진 것 **5개**, 테스트 1,022 → **1,070**
+- [x] 8절에 **무엇이 정본인가** — 디자인 시스템 v1.1 은 교체 이전 것이다
+- [x] 11절 8개 → **5개.** ⚠️ "부품이 화면을 묶는다"는 틀을 접었다
+- [x] 12절 — **막는 것이 없는 화면이 하나도 안 남았다**
 
-- [ ] **Step 1: 9절에 다섯 번째 묶음을 이어 적는다**
+### ⚠️ 계획대로 안 간 것 둘
 
-```markdown
-### 다섯 번째 묶음 — 기록·설정 (2026-XX-XX~)
-
-| 화면 | 시안 | 테스트 | 깨진 수 | 새로 만든 부품 |
-...
-**상대한 것:** 위젯 테스트 9개(설정) + **0개(기록·기록상세)**
-**실제로 깨진 것:** [합계]
-
-⚠️ **옮기기 전에 그물부터 친 판단은 [옳았다/틀렸다]** — [근거]
-```
-
-- [ ] **Step 2: 11절에서 옮긴 셋을 지운다** — 8개 → 5개
-- [ ] **Step 3: 12절의 다음 묶음을 다시 쓴다**
-- [ ] **Step 4: 검증하고 PR**
+| 계획 | 실제 |
+|---|---|
+| 기록을 PR 하나로 | **셋으로 나눴다**(#119 · #120 · #121). 한 PR 에 900줄이 된다 |
+| 기록 캘린더는 월 달력 유지 | 시안의 **가로 스트립**으로 바꾸고 월 달력을 **토글 뒤에** 뒀다 |
 
 ---
 
