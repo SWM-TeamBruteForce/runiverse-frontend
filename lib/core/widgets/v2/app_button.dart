@@ -139,22 +139,33 @@ class AppButtonV2 extends StatelessWidget {
               // 두르면 모서리가 두 겹으로 보인다.
               border: filled || tonal ? null : Border.all(color: accent),
             ),
-            alignment: Alignment.center,
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              // ⚠️ 글자도 함께 줄인다. 시안의 작은 버튼은 14 SemiBold 다
-              // (`158:3934`). 16 을 그대로 두면 높이만 줄어 납작해지고,
-              // 가로도 글자 폭 때문에 안 줄어든다.
-              style:
-                  (size == AppButtonV2Size.compact
-                          ? AppTypographyV2.body10
-                          : AppTypographyV2.body05)
-                      .copyWith(
-                        color: filled && enabled
-                            ? colors.textOnPrimary
-                            : accent,
-                      ),
+            // ⚠️ **`alignment` 를 여기 두면 `expand: false` 가 듣지 않는다.**
+            //
+            // `alignment` 가 있는 `Container` 는 가로 제약이 유한하면 꽉 채운다.
+            // `Column` 도 `Center` 도 유한한 제약을 주므로, 사실상 주 축 제약이
+            // 무한한 `Row` 안에서만 들었다 — 앱에서 `expand: false` 를 쓰던
+            // 8곳 중 7곳이 `Column` 안이라 전부 화면 폭으로 늘어나 있었다.
+            //
+            // 세로 가운데는 지켜야 하므로 `Align` 을 안으로 내리고, 늘리지 않을
+            // 때만 `widthFactor: 1` 로 **가로를 글자에 맞춘다.**
+            child: Align(
+              widthFactor: expand ? null : 1,
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                // ⚠️ 글자도 함께 줄인다. 시안의 작은 버튼은 14 SemiBold 다
+                // (`158:3934`). 16 을 그대로 두면 높이만 줄어 납작해지고,
+                // 가로도 글자 폭 때문에 안 줄어든다.
+                style:
+                    (size == AppButtonV2Size.compact
+                            ? AppTypographyV2.body10
+                            : AppTypographyV2.body05)
+                        .copyWith(
+                          color: filled && enabled
+                              ? colors.textOnPrimary
+                              : accent,
+                        ),
+              ),
             ),
           ),
         ),
