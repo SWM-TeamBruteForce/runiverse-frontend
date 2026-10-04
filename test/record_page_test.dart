@@ -311,6 +311,79 @@ void main() {
       expect(opened.single.id, 1);
     });
 
+    testWidgets('⚠️ 손가락이 닿는 높이가 44를 넘는다', (tester) async {
+      // 캘린더 카드 안에 줄로 쌓여 있어 **그냥 두면 글자 높이만큼만** 눌린다.
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(),
+          home: Scaffold(
+            body: RecordDayList(
+              day: DateTime(2026, 9, 30),
+              records: [
+                RunRecord(
+                  id: 1,
+                  runningRoomId: 10,
+                  startedAt: DateTime(2026, 9, 30, 17),
+                  distanceMeters: 2500,
+                  duration: const Duration(minutes: 30),
+                  averagePace: const Duration(seconds: 720),
+                  routePolyline: '',
+                  playerCount: 1,
+                ),
+              ],
+              onOpen: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSize(find.byType(InkWell).first).height,
+        greaterThanOrEqualTo(44),
+      );
+    });
+
+    testWidgets('⚠️ 줄에 테두리가 둘려 있다', (tester) async {
+      // 테두리가 없으면 글자만 떠 있어 **누를 자리로 보이지 않는다.**
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(),
+          home: Scaffold(
+            body: RecordDayList(
+              day: DateTime(2026, 9, 30),
+              records: [
+                RunRecord(
+                  id: 1,
+                  runningRoomId: 10,
+                  startedAt: DateTime(2026, 9, 30, 17),
+                  distanceMeters: 2500,
+                  duration: const Duration(minutes: 30),
+                  averagePace: const Duration(seconds: 720),
+                  routePolyline: '',
+                  playerCount: 1,
+                ),
+              ],
+              onOpen: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final material = tester.widget<Material>(
+        find
+            .ancestor(
+              of: find.byType(InkWell).first,
+              matching: find.byType(Material),
+            )
+            .first,
+      );
+      final shape = material.shape;
+      expect(shape, isA<RoundedRectangleBorder>());
+      expect((shape! as RoundedRectangleBorder).side.style, BorderStyle.solid);
+    });
+
     testWidgets('⚠️ 뱃지 줄은 없다', (tester) async {
       // 시안이 `언덕 정복자 뱃지를 획득했습니다` 같은 줄을 그리는데
       // **백엔드에 뱃지 기능이 아직 없다.** 지어내지 않는다.

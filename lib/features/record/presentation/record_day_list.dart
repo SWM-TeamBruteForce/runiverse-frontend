@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
@@ -111,50 +112,70 @@ class _Row extends StatelessWidget {
   final RunRecord record;
   final ValueChanged<RunRecord>? onOpen;
 
-  /// 줄 앞의 점. 시안이 글머리처럼 찍는다.
-  static const _bulletSize = 4.0;
+  /// ⚠️ **눌리는 높이를 여기서 보장한다.**
+  ///
+  /// 글자(14 × 1.5 ≈ 21)에 위아래 여백만 주면 45가 나오지만, 글꼴이나 배율이
+  /// 바뀌면 44 아래로 내려갈 수 있다. 바닥을 못 박아 둔다.
+  static const _minHeight = AppSizes.touchDefault;
+
+  /// 줄 앞의 점. 러닝 하나라는 표시다.
+  static const _bulletSize = 6.0;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
     final open = onOpen;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: open == null ? null : () => open(record),
-        borderRadius: AppRadius.sm,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.space2),
-          child: Row(
-            children: [
-              Container(
-                width: _bulletSize,
-                height: _bulletSize,
-                decoration: BoxDecoration(
-                  color: colors.textTertiary,
-                  shape: BoxShape.circle,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.space2),
+      child: Material(
+        color: Colors.transparent,
+        // ⚠️ **면을 깔지 않고 테두리만 두른다.** 이 줄은 캘린더 카드 **안**에
+        // 있어서, 면까지 깔면 카드 안의 카드가 되어 테두리가 두 겹으로 보인다.
+        // 테두리만 있으면 "누를 자리"로 읽힌다.
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.md,
+          side: BorderSide(color: colors.borderDefault),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: open == null ? null : () => open(record),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: _minHeight),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.space4,
+              vertical: AppSpacing.space3,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: _bulletSize,
+                  height: _bulletSize,
+                  decoration: BoxDecoration(
+                    color: colors.primary,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.space3),
+                const SizedBox(width: AppSpacing.space3),
 
-              Expanded(
-                child: Text(
-                  AppStrings.recordRunLine(
-                    record.startedAt,
-                    record.distanceKm,
-                    record.duration,
+                Expanded(
+                  child: Text(
+                    AppStrings.recordRunLine(
+                      record.startedAt,
+                      record.distanceKm,
+                      record.duration,
+                    ),
+                    style: AppTypographyV2.body11.copyWith(
+                      color: colors.textStrong,
+                      // 시각·거리·소요가 한 줄에 선다. 안 주면 줄마다 어긋난다.
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  style: AppTypographyV2.body15.copyWith(
-                    color: colors.textSecondary,
-                    // 시각·거리·소요가 한 줄에 선다. 안 주면 줄마다 어긋난다.
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
