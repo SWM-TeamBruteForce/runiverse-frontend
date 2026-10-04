@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
@@ -47,6 +48,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final summary = ref.watch(profileSummaryControllerProvider).summary;
 
     return Scaffold(
+      // ⚠️ 위와 같은 이유로 바탕을 직접 깐다. **이 파일은 v2 색을 쓰지 않아
+      // `v2_screen_background_test`가 검사 대상으로 보지도 않았다** —
+      // 에뮬레이터에서 화소를 재고서야 `#0b0e14`인 것을 찾았다.
+      backgroundColor: context.appColorsV2.bgBase,
       body: SafeArea(
         bottom: false,
         child: SingleChildScrollView(

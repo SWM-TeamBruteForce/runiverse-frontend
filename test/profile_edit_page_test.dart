@@ -176,6 +176,18 @@ void main() {
     expect(find.text(AppStrings.profileEditUnknown), findsWidgets);
   });
 
+  testWidgets('⚠️ 화면 위의 뒤로가기 버튼으로 나갈 수 있다', (tester) async {
+    // 다른 테스트는 전부 시스템 뒤로가기(`handlePopRoute`)를 쓴다.
+    // **화면 위의 버튼은 아무도 눌러보지 않았다** — 아이콘을 v2 세트로
+    // 갈아끼우면서 드러났다. 나가는 길이라 비워 둘 자리가 아니다.
+    await pumpEdit(tester);
+
+    await tester.tap(find.byType(IconButton));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ProfileEditPage), findsNothing);
+  });
+
   testWidgets('바꾼 게 있는데 나가려 하면 묻는다', (tester) async {
     await pumpEdit(tester);
 

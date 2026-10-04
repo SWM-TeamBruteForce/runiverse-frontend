@@ -3,15 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_radius.dart';
-import 'package:runiverse/core/theme/tokens/app_sizes.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/utils/age_rule.dart';
-import 'package:runiverse/core/widgets/app_input.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/core/widgets/v2/app_input.dart';
 import 'package:runiverse/core/widgets/wheel_picker_sheet.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
 import 'package:runiverse/features/profile/presentation/nickname_sheet.dart';
@@ -215,17 +215,17 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
     final leave = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: context.appColors.bgElevated,
+        backgroundColor: context.appColorsV2.bgElevated,
         title: Text(
           AppStrings.profileEditDiscardTitle,
-          style: AppTypography.h3.copyWith(
-            color: context.appColors.textPrimary,
+          style: AppTypographyV2.heading06.copyWith(
+            color: context.appColorsV2.textPrimary,
           ),
         ),
         content: Text(
           AppStrings.profileEditDiscardBody,
-          style: AppTypography.body.copyWith(
-            color: context.appColors.textSecondary,
+          style: AppTypographyV2.body07.copyWith(
+            color: context.appColorsV2.textSecondary,
           ),
         ),
         actions: [
@@ -237,7 +237,7 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(
               AppStrings.profileEditDiscardLeave,
-              style: TextStyle(color: context.appColors.error),
+              style: TextStyle(color: context.appColorsV2.error),
             ),
           ),
         ],
@@ -250,7 +250,7 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final summary = ref.watch(profileSummaryControllerProvider).summary;
 
     return PopScope(
@@ -261,6 +261,10 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
         if (await _confirmLeave() && context.mounted) context.pop();
       },
       child: Scaffold(
+        // ⚠️ **앱 테마가 아직 옛 세대라 바탕을 직접 깐다.** 안 깔면 토큰은
+        // 전부 새것인데 바탕만 `#0b0e14`로 남는다 — 채널당 차이가 10 안쪽이라
+        // 눈으로는 잘 안 보인다(`v2_screen_background_test`).
+        backgroundColor: colors.bgBase,
         body: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -295,7 +299,7 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                             const SizedBox(height: AppSpacing.space2),
                             Text(
                               AppStrings.profileEditPhoto,
-                              style: AppTypography.caption.copyWith(
+                              style: AppTypographyV2.body15.copyWith(
                                 color: colors.textSecondary,
                               ),
                             ),
@@ -317,7 +321,7 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
 
                       _Label(AppStrings.profileIntroductionLabel),
                       const SizedBox(height: AppSpacing.space2),
-                      AppInput(
+                      AppInputV2(
                         // ⚠️ **테스트가 이 입력을 찾는 유일한 손잡이다.**
                         // 부품이 `TextField` 인지 무엇인지에 기대면 디자인을
                         // 바꿀 때 테스트가 통째로 깨진다. 디자인을 바꿔도
@@ -329,8 +333,8 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                             ? AppStrings.profileIntroductionTooLong
                             : null,
                         tone: _introductionTooLong
-                            ? AppInputTone.error
-                            : AppInputTone.neutral,
+                            ? AppInputToneV2.error
+                            : AppInputToneV2.neutral,
                         counter: '${_introduction.text.trim().length}/100',
                         inputFormatters: [
                           LengthLimitingTextInputFormatter(100),
@@ -353,7 +357,7 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                           ),
                           child: Text(
                             AppStrings.profileBirthTooYoung,
-                            style: AppTypography.caption.copyWith(
+                            style: AppTypographyV2.body15.copyWith(
                               color: colors.error,
                             ),
                           ),
@@ -371,7 +375,7 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                         const SizedBox(height: AppSpacing.space4),
                         Text(
                           _messageOf(_failure!),
-                          style: AppTypography.caption.copyWith(
+                          style: AppTypographyV2.body15.copyWith(
                             color: colors.error,
                           ),
                         ),
@@ -415,7 +419,7 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return SizedBox(
       height: AppSizes.touchDefault + AppSpacing.space2,
@@ -428,8 +432,8 @@ class _TopBar extends StatelessWidget {
               minWidth: AppSizes.touchDefault,
               minHeight: AppSizes.touchDefault,
             ),
-            icon: Icon(
-              LucideIcons.arrowLeft,
+            icon: AppIcon(
+              AppIcons.left,
               size: AppSpacing.space6,
               color: colors.textSecondary,
             ),
@@ -438,7 +442,7 @@ class _TopBar extends StatelessWidget {
             child: Text(
               AppStrings.profileEditTitle,
               textAlign: TextAlign.center,
-              style: AppTypography.body.copyWith(color: colors.textPrimary),
+              style: AppTypographyV2.body07.copyWith(color: colors.textPrimary),
             ),
           ),
           // 뒤로 아이콘과 **같은 폭**을 잡아 제목이 가운데에 선다.
@@ -456,7 +460,7 @@ class _TopBar extends StatelessWidget {
                     onPressed: onSave,
                     child: Text(
                       AppStrings.profileEditSave,
-                      style: AppTypography.body.copyWith(
+                      style: AppTypographyV2.body07.copyWith(
                         color: onSave == null
                             ? colors.textDisabled
                             : colors.primary,
@@ -480,8 +484,8 @@ class _Label extends StatelessWidget {
     padding: const EdgeInsets.only(bottom: AppSpacing.space1),
     child: Text(
       text,
-      style: AppTypography.caption.copyWith(
-        color: context.appColors.textSecondary,
+      style: AppTypographyV2.body15.copyWith(
+        color: context.appColorsV2.textSecondary,
       ),
     ),
   );
@@ -499,7 +503,7 @@ class _ValueRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final text = value;
 
     return InkWell(
@@ -513,7 +517,9 @@ class _ValueRow extends StatelessWidget {
             if (label != null) ...[
               Text(
                 label!,
-                style: AppTypography.body.copyWith(color: colors.textSecondary),
+                style: AppTypographyV2.body07.copyWith(
+                  color: colors.textSecondary,
+                ),
               ),
               const SizedBox(width: AppSpacing.space4),
             ],
@@ -521,7 +527,7 @@ class _ValueRow extends StatelessWidget {
               child: Text(
                 text ?? AppStrings.profileEditUnknown,
                 textAlign: label == null ? TextAlign.start : TextAlign.end,
-                style: AppTypography.body.copyWith(
+                style: AppTypographyV2.body07.copyWith(
                   // 값이 없다는 것과 있는 것을 **무게로** 가른다.
                   color: text == null
                       ? colors.textTertiary
@@ -530,8 +536,8 @@ class _ValueRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppSpacing.space2),
-            Icon(
-              LucideIcons.chevronRight,
+            AppIcon(
+              AppIcons.right,
               size: AppSpacing.space5,
               color: colors.textTertiary,
             ),
