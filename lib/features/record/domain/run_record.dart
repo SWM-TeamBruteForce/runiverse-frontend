@@ -1,3 +1,23 @@
+/// 러닝 방식. 서버가 `SOLO` 또는 `MATCH` 로 준다.
+enum RunKind {
+  /// 혼자 시작한 러닝.
+  solo,
+
+  /// 매칭으로 만들어진 방. **함께 달렸다는 뜻은 아니다** — [RunRecord.isAlone]
+  /// 참고.
+  match;
+
+  /// 서버 값을 읽는다. **모르는 값이면 `null`이다.**
+  ///
+  /// ⚠️ 아무 값으로도 뭉개지 않는다. `solo`로 읽으면 함께 달린 기록이 혼자
+  /// 달린 것으로 보이고, 그 반대도 마찬가지다. 모른다고 두는 편이 낫다.
+  static RunKind? of(Object? wire) => switch (wire) {
+    'SOLO' => RunKind.solo,
+    'MATCH' => RunKind.match,
+    _ => null,
+  };
+}
+
 /// 끝난 러닝 하나. 기록 탭(S21)의 캘린더·주간 차트·목록이 전부 이것을 센다.
 ///
 /// ## 서버가 정본이다
@@ -9,7 +29,7 @@
 /// ## ⚠️ 색이 없다
 ///
 /// 정본 S21은 주간 막대와 캘린더 점을 **그날 획득한 러닝 컬러**로 칠하라고
-/// 적었는데, `GET /users/me/running-records`(19번) 응답에 색 필드가 없다.
+/// 적었는데, `GET /api/v1/users/me/running-records` 응답에 색 필드가 없다.
 /// 지표에서 색을 만드는 규칙도 아직 없다(`features/color/`가 비어 있다).
 /// 그래서 화면은 당분간 단색으로 그린다 — 규칙이 정해지면 여기에 필드가 는다.
 class RunRecord {
@@ -21,13 +41,18 @@ class RunRecord {
     required this.duration,
     required this.averagePace,
     required this.routePolyline,
+    required this.playerCount,
+    this.kind,
     this.elevationGainMeters,
   });
 
-  /// `runningRecordId`. 상세 조회(20번)의 키다.
+  /// `runningRecordId`.
+  ///
+  /// ⚠️ **상세 조회에는 이것을 쓰지 않는다.** 기록 상세 API 는 삭제됐고,
+  /// 상세는 [runningRoomId]로 러닝 결과·구간 결과를 부른다(가이드 5장).
   final int id;
 
-  /// 이 기록이 나온 방. 구간별 상세(18번)는 **기록이 아니라 방**으로 조회한다.
+  /// 이 기록이 나온 방. **상세는 기록이 아니라 이 번호로 조회한다.**
   final int runningRoomId;
 
   /// 시작 시각.
@@ -67,8 +92,26 @@ class RunRecord {
   /// 서버 쪽도 **표본이 부족하면 `null`**이라, 필드가 와도 값이 없을 수 있다.
   final int? elevationGainMeters;
 
+  /// 러닝 방식. **모르는 값이면 `null`이다.**
+  final RunKind? kind;
+
+  /// 이 러닝을 **시작한** 인원(본인 포함).
+  ///
+  /// ⚠️ 탈퇴한 사용자도 세고, **시작 전에 나간 사람은 안 센다.** 러닝 결과
+  /// 화면의 참가자 수와 같은 값이다(📅 기록 탭 연동 가이드 3-3).
+  final int playerCount;
+
   /// 화면이 쓰는 킬로미터.
   double get distanceKm => distanceMeters / 1000;
+
+  /// 결국 혼자 달린 기록인가.
+  ///
+  /// ⚠️ **`kind`만으로는 모른다.** 매칭 방인데 상대가 안 나왔거나 시작 전에
+  /// 빠지면 `MATCH` 인데 혼자 달린다 — 홈의 1인 러닝 카드와 같은 사건이다.
+  ///
+  /// ⚠️ **인원을 모르면(`0`) `null`이다.** 서버가 1 이상을 주므로 0은 우리가
+  /// 못 읽었다는 뜻이고, 그때 "혼자"라고 단정하면 함께 달린 기록이 혼자로 보인다.
+  bool? get isAlone => playerCount <= 0 ? null : playerCount == 1;
 
   /// 이 기록이 속한 **날짜**. 시각을 떼고 날짜만 남긴다.
   ///

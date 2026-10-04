@@ -1,26 +1,29 @@
 import 'package:runiverse/features/record/domain/run_record.dart';
-import 'package:runiverse/features/record/domain/run_record_repository.dart';
 
-/// `GET /api/v1/users/me/running-records`(19번) 응답을 엔티티로 옮긴다.
+/// `GET /api/v1/users/me/running-records` 응답을 엔티티로 옮긴다.
 ///
 /// **여기가 서버 형식을 아는 유일한 곳이다.** 필드 이름·단위가 도메인 밖으로
 /// 새지 않게 한다 — 서버는 초와 미터로 주고, 도메인은 [Duration]으로 든다.
+///
+/// ## ⚠️ 2026-10-01 에 응답 모양이 바뀌었다
+///
+/// 옛 `items[]` + `nextCursor` 가 **`runningRecords[]` 하나**가 됐고 페이지가
+/// 사라졌다. 커서 조회(`?cursor=&limit=`)도 없어져 **기간 조회만** 남았다.
+/// (📅 기록 탭 연동 가이드 2장 · BE PR #72)
 abstract final class RunRecordDto {
   const RunRecordDto._();
 
   /// 목록 응답 한 덩어리.
   ///
-  /// 캘린더 모드는 `nextCursor`가 항상 `null`이라 페이지가 하나뿐이다.
-  static RunRecordPage pageFrom(Map<String, dynamic> json) {
-    final items = json['items'];
-    return RunRecordPage(
-      items: [
-        if (items is List)
-          for (final item in items)
-            if (item is Map<String, dynamic>) recordFrom(item),
-      ],
-      nextCursor: json['nextCursor'] as String?,
-    );
+  /// ⚠️ **페이지가 없다.** 요청한 기간의 기록이 한 번에 온다. 기간에 기록이
+  /// 없으면 **빈 배열**이고, 그것은 오류가 아니다(가이드 6장).
+  static List<RunRecord> listFrom(Map<String, dynamic> json) {
+    final items = json['runningRecords'];
+    return [
+      if (items is List)
+        for (final item in items)
+          if (item is Map<String, dynamic>) recordFrom(item),
+    ];
   }
 
   static RunRecord recordFrom(Map<String, dynamic> json) => RunRecord(
@@ -40,8 +43,15 @@ abstract final class RunRecordDto {
     duration: Duration(seconds: json['totalDurationSeconds'] as int),
     averagePace: Duration(seconds: json['averagePaceSecondsPerKm'] as int),
     routePolyline: json['routePolyline'] as String? ?? '',
-    // ⚠️ **19번 응답에 아직 없는 필드다.** 서버가 실어 주기 전까지 `null`이고,
-    // 그동안 주간 요약의 누적 경사는 `--`로 나온다. 상세(20번)에는 이미 있다.
+    // ⚠️ **모르는 값은 `null`이다.** 아무 값으로도 뭉개지 않는다.
+    kind: RunKind.of(json['type']),
+    // ⚠️ **못 읽으면 0이다.** 서버는 1 이상을 주므로 0은 "우리가 못 읽었다"는
+    // 뜻이고, `RunRecord.isAlone`이 그때 `null`을 돌려준다.
+    playerCount: json['playerCount'] as int? ?? 0,
+    // 유효 표본이 부족하면 서버가 `null`을 준다(가이드 3-2).
+    //
+    // ⚠️ **0으로 메우지 않는다.** 합계를 낼 때 모르는 것과 0 m 를 구분해야
+    // 누적 경사가 확정값처럼 보이지 않는다.
     elevationGainMeters: json['totalElevationGainMeters'] as int?,
   );
 }

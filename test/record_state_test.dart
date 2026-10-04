@@ -12,6 +12,8 @@ void main() {
   }) => RunRecord(
     id: id,
     runningRoomId: 100 + id,
+    // 이 테스트는 집계만 본다. 인원은 뜻이 없어 1 로 둔다.
+    playerCount: 1,
     startedAt: startedAt,
     distanceMeters: meters,
     duration: const Duration(minutes: 30),
