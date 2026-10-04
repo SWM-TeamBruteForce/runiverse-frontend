@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_state.dart';
@@ -38,7 +38,7 @@ class ProfileAvatar extends ConsumerStatefulWidget {
   /// 편집 모드인가. **`false`면 눌리지 않고 표시도 없다.**
   ///
   /// 늘 눌리게 두면 "지금 바꿀 수 있다"가 화면 어디에도 드러나지 않아
-  /// **눌러본 사람만** 알게 된다. 헤더의 ✎가 그 문이다.
+  /// **눌러본 사람만** 알게 된다. 헤더의 `프로필 편집` 버튼이 그 문이다.
   final bool editable;
 
   static const size = 88.0;
@@ -53,7 +53,7 @@ class ProfileAvatar extends ConsumerStatefulWidget {
 class _ProfileAvatarState extends ConsumerState<ProfileAvatar> {
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     // 컨트롤러에서는 **바꾸는 중인지**만 본다. 주소는 밖에서 받는다.
     final state = ref.watch(profileImageControllerProvider);
     final ready = state is ProfileImageReady ? state : null;
@@ -76,15 +76,21 @@ class _ProfileAvatarState extends ConsumerState<ProfileAvatar> {
           decoration: BoxDecoration(
             color: colors.bgElevated,
             shape: BoxShape.circle,
-            border: Border.all(color: colors.borderDefault),
+            // ⚠️ **`borderDefault`가 아니라 `borderStrong`이다.** 다크에서
+            // `bgElevated`와 `borderDefault`가 둘 다 `neutral800`이라, 면을
+            // 깐 원에 `borderDefault`를 두르면 **테두리가 면에 묻혀 사라진다.**
+            // 코드에는 테두리가 있어서 눈으로만 보면 못 찾는다.
+            //
+            // 기록 탭의 그날 줄에서 같은 충돌을 겪었다(PR #126).
+            border: Border.all(color: colors.borderStrong),
           ),
           child: ClipOval(
             child: Stack(
               fit: StackFit.expand,
               children: [
                 if (url == null)
-                  Icon(
-                    LucideIcons.user,
+                  AppIcon(
+                    AppIcons.profile,
                     size: AppSpacing.space8,
                     color: colors.textTertiary,
                   )
@@ -95,8 +101,8 @@ class _ProfileAvatarState extends ConsumerState<ProfileAvatar> {
                     // ⚠️ presigned 주소는 만료된다. 만료된 뒤에는 403이 오는데,
                     // 그때 깨진 이미지 아이콘을 두면 앱이 고장 난 것처럼 보인다.
                     // 기본 아이콘으로 조용히 돌아간다.
-                    errorBuilder: (context, _, _) => Icon(
-                      LucideIcons.user,
+                    errorBuilder: (context, _, _) => AppIcon(
+                      AppIcons.profile,
                       size: AppSpacing.space8,
                       color: colors.textTertiary,
                     ),
@@ -131,7 +137,7 @@ class _ProfileAvatarState extends ConsumerState<ProfileAvatar> {
   }
 
   /// 아바타 위에 얹는 작은 표시. **`ClipOval` 밖에 둔다** — 안에 두면 잘린다.
-  Widget _badge(AppColors colors) => Positioned(
+  Widget _badge(AppColorsV2 colors) => Positioned(
     right: 0,
     bottom: 0,
     child: Container(
@@ -142,11 +148,10 @@ class _ProfileAvatarState extends ConsumerState<ProfileAvatar> {
         shape: BoxShape.circle,
         border: Border.all(color: colors.borderDefault),
       ),
-      // ✎가 아니라 카메라다. 헤더의 ✎와 같은 아이콘을 쓰면 **같은 것을 두 번
-      // 그린 것처럼 보이고**, 이 자리가 뜻하는 것은 "프로필 편집"이 아니라
-      // "사진을 바꾼다"로 더 좁다.
-      child: Icon(
-        LucideIcons.camera,
+      // 카메라다. 이 자리가 뜻하는 것은 `프로필 편집`보다 좁은
+      // "사진을 바꾼다"라서, 편집으로 가는 버튼과 같은 말을 하지 않는다.
+      child: AppIcon(
+        AppIcons.camera,
         size: AppSpacing.space4,
         color: colors.textSecondary,
       ),
