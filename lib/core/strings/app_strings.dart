@@ -1065,6 +1065,11 @@ abstract final class AppStrings {
   static const runPausedTitle = '일시정지됨';
   static const runResumeCta = '계속 달리기';
 
+  /// 하단 일시정지 버튼의 읽을 이름.
+  ///
+  /// ⚠️ **글리프뿐이라 화면에는 안 보인다.** 스크린리더가 읽을 것이 필요하다.
+  static const runPauseCta = '일시정지';
+
   /// 종료는 **길게 눌러야** 한다. 실수로 끝내면 되돌릴 방법이 없다.
   static const runFinishHold = '길게 눌러 종료';
 
