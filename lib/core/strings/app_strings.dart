@@ -968,6 +968,14 @@ abstract final class AppStrings {
 
   static const runPartyTitle = '파티원 상태';
 
+  /// 러닝 중 세 장의 제목 — 시안 `158:3493` · `158:3545`.
+  ///
+  /// 시안이 장마다 왼쪽 위에 제목을 둔다. 점만으로는 **지금 몇 번째 장인지는
+  /// 알아도 그 장이 무엇인지는 모른다.**
+  static const runPageLive = '실시간 기록';
+  static const runPageMap = '내 GPS';
+  static const runPageParty = '파티원 비교';
+
   // 카드 안 라벨·단위 (Figma `runiverse_final` 파티원 상태)
   static const runPartyDistanceLabel = '현재 거리';
 

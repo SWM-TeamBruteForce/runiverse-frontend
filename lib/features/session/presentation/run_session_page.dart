@@ -46,9 +46,11 @@ class RunSessionPage extends ConsumerStatefulWidget {
 }
 
 class _RunSessionPageState extends ConsumerState<RunSessionPage> {
-  // 기록 페이지에서 시작한다. 지도는 왼쪽으로 스와이프해서 본다.
-  final _pages = PageController(initialPage: 1);
-  int _page = 1;
+  /// ⚠️ **첫 장이 실시간 기록이다. 시안(`158:3493`)의 점 셋 중 첫째가 켜져
+  /// 있다.** 예전에는 지도를 0번에 두고 `initialPage: 1` 로 보정했는데,
+  /// 그러면 기록 장에서 **둘째 점이 켜져** 점이 거짓말을 했다.
+  final _pages = PageController();
+  int _page = 0;
 
   @override
   void initState() {
@@ -228,15 +230,21 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
         body: SafeArea(
           child: Column(
             children: [
+              // 시안은 장마다 왼쪽 위에 제목을 둔다. 점만으로는 **몇 번째
+              // 장인지는 알아도 그 장이 무엇인지는 모른다.**
               Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: AppSpacing.space3,
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.space5,
+                  AppSpacing.space2,
+                  AppSpacing.space5,
+                  AppSpacing.space4,
                 ),
-                child: PageIndicator(
-                  // 파티원 장은 **함께 뛰는 사람이 있을 때만** 있다. 솔로에서
-                  // 빈 장을 두면 스와이프했다가 아무것도 없는 화면을 만난다.
-                  count: hasParty ? 3 : 2,
-                  currentIndex: _page,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _titleOf(_page, hasParty: hasParty),
+                    style: AppTypography.h3.copyWith(color: colors.textPrimary),
+                  ),
                 ),
               ),
 
@@ -245,6 +253,7 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                   controller: _pages,
                   onPageChanged: (index) => setState(() => _page = index),
                   children: [
+                    _MetricsPage(metrics: metrics),
                     // ⚠️ 보정된 좌표를 그린다. 원본으로 선을 그리고 보정값으로
                     // 거리를 세면 화면의 선과 숫자가 다른 이야기를 한다.
                     RunMapView(
@@ -252,7 +261,6 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                           .read(runSessionControllerProvider.notifier)
                           .track,
                     ),
-                    _MetricsPage(metrics: metrics),
                     if (hasParty)
                       RunPartyView(
                         board: party,
@@ -280,6 +288,19 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                   text: AppStrings.runTrackUnavailable,
                 ),
 
+              // ⚠️ **점을 아래로 내렸다**(시안 `158:3493`). 위에 두면 제목과
+              // 나란히 서서 둘 다 머리글처럼 보인다. 아래에 두면 좌우로 넘기는
+              // 손가락이 닿는 자리와 가깝다.
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.space2),
+                child: PageIndicator(
+                  // 파티원 장은 **함께 뛰는 사람이 있을 때만** 있다. 솔로에서
+                  // 빈 장을 두면 스와이프했다가 아무것도 없는 화면을 만난다.
+                  count: hasParty ? 3 : 2,
+                  currentIndex: _page,
+                ),
+              ),
+
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.space5),
                 child: AppButton(
@@ -296,6 +317,13 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
       ),
     );
   }
+
+  /// 지금 장의 제목. 파티원 장은 있을 때만 셋째다.
+  static String _titleOf(int page, {required bool hasParty}) => switch (page) {
+    0 => AppStrings.runPageLive,
+    1 => AppStrings.runPageMap,
+    _ => hasParty ? AppStrings.runPageParty : AppStrings.runPageMap,
+  };
 
   static RunMetrics _metricsOf(RunSessionState state) => switch (state) {
     RunRunning(:final metrics) || RunPaused(:final metrics) => metrics,
