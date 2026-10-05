@@ -13,6 +13,7 @@ import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/surface_card.dart';
 import 'package:runiverse/core/widgets/page_indicator.dart';
+import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/session/domain/run_metrics.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
@@ -258,9 +259,10 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                   onPageChanged: (index) => setState(() => _page = index),
                   children: [
                     _MetricsPage(metrics: metrics),
-                    // ⚠️ 보정된 좌표를 그린다. 원본으로 선을 그리고 보정값으로
-                    // 거리를 세면 화면의 선과 숫자가 다른 이야기를 한다.
-                    RunMapView(
+                    _MapPage(
+                      metrics: metrics,
+                      // ⚠️ 보정된 좌표를 그린다. 원본으로 선을 그리고 보정값으로
+                      // 거리를 세면 화면의 선과 숫자가 다른 이야기를 한다.
                       track: ref
                           .read(runSessionControllerProvider.notifier)
                           .track,
@@ -337,6 +339,108 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
       currentPace: null,
     ),
   };
+}
+
+/// 내 GPS 장 — 시안 `158:3545`.
+///
+/// 지도를 카드로 덮고 그 아래 `페이스`·`거리` 둘만 둔다.
+///
+/// ## ⚠️ 여기서는 둘만 보여준다
+///
+/// 실시간 기록 장에 넷이 있는데 여기에 또 넷을 두면 **같은 값을 두 번
+/// 그리는 화면**이 된다. 지도를 보는 동안 궁금한 것은 "얼마나 왔나"와
+/// "어느 속도인가" 둘이다 — 시안이 그렇게 골랐다.
+class _MapPage extends StatelessWidget {
+  const _MapPage({required this.metrics, required this.track});
+
+  final RunMetrics metrics;
+
+  /// 구간별 좌표. **일시정지로 끊긴 만큼 목록이 나뉜다** — 멈춘 사이를
+  /// 직선으로 이으면 가지 않은 길이 그려진다.
+  final List<List<GeoPoint>> track;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.space5,
+        0,
+        AppSpacing.space5,
+        AppSpacing.space5,
+      ),
+      child: Column(
+        children: [
+          // 지도는 제 배경을 칠하므로 면을 깔지 않고 모서리만 깎는다.
+          Expanded(
+            child: ClipRRect(
+              borderRadius: AppRadius.card,
+              child: RunMapView(track: track),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.space4),
+
+          Row(
+            children: [
+              Expanded(
+                child: _InlineMetric(
+                  label: AppStrings.runPaceLabel,
+                  value: PaceCalculator.format(metrics.currentPace),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.space3),
+              Expanded(
+                child: _InlineMetric(
+                  label: AppStrings.runDistanceLabel,
+                  value:
+                      '${(metrics.distanceMeters / 1000).toStringAsFixed(2)} km',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 지도 아래 가로 칸 — 라벨 왼쪽, 값 오른쪽.
+///
+/// 2×2 칸([_Metric])과 달리 **한 줄**이다. 지도에 자리를 내줘야 해서
+/// 세로로 쌓을 높이가 없다.
+class _InlineMetric extends StatelessWidget {
+  const _InlineMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return SurfaceCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.space4,
+        vertical: AppSpacing.space4,
+      ),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: AppTypographyV2.body15.copyWith(color: colors.textTertiary),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: AppTypographyV2.body02.copyWith(
+              color: colors.textStrong,
+              // 초마다 바뀐다. 안 주면 자릿수가 바뀔 때 숫자가 흔들린다.
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// 실시간 기록 장 — 시안 `158:3493`.

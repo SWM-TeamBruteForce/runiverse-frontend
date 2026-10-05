@@ -3,11 +3,12 @@ import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/core/config/app_config.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_motion.dart';
-import 'package:runiverse/core/theme/tokens/app_radius.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_motion.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 
 /// 달린 경로를 그리는 지도.
@@ -163,10 +164,10 @@ class _RunMapViewState extends State<RunMapView>
           // `navermap_default_background_light` 오버라이드가 그쪽을 맡는다
           // (`docs/implementation-notes.md`).
           //
-          // ⚠️ `context.appColors`가 아니라 **[AppColors.dark]를 직접 쓴다.**
+          // ⚠️ `context.appColorsV2`가 아니라 **[AppColors.dark]를 직접 쓴다.**
           // 지도는 커스텀 야간 스타일이라 앱이 라이트 테마여도 어둡다 —
           // 테마를 따라가면 라이트에서 밝은 바탕이 깔려 더 눈에 띈다.
-          Positioned.fill(child: ColoredBox(color: AppColors.dark.bgBase)),
+          Positioned.fill(child: ColoredBox(color: AppColorsV2.dark.bgBase)),
           Positioned.fill(child: _map()),
           // 지도 위에 얹는다. **플러터 위젯이라 탭이 제스처 아레나와
           // 무관하다** — 부모가 드래그를 가져가도 이 버튼은 항상 눌린다.
@@ -312,7 +313,7 @@ class _RunMapViewState extends State<RunMapView>
         coords: coords,
         width: 6,
         // ⚠️ 색을 토큰에서 가져오지 못한다. 오버레이는 위젯 트리 밖이라
-        // `context.appColors`를 읽을 수 없다. 값은 `AppColors.primary`와
+        // `context.appColorsV2`를 읽을 수 없다. 값은 `AppColors.primary`와
         // 같게 유지한다 — 한쪽만 바뀌면 지도 선만 다른 색이 된다.
         color: const Color(0xFF4C6FFF),
         outlineColor: const Color(0xFF4C6FFF),
@@ -367,7 +368,7 @@ class _ZoomControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -416,7 +417,7 @@ class _ZoomButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Semantics(
       button: true,
@@ -443,7 +444,7 @@ class _MapUnavailable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return ColoredBox(
       color: colors.bgElevated,
@@ -451,15 +452,15 @@ class _MapUnavailable extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              LucideIcons.map,
+            AppIcon(
+              AppIcons.map,
               size: AppSpacing.space8,
               color: colors.textTertiary,
             ),
             const SizedBox(height: AppSpacing.space3),
             Text(
               AppStrings.runMapUnavailable,
-              style: AppTypography.caption.copyWith(
+              style: AppTypographyV2.body15.copyWith(
                 color: colors.textSecondary,
               ),
             ),
