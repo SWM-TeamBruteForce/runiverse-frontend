@@ -6,10 +6,12 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/core/widgets/v2/surface_card.dart';
 import 'package:runiverse/core/widgets/page_indicator.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/session/domain/run_metrics.dart';
@@ -175,7 +177,7 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final state = ref.watch(runSessionControllerProvider);
     final metrics = _metricsOf(state);
 
@@ -243,7 +245,9 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     _titleOf(_page, hasParty: hasParty),
-                    style: AppTypography.h3.copyWith(color: colors.textPrimary),
+                    style: AppTypographyV2.heading06.copyWith(
+                      color: colors.textPrimary,
+                    ),
                   ),
                 ),
               ),
@@ -303,10 +307,9 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
 
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.space5),
-                child: AppButton(
+                child: AppButtonV2(
                   label: AppStrings.runStopCta,
-                  variant: AppButtonVariant.secondary,
-                  size: AppButtonSize.lg,
+                  variant: AppButtonV2Variant.secondary,
                   onPressed: state is RunRunning ? _openStopSheet : null,
                 ),
               ),
@@ -336,7 +339,14 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   };
 }
 
-/// 실시간 기록 — 페이스 히어로 + 2×2 그리드.
+/// 실시간 기록 장 — 시안 `158:3493`.
+///
+/// 페이스를 머리에 크게 두고, 나머지 넷을 2×2 카드로 깐다.
+///
+/// ## ⚠️ 라벨을 칩으로 만든 이유
+///
+/// 시안이 `페이스` 를 알약 안에 넣는다. 큰 수 바로 위에 맨 글자를 두면
+/// **그 글자도 수치의 일부처럼 읽힌다** — 칩이 "이건 이름이다"라고 가른다.
 class _MetricsPage extends StatelessWidget {
   const _MetricsPage({required this.metrics});
 
@@ -344,35 +354,64 @@ class _MetricsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            AppStrings.runPaceLabel,
-            style: AppTypography.caption.copyWith(color: colors.textSecondary),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.primaryMuted,
+              borderRadius: AppRadius.full,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.space4,
+                vertical: AppSpacing.space2,
+              ),
+              child: Text(
+                AppStrings.runPaceLabel,
+                style: AppTypographyV2.body10.copyWith(color: colors.primary),
+              ),
+            ),
           ),
-          Text(
-            PaceCalculator.format(metrics.currentPace),
-            style: AppTypography.metricHero.copyWith(color: colors.textPrimary),
+          const SizedBox(height: AppSpacing.space3),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                PaceCalculator.format(metrics.currentPace),
+                style: AppTypographyV2.heading01.copyWith(
+                  color: colors.textStrong,
+                  // ⚠️ **초마다 바뀐다.** 안 주면 자릿수가 바뀔 때 숫자가
+                  // 좌우로 흔들린다. v1 `metricHero` 에는 들어 있던 것이다.
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              Text(
+                AppStrings.profilePacePerKm,
+                style: AppTypographyV2.body07.copyWith(
+                  color: colors.textTertiary,
+                ),
+              ),
+            ],
           ),
-          Text(
-            AppStrings.profilePacePerKm,
-            style: AppTypography.caption.copyWith(color: colors.textTertiary),
-          ),
-          const SizedBox(height: AppSpacing.space8),
+          const SizedBox(height: AppSpacing.space7),
 
           Row(
             children: [
               Expanded(
                 child: _Metric(
-                  label: AppStrings.runTimeLabel,
+                  label: AppStrings.runElapsedLabel,
                   value: _elapsedText(metrics.elapsed),
                 ),
               ),
+              const SizedBox(width: AppSpacing.space3),
               Expanded(
                 child: _Metric(
                   label: AppStrings.runDistanceLabel,
@@ -382,7 +421,7 @@ class _MetricsPage extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.space5),
+          const SizedBox(height: AppSpacing.space3),
           Row(
             children: [
               Expanded(
@@ -396,6 +435,7 @@ class _MetricsPage extends StatelessWidget {
                   unit: metrics.cadenceSpm == null ? null : 'spm',
                 ),
               ),
+              const SizedBox(width: AppSpacing.space3),
               Expanded(
                 child: _Metric(
                   label: AppStrings.runCaloriesLabel,
@@ -420,6 +460,7 @@ class _MetricsPage extends StatelessWidget {
   }
 }
 
+/// 2×2 칸 하나 — 시안은 **카드**다. 예전에는 면 없는 글자였다.
 class _Metric extends StatelessWidget {
   const _Metric({required this.label, required this.value, this.unit});
 
@@ -429,37 +470,44 @@ class _Metric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final unit = this.unit;
 
-    return Column(
-      children: [
-        Text(
-          label,
-          style: AppTypography.caption.copyWith(color: colors.textSecondary),
-        ),
-        const SizedBox(height: AppSpacing.space1),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(
-              value,
-              style: AppTypography.metricMd.copyWith(color: colors.textPrimary),
-            ),
-            if (unit != null) ...[
-              const SizedBox(width: AppSpacing.space1),
+    return SurfaceCard(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.space4),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: AppTypographyV2.body15.copyWith(color: colors.textTertiary),
+          ),
+          const SizedBox(height: AppSpacing.space1),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
               Text(
-                unit,
-                style: AppTypography.caption.copyWith(
-                  color: colors.textTertiary,
+                value,
+                style: AppTypographyV2.heading03.copyWith(
+                  color: colors.textStrong,
+                  // v1 `metricMd` 에는 들어 있던 것이다. `heading03` 에는 없다.
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
+              if (unit != null) ...[
+                const SizedBox(width: AppSpacing.space1),
+                Text(
+                  unit,
+                  style: AppTypographyV2.body15.copyWith(
+                    color: colors.textTertiary,
+                  ),
+                ),
+              ],
             ],
-          ],
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -476,7 +524,7 @@ class _Notice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
@@ -487,7 +535,9 @@ class _Notice extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: AppTypography.caption.copyWith(color: colors.textTertiary),
+              style: AppTypographyV2.body15.copyWith(
+                color: colors.textTertiary,
+              ),
             ),
           ),
         ],

@@ -1047,6 +1047,12 @@ abstract final class AppStrings {
 
   static const runPaceLabel = '페이스';
   static const runTimeLabel = '시간';
+
+  /// 실시간 기록 장의 시간 칸 — 시안 `158:3493`.
+  ///
+  /// 중지 시트는 [runTimeLabel](`시간`)을 그대로 쓴다. 거기는 요약이라 칸이
+  /// 좁고, 여기는 카드라 넉넉하다.
+  static const runElapsedLabel = '경과 시간';
   static const runDistanceLabel = '거리';
   static const runCadenceLabel = '케이던스';
   static const runCaloriesLabel = '칼로리';
