@@ -24,6 +24,8 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/page_indicator.dart';
 import 'package:runiverse/core/widgets/run_map_view.dart';
+import 'package:runiverse/core/widgets/v2/surface_card.dart';
+import 'package:runiverse/features/session/domain/pace_calculator.dart';
 
 /// 러닝 중 화면의 **틀** — 어느 장이 먼저 서고, 제목이 그 장을 가리키는가.
 ///
@@ -103,6 +105,36 @@ void main() {
     final indicator = tester.widget<PageIndicator>(find.byType(PageIndicator));
     expect(indicator.currentIndex, 0);
     expect(indicator.count, 2, reason: '혼자면 파티원 장이 없다');
+  });
+
+  group('⚠️ 실시간 기록 장 — 시안 158:3493', () {
+    testWidgets('네 수치가 카드 위에 선다', (tester) async {
+      // 시안이 2×2 를 **카드**로 그린다. 예전에는 면 없는 글자라 네 값이
+      // 배경에 떠 있었다.
+      await pumpSolo(tester);
+
+      expect(find.byType(SurfaceCard), findsNWidgets(4));
+    });
+
+    testWidgets('⚠️ 시간 칸이 `경과 시간` 이다', (tester) async {
+      // 중지 시트는 `시간` 을 쓴다. 거기는 좁고 여기는 카드라 넉넉하다.
+      await pumpSolo(tester);
+
+      expect(find.text(AppStrings.runElapsedLabel), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 수치 글자는 자릿수가 흔들리지 않는다', (tester) async {
+      // 초마다 바뀌는 값이다. tabular 를 안 주면 자릿수가 바뀔 때 숫자가
+      // 좌우로 흔들린다. v1 `metricHero`·`metricMd` 에는 들어 있던 것이라
+      // **옮기면서 조용히 잃기 쉬운 자리**다.
+      await pumpSolo(tester);
+
+      final pace = tester.widget<Text>(find.text(PaceCalculator.format(null)));
+      expect(
+        pace.style!.fontFeatures,
+        contains(const FontFeature.tabularFigures()),
+      );
+    });
   });
 
   testWidgets('옆으로 넘기면 내 GPS 다', (tester) async {
