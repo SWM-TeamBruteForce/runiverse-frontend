@@ -23,6 +23,7 @@ import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
+import 'package:runiverse/features/session/presentation/run_controls.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 
@@ -138,14 +139,7 @@ void main() {
   Future<void> unmount(WidgetTester tester) =>
       tester.pumpWidget(const SizedBox());
 
-  /// 중지 시트를 연다.
-  Future<void> openStopSheet(WidgetTester tester) async {
-    await tester.tap(find.text(AppStrings.runStopCta));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-  }
-
-  /// 종료 버튼을 끝까지 누른다. 시트가 닫히면 성공이다.
+  /// 종료 버튼을 끝까지 누른다. 요약으로 넘어가면 성공이다.
   ///
   /// ## ⚠️ 프레임을 잘게 나눠 돌려야 한다
   ///
@@ -153,15 +147,15 @@ void main() {
   /// 불려** `AnimationController`가 끝까지 가지 않는다. 실제로 이 방식으로
   /// 짰다가 "2초를 눌렀는데 아무 일도 없다"를 한참 쫓았다.
   ///
-  /// 100ms씩 밀면서 시트가 닫히는지 본다. 최대 3초까지만 기다린다 —
-  /// 그 안에 안 닫히면 버튼이 고장난 것이다.
+  /// ⚠️ **글자가 아니라 읽을 이름으로 찾는다.** 시안대로 바꾸면서 버튼이
+  /// 글리프만 남았다 — `find.text` 로는 못 찾는다.
   Future<void> holdFinish(WidgetTester tester) async {
     final gesture = await tester.startGesture(
-      tester.getCenter(find.text(AppStrings.runFinishHold)),
+      tester.getCenter(find.bySemanticsLabel(AppStrings.runFinishHold)),
     );
     for (var i = 0; i < 30; i++) {
       await tester.pump(const Duration(milliseconds: 100));
-      if (find.text(AppStrings.runFinishHold).evaluate().isEmpty) break;
+      if (find.text(AppStrings.runSummaryTitle).evaluate().isNotEmpty) break;
     }
     await gesture.up();
     await tester.pumpAndSettle();
@@ -242,7 +236,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.runAlreadyInProgress), findsOneWidget);
-      expect(find.text(AppStrings.runStopCta), findsNothing);
+      expect(find.byType(RunControls), findsNothing);
     });
 
     testWidgets('⚠️ 붙고 나면 "연결하는 중" 안내가 사라진다', (tester) async {
@@ -276,7 +270,7 @@ void main() {
 
       await startRunning(tester);
 
-      expect(find.text(AppStrings.runStopCta), findsOneWidget);
+      expect(find.byType(RunControls), findsOneWidget);
       await unmount(tester);
     });
 
@@ -366,7 +360,7 @@ void main() {
       await emit(tester, point(37.501, 127));
       await tester.pump();
 
-      expect(find.text(AppStrings.runStopCta), findsOneWidget);
+      expect(find.byType(RunControls), findsOneWidget);
       await unmount(tester);
     });
 
@@ -430,7 +424,7 @@ void main() {
       await emit(tester, point(37.5, 127));
       await tester.pump();
 
-      expect(find.text(AppStrings.runStopCta), findsOneWidget);
+      expect(find.byType(RunControls), findsOneWidget);
       await unmount(tester);
     });
 
@@ -444,41 +438,41 @@ void main() {
     });
   });
 
-  group('중지 시트', () {
-    testWidgets('중지하면 계속과 종료를 고를 수 있다', (tester) async {
-      await pumpRun(tester);
-      await startRunning(tester);
-
-      await openStopSheet(tester);
-
-      expect(find.text(AppStrings.runResumeCta), findsOneWidget);
-      expect(find.text(AppStrings.runFinishHold), findsOneWidget);
-      await unmount(tester);
-    });
-
+  group('하단 조작 — 시안 158:3493', () {
     testWidgets('⚠️ 한 번 탭으로는 끝나지 않는다', (tester) async {
-      // 달리는 도중에 실수로 눌러 기록이 날아가면 되돌릴 수 없다.
+      // 달리는 도중에 손가락이 스쳐 기록이 날아가면 되돌릴 수 없다.
+      // 시안은 그냥 버튼이지만 **누르는 방식만 길게 누르기로 두었다.**
       await pumpRun(tester);
       await startRunning(tester);
-      await openStopSheet(tester);
 
-      await tester.tap(find.text(AppStrings.runFinishHold));
+      await tester.tap(find.bySemanticsLabel(AppStrings.runFinishHold));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      // 요약으로 가지 않았다.
       expect(find.text(AppStrings.runSummaryTitle), findsNothing);
       await unmount(tester);
     });
 
-    testWidgets('2초 길게 누르면 요약으로 간다', (tester) async {
+    testWidgets('길게 누르면 요약으로 간다', (tester) async {
       await pumpRun(tester);
       await startRunning(tester);
-      await openStopSheet(tester);
 
       await holdFinish(tester);
 
       expect(find.text(AppStrings.runSummaryTitle), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 일시정지는 길게 누르지 않는다', (tester) async {
+      // 되돌릴 수 있는 것이다. 종료와 같은 무게를 주면 멈추기가 번거로워진다.
+      await pumpRun(tester);
+      await startRunning(tester);
+
+      await tester.tap(find.bySemanticsLabel(AppStrings.runPauseCta));
+      await tester.pump();
+
+      // 멈췄으니 이제 `계속 달리기` 를 읽을 수 있어야 한다.
+      expect(find.bySemanticsLabel(AppStrings.runResumeCta), findsOneWidget);
+      await unmount(tester);
     });
   });
 
@@ -489,7 +483,6 @@ void main() {
       await startRunning(tester);
       await emit(tester, point(37.5, 127));
       await emit(tester, point(37.501, 127));
-      await openStopSheet(tester);
       await holdFinish(tester);
     }
 

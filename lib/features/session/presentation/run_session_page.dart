@@ -10,7 +10,6 @@ import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
-import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/surface_card.dart';
 import 'package:runiverse/core/widgets/page_indicator.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
@@ -20,10 +19,10 @@ import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/core/widgets/run_map_view.dart';
 import 'package:runiverse/features/session/presentation/party_provider.dart';
+import 'package:runiverse/features/session/presentation/run_controls.dart';
 import 'package:runiverse/features/session/presentation/run_party_view.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
-import 'package:runiverse/features/session/presentation/run_stop_sheet.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -68,33 +67,41 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     super.dispose();
   }
 
-  Future<void> _openStopSheet() async {
+  /// 멈추거나 다시 간다. **되돌릴 수 있는 것이라 길게 누르지 않는다.**
+  void _togglePause() {
     final controller = ref.read(runSessionControllerProvider.notifier);
-    controller.pause();
+    if (ref.read(runSessionControllerProvider) is RunPaused) {
+      controller.resume();
+    } else {
+      controller.pause();
+    }
+  }
 
+  /// 길게 누르기가 끝까지 찼다.
+  ///
+  /// ⚠️ `forced` 는 **목표를 채우기 전에 그만두는가**다. 서버가 이 값과 자기가
+  /// 확정한 거리를 함께 보고 제재를 정한다 — 앱이 잰 거리로 단정하지 않는다.
+  /// 목표가 없는 솔로는 언제나 `false` 다.
+  void _finishByHold() {
     final metrics = _metricsOf(ref.read(runSessionControllerProvider));
     final target = _targetDistanceMeters();
+    final short =
+        target != null && metrics.distanceMeters < target * _safeRatio;
+    _finishRun(forced: short);
+  }
 
-    final action = await showRunStopSheet(
-      context,
-      metrics: metrics,
-      targetDistanceMeters: target,
-    );
-    if (!mounted) return;
+  /// 목표까지 남은 거리(km). 안내할 것이 없으면 `null` 이다.
+  ///
+  /// 예전에는 중지 시트가 이 안내를 들고 있었다. 시트를 없애면서 **종료를
+  /// 누르고 있는 동안** 띄운다.
+  double? _penaltyRemainingKm() {
+    final target = _targetDistanceMeters();
+    if (target == null) return null;
 
-    switch (action) {
-      case RunStopAction.resume || null:
-        // 시트를 쓸어내려 닫아도 재개한다. 멈춘 채로 두면 시간이 흐르지 않는데
-        // 화면은 러닝 중으로 보인다.
-        controller.resume();
-      case RunStopAction.finish:
-        // ⚠️ `forced`는 **목표를 채우기 전에 그만두는가**다. 서버가 이 값과
-        // 자기가 확정한 거리를 함께 보고 제재를 정한다 — 앱이 잰 거리로
-        // 단정하지 않는다. 목표가 없는 솔로는 언제나 `false`다.
-        final short =
-            target != null && metrics.distanceMeters < target * _safeRatio;
-        _finishRun(forced: short);
-    }
+    final metrics = _metricsOf(ref.read(runSessionControllerProvider));
+    final safe = target * _safeRatio;
+    if (metrics.distanceMeters >= safe) return null;
+    return (safe - metrics.distanceMeters) / 1000;
   }
 
   /// 러닝을 끝내고 요약으로 간다. **손으로 멈출 때와 목표에 닿을 때가 같은 길이다.**
@@ -307,13 +314,12 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                 ),
               ),
 
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.space5),
-                child: AppButtonV2(
-                  label: AppStrings.runStopCta,
-                  variant: AppButtonV2Variant.secondary,
-                  onPressed: state is RunRunning ? _openStopSheet : null,
-                ),
+              RunControls(
+                paused: state is RunPaused,
+                enabled: state is RunRunning || state is RunPaused,
+                onPauseToggle: _togglePause,
+                onFinish: _finishByHold,
+                penaltyRemainingKm: _penaltyRemainingKm(),
               ),
             ],
           ),
