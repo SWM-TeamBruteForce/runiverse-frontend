@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_motion.dart';
-import 'package:runiverse/core/theme/tokens/app_radius.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_motion.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
 
 /// 페이지 위치 표시 점. 온보딩 소개(S02)와 러닝 중 3페이지 스와이프(S13)가 쓴다.
 ///
@@ -29,7 +29,7 @@ class PageIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Semantics(
       label: '${currentIndex + 1} / $count',

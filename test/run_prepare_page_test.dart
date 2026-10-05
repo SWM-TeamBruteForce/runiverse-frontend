@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
@@ -43,8 +43,8 @@ void main() {
     accuracy: 5,
   );
 
-  AppButton startButton(WidgetTester tester) => tester.widget<AppButton>(
-    find.widgetWithText(AppButton, AppStrings.runStartCta),
+  AppButtonV2 startButton(WidgetTester tester) => tester.widget<AppButtonV2>(
+    find.widgetWithText(AppButtonV2, AppStrings.runStartCta),
   );
 
   testWidgets('⚠️ 첫 신호를 받기 전에는 시작이 잠긴다', (tester) async {
@@ -72,7 +72,7 @@ void main() {
     expect(find.text(AppStrings.runPermissionTitle), findsOneWidget);
 
     await tester.tap(
-      find.widgetWithText(AppButton, AppStrings.runPermissionOpenSettings),
+      find.widgetWithText(AppButtonV2, AppStrings.runPermissionOpenSettings),
     );
     await tester.pumpAndSettle();
 
