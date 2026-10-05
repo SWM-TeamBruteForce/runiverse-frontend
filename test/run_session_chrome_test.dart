@@ -137,6 +137,33 @@ void main() {
     });
   });
 
+  group('⚠️ 내 GPS 장 — 시안 158:3545', () {
+    /// 지도 장으로 넘긴다.
+    Future<void> toMap(WidgetTester tester) async {
+      await tester.drag(find.byType(PageView), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('지도 아래에 칸이 둘이다', (tester) async {
+      // ⚠️ **넷이 아니라 둘이다.** 실시간 기록 장에 넷이 있는데 여기에 또
+      // 넷을 두면 같은 값을 두 번 그리는 화면이 된다.
+      await pumpSolo(tester);
+      await toMap(tester);
+
+      expect(find.byType(SurfaceCard), findsNWidgets(2));
+      expect(find.text(AppStrings.runPaceLabel), findsOneWidget);
+      expect(find.text(AppStrings.runDistanceLabel), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 케이던스·칼로리는 여기 없다', (tester) async {
+      await pumpSolo(tester);
+      await toMap(tester);
+
+      expect(find.text(AppStrings.runCadenceLabel), findsNothing);
+      expect(find.text(AppStrings.runCaloriesLabel), findsNothing);
+    });
+  });
+
   testWidgets('옆으로 넘기면 내 GPS 다', (tester) async {
     await pumpSolo(tester);
 
