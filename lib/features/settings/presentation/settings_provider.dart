@@ -157,9 +157,20 @@ class SettingsController extends Notifier<SettingsState> {
   ///
   /// 성공하면 서버 세션이 이미 죽어 있다. 그래서 `signOut()`이 아니라
   /// **로컬만 비우는 경로**로 나간다 — 실패할 호출을 한 번 더 보내지 않는다.
+  ///
+  /// ## ⚠️ 약관 동의를 여기서 지운다
+  ///
+  /// `forgetSession()`은 로그아웃도 쓰는 길이라 동의를 **일부러 남긴다**.
+  /// 탈퇴만 다르다 — 계정이 사라졌으니 동의도 사라진 것이다. 남겨 두면 같은
+  /// 소셜 계정으로 다시 들어온 사람이 **약관을 건너뛰고** 프로필 입력부터
+  /// 보게 된다. 기기에서 눌러 보고 알았다.
+  ///
+  /// 실패하면 지우지 않는다. 계정이 그대로 있는데 동의만 없어지면 다음에
+  /// 들어올 때 같은 것을 또 묻는다.
   Future<SettingsFailure?> withdraw() async {
     try {
       await _repository.withdraw();
+      await ref.read(consentStoreProvider).forgetTermsAgreement();
       await ref.read(authControllerProvider.notifier).forgetSession();
       return null;
     } on SettingsException catch (error) {
