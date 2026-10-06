@@ -87,6 +87,13 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
   /// 1km당 초. **`null`은 '미측정'이다** — 비워 두고 넘어갈 수 있다.
   int? _paceSeconds;
 
+  /// 건너뛰기를 **눌렀는가.** [_paceSeconds] 가 `null` 인 것과 다르다 —
+  /// 아직 손대지 않은 것과 "재본 적 없다"를 고른 것을 가른다.
+  ///
+  /// 보내는 값은 둘 다 같다(`null`). 가르는 이유는 **칸에 비치는 글자**뿐이다 —
+  /// 누르고도 화면이 그대로면 눌리지 않는 버튼으로 읽힌다.
+  bool _paceSkipped = false;
+
   /// 전송 중. 버튼이 두 번 눌리는 것을 막는다.
   bool _submitting = false;
 
@@ -336,8 +343,23 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
     );
     if (picked == null) return;
 
-    setState(() => _paceSeconds = PaceRule.toSeconds(picked[0], picked[1]));
+    setState(() {
+      _paceSeconds = PaceRule.toSeconds(picked[0], picked[1]);
+      // 고른 값이 있으면 '측정 전'이 아니다. 거두지 않으면 건너뛰기 버튼이
+      // 다시 나타나지 않아 되돌릴 길이 막힌다.
+      _paceSkipped = false;
+    });
   }
+
+  /// 재본 적 없다고 표시한다. **값은 그대로 `null`이다.**
+  ///
+  /// 기본값을 몰래 채우지 않는다 — 서버가 받는 대체값(성별별 10/12분)은
+  /// `OnboardingProfileDto`가 경계에서만 메운다. 화면이 그 숫자를 보여주면
+  /// 고르지도 않은 페이스를 고른 것처럼 읽힌다.
+  void _skipPace() => setState(() {
+    _paceSeconds = null;
+    _paceSkipped = true;
+  });
 
   /// `5'42" /km` 형태. 미측정이면 `null`.
   String? get _paceLabel {
@@ -535,7 +557,12 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
                     ),
                     const SizedBox(height: AppSpacing.space2),
 
-                    _PaceField(value: _paceLabel, onTap: _pickPace),
+                    _PaceField(
+                      value: _paceLabel,
+                      skipped: _paceSkipped,
+                      onTap: _pickPace,
+                      onSkip: _skipPace,
+                    ),
 
                     if (_submitFailure != null &&
                         _submitFailure != OnboardingFailure.nicknameTaken) ...[
@@ -755,12 +782,33 @@ class _GenderOption extends StatelessWidget {
 /// 누르면 시트가 열리는 칸. 페이스는 `분`과 `초` 두 칸이라 치게 하면 번거롭다.
 ///
 /// 비워 두고 넘어갈 수 있다 — `null`은 **미측정**이다.
+///
+/// ## ⚠️ 칸이 세 가지 상태를 보여준다
+///
+/// | 상태 | 칸에 보이는 글자 | 건너뛰기 |
+/// |---|---|---|
+/// | 아직 안 건드림 | `페이스 선택` | 보인다 |
+/// | 건너뛰기를 눌렀다 | `측정 전` | **사라진다** |
+/// | 값을 골랐다 | `5'42" /km` | 보인다 |
+///
+/// 건너뛴 뒤에 버튼을 거두는 이유는, 그 상태에서 또 누르면 **바뀔 것이 없어서**다.
+/// 되돌리려면 칸을 누른다.
 class _PaceField extends StatelessWidget {
-  const _PaceField({required this.value, required this.onTap});
+  const _PaceField({
+    required this.value,
+    required this.skipped,
+    required this.onTap,
+    required this.onSkip,
+  });
 
   /// 고른 값. `null`이면 아직 안 골랐다.
   final String? value;
+
+  /// 건너뛰기를 눌렀는가. [value] 가 `null` 일 때만 뜻이 있다.
+  final bool skipped;
+
   final VoidCallback onTap;
+  final VoidCallback onSkip;
 
   /// 시안의 큰 칸과 같은 71. `AppInputV2`의 라벨 있는 칸에 맞춘다.
   static const _height = 71.0;
@@ -773,13 +821,21 @@ class _PaceField extends StatelessWidget {
     final colors = context.appColorsV2;
     final filled = value != null;
 
+    // 건너뛴 상태에서는 '측정 전'이 값 자리에 선다. 기록 목록에서 쓰는 것과
+    // 같은 문구라 — 같은 뜻에 두 말을 만들지 않는다.
+    final shown =
+        value ??
+        (skipped
+            ? AppStrings.profilePaceUnmeasured
+            : AppStrings.profilePaceHint);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Semantics(
           button: true,
           label: AppStrings.profilePaceLabel,
-          value: value ?? AppStrings.profilePaceHint,
+          value: shown,
           child: Material(
             color: colors.bgSurface,
             borderRadius: AppRadius.lg,
@@ -807,7 +863,7 @@ class _PaceField extends StatelessWidget {
                           ),
                           const SizedBox(height: _labelGap),
                           Text(
-                            value ?? AppStrings.profilePaceHint,
+                            shown,
                             style: AppTypographyV2.body04.copyWith(
                               color: filled
                                   ? colors.textPrimary
@@ -824,10 +880,36 @@ class _PaceField extends StatelessWidget {
             ),
           ),
         ),
+        if (!skipped) ...[
+          const SizedBox(height: AppSpacing.space3),
+
+          // ⚠️ **누구를 위한 길인지 먼저 밝힌다.** 이 줄이 없으면 페이스를
+          // 아는 사람도 건너뛰기를 편한 길로 여긴다.
+          Text(
+            AppStrings.profilePaceSkipEyebrow,
+            textAlign: TextAlign.center,
+            style: AppTypographyV2.body22.copyWith(color: colors.textTertiary),
+          ),
+          const SizedBox(height: AppSpacing.space2),
+
+          // secondary 는 테두리만 있어 버튼으로 보이면서도 하단 CTA 와 무게가
+          // 겹치지 않는다. 가로를 채우지 않는 것도 같은 이유다 — 채우면
+          // 두 번째 CTA 처럼 읽힌다.
+          Align(
+            child: AppButtonV2(
+              label: AppStrings.profilePaceSkip,
+              variant: AppButtonV2Variant.secondary,
+              size: AppButtonV2Size.compact,
+              expand: false,
+              onPressed: onSkip,
+            ),
+          ),
+        ],
         const SizedBox(height: AppSpacing.space2),
         // 비워도 넘어갈 수 있다는 것을 알린다. 이 줄이 없으면 필수로 읽힌다.
         Text(
           AppStrings.profilePaceSkipWhy,
+          textAlign: TextAlign.center,
           style: AppTypographyV2.body20.copyWith(color: colors.textTertiary),
         ),
       ],
