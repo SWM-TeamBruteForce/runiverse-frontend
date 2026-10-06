@@ -1,3 +1,4 @@
+import 'package:runiverse/features/onboarding/domain/gender.dart';
 import 'package:runiverse/features/onboarding/domain/onboarding_profile.dart';
 
 /// `POST /users/onboarding`이 받는 몸통.
@@ -20,14 +21,20 @@ class OnboardingProfileDto {
 
   /// 서버가 평균 페이스를 **필수**로 받아서, 재본 적 없는 사람에게 쓸 값.
   ///
-  /// **서버 허용 범위(120~1800초)의 상한**이다. 휠 최대치(12분/km = 720)를
-  /// 쓰지 않는 이유는, 그 값이 *실제로 그 속도로 달리는 사람*과 구별되지 않기
-  /// 때문이다. 상한은 "재본 적 없다"는 표시로 읽힌다. 서버가 이후 실제 기록으로
-  /// 자동 갱신하므로 시작점이 낮으면 그만큼 손해다.
+  /// 성별로 가른다 — 남 10분/km, 여 12분/km. 초보 러너가 실제로 내는 페이스에
+  /// 가까워서 **받자마자 매칭에 쓸 수 있다.**
   ///
-  /// ⚠️ **서버가 nullable로 바뀌면 이 상수와 아래 `??`를 지운다.** 그때까지는
+  /// ⚠️ 예전에는 서버 허용 범위(120~1800초)의 **상한**을 넣어 "재본 적 없다"는
+  /// 표시로 썼다. 표시로는 맞지만 30분/km는 걷기보다 느려서 **그 값으로는 아무와도
+  /// 매칭되지 않는다.** 치환값이 *실제로 그 속도로 달리는 사람*과 구별되지 않는 것은
+  /// 감수한다 — 서버가 첫 기록으로 곧 덮어쓴다.
+  ///
+  /// ⚠️ **서버가 nullable로 바뀌면 이 함수와 아래 `??`를 지운다.** 그때까지는
   /// 서버가 아는 값과 앱이 보여주는 색(미정 코럴)이 다르다.
-  static const unmeasuredPace = 1800;
+  static int unmeasuredPace(Gender gender) => switch (gender) {
+    Gender.male => 600,
+    Gender.female => 720,
+  };
 
   final String nickname;
   final String gender;
@@ -41,7 +48,8 @@ class OnboardingProfileDto {
         nickname: profile.nickname,
         gender: profile.gender.wireValue,
         birthday: _formatDate(profile.birthday),
-        averagePaceSecondsPerKm: profile.paceSecondsPerKm ?? unmeasuredPace,
+        averagePaceSecondsPerKm:
+            profile.paceSecondsPerKm ?? unmeasuredPace(profile.gender),
         heightCm: profile.heightCm,
         weightKg: profile.weightKg,
       );
