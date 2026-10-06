@@ -27,10 +27,12 @@ final partyProvider = NotifierProvider<PartyController, PartyBoard>(
 /// (`devlog/2026-09-16-버그수정-러닝-파티원-표시정보.md`). 지금은 스냅샷이
 /// 채워져 오고, [setRoster]는 스냅샷이 오기 전 구간을 메우는 용도로만 남았다.
 ///
-/// ## 솔로 러닝에는 아무것도 오지 않는다
+/// ## ⚠️ 솔로 러닝에도 통지가 온다
 ///
-/// 같이 뛰는 사람이 없으니 명단도 통지도 비어 있다. 화면이 [PartyBoard.rows]가
-/// 비었는지만 보면 된다 — 솔로인지 매칭인지 따로 묻지 않는다.
+/// 예전 주석은 "같이 뛰는 사람이 없으니 명단도 통지도 비어 있다"고 적혀 있었는데
+/// **틀렸다.** 서버는 1인 러닝에서도 10초마다 **내 진행**을 보낸다
+/// (2026-10-06 에뮬레이터 확인). 그것을 여기서 걸러내므로, 화면은 여전히
+/// [PartyBoard.rows]가 비었는지만 보면 된다 — 솔로인지 매칭인지 따로 묻지 않는다.
 class PartyController extends Notifier<PartyBoard> {
   StreamSubscription<RunProgress>? _progress;
   StreamSubscription<RunCombo>? _combos;
@@ -102,10 +104,24 @@ class PartyController extends Notifier<PartyBoard> {
     // 가리키므로, 이것을 놓치면 러닝 내내 "함께 달리는 사람"으로만 보인다.
     _snapshots = channel.snapshots.listen(_apply);
 
-    _progress = channel.progress.listen(
+    _progress = channel.progress.listen((update) async {
+      // ⚠️ **내 진행은 버린다.**
+      //
+      // 2026-10-06 에뮬레이터 1인 러닝에서 확인했다 — `201 /running-rooms/solo`,
+      // `시작 확인 · 1명` 인데 서버가 10초마다 **내 진행**을 보낸다. 코드
+      // 주석은 반대로("서버는 본인 진행을 보내지 않는다") 적혀 있었다.
+      //
+      // 거르지 않으면 **자기가 파티원으로 뜬다** — 점이 2개에서 3개가 되고
+      // `파티원 비교` 장에 내가 남처럼 선다.
+      //
+      // ⚠️ **보드의 `myUserId` 로 거르면 안 된다.** 그 값은 명단(스냅샷)이
+      // 와야 채워지는데, 진행 통지가 먼저 오면 아직 비어 있다. 서버가 무엇을
+      // 먼저 보내든 상관없도록 **로그인할 때 받아 둔 내 번호**로 가른다.
+      if (update.userId == await _myUserId()) return;
+
       // 받은 시각을 여기서 찍는다. 채널은 시계를 모르는 편이 테스트하기 쉽다.
-      (update) => state = state.withProgress(update.stamped(DateTime.now())),
-    );
+      state = state.withProgress(update.stamped(DateTime.now()));
+    });
     _combos = channel.combos.listen((update) {
       final before = state.combos.keys.toSet();
       state = state.withCombos(update);
@@ -118,10 +134,19 @@ class PartyController extends Notifier<PartyBoard> {
     });
   }
 
+  /// 로그인할 때 받아 둔 내 번호. **서버가 알려주기를 기다리지 않는다.**
+  ///
+  /// 한 번 읽고 들고 있는다 — 통지가 10초마다 오는데 그때마다 저장소를 열 이유가
+  /// 없다. 로그아웃하면 이 provider 도 함께 사라진다.
+  String? _me;
+
+  Future<String?> _myUserId() async =>
+      _me ??= (await ref.read(tokenStoreProvider).read()).userId;
+
   /// 스냅샷 하나를 보드에 통째로 얹는다. 최초 진입과 재연결이 같은 길이다.
   Future<void> _apply(RunSnapshot snapshot) async {
     // 명단에는 나도 들어 있다. 나를 가려내야 내 줄이 파티원으로 또 뜨지 않는다.
-    final me = (await ref.read(tokenStoreProvider).read()).userId;
+    final me = await _myUserId();
     if (me == null) return;
 
     // 서버가 아는 내 누적 거리로 바닥을 메운다. 앱을 껐다 켜면 로컬이 0부터라

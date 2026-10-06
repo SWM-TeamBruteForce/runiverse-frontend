@@ -104,6 +104,55 @@ void main() {
     expect(board.rows.single.progress?.distanceMeters, 1800);
   });
 
+  group('⚠️ 서버는 본인 진행도 보낸다', () {
+    // 2026-10-06 에뮬레이터 1인 러닝에서 확인했다. `201 /running-rooms/solo`,
+    // `시작 확인 · 1명` 인데 서버가 10초마다 **내 진행**을 보낸다 —
+    // `[running] 진행 · 01a0a974-… · 15m / 44m / 71m`.
+    //
+    // 코드 주석은 반대로 적혀 있었다("서버는 본인 진행을 보내지 않는다").
+
+    test('⚠️ 명단보다 먼저 와도 나를 파티원으로 세지 않는다', () async {
+      // **이것이 이 그물의 핵심이다.** 명단(스냅샷)에는 "너는 누구다" 가 들어
+      // 있어서, 그게 먼저 오면 보드가 나를 알아보고 거른다. 순서가 뒤집히면
+      // 아직 "나" 를 모르는 채로 내 진행을 받아 **자기를 남으로 올린다** —
+      // 점이 2개에서 3개가 되고 `파티원 비교` 장에 내가 뜬다.
+      //
+      // 앱은 로그인할 때 받은 내 번호를 이미 들고 있다. 서버가 알려주기를
+      // 기다릴 이유가 없다.
+      final container = await makeContainer();
+      await container
+          .read(runningConnectionProvider.notifier)
+          .openMatched(13, targetDistanceMeters: 3000);
+      expect(container.read(partyProvider).rows, isEmpty);
+
+      // 스냅샷 없이 내 진행만 온다.
+      channel.progress_.add(progress('u-1', 120));
+      await settle();
+
+      expect(
+        container.read(partyProvider).rows,
+        isEmpty,
+        reason: '내 진행은 파티원 줄이 아니다',
+      );
+    });
+
+    test('남의 진행은 그대로 받는다', () async {
+      // 거르는 것이 과하면 진짜 파티원이 사라진다.
+      final container = await makeContainer();
+      await container
+          .read(runningConnectionProvider.notifier)
+          .openMatched(13, targetDistanceMeters: 3000);
+      // ⚠️ 먼저 읽어야 provider 가 생기고 구독이 붙는다.
+      expect(container.read(partyProvider).rows, isEmpty);
+
+      channel.progress_.add(progress('u-9', 1800));
+      await settle();
+
+      expect(container.read(partyProvider).rows, hasLength(1));
+      expect(container.read(partyProvider).rows.single.userId, 'u-9');
+    });
+  });
+
   test('읽은 뒤에 방을 열어도 붙는다', () async {
     // 평소 경로다. 러닝 화면이 먼저 서고 그 다음 방이 열린다.
     final container = await makeContainer();
