@@ -269,8 +269,8 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                         label: AppStrings.authGoogle,
                         logo: Image.asset('assets/brand/google.png'),
                         background: AppPaletteV2.neutral50,
-                        // 구글 로그인은 아직 붙일 구현이 없다.
-                        onPressed: () => _notReady(context),
+                        lastUsed: _lastMethod == SignInMethod.google,
+                        onPressed: _busy ? null : _startGoogle,
                       ),
                       const SizedBox(width: AppSpacing.space4),
                       _SocialTile(
@@ -311,35 +311,43 @@ class _SignInPageState extends ConsumerState<SignInPage> {
   ///
   /// 한 번 동의하면 기기에 남아 다음부터 건너뛴다. 기기 단위라 재설치하면 다시
   /// 묻는데, 서버가 `termsAgreed`를 저장하면 그 한계가 사라진다.
-  Future<void> _startKakao() async {
+  Future<void> _startKakao() => _startSocial(OauthProvider.kakao);
+
+  Future<void> _startGoogle() => _startSocial(OauthProvider.google);
+
+  /// 간편 로그인을 시작한다. **약관 동의가 먼저다.**
+  ///
+  /// 소셜은 가입과 로그인이 한 경로라, 처음 누르는 사람은 그 자리에서 계정이
+  /// 생긴다. 동의를 받기 전에 계정을 만들면 안 된다.
+  Future<void> _startSocial(OauthProvider provider) async {
     final agreedBefore = await ref.read(consentStoreProvider).hasAgreedTerms();
     if (!mounted) return;
 
     if (agreedBefore) {
-      await _signInWithKakao();
+      await _signInWithSocial(provider);
       return;
     }
 
-    // 약관 화면은 **동의를 기록하고 `true`를 돌려주기만 한다.** 카카오 SDK를
-    // 거기서 부르면 온보딩 화면이 auth의 구현을 알게 된다. 인가는 이쪽 몫이다.
+    // 약관 화면은 **동의를 기록하고 `true`를 돌려주기만 한다.** SDK를 거기서
+    // 부르면 온보딩 화면이 auth의 구현을 알게 된다. 인가는 이쪽 몫이다.
     //
     // 뒤로가기로 나오면 `null`이 온다 — 그때는 인가하지 않는다.
     final agreed = await context.push<bool>(
       AppRoutes.terms,
-      extra: TermsNext.kakao,
+      extra: TermsNext.social,
     );
     if (!mounted || agreed != true) return;
 
-    await _signInWithKakao();
+    await _signInWithSocial(provider);
   }
 
-  /// 카카오로 로그인한다. **[_startKakao]를 거쳐서만 들어온다.**
+  /// 간편 로그인. **[_startSocial]을 거쳐서만 들어온다.**
   ///
   /// ## 취소는 화면에 남기지 않는다
   ///
   /// 사용자가 인가 화면에서 뒤로 가면 실패 이유가 돌아오지만, **그것을 그리면
   /// 스스로 그만둔 사람에게 오류를 보여주는 셈**이다. 여기서 걸러낸다.
-  Future<void> _signInWithKakao() async {
+  Future<void> _signInWithSocial(OauthProvider provider) async {
     setState(() {
       _busy = true;
       _failure = null;
@@ -350,20 +358,22 @@ class _SignInPageState extends ConsumerState<SignInPage> {
     // 같이 막힌다** — 앱을 다시 켜는 것 말고는 길이 없다.
     //
     // `on Exception`으로는 부족하다. SDK를 초기화하지 않은 채 부르면
-    // `LateInitializationError`가 오는데 그것은 `Exception`이 아니라 **`Error`**라
-    // `KakaoCodeSource`의 `on Exception`에도, `AuthController`의
+    // `Error`가 오는데(카카오는 `LateInitializationError`), 그것은 `Exception`이
+    // 아니라 코드 소스의 `on Exception`에도, `AuthController`의
     // `on AuthException`에도 걸리지 않고 여기까지 그대로 올라온다.
     // 에뮬레이터에서 카카오 키 없이 눌러 실제로 겪었다.
     AuthFailure? failure;
     try {
       failure = await ref
           .read(authControllerProvider.notifier)
-          .signInWithOauth(OauthProvider.kakao);
+          .signInWithOauth(provider);
     } catch (error) {
       // 삼키되 **흔적은 남긴다.** 무엇이 오는지 모르면 고칠 수도 없다 —
-      // `KakaoCodeSource`가 로그를 남기는 이유와 같다.
+      // 코드 소스가 로그를 남기는 이유와 같다.
       if (kDebugMode) {
-        debugPrint('[kakao] 예상 못 한 오류: ${error.runtimeType} · $error');
+        debugPrint(
+          '[${provider.name}] 예상 못 한 오류: ${error.runtimeType} · $error',
+        );
       }
       failure = AuthFailure.oauthFailed;
     }
@@ -375,29 +385,10 @@ class _SignInPageState extends ConsumerState<SignInPage> {
       _failure = failure == AuthFailure.oauthCancelled ? null : failure;
     });
 
-    // 카카오는 **가입과 로그인이 한 경로다.** 계정이 없으면 서버가 그 자리에서
+    // 소셜은 **가입과 로그인이 한 경로다.** 계정이 없으면 서버가 그 자리에서
     // 만들고 `isOnboarded=false`로 답한다. 그래서 첫 로그인은 이메일의 *가입*에
     // 해당하고, [_goAfterSignIn]이 그것을 폼으로 보낸다.
     if (failure == null) _goAfterSignIn();
-  }
-
-  void _notReady(BuildContext context) {
-    final colors = context.appColorsV2;
-
-    // 이전 안내가 남아 있으면 겹쳐서 쌓인다. 하나만 띄운다.
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            AppStrings.authSocialComingSoon,
-            style: AppTypographyV2.body07.copyWith(color: colors.textPrimary),
-          ),
-          backgroundColor: colors.bgElevated,
-          behavior: SnackBarBehavior.floating,
-          shape: const RoundedRectangleBorder(borderRadius: AppRadius.md),
-        ),
-      );
   }
 }
 

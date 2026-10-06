@@ -62,10 +62,7 @@ class KakaoCodeSource implements OauthCodeSource {
         redirectUri: KakaoSdk.redirectUri,
         codeVerifier: verifier,
       );
-      return OauthAuthorization(
-        authorizationCode: code,
-        codeVerifier: verifier,
-      );
+      return OauthCode(authorizationCode: code, codeVerifier: verifier);
     } on PlatformException catch (error) {
       // ⚠️ **브라우저를 닫으면 여기로 온다.** 네이티브 `CustomTabsActivity`가
       // `sendError("CANCELED", ...)`를 보내고, pigeon이 그것을 그대로 넘긴다.

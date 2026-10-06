@@ -68,8 +68,8 @@ void main() {
           ),
           // 카카오 SDK도 플랫폼 채널을 부른다. 이것 없이는 카카오 버튼을
           // 누르는 순간 테스트가 죽는다.
-          oauthCodeSourceProvider.overrideWithValue(
-            codeSource ?? FakeOauthCodeSource(),
+          oauthCodeSourceProvider.overrideWith(
+            (ref, provider) => codeSource ?? FakeOauthCodeSource(),
           ),
         ],
         child: const RuniverseApp(initialLocation: AppRoutes.signIn),
@@ -230,10 +230,7 @@ void main() {
       // 만들고 isOnboarded=false로 답한다. 그러니 첫 로그인은 이메일의 *가입*이다.
       await pumpSignIn(tester);
 
-      await tapVisible(
-        tester,
-        find.byTooltip(AppStrings.authKakao),
-      );
+      await tapVisible(tester, find.byTooltip(AppStrings.authKakao));
       await tester.pumpAndSettle();
 
       expect(find.byType(ProfileSetupPage), findsOneWidget);
@@ -250,10 +247,7 @@ void main() {
 
       await pumpSignIn(tester, repository: repository);
 
-      await tapVisible(
-        tester,
-        find.byTooltip(AppStrings.authKakao),
-      );
+      await tapVisible(tester, find.byTooltip(AppStrings.authKakao));
       await tester.pumpAndSettle();
 
       expect(find.byType(HomePage), findsOneWidget);
@@ -267,10 +261,7 @@ void main() {
         codeSource: FakeOauthCodeSource(failure: AuthFailure.oauthCancelled),
       );
 
-      await tapVisible(
-        tester,
-        find.byTooltip(AppStrings.authKakao),
-      );
+      await tapVisible(tester, find.byTooltip(AppStrings.authKakao));
       await tester.pumpAndSettle();
 
       // 로그인 화면에 그대로 머문다.
@@ -286,10 +277,7 @@ void main() {
         codeSource: FakeOauthCodeSource(failure: AuthFailure.oauthFailed),
       );
 
-      await tapVisible(
-        tester,
-        find.byTooltip(AppStrings.authKakao),
-      );
+      await tapVisible(tester, find.byTooltip(AppStrings.authKakao));
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.authFailedOauth), findsOneWidget);
@@ -306,10 +294,7 @@ void main() {
 
       await pumpSignIn(tester, repository: repository);
 
-      await tapVisible(
-        tester,
-        find.byTooltip(AppStrings.authKakao),
-      );
+      await tapVisible(tester, find.byTooltip(AppStrings.authKakao));
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.authFailedEmailTaken), findsOneWidget);
@@ -325,10 +310,7 @@ void main() {
     );
     expect(ctaEnabled(tester), isTrue);
 
-    await tapVisible(
-      tester,
-      find.byTooltip(AppStrings.authKakao),
-    );
+    await tapVisible(tester, find.byTooltip(AppStrings.authKakao));
     // ⚠️ pumpAndSettle을 쓰면 안 된다. 잠긴 화면은 스피너가 영원히 돌아
     // **영영 안정되지 않고**, 단언에 닿기 전에 타임아웃으로 죽는다
     // (`docs/implementation-notes.md` §10-3). 정해진 횟수만 pump한다.
