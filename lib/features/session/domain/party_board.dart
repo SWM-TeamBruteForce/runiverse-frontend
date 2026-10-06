@@ -103,7 +103,11 @@ class PartyBoard {
   /// 지금 세는 값 중 큰 쪽을 둔다.
   final Map<String, int> bestCombos;
 
-  /// **앱이 잰 내 거리.** 서버는 본인 진행을 보내지 않는다.
+  /// **앱이 잰 내 거리.**
+  ///
+  /// ⚠️ 예전 주석은 "서버는 본인 진행을 보내지 않는다"고 적혀 있었는데
+  /// **틀렸다** — 1인 러닝에서도 보낸다(2026-10-06 확인). `PartyController` 가
+  /// 걸러내므로 [progress] 에는 내 것이 안 들어온다.
   final int myDistanceMeters;
 
   /// 명단에서 나를 가려내는 열쇠.

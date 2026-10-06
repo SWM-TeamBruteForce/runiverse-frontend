@@ -277,8 +277,13 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                     if (hasParty)
                       RunPartyView(
                         board: party,
-                        // ⚠️ 내 페이스는 앱이 잰 값이다. 서버는 본인 진행을
-                        // 보내지 않는다. 내 거리는 provider가 보드에 넣는다.
+                        // ⚠️ 내 페이스는 앱이 잰 값이다. 내 거리는 provider가
+                        // 보드에 넣는다.
+                        //
+                        // ⚠️ 예전 주석은 "서버는 본인 진행을 보내지 않는다"고
+                        // 적혀 있었는데 **틀렸다.** 1인 러닝에서도 10초마다
+                        // 보낸다(2026-10-06 확인). 거르는 것은 `PartyController`
+                        // 가 맡는다.
                         myPace: metrics.currentPace,
                         targetDistanceMeters: target,
                       ),
