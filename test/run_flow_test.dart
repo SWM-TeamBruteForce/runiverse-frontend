@@ -10,7 +10,7 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_running_room_repository.dart';
@@ -122,7 +122,7 @@ void main() {
   /// 그 3초 동안 앱이 서버에 붙는다(설계 문서 4절).
   Future<void> startRunning(WidgetTester tester) async {
     await emit(tester, point(37.5, 127));
-    await tester.tap(find.widgetWithText(AppButton, AppStrings.runStartCta));
+    await tester.tap(find.widgetWithText(AppButtonV2, AppStrings.runStartCta));
     await tester.pump();
 
     // 3 · 2 · 1. 한 번에 3초를 보내면 Timer.periodic이 한 번만 돈다.
@@ -162,8 +162,8 @@ void main() {
   }
 
   bool startEnabled(WidgetTester tester) {
-    final button = tester.widget<AppButton>(
-      find.widgetWithText(AppButton, AppStrings.runStartCta),
+    final button = tester.widget<AppButtonV2>(
+      find.widgetWithText(AppButtonV2, AppStrings.runStartCta),
     );
     return button.onPressed != null;
   }
@@ -207,7 +207,9 @@ void main() {
       await pumpRun(tester);
       await emit(tester, point(37.5, 127));
 
-      await tester.tap(find.widgetWithText(AppButton, AppStrings.runStartCta));
+      await tester.tap(
+        find.widgetWithText(AppButtonV2, AppStrings.runStartCta),
+      );
       await tester.pump();
 
       expect(find.text('3'), findsOneWidget);
@@ -219,7 +221,9 @@ void main() {
       await pumpRun(tester);
       await emit(tester, point(37.5, 127));
 
-      await tester.tap(find.widgetWithText(AppButton, AppStrings.runStartCta));
+      await tester.tap(
+        find.widgetWithText(AppButtonV2, AppStrings.runStartCta),
+      );
       await tester.pump();
 
       expect(room.calls, 1);
@@ -232,7 +236,9 @@ void main() {
       await pumpRun(tester);
       await emit(tester, point(37.5, 127));
 
-      await tester.tap(find.widgetWithText(AppButton, AppStrings.runStartCta));
+      await tester.tap(
+        find.widgetWithText(AppButtonV2, AppStrings.runStartCta),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.runAlreadyInProgress), findsOneWidget);
@@ -254,7 +260,9 @@ void main() {
       room.failure = RunningRoomFailure.alreadyRunning;
       await pumpRun(tester);
       await emit(tester, point(37.5, 127));
-      await tester.tap(find.widgetWithText(AppButton, AppStrings.runStartCta));
+      await tester.tap(
+        find.widgetWithText(AppButtonV2, AppStrings.runStartCta),
+      );
       await tester.pumpAndSettle();
 
       // 첫 재시도가 1초 뒤다. 돌았다면 여기서 늘어난다.

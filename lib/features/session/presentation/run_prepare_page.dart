@@ -7,12 +7,12 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/extensions/app_colors.dart';
-import 'package:runiverse/core/theme/tokens/app_motion.dart';
-import 'package:runiverse/core/theme/tokens/app_sizes.dart';
-import 'package:runiverse/core/theme/tokens/app_spacing.dart';
-import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/core/widgets/app_button.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_motion.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
@@ -137,7 +137,7 @@ class _RunPreparePageState extends ConsumerState<RunPreparePage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
     final state = ref.watch(runSessionControllerProvider);
     final hasFix = state is RunPreparing && state.hasFix;
 
@@ -172,6 +172,9 @@ class _RunPreparePageState extends ConsumerState<RunPreparePage> {
         if (!didPop) unawaited(_leave());
       },
       child: Scaffold(
+        // ⚠️ **앱 테마가 아직 옛 세대라 바탕을 직접 깐다.** 안 깔면 토큰은
+        // 전부 새것인데 바탕만 `#0b0e14` 로 남는다(`v2_screen_background_test`).
+        backgroundColor: colors.bgBase,
         body: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -206,9 +209,9 @@ class _RunPreparePageState extends ConsumerState<RunPreparePage> {
 
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.space5),
-                child: AppButton(
+                child: AppButtonV2(
                   label: AppStrings.runStartCta,
-                  size: AppButtonSize.lg,
+                  size: AppButtonV2Size.regular,
                   // 신호를 받기 전에는 잠긴다. 이 잠금이 이 화면의 존재 이유다.
                   onPressed: hasFix ? _start : null,
                 ),
@@ -262,7 +265,7 @@ class _Waiting extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -281,14 +284,14 @@ class _Waiting extends StatelessWidget {
 
         Text(
           hasFix ? AppStrings.runFixReady : AppStrings.runWaitingFix,
-          style: AppTypography.h2.copyWith(color: colors.textPrimary),
+          style: AppTypographyV2.heading02.copyWith(color: colors.textPrimary),
         ),
         if (!hasFix) ...[
           const SizedBox(height: AppSpacing.space2),
           Text(
             AppStrings.runWaitingFixWhy,
             textAlign: TextAlign.center,
-            style: AppTypography.caption.copyWith(color: colors.textSecondary),
+            style: AppTypographyV2.body15.copyWith(color: colors.textSecondary),
           ),
         ],
       ],
@@ -305,7 +308,7 @@ class _Blocked extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -321,19 +324,19 @@ class _Blocked extends StatelessWidget {
               ? AppStrings.runServiceDisabled
               : AppStrings.runPermissionTitle,
           textAlign: TextAlign.center,
-          style: AppTypography.h3.copyWith(color: colors.textPrimary),
+          style: AppTypographyV2.heading06.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: AppSpacing.space2),
         Text(
           AppStrings.runPermissionBody,
           textAlign: TextAlign.center,
-          style: AppTypography.caption.copyWith(color: colors.textSecondary),
+          style: AppTypographyV2.body15.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: AppSpacing.space5),
-        AppButton(
+        AppButtonV2(
           label: AppStrings.runPermissionOpenSettings,
-          variant: AppButtonVariant.secondary,
-          size: AppButtonSize.md,
+          variant: AppButtonV2Variant.secondary,
+          size: AppButtonV2Size.compact,
           expand: false,
           onPressed: onOpenSettings,
         ),
@@ -356,7 +359,7 @@ class _Countdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return PopScope(
       canPop: false,
@@ -372,7 +375,7 @@ class _Countdown extends StatelessWidget {
               '$value',
               // 키가 없으면 AnimatedSwitcher가 같은 위젯으로 보고 넘어간다.
               key: ValueKey(value),
-              style: AppTypography.metricHero.copyWith(
+              style: AppTypographyV2.heading01.copyWith(
                 fontSize: 160,
                 height: 1,
                 color: colors.textPrimary,
@@ -396,7 +399,7 @@ class _Conflicted extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
+    final colors = context.appColorsV2;
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -415,16 +418,20 @@ class _Conflicted extends StatelessWidget {
               Text(
                 AppStrings.runAlreadyInProgress,
                 textAlign: TextAlign.center,
-                style: AppTypography.h2.copyWith(color: colors.textPrimary),
+                style: AppTypographyV2.heading02.copyWith(
+                  color: colors.textPrimary,
+                ),
               ),
               const SizedBox(height: AppSpacing.space3),
               Text(
                 AppStrings.runAlreadyInProgressWhy,
                 textAlign: TextAlign.center,
-                style: AppTypography.body.copyWith(color: colors.textSecondary),
+                style: AppTypographyV2.body07.copyWith(
+                  color: colors.textSecondary,
+                ),
               ),
               const SizedBox(height: AppSpacing.space7),
-              AppButton(label: AppStrings.runBackToHome, onPressed: onLeave),
+              AppButtonV2(label: AppStrings.runBackToHome, onPressed: onLeave),
             ],
           ),
         ),
