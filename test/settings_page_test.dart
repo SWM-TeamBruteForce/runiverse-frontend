@@ -15,6 +15,7 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/settings/data/fake_settings_repository.dart';
+import 'package:runiverse/features/settings/domain/settings_failure.dart';
 import 'package:runiverse/features/auth/domain/login_type.dart';
 import 'package:runiverse/features/settings/presentation/settings_provider.dart';
 
@@ -28,11 +29,18 @@ import 'package:runiverse/features/settings/presentation/settings_provider.dart'
 void main() {
   late InMemoryTokenStore tokens;
 
+  /// 약관 동의 기록. **로그아웃에는 남고 탈퇴에는 지워져야 한다.**
+  late InMemoryConsentStore consent;
+
   Future<void> pumpSettings(
     WidgetTester tester, {
     LoginType? loginType = LoginType.local,
+    SettingsFailure? withdrawFailure,
   }) async {
     tokens = InMemoryTokenStore();
+    // 이미 약관에 동의하고 쓰던 사람이다. 처음 깐 사람이 아니다.
+    consent = InMemoryConsentStore();
+    await consent.markTermsAgreed();
     await tokens.saveSession(
       userId: 'u-1',
       accessToken: 'a-1',
@@ -54,7 +62,7 @@ void main() {
           signInMemoryStoreProvider.overrideWithValue(
             InMemorySignInMemoryStore(),
           ),
-          consentStoreProvider.overrideWithValue(InMemoryConsentStore()),
+          consentStoreProvider.overrideWithValue(consent),
           bodyProfileStoreProvider.overrideWithValue(
             InMemoryBodyProfileStore(),
           ),
@@ -67,7 +75,10 @@ void main() {
           ),
           authRepositoryProvider.overrideWithValue(auth),
           settingsRepositoryProvider.overrideWithValue(
-            FakeSettingsRepository(latency: Duration.zero),
+            FakeSettingsRepository(
+              latency: Duration.zero,
+              withdrawFailure: withdrawFailure,
+            ),
           ),
         ],
         child: const RuniverseApp(initialLocation: AppRoutes.settings),
@@ -181,6 +192,47 @@ void main() {
 
       expect(find.text(AppStrings.authSignInCta), findsOneWidget);
       expect((await tokens.read()).accessToken, isNull);
+    });
+
+    testWidgets('⚠️ 탈퇴하면 약관 동의 기록도 지운다', (tester) async {
+      // 계정이 사라졌으므로 **동의도 함께 사라진 것**이다. 남겨 두면 같은
+      // 구글 계정으로 다시 들어온 사람이 **약관을 건너뛰고** 프로필 입력부터
+      // 보게 된다 — 서버에는 처음 만들어지는 계정인데 동의를 받은 적이 없다.
+      //
+      // `ConsentStore`는 기기 단위라 로그아웃에는 일부러 남긴다. 탈퇴만 다르다.
+      await pumpSettings(tester);
+
+      await tapRow(tester, AppStrings.settingsWithdraw);
+      await tester.tap(find.text(AppStrings.withdrawConfirm));
+      await tester.pumpAndSettle();
+
+      expect(await consent.hasAgreedTerms(), isFalse);
+    });
+
+    testWidgets('⚠️ 로그아웃은 약관 동의를 남긴다', (tester) async {
+      // 탈퇴와 **반대**다. 같은 사람이 같은 계정으로 다시 들어오는 것이라,
+      // 지우면 같은 것을 두 번 묻게 된다.
+      await pumpSettings(tester);
+
+      await tapRow(tester, AppStrings.settingsSignOut);
+      await tester.tap(find.text(AppStrings.settingsSignOut).last);
+      await tester.pumpAndSettle();
+
+      expect(await consent.hasAgreedTerms(), isTrue);
+    });
+
+    testWidgets('⚠️ 탈퇴에 실패하면 약관 동의를 지우지 않는다', (tester) async {
+      // 503 — 계정은 그대로 있다. 동의만 지우면 다음에 들어올 때 같은 것을
+      // 또 묻는다. **지우는 것은 탈퇴가 성공한 뒤여야 한다.**
+      await pumpSettings(tester, withdrawFailure: SettingsFailure.server);
+
+      await tapRow(tester, AppStrings.settingsWithdraw);
+      await tester.tap(find.text(AppStrings.withdrawConfirm));
+      await tester.pumpAndSettle();
+
+      expect(await consent.hasAgreedTerms(), isTrue);
+      // 설정 화면에 그대로 남는다.
+      expect(find.text(AppStrings.settingsTitle), findsOneWidget);
     });
 
     testWidgets('탈퇴 시트에서 취소하면 계정이 남는다', (tester) async {

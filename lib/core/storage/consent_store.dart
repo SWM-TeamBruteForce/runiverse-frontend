@@ -15,15 +15,23 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 ///
 /// 서버에 `termsAgreed`가 생기면 판정 근거를 그쪽으로 옮기고 이 저장소는 지운다.
 ///
-/// ## 되돌리는 메서드를 두지 않는다
+/// ## ⚠️ 지우는 쪽은 **탈퇴 하나뿐이다**
 ///
-/// 철회는 계정 삭제나 설정 화면의 일이다. 저장소가 할 일이 아니다.
+/// 로그아웃은 지우지 않는다(위 참조). 탈퇴는 다르다 — **계정이 사라졌으므로
+/// 동의도 함께 사라진 것**이고, 서버에는 다음 로그인 때 계정이 새로 만들어진다.
+/// 남겨 두면 같은 소셜 계정으로 다시 들어온 사람이 **약관을 건너뛰고** 프로필
+/// 입력부터 보게 된다. 동의를 받은 적 없는 계정이 생긴다.
+///
+/// 설정 화면의 철회는 아직 없다. 생기면 같은 메서드를 쓴다.
 abstract interface class ConsentStore {
   /// 필수 약관에 동의한 적이 있는가.
   Future<bool> hasAgreedTerms();
 
   /// 동의를 기록한다.
   Future<void> markTermsAgreed();
+
+  /// 기록을 지운다. **탈퇴할 때만 부른다** — 로그아웃은 부르지 않는다.
+  Future<void> forgetTermsAgreement();
 }
 
 /// 안드로이드 Keystore · iOS Keychain에 넣는 [ConsentStore].
@@ -49,6 +57,11 @@ class SecureConsentStore implements ConsentStore {
   @override
   Future<void> markTermsAgreed() =>
       _storage.write(key: _keyTermsAgreed, value: 'true');
+
+  // ⚠️ `deleteAll()`을 쓰지 않는다. 같은 저장소에 토큰이 들어 있어
+  // 함께 날아간다 — `SecureTokenStore` 가 키를 지정해 지우는 것과 같은 이유다.
+  @override
+  Future<void> forgetTermsAgreement() => _storage.delete(key: _keyTermsAgreed);
 }
 
 /// 메모리에만 들고 있는 구현. 테스트가 쓴다 —
@@ -64,4 +77,7 @@ class InMemoryConsentStore implements ConsentStore {
 
   @override
   Future<void> markTermsAgreed() async => _agreed = true;
+
+  @override
+  Future<void> forgetTermsAgreement() async => _agreed = false;
 }
