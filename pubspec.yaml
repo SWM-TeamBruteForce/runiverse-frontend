@@ -79,6 +79,7 @@ dependencies:
   # 에러도 로그도 없다. 매니페스트를 함께 본다.
   url_launcher: ^6.3.2
   flutter_svg: ^2.3.0
+  google_sign_in: ^7.2.0
 
 dev_dependencies:
   flutter_test:

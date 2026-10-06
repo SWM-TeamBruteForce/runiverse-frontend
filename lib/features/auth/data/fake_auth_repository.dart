@@ -133,11 +133,16 @@ class FakeAuthRepository implements AuthRepository {
     oauthCallCount++;
     await Future<void>.delayed(latency);
 
-    // 심어 두지 않았으면 처음 오는 사람이다. 인가 코드에서 이메일을 만들어
+    // 사람을 가려내는 열쇠가 제공자마다 다르다 — 카카오는 인가 코드,
+    // 구글은 ID 토큰이다. 가짜 저장소는 그 값을 그대로 열쇠로 쓴다.
+    final key = switch (authorization) {
+      OauthCode(:final authorizationCode) => authorizationCode,
+      OauthIdToken(:final idToken) => idToken,
+    };
+
+    // 심어 두지 않았으면 처음 오는 사람이다. 열쇠에서 이메일을 만들어
     // **매번 같은 계정이 나오게** 한다.
-    final email =
-        _oauthAccounts[authorization.authorizationCode] ??
-        'kakao-${authorization.authorizationCode}@example.com';
+    final email = _oauthAccounts[key] ?? '${provider.name}-$key@example.com';
 
     // 같은 이메일의 로컬 계정이 있으면 서버가 자동 연동하지 않는다.
     if (_accounts.containsKey(email)) {

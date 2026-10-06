@@ -137,7 +137,7 @@ class _TermsAgreementPageState extends ConsumerState<TermsAgreementPage> {
 
       // 카카오 SDK를 여기서 부르지 않는다. 부르면 온보딩이 auth의 구현을 알게 된다.
       // **동의했다는 사실만 돌려주고** 인가는 로그인 화면이 시작한다.
-      case TermsNext.kakao:
+      case TermsNext.social:
         context.pop(true);
     }
   }

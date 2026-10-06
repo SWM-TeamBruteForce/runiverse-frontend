@@ -35,8 +35,8 @@ void main() {
       authRepositoryProvider.overrideWithValue(
         repository ?? FakeAuthRepository(latency: Duration.zero),
       ),
-      oauthCodeSourceProvider.overrideWithValue(
-        codeSource ?? FakeOauthCodeSource(),
+      oauthCodeSourceProvider.overrideWith(
+        (ref, provider) => codeSource ?? FakeOauthCodeSource(),
       ),
     ],
   );

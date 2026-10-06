@@ -27,7 +27,7 @@ void main() {
     try {
       await HttpAuthRepository(dio).signInWithOauth(
         provider: OauthProvider.kakao,
-        authorization: const OauthAuthorization(
+        authorization: const OauthCode(
           authorizationCode: 'code',
           codeVerifier: 'verifier',
         ),
