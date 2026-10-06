@@ -143,6 +143,18 @@ void main() {
     await type(tester, weightField, '65');
   }
 
+  /// 페이스 칸의 '건너뛰기'를 누른다.
+  ///
+  /// ⚠️ **먼저 끌어올린다.** 폼 맨 아래라 600px 짜리 테스트 화면에서는
+  /// y=691 — 화면 밖이다. 바로 누르면 "닿지 않는다"고 경고하고 실패한다.
+  Future<void> skipPace(WidgetTester tester) async {
+    final button = find.widgetWithText(AppButtonV2, AppStrings.profilePaceSkip);
+    await tester.ensureVisible(button);
+    await tester.pumpAndSettle();
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+  }
+
   group('한 화면 폼', () {
     testWidgets('⚠️ 여섯 항목이 처음부터 다 보인다', (tester) async {
       // 단계형에서는 닉네임 하나만 보였다. 그 규칙이 사라진 자리다.
@@ -165,9 +177,18 @@ void main() {
     testWidgets('⚠️ 채우지 않고 나가는 문이 없다', (tester) async {
       // 프로필을 비워두면 매칭도 기록도 설 자리가 없다.
       // 시안에는 뒤로가기와 건너뛰기가 있지만 넣지 않았다.
+      //
+      // ⚠️ **`onboardingSkip` 과 `profilePaceSkip` 은 글자가 똑같다**(`건너뛰기`).
+      // 그래서 "없다"로는 볼 수 없다 — 페이스 버튼이 걸린다. 대신 **개수**로 본다:
+      // 이 화면의 건너뛰기는 페이스 칸의 것 하나뿐이다. 폼을 빠져나가는 문이
+      // 생기면 둘이 되어 여기서 걸린다 — 그것이 어떤 위젯이든.
       await pumpPage(tester);
 
-      expect(find.text(AppStrings.onboardingSkip), findsNothing);
+      expect(find.text(AppStrings.onboardingSkip), findsOneWidget);
+      expect(
+        find.widgetWithText(AppButtonV2, AppStrings.profilePaceSkip),
+        findsOneWidget,
+      );
       expect(find.byType(BackButton), findsNothing);
     });
 
@@ -175,6 +196,53 @@ void main() {
       // `null`은 미측정이다. 기본값을 몰래 채우면 고르지 않은 색을 갖게 된다.
       await pumpPage(tester);
       await fillForm(tester);
+
+      expect(nextEnabled(tester), isTrue);
+    });
+
+    testWidgets('⚠️ 건너뛰기 버튼이 눈썹 문구와 함께 보인다', (tester) async {
+      // 비워도 넘어갈 수 있다는 것을 **보여주는** 유일한 장치다. 안내 한 줄만
+      // 두었을 때 "건너뛰기가 없어졌냐"는 말이 나왔다 — 읽히지 않았다.
+      await pumpPage(tester);
+
+      expect(find.text(AppStrings.profilePaceSkipEyebrow), findsOneWidget);
+      expect(
+        find.widgetWithText(AppButtonV2, AppStrings.profilePaceSkip),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('건너뛰기를 누르면 칸이 측정 전으로 바뀐다', (tester) async {
+      // 누르고도 아무 변화가 없으면 눌리지 않는 버튼으로 읽힌다.
+      // 담는 값은 그대로 `null`이고, **골랐다는 사실만** 칸에 비친다.
+      await pumpPage(tester);
+      expect(find.text(AppStrings.profilePaceHint), findsOneWidget);
+
+      await skipPace(tester);
+
+      expect(find.text(AppStrings.profilePaceUnmeasured), findsOneWidget);
+      expect(find.text(AppStrings.profilePaceHint), findsNothing);
+    });
+
+    testWidgets('건너뛴 뒤에는 건너뛰기가 사라진다', (tester) async {
+      // 이미 그 상태가 됐으니 눌러도 바뀔 것이 없다. 남겨 두면 죽은 버튼이다.
+      // 다시 고르려면 칸을 누른다.
+      await pumpPage(tester);
+
+      await skipPace(tester);
+
+      expect(
+        find.widgetWithText(AppButtonV2, AppStrings.profilePaceSkip),
+        findsNothing,
+      );
+      expect(find.text(AppStrings.profilePaceSkipEyebrow), findsNothing);
+    });
+
+    testWidgets('건너뛴 뒤에도 다음이 열린다', (tester) async {
+      await pumpPage(tester);
+      await fillForm(tester);
+
+      await skipPace(tester);
 
       expect(nextEnabled(tester), isTrue);
     });
