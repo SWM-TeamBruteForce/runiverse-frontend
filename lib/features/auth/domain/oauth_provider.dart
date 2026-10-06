@@ -11,6 +11,8 @@ enum OauthProvider {
 
   /// 서버 경로에 쓰는 값.
   ///
-  /// 서버가 `toUpperCase`로 바꿔 읽으므로 소문자로 보낸다.
+  /// ⚠️ 예전 주석은 "서버가 `toUpperCase` 로 바꿔 읽으므로 소문자로 보낸다"고
+  /// 적혀 있었는데 **더는 맞지 않는다.** 서버 경로가 `/oauth/kakao` ·
+  /// `/oauth/google` 소문자로 고정돼 있다.
   String get path => name;
 }

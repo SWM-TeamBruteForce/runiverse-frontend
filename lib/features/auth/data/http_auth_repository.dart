@@ -304,7 +304,11 @@ class HttpAuthRepository implements AuthRepository {
       'EMAIL_VERIFICATION_DAILY_LIMIT_EXCEEDED' => AuthFailure.sendDailyLimit,
       'EMAIL_SEND_FAILED' => AuthFailure.sendFailed,
       'EMAIL_NOT_VERIFIED' => AuthFailure.emailNotVerified,
-      'OAUTH_CODE_EXCHANGE_FAILED' => AuthFailure.oauthFailed,
+      // ⚠️ 서버가 2026-09-29(BE PR #69)에 이름을 바꿨다 —
+      // `OAUTH_CODE_EXCHANGE_FAILED` → `OAUTH_LOGIN_FAILED`. 옛 이름을 그대로
+      // 두는 동안 **401 이 `unknown` 으로 떨어져** 엉뚱한 문구가 떴다.
+      // 카카오·구글 공통이다.
+      'OAUTH_LOGIN_FAILED' => AuthFailure.oauthFailed,
       'OAUTH_EMAIL_NOT_PROVIDED' => AuthFailure.oauthEmailMissing,
       // 서버가 모르는 provider다. 앱이 enum으로 보내므로 정상 경로에서는
       // 나오지 않는다 — 나온다면 서버에 그 구현이 아직 없는 것이다.

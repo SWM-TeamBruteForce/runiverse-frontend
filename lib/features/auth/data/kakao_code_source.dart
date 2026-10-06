@@ -14,8 +14,11 @@ import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 ///
 /// 흔한 예제인 `UserApi.instance.loginWithKakaoTalk()`은 **액세스 토큰을 앱이
 /// 받는다.** 이 서비스는 서버가 토큰을 교환하므로 그 방식과 맞지 않는다.
-/// [AuthCodeClient.authorize]는 **인가 코드만** 돌려주고, 카카오톡 앱이 있으면
-/// 앱으로 없으면 웹으로 SDK가 알아서 분기한다.
+/// [AuthCodeClient.authorize]는 **인가 코드만** 돌려준다.
+///
+/// ⚠️ 예전 주석은 "카카오톡 앱이 있으면 앱으로 알아서 분기한다"고 적혀 있었는데
+/// **틀렸다.** SDK 소스상 `authorize` 는 브라우저(카카오계정)로만 가고,
+/// 카카오톡 앱은 `authorizeWithTalk` 이다.
 ///
 /// ## 리다이렉트 주소를 직접 만들지 않는다
 ///
