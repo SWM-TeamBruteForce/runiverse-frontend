@@ -30,9 +30,6 @@ class FakeOauthCodeSource implements OauthCodeSource {
     final reason = failure;
     if (reason != null) throw AuthException(reason);
 
-    return OauthAuthorization(
-      authorizationCode: code,
-      codeVerifier: 'fake-verifier',
-    );
+    return OauthCode(authorizationCode: code, codeVerifier: 'fake-verifier');
   }
 }

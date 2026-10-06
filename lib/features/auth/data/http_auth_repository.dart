@@ -77,12 +77,20 @@ class HttpAuthRepository implements AuthRepository {
     required OauthAuthorization authorization,
   }) async {
     try {
+      // ⚠️ **제공자마다 본문이 다르다.** 카카오는 인가 코드 + 검증값,
+      // 구글은 ID 토큰 하나다. `sealed` 라 제공자가 늘면 **여기서 컴파일이
+      // 깨진다** — 빈 본문을 보내고 서버에서 원인을 찾는 일이 없다.
+      final body = switch (authorization) {
+        OauthCode(:final authorizationCode, :final codeVerifier) => {
+          'authorizationCode': authorizationCode,
+          'codeVerifier': codeVerifier,
+        },
+        OauthIdToken(:final idToken) => {'idToken': idToken},
+      };
+
       final response = await _dio.post<Map<String, dynamic>>(
         '$_oauthPath/${provider.path}',
-        data: {
-          'authorizationCode': authorization.authorizationCode,
-          'codeVerifier': authorization.codeVerifier,
-        },
+        data: body,
       );
       return _sessionOf(response.data);
     } on DioException catch (error) {
