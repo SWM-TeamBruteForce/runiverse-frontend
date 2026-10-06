@@ -60,7 +60,7 @@ void main() {
           authRepositoryProvider.overrideWithValue(
             FakeAuthRepository(latency: Duration.zero),
           ),
-          oauthCodeSourceProvider.overrideWithValue(codeSource),
+          oauthCodeSourceProvider.overrideWith((ref, provider) => codeSource),
         ],
         child: const RuniverseApp(initialLocation: AppRoutes.signIn),
       ),
@@ -70,10 +70,7 @@ void main() {
   }
 
   Future<void> tapKakao(WidgetTester tester) async {
-    await tapVisible(
-      tester,
-      find.byTooltip(AppStrings.authKakao),
-    );
+    await tapVisible(tester, find.byTooltip(AppStrings.authKakao));
     await tester.pumpAndSettle();
   }
 

@@ -14,22 +14,25 @@
 /// 실어 주는 것이 진짜 해법이다.
 enum SignInMethod {
   email,
-  kakao;
+  kakao,
+  google;
 
-  // ⚠️ Apple은 아직 없다. `OauthProvider`에도 `kakao`뿐이고, 로그인 화면의
-  // Apple 버튼은 자리만 잡아 둔 것이다. 붙을 때 여기에 더한다.
+  // ⚠️ Apple은 아직 없다. `OauthProvider`에도 없고, 로그인 화면에 버튼도
+  // 없다. 붙을 때 여기에 더한다.
 
   /// 저장할 때 쓰는 값. **enum 이름을 그대로 쓰지 않는다** —
   /// 이름을 바꾸면 기기에 남아 있던 값이 읽히지 않는다.
   String get storageKey => switch (this) {
     SignInMethod.email => 'email',
     SignInMethod.kakao => 'kakao',
+    SignInMethod.google => 'google',
   };
 
   /// 저장된 값에서 되살린다. 모르는 값이면 `null` — 예전 버전이 남긴 값일 수 있다.
   static SignInMethod? fromStorage(String? value) => switch (value) {
     'email' => SignInMethod.email,
     'kakao' => SignInMethod.kakao,
+    'google' => SignInMethod.google,
     _ => null,
   };
 }

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/core/config/app_config.dart';
@@ -35,6 +36,21 @@ void main() async {
   _requireInRelease(AppConfig.hasKakaoNativeAppKey, 'KAKAO_NATIVE_APP_KEY');
   if (AppConfig.hasKakaoNativeAppKey) {
     await KakaoSdk.init(nativeAppKey: AppConfig.kakaoNativeAppKey);
+  }
+
+  // 구글도 같은 규칙이다. **웹** 클라이언트 ID로 초기화한다 — ID 토큰에 찍히는
+  // 수신자가 서버가 확인하는 값과 같아야 한다(`AppConfig.googleServerClientId`).
+  //
+  // ID가 없으면 건너뛴다. 그러면 `GoogleCodeSource` 가 SDK를 부르기 전에
+  // `oauthUnavailable` 로 돌아서고, 버튼은 `준비 중`이라 답한다.
+  _requireInRelease(
+    AppConfig.hasGoogleServerClientId,
+    'GOOGLE_SERVER_CLIENT_ID',
+  );
+  if (AppConfig.hasGoogleServerClientId) {
+    await GoogleSignIn.instance.initialize(
+      serverClientId: AppConfig.googleServerClientId,
+    );
   }
 
   // 지도도 같은 규칙이다. 키가 없으면 러닝 화면이 지도 자리에 안내를 그리고,

@@ -7,7 +7,8 @@
 /// **`apple`은 없다.** 서버 `Provider` enum에 `KAKAO`·`GOOGLE`뿐이라
 /// 지금 넣으면 부를 수 없는 값이 생긴다.
 enum OauthProvider {
-  kakao;
+  kakao,
+  google;
 
   /// 서버 경로에 쓰는 값.
   ///

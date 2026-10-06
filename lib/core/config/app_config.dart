@@ -49,6 +49,25 @@ class AppConfig {
   /// 원인을 알기 어려운 오류가 난다.
   static bool get hasKakaoNativeAppKey => kakaoNativeAppKey.isNotEmpty;
 
+  /// 구글 로그인에 쓰는 **웹** 클라이언트 ID.
+  ///
+  /// ⚠️ **Android 클라이언트 ID가 아니다.** 구글이 주는 ID 토큰에는 "이 토큰을
+  /// 누구에게 발급했는가"가 찍히고, 서버는 그 값이 우리 웹 클라이언트 ID인지
+  /// 확인한다. 다른 값을 넣으면 **토큰은 받아지는데 서버가 401을 돌려준다**
+  /// (연동 가이드 3절). Android 클라이언트는 콘솔에 등록만 돼 있으면 되고
+  /// 코드에는 들어가지 않는다.
+  ///
+  /// dev·prod 값이 다르다.
+  static const googleServerClientId = String.fromEnvironment(
+    'GOOGLE_SERVER_CLIENT_ID',
+  );
+
+  /// 구글 로그인을 걸어도 되는가.
+  ///
+  /// 카카오와 같은 규칙이다 — 값이 없으면 초기화하지 않고, 버튼은 `준비 중`으로
+  /// 답한다. 빈 값으로 초기화하면 로그인 창이 원인 모를 오류로 닫힌다.
+  static bool get hasGoogleServerClientId => googleServerClientId.isNotEmpty;
+
   /// 네이버 지도 Client ID.
   ///
   /// 네이버 클라우드 콘솔 > Maps > Dynamic Map에서 발급한다. 앱 패키지명으로
