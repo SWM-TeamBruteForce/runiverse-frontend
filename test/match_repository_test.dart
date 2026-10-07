@@ -198,6 +198,45 @@ void main() {
       expect(MatchSlot.todayRange(nowWall: noon).first.waitingCount, isNull);
     });
 
+    test('⚠️ 한국 시간대 기기에서도 지난 시간대만 잠긴다', () {
+      // **운영에서 터진 버그.** `KstTime.nowWall()` 은 UTC 플래그를 달고 오는데
+      // `todayRange` 가 로컬 플래그로 슬롯을 만들었다. `isBefore` 는 플래그를 보고
+      // '순간'을 비교하므로 **시차의 두 배(18시간)** 만큼 어긋났고, 한국에 있는
+      // 사용자에게는 하루 종일 아홉 칸이 전부 마감이었다.
+      //
+      // 기존 테스트가 못 잡은 이유는 `nowWall` 을 `DateTime(...)`(로컬)으로
+      // 넘겨서다 — 양쪽이 같은 플래그라 어긋날 일이 없었다. 에뮬레이터도
+      // 시간대가 UTC 라 로컬 == UTC 였다.
+      final slots = MatchSlot.todayRange(
+        nowWall: DateTime.utc(2026, 10, 7, 19, 10),
+      );
+
+      expect(slots.map((slot) => slot.selectable).toList(), [
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+      ]);
+    });
+
+    test('⚠️ nowWall 의 isUtc 플래그가 결과를 바꾸지 않는다', () {
+      // 벽시계 값은 플래그가 무엇이든 같은 뜻이다. 비교가 플래그에 기대면
+      // 부르는 쪽이 어떻게 만들었느냐로 답이 갈린다 — 그것이 이 버그였다.
+      List<bool> openOf(DateTime nowWall) => MatchSlot.todayRange(
+        nowWall: nowWall,
+      ).map((slot) => slot.selectable).toList();
+
+      expect(
+        openOf(DateTime.utc(2026, 10, 7, 19, 10)),
+        openOf(DateTime(2026, 10, 7, 19, 10)),
+      );
+    });
+
     test('지난 시간대는 잠긴 채로 온다', () {
       final slots = MatchSlot.todayRange(
         nowWall: DateTime(2026, 9, 16, 19, 10),
