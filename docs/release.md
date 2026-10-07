@@ -59,6 +59,7 @@ CI에 필요한 값은 저장소 Settings → Environments → **`dev`** 에 있
 | Secret | `GOOGLE_SERVICES_JSON` | Firebase `runiverse-dev`의 `google-services.json`. CI가 `android/app/src/dev/`에 둔다 |
 | Secret | `PLAY_SERVICE_ACCOUNT_JSON` | `Runiverse-dev` 앱에만 출시 권한이 있는 서비스 계정 |
 | Variable | `API_BASE_URL` | dev 서버 공개 주소 |
+| Variable | `UPLOAD_CERT_SHA1` | dev 업로드 키의 SHA-1 지문. 공개값이라 Secret이 아니다. 다른 키로 서명되면 업로드 전에 멈춘다 |
 
 ## 손으로 빌드하기
 

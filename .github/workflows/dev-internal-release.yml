@@ -16,8 +16,6 @@ permissions:
 
 env:
   PACKAGE_NAME: com.runiverse.app.dev
-  # dev 업로드 키의 공개 지문. 다른 키로 서명됐으면 올리기 전에 멈춘다
-  DEV_UPLOAD_CERT_SHA1: '76:A1:AC:7A:77:A4:32:0F:81:56:83:92:E1:EA:ED:E9:12:65:4E:5F'
 
 jobs:
   build-and-upload:
@@ -121,8 +119,10 @@ jobs:
         if: steps.changes.outputs.build == 'true'
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
+          UPLOAD_CERT_SHA1: ${{ vars.UPLOAD_CERT_SHA1 }} # 업로드 키의 공개 지문. 다른 키로 서명됐으면 멈춘다
         run: |
           set -euo pipefail
+          [ -n "$UPLOAD_CERT_SHA1" ] || { echo "::error::UPLOAD_CERT_SHA1이 비어 있다"; exit 1; }
           AAB=build/app/outputs/bundle/devRelease/app-dev-release.aab
           MANIFEST=$(find build/app/intermediates/merged_manifest/devRelease -name AndroidManifest.xml | head -1)
 
@@ -130,7 +130,7 @@ jobs:
           if grep -q 'android:debuggable="true"' "$MANIFEST"; then echo "::error::debuggable 빌드다"; exit 1; fi
 
           SHA1=$(keytool -printcert -jarfile "$AAB" | awk '/SHA1:/ && !found {print $2; found=1}')
-          [ "$SHA1" = "$DEV_UPLOAD_CERT_SHA1" ] || { echo "::error::dev 업로드 키로 서명되지 않았다 ($SHA1)"; exit 1; }
+          [ "$SHA1" = "$UPLOAD_CERT_SHA1" ] || { echo "::error::dev 업로드 키로 서명되지 않았다 ($SHA1)"; exit 1; }
 
           unzip -q -o "$AAB" 'base/lib/arm64-v8a/libapp.so' -d "$RUNNER_TEMP/aab"
           # 파일로 받아 검사한다. pipefail에서 `strings | grep -q`는 grep이 먼저 끝나 SIGPIPE(141)로 실패한다
