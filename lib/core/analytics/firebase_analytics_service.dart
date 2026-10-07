@@ -1,6 +1,5 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
 import 'package:runiverse/core/analytics/analytics.dart';
 
 /// 진짜로 GA4 에 보내는 [Analytics].
@@ -20,8 +19,14 @@ class FirebaseAnalyticsService implements Analytics {
   final FirebaseAnalytics _analytics;
 
   @override
-  NavigatorObserver newRouteObserver() =>
-      FirebaseAnalyticsObserver(analytics: _analytics);
+  Future<void> screenView({required String name}) async {
+    try {
+      await _analytics.logScreenView(screenName: name);
+      if (kDebugMode) debugPrint('[ga] screen_view $name');
+    } on Object catch (error) {
+      if (kDebugMode) debugPrint('[ga] screen_view $name 실패: $error');
+    }
+  }
 
   @override
   Future<void> login({required String method}) =>

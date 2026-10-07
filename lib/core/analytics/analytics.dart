@@ -1,4 +1,3 @@
-import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// 사용자 행동을 남긴다 — 앱에서의 GA4(Firebase Analytics).
@@ -14,20 +13,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// ## 화면은 왜 따로 잡아야 하나
 ///
 /// Flutter 앱은 안드로이드 화면(Activity)이 하나뿐이라 화면 이동이 자동으로
-/// 잡히지 않는다. [newRouteObserver] 를 라우터와 각 탭 브랜치에 꽂아 대신 잡는다.
+/// 잡히지 않는다. [screenView] 를 **라우터가 바뀔 때마다** 부른다.
+///
+/// ## ⚠️ `FirebaseAnalyticsObserver` 를 쓰지 않는다
+///
+/// 기기에서 확인하고 버린 길이다. 관찰자를 라우터와 탭 브랜치 넷에 꽂았더니
+/// 이 화면 구성에서 두 가지가 어긋났다.
+///
+/// | | 무슨 일이 났나 |
+/// |---|---|
+/// | 탭 **재방문** | 아무것도 안 찍힌다 |
+/// | 탭 **첫 방문** | 두 번 찍힌다 |
+///
+/// `StatefulShellRoute.indexedStack` 은 탭을 바꿔도 라우트를 밀어 넣지 않는다 —
+/// 네 [Navigator] 를 쌓아 두고 보여줄 것만 바꾸므로 관찰자가 불리지 않는다.
+/// 첫 방문이 두 번인 것은 루트와 브랜치 관찰자가 **같은 화면을 각자 적어서**다.
+///
+/// 라우터 변화를 직접 들으면 둘 다 없어진다. 시트·다이얼로그가 주소를 바꾸지
+/// 않는 것도 이쪽에 유리하다 — 열고 닫아도 군더더기 이벤트가 생기지 않는다.
 ///
 /// ## 실패를 밖으로 흘리지 않는다
 ///
 /// 분석은 곁다리다. 로그를 못 남겼다고 로그인이나 러닝이 멈추면 안 된다 —
 /// 구현체가 예외를 안에서 삼킨다.
 abstract interface class Analytics {
-  /// 화면 이동을 잡는 관찰자.
-  ///
-  /// ⚠️ **부를 때마다 새로 만든다.** [NavigatorObserver] 는 자기가 붙은
-  /// [NavigatorState] 를 하나만 들고 있어서, 같은 인스턴스를 라우터와 탭
-  /// 브랜치에 겹쳐 꽂으면 나중에 붙은 쪽만 살아남는다. 탭 넷이 각자
-  /// [Navigator] 를 갖는 `StatefulShellRoute` 에서는 그대로 구멍이 된다.
-  NavigatorObserver newRouteObserver();
+  /// 화면 하나를 봤다. [name] 은 `GoRoute` 에 붙인 이름이다.
+  Future<void> screenView({required String name});
 
   /// 로그인 성공. [method] 는 `email` · `kakao` · `google`.
   Future<void> login({required String method});
@@ -69,7 +80,7 @@ class NoopAnalytics implements Analytics {
   const NoopAnalytics();
 
   @override
-  NavigatorObserver newRouteObserver() => NavigatorObserver();
+  Future<void> screenView({required String name}) async {}
 
   @override
   Future<void> login({required String method}) async {}

@@ -1,4 +1,3 @@
-import 'package:flutter/widgets.dart';
 import 'package:runiverse/core/analytics/analytics.dart';
 
 /// 무엇이 몇 번 남았는지 적어 두는 [Analytics]. 테스트가 쓴다.
@@ -20,7 +19,8 @@ class FakeAnalytics implements Analytics {
       events.lastWhere((e) => e.$1 == name, orElse: () => (name, null)).$2;
 
   @override
-  NavigatorObserver newRouteObserver() => NavigatorObserver();
+  Future<void> screenView({required String name}) async =>
+      events.add(('screen_view', {'name': name}));
 
   @override
   Future<void> login({required String method}) async =>

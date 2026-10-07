@@ -1,5 +1,4 @@
-﻿import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+﻿import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/app/router/app_shell.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
@@ -47,28 +46,10 @@ import 'package:runiverse/features/settings/presentation/settings_page.dart';
 ///   `refreshListenable`을 쓴다 (`docs/implementation-notes.md` §5-2).
 /// - **탭 바를 덮는 전체 화면** — 러닝 중 화면(S11~S13)은 탭 바 위를 덮어야 한다.
 ///   그때 루트 `navigatorKey`를 만들고 해당 `GoRoute`에 `parentNavigatorKey`로 넘긴다.
-/// [newObserver]는 [Navigator] 하나마다 **새 관찰자**를 만들어 주는 함수다.
-///
-/// ## ⚠️ 왜 인스턴스가 아니라 함수인가
-///
-/// [NavigatorObserver]는 자기가 붙은 [NavigatorState]를 하나만 들고 있다.
-/// 같은 인스턴스를 라우터와 탭 브랜치에 겹쳐 꽂으면 **나중에 붙은 쪽만 살아남아**
-/// 나머지 화면 이동이 통째로 빠진다. 탭 넷이 각자 [Navigator]를 갖는
-/// [StatefulShellRoute.indexedStack]에서는 그대로 구멍이 된다.
-///
-/// 비워 두면 아무것도 꽂지 않는다 — 위젯 테스트가 그렇게 쓴다.
-GoRouter createAppRouter({
-  String? initialLocation,
-  NavigatorObserver Function()? newObserver,
-}) {
-  List<NavigatorObserver> observers() => [
-    if (newObserver != null) newObserver(),
-  ];
-
+GoRouter createAppRouter({String? initialLocation}) {
   return GoRouter(
     // 플랫폼이 넘겨주는 기본 경로 `/`를 이 값으로 대체한다.
     initialLocation: initialLocation ?? AppRoutes.splash,
-    observers: observers(),
     routes: [
       // ── 탭 셸 밖 ─────────────────────────────────────────────
       //
@@ -181,7 +162,6 @@ GoRouter createAppRouter({
         branches: [
           // 0 · 홈 (S05)
           StatefulShellBranch(
-            observers: observers(),
             routes: [
               GoRoute(
                 path: AppRoutes.home,
@@ -193,7 +173,6 @@ GoRouter createAppRouter({
 
           // 1 · 기록 (S21)
           StatefulShellBranch(
-            observers: observers(),
             routes: [
               GoRoute(
                 path: AppRoutes.record,
@@ -221,7 +200,6 @@ GoRouter createAppRouter({
 
           // 2 · 기록카드 — 화면이 생기면 여기만 갈아끼운다.
           StatefulShellBranch(
-            observers: observers(),
             routes: [
               GoRoute(
                 path: AppRoutes.recordCard,
@@ -237,7 +215,6 @@ GoRouter createAppRouter({
           // ⚠️ **S20은 타인 프로필이다.** Figma 페이지 이름이 `S20–S21`이라
           // 헷갈리기 쉽다. 정본은 `와이어프레임_최종.md`다.
           StatefulShellBranch(
-            observers: observers(),
             routes: [
               GoRoute(
                 path: AppRoutes.profile,

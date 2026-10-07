@@ -1,5 +1,14 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/app/app.dart';
+import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/widgets/v2/app_tab_bar.dart';
+import 'package:runiverse/features/matching/data/fake_match_repository.dart';
+import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
+import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
+import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/analytics/fake_analytics.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
@@ -116,6 +125,84 @@ void main() {
           .signIn(email: 'a@b.com', password: 'runi123!');
 
       expect(analytics.paramsOf('login'), {'method': 'email'});
+    });
+  });
+
+  group('screen_view', () {
+    // ⚠️ **이 묶음이 실제 결함을 잡아 만들어졌다.**
+    //
+    // 처음에는 `FirebaseAnalyticsObserver` 를 라우터와 탭 브랜치 넷에 꽂았는데,
+    // 기기에서 보니 **탭을 다시 눌러도 아무것도 안 찍혔다.**
+    // `StatefulShellRoute.indexedStack` 은 탭을 바꿔도 라우트를 밀어 넣지 않아
+    // 관찰자가 불리지 않는다. 게다가 첫 방문은 루트·브랜치 관찰자가 각자 적어
+    // **두 번** 찍혔다.
+    //
+    // 눈으로도 다른 테스트로도 드러나지 않는 종류라 여기서 센다.
+    Future<void> pumpApp(WidgetTester tester) async {
+      analytics = FakeAnalytics();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            analyticsProvider.overrideWithValue(analytics),
+            matchRepositoryProvider.overrideWithValue(FakeMatchRepository()),
+            // 기록 탭이 들어서면서 목록을 받아온다. 진짜를 두면 dio 가 서버
+            // 주소를 찾다 죽는다 — 테스트에는 주소가 없다.
+            runRecordRepositoryProvider.overrideWithValue(
+              FakeRunRecordRepository(),
+            ),
+            userStatusRepositoryProvider.overrideWithValue(
+              FakeUserStatusRepository(),
+            ),
+          ],
+          child: const RuniverseApp(initialLocation: AppRoutes.home),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> tapTab(WidgetTester tester, String label) async {
+      // ⚠️ **탭 바 안에서 찾는다.** 기록 탭으로 가면 그 화면의 제목도
+      // `기록` 이라 라벨이 둘이 되어 `tap()` 이 어느 쪽인지 모른다고 멈춘다.
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AppTabBarV2),
+          matching: find.bySemanticsLabel(label),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    List<String> screens() => [
+      for (final e in analytics.events)
+        if (e.$1 == 'screen_view') e.$2!['name']! as String,
+    ];
+
+    testWidgets('첫 화면이 한 번 남는다', (tester) async {
+      await pumpApp(tester);
+
+      // ⚠️ **두 번이 아니다.** 관찰자를 겹쳐 꽂았을 때는 두 번이었다.
+      expect(screens(), ['home']);
+    });
+
+    testWidgets('⚠️ 탭을 다시 눌러도 남는다', (tester) async {
+      // 관찰자 방식에서 통째로 빠지던 자리다. 이게 빠지면 탭 사이 이동을
+      // 셀 수 없어 **어느 탭에서 머무는지**를 못 본다.
+      await pumpApp(tester);
+
+      await tapTab(tester, AppStrings.tabRecord);
+      await tapTab(tester, AppStrings.tabHome);
+      await tapTab(tester, AppStrings.tabRecord);
+
+      expect(screens(), ['home', 'record', 'home', 'record']);
+    });
+
+    testWidgets('같은 화면이 연달아 남지는 않는다', (tester) async {
+      await pumpApp(tester);
+
+      await tapTab(tester, AppStrings.tabRecord);
+      await tapTab(tester, AppStrings.tabRecord);
+
+      expect(screens(), ['home', 'record']);
     });
   });
 }

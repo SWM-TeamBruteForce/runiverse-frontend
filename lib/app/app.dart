@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -35,17 +37,37 @@ class RuniverseApp extends ConsumerStatefulWidget {
 }
 
 class _RuniverseAppState extends ConsumerState<RuniverseApp> {
-  // 라우터를 한 번만 만들므로 관찰자도 여기서 한 번만 엮는다.
-  //
-  // 기본값은 [NoopAnalytics] 라 `NavigatorObserver()` 가 꽂힌다 — 아무것도
-  // 하지 않는 관찰자여서 테스트에 영향이 없다. 진짜는 `main.dart` 가 끼운다.
   late final GoRouter _router = createAppRouter(
     initialLocation: widget.initialLocation,
-    newObserver: ref.read(analyticsProvider).newRouteObserver,
   );
+
+  /// 마지막으로 남긴 화면. 같은 화면이 연달아 남지 않게 막는다.
+  String? _lastScreen;
+
+  @override
+  void initState() {
+    super.initState();
+    // ⚠️ **`FirebaseAnalyticsObserver` 대신 라우터를 직접 듣는다.**
+    // 탭을 바꿔도 라우트를 밀어 넣지 않는 `StatefulShellRoute.indexedStack`
+    // 에서는 관찰자가 불리지 않아 **탭 재방문이 통째로 빠졌고**, 루트와 브랜치
+    // 관찰자가 겹쳐 **첫 방문이 두 번** 찍혔다. 기기에서 보고 바꿨다.
+    _router.routerDelegate.addListener(_onRouteChanged);
+    // 첫 화면은 이 리스너가 붙기 전에 이미 섰다. 한 번 직접 남긴다.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onRouteChanged());
+  }
+
+  void _onRouteChanged() {
+    final name = _router.state.name;
+    // 이름이 없는 라우트는 없지만, 생기면 조용히 건너뛴다 — 이름 없는
+    // `screen_view` 는 지표에서 쓸모가 없다.
+    if (name == null || name == _lastScreen) return;
+    _lastScreen = name;
+    unawaited(ref.read(analyticsProvider).screenView(name: name));
+  }
 
   @override
   void dispose() {
+    _router.routerDelegate.removeListener(_onRouteChanged);
     _router.dispose();
     super.dispose();
   }
