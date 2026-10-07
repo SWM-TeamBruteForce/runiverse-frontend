@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/settings/data/fake_settings_repository.dart';
 import 'package:runiverse/features/settings/data/http_settings_repository.dart';
@@ -170,6 +173,7 @@ class SettingsController extends Notifier<SettingsState> {
   Future<SettingsFailure?> withdraw() async {
     try {
       await _repository.withdraw();
+      unawaited(ref.read(analyticsProvider).withdraw());
       await ref.read(consentStoreProvider).forgetTermsAgreement();
       await ref.read(authControllerProvider.notifier).forgetSession();
       return null;

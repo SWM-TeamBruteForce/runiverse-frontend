@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
@@ -390,6 +391,8 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
     OnboardingFailure? failure;
     try {
       await ref.read(onboardingRepositoryProvider).submit(profile);
+      // 서버가 받은 뒤다. **가입 완료로 센다.**
+      unawaited(ref.read(analyticsProvider).onboardingComplete());
       // 저장소와 상태를 함께 켠다. 이게 없으면 앱을 껐다 켤 때 다시 여기로 온다.
       await ref.read(authControllerProvider.notifier).markOnboarded();
 

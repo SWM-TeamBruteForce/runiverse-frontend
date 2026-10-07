@@ -1,4 +1,5 @@
-﻿import 'package:go_router/go_router.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/app/router/app_shell.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
@@ -46,32 +47,55 @@ import 'package:runiverse/features/settings/presentation/settings_page.dart';
 ///   `refreshListenable`을 쓴다 (`docs/implementation-notes.md` §5-2).
 /// - **탭 바를 덮는 전체 화면** — 러닝 중 화면(S11~S13)은 탭 바 위를 덮어야 한다.
 ///   그때 루트 `navigatorKey`를 만들고 해당 `GoRoute`에 `parentNavigatorKey`로 넘긴다.
-GoRouter createAppRouter({String? initialLocation}) {
+/// [newObserver]는 [Navigator] 하나마다 **새 관찰자**를 만들어 주는 함수다.
+///
+/// ## ⚠️ 왜 인스턴스가 아니라 함수인가
+///
+/// [NavigatorObserver]는 자기가 붙은 [NavigatorState]를 하나만 들고 있다.
+/// 같은 인스턴스를 라우터와 탭 브랜치에 겹쳐 꽂으면 **나중에 붙은 쪽만 살아남아**
+/// 나머지 화면 이동이 통째로 빠진다. 탭 넷이 각자 [Navigator]를 갖는
+/// [StatefulShellRoute.indexedStack]에서는 그대로 구멍이 된다.
+///
+/// 비워 두면 아무것도 꽂지 않는다 — 위젯 테스트가 그렇게 쓴다.
+GoRouter createAppRouter({
+  String? initialLocation,
+  NavigatorObserver Function()? newObserver,
+}) {
+  List<NavigatorObserver> observers() => [
+    if (newObserver != null) newObserver(),
+  ];
+
   return GoRouter(
     // 플랫폼이 넘겨주는 기본 경로 `/`를 이 값으로 대체한다.
     initialLocation: initialLocation ?? AppRoutes.splash,
+    observers: observers(),
     routes: [
       // ── 탭 셸 밖 ─────────────────────────────────────────────
       //
       // 셸 밖이라 하단 탭이 뜨지 않는다. 온보딩은 탭으로 오갈 대상이 아니다.
       GoRoute(
         path: AppRoutes.splash,
+        name: 'splash',
         builder: (context, state) => const SplashPage(),
       ),
       GoRoute(
         path: AppRoutes.onboardingIntro,
+        name: 'onboarding_intro',
         builder: (context, state) => const OnboardingIntroPage(),
       ),
       GoRoute(
         path: AppRoutes.signIn,
+        name: 'sign_in',
         builder: (context, state) => const SignInPage(),
       ),
       GoRoute(
         path: AppRoutes.signUp,
+        name: 'sign_up',
         builder: (context, state) => const SignUpPage(),
       ),
       GoRoute(
         path: AppRoutes.terms,
+        name: 'terms',
         builder: (context, state) {
           // `extra`는 `Object?`라 무엇이든 올 수 있다. 타입을 확인하고 아니면
           // 기본값으로 간다 — 딥링크로 들어오면 아무것도 실려 오지 않는다.
@@ -83,17 +107,20 @@ GoRouter createAppRouter({String? initialLocation}) {
       ),
       GoRoute(
         path: AppRoutes.profileSetup,
+        name: 'profile_setup',
         builder: (context, state) => const ProfileSetupPage(),
       ),
       // ⚠️ 셸 **밖**이다. 탭 안에 두면 편집 도중 다른 탭으로 샐 수 있고,
       // 그때 저장하지 않은 값이 말없이 사라진다.
       GoRoute(
         path: AppRoutes.profileEdit,
+        name: 'profile_edit',
         builder: (context, state) => const ProfileEditPage(),
       ),
       // 설정도 셸 밖이다. 이유는 편집과 같다.
       GoRoute(
         path: AppRoutes.settings,
+        name: 'settings',
         builder: (context, state) => const SettingsPage(),
       ),
       // ⚠️ 설정의 **자식으로 두지 않았다.** 자식이면 경로가
@@ -101,38 +128,46 @@ GoRouter createAppRouter({String? initialLocation}) {
       // 딥링크로 바로 열 때 부모가 먼저 그려져야 한다.
       GoRoute(
         path: AppRoutes.passwordChange,
+        name: 'password_change',
         builder: (context, state) => const PasswordChangePage(),
       ),
 
       // 매칭 등록 — 셸 밖이다. 조건을 고르는 도중에 탭으로 새면 값이 사라진다.
       GoRoute(
         path: AppRoutes.matchRegister,
+        name: 'match_register',
         builder: (context, state) => const MatchRegisterPage(),
       ),
       GoRoute(
         path: AppRoutes.matchRoom,
+        name: 'match_room',
         builder: (context, state) => const MatchRoomPage(),
       ),
       GoRoute(
         path: AppRoutes.matchCountdown,
+        name: 'match_countdown',
         builder: (context, state) => const MatchCountdownPage(),
       ),
 
       // 1인 러닝 — 셸 밖이라 탭 바를 덮는다.
       GoRoute(
         path: AppRoutes.runPrepare,
+        name: 'run_prepare',
         builder: (context, state) => const RunPreparePage(),
       ),
       GoRoute(
         path: AppRoutes.runSession,
+        name: 'run_session',
         builder: (context, state) => const RunSessionPage(),
       ),
       GoRoute(
         path: AppRoutes.runSummary,
+        name: 'run_summary',
         builder: (context, state) => const RunSummaryPage(),
       ),
       GoRoute(
         path: AppRoutes.runResult,
+        name: 'run_result',
         // 종료 직후에도 **서버가 확정한 값**을 그린다. S15가 방 번호만
         // 넘기고 화면이 17·18번으로 읽는다 — 기록 탭에서 여는 것과 같은
         // 경로다.
@@ -146,9 +181,11 @@ GoRouter createAppRouter({String? initialLocation}) {
         branches: [
           // 0 · 홈 (S05)
           StatefulShellBranch(
+            observers: observers(),
             routes: [
               GoRoute(
                 path: AppRoutes.home,
+                name: 'home',
                 builder: (context, state) => const HomePage(),
               ),
             ],
@@ -156,13 +193,16 @@ GoRouter createAppRouter({String? initialLocation}) {
 
           // 1 · 기록 (S21)
           StatefulShellBranch(
+            observers: observers(),
             routes: [
               GoRoute(
                 path: AppRoutes.record,
+                name: 'record',
                 builder: (context, state) => const RecordPage(),
                 routes: [
                   GoRoute(
                     path: AppRoutes.recordDetail,
+                    name: 'record_detail',
                     builder: (context, state) => RecordDetailPage(
                       // 경로에서 온 값이라 문자열이다. 숫자가 아니면 0을
                       // 넘겨 "못 찾음"으로 흘린다 — 상세 화면이 이미 오류
@@ -181,9 +221,11 @@ GoRouter createAppRouter({String? initialLocation}) {
 
           // 2 · 기록카드 — 화면이 생기면 여기만 갈아끼운다.
           StatefulShellBranch(
+            observers: observers(),
             routes: [
               GoRoute(
                 path: AppRoutes.recordCard,
+                name: 'record_card',
                 builder: (context, state) =>
                     const ComingSoonPage(featureName: AppStrings.tabRecordCard),
               ),
@@ -195,9 +237,11 @@ GoRouter createAppRouter({String? initialLocation}) {
           // ⚠️ **S20은 타인 프로필이다.** Figma 페이지 이름이 `S20–S21`이라
           // 헷갈리기 쉽다. 정본은 `와이어프레임_최종.md`다.
           StatefulShellBranch(
+            observers: observers(),
             routes: [
               GoRoute(
                 path: AppRoutes.profile,
+                name: 'profile',
                 builder: (context, state) => const ProfilePage(),
               ),
             ],

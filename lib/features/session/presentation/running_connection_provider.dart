@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/config/app_config.dart';
 import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
@@ -286,6 +287,13 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// 방금 끝낸 방. [RunningConnectionState.finishedRoomId] 참조.
   int? _finishedRoomId;
 
+  /// `run_start` 를 남긴 방. 재연결로 ack 가 또 와도 다시 세지 않는다.
+  int? _startLogged;
+
+  /// GA 가 받는 러닝 종류. 매칭 방이면 `match`, 솔로면 `solo` 다.
+  static String _runType(bool? isMatched) =>
+      (isMatched ?? false) ? 'match' : 'solo';
+
   /// 아직 시작하지 않은 방을 **서버에서 없애고** 앱에서도 내려놓는다.
   ///
   /// 준비 화면을 떠날 때 부른다. 복구로 들어온 솔로 준비는 서버에 이미
@@ -413,6 +421,17 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     // 연결마다 한 번씩만 온다(ack가 그렇다). 재연결로 또 와도 같은 답이라 해롭지 않다.
     channel.snapshots.listen((_) {
       debugPrint('[running] 시작이 확인됐다. 상태를 다시 읽는다');
+      // ⚠️ **방마다 한 번만 남긴다.** 이 ack 는 재연결 때도 오므로, 끊겼다
+      // 붙을 때마다 남기면 한 번의 러닝이 여러 번 시작한 것으로 세어진다.
+      final startedId = state.room?.id;
+      if (startedId != null && startedId != _startLogged) {
+        _startLogged = startedId;
+        unawaited(
+          ref
+              .read(analyticsProvider)
+              .runStart(runType: _runType(state.room?.isMatched)),
+        );
+      }
       // ⚠️ **실패해도 러닝은 계속된다.** 이건 곁다리 정리라 여기서 던지면
       // 아무도 받지 않는 비동기 오류가 되어 달리는 중에 앱이 죽는다.
       // 못 읽으면 SSE가 조금 늦게 닫힐 뿐이다(30초 무음 감시가 받아 준다).
@@ -610,6 +629,11 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
         // ⚠️ **끝냈다는 사실을 남긴다.** 서버 상태가 따라오기 전까지 홈이
         // 이 방으로 돌아가는 문을 띄우지 않게 한다.
         _finishedRoomId = finishedId;
+        unawaited(
+          ref
+              .read(analyticsProvider)
+              .runFinish(runType: _runType(state.room?.isMatched)),
+        );
         await ref.read(trackRecorderProvider).discard();
         // ⚠️ 좌표와 **같은 순간에** 지운다. 번호만 남으면 다음 러닝이 이미 끝난
         // 방을 정리하려 들고, 좌표만 남으면 지울 사람이 없어진다.
