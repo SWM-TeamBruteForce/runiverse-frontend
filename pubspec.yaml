@@ -104,6 +104,7 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  default-flavor: dev # 운영 빌드만 --flavor prod를 붙인다
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

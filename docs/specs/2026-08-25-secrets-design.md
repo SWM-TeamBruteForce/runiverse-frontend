@@ -74,7 +74,7 @@ void _requireInRelease(bool present, String name) {
 `kakao<앱키>` 형식이라 Gradle 프로퍼티로 한 번 더 넘겨야 한다.
 
 ```bash
-fvm flutter build apk --dart-define-from-file=config/prod.json \
+fvm flutter build apk --flavor prod --dart-define-from-file=config/prod.json \
                       -PKAKAO_NATIVE_APP_KEY=...
 ```
 
@@ -92,7 +92,8 @@ fvm flutter build apk --dart-define-from-file=config/prod.json \
 { "permissions": { "deny": [
   "Read(./config/dev.json)", "Read(./config/prod.json)",
   "Read(./.env)", "Read(./.env.*)",
-  "Read(./android/key.properties)", "Read(./android/app/*.jks)"
+  "Read(./android/key.properties)", "Read(./android/key-dev.properties)",
+  "Read(./android/app/*.jks)"
 ] } }
 ```
 
