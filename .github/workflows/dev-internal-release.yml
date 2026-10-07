@@ -1,0 +1,151 @@
+# dev 앱(com.runiverse.app.dev)을 빌드해 Play 내부 테스트 트랙에 올린다.
+# 머지마다 돌리지 않는다 — 하루에 머지가 십수 번 몰려 테스터 앱이 계속 바뀐다.
+name: Dev Internal Release
+
+on:
+  workflow_dispatch: # Actions 화면의 Run workflow 버튼
+  schedule:
+    - cron: '0 18 * * *' # 매일 03:00 KST, 지난 하루 dev에 커밋이 있을 때만 빌드
+
+concurrency:
+  group: dev-internal-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  PACKAGE_NAME: com.runiverse.app.dev
+  # dev 업로드 키의 공개 지문. 다른 키로 서명됐으면 올리기 전에 멈춘다
+  DEV_UPLOAD_CERT_SHA1: '76:A1:AC:7A:77:A4:32:0F:81:56:83:92:E1:EA:ED:E9:12:65:4E:5F'
+
+jobs:
+  build-and-upload:
+    name: dev 빌드 → 내부 테스트 업로드
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: dev # Secret·Variable은 dev 환경에 있다. 이름은 config/*.json 키와 같다
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v6
+        with:
+          ref: dev
+          fetch-depth: 50
+
+      - name: 새 커밋 확인
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          elif [ -n "$(git log -1 --since='25 hours ago' --format=%H)" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "지난 하루 dev에 새 커밋이 없어 건너뛴다"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 버전 코드 정하기
+        if: steps.changes.outputs.build == 'true'
+        id: version
+        run: |
+          # 실행 번호를 그대로 쓴다. 손으로 올린 1·2는 첫 두 실행을 취소해 건너뛰었다
+          {
+            echo "code=${{ github.run_number }}"
+            echo "sha=$(git rev-parse --short HEAD)"
+            echo "flutter=$(jq -r .flutter .fvmrc)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK 21
+        if: steps.changes.outputs.build == 'true'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Flutter
+        if: steps.changes.outputs.build == 'true'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ steps.version.outputs.flutter }}
+          channel: stable
+          cache: true
+
+      - name: 설정·서명 파일 만들기
+        if: steps.changes.outputs.build == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+          NAVER_MAP_CLIENT_ID: ${{ secrets.NAVER_MAP_CLIENT_ID }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ secrets.GOOGLE_SERVER_CLIENT_ID }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KAKAO_NATIVE_APP_KEY NAVER_MAP_CLIENT_ID GOOGLE_SERVER_CLIENT_ID GOOGLE_SERVICES_JSON API_BASE_URL; do
+            if [ -z "${!name}" ]; then echo "::error::$name이 비어 있다"; exit 1; fi
+          done
+
+          KEYSTORE="$RUNNER_TEMP/upload-keystore-dev.jks"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE"
+          cat > android/key-dev.properties <<EOF
+          storeFile=$KEYSTORE
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=upload-dev
+          keyPassword=$KEYSTORE_PASSWORD
+          EOF
+
+          jq -n \
+            --arg api "$API_BASE_URL" \
+            --arg naver "$NAVER_MAP_CLIENT_ID" \
+            --arg kakao "$KAKAO_NATIVE_APP_KEY" \
+            --arg google "$GOOGLE_SERVER_CLIENT_ID" \
+            '{API_BASE_URL: $api, NAVER_MAP_CLIENT_ID: $naver, KAKAO_NATIVE_APP_KEY: $kakao, GOOGLE_SERVER_CLIENT_ID: $google}' \
+            > config/dev.json
+
+          # Firebase(runiverse-dev) 설정. dev flavor만 읽는 자리에 둔다
+          mkdir -p android/app/src/dev
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/src/dev/google-services.json
+
+      - name: Build app bundle
+        if: steps.changes.outputs.build == 'true'
+        env:
+          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+        run: |
+          flutter build appbundle --release --flavor dev \
+            --build-number=${{ steps.version.outputs.code }} \
+            --dart-define-from-file=config/dev.json \
+            -PKAKAO_NATIVE_APP_KEY="$KAKAO_NATIVE_APP_KEY"
+
+      - name: 산출물 검증
+        if: steps.changes.outputs.build == 'true'
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          AAB=build/app/outputs/bundle/devRelease/app-dev-release.aab
+          MANIFEST=$(find build/app/intermediates/merged_manifest/devRelease -name AndroidManifest.xml | head -1)
+
+          grep -q "package=\"$PACKAGE_NAME\"" "$MANIFEST" || { echo "::error::패키지가 $PACKAGE_NAME이 아니다"; exit 1; }
+          if grep -q 'android:debuggable="true"' "$MANIFEST"; then echo "::error::debuggable 빌드다"; exit 1; fi
+
+          SHA1=$(keytool -printcert -jarfile "$AAB" | awk '/SHA1:/ && !found {print $2; found=1}')
+          [ "$SHA1" = "$DEV_UPLOAD_CERT_SHA1" ] || { echo "::error::dev 업로드 키로 서명되지 않았다 ($SHA1)"; exit 1; }
+
+          unzip -q -o "$AAB" 'base/lib/arm64-v8a/libapp.so' -d "$RUNNER_TEMP/aab"
+          # 파일로 받아 검사한다. pipefail에서 `strings | grep -q`는 grep이 먼저 끝나 SIGPIPE(141)로 실패한다
+          STRINGS="$RUNNER_TEMP/libapp-strings.txt"
+          strings "$RUNNER_TEMP/aab/base/lib/arm64-v8a/libapp.so" > "$STRINGS"
+          grep -qF "$API_BASE_URL" "$STRINGS" || { echo "::error::dev 서버 주소가 앱에 없다"; exit 1; }
+          if grep -qF 'api.runiverseapp.com' "$STRINGS"; then echo "::error::운영 주소가 들어갔다"; exit 1; fi
+
+      - name: Upload to Play internal testing
+        if: steps.changes.outputs.build == 'true'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ env.PACKAGE_NAME }}
+          releaseFiles: build/app/outputs/bundle/devRelease/app-dev-release.aab
+          releaseName: ${{ steps.version.outputs.code }} (dev ${{ steps.version.outputs.sha }})
+          track: internal
+          status: completed
