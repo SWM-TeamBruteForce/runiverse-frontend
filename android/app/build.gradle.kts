@@ -13,7 +13,23 @@ plugins {
 // 파일이 없으면 아래 buildTypes에서 debug 키로 되돌린다. 키스토어가 없는
 // 사람도 `flutter build --release`가 그대로 돌아가야 하기 때문이다. 그렇게
 // 나온 산출물은 Play에 올릴 수 없지만, 올릴 일도 없다.
-val keystorePropertiesFile = rootProject.file("key.properties")
+//
+// `-PdevRelease=true`면 release 모드로 `.dev` 앱을 만든다 — Play 내부 테스트로
+// 팀에 나눠 줄 개발 빌드다. profile은 debuggable이라 Play가 받지 않는다.
+// 이때는 운영 키 대신 `android/key-dev.properties`(dev 전용 업로드 키)만 읽고,
+// 없으면 debug 키로 되돌리지 않고 멈춘다. 되돌리면 CI 설정 누락이 업로드
+// 단계에서야 드러난다.
+val devRelease = when (providers.gradleProperty("devRelease").orNull) {
+    null, "false" -> false
+    "true" -> true
+    else -> throw GradleException("devRelease는 true나 false여야 합니다")
+}
+val keystorePropertiesFile = rootProject.file(
+    if (devRelease) "key-dev.properties" else "key.properties"
+)
+if (devRelease && !keystorePropertiesFile.isFile) {
+    throw GradleException("devRelease에는 android/key-dev.properties가 필요합니다")
+}
 val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) {
         FileInputStream(keystorePropertiesFile).use { load(it) }
@@ -88,6 +104,11 @@ android {
         }
 
         release {
+            if (devRelease) {
+                applicationIdSuffix = ".dev"
+                manifestPlaceholders["appLabel"] = "Runiverse-dev"
+            }
+
             // key.properties가 있으면 업로드 키로, 없으면 종전대로 debug 키로
             // 서명한다. Play는 debug 서명을 거부하므로 업로드용 산출물은
             // 반드시 키스토어를 가진 쪽에서 빌드해야 한다.
