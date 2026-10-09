@@ -146,7 +146,7 @@ void main() {
     records.saved = true;
     await finishRun(container);
 
-    expect(records.calls, 2, reason: '처음 한 번(두 요청)에서 늘면 안 된다');
+    expect(records.calls, 1, reason: '처음 읽은 한 번에서 늘면 안 된다');
   });
 }
 

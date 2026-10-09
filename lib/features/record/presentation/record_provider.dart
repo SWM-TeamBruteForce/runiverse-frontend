@@ -132,28 +132,54 @@ class RecordController extends Notifier<RecordState> {
     if (state is! RecordData) state = const RecordLoading();
 
     try {
+      final selected = select == null
+          ? _initialDay(target, now)
+          : DateTime(select.year, select.month, select.day);
+
+      // ⚠️ **두 7일이 겹치지 않는다.** 차트는 **오늘이 낀 월~일**이고 스트립은
+      // **고른 날 ±3일**이다. 서로 다른 규칙이라 달 초·말에는 멀리 떨어진다.
       final days = weekOf(now);
-      final strip = stripAround(now);
+      final strip = stripAround(selected);
 
-      // ⚠️ **두 7일이 겹치지 않을 수 있다.** 차트는 월~일이고 스트립은
-      // 오늘 ±3일이라, 달 초에는 서로 다른 날을 가리킨다. 한 번에 넓게
-      // 받아 나눠 쓴다 — 조회를 하나 더 두면 왕복이 세 번이 된다.
-      final from = days.first.isBefore(strip.first) ? days.first : strip.first;
-      final to = days.last.isAfter(strip.last) ? days.last : strip.last;
+      final monthLast = _lastDayOf(target);
 
-      // 둘을 동시에 보낸다. 줄 세우면 왕복이 두 배가 된다.
-      final results = await Future.wait([
-        _repository.byDateRange(from: target, to: _lastDayOf(target)),
-        _repository.byDateRange(from: from, to: to),
-      ]);
+      // ⚠️ **달 양끝 ±3일까지 미리 받는다.**
+      //
+      // 스트립은 고른 날을 따라 움직이는데, 같은 달 안에서 고를 때는 다시
+      // 읽지 않는다(`select`). 그러니 **그 달 어느 날을 골라도** 스트립이
+      // 덮이도록 처음부터 넉넉히 받아야 한다 — 달 1일을 고르면 스트립이
+      // 지난달로 사흘 넘치고, 말일이면 다음 달로 사흘 넘친다.
+      //
+      // 안 받아 두면 그 칸은 **점이 안 찍힌다.** 모르는 것이 안 뛴 것처럼
+      // 보이는 쪽이 더 나쁘다.
+      final edges = [
+        days.first,
+        strip.first,
+        DateTime(target.year, target.month, target.day - 3),
+      ];
+      final from = edges.reduce((a, b) => a.isBefore(b) ? a : b);
+      final to = [
+        days.last,
+        strip.last,
+        DateTime(monthLast.year, monthLast.month, monthLast.day + 3),
+      ].reduce((a, b) => a.isAfter(b) ? a : b);
+
+      // ⚠️ **한 번만 묻는다.** 넓힌 구간이 그 달을 통째로 품으므로, 달 조회를
+      // 따로 보내면 같은 것을 두 번 받는 셈이다.
+      final records = await _repository.byDateRange(from: from, to: to);
 
       state = RecordData(
         month: target,
-        selectedDay: select == null
-            ? _initialDay(target, now)
-            : DateTime(select.year, select.month, select.day),
-        monthRecords: results[0],
-        rangeRecords: results[1],
+        selectedDay: selected,
+        // 월 요약은 **그 달 것만** 세어야 한다. 넓힌 구간을 그대로 넣으면
+        // 앞뒤 사흘이 섞여 `이번 달 3회`가 4회가 된다.
+        monthRecords: [
+          for (final record in records)
+            if (record.day.year == target.year &&
+                record.day.month == target.month)
+              record,
+        ],
+        rangeRecords: records,
         weekDays: days,
         stripDays: strip,
       );
@@ -188,7 +214,15 @@ class RecordController extends Notifier<RecordState> {
       unawaited(load(month: picked, select: picked));
       return;
     }
-    state = current.copyWith(selectedDay: picked);
+    // 스트립은 **고른 날 한가운데**로 옮긴다. 차트(월~일)는 그대로다 —
+    // 둘 다 따라가면 `이번 주`라는 뜻이 사라진다.
+    //
+    // 다시 읽지 않는다. `load` 가 달 양끝 ±3일까지 받아 두므로 그 달 어느
+    // 날을 골라도 이 스트립은 이미 손에 있다.
+    state = current.copyWith(
+      selectedDay: picked,
+      stripDays: stripAround(picked),
+    );
   }
 
   /// 이전·다음 달로 옮긴다. 그 달을 새로 읽는다.

@@ -31,6 +31,11 @@ class FakeRunRecordRepository implements RunRecordRepository {
   /// 몇 번 불렸나. 화면이 요청을 두 번 하는지(이번 달 + 최근 7일) 본다.
   var calls = 0;
 
+  /// 물어본 구간들. **무엇을 받아 왔는지**를 보는 데 쓴다 — `rangeByDay` 는
+  /// 기록이 있는 날만 키를 가지므로, 받아 왔는데 안 뛴 날과 아예 안 받아 온
+  /// 날이 그쪽에서는 구분되지 않는다.
+  final queries = <({DateTime from, DateTime to})>[];
+
   @override
   Future<List<RunRecord>> byDateRange({
     required DateTime from,
@@ -41,6 +46,7 @@ class FakeRunRecordRepository implements RunRecordRepository {
 
     final start = DateTime(from.year, from.month, from.day);
     final end = DateTime(to.year, to.month, to.day);
+    queries.add((from: start, to: end));
 
     return [
       for (final record in _all())
