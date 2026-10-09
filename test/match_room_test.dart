@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
+import 'package:runiverse/core/analytics/fake_analytics.dart';
 import 'package:runiverse/core/storage/match_room_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
@@ -36,12 +38,15 @@ void main() {
     ProviderContainer container,
     FakeMatchStream stream,
     FakeUserStatusRepository statuses,
+    FakeAnalytics analytics,
   })
   build() {
     final stream = FakeMatchStream();
     final statuses = FakeUserStatusRepository();
+    final analytics = FakeAnalytics();
     final container = ProviderContainer(
       overrides: [
+        analyticsProvider.overrideWithValue(analytics),
         matchStreamProvider.overrideWithValue(stream),
         userStatusRepositoryProvider.overrideWithValue(statuses),
       ],
@@ -49,7 +54,12 @@ void main() {
     addTearDown(container.dispose);
     // provider를 세워야 유저 상태를 지켜보기 시작한다.
     container.read(matchRoomProvider);
-    return (container: container, stream: stream, statuses: statuses);
+    return (
+      container: container,
+      stream: stream,
+      statuses: statuses,
+      analytics: analytics,
+    );
   }
 
   group('언제 붙는가', () {
@@ -540,6 +550,45 @@ void main() {
     test('쉬는 중이거나 모르면 방이 없다', () {
       expect(RoomInfo.fromStatus(const UserStatusIdle()), isNull);
       expect(RoomInfo.fromStatus(null), isNull);
+    });
+  });
+
+  group('match_confirmed', () {
+    // ⚠️ **이 이벤트가 funnel 의 빠진 칸을 메운다.**
+    //
+    // `match_apply` 다음이 바로 `run_start` 면, 신청하고 못 뛴 사람이
+    // **사람이 안 모여 성사가 안 된 것**인지 **성사됐는데 안 나타난 것**인지
+    // 가를 수 없다. 둘은 고칠 곳이 완전히 다르다.
+    test('모집 중에서 확정으로 넘어갈 때 한 번 남는다', () async {
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      app.stream.emit(MatchStarted(room(RoomStatus.matching)));
+      await Future<void>.delayed(Duration.zero);
+      expect(app.analytics.countOf('match_confirmed'), 0);
+
+      app.stream.emit(MatchRoomUpdated(room(RoomStatus.matched)));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(app.analytics.countOf('match_confirmed'), 1);
+    });
+
+    test('⚠️ 확정 뒤 같은 방 통지가 또 와도 한 번이다', () async {
+      // 확정된 방은 스냅샷·갱신 통지를 계속 받는다. 올 때마다 남기면
+      // **한 번의 성사가 여러 번으로 세어진다.**
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      app.stream.emit(MatchRoomUpdated(room(RoomStatus.matched)));
+      await Future<void>.delayed(Duration.zero);
+      app.stream.emit(MatchRoomUpdated(room(RoomStatus.matched, players: 3)));
+      await Future<void>.delayed(Duration.zero);
+      app.stream.emit(MatchStarted(room(RoomStatus.matched)));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(app.analytics.countOf('match_confirmed'), 1);
     });
   });
 }

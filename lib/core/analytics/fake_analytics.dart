@@ -35,6 +35,12 @@ class FakeAnalytics implements Analytics {
       events.add(('match_apply', {'distance_m': distanceMeters}));
 
   @override
+  Future<void> matchConfirmed({int? distanceMeters}) async => events.add((
+    'match_confirmed',
+    distanceMeters == null ? null : {'distance_m': distanceMeters},
+  ));
+
+  @override
   Future<void> matchCancel() async => events.add(('match_cancel', null));
 
   @override

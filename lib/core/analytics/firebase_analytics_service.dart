@@ -40,6 +40,13 @@ class FirebaseAnalyticsService implements Analytics {
       _send('match_apply', {'distance_m': distanceMeters});
 
   @override
+  Future<void> matchConfirmed({int? distanceMeters}) => _send(
+    'match_confirmed',
+    // ⚠️ 모르면 **빼고 보낸다.** 0 을 실으면 `0m 매칭`이 지표에 생긴다.
+    distanceMeters == null ? null : {'distance_m': distanceMeters},
+  );
+
+  @override
   Future<void> matchCancel() => _send('match_cancel', null);
 
   @override

@@ -241,6 +241,9 @@ class MatchRoomController extends Notifier<MatchRoomState> {
   }
 
   /// 예약된 재연결을 버린다. **의도한 종료가 되살아나지 않게 한다.**
+  /// `match_confirmed` 를 남긴 방. 같은 방으로 또 남기지 않는다.
+  int? _confirmedLogged;
+
   void _cancelRetry() {
     _retry?.cancel();
     _retry = null;
@@ -350,6 +353,19 @@ class MatchRoomController extends Notifier<MatchRoomState> {
     final justMatched =
         state.room?.status != RoomStatus.matched &&
         room.status == RoomStatus.matched;
+
+    // ⚠️ **방마다 한 번만 남긴다.** 위의 `justMatched` 는 화면 연출용이라
+    // 상태가 비워진 뒤 다시 들어오면 또 켜진다 — 재연결이나 provider 재생성이
+    // 그렇다. 그대로 쓰면 한 번의 성사가 여러 번으로 세어진다.
+    if (room.status == RoomStatus.matched &&
+        _confirmedLogged != room.runningRoomId) {
+      _confirmedLogged = room.runningRoomId;
+      unawaited(
+        ref
+            .read(analyticsProvider)
+            .matchConfirmed(distanceMeters: room.targetDistanceMeters),
+      );
+    }
 
     state = movedRoom
         // `copyWith`로는 못 지운다(`??`). 새 방이면 통째로 다시 세운다.

@@ -49,6 +49,19 @@ abstract interface class Analytics {
   /// 매칭 신청 성공. [distanceMeters] 는 3000 · 5000 · 10000.
   Future<void> matchApply({required int distanceMeters});
 
+  /// 방이 **확정됐다** — 사람이 모여 같이 뛸 수 있게 된 순간.
+  ///
+  /// ## ⚠️ 이 한 칸이 없으면 못 가르는 것
+  ///
+  /// [matchApply] 다음이 바로 [runStart] 면, 신청하고 못 뛴 사람이
+  /// **사람이 안 모여 성사가 안 된 것**인지 **성사됐는데 안 나타난 것**인지
+  /// 알 수 없다. 앞은 매칭 풀·시간대 설계 문제고 뒤는 이탈 문제다 —
+  /// 고칠 곳이 완전히 다르다.
+  ///
+  /// [distanceMeters] 는 모르면 `null` 이다. [matchApply] 와 같은 이름의
+  /// 파라미터로 나가므로 거리별 성사율을 바로 견줄 수 있다.
+  Future<void> matchConfirmed({int? distanceMeters});
+
   /// 매칭 취소 성공.
   Future<void> matchCancel();
 
@@ -90,6 +103,9 @@ class NoopAnalytics implements Analytics {
 
   @override
   Future<void> matchApply({required int distanceMeters}) async {}
+
+  @override
+  Future<void> matchConfirmed({int? distanceMeters}) async {}
 
   @override
   Future<void> matchCancel() async {}
