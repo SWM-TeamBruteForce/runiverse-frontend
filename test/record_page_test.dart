@@ -32,13 +32,17 @@ void main() {
     WidgetTester tester, {
     RunRecordRepository? repository,
     DateTime? today,
+    // ⚠️ **0 이면 재현되지 않는 버그가 있다.** 즉시 답하는 저장소는
+    // `RecordLoading` 을 한 프레임도 그리지 않아, 화면이 갈아끼워지며 생기는
+    // 문제가 통째로 가려진다. 실제 서버는 늘 걸린다.
+    Duration delay = Duration.zero,
   }) async {
     final now = today ?? DateTime(2026, 9, 30);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           runRecordRepositoryProvider.overrideWithValue(
-            repository ?? FakeRunRecordRepository(today: now),
+            repository ?? FakeRunRecordRepository(today: now, delay: delay),
           ),
           // ⚠️ `DateTime.now()`를 그대로 두면 자정 근처에서 흔들리고, 주간
           // 차트가 어느 7일인지 검증할 수 없다.
@@ -235,6 +239,53 @@ void main() {
         find.text(AppStrings.recordMonthLabel(DateTime(2026, 9))),
         findsOneWidget,
       );
+    });
+
+    testWidgets('⚠️ 달을 옮겨도 펼친 채로 남는다', (tester) async {
+      // **운영에서 걸린 함정.** 달 이동 버튼은 펼친 상태에만 있는데, 누르면
+      // `load()` 가 `RecordLoading` 을 거치면서 화면이 통째로 로딩 표시로
+      // 바뀐다. 그때 `RecordCalendar` 가 버려져 `_expanded` 가 사라지고,
+      // 돌아오면 접힌 주간 뷰다 — **달을 볼 때마다 다시 펴야 했다.**
+      await pump(tester, delay: const Duration(milliseconds: 50));
+      await scrollTo(tester, find.byType(RecordCalendar));
+
+      await tester.tap(find.byTooltip(AppStrings.recordCalendarExpand));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip(AppStrings.recordPrevMonth));
+      // ⚠️ **한 프레임을 먼저 그린다.** `pumpAndSettle` 은 기본 100ms 씩
+      // 건너뛰어 50ms 지연을 한 번에 지나간다 — 그러면 불러오는 중인 화면이
+      // 한 번도 그려지지 않아 **이 버그가 통째로 가려진다.** 실제 기기는
+      // 16ms 마다 그리므로 반드시 그 화면을 거친다.
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      // 펼친 상태의 표식 둘 — 달 이름과 접기 버튼.
+      expect(
+        find.text(AppStrings.recordMonthLabel(DateTime(2026, 8))),
+        findsOneWidget,
+      );
+      expect(find.byTooltip(AppStrings.recordCalendarCollapse), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 달을 옮기는 동안 화면이 비지 않는다', (tester) async {
+      // 로딩 표시로 갈아끼우면 주간 기록·캘린더가 함께 사라졌다가 돌아온다.
+      // 보던 자리가 통째로 깜빡이는 셈이라, 읽던 것을 다시 찾아야 한다.
+      await pump(tester, delay: const Duration(milliseconds: 50));
+      await scrollTo(tester, find.byType(RecordCalendar));
+      await tester.tap(find.byTooltip(AppStrings.recordCalendarExpand));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip(AppStrings.recordPrevMonth));
+      // **기다리지 않는다.** 불러오는 중인 바로 그 순간을 본다.
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(RecordCalendar), findsOneWidget);
+
+      // 남은 타이머를 흘려보낸다. 안 하면 위젯 트리가 버려진 뒤에도 기다리는
+      // 것이 있다고 테스트가 멈춘다.
+      await tester.pumpAndSettle();
     });
 
     testWidgets('다시 누르면 접힌다', (tester) async {

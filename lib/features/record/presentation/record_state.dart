@@ -105,12 +105,22 @@ class RecordData extends RecordState {
   int metersOn(DateTime day) =>
       RecordSummary.of(rangeByDay[day] ?? const []).totalMeters;
 
-  RecordData copyWith({DateTime? selectedDay}) => RecordData(
+  RecordData copyWith({
+    DateTime? selectedDay,
+    List<DateTime>? stripDays,
+    List<RunRecord>? rangeRecords,
+  }) => RecordData(
     month: month,
     selectedDay: selectedDay ?? this.selectedDay,
     monthRecords: [for (final list in byDay.values) ...list],
-    rangeRecords: [for (final list in rangeByDay.values) ...list],
+    rangeRecords: rangeRecords ?? allRangeRecords,
     weekDays: weekDays,
-    stripDays: stripDays,
+    stripDays: stripDays ?? this.stripDays,
   );
+
+  /// [rangeByDay]를 다시 평평하게 편 것. 생성자가 날짜별로 묶어 버려서
+  /// 받아 온 목록 자체는 남지 않는다.
+  List<RunRecord> get allRangeRecords => [
+    for (final list in rangeByDay.values) ...list,
+  ];
 }
