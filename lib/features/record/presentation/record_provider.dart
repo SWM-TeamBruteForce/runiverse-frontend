@@ -109,13 +109,27 @@ class RecordController extends Notifier<RecordState> {
   ///
   /// [month]를 주면 그 달을, [select]를 주면 읽은 뒤 그 날을 고른다.
   /// [select]가 없으면 이번 달이면 오늘, 지난달이면 1일이다.
+  ///
+  /// ## ⚠️ 보여줄 것이 있으면 **비우지 않는다**
+  ///
+  /// 예전에는 부를 때마다 [RecordLoading] 으로 갈아탔다. 화면이 `switch` 로
+  /// 세 갈래를 가르므로, 그 순간 **달력과 주간 기록이 통째로 버려지고 로딩
+  /// 표시 하나만 남는다.** 돌아올 때는 새 위젯이라 달력이 펴 두었던 상태를
+  /// 잃고 접힌 주간 뷰로 돌아갔다 — 달 이동 버튼은 **펴야만 보이므로**,
+  /// 한 달 넘길 때마다 다시 펴야 했다.
+  ///
+  /// 그래서 **이미 읽은 것이 있으면 그대로 두고** 새 값이 오면 갈아 끼운다.
+  /// 첫 진입과 오류 뒤에만 로딩을 보여준다 — 그때는 보여줄 것이 없다.
+  ///
+  /// ⚠️ 이 사이에는 **지난달 화면이 잠깐 그대로 보인다.** 달 이름이
+  /// 늦게 바뀌는 셈인데, 통째로 깜빡이며 읽던 자리를 잃는 것보다 낫다고 봤다.
   Future<void> load({DateTime? month, DateTime? select}) async {
     final now = ref.read(recordClockProvider)();
     final target = month == null
         ? DateTime(now.year, now.month)
         : DateTime(month.year, month.month);
 
-    state = const RecordLoading();
+    if (state is! RecordData) state = const RecordLoading();
 
     try {
       final days = weekOf(now);
