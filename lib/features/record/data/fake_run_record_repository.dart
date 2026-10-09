@@ -42,6 +42,17 @@ class FakeRunRecordRepository implements RunRecordRepository {
     required DateTime to,
   }) async {
     calls++;
+
+    // ⚠️ **진짜와 같은 규칙으로 거절한다.**
+    //
+    // 가짜가 뭐든 받아 주면 화면이 구간을 넓혀도 테스트가 다 통과한다.
+    // 실제로 그렇게 통과시킨 구간이 기기에서 `invalidRequest` 로 떨어졌다 —
+    // 달 양끝에 사흘씩 붙였더니 31일 달이 36일이 됐다.
+    if (from.isAfter(to) ||
+        to.difference(from).inDays >= RunRecordRepository.maxRangeDays) {
+      throw const RunRecordException(RunRecordFailure.invalidRequest);
+    }
+
     if (delay > Duration.zero) await Future<void>.delayed(delay);
 
     final start = DateTime(from.year, from.month, from.day);

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
+import 'package:runiverse/features/record/domain/run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record/presentation/record_state.dart';
 
@@ -70,6 +71,42 @@ void main() {
     );
   });
 
+  group('⚠️ 한 조회가 31일 상한을 넘지 않는다', () {
+    // ⚠️ **이 묶음이 실제 결함을 잡아 만들어졌다.**
+    //
+    // 서버는 한 번에 **31일 미만**만 준다. 달 하나가 이미 그 상한에 딱 걸리는데
+    // 스트립을 덮겠다고 달 양끝에 사흘씩 붙였더니 36일이 됐다 — 기기에서
+    // `기록을 불러오지 못했어요` 가 떴다. 가짜 저장소가 상한을 안 봐서
+    // **테스트는 1164개가 다 통과했다.**
+    //
+    // 이제 가짜도 진짜처럼 거절하므로 터지기는 하는데, 터진 자리만 보면
+    // 원인이 안 보인다. 여기서 **구간 자체**를 센다.
+    for (final month in [DateTime(2026, 10), DateTime(2026, 2)]) {
+      test('${month.month}월 — 어느 날을 골라도', () async {
+        final container = await open();
+        final notifier = container.read(recordControllerProvider.notifier);
+        await notifier.load(month: month);
+
+        final last = DateTime(month.year, month.month + 1, 0).day;
+        for (final day in [1, 15, last]) {
+          notifier.select(DateTime(month.year, month.month, day));
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        final repository =
+            container.read(runRecordRepositoryProvider)
+                as FakeRunRecordRepository;
+        for (final query in repository.queries) {
+          expect(
+            query.to.difference(query.from).inDays,
+            lessThan(RunRecordRepository.maxRangeDays),
+            reason: '${query.from} ~ ${query.to} 가 상한을 넘는다',
+          );
+        }
+      });
+    }
+  });
+
   test('달을 옮기면 그 달 1일이 잡힌다', () async {
     final container = await open();
 
@@ -113,6 +150,24 @@ void main() {
       final state = container.read(recordControllerProvider) as RecordData;
       expect(state.weekDays.first, DateTime(2026, 8, 31));
       expect(state.weekDays.last, DateTime(2026, 9, 6));
+    });
+
+    test('⚠️ 달 밖으로 넘친 스트립도 받아 온다', () async {
+      // 달 1일을 고르면 스트립이 **지난달로 사흘** 넘친다. 월 조회가 그 사흘을
+      // 안 덮으므로 따로 받아야 한다.
+      final container = await open();
+      final notifier = container.read(recordControllerProvider.notifier);
+      notifier.select(DateTime(2026, 9, 1));
+      await Future<void>.delayed(Duration.zero);
+
+      final repository =
+          container.read(runRecordRepositoryProvider)
+              as FakeRunRecordRepository;
+      expect(
+        repository.queries.any((q) => !q.from.isAfter(DateTime(2026, 8, 29))),
+        isTrue,
+        reason: '8월 29~31일을 받아 온 조회가 없다',
+      );
     });
 
     test('⚠️ 옮긴 스트립의 기록도 들고 있다', () async {
