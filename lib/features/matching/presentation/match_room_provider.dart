@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/matching/data/sse_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
@@ -240,6 +241,9 @@ class MatchRoomController extends Notifier<MatchRoomState> {
   }
 
   /// 예약된 재연결을 버린다. **의도한 종료가 되살아나지 않게 한다.**
+  /// `match_confirmed` 를 남긴 방. 같은 방으로 또 남기지 않는다.
+  int? _confirmedLogged;
+
   void _cancelRetry() {
     _retry?.cancel();
     _retry = null;
@@ -350,6 +354,19 @@ class MatchRoomController extends Notifier<MatchRoomState> {
         state.room?.status != RoomStatus.matched &&
         room.status == RoomStatus.matched;
 
+    // ⚠️ **방마다 한 번만 남긴다.** 위의 `justMatched` 는 화면 연출용이라
+    // 상태가 비워진 뒤 다시 들어오면 또 켜진다 — 재연결이나 provider 재생성이
+    // 그렇다. 그대로 쓰면 한 번의 성사가 여러 번으로 세어진다.
+    if (room.status == RoomStatus.matched &&
+        _confirmedLogged != room.runningRoomId) {
+      _confirmedLogged = room.runningRoomId;
+      unawaited(
+        ref
+            .read(analyticsProvider)
+            .matchConfirmed(distanceMeters: room.targetDistanceMeters),
+      );
+    }
+
     state = movedRoom
         // `copyWith`로는 못 지운다(`??`). 새 방이면 통째로 다시 세운다.
         ? MatchRoomState(
@@ -384,6 +401,9 @@ class MatchRoomController extends Notifier<MatchRoomState> {
   Future<bool> leave() async {
     try {
       await ref.read(matchRepositoryProvider).cancel();
+      // ⚠️ 여기서만 남긴다. 아래 `nothingToCancel` 은 **이미 취소된 것**이라
+      // 거기서도 남기면 한 번의 취소가 두 번 세어진다.
+      unawaited(ref.read(analyticsProvider).matchCancel());
     } on MatchException catch (error) {
       // 러닝이 이미 시작됐다 — 나가지 못한 것이 맞지만, 여기서 할 일은
       // 재시도가 아니라 **앱이 늦게 아는 상태를 따라잡는 것**이다. 다시 읽으면

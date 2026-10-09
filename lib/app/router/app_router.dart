@@ -56,22 +56,27 @@ GoRouter createAppRouter({String? initialLocation}) {
       // 셸 밖이라 하단 탭이 뜨지 않는다. 온보딩은 탭으로 오갈 대상이 아니다.
       GoRoute(
         path: AppRoutes.splash,
+        name: 'splash',
         builder: (context, state) => const SplashPage(),
       ),
       GoRoute(
         path: AppRoutes.onboardingIntro,
+        name: 'onboarding_intro',
         builder: (context, state) => const OnboardingIntroPage(),
       ),
       GoRoute(
         path: AppRoutes.signIn,
+        name: 'sign_in',
         builder: (context, state) => const SignInPage(),
       ),
       GoRoute(
         path: AppRoutes.signUp,
+        name: 'sign_up',
         builder: (context, state) => const SignUpPage(),
       ),
       GoRoute(
         path: AppRoutes.terms,
+        name: 'terms',
         builder: (context, state) {
           // `extra`는 `Object?`라 무엇이든 올 수 있다. 타입을 확인하고 아니면
           // 기본값으로 간다 — 딥링크로 들어오면 아무것도 실려 오지 않는다.
@@ -83,17 +88,20 @@ GoRouter createAppRouter({String? initialLocation}) {
       ),
       GoRoute(
         path: AppRoutes.profileSetup,
+        name: 'profile_setup',
         builder: (context, state) => const ProfileSetupPage(),
       ),
       // ⚠️ 셸 **밖**이다. 탭 안에 두면 편집 도중 다른 탭으로 샐 수 있고,
       // 그때 저장하지 않은 값이 말없이 사라진다.
       GoRoute(
         path: AppRoutes.profileEdit,
+        name: 'profile_edit',
         builder: (context, state) => const ProfileEditPage(),
       ),
       // 설정도 셸 밖이다. 이유는 편집과 같다.
       GoRoute(
         path: AppRoutes.settings,
+        name: 'settings',
         builder: (context, state) => const SettingsPage(),
       ),
       // ⚠️ 설정의 **자식으로 두지 않았다.** 자식이면 경로가
@@ -101,38 +109,46 @@ GoRouter createAppRouter({String? initialLocation}) {
       // 딥링크로 바로 열 때 부모가 먼저 그려져야 한다.
       GoRoute(
         path: AppRoutes.passwordChange,
+        name: 'password_change',
         builder: (context, state) => const PasswordChangePage(),
       ),
 
       // 매칭 등록 — 셸 밖이다. 조건을 고르는 도중에 탭으로 새면 값이 사라진다.
       GoRoute(
         path: AppRoutes.matchRegister,
+        name: 'match_register',
         builder: (context, state) => const MatchRegisterPage(),
       ),
       GoRoute(
         path: AppRoutes.matchRoom,
+        name: 'match_room',
         builder: (context, state) => const MatchRoomPage(),
       ),
       GoRoute(
         path: AppRoutes.matchCountdown,
+        name: 'match_countdown',
         builder: (context, state) => const MatchCountdownPage(),
       ),
 
       // 1인 러닝 — 셸 밖이라 탭 바를 덮는다.
       GoRoute(
         path: AppRoutes.runPrepare,
+        name: 'run_prepare',
         builder: (context, state) => const RunPreparePage(),
       ),
       GoRoute(
         path: AppRoutes.runSession,
+        name: 'run_session',
         builder: (context, state) => const RunSessionPage(),
       ),
       GoRoute(
         path: AppRoutes.runSummary,
+        name: 'run_summary',
         builder: (context, state) => const RunSummaryPage(),
       ),
       GoRoute(
         path: AppRoutes.runResult,
+        name: 'run_result',
         // 종료 직후에도 **서버가 확정한 값**을 그린다. S15가 방 번호만
         // 넘기고 화면이 17·18번으로 읽는다 — 기록 탭에서 여는 것과 같은
         // 경로다.
@@ -149,6 +165,7 @@ GoRouter createAppRouter({String? initialLocation}) {
             routes: [
               GoRoute(
                 path: AppRoutes.home,
+                name: 'home',
                 builder: (context, state) => const HomePage(),
               ),
             ],
@@ -159,10 +176,12 @@ GoRouter createAppRouter({String? initialLocation}) {
             routes: [
               GoRoute(
                 path: AppRoutes.record,
+                name: 'record',
                 builder: (context, state) => const RecordPage(),
                 routes: [
                   GoRoute(
                     path: AppRoutes.recordDetail,
+                    name: 'record_detail',
                     builder: (context, state) => RecordDetailPage(
                       // 경로에서 온 값이라 문자열이다. 숫자가 아니면 0을
                       // 넘겨 "못 찾음"으로 흘린다 — 상세 화면이 이미 오류
@@ -184,6 +203,7 @@ GoRouter createAppRouter({String? initialLocation}) {
             routes: [
               GoRoute(
                 path: AppRoutes.recordCard,
+                name: 'record_card',
                 builder: (context, state) =>
                     const ComingSoonPage(featureName: AppStrings.tabRecordCard),
               ),
@@ -198,6 +218,7 @@ GoRouter createAppRouter({String? initialLocation}) {
             routes: [
               GoRoute(
                 path: AppRoutes.profile,
+                name: 'profile',
                 builder: (context, state) => const ProfilePage(),
               ),
             ],

@@ -1,4 +1,21 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!--
+      ⚠️ 광고 식별자를 **쓰지 않는다.**
+
+      Play 데이터 안전 섹션에 광고 ID를 수집하지 않는다고 신고해 두었는데,
+      Firebase Analytics 가 아래 세 권한을 **자동으로 끼워 넣는다.** 남아 있으면
+      신고 내용과 어긋나 출시가 막힐 수 있다(노션 GA 도입 문서 ⚠️ 절).
+
+      `tools:node="remove"` 는 병합된 매니페스트에서 그 줄을 빼라는 지시다 —
+      여기에 선언하지 않는 것만으로는 라이브러리 것이 그대로 들어온다.
+    -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID"
+        tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID"
+        tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_ATTRIBUTION"
+        tools:node="remove" />
     <!--
       위치 권한 — 1인 러닝의 거리·페이스가 GPS에서 나온다.
 
@@ -70,6 +87,13 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false">
+        <!--
+          권한을 빼는 것만으로는 모자라다. Analytics 가 광고 ID 를 **읽으려
+          시도하는 것** 자체를 끈다. 위 `tools:node="remove"` 와 짝이다.
+        -->
+        <meta-data
+            android:name="google_analytics_adid_collection_enabled"
+            android:value="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

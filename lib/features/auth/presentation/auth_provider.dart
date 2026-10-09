@@ -20,6 +20,7 @@ import 'package:runiverse/features/auth/domain/auth_tokens.dart';
 import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
 import 'package:runiverse/features/auth/domain/oauth_code_source.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/domain/sign_in_method.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
@@ -381,6 +382,9 @@ class AuthController extends Notifier<AuthState> {
       // 로그인 응답에도 isOnboarded가 실려 오지만 **/me를 진실로 삼는다.**
       // 값이 갈리는 곳을 둘로 두면 나중에 어긋났을 때 원인을 찾기 어렵다.
       await ref.read(signInMemoryStoreProvider).rememberMethod(method);
+      // 누른 때가 아니라 **세션이 선 때** 남긴다. 탭으로 세면 실패한 시도까지
+      // 섞여 전환율이 부풀려진다.
+      unawaited(ref.read(analyticsProvider).login(method: method.name));
       await _loadCurrentUser(session.accessToken);
       return null;
     } on AuthException catch (error) {
