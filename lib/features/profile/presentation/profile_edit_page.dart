@@ -13,27 +13,34 @@ import 'package:runiverse/core/utils/age_rule.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/core/widgets/v2/app_input.dart';
 import 'package:runiverse/core/widgets/wheel_picker_sheet.dart';
+import 'package:runiverse/features/profile/domain/pending_photo.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
+import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/presentation/nickname_sheet.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
+import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 
 /// 프로필 편집 (S22.1).
 ///
-/// ## 저장이 셋으로 갈린다
+/// ## 저장이 둘로 갈린다
 ///
 /// | 무엇 | 언제 저장되나 |
 /// |---|---|
-/// | 사진 | 고르는 **즉시** (47~50번) |
 /// | 닉네임 | 시트에서 **즉시** (52번 — 중복확인·409) |
-/// | 소개글·생년월일·키·몸무게 | **저장 버튼 하나로** (51번) |
+/// | 사진 · 소개글 · 생년월일 · 키 · 몸무게 | **저장 버튼 하나로** |
 ///
-/// 서버가 그렇게 갈라 놨다. 사진은 3단계 업로드라 저장 버튼에 묶을 수 없고,
-/// 닉네임은 중복 검사가 붙어 누르는 자리에서 답이 나야 한다.
+/// 닉네임만 즉시인 것은 **중복 검사가 붙어 누르는 자리에서 답이 나야**
+/// 하기 때문이다. 시트에서 "이미 쓰는 이름"을 듣고 다른 것을 넣는 흐름이라,
+/// 저장까지 미루면 그 답을 어디서 들을지가 없어진다.
 ///
-/// 화면에서는 **누르면 시트가 열리는 것은 거기서 끝나고, 화면에 남는 것만
-/// 저장을 기다린다.** 이 구분이 보이지 않으면 사진을 바꾸고 저장을 안 눌러
-/// 사라졌다고 여기게 된다.
+/// ## ⚠️ 사진도 예전에는 즉시였다
+///
+/// 고르는 순간 3단계 업로드가 끝나 버려서, **저장 버튼은 꺼진 채인데 이미
+/// 저장된 뒤**였다. 버튼이 꺼져 있으면 저장할 것이 없다는 뜻으로 읽히는데
+/// 실제로는 반대였고, 그냥 나가도 반영돼 있어 되돌릴 방법이 없었다.
+///
+/// 이제 고른 것을 [_photo]로 들고 있다가 저장할 때 보낸다.
 ///
 /// ## 성별과 평균 페이스는 없다
 ///
@@ -55,6 +62,9 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
   DateTime? _birthday;
   int? _heightCm;
   int? _weightKg;
+
+  /// 고르거나 지우기로 했지만 **아직 안 보낸** 사진. `null`이면 안 건드렸다.
+  PendingPhoto? _photo;
 
   bool _saving = false;
   ProfileEditFailure? _failure;
@@ -83,8 +93,14 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
 
   /// 저장 버튼이 다루는 값 중 **하나라도 바뀌었나.**
   ///
-  /// 사진과 닉네임은 세지 않는다 — 이미 저장된 것이라 저장 버튼이 할 일이 없다.
-  bool get _dirty {
+  /// 닉네임은 세지 않는다 — 시트에서 이미 저장돼 저장 버튼이 할 일이 없다.
+  bool get _dirty => _photo != null || _dirtyProfile;
+
+  /// `PATCH /users/me/profile` 이 다루는 값 중 하나라도 바뀌었나.
+  ///
+  /// **사진은 세지 않는다.** 사진은 제 갈 길(3단계 업로드)이 따로 있어서,
+  /// 사진만 바꿨을 때 이 `PATCH` 까지 보내면 **전부 `null` 인 요청**이 된다.
+  bool get _dirtyProfile {
     final body = ref.read(bodyProfileProvider);
     return _introduction.text.trim() != _initialIntroduction ||
         _birthday != body.birthday ||
@@ -180,6 +196,18 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
       _failure = null;
     });
 
+    // ⚠️ **사진을 먼저 보내고, 실패하면 거기서 멈춘다.**
+    //
+    // 반만 저장되면 화면이 무엇을 들고 있는지 알 수 없다. 멈춰서 화면에
+    // 남겨 두면 다시 누르는 것으로 둘 다 간다.
+    if (!await _savePhoto()) return;
+
+    // 사진만 바꿨다. 보낼 프로필 값이 없다.
+    if (!_dirtyProfile) {
+      if (mounted) context.pop();
+      return;
+    }
+
     final body = ref.read(bodyProfileProvider);
     final introduction = _introduction.text.trim();
 
@@ -206,6 +234,36 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
       _saving = false;
       _failure = failure;
     });
+  }
+
+  /// 들고 있던 사진 변경을 보낸다. **보낼 것이 없으면 그냥 참이다.**
+  ///
+  /// 실패하면 거짓을 돌려주고, 그 전에 스낵바로 이유를 알린다. 사진 실패는
+  /// 화면 아래 문구([_failure])와 섞지 않는다 — 그쪽은 `PATCH` 의 이유라
+  /// 같은 자리에 쓰면 어느 쪽이 실패한 것인지 알 수 없다.
+  Future<bool> _savePhoto() async {
+    final photo = _photo;
+    if (photo == null) return true;
+
+    final failure = await ref
+        .read(profileImageControllerProvider.notifier)
+        .apply(photo);
+
+    if (!mounted) return false;
+    if (failure == null) {
+      // 보냈다. 다시 누를 때 또 올리지 않는다.
+      //
+      // 새 주소를 다시 받는 것은 여기서 하지 않는다 — **편집 화면을 연
+      // `ProfileHeader` 가 돌아온 자리에서 이미 부른다.**
+      setState(() => _photo = null);
+      return true;
+    }
+
+    setState(() => _saving = false);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(_photoMessageOf(failure))));
+    return false;
   }
 
   /// 저장하지 않고 나가려 한다. **바꾼 게 없으면 묻지 않는다.**
@@ -288,13 +346,16 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // 사진은 **저장 버튼과 무관하다.** 고르는 순간 올라간다.
+                      // 고른 것은 화면에만 남는다. 보내는 것은 저장 버튼이다.
                       Center(
                         child: Column(
                           children: [
                             ProfileAvatar(
                               url: summary?.profileImageUrl,
                               editable: true,
+                              pending: _photo,
+                              onPending: (photo) =>
+                                  setState(() => _photo = photo),
                             ),
                             const SizedBox(height: AppSpacing.space2),
                             Text(
@@ -394,6 +455,19 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
   static String _dateText(DateTime date) =>
       '${date.year}.${date.month.toString().padLeft(2, '0')}'
       '.${date.day.toString().padLeft(2, '0')}';
+
+  /// 사진 실패 이유를 화면 문구로 옮긴다.
+  ///
+  /// **앞의 셋만 갈라 말한다.** 나머지는 사용자가 할 수 있는 일이
+  /// "다시 해보기" 하나라서, 어디서 막혔는지 말해도 쓸 데가 없다.
+  static String _photoMessageOf(ProfileImageFailure failure) =>
+      switch (failure) {
+        ProfileImageFailure.unsupportedFormat =>
+          AppStrings.profilePhotoUnsupported,
+        ProfileImageFailure.tooLarge => AppStrings.profilePhotoTooLarge,
+        ProfileImageFailure.sessionExpired => AppStrings.profileSubmitExpired,
+        _ => AppStrings.profilePhotoFailed,
+      };
 
   static String _messageOf(ProfileEditFailure failure) => switch (failure) {
     ProfileEditFailure.notOnboarded => AppStrings.profileNicknameNotOnboarded,
