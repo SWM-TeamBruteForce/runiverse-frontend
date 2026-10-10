@@ -25,7 +25,8 @@ final class ProfileImageReady extends ProfileImageState {
   /// 열람 주소. **만료되는 값이다.**
   final String? url;
 
-  /// 올리거나 지우는 중인가.
+  /// 올리거나 지우는 중인가. **저장을 누른 뒤**에만 켜진다 — 고르는 것은
+  /// 화면 안에서 끝나므로 서버를 부르지 않는다.
   ///
   /// 별도 상태로 쪼개지 않는 이유는 **그동안에도 [url]을 계속 그려야 하기**
   /// 때문이다. 로딩 상태로 되돌리면 바꾸는 순간 아바타가 한 번 비었다가 돌아온다.
@@ -46,6 +47,9 @@ final class ProfileImageReady extends ProfileImageState {
 /// **올리기 실패는 여기 오지 않는다.** 그것은 컨트롤러가 반환값으로 돌려주고
 /// 화면이 스낵바로 알린다 — 실패했다고 헤더의 사진을 지우면, 잠깐 끊긴 것 때문에
 /// 멀쩡한 사진이 사라진 것처럼 보인다.
+///
+/// ⚠️ 그래서 **지금은 아무도 이것을 세우지 않는다.** 세우는 자리가
+/// `ProfileImageController.load()` 하나인데 그 메서드를 부르는 곳이 없다.
 final class ProfileImageFailed extends ProfileImageState {
   const ProfileImageFailed(this.failure);
 
