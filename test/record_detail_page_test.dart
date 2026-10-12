@@ -126,6 +126,18 @@ void main() {
       }
     });
 
+    testWidgets('⚠️ 지도가 현재 위치를 따라가지 않는다', (tester) async {
+      // ⚠️ **이 그물이 실제 결함을 잡아 만들어졌다.**
+      //
+      // 결과 화면이 러닝 중 지도를 그대로 써서, 열면 카메라가 **지금 내
+      // 위치로 가서 따라 움직였다.** 달린 경로는 화면 밖에 있었다
+      // (2026-10-12 에뮬레이터에서 확인).
+      await pump(tester);
+
+      final map = tester.widget<RunMapView>(find.byType(RunMapView));
+      expect(map.followsMe, isFalse, reason: '다 달린 기록이다');
+    });
+
     testWidgets('⚠️ 파티원의 경로를 그리지 않는다', (tester) async {
       // GPS 좌표·경로는 **어떤 화면·API로도** 파티원에게 내보내지 않는다.
       // 지도에 올리는 것은 `detail.track`(내 것) 하나뿐이다.

@@ -275,7 +275,7 @@ class _RouteCard extends StatelessWidget {
         height: 238,
         child: Stack(
           children: [
-            Positioned.fill(child: RunMapView(track: detail.track)),
+            Positioned.fill(child: RunMapView.route(track: detail.track)),
             Positioned(
               left: AppSpacing.space3,
               top: AppSpacing.space3,
