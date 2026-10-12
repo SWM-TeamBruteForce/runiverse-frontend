@@ -1,9 +1,12 @@
-/// 파티원 한 명의 진행.
+import 'package:runiverse/features/session/domain/runner_status.dart';
+
+/// 참가자 한 명의 진행.
 ///
-/// ## ⚠️ 본인은 오지 않는다
+/// ## ⚠️ 본인 것도 온다
 ///
-/// 서버가 본인에게는 보내지 않는다 — 본인 진행은 앱이 이미 계산해 화면에
-/// 띄우고 있다. 그래서 이 값들은 **전부 남의 것**이다.
+/// 예전 주석은 "서버가 본인에게는 보내지 않는다"고 적혀 있었는데 **틀렸다**
+/// — 방 전체(본인 포함)에 나간다. 다만 **개인 기록 화면의 거리는 앱이 잰
+/// 값이 정본**이고, 이 값으로 덮지 않는다(명세 · 1.1.0 가이드 1.2절).
 ///
 /// ## ⚠️ 이름도 사진도 없다
 ///
@@ -15,7 +18,7 @@ class RunProgress {
     required this.distanceMeters,
     this.targetDistanceMeters,
     this.currentPaceSecondsPerKm,
-    this.paused = false,
+    this.status = RunnerStatus.running,
     this.receivedAt,
   });
 
@@ -34,7 +37,7 @@ class RunProgress {
     distanceMeters: distanceMeters,
     targetDistanceMeters: targetDistanceMeters,
     currentPaceSecondsPerKm: currentPaceSecondsPerKm,
-    paused: paused,
+    status: status,
     receivedAt: at,
   );
 
@@ -49,13 +52,14 @@ class RunProgress {
   /// 마지막 좌표의 값. 단말이 못 재면 `null`이다.
   final int? currentPaceSecondsPerKm;
 
-  /// 멈춰 있는가.
+  /// 뛰는 중인가 · 멈췄나 · 끊겼나 · 끝났나.
   ///
-  /// 이 값이 없으면 **멈춘 것과 느려진 것을 구분할 수 없다** — 화면에서 갑자기
-  /// 뒤처진 것처럼 보인다.
+  /// ⚠️ **예전에는 `paused`(bool) 였다.** 그때는 멈춘 것·끊긴 것·끝난 것이
+  /// 전부 "통지가 멈춘 사람"으로 보여서, 화면이 마지막 통지가 오래됐는지로
+  /// **추측**하는 수밖에 없었다.
   ///
-  /// ⚠️ 서버가 `RUNNING_PAUSE`를 구현하기 전까지는 항상 `false`로 온다.
-  final bool paused;
+  /// 기록(거리·시간)에는 영향을 주지 않는 **표시용** 값이다.
+  final RunnerStatus status;
 
   /// 목표 대비 얼마나 왔는가. 0~1로 자른다.
   ///
@@ -81,7 +85,9 @@ class RunProgress {
       distanceMeters: distance,
       targetDistanceMeters: _intOrNull(data['targetDistanceMeters']),
       currentPaceSecondsPerKm: _intOrNull(data['currentPaceSecondsPerKm']),
-      paused: data['paused'] == true,
+      // ⚠️ 못 읽어도 **진행 통지를 버리지 않는다.** 상태 하나 때문에 그 사람
+      // 거리가 화면에서 멈추는 쪽이 더 나쁘다.
+      status: RunnerStatus.of(data['status']),
     );
   }
 

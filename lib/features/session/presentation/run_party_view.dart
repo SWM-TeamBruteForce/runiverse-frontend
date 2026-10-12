@@ -11,6 +11,7 @@ import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/theme/tokens/run_palette.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/session/domain/party_board.dart';
+import 'package:runiverse/features/session/domain/runner_status.dart';
 
 /// 파티원 상태 (S13 3페이지, 2026-09-17 개편안 B).
 ///
@@ -123,9 +124,7 @@ class RunPartyView extends StatelessWidget {
                   ? (myCombo == null
                         ? AppStrings.runPartyComboHint
                         : AppStrings.runPartyBeside(nameOf(myCombo.userId)))
-                  : (lane.gapMeters == null
-                        ? null
-                        : AppStrings.runPartyGapLine(lane.gapMeters!)),
+                  : _footnoteOf(lane),
               // 덮개 한 줄. 상대 카드에는 내 이름, 내 카드에는 상대 이름.
               impactLine: lane.isMe
                   ? (myCombo == null ? '' : nameOf(myCombo.userId))
@@ -142,7 +141,34 @@ class RunPartyView extends StatelessWidget {
     );
   }
 
-  /// 통지가 끊긴 것으로 보이는가. 서버는 끊김을 알리지 않으므로 시간으로 본다.
+  /// 상대 카드의 아래 줄.
+  ///
+  /// ## ⚠️ 뛰고 있지 않으면 격차를 말하지 않는다
+  ///
+  /// 멈춘 사람·끊긴 사람과의 격차는 **벌어지기만 한다.** 그 숫자를 계속
+  /// 보이면 내가 따라잡히는 중이라고 읽힌다. 끝낸 사람은 더 그렇다.
+  ///
+  /// ⚠️ 1.1.0 전에는 이 넷이 **전부 같아 보였다.** `RunProgress.paused` 가
+  /// 있었지만 화면까지 닿지 않아, 아는 것은 통지가 오래됐는지뿐이었다.
+  static String? _footnoteOf(PartyRow lane) {
+    final status = lane.progress?.status;
+    return switch (status) {
+      RunnerStatus.paused => AppStrings.runPartyPaused,
+      RunnerStatus.disconnected => AppStrings.runPartyDisconnected,
+      RunnerStatus.finished => AppStrings.runPartyFinished,
+      // 뛰는 중이거나(`running`), 아직 통지가 한 번도 안 왔다(`null`).
+      _ =>
+        lane.gapMeters == null
+            ? null
+            : AppStrings.runPartyGapLine(lane.gapMeters!),
+    };
+  }
+
+  /// 통지가 끊긴 것으로 보이는가.
+  ///
+  /// ⚠️ **[_footnoteOf]의 `disconnected` 와 다른 신호다.** 이쪽은 앱이 시간으로
+  /// 재는 추측(19초)이고, 그쪽은 서버가 알려 준 사실이다. 서버의 유휴
+  /// 타임아웃은 더 길어서 이 추측이 먼저 닿는다 — 둘 다 남긴다.
   static bool _stale(PartyRow lane, DateTime now) {
     final at = lane.progress?.receivedAt;
     return at != null && now.difference(at) > PartyBoard.staleAfter;
