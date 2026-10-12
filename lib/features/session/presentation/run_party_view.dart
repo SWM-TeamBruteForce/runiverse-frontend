@@ -109,9 +109,13 @@ class RunPartyView extends StatelessWidget {
               bestCombo: lane.isMe
                   ? board.myBestCombo
                   : board.bestComboOf(lane.userId),
-              meters: lane.isMe
-                  ? board.myDistanceMeters
-                  : lane.progress?.distanceMeters ?? 0,
+              // ⚠️ **내 줄도 서버 거리다**(1.1.0 가이드 1.2). 여기만 로컬
+              // 값으로 두면 나는 매 초 움직이고 상대는 10초마다 뛰어서,
+              // 같은 화면 안에서 **두 시계가 돈다.** 개인 기록 화면의 거리는
+              // 그대로 로컬 값이다.
+              meters:
+                  lane.progress?.distanceMeters ??
+                  (lane.isMe ? board.myDistanceMeters : 0),
               targetMeters: targetDistanceMeters,
               pace: lane.isMe
                   ? myPace

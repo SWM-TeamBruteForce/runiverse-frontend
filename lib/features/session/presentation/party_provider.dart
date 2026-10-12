@@ -114,13 +114,22 @@ class PartyController extends Notifier<PartyBoard> {
       // 거르지 않으면 **자기가 파티원으로 뜬다** — 점이 2개에서 3개가 되고
       // `파티원 비교` 장에 내가 남처럼 선다.
       //
-      // ⚠️ **보드의 `myUserId` 로 거르면 안 된다.** 그 값은 명단(스냅샷)이
-      // 와야 채워지는데, 진행 통지가 먼저 오면 아직 비어 있다. 서버가 무엇을
-      // 먼저 보내든 상관없도록 **로그인할 때 받아 둔 내 번호**로 가른다.
-      if (update.userId == await _myUserId()) return;
+      // ⚠️ **내 진행도 버리지 않는다**(1.1.0 가이드 1.2). 비교 화면은 나를
+      // 포함한 모두를 서버 거리로 줄 세운다 — 나만 로컬 값으로 매 초 움직이면
+      // 간격이 어긋나 보이고, 서버 거리로 판정하는 콤보와도 따로 논다.
+      //
+      // ⚠️ **보드가 내 번호를 모르면 내가 파티원으로 선다.** `myUserId` 는
+      // 명단(스냅샷)이 와야 채워지는데 진행 통지가 먼저 올 수 있다. 서버가
+      // 무엇을 먼저 보내든 상관없도록 **로그인할 때 받아 둔 내 번호**를
+      // 먼저 세운다.
+      final me = await _myUserId();
+      var next = state;
+      if (me != null && next.myUserId != me) {
+        next = next.withRoster(next.roster, myUserId: me);
+      }
 
       // 받은 시각을 여기서 찍는다. 채널은 시계를 모르는 편이 테스트하기 쉽다.
-      state = state.withProgress(update.stamped(DateTime.now()));
+      state = next.withProgress(update.stamped(DateTime.now()));
     });
     _combos = channel.combos.listen((update) {
       final before = state.combos.keys.toSet();
