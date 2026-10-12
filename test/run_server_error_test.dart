@@ -14,6 +14,7 @@ import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
 /// 러닝 중 서버가 보내는 `ERROR`에 연결이 **어떻게 반응하는가.**
 ///
@@ -119,7 +120,8 @@ class _ErrorChannel implements RunningChannel {
   bool sendLocations(List<TrackPoint> points) => true;
 
   @override
-  Future<bool> finish({bool forced = false}) async => true;
+  Future<FinishOutcome> finish({bool forced = false}) async =>
+      const FinishConfirmed();
 
   @override
   Future<void> close() async {

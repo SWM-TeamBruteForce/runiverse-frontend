@@ -18,6 +18,7 @@ import 'package:runiverse/features/session/presentation/party_provider.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
 /// 서버가 **진행 중인 것이 없다**고 답했을 때 앱이 무엇을 내려놓는가.
 ///
@@ -177,7 +178,8 @@ class _TrackedChannel implements RunningChannel {
   bool sendLocations(List<TrackPoint> points) => true;
 
   @override
-  Future<bool> finish({bool forced = false}) async => true;
+  Future<FinishOutcome> finish({bool forced = false}) async =>
+      const FinishConfirmed();
 
   @override
   Future<void> close() async {

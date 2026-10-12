@@ -20,6 +20,7 @@ import 'package:runiverse/features/session/presentation/party_provider.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
 /// 파티 보드가 **통지에 붙는 시점.**
 ///
@@ -456,7 +457,8 @@ class _PushChannel implements RunningChannel {
   bool sendLocations(List<TrackPoint> points) => true;
 
   @override
-  Future<bool> finish({bool forced = false}) async => true;
+  Future<FinishOutcome> finish({bool forced = false}) async =>
+      const FinishConfirmed();
 
   @override
   Future<void> close() async {}

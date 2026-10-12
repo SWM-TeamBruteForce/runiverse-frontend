@@ -24,6 +24,7 @@ import 'package:runiverse/features/session/domain/user_status_repository.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
 /// 홈의 **"러닝 화면으로 가기"** — 들어가기 전에 상태를 다시 읽는가.
 ///
@@ -232,7 +233,8 @@ class _CountingChannel implements RunningChannel {
   bool sendLocations(List<TrackPoint> points) => true;
 
   @override
-  Future<bool> finish({bool forced = false}) async => true;
+  Future<FinishOutcome> finish({bool forced = false}) async =>
+      const FinishConfirmed();
 
   @override
   Future<void> close() async {}

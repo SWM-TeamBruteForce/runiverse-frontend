@@ -13,6 +13,7 @@ import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
 /// 끝내지 못한 방 — **앱이 스스로 풀 수 있는가.**
 ///
@@ -255,11 +256,11 @@ class _RecordingChannel implements RunningChannel {
   }
 
   @override
-  Future<bool> finish({bool forced = false}) async {
+  Future<FinishOutcome> finish({bool forced = false}) async {
     finishes++;
     order.add('finish');
     onFinish?.call();
-    return ack;
+    return ack ? const FinishConfirmed() : const FinishUnconfirmed();
   }
 
   @override

@@ -15,6 +15,7 @@ import 'package:runiverse/core/widgets/page_indicator.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/session/domain/run_metrics.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/core/widgets/run_map_view.dart';
@@ -87,7 +88,7 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     final target = _targetDistanceMeters();
     final short =
         target != null && metrics.distanceMeters < target * _safeRatio;
-    _finishRun(forced: short);
+    unawaited(_finishRun(forced: short));
   }
 
   /// 목표까지 남은 거리(km). 안내할 것이 없으면 `null` 이다.
@@ -115,17 +116,43 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   /// ⚠️ **ack를 기다리지 않고 요약으로 넘어간다.** 요약에 뜨는 값은 러닝 중
   /// 계산한 것이라 서버 확정과 무관하다. 기다리게 하면 신호가 나쁜 곳에서
   /// 요약조차 못 본다. 서버가 확정한 값을 읽는 **상세**만 기다린다.
-  void _finishRun({required bool forced}) {
+  /// ## ⚠️ 이제 답을 기다린다
+  ///
+  /// 예전에는 요청만 던지고 **곧바로** 요약으로 넘어갔다. 1.1.0 서버는
+  /// `RUNNING_GOAL_PENDING` 으로 **"확정 거리가 모자라다"** 고 답할 수 있는데,
+  /// 그때는 러닝이 끝나지 않는다 — 먼저 넘어가 버리면 **러닝이 뒤에서 계속
+  /// 도는 채로 요약 화면이 뜬다.**
+  ///
+  /// 기다리는 시간은 채널의 ack 타임아웃(15초)이 윗선이다. 못 받으면
+  /// [FinishUnconfirmed] 로 떨어져 예전처럼 요약으로 간다 — 신호가 나쁜 곳에서
+  /// 요약조차 못 보는 일은 그대로 막는다.
+  Future<void> _finishRun({required bool forced}) async {
     if (_finishing) return;
-    _finishing = true;
+    setState(() => _finishing = true);
 
-    ref.read(runSessionControllerProvider.notifier).finish();
     // 끝나면 소켓도 함께 닫힌다 — 안 닫으면 다음 러닝에서 서버가 중복 연결로
     // 보고 이쪽을 4001로 끊는다.
-    unawaited(
-      ref.read(runningConnectionProvider.notifier).finish(forced: forced),
-    );
-    if (mounted) context.pushReplacement(AppRoutes.runSummary);
+    final outcome = await ref
+        .read(runningConnectionProvider.notifier)
+        .finish(forced: forced);
+
+    if (!mounted) return;
+
+    // ⚠️ **러닝이 이어진다.** 세션을 접지도, 화면을 옮기지도 않는다.
+    if (outcome is FinishGoalPending) {
+      setState(() => _finishing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppStrings.runGoalPending(outcome.remainingMeters)),
+        ),
+      );
+      return;
+    }
+
+    // ⚠️ **세션은 여기서 접는다.** 보류일 수 있으므로 답을 받기 전에 접으면
+    // 멀쩡한 러닝의 시계가 멈춘다.
+    ref.read(runSessionControllerProvider.notifier).finish();
+    context.pushReplacement(AppRoutes.runSummary);
   }
 
   /// 끝내는 중인가. 목표 도달과 중지 시트가 겹쳐 두 번 보내는 것을 막는다.
@@ -144,7 +171,7 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     if (target == null || state.metrics.distanceMeters < target) return;
 
     debugPrint('[running] 목표 ${target}m에 닿았다. 종료를 보낸다');
-    _finishRun(forced: false);
+    unawaited(_finishRun(forced: false));
   }
 
   /// 제재 없이 끝낼 수 있는 선. 연동 가이드가 정한 값이다.

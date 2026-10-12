@@ -9,6 +9,7 @@ import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/http_running_room_repository.dart';
 import 'package:runiverse/features/session/data/ws_running_channel.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/domain/running_room_repository.dart';
@@ -564,8 +565,13 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       sender.stop();
 
       // ⚠️ **ack를 받아야만 정리된 것이다.** 아래 주석 참조.
-      if (!await channel.finish()) {
-        debugPrint('[running] 종료 확인을 못 받았다. 방 번호를 남긴다');
+      //
+      // ⚠️ 목표가 모자라다는 답(`GOAL_PENDING`)도 **안 끝난 것**으로 본다.
+      // 지난 러닝을 치우는 자리라 더 뛸 사람이 없는데, 여기서 `forced=true`
+      // 로 밀어붙이면 **사용자가 모르는 사이에 조기 종료로 기록된다.**
+      final outcome = await channel.finish();
+      if (outcome is! FinishConfirmed) {
+        debugPrint('[running] 종료 확인을 못 받았다($outcome). 방 번호를 남긴다');
         return false;
       }
     } on Object catch (error) {
@@ -607,16 +613,27 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// ⚠️ **상세는 다르다.** 서버가 확정한 값을 읽으므로 ack 전에 부르면 빈
   /// 기록이 온다. 그래서 이 구간 동안 [RunningConnectionState.settling]을
   /// 세워 요약 화면이 문을 잠그게 한다.
-  Future<void> finish({bool forced = false}) async {
+  /// 돌려주는 값이 셋이다([FinishOutcome]).
+  ///
+  /// ⚠️ **[FinishGoalPending] 이면 아무것도 정리하지 않는다.** 소켓도 트랙도
+  /// 그대로 두고 러닝을 이어 간다 — 서버가 확정한 거리가 목표에 모자라다는
+  /// 뜻이지 종료가 아니다(1.1.0 가이드 3.2).
+  Future<FinishOutcome> finish({bool forced = false}) async {
     final channel = _channel;
     if (channel == null) {
       await close();
-      return;
+      return const FinishUnconfirmed();
     }
 
     // 여기부터 ack까지가 **서버가 기록을 확정하는 구간**이다. 요약 화면이
     // 이 표시를 보고 상세로 가는 문을 잠근다 — [RunningConnectionState.settling].
     state = state.copyWith(settling: true);
+
+    // ⚠️ `finally` 가 돌고 난 뒤에 돌려준다. 던져서 빠져나가면 못 받은 것이다.
+    FinishOutcome result = const FinishUnconfirmed();
+
+    /// 종료가 보류됐는가. 참이면 `finally` 의 정리를 건너뛴다.
+    var pending = false;
 
     try {
       await _sender?.drain();
@@ -624,8 +641,28 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       _sender?.stop();
 
       final finishedId = state.room?.id;
-      final acked = await channel.finish(forced: forced);
-      if (acked) {
+      final outcome = await channel.finish(forced: forced);
+
+      // ⚠️ **정리를 통째로 건너뛴다.** 아래 `finally` 가 소켓을 닫고 상태를
+      // 비우는데, 보류는 러닝이 이어지는 것이라 그 정리를 밟으면 안 된다.
+      //
+      // ⚠️ `return` 으로는 못 빠져나간다 — `finally` 는 그때도 돈다. 플래그를
+      // 세워 그 안에서 가른다.
+      if (outcome is FinishGoalPending) {
+        debugPrint('[running] 목표 보류 · ${outcome.remainingMeters}m 남음');
+        // 멈춰 둔 전송기를 다시 돌린다. 계속 뛰므로 좌표가 또 쌓인다.
+        //
+        // ⚠️ `start` 가 아니라 [TrackSender.resumeTimer] 다. `start` 는 커서를
+        // 되감아 **이미 보낸 것을 통째로 다시 보낸다** — 연결이 멀쩡한데
+        // 그럴 이유가 없고, 큰 배치가 연달아 나가면 1009로 끊긴다.
+        _sender?.resumeTimer();
+        state = state.copyWith(settling: false);
+        pending = true;
+        result = outcome;
+        return result;
+      }
+
+      if (outcome is FinishConfirmed) {
         // ⚠️ **끝냈다는 사실을 남긴다.** 서버 상태가 따라오기 전까지 홈이
         // 이 방으로 돌아가는 문을 띄우지 않게 한다.
         _finishedRoomId = finishedId;
@@ -641,24 +678,39 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       } else {
         debugPrint('[running] 종료 확인을 못 받아 로컬 트랙을 남긴다');
       }
+      result = outcome;
     } finally {
-      // ⚠️ **어떻게 끝나든 [settling]을 내린다.** 중간에 던지면 `자세한 기록
-      // 보기`가 영영 잠긴 채로 남는다.
+      // ⚠️ **보류는 정리하지 않는다.** 소켓도 상태도 그대로 두고 러닝을
+      // 이어 간다 — 닫으면 그 뒤 좌표가 어디로도 못 간다.
       //
-      // ⚠️ **방 번호는 남겨야 한다.** 요약 화면(S15)이 이 번호로 상세 결과
-      // 17·18번을 부른다. [close]가 상태를 통째로 비우므로, 닫은 뒤 번호만
-      // 되돌려 놓는다 — 없으면 `자세한 기록 보기`가 계속 잠겨 있다.
+      // ⚠️ 여기서 `return` 하지 않는다. `finally` 의 `return` 은 `try` 의
+      // 것을 **조용히 이긴다** — 실제로 보류 값이 그렇게 버려졌다.
+      if (!pending) await _cleanUpAfterFinish();
       //
-      // 다음 러닝의 409 판정은 상태가 아니라 **저장소**(`activeRoom()`)를 보므로
-      // 여기 남은 번호가 다음 러닝을 방해하지 않는다.
-      final finished = state.room;
-      await close();
-      if (finished != null) {
-        state = RunningConnectionState(
-          room: finished,
-          finishedRoomId: _finishedRoomId,
-        );
-      }
+    }
+
+    return result;
+  }
+
+  /// 종료가 **확정되거나 포기된 뒤** 소켓을 닫고 상태를 추린다.
+  ///
+  /// ⚠️ **어떻게 끝나든 [RunningConnectionState.settling]을 내린다.** 중간에
+  /// 던지면 `자세한 기록 보기`가 영영 잠긴 채로 남는다.
+  ///
+  /// ⚠️ **방 번호는 남겨야 한다.** 요약 화면(S15)이 이 번호로 상세 결과
+  /// 17·18번을 부른다. [close]가 상태를 통째로 비우므로, 닫은 뒤 번호만
+  /// 되돌려 놓는다 — 없으면 `자세한 기록 보기`가 계속 잠겨 있다.
+  ///
+  /// 다음 러닝의 409 판정은 상태가 아니라 **저장소**(`activeRoom()`)를 보므로
+  /// 여기 남은 번호가 다음 러닝을 방해하지 않는다.
+  Future<void> _cleanUpAfterFinish() async {
+    final room = state.room;
+    await close();
+    if (room != null) {
+      state = RunningConnectionState(
+        room: room,
+        finishedRoomId: _finishedRoomId,
+      );
     }
   }
 
