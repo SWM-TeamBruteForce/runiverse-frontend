@@ -114,6 +114,38 @@ void main() {
       expect(await channel.finish(), isA<FinishUnconfirmed>());
     });
 
+    group('⚠️ 서버가 스스로 끝낸 경우 — 1.1.0 가이드 3.1', () {
+      // ⚠️ **요청 없이도 `RUNNING_FINISHED` 가 온다.** 1.1.0부터 목표 도달
+      // 자동 종료는 서버의 몫이다 — 앱은 로컬 거리가 목표를 넘어도 보내지
+      // 않는다. 기다리는 쪽이 없으니 **스트림으로 알리지 않으면 아무도
+      // 모르고**, 러닝이 끝났는데 화면이 영영 남는다.
+
+      test('요청하지 않았는데 오면 스트림으로 알린다', () async {
+        await channel.start(roomId);
+        final seen = <void>[];
+        channel.finished.listen(seen.add);
+
+        await receive('RUNNING_FINISHED');
+        await Future<void>.delayed(Duration.zero);
+
+        expect(seen, hasLength(1));
+      });
+
+      test('⚠️ 내가 요청한 종료는 스트림으로 새지 않는다', () async {
+        // 한 번의 종료가 **두 길로** 처리되면 트랙을 두 번 지운다.
+        await channel.start(roomId);
+        final seen = <void>[];
+        channel.finished.listen(seen.add);
+
+        final finishing = channel.finish();
+        await receive('RUNNING_FINISHED');
+        await finishing;
+        await Future<void>.delayed(Duration.zero);
+
+        expect(seen, isEmpty);
+      });
+    });
+
     group('⚠️ RUNNING_GOAL_PENDING — 1.1.0', () {
       // ⚠️ **이것이 종료가 아니다.** 서버가 확정한 거리가 목표에 모자라다는
       // 뜻이고 러닝은 그대로 간다. `bool` 이던 시절에는 이 답을 표현할 자리가

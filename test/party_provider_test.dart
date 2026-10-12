@@ -448,6 +448,9 @@ class _PushChannel implements RunningChannel {
   }
 
   @override
+  Stream<void> get finished => const Stream.empty();
+
+  @override
   Stream<RunSnapshot> get snapshots => snapshots_.stream;
 
   @override

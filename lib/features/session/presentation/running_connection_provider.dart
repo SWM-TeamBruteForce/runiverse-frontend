@@ -413,6 +413,13 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     });
     channel.errors.listen(_onServerError);
 
+    // ⚠️ **서버가 스스로 끝낸 경우다**(목표 도달 자동 종료 · 강제 종료).
+    //
+    // 1.1.0부터 앱은 로컬 거리가 목표를 넘어도 `RUNNING_FINISH` 를 보내지
+    // 않는다(가이드 3.1) — 서버가 **오염 좌표를 뺀 확정 거리**로 판단해
+    // 끝낸다. 이 통지를 안 받으면 러닝이 끝났는데 화면이 영영 남는다.
+    channel.finished.listen((_) => unawaited(_onServerFinished()));
+
     // ⚠️ **시작 확인을 받으면 서버가 아는 상태를 다시 읽는다.**
     //
     // 매칭 SSE는 상태가 `RUNNING`이 되면 닫히는데(`MatchRoomController._syncWith`),
@@ -712,6 +719,35 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
         finishedRoomId: _finishedRoomId,
       );
     }
+  }
+
+  /// 서버가 끝냈다. **보내지 않은 좌표를 먼저 올리고** 정리한다.
+  ///
+  /// ⚠️ 내가 요청해서 끝난 경우는 여기로 오지 않는다([finish] 가 맡는다).
+  /// 둘을 섞으면 한 번의 종료가 두 길로 처리돼 트랙을 두 번 지운다.
+  Future<void> _onServerFinished() async {
+    final finishedId = state.room?.id;
+    if (finishedId == null || _finishedRoomId == finishedId) return;
+
+    state = state.copyWith(settling: true);
+    try {
+      // ⚠️ **남은 좌표를 먼저 보낸다.** 서버가 이미 확정했어도 늦게 도착한
+      // 배치는 저장되지 않을 뿐 해롭지 않고, 못 보낸 채 지우면 되돌릴 수 없다.
+      await _sender?.drain();
+      _sender?.stop();
+
+      _finishedRoomId = finishedId;
+      unawaited(
+        ref
+            .read(analyticsProvider)
+            .runFinish(runType: _runType(state.room?.isMatched)),
+      );
+      await ref.read(trackRecorderProvider).discard();
+      await ref.read(trackRepositoryProvider).clearActiveRoom();
+    } on Object catch (error) {
+      debugPrint('[running] 서버 종료 정리가 어긋났다 · $error');
+    }
+    await _cleanUpAfterFinish();
   }
 
   /// 연결을 닫고 처음 상태로 돌아간다. **종료를 알리지는 않는다** — 화면을

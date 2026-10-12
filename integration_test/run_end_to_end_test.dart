@@ -168,7 +168,7 @@ void main() {
       );
 
       expect(channel.order.last, 'finish', reason: '좌표를 다 보내기 전에 종료를 보냈다');
-      expect(channel.finished, isTrue, reason: 'RUNNING_FINISH가 안 나갔다');
+      expect(channel.finishSent, isTrue, reason: 'RUNNING_FINISH가 안 나갔다');
 
       // ⚠️ ack를 받았으므로 로컬 트랙이 지워져야 한다.
       expect(
@@ -217,7 +217,7 @@ class _RecordingChannel implements RunningChannel {
   final order = <String>[];
 
   int? startedRoom;
-  var finished = false;
+  var finishSent = false;
 
   List<TrackPoint> get sent => [for (final b in batches) ...b];
 
@@ -239,6 +239,9 @@ class _RecordingChannel implements RunningChannel {
   Stream<RunCombo> get combos => const Stream.empty();
 
   @override
+  Stream<void> get finished => const Stream.empty();
+
+  @override
   Stream<RunSnapshot> get snapshots => const Stream.empty();
 
   @override
@@ -258,7 +261,7 @@ class _RecordingChannel implements RunningChannel {
   @override
   Future<FinishOutcome> finish({bool forced = false}) async {
     order.add('finish');
-    finished = true;
+    finishSent = true;
     // 서버가 ack를 준 척한다. 이것이 로컬 트랙을 지워도 되는 근거다.
     return const FinishConfirmed();
   }

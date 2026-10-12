@@ -163,6 +163,9 @@ class _SlowFinishChannel implements RunningChannel {
   Stream<RunCombo> get combos => const Stream.empty();
 
   @override
+  Stream<void> get finished => const Stream.empty();
+
+  @override
   Stream<RunSnapshot> get snapshots => const Stream.empty();
 
   @override

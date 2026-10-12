@@ -158,22 +158,6 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   /// 끝내는 중인가. 목표 도달과 중지 시트가 겹쳐 두 번 보내는 것을 막는다.
   var _finishing = false;
 
-  /// 목표 거리에 닿았다. **사용자가 누르기를 기다리지 않는다.**
-  ///
-  /// ## ⚠️ `forced`는 거짓이다
-  ///
-  /// 명세가 `forced`를 **"목표 거리 달성 전 사용자의 종료 의사"** 로 정의한다.
-  /// 목표를 채우고 끝나는 것은 의사 표시가 아니라 완주라, 참이면 서버가 조기
-  /// 종료로 읽는다. 최종 완주·이탈 판정은 어차피 서버가 확정 거리로 한다.
-  void _finishIfTargetReached(RunSessionState state) {
-    if (_finishing || state is! RunRunning) return;
-    final target = _targetDistanceMeters();
-    if (target == null || state.metrics.distanceMeters < target) return;
-
-    debugPrint('[running] 목표 ${target}m에 닿았다. 종료를 보낸다');
-    unawaited(_finishRun(forced: false));
-  }
-
   /// 제재 없이 끝낼 수 있는 선. 연동 가이드가 정한 값이다.
   static const _safeRatio = 0.8;
 
@@ -230,15 +214,23 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
       }
     });
 
-    // ⚠️ **목표에 닿으면 스스로 끝낸다.** 명세가 정한 순서는
-    // `RUNNING_FINISH` → ack → 로컬 트랙 삭제 → 결과 조회인데, 예전에는 그
-    // 첫 줄이 **사용자가 중지를 누를 때만** 나갔다. 목표를 채우고도 안 누르면
-    // 서버는 그 러닝을 계속 진행 중으로 들고 있는다.
+    // ⚠️ **서버가 끝내면 따라간다.**
     //
-    // `listen`으로 듣는다 — `build` 안에서 바로 판정하면 그리는 도중에
-    // 화면을 옮기게 된다.
-    ref.listen(runSessionControllerProvider, (_, next) {
-      _finishIfTargetReached(next);
+    // 1.1.0부터 목표 도달 자동 종료는 **서버의 몫**이다(가이드 3.1). 앱이
+    // 잰 거리로 보내던 것을 없앴다 — 서버는 정지 구간과 오염 좌표를 뺀
+    // 확정 거리로 판단하므로, 앱 기준으로 넘었어도 아직 모자랄 수 있다.
+    //
+    // 내가 눌러서 끝낸 경우는 [_finishRun]이 화면을 옮기므로 여기서 또
+    // 옮기지 않는다([_finishing]).
+    ref.listen(runningConnectionProvider.select((s) => s.finishedRoomId), (
+      previous,
+      next,
+    ) {
+      if (next == null || next == previous || _finishing) return;
+      debugPrint('[running] 서버가 끝냈다. 요약으로 간다');
+      _finishing = true;
+      ref.read(runSessionControllerProvider.notifier).finish();
+      if (mounted) context.pushReplacement(AppRoutes.runSummary);
     });
 
     final party = ref.watch(partyProvider);

@@ -35,6 +35,7 @@ class WsRunningChannel implements RunningChannel {
   final _errors = StreamController<WsErrorCode>.broadcast();
   final _progress = StreamController<RunProgress>.broadcast();
   final _combos = StreamController<RunCombo>.broadcast();
+  final _finished = StreamController<void>.broadcast();
   final _snapshots = StreamController<RunSnapshot>.broadcast();
 
   /// 어느 방에서 달리는가. 재연결 때 `RUNNING_START`를 다시 보내려면 필요하다.
@@ -69,6 +70,9 @@ class WsRunningChannel implements RunningChannel {
 
   @override
   Stream<RunCombo> get combos => _combos.stream;
+
+  @override
+  Stream<void> get finished => _finished.stream;
 
   @override
   Stream<RunSnapshot> get snapshots => _snapshots.stream;
@@ -128,6 +132,7 @@ class WsRunningChannel implements RunningChannel {
     await _errors.close();
     await _progress.close();
     await _combos.close();
+    await _finished.close();
     await _snapshots.close();
     await _client.dispose();
   }
@@ -172,9 +177,15 @@ class WsRunningChannel implements RunningChannel {
 
       case WsEvents.runningFinished:
         // 종료 확인이다. **이것이 로컬 트랙을 지워도 되는 유일한 근거다.**
-        debugPrint('[running] 종료 확인');
         if (_finishing?.isCompleted == false) {
+          debugPrint('[running] 종료 확인');
           _finishing!.complete(const FinishConfirmed());
+        } else if (!_finished.isClosed) {
+          // ⚠️ **요청하지 않았는데 왔다** = 서버가 끝냈다(목표 도달 자동
+          // 종료). 기다리는 쪽이 없으므로 스트림으로 알린다 — 안 그러면
+          // 러닝이 끝났는데 화면이 영영 남는다.
+          debugPrint('[running] 서버가 러닝을 끝냈다');
+          _finished.add(null);
         }
 
       case WsEvents.runningGoalPending:
