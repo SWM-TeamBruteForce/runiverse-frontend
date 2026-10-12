@@ -16,8 +16,10 @@ import 'package:runiverse/features/session/data/fake_track_repository.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_snapshot.dart';
+import 'package:runiverse/features/session/domain/party_board.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
+import 'package:runiverse/features/session/presentation/party_provider.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
@@ -34,9 +36,16 @@ import 'package:runiverse/features/session/domain/pace_calculator.dart';
 /// `run_session_test`는 전부 provider 테스트다. 장 순서를 바꿔도 1,100개가
 /// 그대로 통과했다 — **화면을 지나는 것이 하나도 없었다.**
 ///
-/// 시안(`158:3493`)은 점 셋 중 **첫째**가 켜진 채로 실시간 기록을 보여준다.
-/// 예전 코드는 지도를 0번에 두고 `initialPage: 1`로 보정해서, 기록 장에서
-/// **둘째 점이 켜졌다** — 점이 거짓말을 하고 있었다.
+/// ## ⚠️ 실시간 기록은 **가운데** 장이다
+///
+/// 왼쪽이 내 GPS, 오른쪽이 파티원 비교다(2026-10-12 요청). 시안(`158:3493`)은
+/// 기록을 **첫째**에 두었으므로 **일부러 벗어난 것**이다 — 모르고 보면
+/// "시안대로 되돌리는" 수정을 부른다.
+///
+/// 그래서 지도가 0번이고 `initialPage: 1`이다. 예전에 같은 모양이었다가
+/// 기록 장에서 **둘째 점이 켜진** 적이 있다. `_page`의 초기값이 0인데 실제로는
+/// 1번 장이 떠서였다 — `onPageChanged`는 처음에 불리지 않는다. 점이 거짓말을
+/// 하는 그 자리를 아래 `가운데 점이 켜진다`가 지킨다.
 void main() {
   late _FinishChannel channel;
   late FakeLocationRepository location;
@@ -91,20 +100,111 @@ void main() {
     return container;
   }
 
-  testWidgets('⚠️ 첫 장이 실시간 기록이다', (tester) async {
+  /// 파티원이 있는 화면을 세운다. 점은 셋이다.
+  ///
+  /// `hasParty` 는 방이 매칭이거나 파티원 줄이 있을 때 참이다. 방 쪽은 연결을
+  /// 돌려야 세워지므로(타이머가 선다) **명단으로 만든다.**
+  Future<ProviderContainer> pumpMatched(WidgetTester tester) async {
+    final container = await makeContainer();
+    addTearDown(container.dispose);
+    container.read(partyProvider.notifier).setRoster(const [
+      PartyMember(userId: 'u-1', nickname: '나'),
+      PartyMember(userId: 'u-2', nickname: '옆사람'),
+    ], myUserId: 'u-1');
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const RuniverseApp(initialLocation: AppRoutes.runSession),
+      ),
+    );
+    await tester.pump();
+    return container;
+  }
+
+  /// 왼쪽 장으로. **손가락을 오른쪽으로** 민다.
+  Future<void> swipeToLeftPage(WidgetTester tester) async {
+    await tester.drag(find.byType(PageView), const Offset(500, 0));
+    await tester.pumpAndSettle();
+  }
+
+  /// 오른쪽 장으로. **손가락을 왼쪽으로** 민다.
+  Future<void> swipeToRightPage(WidgetTester tester) async {
+    await tester.drag(find.byType(PageView), const Offset(-500, 0));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('⚠️ 시작 장이 실시간 기록이다', (tester) async {
     await pumpSolo(tester);
 
     expect(find.text(AppStrings.runPageLive), findsOneWidget);
     expect(find.text(AppStrings.runPageMap), findsNothing);
   });
 
-  testWidgets('⚠️ 첫 장에서 첫째 점이 켜진다', (tester) async {
-    // 지도를 0번에 두고 `initialPage` 로 보정하면 여기가 1이 된다.
+  testWidgets('⚠️ 시작 장에서 가운데 점이 켜진다', (tester) async {
+    // ⚠️ **이 그물이 실제 결함을 잡아 만들어졌다.** `_page` 를 0으로 두면
+    // 기록 장이 떠 있는데 **첫째 점**이 켜져 점이 거짓말을 한다.
     await pumpSolo(tester);
 
     final indicator = tester.widget<PageIndicator>(find.byType(PageIndicator));
-    expect(indicator.currentIndex, 0);
+    expect(indicator.currentIndex, 1);
     expect(indicator.count, 2, reason: '혼자면 파티원 장이 없다');
+  });
+
+  group('⚠️ 장의 좌우 — 2026-10-12 요청', () {
+    testWidgets('왼쪽은 내 GPS 다', (tester) async {
+      await pumpSolo(tester);
+
+      await swipeToLeftPage(tester);
+
+      expect(find.text(AppStrings.runPageMap), findsOneWidget);
+      expect(find.byType(RunMapView), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 혼자 뛸 때도 GPS 는 왼쪽이다', (tester) async {
+      // 파티원 장이 없다고 순서를 바꾸면, 매칭과 솔로에서 **같은 손짓이 다른
+      // 화면**을 연다.
+      await pumpSolo(tester);
+
+      await swipeToRightPage(tester);
+
+      expect(
+        find.text(AppStrings.runPageMap),
+        findsNothing,
+        reason: '오른쪽이 아니다',
+      );
+      expect(
+        find.text(AppStrings.runPageLive),
+        findsOneWidget,
+        reason: '끝이라 그대로',
+      );
+    });
+
+    testWidgets('매칭이면 오른쪽이 파티원 비교다', (tester) async {
+      await pumpMatched(tester);
+
+      await swipeToRightPage(tester);
+
+      expect(find.text(AppStrings.runPageParty), findsOneWidget);
+    });
+
+    testWidgets('매칭이어도 왼쪽은 내 GPS 다', (tester) async {
+      await pumpMatched(tester);
+
+      await swipeToLeftPage(tester);
+
+      expect(find.text(AppStrings.runPageMap), findsOneWidget);
+    });
+
+    testWidgets('매칭이면 점이 셋이고 가운데가 켜진다', (tester) async {
+      await pumpMatched(tester);
+
+      final indicator = tester.widget<PageIndicator>(
+        find.byType(PageIndicator),
+      );
+      expect(indicator.count, 3);
+      expect(indicator.currentIndex, 1);
+    });
   });
 
   group('⚠️ 실시간 기록 장 — 시안 158:3493', () {
@@ -138,11 +238,8 @@ void main() {
   });
 
   group('⚠️ 내 GPS 장 — 시안 158:3545', () {
-    /// 지도 장으로 넘긴다.
-    Future<void> toMap(WidgetTester tester) async {
-      await tester.drag(find.byType(PageView), const Offset(-500, 0));
-      await tester.pumpAndSettle();
-    }
+    /// 지도 장으로 넘긴다. **왼쪽 장이라 손가락은 오른쪽으로.**
+    Future<void> toMap(WidgetTester tester) async => swipeToLeftPage(tester);
 
     testWidgets('지도 아래에 칸이 둘이다', (tester) async {
       // ⚠️ **넷이 아니라 둘이다.** 실시간 기록 장에 넷이 있는데 여기에 또
@@ -162,16 +259,6 @@ void main() {
       expect(find.text(AppStrings.runCadenceLabel), findsNothing);
       expect(find.text(AppStrings.runCaloriesLabel), findsNothing);
     });
-  });
-
-  testWidgets('옆으로 넘기면 내 GPS 다', (tester) async {
-    await pumpSolo(tester);
-
-    await tester.drag(find.byType(PageView), const Offset(-500, 0));
-    await tester.pumpAndSettle();
-
-    expect(find.text(AppStrings.runPageMap), findsOneWidget);
-    expect(find.byType(RunMapView), findsOneWidget);
   });
 }
 
