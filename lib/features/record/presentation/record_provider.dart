@@ -109,37 +109,68 @@ class RecordController extends Notifier<RecordState> {
   ///
   /// [month]를 주면 그 달을, [select]를 주면 읽은 뒤 그 날을 고른다.
   /// [select]가 없으면 이번 달이면 오늘, 지난달이면 1일이다.
+  ///
+  /// ## ⚠️ 보여줄 것이 있으면 **비우지 않는다**
+  ///
+  /// 예전에는 부를 때마다 [RecordLoading] 으로 갈아탔다. 화면이 `switch` 로
+  /// 세 갈래를 가르므로, 그 순간 **달력과 주간 기록이 통째로 버려지고 로딩
+  /// 표시 하나만 남는다.** 돌아올 때는 새 위젯이라 달력이 펴 두었던 상태를
+  /// 잃고 접힌 주간 뷰로 돌아갔다 — 달 이동 버튼은 **펴야만 보이므로**,
+  /// 한 달 넘길 때마다 다시 펴야 했다.
+  ///
+  /// 그래서 **이미 읽은 것이 있으면 그대로 두고** 새 값이 오면 갈아 끼운다.
+  /// 첫 진입과 오류 뒤에만 로딩을 보여준다 — 그때는 보여줄 것이 없다.
+  ///
+  /// ⚠️ 이 사이에는 **지난달 화면이 잠깐 그대로 보인다.** 달 이름이
+  /// 늦게 바뀌는 셈인데, 통째로 깜빡이며 읽던 자리를 잃는 것보다 낫다고 봤다.
   Future<void> load({DateTime? month, DateTime? select}) async {
     final now = ref.read(recordClockProvider)();
     final target = month == null
         ? DateTime(now.year, now.month)
         : DateTime(month.year, month.month);
 
-    state = const RecordLoading();
+    if (state is! RecordData) state = const RecordLoading();
 
     try {
+      final selected = select == null
+          ? _initialDay(target, now)
+          : DateTime(select.year, select.month, select.day);
+
+      // ⚠️ **두 7일이 겹치지 않는다.** 차트는 **오늘이 낀 월~일**이고 스트립은
+      // **고른 날 ±3일**이다. 서로 다른 규칙이라 달 초·말에는 멀리 떨어진다.
       final days = weekOf(now);
-      final strip = stripAround(now);
+      final strip = stripAround(selected);
 
-      // ⚠️ **두 7일이 겹치지 않을 수 있다.** 차트는 월~일이고 스트립은
-      // 오늘 ±3일이라, 달 초에는 서로 다른 날을 가리킨다. 한 번에 넓게
-      // 받아 나눠 쓴다 — 조회를 하나 더 두면 왕복이 세 번이 된다.
-      final from = days.first.isBefore(strip.first) ? days.first : strip.first;
-      final to = days.last.isAfter(strip.last) ? days.last : strip.last;
+      // ⚠️ **셋을 하나로 합치지 않는다.**
+      //
+      // 한 번에 물을 수 있는 구간이 **31일 미만**이다
+      // ([RunRecordRepository.maxRangeDays]). 달 하나가 이미 그 상한에 딱
+      // 걸리므로 여기에 하루만 더 붙여도 **서버까지 가지 못하고**
+      // `invalidRequest` 로 떨어진다 — 달 양끝에 사흘씩 붙였다가 기기에서
+      // `기록을 불러오지 못했어요` 를 봤다.
+      //
+      // 차트와 스트립을 묶는 것도 안전하지 않다. 지난달로 옮기면 차트는
+      // **오늘이 낀 주**에 머물고 스트립은 그 달 1일로 가므로 둘이 한 달 넘게
+      // 벌어진다. 7일씩 따로 묻는다.
+      final monthLast = _lastDayOf(target);
 
-      // 둘을 동시에 보낸다. 줄 세우면 왕복이 두 배가 된다.
-      final results = await Future.wait([
-        _repository.byDateRange(from: target, to: _lastDayOf(target)),
-        _repository.byDateRange(from: from, to: to),
+      // 셋을 동시에 묻는다. 줄 세우면 왕복이 세 배다.
+      final answers = await Future.wait([
+        _repository.byDateRange(from: target, to: monthLast),
+        _repository.byDateRange(from: days.first, to: days.last),
+        _repository.byDateRange(from: strip.first, to: strip.last),
       ]);
 
       state = RecordData(
         month: target,
-        selectedDay: select == null
-            ? _initialDay(target, now)
-            : DateTime(select.year, select.month, select.day),
-        monthRecords: results[0],
-        rangeRecords: results[1],
+        selectedDay: selected,
+        monthRecords: answers[0],
+        // 차트와 스트립이 겹치면 같은 러닝이 두 번 온다. **번호로 추린다** —
+        // 그냥 이으면 스트립에 같은 줄이 둘 선다.
+        rangeRecords: {
+          for (final record in [...answers[1], ...answers[2]])
+            record.id: record,
+        }.values.toList(),
         weekDays: days,
         stripDays: strip,
       );
@@ -174,8 +205,52 @@ class RecordController extends Notifier<RecordState> {
       unawaited(load(month: picked, select: picked));
       return;
     }
-    state = current.copyWith(selectedDay: picked);
+    // 스트립은 **고른 날 한가운데**로 옮긴다. 차트(월~일)는 그대로다 —
+    // 둘 다 따라가면 `이번 주`라는 뜻이 사라진다.
+    final strip = stripAround(picked);
+    state = current.copyWith(selectedDay: picked, stripDays: strip);
+
+    // 달 안쪽은 이미 손에 있다(월 조회). **달 밖으로 넘친 사흘**만 없다 —
+    // 1일이나 말일을 고르면 스트립이 이웃 달로 걸친다. 그 칸에 점이 안 찍히면
+    // **모르는 것이 안 뛴 것처럼** 보이므로 뒤에서 채운다.
+    if (_outside(strip.first, current.month) ||
+        _outside(strip.last, current.month)) {
+      unawaited(_fillStrip(strip));
+    }
   }
+
+  /// 스트립이 달 밖으로 걸친 구간을 받아 **갖고 있는 것에 더한다.**
+  ///
+  /// 화면을 비우지 않고 조용히 채우기만 한다. 실패해도 그대로 둔다 —
+  /// 고른 날의 목록은 이미 보이고 있고, 여기서 오류 화면으로 갈아타면
+  /// 사용자가 보던 것을 잃는다.
+  Future<void> _fillStrip(List<DateTime> strip) async {
+    try {
+      final extra = await _repository.byDateRange(
+        from: strip.first,
+        to: strip.last,
+      );
+      final current = state;
+      // 그 사이 사용자가 다른 날·다른 달로 옮겼으면 버린다.
+      if (current is! RecordData || current.stripDays.first != strip.first) {
+        return;
+      }
+      state = current.copyWith(
+        // 겹치는 날이 있으므로 **번호로 추린다.** 그냥 이으면 같은 러닝이
+        // 스트립에 두 번 선다.
+        rangeRecords: {
+          for (final record in [...current.allRangeRecords, ...extra])
+            record.id: record,
+        }.values.toList(),
+      );
+    } on RunRecordException catch (error) {
+      debugPrint('[record] 스트립 바깥을 못 읽었다 · ${error.failure}');
+    }
+  }
+
+  /// [day]가 [month] 밖인가.
+  static bool _outside(DateTime day, DateTime month) =>
+      day.year != month.year || day.month != month.month;
 
   /// 이전·다음 달로 옮긴다. 그 달을 새로 읽는다.
   Future<void> moveMonth(int delta) {

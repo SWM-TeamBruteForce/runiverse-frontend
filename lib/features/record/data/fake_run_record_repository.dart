@@ -31,16 +31,33 @@ class FakeRunRecordRepository implements RunRecordRepository {
   /// 몇 번 불렸나. 화면이 요청을 두 번 하는지(이번 달 + 최근 7일) 본다.
   var calls = 0;
 
+  /// 물어본 구간들. **무엇을 받아 왔는지**를 보는 데 쓴다 — `rangeByDay` 는
+  /// 기록이 있는 날만 키를 가지므로, 받아 왔는데 안 뛴 날과 아예 안 받아 온
+  /// 날이 그쪽에서는 구분되지 않는다.
+  final queries = <({DateTime from, DateTime to})>[];
+
   @override
   Future<List<RunRecord>> byDateRange({
     required DateTime from,
     required DateTime to,
   }) async {
     calls++;
+
+    // ⚠️ **진짜와 같은 규칙으로 거절한다.**
+    //
+    // 가짜가 뭐든 받아 주면 화면이 구간을 넓혀도 테스트가 다 통과한다.
+    // 실제로 그렇게 통과시킨 구간이 기기에서 `invalidRequest` 로 떨어졌다 —
+    // 달 양끝에 사흘씩 붙였더니 31일 달이 36일이 됐다.
+    if (from.isAfter(to) ||
+        to.difference(from).inDays >= RunRecordRepository.maxRangeDays) {
+      throw const RunRecordException(RunRecordFailure.invalidRequest);
+    }
+
     if (delay > Duration.zero) await Future<void>.delayed(delay);
 
     final start = DateTime(from.year, from.month, from.day);
     final end = DateTime(to.year, to.month, to.day);
+    queries.add((from: start, to: end));
 
     return [
       for (final record in _all())

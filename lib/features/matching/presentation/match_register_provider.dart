@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/storage/match_room_store.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/matching/data/http_match_repository.dart';
@@ -151,6 +152,9 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
       // 가이드가 요구하는 것 — 신청·러닝·결과 조회가 같은 방 번호 하나로
       // 이어진다. 메모리에만 두면 앱이 죽는 순간 그 고리가 끊긴다.
       await ref.read(matchRoomStoreProvider).save(roomId);
+      unawaited(
+        ref.read(analyticsProvider).matchApply(distanceMeters: distance.meters),
+      );
 
       state = state.copyWith(submitting: false);
       return roomId;

@@ -1,10 +1,13 @@
 import 'package:flutter/foundation.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart';
 import 'package:runiverse/app/app.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
+import 'package:runiverse/core/analytics/firebase_analytics_service.dart';
 import 'package:runiverse/core/config/app_config.dart';
 
 /// 앱 진입점. Riverpod 스코프를 열고, 앱 루트를 띄운다.
@@ -27,6 +30,14 @@ import 'package:runiverse/core/config/app_config.dart';
 /// 기동하자마자 멈춰서 빌드 파이프라인이 잡게 한다.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Firebase — **인자를 넘기지 않는다.** 설정은 `google-services.json` 에서
+  // 오고, 그 파일은 빌드 타입마다 다른 자리에 있다(운영은 `android/app/`,
+  // 개발은 `src/debug`·`src/profile`). 그래서 `firebase_options.dart` 도 없다.
+  //
+  // ⚠️ 위의 세 SDK 와 달리 **키 유무를 보고 거르지 않는다.** 설정 파일이
+  // 없으면 Gradle 이 빌드를 먼저 세우므로, 여기까지 왔다면 파일은 있다.
+  await Firebase.initializeApp();
 
   // 키가 없으면 초기화하지 않는다. 빈 키로 초기화하면 SDK가 `kakao://oauth`를
   // 리다이렉트 주소로 삼고, 카카오 버튼을 눌렀을 때 원인을 알기 어려운 오류가
@@ -65,7 +76,17 @@ void main() async {
     );
   }
 
-  runApp(const ProviderScope(child: RuniverseApp()));
+  // ⚠️ **이 override 를 지우면 분석이 조용히 멈춘다.** 기본값은
+  // [NoopAnalytics] 다 — 위젯 테스트에 플랫폼 채널이 없어서 그렇게 뒀다.
+  // 진짜를 끼우는 곳은 조립하는 자리인 여기뿐이다.
+  runApp(
+    ProviderScope(
+      overrides: [
+        analyticsProvider.overrideWithValue(FirebaseAnalyticsService()),
+      ],
+      child: const RuniverseApp(),
+    ),
+  );
 }
 
 /// 릴리스 빌드에 [name]이 빠졌으면 멈춘다. 개발 빌드는 그냥 지나간다.
