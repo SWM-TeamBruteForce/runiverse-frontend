@@ -21,6 +21,8 @@ plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "9.0.1" apply false
     id("org.jetbrains.kotlin.android") version "2.3.20" apply false
+    // Firebase. 여기서는 받아만 두고, 쓰는 것은 app/build.gradle.kts 다.
+    id("com.google.gms.google-services") version "4.4.4" apply false
 }
 
 include(":app")

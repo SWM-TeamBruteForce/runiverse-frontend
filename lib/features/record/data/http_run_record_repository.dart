@@ -26,9 +26,6 @@ class HttpRunRecordRepository implements RunRecordRepository {
 
   static const _path = '/api/v1/users/me/running-records';
 
-  /// 캘린더 모드가 한 번에 볼 수 있는 최대 일수. 넘기면 서버가 400을 준다.
-  static const maxRangeDays = 31;
-
   @override
   Future<List<RunRecord>> byDateRange({
     required DateTime from,
@@ -39,7 +36,7 @@ class HttpRunRecordRepository implements RunRecordRepository {
     if (from.isAfter(to)) {
       throw const RunRecordException(RunRecordFailure.invalidRequest);
     }
-    if (to.difference(from).inDays >= maxRangeDays) {
+    if (to.difference(from).inDays >= RunRecordRepository.maxRangeDays) {
       throw const RunRecordException(RunRecordFailure.invalidRequest);
     }
 

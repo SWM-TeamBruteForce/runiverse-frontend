@@ -146,7 +146,7 @@ void main() {
     records.saved = true;
     await finishRun(container);
 
-    expect(records.calls, 2, reason: '처음 한 번(두 요청)에서 늘면 안 된다');
+    expect(records.calls, 3, reason: '처음 읽은 세 번에서 늘면 안 된다');
   });
 }
 
@@ -162,7 +162,8 @@ class _GrowingRecords implements RunRecordRepository {
   /// 서버가 기록을 확정했는가.
   var saved = false;
 
-  /// `byDateRange`가 몇 번 불렸나. 한 번 읽을 때 두 번 나간다(이번 달 + 범위).
+  /// `byDateRange`가 몇 번 불렸나. 한 번 읽을 때 **세 번** 나간다 — 달 ·
+  /// 주간 차트 · 스트립. 한 조회로 합치면 31일 상한에 걸린다.
   var calls = 0;
 
   @override

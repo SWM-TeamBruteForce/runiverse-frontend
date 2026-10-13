@@ -3,6 +3,9 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
+    // google-services.json 을 읽어 Firebase 설정을 빌드에 심는다.
+    // 운영은 app/, 개발(debug·profile)은 src/<타입>/ 아래 것을 가져간다.
+    id("com.google.gms.google-services")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }

@@ -13,6 +13,13 @@ import 'package:runiverse/features/record/domain/run_record.dart';
 /// 구간을 그대로 넣으면 되고, **그날 것만 고르는 일은 받은 목록에서 한다** —
 /// 추가 요청이 필요 없다(가이드 1장).
 abstract interface class RunRecordRepository {
+  /// 한 번에 물을 수 있는 **최대 일수**. 넘기면 서버가 400을 준다.
+  ///
+  /// ⚠️ **구현마다 따로 적지 않는다.** 예전에는 `HttpRunRecordRepository`
+  /// 안에만 있어서 가짜 저장소가 이 한도를 몰랐고, **테스트는 통과하는데
+  /// 기기에서는 400** 이 나는 구간을 실제로 만들어 냈다.
+  static const maxRangeDays = 31;
+
   /// 날짜 구간의 **전체** 기록. 캘린더와 주간 차트가 쓴다.
   ///
   /// [from]·[to]는 KST 달력 날짜이고 **양 끝을 포함**한다. 페이지가 나뉘지
