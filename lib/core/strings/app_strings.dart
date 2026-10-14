@@ -992,8 +992,22 @@ abstract final class AppStrings {
   ///
   /// ⚠️ **오류가 아니다.** 앱이 잰 거리는 목표를 넘었는데 서버는 정지 구간과
   /// 오염 좌표를 뺀 값으로 센다 — 그쪽이 기록의 정본이다.
-  static String runGoalPending(int remainingMeters) =>
-      '서버 기준으로 ${remainingMeters}m 남았어요. 계속 달리거나 다시 종료할 수 있어요.';
+  ///
+  /// ⚠️ **스낵바가 아니라 창이다.** 가이드 3.3이 "계속 달리거나 종료할 수
+  /// 있도록 안내"하라고 정했다 — 고를 것이 있으면 사라지는 알림으로는 못 묻는다.
+  static const runGoalPendingTitle = '목표까지 조금 남았어요';
+
+  /// `약 40m` — 서버가 그 시점에 센 남은 거리다.
+  ///
+  /// ⚠️ **받은 값을 그대로 보여 준다.** 그 뒤에 달린 만큼을 빼서 줄이면
+  /// 추정값이 되고, 0m가 떠도 종료는 `RUNNING_FINISHED`를 받아야 한다 —
+  /// 가이드 3.3이 그 혼동을 경계한다.
+  static String runGoalPendingBody(int remainingMeters) =>
+      '서버에서 확인한 거리로는 목표까지 약 ${remainingMeters}m 남았어요. '
+      '계속 달려도 되고 지금 끝내도 돼요. 지금 끝내면 완주로 기록되지 않을 수 있어요.';
+
+  static const runGoalPendingKeep = '계속 달리기';
+  static const runGoalPendingFinish = '종료하기';
 
   static const runPageLive = '실시간 기록';
   static const runPageMap = '내 GPS';
@@ -1065,16 +1079,21 @@ abstract final class AppStrings {
   /// `12콤보` — 지금 이어지고 있는 콤보.
   static String runPartyCombo(int count) => '$count콤보';
 
-  /// ⚠️ 목표의 80%를 채우지 못한 채 끝내려 할 때. **끝내기 전에 알린다** —
+  /// ⚠️ 목표를 채우지 못한 채 끝내려 할 때. **끝내기 전에 알린다** —
   /// 끝낸 뒤에 알리면 되돌릴 수 없다.
   ///
-  /// 기준은 서버가 확정한 거리다. 앱이 잰 값과 미세하게 다를 수 있어
-  /// "적용될 수 있다"로 적는다 — 단정하면 안 걸렸을 때 거짓말이 된다.
-  static const runFinishPenaltyNotice = '목표의 80%를 채우지 못하면 20분 동안 매칭을 신청할 수 없어요';
+  /// ⚠️ **"서버에서 확인한 거리"를 문구에 박아 둔다.** 80% 판정은 정지
+  /// 구간과 오염 좌표를 뺀 서버 확정 거리로 한다(가이드 3.4). 화면에서 넘겼어도
+  /// 서버 기준으로는 모자랄 수 있어 "없다"고 단정하지 않는다.
+  static const runFinishPenaltyNotice =
+      '서버에서 확인한 거리가 목표의 80%에 미달하면 20분 동안 매칭을 신청할 수 없어요';
 
-  /// `4.00km 남았어요` — 얼마나 더 가야 제한을 피하는지.
+  /// `4.00km` — 화면 기준으로 얼마나 더 가야 80%에 닿는지.
+  ///
+  /// ⚠️ **"제한 없이 끝낼 수 있다"고 말하지 않는다.** 판정은 서버 몫이라
+  /// 앱이 약속할 수 없다(가이드 3.4). 화면 기준이라고 밝히고 거리만 알린다.
   static String runFinishRemaining(double km) =>
-      '${km.toStringAsFixed(2)}km 더 달리면 제한 없이 끝낼 수 있어요';
+      '화면 기준으로 ${km.toStringAsFixed(2)}km 더 달리면 80%를 채워요';
 
   static const runPaceLabel = '페이스';
   static const runTimeLabel = '시간';

@@ -136,9 +136,10 @@ void main() {
   /// ⚠️ `RunningConnectionController.finish`는 **남은 좌표를 먼저 보내고**
   /// 채널을 부른다(`drain` → `RUNNING_FINISH`). 둘 다 비동기라 프레임 두 번으로는
   /// 아직 안 닿는다.
-  Future<void> settleFinish(WidgetTester tester) async {
+  /// [count]번째 종료까지 기다린다. 보류 뒤 다시 보내는 길은 둘째를 본다.
+  Future<void> settleFinish(WidgetTester tester, {int count = 1}) async {
     // `drain`이 배치 사이에 300ms를 쉬므로 여러 박자가 필요하다.
-    for (var i = 0; i < 12 && channel.finishes.isEmpty; i++) {
+    for (var i = 0; i < 12 && channel.finishes.length < count; i++) {
       await tester.pump(const Duration(milliseconds: 400));
     }
   }
@@ -223,7 +224,7 @@ void main() {
       channel.finished_.add(null);
       await tester.pumpAndSettle();
 
-      expect(find.byType(RunSessionPage), findsNothing);
+      expect(find.byType(RunSessionPage, skipOffstage: false), findsNothing);
       await unmount(tester, container);
     });
 
@@ -290,7 +291,7 @@ void main() {
 
       await holdFinish(tester);
 
-      expect(find.text(AppStrings.runGoalPending(40)), findsOneWidget);
+      expect(find.text(AppStrings.runGoalPendingBody(40)), findsOneWidget);
       await unmount(tester, container);
     });
 
@@ -312,9 +313,131 @@ void main() {
 
       await holdFinish(tester);
 
-      expect(find.byType(RunSessionPage), findsNothing);
+      expect(find.byType(RunSessionPage, skipOffstage: false), findsNothing);
       await unmount(tester, container);
     });
+  });
+
+  group('⚠️ 보류를 받으면 고르게 한다 — 1.1.0 가이드 3.3', () {
+    // ⚠️ **스낵바로는 못 묻는다.** 가이드가 "계속 달리거나 종료할 수
+    // 있도록 안내"하라고 정했다 — 고를 것이 있으면 사라지는 알림으로는
+    // 모자라고, 종료는 **사용자가 다시 확인해야** 나간다.
+
+    /// 보류 안내가 떠 있는 화면까지 세운다.
+    ///
+    /// ⚠️ **목표를 넘겨 놓고 끝낸다.** 보류는 `forced=false` 요청에만 오는
+    /// 답이다(가이드 3.2) — 화면 거리가 목표에 모자라면 `forced=true` 로 나가고,
+    /// 그때는 서버가 보류로 되돌리지 않는다.
+    Future<ProviderContainer> pumpPending(WidgetTester tester) async {
+      final container = await pumpRunning(tester);
+      for (var i = 1; i <= 10; i++) {
+        await emit(tester, north(60.0 * i));
+      }
+      expect(distanceOf(container), greaterThanOrEqualTo(target));
+
+      channel.outcome = const FinishGoalPending(40);
+      await holdFinish(tester);
+      expect(channel.finishes, [false], reason: '목표를 넘겼으니 조기 종료가 아니다');
+
+      // 다음 요청은 확정으로 답한다 — `종료하기` 가 눌리는 경로를 본다.
+      channel.outcome = const FinishConfirmed();
+      return container;
+    }
+
+    testWidgets('창으로 띄운다', (tester) async {
+      final container = await pumpPending(tester);
+
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.text(AppStrings.runGoalPendingTitle), findsOneWidget);
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ `계속 달리기` 는 종료를 보내지 않는다', (tester) async {
+      final container = await pumpPending(tester);
+      final before = channel.finishes.length;
+
+      await tester.tap(
+        find.widgetWithText(TextButton, AppStrings.runGoalPendingKeep),
+      );
+      await tester.pumpAndSettle();
+
+      expect(channel.finishes.length, before, reason: '고르지 않은 것을 보내면 안 된다');
+      expect(find.byType(RunSessionPage), findsOneWidget);
+      expect(find.byType(AlertDialog, skipOffstage: false), findsNothing);
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ `종료하기` 는 `forced=true` 로 다시 보낸다', (tester) async {
+      // 보류는 `forced=false` 요청에만 온다. 같은 값으로 또 보내면 **같은
+      // 답이 돌아와** 영영 끝나지 않는다.
+      final container = await pumpPending(tester);
+
+      await tester.tap(
+        find.widgetWithText(TextButton, AppStrings.runGoalPendingFinish),
+      );
+      await settleFinish(tester, count: 2);
+      await tester.pumpAndSettle();
+
+      expect(channel.finishes, [false, true]);
+      expect(
+        find.byType(RunSessionPage, skipOffstage: false),
+        findsNothing,
+        reason: '확정이면 요약으로 간다',
+      );
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 서버가 끝내면 창을 닫고 간다', (tester) async {
+      // ⚠️ 창이 열린 동안에도 `RUNNING_FINISHED` 가 온다(가이드 3.3).
+      //
+      // 닫는 일은 `Navigator` 가 한다 — 이 창은 러닝 페이지에 매달린 **페이지
+      // 없는 경로**라 요약으로 교체될 때 함께 걷힌다. 그래서 이 그물은 코드
+      // 한 줄이 아니라 **그 성질**을 지킨다. 요약으로 가는 방식을 `push` 로
+      // 바꾸면(페이지가 남는다) 창도 남고, 이 그물이 그때 깨진다.
+      final container = await pumpPending(tester);
+
+      channel.finished_.add(null);
+      await tester.pumpAndSettle();
+
+      // ⚠️ `skipOffstage: false` — 기본값으로 찾으면 **가려진 것도 없는
+      // 것으로 읽힌다.** 요약을 그 위에 얹기만 해도 그물이 통과했다.
+      expect(find.byType(AlertDialog, skipOffstage: false), findsNothing);
+      expect(find.byType(RunSessionPage, skipOffstage: false), findsNothing);
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 서버가 끝낸 뒤에는 종료가 더 나가지 않는다', (tester) async {
+      // 가이드 3.3 — "뒤늦게 확인 버튼을 눌러 중복 종료 요청을 보내지 않도록".
+      final container = await pumpPending(tester);
+
+      channel.finished_.add(null);
+      await tester.pumpAndSettle();
+
+      expect(channel.finishes, [false], reason: '처음 보낸 하나뿐이어야 한다');
+      await unmount(tester, container);
+    });
+  });
+
+  testWidgets('⚠️ 목표의 80%를 넘겨도 `forced=true` 다', (tester) async {
+    // ⚠️ **가이드 3.2 가 가른 선은 목표 전체다.** 80%(`_safeRatio`)는
+    // 제재 선이지 완주 선이 아니다. 80%로 가르면 85%에서 멈춘 사람이
+    // `forced=false` 로 나가 **끝낼 뜻이 분명한데 보류로 되돌아온다.**
+    final container = await pumpRunning(tester);
+
+    // 80%(160m)는 넘기고 목표(200m)는 못 채운 자리에 선다.
+    //
+    // ⚠️ **좌표를 센 만큼 거리가 늘지 않는다.** 세션이 걸러내고 다듬으므로
+    // 20m 씩 흘리며 선을 넘는 순간 멈춘다 — 몇 개가 필요한지 적어 두면
+    // 걸러내는 방식이 바뀔 때 이 그물이 엉뚱한 이유로 깨진다.
+    for (var i = 1; i <= 40 && distanceOf(container) <= 160; i++) {
+      await emit(tester, north(20.0 * i));
+    }
+    expect(distanceOf(container), inInclusiveRange(161, 199));
+
+    await holdFinish(tester);
+
+    expect(channel.finishes, [true]);
+    await unmount(tester, container);
   });
 }
 
