@@ -57,9 +57,9 @@ app.*.map.json
 /android/key.properties
 /android/app/*.jks
 
-# Firebase 설정. 프로젝트마다 값이 달라 커밋하지 않는다 — 운영은
-# android/app/, 개발은 src/debug·src/profile 에 각각 둔다(노션 GA 도입 문서).
+# Firebase 설정. 프로젝트마다 값이 달라 커밋하지 않는다 — flavor 폴더(src/dev·src/prod, ios/Runner/Firebase/)에 둔다.
 google-services.json
+GoogleService-Info.plist
 *.env
 
 # 빌드 설정 — 실제 키가 들어간다. 예시 파일만 공유한다.
