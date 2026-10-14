@@ -31,9 +31,9 @@ import 'package:runiverse/core/config/app_config.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase — **인자를 넘기지 않는다.** 설정은 `google-services.json` 에서
-  // 오고, 그 파일은 빌드 타입마다 다른 자리에 있다(운영은 `android/app/`,
-  // 개발은 `src/debug`·`src/profile`). 그래서 `firebase_options.dart` 도 없다.
+  // Firebase — **인자를 넘기지 않는다.** 설정은 플랫폼별 설정 파일에서 오고,
+  // flavor마다 다른 자리에 있다(`android/app/src/{dev,prod}`,
+  // `ios/Runner/Firebase/{dev,prod}`). 그래서 `firebase_options.dart` 도 없다.
   //
   // ⚠️ 위의 세 SDK 와 달리 **키 유무를 보고 거르지 않는다.** 설정 파일이
   // 없으면 Gradle 이 빌드를 먼저 세우므로, 여기까지 왔다면 파일은 있다.
