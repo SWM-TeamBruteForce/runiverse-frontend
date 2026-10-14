@@ -307,6 +307,29 @@ void main() {
       await unmount(tester, container);
     });
 
+    testWidgets('⚠️ 보류 뒤에도 좌표가 계속 나간다', (tester) async {
+      // ⚠️ **가이드 3.2 가 "좌표 수집·전송 유지"라고 적은 그 자리다.**
+      //
+      // 전송기를 `TrackSender.stop` 으로 세웠더니 `resumeTimer` 가 첫 줄에서
+      // 돌아섰다 — `stop` 이 방 번호를 지우기 때문이다. **러닝은 이어지는데
+      // 좌표가 조용히 안 나갔고**, 그러면 서버가 확정할 거리가 영영 모자란다.
+      final container = await pumpRunning(tester);
+      channel.outcome = const FinishGoalPending(40);
+
+      await holdFinish(tester);
+      channel.locations.clear();
+
+      for (var i = 1; i <= 6; i++) {
+        await emit(tester, north(30.0 * i));
+      }
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(seconds: 4));
+      }
+
+      expect(channel.locations, isNotEmpty);
+      await unmount(tester, container);
+    });
+
     testWidgets('확정이면 요약으로 간다', (tester) async {
       // 보류를 넣는 쪽만 보면 **확정 경로가 깨져도 모른다.**
       final container = await pumpRunning(tester);
@@ -471,11 +494,23 @@ class _FinishChannel implements RunningChannel {
   @override
   Future<void> start(int runningRoomId) async {}
 
+  /// 배치마다 좌표 수를 적는다. **보류 뒤에도 계속 나가는지** 보려고 센다.
+  final locations = <int>[];
+
   @override
-  bool sendLocations(List<TrackPoint> points) => true;
+  bool sendLocations(List<TrackPoint> points) {
+    if (points.isNotEmpty) locations.add(points.length);
+    return true;
+  }
 
   /// 무엇으로 답할지. 보류를 흉내 내려면 [FinishGoalPending] 을 넣는다.
   FinishOutcome outcome = const FinishConfirmed();
+
+  @override
+  bool pause() => true;
+
+  @override
+  bool resume() => true;
 
   @override
   Future<FinishOutcome> finish({bool forced = false}) async {

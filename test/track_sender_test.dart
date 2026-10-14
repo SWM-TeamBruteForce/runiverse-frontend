@@ -277,6 +277,12 @@ class _RecordingChannel implements RunningChannel {
   Future<void> start(int runningRoomId) async {}
 
   @override
+  bool pause() => true;
+
+  @override
+  bool resume() => true;
+
+  @override
   Future<FinishOutcome> finish({bool forced = false}) async =>
       const FinishConfirmed();
 

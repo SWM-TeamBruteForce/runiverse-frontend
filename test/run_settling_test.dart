@@ -175,6 +175,12 @@ class _SlowFinishChannel implements RunningChannel {
   bool sendLocations(List<TrackPoint> points) => true;
 
   @override
+  bool pause() => true;
+
+  @override
+  bool resume() => true;
+
+  @override
   Future<FinishOutcome> finish({bool forced = false}) {
     final waiting = Completer<FinishOutcome>();
     _pending = waiting;

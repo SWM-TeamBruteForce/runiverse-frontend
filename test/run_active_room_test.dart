@@ -259,6 +259,12 @@ class _RecordingChannel implements RunningChannel {
   }
 
   @override
+  bool pause() => true;
+
+  @override
+  bool resume() => true;
+
+  @override
   Future<FinishOutcome> finish({bool forced = false}) async {
     finishes++;
     order.add('finish');

@@ -240,6 +240,12 @@ class _FinishChannel implements RunningChannel {
   }
 
   @override
+  bool pause() => true;
+
+  @override
+  bool resume() => true;
+
+  @override
   Future<FinishOutcome> finish({bool forced = false}) async {
     if (!connected) return const FinishUnconfirmed();
     order.add('finish');

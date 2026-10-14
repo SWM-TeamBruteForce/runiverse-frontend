@@ -166,6 +166,18 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// 쌓인 좌표를 10초마다 올리는 것. 방이 생긴 뒤에만 있다.
   TrackSender? _sender;
 
+  /// 버튼으로 멈춰 있는가.
+  ///
+  /// ⚠️ **다시 붙을 때 한 번 더 알리려고 들고 있는다.** 재연결은
+  /// `RUNNING_START` 를 다시 보내고, 서버는 그것으로 참가자를 `RUNNING` 으로
+  /// 되돌린다(가이드 1.1의 상태표) — 알리지 않으면 **멈춰 있는데 상대
+  /// 화면에서는 내가 다시 달린다.**
+  ///
+  /// `RUNNING_NOT_STARTED` 로 거절당한 `PAUSE` 도 같은 길로 되살아난다.
+  /// 그 코드가 시작을 다시 보내게 하고([WsErrorCode.needsRestart]), 그
+  /// 확인을 받는 자리에서 이 값을 본다.
+  var _paused = false;
+
   /// 연속 실패 횟수. backoff 간격을 정한다.
   var _attempt = 0;
 
@@ -429,6 +441,15 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     // 연결마다 한 번씩만 온다(ack가 그렇다). 재연결로 또 와도 같은 답이라 해롭지 않다.
     channel.snapshots.listen((_) {
       debugPrint('[running] 시작이 확인됐다. 상태를 다시 읽는다');
+      // ⚠️ **멈춘 채로 다시 붙었으면 다시 알린다**(가이드 2.2).
+      //
+      // 순서가 `START` → 좌표 → `PAUSE` 여야 하는데, 멈춰 있는 동안에는
+      // 전송기가 서 있어 사이에 낄 좌표가 없다([pause] 가 흘리고 세운다).
+      // `RUNNING_STARTED` 를 받은 자리라 서버가 시작을 이미 처리한 뒤다.
+      if (_paused) {
+        debugPrint('[running] 멈춰 있던 것을 다시 알린다');
+        channel.pause();
+      }
       // ⚠️ **방마다 한 번만 남긴다.** 이 ack 는 재연결 때도 오므로, 끊겼다
       // 붙을 때마다 남기면 한 번의 러닝이 여러 번 시작한 것으로 세어진다.
       final startedId = state.room?.id;
@@ -595,6 +616,48 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     return true;
   }
 
+  /// 멈췄다고 서버에 알린다 — 가이드 2.1.
+  ///
+  /// ## 순서가 정해져 있다
+  ///
+  /// ```
+  /// (좌표 수집 중단) → 남은 좌표 전송 → 전송기 정지 → RUNNING_PAUSE
+  /// ```
+  ///
+  /// ⚠️ **좌표를 먼저 흘려야 한다.** `PAUSE` 뒤에 밀린 좌표가 닿으면
+  /// 서버가 **일시정지를 푼다** — 새 좌표는 그 자체로 `RUNNING` 의 근거다.
+  /// 그래서 다 보낸 다음에야 알리고, 그 뒤로는 전송기를 세워 둔다.
+  ///
+  /// 수집을 멈추는 것은 세션의 몫이다 — [RunSessionController.pause] 뒤로는
+  /// 들어온 좌표를 버리므로 쌓일 것이 없다.
+  ///
+  /// ⚠️ **`HEALTH_CHECK` 는 계속 나간다.** 그 시계는 `WsClient` 가
+  /// 따로 들고 있어 전송기를 세워도 영향이 없다(가이드 2.1).
+  Future<void> pause() async {
+    _paused = true;
+    await _sender?.drain();
+    // ⚠️ `stop` 이 아니라 [TrackSender.pauseTimer] 다. `stop` 은 방과
+    // 커서를 지우는 **해체**라, 그 뒤에 [resume] 이 타이머를 다시 세우지
+    // 못한다 — 다시 달리는데 좌표가 조용히 안 나간다.
+    _sender?.pauseTimer();
+    _channel?.pause();
+  }
+
+  /// 다시 달린다고 알린다 — 가이드 2.1.
+  ///
+  /// ⚠️ **알리는 것이 먼저다.** 좌표만 다시 보내도 서버는 `RUNNING` 으로
+  /// 돌아오지만 배치까지 최대 10초가 걸린다 — 그동안 상대 화면에는 내가
+  /// 멈춰 있는 것으로 보인다.
+  ///
+  /// ⚠️ `TrackSender.start` 가 아니라 [TrackSender.resumeTimer] 다.
+  /// `start` 는 커서를 되감아 **이미 보낸 것을 통째로 다시 보낸다** — 연결이
+  /// 멀쩡한데 그럴 이유가 없고, 큰 배치가 연달아 나가면 1009로 끊긴다.
+  void resume() {
+    _paused = false;
+    _channel?.resume();
+    _sender?.resumeTimer();
+  }
+
   /// 러닝을 끝낸다. 남은 좌표를 마저 보내고, 확인을 받으면 트랙을 지운다.
   ///
   /// ## 순서가 정해져 있다
@@ -645,7 +708,12 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     try {
       await _sender?.drain();
       // 다 보냈으면 타이머를 세운다. ack를 기다리는 동안 또 돌 이유가 없다.
-      _sender?.stop();
+      //
+      // ⚠️ **`stop` 이 아니다.** 답이 `GOAL_PENDING` 이면 아래에서 다시
+      // 세우는데, `stop` 은 방과 커서를 지워 [TrackSender.resumeTimer] 가
+      // 첫 줄에서 돌아선다 — 러닝은 이어지는데 좌표가 안 나갔다.
+      // 확정이면 `_cleanUpAfterFinish` → `close` 가 제대로 해체한다.
+      _sender?.pauseTimer();
 
       final finishedId = state.room?.id;
       final outcome = await channel.finish(forced: forced);
@@ -757,6 +825,9 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     _retry = null;
     _attempt = 0;
     _restarts = 0;
+    // ⚠️ 멈춤 표식도 되돌린다. 남겨 두면 **다음 러닝이 붙자마자
+    // `PAUSE` 를 보낸다** — 재연결 때 다시 알리는 길을 타고서다.
+    _paused = false;
     _sender?.stop();
     _sender = null;
     await _channel?.close();
