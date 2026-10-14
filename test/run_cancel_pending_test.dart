@@ -20,6 +20,7 @@ import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
 /// 아직 시작하지 않은 방을 **서버에서 없애기**(`DELETE /running-matches`).
 ///
@@ -204,7 +205,8 @@ class _TrackedChannel implements RunningChannel {
   bool sendLocations(List<TrackPoint> points) => true;
 
   @override
-  Future<bool> finish({bool forced = false}) async => true;
+  Future<FinishOutcome> finish({bool forced = false}) async =>
+      const FinishConfirmed();
 
   @override
   Future<void> close() async {

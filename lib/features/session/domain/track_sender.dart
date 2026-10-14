@@ -113,6 +113,20 @@ class TrackSender {
   int get lastSent => _lastSent;
 
   /// 보내기 시작한다. 방 번호를 알게 된 뒤에 부른다.
+  /// 멈춰 둔 타이머만 다시 세운다. **커서는 그대로 둔다.**
+  ///
+  /// ⚠️ **[start] 와 다르다.** 그쪽은 재연결용이라 커서를 물러세워 겹쳐 보낸다.
+  /// 종료 보류(`RUNNING_GOAL_PENDING`)는 **연결이 살아 있는 채로** 러닝이
+  /// 이어지는 것이라, 되감으면 이미 보낸 수백 점을 공짜로 다시 보낸다 —
+  /// 큰 배치가 연달아 나가면 1009로 끊긴다(클래스 주석 참조).
+  ///
+  /// 아직 시작한 적이 없으면 아무것도 하지 않는다.
+  void resumeTimer() {
+    if (_roomId == null) return;
+    _timer?.cancel();
+    _timer = Timer.periodic(_interval, (_) => unawaited(flush()));
+  }
+
   void start(int runningRoomId) {
     stop();
     _roomId = runningRoomId;

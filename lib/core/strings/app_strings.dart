@@ -988,6 +988,13 @@ abstract final class AppStrings {
   ///
   /// 시안이 장마다 왼쪽 위에 제목을 둔다. 점만으로는 **지금 몇 번째 장인지는
   /// 알아도 그 장이 무엇인지는 모른다.**
+  /// 서버가 확정한 거리가 목표에 모자라 종료가 보류됐다(`GOAL_PENDING`).
+  ///
+  /// ⚠️ **오류가 아니다.** 앱이 잰 거리는 목표를 넘었는데 서버는 정지 구간과
+  /// 오염 좌표를 뺀 값으로 센다 — 그쪽이 기록의 정본이다.
+  static String runGoalPending(int remainingMeters) =>
+      '서버 기준으로 ${remainingMeters}m 남았어요. 계속 달리거나 다시 종료할 수 있어요.';
+
   static const runPageLive = '실시간 기록';
   static const runPageMap = '내 GPS';
   static const runPageParty = '파티원 비교';

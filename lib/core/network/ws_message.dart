@@ -80,6 +80,11 @@ abstract final class WsEvents {
 
   static const runningFinish = 'RUNNING_FINISH';
   static const runningFinished = 'RUNNING_FINISHED';
+
+  /// 서버 확정 거리가 목표에 모자라다. **종료를 요청한 본인에게만** 온다.
+  ///
+  /// ⚠️ 오류가 아니다. `forced=false` 를 다시 보내도 또 올 수 있다.
+  static const runningGoalPending = 'RUNNING_GOAL_PENDING';
 }
 
 /// `ERROR`의 `code` 10종.

@@ -22,6 +22,9 @@ import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/features/session/presentation/run_session_page.dart';
 
 /// 목표 거리에 닿으면 **스스로 끝내는가.**
 ///
@@ -205,6 +208,72 @@ void main() {
     expect(channel.finishes, isEmpty);
     await unmount(tester, container);
   });
+  group('⚠️ 종료가 보류되면 러닝이 이어진다 — 1.1.0 가이드 3.2', () {
+    // ⚠️ **예전에는 요청만 던지고 곧바로 요약으로 넘어갔다.**
+    //
+    // 1.1.0 서버는 `RUNNING_GOAL_PENDING` 으로 "확정 거리가 모자라다"고 답할
+    // 수 있다. 앱이 잰 거리는 목표를 넘었어도 서버는 정지 구간과 오염 좌표를
+    // 뺀 값으로 센다 — 먼저 넘어가 버리면 **러닝이 뒤에서 계속 도는 채로
+    // 요약 화면이 뜬다.**
+
+    testWidgets('화면이 러닝에 남는다', (tester) async {
+      final container = await pumpRunning(tester);
+      channel.outcome = const FinishGoalPending(40);
+
+      for (var i = 1; i <= 6 && channel.finishes.isEmpty; i++) {
+        await emit(tester, north(60.0 * i));
+      }
+      await settleFinish(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RunSessionPage), findsOneWidget);
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 남은 거리를 말해 준다', (tester) async {
+      final container = await pumpRunning(tester);
+      channel.outcome = const FinishGoalPending(40);
+
+      for (var i = 1; i <= 6 && channel.finishes.isEmpty; i++) {
+        await emit(tester, north(60.0 * i));
+      }
+      await settleFinish(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runGoalPending(40)), findsOneWidget);
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 세션의 시계가 멈추지 않는다', (tester) async {
+      // 답을 받기 전에 세션을 접으면 **멀쩡한 러닝의 시간이 멈춘다.**
+      final container = await pumpRunning(tester);
+      channel.outcome = const FinishGoalPending(40);
+
+      for (var i = 1; i <= 6 && channel.finishes.isEmpty; i++) {
+        await emit(tester, north(60.0 * i));
+      }
+      await settleFinish(tester);
+      await tester.pumpAndSettle();
+
+      final state = container.read(runSessionControllerProvider);
+      expect(state, isA<RunRunning>());
+      await unmount(tester, container);
+    });
+
+    testWidgets('확정이면 요약으로 간다', (tester) async {
+      // 보류를 넣는 쪽만 보면 **확정 경로가 깨져도 모른다.**
+      final container = await pumpRunning(tester);
+
+      for (var i = 1; i <= 6 && channel.finishes.isEmpty; i++) {
+        await emit(tester, north(60.0 * i));
+      }
+      await settleFinish(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RunSessionPage), findsNothing);
+      await unmount(tester, container);
+    });
+  });
 }
 
 /// `RUNNING_FINISH`가 몇 번, 어떤 `forced`로 나갔는지 센다.
@@ -235,10 +304,13 @@ class _FinishChannel implements RunningChannel {
   @override
   bool sendLocations(List<TrackPoint> points) => true;
 
+  /// 무엇으로 답할지. 보류를 흉내 내려면 [FinishGoalPending] 을 넣는다.
+  FinishOutcome outcome = const FinishConfirmed();
+
   @override
-  Future<bool> finish({bool forced = false}) async {
+  Future<FinishOutcome> finish({bool forced = false}) async {
     finishes.add(forced);
-    return true;
+    return outcome;
   }
 
   @override

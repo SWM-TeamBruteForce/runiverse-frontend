@@ -9,6 +9,7 @@ import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/domain/track_sender.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
 /// 좌표 전송 — **커서가 틀리면 좌표가 조용히 사라진다.**
 ///
@@ -273,7 +274,8 @@ class _RecordingChannel implements RunningChannel {
   Future<void> start(int runningRoomId) async {}
 
   @override
-  Future<bool> finish({bool forced = false}) async => true;
+  Future<FinishOutcome> finish({bool forced = false}) async =>
+      const FinishConfirmed();
 
   @override
   bool sendLocations(List<TrackPoint> points) {

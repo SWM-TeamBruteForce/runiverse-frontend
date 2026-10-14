@@ -1,3 +1,4 @@
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
@@ -68,7 +69,11 @@ abstract interface class RunningChannel {
   ///
   /// 멱등이다. 이미 확정된 러닝에 다시 보내도 서버가 기록을 덮어쓰지 않고
   /// ack만 다시 준다.
-  Future<bool> finish({bool forced = false});
+  /// 답은 셋이다([FinishOutcome]) — 확정 · 목표 모자람 · 못 받음.
+  ///
+  /// ⚠️ **모자람([FinishGoalPending])은 종료가 아니다.** 좌표 수집·전송과
+  /// 로컬 트랙을 그대로 두고 러닝을 이어 간다(1.1.0 가이드 3.2).
+  Future<FinishOutcome> finish({bool forced = false});
 
   /// 스스로 끊는다. 재연결하지 않는다.
   Future<void> close();

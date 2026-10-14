@@ -16,6 +16,7 @@ import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
 /// `RUNNING_START`가 거절됐을 때 **다시 보내는가.**
 ///
@@ -167,7 +168,8 @@ class _RestartChannel implements RunningChannel {
   bool sendLocations(List<TrackPoint> points) => true;
 
   @override
-  Future<bool> finish({bool forced = false}) async => true;
+  Future<FinishOutcome> finish({bool forced = false}) async =>
+      const FinishConfirmed();
 
   @override
   Future<void> close() async {

@@ -26,6 +26,7 @@ import 'package:runiverse/core/widgets/page_indicator.dart';
 import 'package:runiverse/core/widgets/run_map_view.dart';
 import 'package:runiverse/core/widgets/v2/surface_card.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
 /// 러닝 중 화면의 **틀** — 어느 장이 먼저 서고, 제목이 그 장을 가리키는가.
 ///
@@ -203,9 +204,9 @@ class _FinishChannel implements RunningChannel {
   bool sendLocations(List<TrackPoint> points) => true;
 
   @override
-  Future<bool> finish({bool forced = false}) async {
+  Future<FinishOutcome> finish({bool forced = false}) async {
     finishes.add(forced);
-    return true;
+    return const FinishConfirmed();
   }
 
   @override
