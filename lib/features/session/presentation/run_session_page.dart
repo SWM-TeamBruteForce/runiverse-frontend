@@ -29,13 +29,22 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 /// 러닝 진행 (S13).
 ///
-/// ## 2페이지다
+/// ## 실시간 기록이 **가운데**다
 ///
-/// 정본은 지도 · 실시간 기록 · 파티원 비교 셋인데 **혼자 달릴 때는 파티원이
-/// 없다.** 빈 페이지를 두면 스와이프해서 아무것도 없는 화면을 만나게 된다.
-/// 매칭이 붙으면 셋째 장으로 들어간다.
+/// ```
+/// 매칭:  내 GPS  │  실시간 기록 ★  │  파티원 비교
+/// 혼자:  내 GPS  │  실시간 기록 ★
+/// ```
 ///
-/// 첫 장은 **실시간 기록**이다. 가장 자주 보는 화면이라 정본이 그렇게 정했다.
+/// 가장 자주 보는 화면이라 가운데에 두고, 양옆으로 한 번씩 밀면 닿게 한다.
+/// 기록이 두 경우 모두 1번이라 [_pages]의 `initialPage`는 하나로 끝난다.
+///
+/// ⚠️ **시안(`158:3493`)은 기록을 첫째에 두었다 — 일부러 벗어난 것이다**
+/// (2026-10-12 요청). 모르고 보면 "시안대로 되돌리는" 수정을 부른다.
+///
+/// ⚠️ **혼자 달릴 때도 GPS는 왼쪽이다.** 파티원이 없다고 순서를 당기면
+/// 매칭과 솔로에서 **같은 손짓이 다른 화면**을 연다. 파티원 장은 끝에 붙고,
+/// 없을 때는 그냥 없다 — 빈 장을 두면 밀었다가 아무것도 없는 화면을 만난다.
 ///
 /// ## 화면을 켜 둔다
 ///
@@ -49,11 +58,18 @@ class RunSessionPage extends ConsumerStatefulWidget {
 }
 
 class _RunSessionPageState extends ConsumerState<RunSessionPage> {
-  /// ⚠️ **첫 장이 실시간 기록이다. 시안(`158:3493`)의 점 셋 중 첫째가 켜져
-  /// 있다.** 예전에는 지도를 0번에 두고 `initialPage: 1` 로 보정했는데,
-  /// 그러면 기록 장에서 **둘째 점이 켜져** 점이 거짓말을 했다.
-  final _pages = PageController();
-  int _page = 0;
+  /// 기록 장에서 시작한다. 지도가 0번, 기록이 1번이다.
+  final _pages = PageController(initialPage: _initialPage);
+
+  /// ⚠️ **[_initialPage]로 맞춰 둔다. 0이면 점이 거짓말을 한다.**
+  ///
+  /// `onPageChanged`는 처음에 불리지 않는다. 0으로 두면 기록 장이 떠 있는데
+  /// **첫째 점**이 켜진다 — 예전에 지도를 0번에 두고 `initialPage`로 보정하며
+  /// 실제로 겪은 일이다. `run_session_chrome_test`가 그 자리를 지킨다.
+  int _page = _initialPage;
+
+  /// 실시간 기록의 자리. 매칭이든 솔로든 **같은 1번**이다.
+  static const _initialPage = 1;
 
   @override
   void initState() {
@@ -349,7 +365,6 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                   controller: _pages,
                   onPageChanged: (index) => setState(() => _page = index),
                   children: [
-                    _MetricsPage(metrics: metrics),
                     _MapPage(
                       metrics: metrics,
                       // ⚠️ 보정된 좌표를 그린다. 원본으로 선을 그리고 보정값으로
@@ -358,6 +373,7 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                           .read(runSessionControllerProvider.notifier)
                           .track,
                     ),
+                    _MetricsPage(metrics: metrics),
                     if (hasParty)
                       RunPartyView(
                         board: party,
@@ -421,9 +437,9 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
 
   /// 지금 장의 제목. 파티원 장은 있을 때만 셋째다.
   static String _titleOf(int page, {required bool hasParty}) => switch (page) {
-    0 => AppStrings.runPageLive,
-    1 => AppStrings.runPageMap,
-    _ => hasParty ? AppStrings.runPageParty : AppStrings.runPageMap,
+    0 => AppStrings.runPageMap,
+    1 => AppStrings.runPageLive,
+    _ => hasParty ? AppStrings.runPageParty : AppStrings.runPageLive,
   };
 
   static RunMetrics _metricsOf(RunSessionState state) => switch (state) {
