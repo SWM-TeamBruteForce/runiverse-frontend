@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/profile_photo_image.dart';
 
 /// 러너 한 명의 동그란 사진 — 시안 `158:3110`.
 ///
@@ -57,8 +58,10 @@ class RunnerAvatarV2 extends StatelessWidget {
         ),
         child: url == null || url.isEmpty
             ? _Initial(nickname: nickname, size: size)
-            : Image.network(
-                url,
+            : Image(
+                // 매칭 대기실에는 이런 원이 여럿 뜬다. 줄여서 풀지 않으면
+                // 원본 하나당 190MB가 겹친다.
+                image: profilePhoto(context, url, size),
                 fit: BoxFit.cover,
                 // ⚠️ 못 받으면 **첫 글자로 떨어진다.** 기본 오류 아이콘이
                 // 뜨면 동그라미 안에 깨진 그림이 들어앉는다.
