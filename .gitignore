@@ -13,6 +13,7 @@ Thumbs.db
 .history
 .svn/
 .swiftpm/
+**/xcshareddata/swiftpm/
 migrate_working_dir/
 
 # IntelliJ related
