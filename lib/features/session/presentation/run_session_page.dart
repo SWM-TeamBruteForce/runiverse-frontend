@@ -69,12 +69,28 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   }
 
   /// 멈추거나 다시 간다. **되돌릴 수 있는 것이라 길게 누르지 않는다.**
+  ///
+  /// ## ⚠️ 서버에도 알린다
+  ///
+  /// 1.1.0 전까지 일시정지는 **이 화면 안에만 있었다.** 상대 화면에서는 내가
+  /// 계속 달리는 것으로 보였고, 서버는 멈춘 구간을 알 길이 없었다(가이드 2.1).
+  ///
+  /// 순서가 양쪽으로 다르다.
+  ///
+  /// - **멈출 때는 세션이 먼저다.** 세션이 멈춰야 들어오는 좌표를 버리고,
+  ///   그래야 [RunningConnectionController.pause] 가 **다 흘려보낸 뒤** 알릴
+  ///   수 있다. 거꾸로 하면 `PAUSE` 뒤에 좌표가 닿아 서버가 일시정지를 푼다.
+  /// - **다시 갈 때는 알리는 것이 먼저다.** 좌표만으로도 서버는 돌아오지만
+  ///   배치까지 최대 10초가 걸린다 — 그동안 상대 화면에는 멈춰 보인다.
   void _togglePause() {
     final controller = ref.read(runSessionControllerProvider.notifier);
+    final connection = ref.read(runningConnectionProvider.notifier);
     if (ref.read(runSessionControllerProvider) is RunPaused) {
+      connection.resume();
       controller.resume();
     } else {
       controller.pause();
+      unawaited(connection.pause());
     }
   }
 

@@ -97,6 +97,12 @@ class WsRunningChannel implements RunningChannel {
   }
 
   @override
+  bool pause() => _client.send(const WsMessage(WsEvents.runningPause));
+
+  @override
+  bool resume() => _client.send(const WsMessage(WsEvents.runningResume));
+
+  @override
   Future<FinishOutcome> finish({bool forced = false}) {
     // 소켓에 못 넘겼으면 ack가 올 리 없다. 기다리지 않는다.
     if (!_client.send(WsMessage(WsEvents.runningFinish, {'forced': forced}))) {
