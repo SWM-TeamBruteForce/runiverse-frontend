@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,11 +28,16 @@ import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/features/session/presentation/run_session_page.dart';
 
-/// 목표 거리에 닿으면 **스스로 끝내는가.**
+/// 목표에 닿았을 때 **누가 끝내는가.**
 ///
-/// 명세가 정한 순서는 `RUNNING_FINISH` → `RUNNING_FINISHED` ack → 로컬 트랙
-/// 삭제 → 결과 조회다. 예전에는 그 첫 줄이 **사용자가 중지를 누를 때만**
-/// 나갔다 — 목표를 채우고도 안 누르면 서버는 그 러닝을 계속 들고 있다.
+/// ## ⚠️ 1.1.0 에서 주인이 바뀌었다
+///
+/// 예전에는 앱이 잰 거리가 목표를 넘으면 **앱이** `RUNNING_FINISH` 를 보냈다.
+/// 이제는 **서버**가 끝낸다(가이드 3.1) — 서버는 정지 구간과 오염 좌표를 뺀
+/// 확정 거리로 판단하므로, **앱 기준으로 넘었어도 아직 모자랄 수 있다.**
+///
+/// 그래서 둘을 함께 봐야 한다. 앱이 안 보내는 것만 확인하고 끝내면, 서버가
+/// 보낸 종료를 받을 길이 없어 **러닝이 끝났는데 화면이 영영 남는다.**
 void main() {
   const target = 200;
 
@@ -149,11 +156,35 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   }
 
-  testWidgets('⚠️ 목표에 닿으면 스스로 종료를 보낸다', (tester) async {
+  /// 종료 버튼을 끝까지 길게 누른다.
+  ///
+  /// ⚠️ **1.1.0부터 종료는 사용자만 보낸다.** 예전에는 목표를 넘기면 앱이
+  /// 알아서 보냈고 이 그물도 그것에 기댔다.
+  Future<void> holdFinish(WidgetTester tester) async {
+    // ⚠️ **요약 화면이 기본 뷰포트(600×800)에서 2px 넘친다.** 이 PR 과 무관한
+    // 레이아웃 문제인데, 렌더 예외는 테스트를 죽인다. 세로만 늘려 둔다.
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final button = find.bySemanticsLabel(AppStrings.runFinishHold);
+    final gesture = await tester.startGesture(tester.getCenter(button));
+    // 길게 누르기가 끝까지 차도록 넉넉히 민다.
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    await gesture.up();
+    await settleFinish(tester);
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('⚠️ 목표에 닿아도 앱은 보내지 않는다', (tester) async {
+    // ⚠️ **1.1.0 에서 뒤집힌 약속이다.** 서버가 확정 거리로 판단하므로
+    // 앱 기준으로 넘었다고 끝내면 **모자란 러닝이 완주로 올라간다.**
     final container = await pumpRunning(tester);
 
-    // 목표(200m)를 넘을 때까지 60m씩 나아간다.
-    for (var i = 1; i <= 6 && channel.finishes.isEmpty; i++) {
+    for (var i = 1; i <= 10; i++) {
       await emit(tester, north(60.0 * i));
     }
 
@@ -163,36 +194,63 @@ void main() {
       reason: '목표를 넘겨야 판정이 의미가 있다',
     );
     await settleFinish(tester);
-    expect(channel.finishes, hasLength(1));
+    expect(channel.finishes, isEmpty);
     await unmount(tester, container);
   });
 
-  testWidgets('⚠️ forced는 거짓이다', (tester) async {
-    // 명세가 `forced`를 **"목표 거리 달성 전 사용자의 종료 의사"** 로 정의한다.
-    // 목표를 채우고 끝나는 것은 의사 표시가 아니라 완주다 — 참이면 서버가
-    // 조기 종료로 읽는다.
-    final container = await pumpRunning(tester);
-
-    for (var i = 1; i <= 6 && channel.finishes.isEmpty; i++) {
-      await emit(tester, north(60.0 * i));
-    }
-
-    await settleFinish(tester);
-    expect(channel.finishes.single, isFalse);
-    await unmount(tester, container);
-  });
-
-  testWidgets('⚠️ 목표를 넘어도 한 번만 보낸다', (tester) async {
-    // 좌표는 1초마다 온다. 매번 보내면 같은 방에 종료가 쏟아진다.
+  testWidgets('⚠️ 목표를 넘어도 좌표를 계속 보낸다', (tester) async {
+    // 가이드 3.1 — 로컬 거리가 목표를 넘었어도 수집·전송을 이어 가며 종료
+    // 확정을 기다린다. 멈추면 **서버가 확정할 거리가 모자란 채로 남는다.**
     final container = await pumpRunning(tester);
 
     for (var i = 1; i <= 10; i++) {
       await emit(tester, north(60.0 * i));
     }
-
     await settleFinish(tester);
-    expect(channel.finishes, hasLength(1));
+
+    final state = container.read(runSessionControllerProvider);
+    expect(state, isA<RunRunning>(), reason: '세션이 살아 있어야 좌표가 쌓인다');
     await unmount(tester, container);
+  });
+
+  group('⚠️ 서버가 끝내면 따라간다 — 1.1.0 가이드 3.1', () {
+    // ⚠️ **앱이 안 보내는 것만 고치면 반쪽이다.** 서버가 보낸 종료를 받을
+    // 길이 없으면 러닝이 끝났는데 화면이 영영 남는다.
+
+    testWidgets('요약으로 간다', (tester) async {
+      final container = await pumpRunning(tester);
+
+      channel.finished_.add(null);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RunSessionPage), findsNothing);
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 종료를 되받아 보내지 않는다', (tester) async {
+      // 서버가 이미 끝냈다. 또 보내면 같은 방에 종료가 두 번 간다.
+      final container = await pumpRunning(tester);
+
+      channel.finished_.add(null);
+      await tester.pumpAndSettle();
+
+      expect(channel.finishes, isEmpty);
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 세션의 시계를 멈춘다', (tester) async {
+      // 화면만 옮기고 세션을 두면 **1초 타이머가 계속 돈다.**
+      final container = await pumpRunning(tester);
+
+      channel.finished_.add(null);
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(runSessionControllerProvider),
+        isNot(isA<RunRunning>()),
+      );
+      await unmount(tester, container);
+    });
   });
 
   testWidgets('목표가 없는 솔로는 스스로 끝내지 않는다', (tester) async {
@@ -220,11 +278,7 @@ void main() {
       final container = await pumpRunning(tester);
       channel.outcome = const FinishGoalPending(40);
 
-      for (var i = 1; i <= 6 && channel.finishes.isEmpty; i++) {
-        await emit(tester, north(60.0 * i));
-      }
-      await settleFinish(tester);
-      await tester.pumpAndSettle();
+      await holdFinish(tester);
 
       expect(find.byType(RunSessionPage), findsOneWidget);
       await unmount(tester, container);
@@ -234,11 +288,7 @@ void main() {
       final container = await pumpRunning(tester);
       channel.outcome = const FinishGoalPending(40);
 
-      for (var i = 1; i <= 6 && channel.finishes.isEmpty; i++) {
-        await emit(tester, north(60.0 * i));
-      }
-      await settleFinish(tester);
-      await tester.pumpAndSettle();
+      await holdFinish(tester);
 
       expect(find.text(AppStrings.runGoalPending(40)), findsOneWidget);
       await unmount(tester, container);
@@ -249,11 +299,7 @@ void main() {
       final container = await pumpRunning(tester);
       channel.outcome = const FinishGoalPending(40);
 
-      for (var i = 1; i <= 6 && channel.finishes.isEmpty; i++) {
-        await emit(tester, north(60.0 * i));
-      }
-      await settleFinish(tester);
-      await tester.pumpAndSettle();
+      await holdFinish(tester);
 
       final state = container.read(runSessionControllerProvider);
       expect(state, isA<RunRunning>());
@@ -264,11 +310,7 @@ void main() {
       // 보류를 넣는 쪽만 보면 **확정 경로가 깨져도 모른다.**
       final container = await pumpRunning(tester);
 
-      for (var i = 1; i <= 6 && channel.finishes.isEmpty; i++) {
-        await emit(tester, north(60.0 * i));
-      }
-      await settleFinish(tester);
-      await tester.pumpAndSettle();
+      await holdFinish(tester);
 
       expect(find.byType(RunSessionPage), findsNothing);
       await unmount(tester, container);
@@ -294,6 +336,11 @@ class _FinishChannel implements RunningChannel {
 
   @override
   Stream<RunCombo> get combos => const Stream.empty();
+
+  final finished_ = StreamController<void>.broadcast();
+
+  @override
+  Stream<void> get finished => finished_.stream;
 
   @override
   Stream<RunSnapshot> get snapshots => const Stream.empty();
