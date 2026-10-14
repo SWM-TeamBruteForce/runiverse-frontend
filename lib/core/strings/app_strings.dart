@@ -781,6 +781,15 @@ abstract final class AppStrings {
 
   // ── 출발 대기실 (S11) ────────────────────────────────────────
 
+  // ── 출발 안내 (어느 화면에서나) ────────────────────────────
+
+  /// 출발 1분 전에 어느 화면에서든 뜬다. **누를 것이 없다** — 띄우고 바로
+  /// 로비로 옮긴다.
+  static const matchLaunchNoticeTitle = '곧 러닝이 시작돼요';
+
+  /// 무엇이 일어날지 먼저 말한다. 화면이 갑자기 바뀌면 사용자는 앱이 튄 줄 안다.
+  static const matchLaunchNoticeBody = '로비로 이동합니다';
+
   static const matchCountdownTitle = '출발 대기실';
 
   /// 여기서 나갈 수 없다는 사실을 미리 말한다. 뒤로가기가 안 먹는 것을
