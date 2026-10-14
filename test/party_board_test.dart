@@ -312,4 +312,60 @@ void main() {
     // 화면은 줄이 비었는지만 보면 된다 — 솔로인지 매칭인지 따로 묻지 않는다.
     expect(empty.rows, isEmpty);
   });
+
+  group('⚠️ 본인 진행도 서버 값으로 본다 — 1.1.0 가이드 1.2', () {
+    // ⚠️ **예전에는 본인 진행 통지를 통째로 버렸다.**
+    //
+    // 비교 화면에서 나만 로컬 거리로 매 초 움직이고 상대는 10초마다 갱신되니
+    // **참가자 간 간격이 어긋나 보였다.** 콤보는 서버 거리로 판정하므로
+    // 화면의 간격도 같은 기준이어야 한다.
+    //
+    // 개인 기록 화면의 거리는 그대로 로컬 값이 정본이다 — 거기까지 서버로
+    // 덮으면 내 숫자가 10초마다 튄다.
+    const me = 'me-1';
+
+    test('내 줄에도 서버 진행이 실린다', () {
+      final board = empty
+          .withRoster(members, myUserId: me)
+          .withMyDistance(3200)
+          .withProgress(progress(me, 3180));
+
+      final mine = board.lanes.firstWhere((lane) => lane.isMe);
+      expect(mine.progress?.distanceMeters, 3180);
+    });
+
+    test('⚠️ 내가 파티원 줄로 겹쳐 서지 않는다', () {
+      // 거르지 않던 시절의 두려움이 이것이었다 — 점이 2개에서 3개가 되고
+      // `파티원 비교` 장에 내가 남처럼 섰다.
+      final board = empty
+          .withRoster(members, myUserId: me)
+          .withProgress(progress(me, 3180));
+
+      expect(board.lanes.where((lane) => lane.isMe), hasLength(1));
+      expect(board.rows.map((row) => row.userId), isNot(contains(me)));
+    });
+
+    test('⚠️ 간격을 서버 거리끼리 뺀다', () {
+      // 서버(상대) − 로컬(나) 로 빼면 두 기준이 섞여 간격이 흔들린다.
+      final board = empty
+          .withRoster(members, myUserId: me)
+          .withMyDistance(3200)
+          .withProgress(progress(me, 3180))
+          .withProgress(progress('u-1', 3300));
+
+      final other = board.rows.firstWhere((row) => row.userId == 'u-1');
+      expect(other.gapMeters, 120, reason: '3300 − 3180');
+    });
+
+    test('내 서버 값이 아직 없으면 로컬 거리로 뺀다', () {
+      // 통지가 오기 전에도 간격은 보여야 한다.
+      final board = empty
+          .withRoster(members, myUserId: me)
+          .withMyDistance(3200)
+          .withProgress(progress('u-1', 3300));
+
+      final other = board.rows.firstWhere((row) => row.userId == 'u-1');
+      expect(other.gapMeters, 100, reason: '3300 − 3200');
+    });
+  });
 }

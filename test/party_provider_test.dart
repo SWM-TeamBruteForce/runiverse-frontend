@@ -136,6 +136,25 @@ void main() {
       );
     });
 
+    test('⚠️ 버리지 않고 내 줄에 싣는다 — 1.1.0 가이드 1.2', () async {
+      // ⚠️ **예전에는 통째로 버렸다.** 그래서 비교 화면의 내 거리는 로컬
+      // 값뿐이었고, 나만 매 초 움직이고 상대는 10초마다 뛰어 **간격이
+      // 어긋나 보였다.** 콤보는 서버 거리로 판정하므로 더 그랬다.
+      final container = await makeContainer();
+      await container
+          .read(runningConnectionProvider.notifier)
+          .openMatched(13, targetDistanceMeters: 3000);
+      expect(container.read(partyProvider).rows, isEmpty);
+
+      channel.progress_.add(progress('u-1', 120));
+      await settle();
+
+      final board = container.read(partyProvider);
+      final mine = board.lanes.firstWhere((lane) => lane.isMe);
+      expect(mine.progress?.distanceMeters, 120);
+      expect(board.comparableMyDistanceMeters, 120);
+    });
+
     test('남의 진행은 그대로 받는다', () async {
       // 거르는 것이 과하면 진짜 파티원이 사라진다.
       final container = await makeContainer();

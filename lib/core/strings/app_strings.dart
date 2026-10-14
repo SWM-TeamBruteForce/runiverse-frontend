@@ -1044,8 +1044,16 @@ abstract final class AppStrings {
   static String runPartyDistance(int meters) =>
       '${(meters / 1000).toStringAsFixed(2)}km';
 
-  /// 멈춰 있는 사람. **느려진 것과 구분해서 적는다.**
+  /// 파티원이 **뛰고 있지 않을 때** 격차 자리에 대신 넣는 말.
+  ///
+  /// ⚠️ 멈춘 사람과의 격차는 벌어지기만 한다. 그것을 계속 보이면 **따라잡히는
+  /// 중**이라고 읽힌다.
+  ///
+  /// ⚠️ [runPartyPaused]는 1.1.0 전부터 있었지만 **어디에서도 쓰이지 않았다.**
+  /// `RunProgress.paused` 가 화면까지 닿지 않았기 때문이다.
   static const runPartyPaused = '잠시 멈춤';
+  static const runPartyDisconnected = '연결이 끊겼어요';
+  static const runPartyFinished = '러닝을 마쳤어요';
 
   /// `12콤보` — 지금 이어지고 있는 콤보.
   static String runPartyCombo(int count) => '$count콤보';
