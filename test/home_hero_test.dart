@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/widgets/v2/runner_avatar.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
@@ -12,17 +13,26 @@ import 'package:runiverse/features/matching/domain/room_info.dart';
 void main() {
   final startAt = DateTime(2026, 9, 16, 19);
 
-  RoomInfo room(RoomStatus status, {int players = 2, DateTime? closeAt}) =>
-      RoomInfo(
-        runningRoomId: 125,
-        status: status,
-        scheduledStartAt: startAt,
-        closeAt: closeAt,
-        players: [
-          for (var i = 0; i < players; i++)
-            RoomPlayer(userId: 'u-$i', nickname: '러너$i', isDeleted: false),
-        ],
-      );
+  RoomInfo room(
+    RoomStatus status, {
+    int players = 2,
+    DateTime? closeAt,
+    bool withPhotos = false,
+  }) => RoomInfo(
+    runningRoomId: 125,
+    status: status,
+    scheduledStartAt: startAt,
+    closeAt: closeAt,
+    players: [
+      for (var i = 0; i < players; i++)
+        RoomPlayer(
+          userId: 'u-$i',
+          nickname: '러너$i',
+          isDeleted: false,
+          profileImageUrl: withPhotos ? 'https://img/u-$i.png' : null,
+        ),
+    ],
+  );
 
   Future<({int match, int cancel, int lobby})> pumpHero(
     WidgetTester tester, {
@@ -32,6 +42,7 @@ void main() {
     DateTime? cooldownUntil,
     String? name,
     String? myUserId,
+    String? photoUrl,
     VoidCallback? onLobby,
     // ⚠️ 돌려주는 기록은 **pump 시점에 굳는다**(레코드라 값이 복사된다).
     // 누른 뒤의 횟수를 보려면 부르는 쪽이 살아 있는 카운터를 넘겨야 한다.
@@ -48,6 +59,7 @@ void main() {
           body: SingleChildScrollView(
             child: HomeHero(
               name: name,
+              photoUrl: photoUrl,
               myUserId: myUserId,
               room: withRoom,
               pending: pending,
@@ -112,6 +124,48 @@ void main() {
         find.textContaining(AppStrings.homeMatchWaitingOthers(2)),
         findsOneWidget,
       );
+    });
+
+    testWidgets('⚠️ 가운데 내 사진은 방 명단에서 온다', (tester) async {
+      // ⚠️ **`GET /users/me`(36번)에는 `profileImageUrl` 이 없다.**
+      // 응답은 `userId`·`email`·`loginType`·`nickname`·`isOnboarded` 뿐이라
+      // 그 값을 읽으면 **가운데 내 얼굴만 늘 기본 이미지로** 남는다. 둘레
+      // 사람들은 같은 명단에서 사진을 받아 멀쩡히 떴다.
+      await pumpHero(
+        tester,
+        myUserId: 'u-0',
+        // 36번이 주는 그대로. 사진은 없고 이름만 있다.
+        name: '나',
+        withRoom: room(RoomStatus.matching, players: 3, withPhotos: true),
+      );
+
+      final avatars = tester
+          .widgetList<RunnerAvatarV2>(find.byType(RunnerAvatarV2))
+          .toList();
+      // 가운데가 가장 크다(시안 135). 크기로 고른다 — 순서는 레이아웃 사정이다.
+      final me = avatars.reduce((a, b) => a.size >= b.size ? a : b);
+
+      expect(me.imageUrl, 'https://img/u-0.png');
+      expect(me.nickname, '러너0');
+    });
+
+    testWidgets('명단에 내가 없으면 `/users/me` 값으로 물러선다', (tester) async {
+      // 서버가 나를 빼고 줄 수도 있다. 그때까지 얼굴을 비워 둘 이유는 없다.
+      await pumpHero(
+        tester,
+        myUserId: '나는-명단에-없다',
+        name: '나',
+        photoUrl: 'https://img/fallback.png',
+        withRoom: room(RoomStatus.matching, players: 2, withPhotos: true),
+      );
+
+      final avatars = tester
+          .widgetList<RunnerAvatarV2>(find.byType(RunnerAvatarV2))
+          .toList();
+      final me = avatars.reduce((a, b) => a.size >= b.size ? a : b);
+
+      expect(me.imageUrl, 'https://img/fallback.png');
+      expect(me.nickname, '나');
     });
 
     testWidgets('⚠️ 나는 둘레에서 빠진다', (tester) async {
