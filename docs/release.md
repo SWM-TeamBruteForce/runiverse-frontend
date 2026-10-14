@@ -46,6 +46,8 @@ android/app/src/prod/google-services.json    ios/Runner/Firebase/prod/GoogleServ
 - Firebase 콘솔 → `runiverse-dev`·`runiverse` 프로젝트 → 프로젝트 설정 → 해당 플랫폼 앱의 구성 파일을 받는다.
 - iOS는 `Copy Firebase Config` 빌드 단계가 구성 이름(`Debug-dev`면 dev, 아니면 prod)으로 골라 앱에 복사한다.
   파일이 없으면 빌드가 그 자리에서 멈춘다.
+- iOS 카카오·구글 로그인 복귀 스킴은 `Add URL Schemes` 빌드 단계가 `config/*.json`의 `KAKAO_NATIVE_APP_KEY`·`GOOGLE_IOS_CLIENT_ID`로
+  `Info.plist`에 넣는다. 값이 없으면 경고만 남기고 빌드는 된다(그 로그인만 안 된다).
 
 ## dev 앱 — CI가 올린다
 

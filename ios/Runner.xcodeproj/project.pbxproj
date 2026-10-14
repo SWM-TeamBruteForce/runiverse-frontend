@@ -159,6 +159,7 @@
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
 				A1B2C3D4E5F60718293A4B5C /* Copy Firebase Config */,
+				B2C3D4E5F60718293A4B5C6D /* Add URL Schemes */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 			);
@@ -286,6 +287,22 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# flavor별 Firebase 설정을 앱 번들에 넣는다 — 구성 이름에 dev가 있으면(Debug-dev 등) dev, 아니면 prod\ncase \"${CONFIGURATION}\" in *dev*) FLAVOR=dev ;; *) FLAVOR=prod ;; esac\nSRC=\"${PROJECT_DIR}/Runner/Firebase/${FLAVOR}/GoogleService-Info.plist\"\nif [ ! -f \"${SRC}\" ]; then\n  echo \"error: ${SRC} 가 없다. Firebase 콘솔에서 받아 그 자리에 둔다 (docs/release.md)\" >&2\n  exit 1\nfi\ncp \"${SRC}\" \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/GoogleService-Info.plist\"\n";
+		};
+		B2C3D4E5F60718293A4B5C6D /* Add URL Schemes */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}",
+			);
+			name = "Add URL Schemes";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# 카카오·구글 로그인 복귀 스킴과 GIDClientID를 Info.plist에 넣는다 — 값은 config/*.json(--dart-define-from-file)에서 온다\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nPB=/usr/libexec/PlistBuddy\ndefine() {\n  for d in $(echo \"${DART_DEFINES}\" | tr ',' ' '); do\n    kv=$(echo \"$d\" | base64 --decode)\n    case \"$kv\" in \"$1=\"*) echo \"${kv#*=}\"; return ;; esac\n  done\n}\nKAKAO=$(define KAKAO_NATIVE_APP_KEY)\nGOOGLE=$(define GOOGLE_IOS_CLIENT_ID)\n$PB -c \"Delete :CFBundleURLTypes\" \"$PLIST\" 2>/dev/null\n$PB -c \"Delete :GIDClientID\" \"$PLIST\" 2>/dev/null\n$PB -c \"Add :CFBundleURLTypes array\" \"$PLIST\"\ni=0\nif [ -n \"$KAKAO\" ]; then\n  $PB -c \"Add :CFBundleURLTypes:$i dict\" -c \"Add :CFBundleURLTypes:$i:CFBundleURLSchemes array\" -c \"Add :CFBundleURLTypes:$i:CFBundleURLSchemes:0 string kakao${KAKAO}\" \"$PLIST\"\n  i=$((i + 1))\nelse\n  echo \"warning: KAKAO_NATIVE_APP_KEY 가 없어 카카오 복귀 스킴을 넣지 않았다\"\nfi\nif [ -n \"$GOOGLE\" ]; then\n  $PB -c \"Add :CFBundleURLTypes:$i dict\" -c \"Add :CFBundleURLTypes:$i:CFBundleURLSchemes array\" -c \"Add :CFBundleURLTypes:$i:CFBundleURLSchemes:0 string com.googleusercontent.apps.${GOOGLE%.apps.googleusercontent.com}\" -c \"Add :GIDClientID string ${GOOGLE}\" \"$PLIST\"\nelse\n  echo \"warning: GOOGLE_IOS_CLIENT_ID 가 없어 구글 복귀 스킴을 넣지 않았다\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
