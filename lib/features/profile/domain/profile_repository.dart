@@ -1,10 +1,17 @@
+import 'package:runiverse/core/storage/body_profile_remote.dart';
 import 'package:runiverse/features/profile/domain/profile_summary.dart';
 
 /// 프로필 요약을 가져온다.
 ///
 /// [userId]를 **인자로 받는다.** 저장소에서 꺼내 쓰면 남의 프로필을 열어도
 /// 내 것이 나온다 — 본인·타인이 같은 화면을 쓰기 때문에 여기서 갈려야 한다.
-abstract interface class ProfileRepository {
+///
+/// ## [BodyProfileRemote]를 함께 구현한다
+///
+/// 신체 정보(51번)를 읽는 것도 같은 경로·같은 401 처리를 쓴다. 따로 두면
+/// **토큰 갱신 규칙이 두 벌**이 되고, 한쪽만 고치는 날이 온다. 러닝 화면은
+/// 그 포트만 보므로 이 저장소를 알지 못한다.
+abstract interface class ProfileRepository implements BodyProfileRemote {
   Future<ProfileSummary> fetch(String userId);
 
   /// 닉네임을 바꾸고 **서버가 확정한 값**을 돌려준다.

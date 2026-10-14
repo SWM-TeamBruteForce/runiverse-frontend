@@ -42,6 +42,21 @@ import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 ///
 /// 이제 고른 것을 [_photo]로 들고 있다가 저장할 때 보낸다.
 ///
+/// ## ⚠️ 신체 정보는 서버에서 읽은 뒤에 만질 수 있다
+///
+/// 전에는 **기기에 남은 값으로만** 선택기를 열었다. 다른 기기에서 로그인한
+/// 사람은 그 값이 없어 172cm·63kg으로 열렸고, **키만 고쳐 저장해도 몸무게가
+/// 63kg으로 덮였다** — 시트가 두 값을 함께 돌려주기 때문이다.
+///
+/// 이제 들어올 때 `GET /users/me/profile`(51번)로 서버 값을 받는다. 못 받았으면
+/// 세 칸을 잠근다 — 모르는 값 위에 기본값을 쓰는 것보다 못 고치는 편이 낫다.
+///
+/// | 51번 | 세 칸 |
+/// |---|---|
+/// | 읽는 중 | 기기에 남은 값으로 보여주고 **잠근다** |
+/// | 읽었다 | 서버 값으로 채우고 연다 (`null`이면 온보딩 전이라 빈 칸으로 연다) |
+/// | 실패 | 잠그고 이유를 적는다 |
+///
 /// ## 성별과 평균 페이스는 없다
 ///
 /// 성별은 기능정의서(`SETTING-PERSONAL-001`)가 **설정 UI 미노출**로 정했고,
@@ -69,6 +84,16 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
   bool _saving = false;
   ProfileEditFailure? _failure;
 
+  /// 51번을 아직 기다리는가. 그동안 세 칸은 잠긴다.
+  bool _bodyLoading = true;
+
+  /// 51번이 실패했는가. **빈 응답과 다르다** — 빈 응답은 온보딩 전이라
+  /// 덮어쓸 값이 없고, 실패는 서버 값을 모르는 것이라 덮으면 안 된다.
+  bool _bodyFailed = false;
+
+  /// 생년월일·키·몸무게를 만질 수 있는가.
+  bool get _bodyEditable => !_bodyLoading && !_bodyFailed;
+
   @override
   void initState() {
     super.initState();
@@ -76,11 +101,36 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
         ref.read(profileSummaryControllerProvider).summary?.introduction ?? '';
     _introduction = TextEditingController(text: _initialIntroduction);
 
-    // 앱을 켜 둔 동안 기억해 둔 값이 있으면 그것으로 시작한다.
+    // 기기에 남은 값으로 먼저 그린다. 서버를 기다리는 동안 칸이 비지 않는다.
+    _seedBody();
+
+    // ⚠️ `initState`에서 provider를 고치면 빌드 도중 상태가 바뀌어 죽는다.
+    // 첫 프레임 뒤로 미룬다(`implementation-notes.md` §10-1).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBody());
+  }
+
+  /// `bodyProfileProvider`가 아는 값을 세 칸에 옮긴다.
+  void _seedBody() {
     final body = ref.read(bodyProfileProvider);
     _birthday = body.birthday;
     _heightCm = body.heightCm;
     _weightKg = body.weightKg;
+  }
+
+  /// 서버가 가진 신체 정보를 받아 칸을 채운다(51번).
+  ///
+  /// ⚠️ **`_initialIntroduction`처럼 기준값을 따로 두지 않는다.** 바뀐 것을
+  /// 가리는 기준은 `bodyProfileProvider`이고, 이 호출이 그것을 서버 값으로
+  /// 맞춘다 — 그래서 시트를 열어 키만 고치면 몸무게는 "안 바뀐 것"이 되어
+  /// 요청에 실리지 않는다.
+  Future<void> _loadBody() async {
+    final loaded = await ref.read(bodyProfileProvider.notifier).refresh();
+    if (!mounted) return;
+    setState(() {
+      _bodyLoading = false;
+      _bodyFailed = !loaded;
+      if (loaded) _seedBody();
+    });
   }
 
   @override
@@ -408,7 +458,9 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                       _ValueRow(
                         label: AppStrings.profileBirthLabel,
                         value: _birthday == null ? null : _dateText(_birthday!),
-                        onTap: _pickBirthday,
+                        // 서버 값을 모르는 동안은 잠긴다. 선택기 기본값이
+                        // 저장돼 버리는 것을 막는 유일한 자리다.
+                        onTap: _bodyEditable ? _pickBirthday : null,
                       ),
                       // 저장 버튼만 잠그면 왜 안 눌리는지 알 수 없다.
                       if (_birthdayTooYoung)
@@ -429,8 +481,22 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                             ? null
                             : '$_heightCm${AppStrings.profileUnitHeight}'
                                   ' · $_weightKg${AppStrings.profileUnitWeight}',
-                        onTap: _pickBody,
+                        onTap: _bodyEditable ? _pickBody : null,
                       ),
+                      // 잠긴 이유를 적는다. 안 적으면 눌러도 아무 일이
+                      // 없는 줄로 보인다.
+                      if (_bodyFailed)
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            top: AppSpacing.space2,
+                          ),
+                          child: Text(
+                            AppStrings.profileBodyLoadFailed,
+                            style: AppTypographyV2.body15.copyWith(
+                              color: colors.error,
+                            ),
+                          ),
+                        ),
 
                       if (_failure != null) ...[
                         const SizedBox(height: AppSpacing.space4),
@@ -573,7 +639,9 @@ class _ValueRow extends StatelessWidget {
   final String? label;
 
   final String? value;
-  final VoidCallback onTap;
+
+  /// `null`이면 잠긴다 — 신체 정보를 서버에서 못 읽었을 때다.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -603,7 +671,10 @@ class _ValueRow extends StatelessWidget {
                 textAlign: label == null ? TextAlign.start : TextAlign.end,
                 style: AppTypographyV2.body07.copyWith(
                   // 값이 없다는 것과 있는 것을 **무게로** 가른다.
-                  color: text == null
+                  // 잠긴 줄은 둘과 또 다르게 흐려진다.
+                  color: onTap == null
+                      ? colors.textDisabled
+                      : text == null
                       ? colors.textTertiary
                       : colors.textPrimary,
                 ),
@@ -613,7 +684,7 @@ class _ValueRow extends StatelessWidget {
             AppIcon(
               AppIcons.right,
               size: AppSpacing.space5,
-              color: colors.textTertiary,
+              color: onTap == null ? colors.textDisabled : colors.textTertiary,
             ),
           ],
         ),
