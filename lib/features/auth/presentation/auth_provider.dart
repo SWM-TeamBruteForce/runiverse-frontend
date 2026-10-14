@@ -386,6 +386,10 @@ class AuthController extends Notifier<AuthState> {
       // 섞여 전환율이 부풀려진다.
       unawaited(ref.read(analyticsProvider).login(method: method.name));
       await _loadCurrentUser(session.accessToken);
+      // ⚠️ **다른 기기에서 로그인한 사람의 신체 정보는 이 기기에 없다.**
+      // 서버에서 읽어 둬야 첫 러닝의 칼로리가 `--`로 뜨지 않는다. 기다리지
+      // 않는다 — 실패해도 로그인은 성공이고, 러닝 화면이 다시 읽는다.
+      unawaited(ref.read(bodyProfileProvider.notifier).refresh());
       return null;
     } on AuthException catch (error) {
       return error.failure;

@@ -8,6 +8,7 @@ import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/profile/data/http_profile_repository.dart';
 import 'package:runiverse/features/profile/domain/nickname_change_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
+import 'package:runiverse/features/profile/domain/profile_failure.dart';
 
 /// 프로필 요약 — `GET /api/v1/users/{userId}` (명세 37번).
 ///
@@ -248,6 +249,89 @@ void main() {
             (e) => e.failure,
             'failure',
             ProfileEditFailure.invalid,
+          ),
+        ),
+      );
+    });
+  });
+
+  /// 신체 정보 조회 — `GET /api/v1/users/me/profile` (명세 51번).
+  ///
+  /// **이 조회가 없던 동안 러닝 중 칼로리가 `--`로 떴다.** 앱은 자기가 보낸
+  /// 값만 기억했으므로, 다른 기기에서 로그인하면 몸무게를 알 방법이 없었다.
+  group('신체 정보 조회', () {
+    test('me 경로로 나간다 — 본인 것만 읽는다', () async {
+      final repo = await repositoryReturning({'weightKg': 70.5});
+
+      await repo.fetchBody();
+
+      expect(api.method, 'GET');
+      expect(api.path, '/api/v1/users/me/profile');
+    });
+
+    test('⚠️ 소수 한 자리로 오는 몸무게에 죽지 않는다', () async {
+      // `as int`로 읽으면 여기서 터진다. 서버가 소수로 저장한다(명세 51번).
+      final repo = await repositoryReturning({
+        'birthday': '1998-12-16',
+        'weightKg': 70.5,
+        'heightCm': 175.0,
+      });
+
+      final body = await repo.fetchBody();
+
+      expect(body.weightKg, 71);
+      expect(body.heightCm, 175);
+      expect(body.birthday, DateTime(1998, 12, 16));
+    });
+
+    test('정수로 와도 읽는다', () async {
+      // 서버가 `70.0`을 `70`으로 직렬화할 수 있다. `double`로만 읽으면
+      // 그때 조용히 `null`이 되고 **칼로리가 다시 `--`가 된다.**
+      final repo = await repositoryReturning({'weightKg': 70, 'heightCm': 175});
+
+      final body = await repo.fetchBody();
+
+      expect(body.weightKg, 70);
+      expect(body.heightCm, 175);
+    });
+
+    test('온보딩 전이면 셋 다 null이다 — 실패가 아니다', () async {
+      final repo = await repositoryReturning({
+        'introduction': '즐겁게 달려요',
+        'gender': null,
+        'birthday': null,
+        'weightKg': null,
+        'heightCm': null,
+      });
+
+      final body = await repo.fetchBody();
+
+      expect(body.isEmpty, isTrue);
+    });
+
+    test('몸통이 기대와 다르면 비운다 — 던지지 않는다', () async {
+      // 200인데 타입이 다르다. 여기서 던지면 프로필 편집이 **불러오기
+      // 실패**로 읽어 칸을 잠근다. 서버가 "없다"고 말한 것과 같이 다룬다.
+      final repo = await repositoryReturning({
+        'weightKg': '70.5',
+        'birthday': 19981216,
+      });
+
+      final body = await repo.fetchBody();
+
+      expect(body.isEmpty, isTrue);
+    });
+
+    test('404는 notFound로 옮긴다', () async {
+      final repo = await repositoryReturning({}, status: 404);
+
+      expect(
+        repo.fetchBody,
+        throwsA(
+          isA<ProfileException>().having(
+            (e) => e.failure,
+            'failure',
+            ProfileFailure.notFound,
           ),
         ),
       );
