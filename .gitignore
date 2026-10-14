@@ -57,7 +57,7 @@ app.*.map.json
 /android/key.properties
 /android/app/*.jks
 
-# Firebase 설정. 프로젝트마다 값이 달라 커밋하지 않는다 — flavor 폴더(android/app/src/{dev,prod}, ios/Runner/Firebase/{dev,prod})에 둔다.
+# Firebase 설정. 프로젝트마다 값이 달라 커밋하지 않는다 — flavor 폴더(dev·prod)에 둔다. Android는 android/app/src/, iOS는 ios/Runner/Firebase/ 아래.
 google-services.json
 GoogleService-Info.plist
 *.env

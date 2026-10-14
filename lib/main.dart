@@ -32,8 +32,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Firebase — **인자를 넘기지 않는다.** 설정은 플랫폼별 설정 파일에서 오고,
-  // flavor마다 다른 자리에 있다(`android/app/src/{dev,prod}`,
-  // `ios/Runner/Firebase/{dev,prod}`). 그래서 `firebase_options.dart` 도 없다.
+  // flavor 폴더(`dev`·`prod`)에 따로 있다(Android `android/app/src/` 아래,
+  // iOS `ios/Runner/Firebase/` 아래). 그래서 `firebase_options.dart` 도 없다.
   //
   // ⚠️ 위의 세 SDK 와 달리 **키 유무를 보고 거르지 않는다.** 설정 파일이
   // 없으면 Gradle 이 빌드를 먼저 세우므로, 여기까지 왔다면 파일은 있다.
