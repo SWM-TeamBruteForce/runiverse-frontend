@@ -99,8 +99,8 @@ class ProfileSummaryController extends Notifier<ProfileSummaryState> {
   /// ## 사진과 달리 다시 받아오지 않는다
   ///
   /// `PATCH .../me/nickname`의 200이 **새 이름을 그대로 돌려주기** 때문이다.
-  /// 사진은 서버만 아는 주소가 새로 생겨 [reload]가 필요했지만, 여기서는
-  /// 부를 이유가 없다 — 마침 그 API가 아직 배포 전이라 불렀다면 실패했을 것이다.
+  /// 사진은 서버만 아는 주소가 새로 생기므로 받아온 쪽이 다시 물어야 하지만,
+  /// 이름은 손에 들어온 것이 곧 답이라 부를 이유가 없다.
   Future<NicknameChangeFailure?> changeNickname(String nickname) async {
     final String changed;
     try {

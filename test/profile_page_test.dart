@@ -282,8 +282,10 @@ void main() {
 
   // ── 프로필 사진 ─────────────────────────────────────────────
   //
-  // 서버가 지금 열어 준 것은 사진뿐이다. 닉네임·소개를 고치는 API가 없어
-  // 정본의 편집 화면(S22.1)을 만들 수 없고, 그래서 아바타를 직접 누르게 했다.
+  // 바꾸는 자리는 **편집 화면(S22.1) 하나**다. 홈의 아바타는 눌리지 않는다.
+  //
+  // ⚠️ 사진은 고르는 것만으로 올라가지 않는다 — 소개글·신체 정보와 똑같이
+  // **저장 버튼을 기다린다**. 자세한 것은 `profile_edit_page_test`.
 
   /// 우측 상단 ✎. 눌러 **편집 화면(S22.1)으로 간다.**
   Future<void> openEditPage(WidgetTester tester) async {
@@ -314,6 +316,15 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// 편집 화면의 저장 버튼을 누른다.
+  ///
+  /// ⚠️ **사진은 고르는 것만으로 올라가지 않는다.** 고르기·지우기 둘 다
+  /// 화면에만 반영되고, 서버로 가는 것은 이 버튼을 눌렀을 때다.
+  Future<void> tapSave(WidgetTester tester) async {
+    await tester.tap(find.text(AppStrings.profileEditSave));
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('⚠️ 아바타는 사진 주소를 스스로 받아오지 않는다', (tester) async {
     final photos = FakeProfileImageRepository(latency: Duration.zero);
     await pumpProfile(
@@ -331,7 +342,7 @@ void main() {
     expect(photos.fetchCalls, 0);
   });
 
-  testWidgets('사진을 바꾸면 프로필 요약을 다시 받는다', (tester) async {
+  testWidgets('사진을 바꿔 저장하면 프로필 요약을 다시 받는다', (tester) async {
     final summary = FakeProfileRepository(nickname: '서버이름');
     final picker = _FakePicker(
       image: PickedImage.validated(path: '/a/b.png', sizeBytes: 1024),
@@ -347,8 +358,12 @@ void main() {
     await openSheet(tester);
     await tester.tap(find.text(AppStrings.profilePhotoPick));
     await tester.pumpAndSettle();
+    await tapSave(tester);
 
     // 새 주소는 서버만 안다. 다시 받지 않으면 아바타가 옛 사진을 문다.
+    //
+    // ⚠️ **다시 받는 것은 편집 화면이 아니라 여기(`ProfileHeader`)다** —
+    // 편집 화면을 연 자리에서 돌아오기를 기다렸다 부른다.
     expect(summary.calls, greaterThan(before));
   });
 
@@ -474,7 +489,7 @@ void main() {
     expect(find.text(AppStrings.profilePhotoReset), findsNothing);
   });
 
-  testWidgets('사진이 있으면 지울 수 있다', (tester) async {
+  testWidgets('사진이 있으면 지울 수 있다 — 저장을 눌러야 간다', (tester) async {
     final photos = FakeProfileImageRepository(
       latency: Duration.zero,
       url: 'https://example.invalid/a.png',
@@ -493,11 +508,14 @@ void main() {
 
     await tester.tap(find.text(AppStrings.profilePhotoReset));
     await tester.pumpAndSettle();
+    expect(photos.removed, isFalse, reason: '아직 저장을 누르지 않았다');
 
-    expect(photos.url, isNull);
+    await tapSave(tester);
+
+    expect(photos.removed, isTrue);
   });
 
-  testWidgets('앨범에서 고르면 올라간다', (tester) async {
+  testWidgets('앨범에서 고르고 저장하면 올라간다', (tester) async {
     final photos = FakeProfileImageRepository(latency: Duration.zero);
     final picker = _FakePicker(
       image: PickedImage.validated(path: '/a/b.png', sizeBytes: 1024),
@@ -507,6 +525,9 @@ void main() {
 
     await tester.tap(find.text(AppStrings.profilePhotoPick));
     await tester.pumpAndSettle();
+    expect(photos.uploaded, isNull, reason: '아직 저장을 누르지 않았다');
+
+    await tapSave(tester);
 
     expect(photos.uploaded?.mimeType, 'image/png');
     expect(photos.uploaded?.sizeBytes, 1024);
