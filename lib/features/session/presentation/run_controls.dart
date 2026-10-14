@@ -33,6 +33,7 @@ class RunControls extends StatefulWidget {
     required this.enabled,
     required this.onPauseToggle,
     required this.onFinish,
+    this.hasTarget = false,
     this.penaltyRemainingKm,
     super.key,
   });
@@ -48,8 +49,16 @@ class RunControls extends StatefulWidget {
   /// 길게 누르기가 끝까지 찼을 때.
   final VoidCallback onFinish;
 
-  /// 목표까지 남은 거리. **`null`이면 안내하지 않는다** — 솔로이거나 이미
-  /// 목표를 채운 경우다.
+  /// 채워야 할 목표가 있는가. 제재 안내를 띄울지 가른다.
+  ///
+  /// ⚠️ **[penaltyRemainingKm] 이 `null` 인 것과 다르다.** 화면 거리가
+  /// 80% 를 넘으면 남은 거리는 없지만 **안내는 남아 있어야 한다** — 판정은
+  /// 서버 확정 거리로 하고, 화면에서 넘겼어도 모자랄 수 있다(가이드 3.4).
+  /// 안내를 걷어 버리면 그것이 곧 "제재 없다"는 약속이 된다.
+  final bool hasTarget;
+
+  /// 목표의 80%까지 **화면 기준으로** 남은 거리. 이미 넘겼거나 목표가 없으면
+  /// `null` 이고, 그때는 거리 줄만 빠진다.
   final double? penaltyRemainingKm;
 
   @override
@@ -85,7 +94,7 @@ class _RunControlsState extends State<RunControls>
           AnimatedBuilder(
             animation: _hold,
             builder: (context, _) {
-              if (!_holding || remaining == null) {
+              if (!_holding || !widget.hasTarget) {
                 return const SizedBox.shrink();
               }
               return Padding(
@@ -99,14 +108,17 @@ class _RunControlsState extends State<RunControls>
                         color: colors.textSecondary,
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.space1),
-                    Text(
-                      AppStrings.runFinishRemaining(remaining),
-                      textAlign: TextAlign.center,
-                      style: AppTypographyV2.body15.copyWith(
-                        color: colors.primary,
+                    // 아직 모자랄 때만 거리를 덧붙인다.
+                    if (remaining != null) ...[
+                      const SizedBox(height: AppSpacing.space1),
+                      Text(
+                        AppStrings.runFinishRemaining(remaining),
+                        textAlign: TextAlign.center,
+                        style: AppTypographyV2.body15.copyWith(
+                          color: colors.primary,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               );

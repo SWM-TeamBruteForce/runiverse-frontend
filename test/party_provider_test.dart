@@ -20,6 +20,7 @@ import 'package:runiverse/features/session/presentation/party_provider.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
 /// 파티 보드가 **통지에 붙는 시점.**
 ///
@@ -134,6 +135,25 @@ void main() {
         isEmpty,
         reason: '내 진행은 파티원 줄이 아니다',
       );
+    });
+
+    test('⚠️ 버리지 않고 내 줄에 싣는다 — 1.1.0 가이드 1.2', () async {
+      // ⚠️ **예전에는 통째로 버렸다.** 그래서 비교 화면의 내 거리는 로컬
+      // 값뿐이었고, 나만 매 초 움직이고 상대는 10초마다 뛰어 **간격이
+      // 어긋나 보였다.** 콤보는 서버 거리로 판정하므로 더 그랬다.
+      final container = await makeContainer();
+      await container
+          .read(runningConnectionProvider.notifier)
+          .openMatched(13, targetDistanceMeters: 3000);
+      expect(container.read(partyProvider).rows, isEmpty);
+
+      channel.progress_.add(progress('u-1', 120));
+      await settle();
+
+      final board = container.read(partyProvider);
+      final mine = board.lanes.firstWhere((lane) => lane.isMe);
+      expect(mine.progress?.distanceMeters, 120);
+      expect(board.comparableMyDistanceMeters, 120);
     });
 
     test('남의 진행은 그대로 받는다', () async {
@@ -428,6 +448,9 @@ class _PushChannel implements RunningChannel {
   }
 
   @override
+  Stream<void> get finished => const Stream.empty();
+
+  @override
   Stream<RunSnapshot> get snapshots => snapshots_.stream;
 
   @override
@@ -437,7 +460,14 @@ class _PushChannel implements RunningChannel {
   bool sendLocations(List<TrackPoint> points) => true;
 
   @override
-  Future<bool> finish({bool forced = false}) async => true;
+  bool pause() => true;
+
+  @override
+  bool resume() => true;
+
+  @override
+  Future<FinishOutcome> finish({bool forced = false}) async =>
+      const FinishConfirmed();
 
   @override
   Future<void> close() async {}

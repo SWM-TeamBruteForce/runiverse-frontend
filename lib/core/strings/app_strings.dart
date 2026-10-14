@@ -988,6 +988,27 @@ abstract final class AppStrings {
   ///
   /// 시안이 장마다 왼쪽 위에 제목을 둔다. 점만으로는 **지금 몇 번째 장인지는
   /// 알아도 그 장이 무엇인지는 모른다.**
+  /// 서버가 확정한 거리가 목표에 모자라 종료가 보류됐다(`GOAL_PENDING`).
+  ///
+  /// ⚠️ **오류가 아니다.** 앱이 잰 거리는 목표를 넘었는데 서버는 정지 구간과
+  /// 오염 좌표를 뺀 값으로 센다 — 그쪽이 기록의 정본이다.
+  ///
+  /// ⚠️ **스낵바가 아니라 창이다.** 가이드 3.3이 "계속 달리거나 종료할 수
+  /// 있도록 안내"하라고 정했다 — 고를 것이 있으면 사라지는 알림으로는 못 묻는다.
+  static const runGoalPendingTitle = '목표까지 조금 남았어요';
+
+  /// `약 40m` — 서버가 그 시점에 센 남은 거리다.
+  ///
+  /// ⚠️ **받은 값을 그대로 보여 준다.** 그 뒤에 달린 만큼을 빼서 줄이면
+  /// 추정값이 되고, 0m가 떠도 종료는 `RUNNING_FINISHED`를 받아야 한다 —
+  /// 가이드 3.3이 그 혼동을 경계한다.
+  static String runGoalPendingBody(int remainingMeters) =>
+      '서버에서 확인한 거리로는 목표까지 약 ${remainingMeters}m 남았어요. '
+      '계속 달려도 되고 지금 끝내도 돼요. 지금 끝내면 완주로 기록되지 않을 수 있어요.';
+
+  static const runGoalPendingKeep = '계속 달리기';
+  static const runGoalPendingFinish = '종료하기';
+
   static const runPageLive = '실시간 기록';
   static const runPageMap = '내 GPS';
   static const runPageParty = '파티원 비교';
@@ -1044,22 +1065,35 @@ abstract final class AppStrings {
   static String runPartyDistance(int meters) =>
       '${(meters / 1000).toStringAsFixed(2)}km';
 
-  /// 멈춰 있는 사람. **느려진 것과 구분해서 적는다.**
+  /// 파티원이 **뛰고 있지 않을 때** 격차 자리에 대신 넣는 말.
+  ///
+  /// ⚠️ 멈춘 사람과의 격차는 벌어지기만 한다. 그것을 계속 보이면 **따라잡히는
+  /// 중**이라고 읽힌다.
+  ///
+  /// ⚠️ [runPartyPaused]는 1.1.0 전부터 있었지만 **어디에서도 쓰이지 않았다.**
+  /// `RunProgress.paused` 가 화면까지 닿지 않았기 때문이다.
   static const runPartyPaused = '잠시 멈춤';
+  static const runPartyDisconnected = '연결이 끊겼어요';
+  static const runPartyFinished = '러닝을 마쳤어요';
 
   /// `12콤보` — 지금 이어지고 있는 콤보.
   static String runPartyCombo(int count) => '$count콤보';
 
-  /// ⚠️ 목표의 80%를 채우지 못한 채 끝내려 할 때. **끝내기 전에 알린다** —
+  /// ⚠️ 목표를 채우지 못한 채 끝내려 할 때. **끝내기 전에 알린다** —
   /// 끝낸 뒤에 알리면 되돌릴 수 없다.
   ///
-  /// 기준은 서버가 확정한 거리다. 앱이 잰 값과 미세하게 다를 수 있어
-  /// "적용될 수 있다"로 적는다 — 단정하면 안 걸렸을 때 거짓말이 된다.
-  static const runFinishPenaltyNotice = '목표의 80%를 채우지 못하면 20분 동안 매칭을 신청할 수 없어요';
+  /// ⚠️ **"서버에서 확인한 거리"를 문구에 박아 둔다.** 80% 판정은 정지
+  /// 구간과 오염 좌표를 뺀 서버 확정 거리로 한다(가이드 3.4). 화면에서 넘겼어도
+  /// 서버 기준으로는 모자랄 수 있어 "없다"고 단정하지 않는다.
+  static const runFinishPenaltyNotice =
+      '서버에서 확인한 거리가 목표의 80%에 미달하면 20분 동안 매칭을 신청할 수 없어요';
 
-  /// `4.00km 남았어요` — 얼마나 더 가야 제한을 피하는지.
+  /// `4.00km` — 화면 기준으로 얼마나 더 가야 80%에 닿는지.
+  ///
+  /// ⚠️ **"제한 없이 끝낼 수 있다"고 말하지 않는다.** 판정은 서버 몫이라
+  /// 앱이 약속할 수 없다(가이드 3.4). 화면 기준이라고 밝히고 거리만 알린다.
   static String runFinishRemaining(double km) =>
-      '${km.toStringAsFixed(2)}km 더 달리면 제한 없이 끝낼 수 있어요';
+      '화면 기준으로 ${km.toStringAsFixed(2)}km 더 달리면 80%를 채워요';
 
   static const runPaceLabel = '페이스';
   static const runTimeLabel = '시간';
@@ -1134,7 +1168,12 @@ abstract final class AppStrings {
   static const runResultTitle = '러닝 결과';
   static const runResultBack = '뒤로';
 
-  static const runResultTime = '시간';
+  /// ⚠️ **`시간`이 아니라 `움직인 시간`이다**(1.1.0 가이드 4.1).
+  ///
+  /// 서버가 주는 `totalDurationSeconds`는 정지 구간을 뺀 값이라 **시작~종료
+  /// 시각의 차이보다 짧다.** 그냥 `시간`이라고 적으면 러닝에 걸린 시간으로
+  /// 읽혀, 신호 대기로 서 있던 만큼이 사라진 것처럼 보인다.
+  static const runResultTime = '움직인 시간';
   static const runResultDistance = '거리';
   static const runResultPace = '페이스';
   static const runResultCadence = '케이던스';

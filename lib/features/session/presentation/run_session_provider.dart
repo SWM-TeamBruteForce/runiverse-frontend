@@ -9,6 +9,7 @@ import 'package:runiverse/features/session/data/geolocator_location_repository.d
 import 'package:runiverse/features/session/data/pedometer_step_repository.dart';
 import 'package:runiverse/features/session/data/sqflite_track_repository.dart';
 import 'package:runiverse/features/session/domain/cadence_calculator.dart';
+import 'package:runiverse/features/session/domain/auto_pause.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/domain/location_smoother.dart';
@@ -74,6 +75,15 @@ final runSessionControllerProvider =
 ///
 /// 시간은 [_accumulated]에 얼려두고, 들어온 좌표는 버린다.
 /// 재개할 때 [_points]를 비우므로 **멈춘 사이에 이동한 거리도 세지 않는다.**
+///
+/// ## ⚠️ 버튼 없이 멈춘 것도 가려낸다
+///
+/// 신호 대기처럼 **누르지 않고 멈춘 경우**다([AutoPause], 가이드 2.3). 그때는
+/// 좌표 수집·전송을 그대로 이어 가고 — 서버가 좌표를 봐야 정지 구간을
+/// 판정한다 — **화면의 시간·거리만** 같은 기준으로 멈춘다.
+///
+/// 상태는 [RunRunning]에 그대로 둔다. 사용자가 누른 것이 아니라 [RunPaused]로
+/// 바꾸면 **일시정지 버튼이 제멋대로 재개 버튼이 된다.**
 class RunSessionController extends Notifier<RunSessionState> {
   /// 방향을 내는 데 쓸 최소 이동 거리.
   ///
@@ -150,6 +160,9 @@ class RunSessionController extends Notifier<RunSessionState> {
 
   /// 현재 구간이 시작된 시각. 일시정지 중에는 `null`이다.
   DateTime? _resumedAt;
+
+  /// 버튼 없이 멈춘 구간을 가려내는 것 — 가이드 2.3.
+  final _autoPause = AutoPause();
 
   DateTime? _startedAt;
 
@@ -351,6 +364,9 @@ class RunSessionController extends Notifier<RunSessionState> {
 
       // 준비하며 서 있는 동안 흔들린 좌표를 거리에 넣지 않는다.
       _points.clear();
+      // 자동 정지의 기준점도 여기서 세운다. 준비하며 서성인 자리에서 재면
+      // **출발하자마자 "반경 밖"** 이 된다.
+      _autoPause.reset();
       _segments.clear();
       // 준비하며 서성인 걸음도 마찬가지다.
       _stepSamples.clear();
@@ -378,6 +394,10 @@ class RunSessionController extends Notifier<RunSessionState> {
   void resume() {
     if (state is! RunPaused) return;
 
+    // ⚠️ **자동 정지의 기준점도 버린다.** 멈춘 사이에 걸어간 자리를 옛
+    // 기준점에서 재면 엉뚱하게 "반경 밖"이 되어, 다시 출발한 뒤 한참 동안
+    // 정지를 못 잡는다(가이드 2.3).
+    _autoPause.reset();
     _resumedAt = _now();
 
     // 여기까지가 한 구간이다. **비우기 직전에** 접는다 — 멈춰 있는 동안에는
@@ -425,8 +445,13 @@ class RunSessionController extends Notifier<RunSessionState> {
         if (_startOnFix) start(since: _startSince);
 
       case RunRunning():
+        // ⚠️ **버튼 없이 멈춰 있는가**(가이드 2.3). 좌표는 그대로 쌓고
+        // 보내되, 화면의 거리·시간만 멈춘다.
+        final step = _autoPause.add(point);
+        _applyAutoPause(step);
+
         // 진행 방향. **센서 값을 믿을 수 없어 직접 낸다**(`GeoPoint.bearingTo`).
-        if (_points.isNotEmpty) {
+        if (_points.isNotEmpty && step.counts) {
           _distanceMeters += _points.last.distanceTo(point);
         }
         final heading = _headingAt(point);
@@ -494,6 +519,43 @@ class RunSessionController extends Notifier<RunSessionState> {
   void _stopTicker() {
     _ticker?.cancel();
     _ticker = null;
+  }
+
+  /// [AutoPause]가 말한 대로 화면의 시계와 거리를 맞춘다.
+  ///
+  /// ## ⚠️ 시계를 멈추는 방법이 버튼과 같다
+  ///
+  /// [_resumedAt]을 지우면 [_elapsed]가 [_accumulated]에서 멈춘다. 버튼
+  /// 일시정지가 쓰는 길 그대로다 — 다만 **상태는 [RunRunning]에 둔다.**
+  ///
+  /// ⚠️ **버튼으로 멈춰 있는 동안에는 여기 오지 않는다.** 그때는 좌표가
+  /// [RunPaused] 가지에서 버려진다.
+  void _applyAutoPause(AutoPauseStep step) {
+    if (step.rollbackMeters > 0) {
+      // 확정 전에 세어 둔 흔들림을 되돌린다. 0 아래로는 내리지 않는다.
+      _distanceMeters = (_distanceMeters - step.rollbackMeters).clamp(
+        0,
+        double.infinity,
+      );
+    }
+    if (step.rollbackElapsed > Duration.zero) {
+      final rolled = _elapsed() - step.rollbackElapsed;
+      _accumulated = rolled.isNegative ? Duration.zero : rolled;
+      _resumedAt = null;
+      return;
+    }
+
+    if (step.stopped) {
+      // 아직 멈춰 있다. 시계가 가고 있으면 세운다.
+      if (_resumedAt != null) {
+        _accumulated = _elapsed();
+        _resumedAt = null;
+      }
+      return;
+    }
+
+    // 다시 간다. 세워 둔 시계를 다시 건다.
+    _resumedAt ??= _now();
   }
 
   Duration _elapsed() {

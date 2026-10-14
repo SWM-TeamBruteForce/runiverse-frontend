@@ -15,6 +15,7 @@ import 'package:runiverse/core/widgets/page_indicator.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/session/domain/run_metrics.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/core/widgets/run_map_view.dart';
@@ -28,13 +29,22 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 /// 러닝 진행 (S13).
 ///
-/// ## 2페이지다
+/// ## 실시간 기록이 **가운데**다
 ///
-/// 정본은 지도 · 실시간 기록 · 파티원 비교 셋인데 **혼자 달릴 때는 파티원이
-/// 없다.** 빈 페이지를 두면 스와이프해서 아무것도 없는 화면을 만나게 된다.
-/// 매칭이 붙으면 셋째 장으로 들어간다.
+/// ```
+/// 매칭:  내 GPS  │  실시간 기록 ★  │  파티원 비교
+/// 혼자:  내 GPS  │  실시간 기록 ★
+/// ```
 ///
-/// 첫 장은 **실시간 기록**이다. 가장 자주 보는 화면이라 정본이 그렇게 정했다.
+/// 가장 자주 보는 화면이라 가운데에 두고, 양옆으로 한 번씩 밀면 닿게 한다.
+/// 기록이 두 경우 모두 1번이라 [_pages]의 `initialPage`는 하나로 끝난다.
+///
+/// ⚠️ **시안(`158:3493`)은 기록을 첫째에 두었다 — 일부러 벗어난 것이다**
+/// (2026-10-12 요청). 모르고 보면 "시안대로 되돌리는" 수정을 부른다.
+///
+/// ⚠️ **혼자 달릴 때도 GPS는 왼쪽이다.** 파티원이 없다고 순서를 당기면
+/// 매칭과 솔로에서 **같은 손짓이 다른 화면**을 연다. 파티원 장은 끝에 붙고,
+/// 없을 때는 그냥 없다 — 빈 장을 두면 밀었다가 아무것도 없는 화면을 만난다.
 ///
 /// ## 화면을 켜 둔다
 ///
@@ -48,11 +58,18 @@ class RunSessionPage extends ConsumerStatefulWidget {
 }
 
 class _RunSessionPageState extends ConsumerState<RunSessionPage> {
-  /// ⚠️ **첫 장이 실시간 기록이다. 시안(`158:3493`)의 점 셋 중 첫째가 켜져
-  /// 있다.** 예전에는 지도를 0번에 두고 `initialPage: 1` 로 보정했는데,
-  /// 그러면 기록 장에서 **둘째 점이 켜져** 점이 거짓말을 했다.
-  final _pages = PageController();
-  int _page = 0;
+  /// 기록 장에서 시작한다. 지도가 0번, 기록이 1번이다.
+  final _pages = PageController(initialPage: _initialPage);
+
+  /// ⚠️ **[_initialPage]로 맞춰 둔다. 0이면 점이 거짓말을 한다.**
+  ///
+  /// `onPageChanged`는 처음에 불리지 않는다. 0으로 두면 기록 장이 떠 있는데
+  /// **첫째 점**이 켜진다 — 예전에 지도를 0번에 두고 `initialPage`로 보정하며
+  /// 실제로 겪은 일이다. `run_session_chrome_test`가 그 자리를 지킨다.
+  int _page = _initialPage;
+
+  /// 실시간 기록의 자리. 매칭이든 솔로든 **같은 1번**이다.
+  static const _initialPage = 1;
 
   @override
   void initState() {
@@ -68,12 +85,28 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   }
 
   /// 멈추거나 다시 간다. **되돌릴 수 있는 것이라 길게 누르지 않는다.**
+  ///
+  /// ## ⚠️ 서버에도 알린다
+  ///
+  /// 1.1.0 전까지 일시정지는 **이 화면 안에만 있었다.** 상대 화면에서는 내가
+  /// 계속 달리는 것으로 보였고, 서버는 멈춘 구간을 알 길이 없었다(가이드 2.1).
+  ///
+  /// 순서가 양쪽으로 다르다.
+  ///
+  /// - **멈출 때는 세션이 먼저다.** 세션이 멈춰야 들어오는 좌표를 버리고,
+  ///   그래야 [RunningConnectionController.pause] 가 **다 흘려보낸 뒤** 알릴
+  ///   수 있다. 거꾸로 하면 `PAUSE` 뒤에 좌표가 닿아 서버가 일시정지를 푼다.
+  /// - **다시 갈 때는 알리는 것이 먼저다.** 좌표만으로도 서버는 돌아오지만
+  ///   배치까지 최대 10초가 걸린다 — 그동안 상대 화면에는 멈춰 보인다.
   void _togglePause() {
     final controller = ref.read(runSessionControllerProvider.notifier);
+    final connection = ref.read(runningConnectionProvider.notifier);
     if (ref.read(runSessionControllerProvider) is RunPaused) {
+      connection.resume();
       controller.resume();
     } else {
       controller.pause();
+      unawaited(connection.pause());
     }
   }
 
@@ -82,18 +115,28 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   /// ⚠️ `forced` 는 **목표를 채우기 전에 그만두는가**다. 서버가 이 값과 자기가
   /// 확정한 거리를 함께 보고 제재를 정한다 — 앱이 잰 거리로 단정하지 않는다.
   /// 목표가 없는 솔로는 언제나 `false` 다.
+  ///
+  /// ⚠️ **기준은 목표 전체다. 80% 가 아니다.** 가이드 3.2 가 "화면 거리가
+  /// 목표 이상이면 `forced=false`, 미만이면 `forced=true`"로 정했다. 예전에는
+  /// 80%(`_safeRatio`)로 갈랐는데, 그러면 85% 에서 멈춘 사람이 `forced=false`
+  /// 로 나가 **끝낼 뜻이 분명한데 서버가 보류로 되돌려 보낸다.** 80% 는
+  /// 제재 선이지 완주 선이 아니다.
   void _finishByHold() {
     final metrics = _metricsOf(ref.read(runSessionControllerProvider));
     final target = _targetDistanceMeters();
-    final short =
-        target != null && metrics.distanceMeters < target * _safeRatio;
-    _finishRun(forced: short);
+    final short = target != null && metrics.distanceMeters < target;
+    unawaited(_finishRun(forced: short));
   }
 
-  /// 목표까지 남은 거리(km). 안내할 것이 없으면 `null` 이다.
+  /// 목표의 80%까지 남은 거리(km). 이미 넘겼거나 목표가 없으면 `null` 이다.
   ///
   /// 예전에는 중지 시트가 이 안내를 들고 있었다. 시트를 없애면서 **종료를
   /// 누르고 있는 동안** 띄운다.
+  ///
+  /// ⚠️ **`null` 이 "제재 없다"는 뜻은 아니다.** 80% 판정은 서버가 정지
+  /// 구간과 오염 좌표를 빼고 센 거리로 한다(가이드 3.4) — 화면에서 넘겼어도
+  /// 모자랄 수 있다. 제재 안내는 `RunControls.hasTarget` 이 따로 들고 있고,
+  /// 이 값은 **거리 줄 하나**만 가른다.
   double? _penaltyRemainingKm() {
     final target = _targetDistanceMeters();
     if (target == null) return null;
@@ -115,37 +158,86 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   /// ⚠️ **ack를 기다리지 않고 요약으로 넘어간다.** 요약에 뜨는 값은 러닝 중
   /// 계산한 것이라 서버 확정과 무관하다. 기다리게 하면 신호가 나쁜 곳에서
   /// 요약조차 못 본다. 서버가 확정한 값을 읽는 **상세**만 기다린다.
-  void _finishRun({required bool forced}) {
+  /// ## ⚠️ 이제 답을 기다린다
+  ///
+  /// 예전에는 요청만 던지고 **곧바로** 요약으로 넘어갔다. 1.1.0 서버는
+  /// `RUNNING_GOAL_PENDING` 으로 **"확정 거리가 모자라다"** 고 답할 수 있는데,
+  /// 그때는 러닝이 끝나지 않는다 — 먼저 넘어가 버리면 **러닝이 뒤에서 계속
+  /// 도는 채로 요약 화면이 뜬다.**
+  ///
+  /// 기다리는 시간은 채널의 ack 타임아웃(15초)이 윗선이다. 못 받으면
+  /// [FinishUnconfirmed] 로 떨어져 예전처럼 요약으로 간다 — 신호가 나쁜 곳에서
+  /// 요약조차 못 보는 일은 그대로 막는다.
+  Future<void> _finishRun({required bool forced}) async {
     if (_finishing) return;
-    _finishing = true;
+    setState(() => _finishing = true);
 
-    ref.read(runSessionControllerProvider.notifier).finish();
     // 끝나면 소켓도 함께 닫힌다 — 안 닫으면 다음 러닝에서 서버가 중복 연결로
     // 보고 이쪽을 4001로 끊는다.
-    unawaited(
-      ref.read(runningConnectionProvider.notifier).finish(forced: forced),
+    final outcome = await ref
+        .read(runningConnectionProvider.notifier)
+        .finish(forced: forced);
+
+    if (!mounted) return;
+
+    // ⚠️ **러닝이 이어진다.** 세션을 접지도, 화면을 옮기지도 않는다.
+    if (outcome is FinishGoalPending) {
+      setState(() => _finishing = false);
+      unawaited(_showGoalPending(outcome.remainingMeters));
+      return;
+    }
+
+    // ⚠️ **세션은 여기서 접는다.** 보류일 수 있으므로 답을 받기 전에 접으면
+    // 멀쩡한 러닝의 시계가 멈춘다.
+    ref.read(runSessionControllerProvider.notifier).finish();
+    context.pushReplacement(AppRoutes.runSummary);
+  }
+
+  /// 서버가 "아직 모자라다"고 답했다. **남은 거리를 보여 주고 고르게 한다** —
+  /// 가이드 3.3.
+  ///
+  /// 돌아오는 값이 `true` 면 사용자가 끝내기로 했다는 뜻이다. 그때는
+  /// `forced=true` 로 다시 보낸다 — 서버가 그 시점의 확정 거리로 완주인지
+  /// 조기 종료인지 정한다.
+  ///
+  /// ## ⚠️ 창이 열린 동안에도 종료가 도착한다
+  ///
+  /// 계속 달리는 사이에 서버가 목표를 확인하면 `RUNNING_FINISHED` 가 온다.
+  /// 가이드 3.3 은 그때 **창을 닫고** 종료 처리를 하라고 정했다.
+  ///
+  /// 닫는 일은 `Navigator` 가 한다 — 이 창은 **페이지 없는 경로**라 러닝
+  /// 페이지에 매달려 있고, 요약으로 교체되는 순간 함께 걷힌다. 그래서 여기서
+  /// 따로 `pop` 하지 않는다. (`pop` 을 끼워 둔 채로 **지워 보았다**. 창은 그대로
+  /// 사라졌다 — 닫는 주체가 이쪽이 아니라는 뜻이다.)
+  ///
+  /// 걷히면 이 `await` 가 `null` 로 풀려 아무것도 보내지 않는다. 뒤늦은 손가락은
+  /// [_finishing] 이 막는다 — 서버 종료를 받은 그 프레임에 세워진다.
+  Future<void> _showGoalPending(int remainingMeters) async {
+    final finish = await showDialog<bool>(
+      context: context,
+      // 바깥을 눌러 넘기지 못한다. 고를 것이 둘 다 뚜렷하다.
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text(AppStrings.runGoalPendingTitle),
+        content: Text(AppStrings.runGoalPendingBody(remainingMeters)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(AppStrings.runGoalPendingKeep),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(AppStrings.runGoalPendingFinish),
+          ),
+        ],
+      ),
     );
-    if (mounted) context.pushReplacement(AppRoutes.runSummary);
+    if (finish != true || !mounted) return;
+    unawaited(_finishRun(forced: true));
   }
 
   /// 끝내는 중인가. 목표 도달과 중지 시트가 겹쳐 두 번 보내는 것을 막는다.
   var _finishing = false;
-
-  /// 목표 거리에 닿았다. **사용자가 누르기를 기다리지 않는다.**
-  ///
-  /// ## ⚠️ `forced`는 거짓이다
-  ///
-  /// 명세가 `forced`를 **"목표 거리 달성 전 사용자의 종료 의사"** 로 정의한다.
-  /// 목표를 채우고 끝나는 것은 의사 표시가 아니라 완주라, 참이면 서버가 조기
-  /// 종료로 읽는다. 최종 완주·이탈 판정은 어차피 서버가 확정 거리로 한다.
-  void _finishIfTargetReached(RunSessionState state) {
-    if (_finishing || state is! RunRunning) return;
-    final target = _targetDistanceMeters();
-    if (target == null || state.metrics.distanceMeters < target) return;
-
-    debugPrint('[running] 목표 ${target}m에 닿았다. 종료를 보낸다');
-    _finishRun(forced: false);
-  }
 
   /// 제재 없이 끝낼 수 있는 선. 연동 가이드가 정한 값이다.
   static const _safeRatio = 0.8;
@@ -203,15 +295,23 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
       }
     });
 
-    // ⚠️ **목표에 닿으면 스스로 끝낸다.** 명세가 정한 순서는
-    // `RUNNING_FINISH` → ack → 로컬 트랙 삭제 → 결과 조회인데, 예전에는 그
-    // 첫 줄이 **사용자가 중지를 누를 때만** 나갔다. 목표를 채우고도 안 누르면
-    // 서버는 그 러닝을 계속 진행 중으로 들고 있는다.
+    // ⚠️ **서버가 끝내면 따라간다.**
     //
-    // `listen`으로 듣는다 — `build` 안에서 바로 판정하면 그리는 도중에
-    // 화면을 옮기게 된다.
-    ref.listen(runSessionControllerProvider, (_, next) {
-      _finishIfTargetReached(next);
+    // 1.1.0부터 목표 도달 자동 종료는 **서버의 몫**이다(가이드 3.1). 앱이
+    // 잰 거리로 보내던 것을 없앴다 — 서버는 정지 구간과 오염 좌표를 뺀
+    // 확정 거리로 판단하므로, 앱 기준으로 넘었어도 아직 모자랄 수 있다.
+    //
+    // 내가 눌러서 끝낸 경우는 [_finishRun]이 화면을 옮기므로 여기서 또
+    // 옮기지 않는다([_finishing]).
+    ref.listen(runningConnectionProvider.select((s) => s.finishedRoomId), (
+      previous,
+      next,
+    ) {
+      if (next == null || next == previous || _finishing) return;
+      debugPrint('[running] 서버가 끝냈다. 요약으로 간다');
+      _finishing = true;
+      ref.read(runSessionControllerProvider.notifier).finish();
+      if (mounted) context.pushReplacement(AppRoutes.runSummary);
     });
 
     final party = ref.watch(partyProvider);
@@ -265,7 +365,6 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                   controller: _pages,
                   onPageChanged: (index) => setState(() => _page = index),
                   children: [
-                    _MetricsPage(metrics: metrics),
                     _MapPage(
                       metrics: metrics,
                       // ⚠️ 보정된 좌표를 그린다. 원본으로 선을 그리고 보정값으로
@@ -274,6 +373,7 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                           .read(runSessionControllerProvider.notifier)
                           .track,
                     ),
+                    _MetricsPage(metrics: metrics),
                     if (hasParty)
                       RunPartyView(
                         board: party,
@@ -324,6 +424,7 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                 enabled: state is RunRunning || state is RunPaused,
                 onPauseToggle: _togglePause,
                 onFinish: _finishByHold,
+                hasTarget: target != null,
                 penaltyRemainingKm: _penaltyRemainingKm(),
               ),
             ],
@@ -336,9 +437,9 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
 
   /// 지금 장의 제목. 파티원 장은 있을 때만 셋째다.
   static String _titleOf(int page, {required bool hasParty}) => switch (page) {
-    0 => AppStrings.runPageLive,
-    1 => AppStrings.runPageMap,
-    _ => hasParty ? AppStrings.runPageParty : AppStrings.runPageMap,
+    0 => AppStrings.runPageMap,
+    1 => AppStrings.runPageLive,
+    _ => hasParty ? AppStrings.runPageParty : AppStrings.runPageLive,
   };
 
   static RunMetrics _metricsOf(RunSessionState state) => switch (state) {
@@ -385,7 +486,7 @@ class _MapPage extends StatelessWidget {
           Expanded(
             child: ClipRRect(
               borderRadius: AppRadius.card,
-              child: RunMapView(track: track),
+              child: RunMapView.live(track: track),
             ),
           ),
           const SizedBox(height: AppSpacing.space4),

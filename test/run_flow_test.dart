@@ -26,6 +26,7 @@ import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/presentation/run_controls.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
 /// 1인 러닝 — 출발 준비부터 요약까지 화면이 실제로 이어지는가.
 ///
@@ -541,6 +542,9 @@ class _SilentChannel implements RunningChannel {
   Stream<RunCombo> get combos => const Stream.empty();
 
   @override
+  Stream<void> get finished => const Stream.empty();
+
+  @override
   Stream<RunSnapshot> get snapshots => const Stream.empty();
 
   @override
@@ -550,7 +554,14 @@ class _SilentChannel implements RunningChannel {
   bool sendLocations(List<TrackPoint> points) => true;
 
   @override
-  Future<bool> finish({bool forced = false}) async => true;
+  bool pause() => true;
+
+  @override
+  bool resume() => true;
+
+  @override
+  Future<FinishOutcome> finish({bool forced = false}) async =>
+      const FinishConfirmed();
 
   @override
   Future<void> close() async {}

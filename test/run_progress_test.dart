@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
+import 'package:runiverse/features/session/domain/runner_status.dart';
 
 /// 파티원의 진행과 콤보를 **어떻게 읽는가.**
 ///
@@ -13,13 +14,13 @@ void main() {
         'distanceMeters': 1520,
         'targetDistanceMeters': 5000,
         'currentPaceSecondsPerKm': 345,
-        'paused': false,
+        'status': 'RUNNING',
       })!;
 
       expect(progress.userId, 'u-1');
       expect(progress.distanceMeters, 1520);
       expect(progress.currentPaceSecondsPerKm, 345);
-      expect(progress.paused, isFalse);
+      expect(progress.status, RunnerStatus.running);
     });
 
     test('페이스를 못 잰 경우가 있다', () {
@@ -33,15 +34,34 @@ void main() {
       expect(progress.currentPaceSecondsPerKm, isNull);
     });
 
-    test('⚠️ 멈춘 것과 느려진 것을 가른다', () {
-      // paused가 없으면 화면에서 갑자기 뒤처진 것처럼 보인다.
-      final paused = RunProgress.of({
+    test('⚠️ 멈춘 것·끊긴 것·끝난 것을 느려진 것과 가른다', () {
+      // 셋을 구분하지 못하면 화면에서 전부 "갑자기 뒤처진 사람"으로 보인다.
+      // ⚠️ 1.1.0 전에는 `paused`(bool) 하나뿐이라 끊김·종료를 못 가렸다.
+      for (final (wire, want) in [
+        ('PAUSED', RunnerStatus.paused),
+        ('DISCONNECTED', RunnerStatus.disconnected),
+        ('FINISHED', RunnerStatus.finished),
+      ]) {
+        final progress = RunProgress.of({
+          'userId': 'u-1',
+          'distanceMeters': 100,
+          'status': wire,
+        })!;
+
+        expect(progress.status, want, reason: wire);
+      }
+    });
+
+    test('⚠️ status 가 없어도 읽기를 포기하지 않는다', () {
+      // 옛 서버가 안 보낼 수 있다. 진행 통지 하나를 통째로 버리면 그 사람의
+      // 거리가 화면에서 멈춘다 — 상태 하나보다 거리가 더 중요하다.
+      final progress = RunProgress.of({
         'userId': 'u-1',
         'distanceMeters': 100,
-        'paused': true,
       })!;
 
-      expect(paused.paused, isTrue);
+      expect(progress.distanceMeters, 100);
+      expect(progress.status, RunnerStatus.running);
     });
 
     test('필수 값이 빠지면 읽지 않는다', () {

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/features/session/data/ws_running_channel.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 /// 러닝 계약 — **봉투 위에 얹은 규칙이 맞게 도는가.**
@@ -92,25 +93,95 @@ void main() {
       expect(lastData().containsKey('runningRoomId'), isFalse);
     });
 
-    test('RUNNING_FINISHED를 받으면 true다', () async {
+    test('RUNNING_FINISHED를 받으면 확정이다', () async {
       await channel.start(roomId);
 
       final finishing = channel.finish();
       await receive('RUNNING_FINISHED');
 
-      expect(await finishing, isTrue);
+      expect(await finishing, isA<FinishConfirmed>());
     });
 
-    test('⚠️ 확인이 안 오면 기다리다 false다', () async {
+    test('⚠️ 확인이 안 오면 기다리다 포기한다', () async {
       // 여기서 매달리면 소켓이 영영 안 닫힌다.
       await channel.start(roomId);
 
-      expect(await channel.finish(), isFalse);
+      expect(await channel.finish(), isA<FinishUnconfirmed>());
     });
 
-    test('⚠️ 끊겨 있으면 기다리지 않고 false다', () async {
+    test('⚠️ 끊겨 있으면 기다리지 않는다', () async {
       // 보내지도 못했으니 ack가 올 리 없다.
-      expect(await channel.finish(), isFalse);
+      expect(await channel.finish(), isA<FinishUnconfirmed>());
+    });
+
+    group('⚠️ 서버가 스스로 끝낸 경우 — 1.1.0 가이드 3.1', () {
+      // ⚠️ **요청 없이도 `RUNNING_FINISHED` 가 온다.** 1.1.0부터 목표 도달
+      // 자동 종료는 서버의 몫이다 — 앱은 로컬 거리가 목표를 넘어도 보내지
+      // 않는다. 기다리는 쪽이 없으니 **스트림으로 알리지 않으면 아무도
+      // 모르고**, 러닝이 끝났는데 화면이 영영 남는다.
+
+      test('요청하지 않았는데 오면 스트림으로 알린다', () async {
+        await channel.start(roomId);
+        final seen = <void>[];
+        channel.finished.listen(seen.add);
+
+        await receive('RUNNING_FINISHED');
+        await Future<void>.delayed(Duration.zero);
+
+        expect(seen, hasLength(1));
+      });
+
+      test('⚠️ 내가 요청한 종료는 스트림으로 새지 않는다', () async {
+        // 한 번의 종료가 **두 길로** 처리되면 트랙을 두 번 지운다.
+        await channel.start(roomId);
+        final seen = <void>[];
+        channel.finished.listen(seen.add);
+
+        final finishing = channel.finish();
+        await receive('RUNNING_FINISHED');
+        await finishing;
+        await Future<void>.delayed(Duration.zero);
+
+        expect(seen, isEmpty);
+      });
+    });
+
+    group('⚠️ RUNNING_GOAL_PENDING — 1.1.0', () {
+      // ⚠️ **이것이 종료가 아니다.** 서버가 확정한 거리가 목표에 모자라다는
+      // 뜻이고 러닝은 그대로 간다. `bool` 이던 시절에는 이 답을 표현할 자리가
+      // 없어 **"못 받았다"와 같아졌다** — 둘은 정반대로 다뤄야 한다.
+
+      test('남은 거리를 싣고 온다', () async {
+        await channel.start(roomId);
+
+        final finishing = channel.finish();
+        await receive('RUNNING_GOAL_PENDING', {'remainingMeters': 40});
+
+        final outcome = await finishing;
+        expect(outcome, isA<FinishGoalPending>());
+        expect((outcome as FinishGoalPending).remainingMeters, 40);
+      });
+
+      test('⚠️ 확정과 섞이지 않는다', () async {
+        // 보류를 확정으로 읽으면 **로컬 트랙을 지운다.** 되돌릴 수 없다.
+        await channel.start(roomId);
+
+        final finishing = channel.finish();
+        await receive('RUNNING_GOAL_PENDING', {'remainingMeters': 40});
+
+        expect(await finishing, isNot(isA<FinishConfirmed>()));
+      });
+
+      test('⚠️ 남은 거리를 못 읽어도 보류는 보류다', () async {
+        // 0 으로 떨어지지만 **확정으로 넘어가지 않는다.** 숫자 하나 때문에
+        // 러닝을 끝내 버리는 것이 훨씬 나쁘다.
+        await channel.start(roomId);
+
+        final finishing = channel.finish();
+        await receive('RUNNING_GOAL_PENDING', {'remainingMeters': null});
+
+        expect(await finishing, isA<FinishGoalPending>());
+      });
     });
   });
 

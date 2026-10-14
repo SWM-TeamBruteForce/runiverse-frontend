@@ -10,6 +10,7 @@ import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/domain/track_recorder.dart';
 import 'package:runiverse/features/session/domain/track_sender.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
 /// 러닝 종료 — **무엇을 확인하고 나서 지우는가.**
 ///
@@ -57,7 +58,7 @@ void main() {
   Future<bool> finishRun() async {
     await sender.drain();
     sender.stop();
-    final acked = await channel.finish();
+    final acked = await channel.finish() is FinishConfirmed;
     if (acked) await recorder.discard();
     return acked;
   }
@@ -222,6 +223,9 @@ class _FinishChannel implements RunningChannel {
   Stream<RunCombo> get combos => const Stream.empty();
 
   @override
+  Stream<void> get finished => const Stream.empty();
+
+  @override
   Stream<RunSnapshot> get snapshots => const Stream.empty();
 
   @override
@@ -236,10 +240,16 @@ class _FinishChannel implements RunningChannel {
   }
 
   @override
-  Future<bool> finish({bool forced = false}) async {
-    if (!connected) return false;
+  bool pause() => true;
+
+  @override
+  bool resume() => true;
+
+  @override
+  Future<FinishOutcome> finish({bool forced = false}) async {
+    if (!connected) return const FinishUnconfirmed();
     order.add('finish');
-    return ack;
+    return ack ? const FinishConfirmed() : const FinishUnconfirmed();
   }
 
   @override

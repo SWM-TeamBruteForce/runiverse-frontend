@@ -14,6 +14,7 @@ import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
 /// 종료 확정 구간 — **상세로 가는 문이 언제 잠기고 언제 열리는가.**
 ///
@@ -131,14 +132,16 @@ void main() {
 /// 실제 채널은 서버 응답을 기다린다. 그 대기 구간을 손으로 잡고 있어야
 /// `settling`이 서 있는 순간을 볼 수 있다.
 class _SlowFinishChannel implements RunningChannel {
-  Completer<bool>? _pending;
+  Completer<FinishOutcome>? _pending;
   final _arrived = Completer<void>();
 
   /// 종료가 여기까지 왔는가. **이걸 기다리지 않고 ack를 쏘면 아무도 못 받는다**
   /// — `finish()`는 남은 좌표를 먼저 보내느라 아직 도착하지 않았다.
   Future<void> get arrived => _arrived.future;
 
-  void ackNow(bool acked) => _pending?.complete(acked);
+  void ackNow(bool acked) => _pending?.complete(
+    acked ? const FinishConfirmed() : const FinishUnconfirmed(),
+  );
 
   void failNow(Object error) => _pending?.completeError(error);
 
@@ -160,6 +163,9 @@ class _SlowFinishChannel implements RunningChannel {
   Stream<RunCombo> get combos => const Stream.empty();
 
   @override
+  Stream<void> get finished => const Stream.empty();
+
+  @override
   Stream<RunSnapshot> get snapshots => const Stream.empty();
 
   @override
@@ -169,8 +175,14 @@ class _SlowFinishChannel implements RunningChannel {
   bool sendLocations(List<TrackPoint> points) => true;
 
   @override
-  Future<bool> finish({bool forced = false}) {
-    final waiting = Completer<bool>();
+  bool pause() => true;
+
+  @override
+  bool resume() => true;
+
+  @override
+  Future<FinishOutcome> finish({bool forced = false}) {
+    final waiting = Completer<FinishOutcome>();
     _pending = waiting;
     if (!_arrived.isCompleted) _arrived.complete();
     return waiting.future;

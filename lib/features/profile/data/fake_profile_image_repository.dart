@@ -33,6 +33,11 @@ class FakeProfileImageRepository implements ProfileImageRepository {
   /// 몇 번 불렸는가. **아바타가 스스로 주소를 받아오지 않는지** 보는 데 쓴다.
   var fetchCalls = 0;
 
+  /// 지우라는 말을 들었는가.
+  ///
+  /// [url]이 `null`인 것으로는 못 가린다 — **원래 없던 사람**과 구분되지 않는다.
+  var removed = false;
+
   @override
   Future<String?> fetchUrl() async {
     fetchCalls++;
@@ -57,6 +62,7 @@ class FakeProfileImageRepository implements ProfileImageRepository {
     _throwIfFailing();
     url = null;
     uploaded = null;
+    removed = true;
   }
 
   void _throwIfFailing() {

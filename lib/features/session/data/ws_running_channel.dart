@@ -5,6 +5,7 @@ import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_snapshot.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 
@@ -34,6 +35,7 @@ class WsRunningChannel implements RunningChannel {
   final _errors = StreamController<WsErrorCode>.broadcast();
   final _progress = StreamController<RunProgress>.broadcast();
   final _combos = StreamController<RunCombo>.broadcast();
+  final _finished = StreamController<void>.broadcast();
   final _snapshots = StreamController<RunSnapshot>.broadcast();
 
   /// 어느 방에서 달리는가. 재연결 때 `RUNNING_START`를 다시 보내려면 필요하다.
@@ -43,7 +45,7 @@ class WsRunningChannel implements RunningChannel {
   var _wasConnected = false;
 
   /// `RUNNING_FINISHED`를 기다리는 쪽. 없으면 종료 중이 아니다.
-  Completer<bool>? _finishing;
+  Completer<FinishOutcome>? _finishing;
 
   /// 종료 확인을 얼마나 기다리나.
   ///
@@ -70,6 +72,9 @@ class WsRunningChannel implements RunningChannel {
   Stream<RunCombo> get combos => _combos.stream;
 
   @override
+  Stream<void> get finished => _finished.stream;
+
+  @override
   Stream<RunSnapshot> get snapshots => _snapshots.stream;
 
   @override
@@ -92,13 +97,19 @@ class WsRunningChannel implements RunningChannel {
   }
 
   @override
-  Future<bool> finish({bool forced = false}) {
+  bool pause() => _client.send(const WsMessage(WsEvents.runningPause));
+
+  @override
+  bool resume() => _client.send(const WsMessage(WsEvents.runningResume));
+
+  @override
+  Future<FinishOutcome> finish({bool forced = false}) {
     // 소켓에 못 넘겼으면 ack가 올 리 없다. 기다리지 않는다.
     if (!_client.send(WsMessage(WsEvents.runningFinish, {'forced': forced}))) {
-      return Future.value(false);
+      return Future.value(const FinishUnconfirmed());
     }
 
-    final waiting = Completer<bool>();
+    final waiting = Completer<FinishOutcome>();
     _finishing = waiting;
 
     // ⚠️ **무한정 기다리지 않는다.** 사용자는 요약 화면 뒤에서 이것이 끝나기를
@@ -108,7 +119,7 @@ class WsRunningChannel implements RunningChannel {
       finishAckTimeout,
       onTimeout: () {
         debugPrint('[running] 종료 확인이 오지 않았다. 트랙을 남긴다');
-        return false;
+        return const FinishUnconfirmed();
       },
     );
   }
@@ -118,13 +129,16 @@ class WsRunningChannel implements RunningChannel {
     _roomId = null;
     _wasConnected = false;
     // 기다리는 쪽이 남아 있으면 풀어 준다. 안 풀면 타임아웃까지 매달린다.
-    if (_finishing?.isCompleted == false) _finishing!.complete(false);
+    if (_finishing?.isCompleted == false) {
+      _finishing!.complete(const FinishUnconfirmed());
+    }
     _finishing = null;
     await _messages.cancel();
     await _connections.cancel();
     await _errors.close();
     await _progress.close();
     await _combos.close();
+    await _finished.close();
     await _snapshots.close();
     await _client.dispose();
   }
@@ -169,8 +183,29 @@ class WsRunningChannel implements RunningChannel {
 
       case WsEvents.runningFinished:
         // 종료 확인이다. **이것이 로컬 트랙을 지워도 되는 유일한 근거다.**
-        debugPrint('[running] 종료 확인');
-        if (_finishing?.isCompleted == false) _finishing!.complete(true);
+        if (_finishing?.isCompleted == false) {
+          debugPrint('[running] 종료 확인');
+          _finishing!.complete(const FinishConfirmed());
+        } else if (!_finished.isClosed) {
+          // ⚠️ **요청하지 않았는데 왔다** = 서버가 끝냈다(목표 도달 자동
+          // 종료). 기다리는 쪽이 없으므로 스트림으로 알린다 — 안 그러면
+          // 러닝이 끝났는데 화면이 영영 남는다.
+          debugPrint('[running] 서버가 러닝을 끝냈다');
+          _finished.add(null);
+        }
+
+      case WsEvents.runningGoalPending:
+        // ⚠️ **종료가 아니다.** 서버 확정 거리가 목표에 모자라다 — 러닝은
+        // 그대로 간다(1.1.0 가이드 3.2).
+        final remaining = message.data['remainingMeters'];
+        debugPrint('[running] 목표까지 ${remaining}m 남았다 · 종료 보류');
+        if (_finishing?.isCompleted == false) {
+          _finishing!.complete(
+            // 못 읽어도 보류는 보류다. 0으로 두면 화면이 "0m 남았다"고 말하는데,
+            // 그것은 다 왔다는 뜻으로 읽힌다 — 음수는 화면이 따로 거른다.
+            FinishGoalPending(remaining is int ? remaining : 0),
+          );
+        }
 
       case WsEvents.runningProgressUpdated:
         // ⚠️ 읽지 못한 통지는 버린다. 하나가 이상하다고 러닝을 끊을 수 없고,

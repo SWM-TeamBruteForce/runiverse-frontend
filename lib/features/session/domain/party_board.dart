@@ -103,12 +103,24 @@ class PartyBoard {
   /// 지금 세는 값 중 큰 쪽을 둔다.
   final Map<String, int> bestCombos;
 
-  /// **앱이 잰 내 거리.**
+  /// **앱이 잰 내 거리.** 개인 기록 화면의 정본이다.
   ///
-  /// ⚠️ 예전 주석은 "서버는 본인 진행을 보내지 않는다"고 적혀 있었는데
-  /// **틀렸다** — 1인 러닝에서도 보낸다(2026-10-06 확인). `PartyController` 가
-  /// 걸러내므로 [progress] 에는 내 것이 안 들어온다.
+  /// ⚠️ 비교 화면의 간격은 이 값이 아니라 [comparableMyDistanceMeters]를 쓴다.
+  /// 서버는 1인 러닝에서도 본인 진행을 보내므로(2026-10-06 확인)
+  /// [progress]에 내 것이 들어 있다.
   final int myDistanceMeters;
+
+  /// 비교 화면에서 기준이 되는 **내 거리.**
+  ///
+  /// ⚠️ **서버 값이 있으면 그것이다.** 상대 거리는 서버가 준 값이라, 여기에
+  /// 로컬 거리를 빼면 **두 기준이 섞인다** — 나만 매 초 움직이고 상대는 10초
+  /// 마다 갱신되니 간격이 흔들려 보인다. 콤보도 서버 거리로 판정하므로
+  /// 화면의 간격이 그것과 어긋나면 안 된다(1.1.0 가이드 1.2).
+  ///
+  /// 내 통지가 아직 안 왔으면 [myDistanceMeters]로 물러선다 — 그때도 간격은
+  /// 보여야 한다.
+  int get comparableMyDistanceMeters =>
+      progress[myUserId]?.distanceMeters ?? myDistanceMeters;
 
   /// 명단에서 나를 가려내는 열쇠.
   ///
@@ -126,7 +138,14 @@ class PartyBoard {
     return [
       for (final userId in _order())
         if (userId == myUserId)
-          PartyRow(userId: userId, member: byId[userId], isMe: true)
+          PartyRow(
+            userId: userId,
+            member: byId[userId],
+            // ⚠️ **내 진행도 싣는다.** 비교 화면은 서버 거리로 줄을 세운다
+            // (1.1.0 가이드 1.2). 개인 기록 화면은 여전히 로컬 값이 정본이다.
+            progress: progress[userId],
+            isMe: true,
+          )
         else
           PartyRow(
             userId: userId,
@@ -136,7 +155,8 @@ class PartyBoard {
             gapMeters:
                 combos[userId]?.gapMeters ??
                 switch (progress[userId]) {
-                  final RunProgress p => p.distanceMeters - myDistanceMeters,
+                  final RunProgress p =>
+                    p.distanceMeters - comparableMyDistanceMeters,
                   null => null,
                 },
           ),

@@ -1,6 +1,7 @@
 import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/session/domain/party_board.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
+import 'package:runiverse/features/session/domain/runner_status.dart';
 
 /// `RUNNING_STARTED`가 싣고 오는 **러닝 현재 상태 전부.**
 ///
@@ -65,7 +66,7 @@ class RunSnapshot {
           distanceMeters: player.distanceMeters,
           targetDistanceMeters: targetDistanceMeters,
           currentPaceSecondsPerKm: player.currentPaceSecondsPerKm,
-          paused: player.paused,
+          status: player.status,
         ),
   ];
 
@@ -114,7 +115,7 @@ class RunPlayer {
     required this.distanceMeters,
     this.profileImageUrl,
     this.currentPaceSecondsPerKm,
-    this.paused = false,
+    this.status = RunnerStatus.disconnected,
   });
 
   final String userId;
@@ -129,7 +130,14 @@ class RunPlayer {
   final int distanceMeters;
 
   final int? currentPaceSecondsPerKm;
-  final bool paused;
+
+  /// 뛰는 중인가 · 멈췄나 · 끊겼나 · 끝났나.
+  ///
+  /// ⚠️ **기본값이 [RunnerStatus.disconnected] 다.** 스냅샷에서 상태가 비어
+  /// 오는 것은 **아직 `RUNNING_START` 를 보내지 않은 참가자**라는 뜻이다
+  /// (명세). 진행 통지 쪽 기본값(`running`)과 다르다 — 거기서는 뛰던 사람의
+  /// 갱신이라 모르면 뛰는 중으로 보는 편이 덜 틀린다.
+  final RunnerStatus status;
 
   static RunPlayer? of(Object? wire) {
     if (wire is! Map) return null;
@@ -148,7 +156,9 @@ class RunPlayer {
       currentPaceSecondsPerKm: wire['currentPaceSecondsPerKm'] is int
           ? wire['currentPaceSecondsPerKm'] as int
           : null,
-      paused: wire['paused'] == true,
+      status: wire['status'] == null
+          ? RunnerStatus.disconnected
+          : RunnerStatus.of(wire['status']),
     );
   }
 }

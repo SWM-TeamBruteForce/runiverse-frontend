@@ -5,6 +5,7 @@ import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/features/session/domain/party_board.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
+import 'package:runiverse/features/session/domain/runner_status.dart';
 import 'package:runiverse/features/session/presentation/run_party_view.dart';
 
 /// 파티원 상태 화면 — **보드가 정한 것을 그대로 그리는가.**
@@ -19,11 +20,17 @@ void main() {
     PartyMember(userId: 'u-3', nickname: '박지훈'),
   ];
 
-  RunProgress progress(String userId, int meters, {int? pace}) => RunProgress(
+  RunProgress progress(
+    String userId,
+    int meters, {
+    int? pace,
+    RunnerStatus status = RunnerStatus.running,
+  }) => RunProgress(
     userId: userId,
     distanceMeters: meters,
     targetDistanceMeters: 5000,
     currentPaceSecondsPerKm: pace,
+    status: status,
   );
 
   Future<void> pump(
@@ -217,5 +224,58 @@ void main() {
     expect(find.text('1.5'), findsOneWidget);
     expect(find.text(AppStrings.runPartyEmpty), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  group('⚠️ 네 상태를 가려 보인다 — 1.1.0', () {
+    // ⚠️ **예전에는 `paused`(bool) 하나였고 그마저 화면에 닿지 않았다.**
+    //
+    // 멈춘 사람·끊긴 사람·끝낸 사람이 전부 "격차가 벌어지는 사람"으로 보였다.
+    // 화면이 아는 것은 통지가 오래됐는지(`stale`)뿐이라 **추측**이었다.
+    PartyBoard boardWith(RunnerStatus status) => const PartyBoard()
+        .withRoster(everyone, myUserId: 'me-1')
+        .withMyDistance(3200)
+        .withProgress(progress('u-1', 3360, status: status));
+
+    testWidgets('뛰는 중이면 격차를 그대로 보인다', (tester) async {
+      await pump(tester, boardWith(RunnerStatus.running));
+
+      expect(find.text(AppStrings.runPartyGapLine(160)), findsOneWidget);
+    });
+
+    for (final (status, text) in [
+      (RunnerStatus.paused, AppStrings.runPartyPaused),
+      (RunnerStatus.disconnected, AppStrings.runPartyDisconnected),
+      (RunnerStatus.finished, AppStrings.runPartyFinished),
+    ]) {
+      testWidgets('$status 이면 그렇게 말한다', (tester) async {
+        await pump(tester, boardWith(status));
+
+        expect(find.text(text), findsOneWidget);
+      });
+
+      testWidgets('⚠️ $status 이면 격차를 말하지 않는다', (tester) async {
+        // 멈춘 사람과의 격차는 **벌어지기만 한다.** 그것을 계속 보이면
+        // 따라잡히는 중이라고 읽힌다.
+        await pump(tester, boardWith(status));
+
+        expect(find.text(AppStrings.runPartyGapLine(160)), findsNothing);
+      });
+    }
+
+    testWidgets('⚠️ 끝낸 사람을 흐리게 하지 않는다', (tester) async {
+      // 흐림은 **통지가 끊겼다**는 뜻이다(`stale`). 정상 완주를 같은 모습으로
+      // 그리면 끝낸 사람이 사라진 사람처럼 보인다.
+      final now = DateTime(2026, 10, 12, 20, 0);
+      final board = const PartyBoard()
+          .withRoster(everyone, myUserId: 'me-1')
+          .withMyDistance(3200)
+          .withProgress(
+            progress('u-1', 3360, status: RunnerStatus.finished).stamped(now),
+          );
+
+      await pump(tester, board, now: now);
+
+      expect(find.text(AppStrings.runPartyFinished), findsOneWidget);
+    });
   });
 }

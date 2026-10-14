@@ -113,6 +113,38 @@ class TrackSender {
   int get lastSent => _lastSent;
 
   /// 보내기 시작한다. 방 번호를 알게 된 뒤에 부른다.
+  /// 멈춰 둔 타이머만 다시 세운다. **커서는 그대로 둔다.**
+  ///
+  /// ⚠️ **[start] 와 다르다.** 그쪽은 재연결용이라 커서를 물러세워 겹쳐 보낸다.
+  /// 종료 보류(`RUNNING_GOAL_PENDING`)는 **연결이 살아 있는 채로** 러닝이
+  /// 이어지는 것이라, 되감으면 이미 보낸 수백 점을 공짜로 다시 보낸다 —
+  /// 큰 배치가 연달아 나가면 1009로 끊긴다(클래스 주석 참조).
+  ///
+  /// 아직 시작한 적이 없으면 아무것도 하지 않는다.
+  ///
+  /// ⚠️ **[stop] 뒤에 부르면 아무 일도 일어나지 않는다.** 그쪽이
+  /// `_roomId` 를 지우기 때문이다. 잠깐 세웠다 이어 갈 때는 [pauseTimer] 를
+  /// 쓴다 — 섞어 쓰면 **좌표가 조용히 안 나간다.**
+  void resumeTimer() {
+    if (_roomId == null) return;
+    _timer?.cancel();
+    _timer = Timer.periodic(_interval, (_) => unawaited(flush()));
+  }
+
+  /// 타이머만 세운다. **방도 커서도 그대로 둔다** — 곧 [resumeTimer] 로
+  /// 이어진다.
+  ///
+  /// ## ⚠️ [stop] 과 짝이 아니다
+  ///
+  /// [stop] 은 **해체**다. `_roomId` 와 커서를 지우므로 그 뒤에 [resumeTimer]
+  /// 를 불러도 첫 줄에서 돌아선다 — 타이머가 안 서고, **좌표가 영영 안
+  /// 나가는데 아무도 모른다.** 일시정지(가이드 2.1)와 종료 보류(3.2)가 둘 다
+  /// 그 길이었다.
+  void pauseTimer() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
   void start(int runningRoomId) {
     stop();
     _roomId = runningRoomId;
