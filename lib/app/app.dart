@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_router.dart';
 import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/features/matching/presentation/launch_gate.dart';
 
 /// 앱 루트 — 테마와 라우터를 [MaterialApp]에 꽂는다.
 ///
@@ -81,6 +82,11 @@ class _RuniverseAppState extends ConsumerState<RuniverseApp> {
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.dark,
       routerConfig: _router,
+      // ⚠️ **출발은 화면을 가리지 않는다.** 로비에 서 있어야만 러닝이
+      // 시작되던 것을 여기서 받는다 — 어느 화면에 있든 1분 전에 안내하고
+      // 로비로, 30초 전에는 카운트다운으로 보낸다([LaunchGate]).
+      builder: (context, child) =>
+          LaunchGate(router: _router, child: child ?? const SizedBox.shrink()),
     );
   }
 }
