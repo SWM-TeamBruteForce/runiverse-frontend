@@ -1,3 +1,4 @@
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
@@ -8,10 +9,6 @@ import 'package:runiverse/features/session/domain/track_point.dart';
 ///
 /// 화면은 이 타입에만 기대고 WebSocket을 모른다.
 ///
-/// ## ⚠️ 일시정지·재개는 아직 없다
-///
-/// `RUNNING_PAUSE` · `RUNNING_RESUME`은 아직 붙이지 않았다. 서버는 받지만
-/// 앱의 일시정지는 지금 화면 상태일 뿐이라 서버에 알릴 것이 없다.
 abstract interface class RunningChannel {
   /// 지금 연결 상태.
   Stream<WsConnectionState> get states;
@@ -37,6 +34,16 @@ abstract interface class RunningChannel {
   /// 목록에서 빠지고, 끊김을 알리는 별도 이벤트가 없다.
   Stream<RunCombo> get combos;
 
+  /// **서버가 러닝을 끝냈다.**
+  ///
+  /// ⚠️ **요청 없이 오는 `RUNNING_FINISHED` 만 흘린다.** 1.1.0 서버가 확정
+  /// 거리로 목표 도달을 판단해 스스로 끝낸다(가이드 3.1) — 앱은 로컬 거리가
+  /// 목표를 넘어도 보내지 않고 이 통지를 기다린다.
+  ///
+  /// [finish] 를 부른 뒤 오는 것은 **그 요청의 답**이라 여기로 오지 않는다.
+  /// 둘을 섞으면 한 번의 종료가 두 길로 처리된다.
+  Stream<void> get finished;
+
   /// 붙고 `RUNNING_START`를 보낸다.
   ///
   /// **최초 진입과 재연결을 구분하지 않는다** — 서버가 같은 메시지로 둘 다
@@ -55,6 +62,29 @@ abstract interface class RunningChannel {
   /// `false`를 무시하고 커서를 앞으로 옮기면 그 구간이 영영 안 간다.
   bool sendLocations(List<TrackPoint> points);
 
+  /// 멈췄다고 알린다. **소켓에 넘겼으면 `true`.**
+  ///
+  /// ## ⚠️ 답이 오지 않는 것이 정상이다
+  ///
+  /// ack가 없고 **멱등**이다(가이드 2.4). 이미 멈춘 사람이 또 보내면 서버가
+  /// 아무 통지도 하지 않는다 — **조용하다고 실패로 치면 안 된다.**
+  ///
+  /// `RUNNING_START` 전에 보내면 `RUNNING_NOT_STARTED` 가 온다. 그 코드는
+  /// [WsErrorCode.needsRestart] 라 시작을 다시 보내는 길로 이어진다.
+  ///
+  /// ⚠️ **보내기 전에 남은 좌표를 먼저 흘려야 한다.** 이 메시지 뒤에
+  /// 밀린 좌표가 닿으면 서버가 일시정지를 푼다(가이드 2.1).
+  bool pause();
+
+  /// 다시 달린다고 알린다. **소켓에 넘겼으면 `true`.**
+  ///
+  /// [pause] 와 같은 규칙이다 — ack 없고 멱등이다.
+  ///
+  /// 좌표를 다시 보내기만 해도 서버는 `RUNNING` 으로 돌아온다. 그래도 이것을
+  /// 보내는 이유는 **배치까지 최대 10초**가 걸려서다. 그동안 상대 화면에는
+  /// 내가 멈춰 있는 것으로 보인다(가이드 2.1).
+  bool resume();
+
   /// 러닝을 끝낸다. **`RUNNING_FINISHED` ack를 받으면 `true`.**
   ///
   /// ## ack가 이 메시지에만 있다
@@ -68,7 +98,11 @@ abstract interface class RunningChannel {
   ///
   /// 멱등이다. 이미 확정된 러닝에 다시 보내도 서버가 기록을 덮어쓰지 않고
   /// ack만 다시 준다.
-  Future<bool> finish({bool forced = false});
+  /// 답은 셋이다([FinishOutcome]) — 확정 · 목표 모자람 · 못 받음.
+  ///
+  /// ⚠️ **모자람([FinishGoalPending])은 종료가 아니다.** 좌표 수집·전송과
+  /// 로컬 트랙을 그대로 두고 러닝을 이어 간다(1.1.0 가이드 3.2).
+  Future<FinishOutcome> finish({bool forced = false});
 
   /// 스스로 끊는다. 재연결하지 않는다.
   Future<void> close();

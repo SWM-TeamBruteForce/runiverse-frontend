@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/profile/data/gallery_photo_picker.dart';
 import 'package:runiverse/features/profile/data/http_profile_image_repository.dart';
+import 'package:runiverse/features/profile/domain/pending_photo.dart';
 import 'package:runiverse/features/profile/domain/photo_picker.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
@@ -35,15 +36,19 @@ final profileImageControllerProvider =
 
 /// 프로필 사진을 읽고 · 바꾸고 · 지운다.
 ///
-/// ## 스스로 불러오지 않는다
+/// ## ⚠️ 사진 주소는 여기서 읽지 않는다
 ///
-/// [build]는 [ProfileImageLoading]만 세우고 서버를 부르지 않는다. 화면이 열릴 때
-/// [load]를 부른다 — 열람 주소는 **만료되는 값**이라 화면이 열리는 시점에 받아야
-/// 하고, 그 시점을 아는 것은 화면이다.
+/// [load]가 있지만 **아무도 부르지 않는다.** 아바타는 주소를 밖에서 받고
+/// (`ProfileAvatar.url`), 그 값은 프로필 요약(`GET /users/{userId}`)이 준다.
+/// 여기서 또 받으면 같은 것을 두 번 받게 되고, 무엇보다 [load]는 저장소의
+/// `userId`를 쓰기 때문에 **타인 프로필에서도 내 사진을 가져온다.**
+///
+/// 그래서 [ProfileImageLoading]·[ProfileImageFailed]도 화면에 닿지 않는다.
+/// 이 컨트롤러가 실제로 하는 일은 [pick]과 [apply] 둘이다.
 ///
 /// ## 실패를 던지지 않고 돌려준다
 ///
-/// [change]·[remove]는 성공하면 `null`, 실패하면 이유를 돌려준다.
+/// [apply]는 성공하면 `null`, 실패하면 이유를 돌려준다.
 /// `AuthController`와 같은 규칙이다 — 잡는 곳을 화면 하나로 모은다.
 class ProfileImageController extends Notifier<ProfileImageState> {
   @override
@@ -61,34 +66,36 @@ class ProfileImageController extends Notifier<ProfileImageState> {
     }
   }
 
-  /// 앨범에서 골라 바꾼다. 성공하면 `null`.
+  /// 앨범에서 **고르기만 한다. 올리지 않는다.**
   ///
-  /// **취소해도 `null`을 돌려준다.** 취소는 실패가 아니라 아무 일도 일어나지
-  /// 않은 것이다 — 여기서 이유를 돌려주면 화면이 스낵바를 띄운다.
-  Future<ProfileImageFailure?> change() async {
-    final PickedImage? picked;
+  /// ⚠️ 예전에는 고르기와 올리기가 한 메서드였다. 그래서 사진이 저장 버튼을
+  /// 기다릴 수 없었다 — 고르는 순간 이미 서버에 가 있었다. 둘을 갈라,
+  /// 고른 것은 화면이 [PendingPhoto]로 들고 있다가 [apply]로 보낸다.
+  ///
+  /// 셋을 구분해 돌려준다. **취소는 실패가 아니다** — 둘 다 `null`이면
+  /// 아무 일도 일어나지 않은 것이고, 화면은 조용히 넘어간다.
+  Future<({PickedImage? image, ProfileImageFailure? failure})> pick() async {
     try {
-      picked = await ref.read(photoPickerProvider).pick();
+      return (image: await ref.read(photoPickerProvider).pick(), failure: null);
     } on ProfileImageException catch (error) {
       // 형식·크기가 조건에 맞지 않다. 서버에 가기 전에 걸린 것이다.
-      return error.failure;
+      return (image: null, failure: error.failure);
     }
-    if (picked == null) return null;
+  }
 
-    final image = picked;
-    return _busy(() async {
+  /// 들고 있던 변경을 **실제로 보낸다.** 성공하면 `null`.
+  Future<ProfileImageFailure?> apply(PendingPhoto photo) => switch (photo) {
+    PhotoPicked(:final image) => _busy(() async {
       await _repository.upload(image);
       // 확정 응답에는 키만 온다. 그릴 주소는 다시 물어야 한다.
       return _repository.fetchUrl();
-    });
-  }
-
-  /// 지우고 기본 이미지로 돌아간다. 성공하면 `null`.
-  Future<ProfileImageFailure?> remove() => _busy(() async {
-    await _repository.remove();
-    // 지운 뒤의 답은 `null`이라는 것을 안다. 왕복 한 번을 아낀다.
-    return null;
-  });
+    }),
+    PhotoRemoved() => _busy(() async {
+      await _repository.remove();
+      // 지운 뒤의 답은 `null`이라는 것을 안다. 왕복 한 번을 아낀다.
+      return null;
+    }),
+  };
 
   /// 도는 동안 [ProfileImageReady.busy]를 켜 두고, 끝나면 새 주소로 세운다.
   ///

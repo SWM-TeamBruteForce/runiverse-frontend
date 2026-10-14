@@ -9,6 +9,7 @@ import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/http_running_room_repository.dart';
 import 'package:runiverse/features/session/data/ws_running_channel.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/domain/running_room_repository.dart';
@@ -164,6 +165,18 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
 
   /// 쌓인 좌표를 10초마다 올리는 것. 방이 생긴 뒤에만 있다.
   TrackSender? _sender;
+
+  /// 버튼으로 멈춰 있는가.
+  ///
+  /// ⚠️ **다시 붙을 때 한 번 더 알리려고 들고 있는다.** 재연결은
+  /// `RUNNING_START` 를 다시 보내고, 서버는 그것으로 참가자를 `RUNNING` 으로
+  /// 되돌린다(가이드 1.1의 상태표) — 알리지 않으면 **멈춰 있는데 상대
+  /// 화면에서는 내가 다시 달린다.**
+  ///
+  /// `RUNNING_NOT_STARTED` 로 거절당한 `PAUSE` 도 같은 길로 되살아난다.
+  /// 그 코드가 시작을 다시 보내게 하고([WsErrorCode.needsRestart]), 그
+  /// 확인을 받는 자리에서 이 값을 본다.
+  var _paused = false;
 
   /// 연속 실패 횟수. backoff 간격을 정한다.
   var _attempt = 0;
@@ -412,6 +425,13 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     });
     channel.errors.listen(_onServerError);
 
+    // ⚠️ **서버가 스스로 끝낸 경우다**(목표 도달 자동 종료 · 강제 종료).
+    //
+    // 1.1.0부터 앱은 로컬 거리가 목표를 넘어도 `RUNNING_FINISH` 를 보내지
+    // 않는다(가이드 3.1) — 서버가 **오염 좌표를 뺀 확정 거리**로 판단해
+    // 끝낸다. 이 통지를 안 받으면 러닝이 끝났는데 화면이 영영 남는다.
+    channel.finished.listen((_) => unawaited(_onServerFinished()));
+
     // ⚠️ **시작 확인을 받으면 서버가 아는 상태를 다시 읽는다.**
     //
     // 매칭 SSE는 상태가 `RUNNING`이 되면 닫히는데(`MatchRoomController._syncWith`),
@@ -421,6 +441,15 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     // 연결마다 한 번씩만 온다(ack가 그렇다). 재연결로 또 와도 같은 답이라 해롭지 않다.
     channel.snapshots.listen((_) {
       debugPrint('[running] 시작이 확인됐다. 상태를 다시 읽는다');
+      // ⚠️ **멈춘 채로 다시 붙었으면 다시 알린다**(가이드 2.2).
+      //
+      // 순서가 `START` → 좌표 → `PAUSE` 여야 하는데, 멈춰 있는 동안에는
+      // 전송기가 서 있어 사이에 낄 좌표가 없다([pause] 가 흘리고 세운다).
+      // `RUNNING_STARTED` 를 받은 자리라 서버가 시작을 이미 처리한 뒤다.
+      if (_paused) {
+        debugPrint('[running] 멈춰 있던 것을 다시 알린다');
+        channel.pause();
+      }
       // ⚠️ **방마다 한 번만 남긴다.** 이 ack 는 재연결 때도 오므로, 끊겼다
       // 붙을 때마다 남기면 한 번의 러닝이 여러 번 시작한 것으로 세어진다.
       final startedId = state.room?.id;
@@ -564,8 +593,13 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       sender.stop();
 
       // ⚠️ **ack를 받아야만 정리된 것이다.** 아래 주석 참조.
-      if (!await channel.finish()) {
-        debugPrint('[running] 종료 확인을 못 받았다. 방 번호를 남긴다');
+      //
+      // ⚠️ 목표가 모자라다는 답(`GOAL_PENDING`)도 **안 끝난 것**으로 본다.
+      // 지난 러닝을 치우는 자리라 더 뛸 사람이 없는데, 여기서 `forced=true`
+      // 로 밀어붙이면 **사용자가 모르는 사이에 조기 종료로 기록된다.**
+      final outcome = await channel.finish();
+      if (outcome is! FinishConfirmed) {
+        debugPrint('[running] 종료 확인을 못 받았다($outcome). 방 번호를 남긴다');
         return false;
       }
     } on Object catch (error) {
@@ -580,6 +614,48 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     await repository.clear(stale);
     await repository.clearActiveRoom();
     return true;
+  }
+
+  /// 멈췄다고 서버에 알린다 — 가이드 2.1.
+  ///
+  /// ## 순서가 정해져 있다
+  ///
+  /// ```
+  /// (좌표 수집 중단) → 남은 좌표 전송 → 전송기 정지 → RUNNING_PAUSE
+  /// ```
+  ///
+  /// ⚠️ **좌표를 먼저 흘려야 한다.** `PAUSE` 뒤에 밀린 좌표가 닿으면
+  /// 서버가 **일시정지를 푼다** — 새 좌표는 그 자체로 `RUNNING` 의 근거다.
+  /// 그래서 다 보낸 다음에야 알리고, 그 뒤로는 전송기를 세워 둔다.
+  ///
+  /// 수집을 멈추는 것은 세션의 몫이다 — [RunSessionController.pause] 뒤로는
+  /// 들어온 좌표를 버리므로 쌓일 것이 없다.
+  ///
+  /// ⚠️ **`HEALTH_CHECK` 는 계속 나간다.** 그 시계는 `WsClient` 가
+  /// 따로 들고 있어 전송기를 세워도 영향이 없다(가이드 2.1).
+  Future<void> pause() async {
+    _paused = true;
+    await _sender?.drain();
+    // ⚠️ `stop` 이 아니라 [TrackSender.pauseTimer] 다. `stop` 은 방과
+    // 커서를 지우는 **해체**라, 그 뒤에 [resume] 이 타이머를 다시 세우지
+    // 못한다 — 다시 달리는데 좌표가 조용히 안 나간다.
+    _sender?.pauseTimer();
+    _channel?.pause();
+  }
+
+  /// 다시 달린다고 알린다 — 가이드 2.1.
+  ///
+  /// ⚠️ **알리는 것이 먼저다.** 좌표만 다시 보내도 서버는 `RUNNING` 으로
+  /// 돌아오지만 배치까지 최대 10초가 걸린다 — 그동안 상대 화면에는 내가
+  /// 멈춰 있는 것으로 보인다.
+  ///
+  /// ⚠️ `TrackSender.start` 가 아니라 [TrackSender.resumeTimer] 다.
+  /// `start` 는 커서를 되감아 **이미 보낸 것을 통째로 다시 보낸다** — 연결이
+  /// 멀쩡한데 그럴 이유가 없고, 큰 배치가 연달아 나가면 1009로 끊긴다.
+  void resume() {
+    _paused = false;
+    _channel?.resume();
+    _sender?.resumeTimer();
   }
 
   /// 러닝을 끝낸다. 남은 좌표를 마저 보내고, 확인을 받으면 트랙을 지운다.
@@ -607,25 +683,61 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// ⚠️ **상세는 다르다.** 서버가 확정한 값을 읽으므로 ack 전에 부르면 빈
   /// 기록이 온다. 그래서 이 구간 동안 [RunningConnectionState.settling]을
   /// 세워 요약 화면이 문을 잠그게 한다.
-  Future<void> finish({bool forced = false}) async {
+  /// 돌려주는 값이 셋이다([FinishOutcome]).
+  ///
+  /// ⚠️ **[FinishGoalPending] 이면 아무것도 정리하지 않는다.** 소켓도 트랙도
+  /// 그대로 두고 러닝을 이어 간다 — 서버가 확정한 거리가 목표에 모자라다는
+  /// 뜻이지 종료가 아니다(1.1.0 가이드 3.2).
+  Future<FinishOutcome> finish({bool forced = false}) async {
     final channel = _channel;
     if (channel == null) {
       await close();
-      return;
+      return const FinishUnconfirmed();
     }
 
     // 여기부터 ack까지가 **서버가 기록을 확정하는 구간**이다. 요약 화면이
     // 이 표시를 보고 상세로 가는 문을 잠근다 — [RunningConnectionState.settling].
     state = state.copyWith(settling: true);
 
+    // ⚠️ `finally` 가 돌고 난 뒤에 돌려준다. 던져서 빠져나가면 못 받은 것이다.
+    FinishOutcome result = const FinishUnconfirmed();
+
+    /// 종료가 보류됐는가. 참이면 `finally` 의 정리를 건너뛴다.
+    var pending = false;
+
     try {
       await _sender?.drain();
       // 다 보냈으면 타이머를 세운다. ack를 기다리는 동안 또 돌 이유가 없다.
-      _sender?.stop();
+      //
+      // ⚠️ **`stop` 이 아니다.** 답이 `GOAL_PENDING` 이면 아래에서 다시
+      // 세우는데, `stop` 은 방과 커서를 지워 [TrackSender.resumeTimer] 가
+      // 첫 줄에서 돌아선다 — 러닝은 이어지는데 좌표가 안 나갔다.
+      // 확정이면 `_cleanUpAfterFinish` → `close` 가 제대로 해체한다.
+      _sender?.pauseTimer();
 
       final finishedId = state.room?.id;
-      final acked = await channel.finish(forced: forced);
-      if (acked) {
+      final outcome = await channel.finish(forced: forced);
+
+      // ⚠️ **정리를 통째로 건너뛴다.** 아래 `finally` 가 소켓을 닫고 상태를
+      // 비우는데, 보류는 러닝이 이어지는 것이라 그 정리를 밟으면 안 된다.
+      //
+      // ⚠️ `return` 으로는 못 빠져나간다 — `finally` 는 그때도 돈다. 플래그를
+      // 세워 그 안에서 가른다.
+      if (outcome is FinishGoalPending) {
+        debugPrint('[running] 목표 보류 · ${outcome.remainingMeters}m 남음');
+        // 멈춰 둔 전송기를 다시 돌린다. 계속 뛰므로 좌표가 또 쌓인다.
+        //
+        // ⚠️ `start` 가 아니라 [TrackSender.resumeTimer] 다. `start` 는 커서를
+        // 되감아 **이미 보낸 것을 통째로 다시 보낸다** — 연결이 멀쩡한데
+        // 그럴 이유가 없고, 큰 배치가 연달아 나가면 1009로 끊긴다.
+        _sender?.resumeTimer();
+        state = state.copyWith(settling: false);
+        pending = true;
+        result = outcome;
+        return result;
+      }
+
+      if (outcome is FinishConfirmed) {
         // ⚠️ **끝냈다는 사실을 남긴다.** 서버 상태가 따라오기 전까지 홈이
         // 이 방으로 돌아가는 문을 띄우지 않게 한다.
         _finishedRoomId = finishedId;
@@ -641,25 +753,69 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       } else {
         debugPrint('[running] 종료 확인을 못 받아 로컬 트랙을 남긴다');
       }
+      result = outcome;
     } finally {
-      // ⚠️ **어떻게 끝나든 [settling]을 내린다.** 중간에 던지면 `자세한 기록
-      // 보기`가 영영 잠긴 채로 남는다.
+      // ⚠️ **보류는 정리하지 않는다.** 소켓도 상태도 그대로 두고 러닝을
+      // 이어 간다 — 닫으면 그 뒤 좌표가 어디로도 못 간다.
       //
-      // ⚠️ **방 번호는 남겨야 한다.** 요약 화면(S15)이 이 번호로 상세 결과
-      // 17·18번을 부른다. [close]가 상태를 통째로 비우므로, 닫은 뒤 번호만
-      // 되돌려 놓는다 — 없으면 `자세한 기록 보기`가 계속 잠겨 있다.
+      // ⚠️ 여기서 `return` 하지 않는다. `finally` 의 `return` 은 `try` 의
+      // 것을 **조용히 이긴다** — 실제로 보류 값이 그렇게 버려졌다.
+      if (!pending) await _cleanUpAfterFinish();
       //
-      // 다음 러닝의 409 판정은 상태가 아니라 **저장소**(`activeRoom()`)를 보므로
-      // 여기 남은 번호가 다음 러닝을 방해하지 않는다.
-      final finished = state.room;
-      await close();
-      if (finished != null) {
-        state = RunningConnectionState(
-          room: finished,
-          finishedRoomId: _finishedRoomId,
-        );
-      }
     }
+
+    return result;
+  }
+
+  /// 종료가 **확정되거나 포기된 뒤** 소켓을 닫고 상태를 추린다.
+  ///
+  /// ⚠️ **어떻게 끝나든 [RunningConnectionState.settling]을 내린다.** 중간에
+  /// 던지면 `자세한 기록 보기`가 영영 잠긴 채로 남는다.
+  ///
+  /// ⚠️ **방 번호는 남겨야 한다.** 요약 화면(S15)이 이 번호로 상세 결과
+  /// 17·18번을 부른다. [close]가 상태를 통째로 비우므로, 닫은 뒤 번호만
+  /// 되돌려 놓는다 — 없으면 `자세한 기록 보기`가 계속 잠겨 있다.
+  ///
+  /// 다음 러닝의 409 판정은 상태가 아니라 **저장소**(`activeRoom()`)를 보므로
+  /// 여기 남은 번호가 다음 러닝을 방해하지 않는다.
+  Future<void> _cleanUpAfterFinish() async {
+    final room = state.room;
+    await close();
+    if (room != null) {
+      state = RunningConnectionState(
+        room: room,
+        finishedRoomId: _finishedRoomId,
+      );
+    }
+  }
+
+  /// 서버가 끝냈다. **보내지 않은 좌표를 먼저 올리고** 정리한다.
+  ///
+  /// ⚠️ 내가 요청해서 끝난 경우는 여기로 오지 않는다([finish] 가 맡는다).
+  /// 둘을 섞으면 한 번의 종료가 두 길로 처리돼 트랙을 두 번 지운다.
+  Future<void> _onServerFinished() async {
+    final finishedId = state.room?.id;
+    if (finishedId == null || _finishedRoomId == finishedId) return;
+
+    state = state.copyWith(settling: true);
+    try {
+      // ⚠️ **남은 좌표를 먼저 보낸다.** 서버가 이미 확정했어도 늦게 도착한
+      // 배치는 저장되지 않을 뿐 해롭지 않고, 못 보낸 채 지우면 되돌릴 수 없다.
+      await _sender?.drain();
+      _sender?.stop();
+
+      _finishedRoomId = finishedId;
+      unawaited(
+        ref
+            .read(analyticsProvider)
+            .runFinish(runType: _runType(state.room?.isMatched)),
+      );
+      await ref.read(trackRecorderProvider).discard();
+      await ref.read(trackRepositoryProvider).clearActiveRoom();
+    } on Object catch (error) {
+      debugPrint('[running] 서버 종료 정리가 어긋났다 · $error');
+    }
+    await _cleanUpAfterFinish();
   }
 
   /// 연결을 닫고 처음 상태로 돌아간다. **종료를 알리지는 않는다** — 화면을
@@ -669,6 +825,9 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     _retry = null;
     _attempt = 0;
     _restarts = 0;
+    // ⚠️ 멈춤 표식도 되돌린다. 남겨 두면 **다음 러닝이 붙자마자
+    // `PAUSE` 를 보낸다** — 재연결 때 다시 알리는 길을 타고서다.
+    _paused = false;
     _sender?.stop();
     _sender = null;
     await _channel?.close();

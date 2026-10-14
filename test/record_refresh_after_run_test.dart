@@ -19,6 +19,7 @@ import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
 /// 러닝을 끝내면 기록 탭이 **그 기록을 본다.**
 ///
@@ -213,6 +214,9 @@ class _AckChannel implements RunningChannel {
   Stream<RunCombo> get combos => const Stream.empty();
 
   @override
+  Stream<void> get finished => const Stream.empty();
+
+  @override
   Stream<RunSnapshot> get snapshots => const Stream.empty();
 
   @override
@@ -222,7 +226,14 @@ class _AckChannel implements RunningChannel {
   bool sendLocations(List<TrackPoint> points) => true;
 
   @override
-  Future<bool> finish({bool forced = false}) async => acks;
+  bool pause() => true;
+
+  @override
+  bool resume() => true;
+
+  @override
+  Future<FinishOutcome> finish({bool forced = false}) async =>
+      acks ? const FinishConfirmed() : const FinishUnconfirmed();
 
   @override
   Future<void> close() async {}

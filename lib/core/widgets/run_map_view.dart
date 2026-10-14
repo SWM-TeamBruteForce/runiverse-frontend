@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -10,6 +12,7 @@ import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
+import 'package:runiverse/features/session/domain/track_bounds.dart';
 
 /// 달린 경로를 그리는 지도.
 ///
@@ -33,10 +36,25 @@ import 'package:runiverse/features/session/domain/geo_point.dart';
 /// `GeoPoint`(session/domain)에만 기대고 그 밖의 feature 코드는 모른다 —
 /// `core/storage/sign_in_memory_store.dart`가 `auth/domain`을 쓰는 것과 같다.
 class RunMapView extends StatefulWidget {
-  const RunMapView({required this.track, super.key});
+  /// **달리는 중.** 카메라가 현재 위치를 따라가고 현위치 버튼이 선다.
+  const RunMapView.live({required this.track, super.key}) : followsMe = true;
+
+  /// **다 달린 경로.** 따라가지 않고 경로 전체가 들어오게 맞춘다.
+  ///
+  /// ⚠️ 예전에는 생성자가 하나였고 [onMapReady]가 화면과 무관하게
+  /// `follow` 를 켰다. 결과 화면이 **지금 내 위치로 가서 따라 움직였고**
+  /// 달린 경로는 화면 밖에 있었다. `initialCameraPosition` 에 넣어 둔
+  /// 경로 첫 좌표는 그 직후에 덮여 쓰이지 못했다.
+  const RunMapView.route({required this.track, super.key}) : followsMe = false;
 
   /// 구간별 경로. 각 구간은 좌표 2개 이상이다.
   final List<List<GeoPoint>> track;
+
+  /// 현재 위치를 따라갈 것인가. 달리는 중에만 참이다.
+  ///
+  /// ⚠️ **밖에서 읽을 수 있게 둔다.** 어느 생성자로 만들어졌는지는 화면의
+  /// 약속이라, 테스트가 그것을 본다(`record_detail_page_test`).
+  final bool followsMe;
 
   @override
   State<RunMapView> createState() => _RunMapViewState();
@@ -206,7 +224,10 @@ class _RunMapViewState extends State<RunMapView>
         // SDK 기본 버튼이다. 탭할 때마다 추적 모드가 순환한다
         // (`follow` → `face` → …). 직접 만든 버튼으로 `follow`나 `face`에
         // 묶어 봤지만, 어느 쪽으로 고정해도 잃는 것이 있어 되돌렸다.
-        locationButtonEnable: true,
+        //
+        // ⚠️ **다 달린 경로에는 두지 않는다.** 누르면 추적이 켜지면서
+        // 카메라가 지금 내 위치로 떠나고, 보고 있던 경로를 잃는다.
+        locationButtonEnable: widget.followsMe,
         // 손으로 돌려 볼 수 있게 둔다. 지도를 자유롭게 보려는 쪽을 택했다 —
         // 틀어졌으면 현위치 버튼으로 되돌린다.
         rotationGesturesEnable: true,
@@ -221,17 +242,49 @@ class _RunMapViewState extends State<RunMapView>
         // ⚠️ `setState`가 필요하다. 줌 버튼이 이 컨트롤러를 받아야 눌린다 —
         // 그냥 대입하면 버튼은 `null`을 든 채로 남는다.
         if (mounted) setState(() => _controller = controller);
-        // 추적 모드가 카메라를 현재 위치로 옮기지만 **줌은 덮지 않는다.**
-        // (실기기에서 `getCameraPosition()`으로 확인했다 — 16을 넣으면 16이다.)
-        controller.setLocationTrackingMode(NLocationTrackingMode.follow);
+
+        if (widget.followsMe) {
+          // 추적 모드가 카메라를 현재 위치로 옮기지만 **줌은 덮지 않는다.**
+          // (실기기에서 `getCameraPosition()`으로 확인했다 — 16을 넣으면 16이다.)
+          controller.setLocationTrackingMode(NLocationTrackingMode.follow);
+        } else {
+          // ⚠️ **`noFollow` 가 아니라 `none` 이다.** `noFollow` 는 따라가지는
+          // 않아도 **현위치 점을 계속 그린다.** 지난 기록 위에 지금 내 위치가
+          // 찍히면 그것이 그 러닝의 한 지점처럼 읽힌다.
+          controller.setLocationTrackingMode(NLocationTrackingMode.none);
+          unawaited(_fitToTrack(controller));
+        }
         _draw();
       },
     );
   }
 
+  /// 경로 전체가 들어오게 카메라를 맞춘다.
+  ///
+  /// ⚠️ **그릴 것이 없으면 아무것도 하지 않는다.** 좌표가 하나도 없는 기록이
+  /// 있다(GPS를 못 잡은 러닝). 빈 목록을 [NLatLngBounds.from]에 넘기면
+  /// `ArgumentError` 가 난다 — [TrackBounds.of] 가 그 전에 `null` 로 답한다.
+  /// 그때는 `initialCameraPosition` 의 자리가 그대로 남는다.
+  Future<void> _fitToTrack(NaverMapController controller) async {
+    final bounds = TrackBounds.of(widget.track);
+    if (bounds == null || _gone) return;
+
+    await controller.updateCamera(
+      NCameraUpdate.fitBounds(
+        NLatLngBounds(
+          southWest: NLatLng(bounds.south, bounds.west),
+          northEast: NLatLng(bounds.north, bounds.east),
+        ),
+        // 경로가 모서리에 붙으면 어디서 끝났는지 안 보인다.
+        padding: const EdgeInsets.all(AppSpacing.space5),
+      ),
+    );
+  }
+
   /// 이미 달린 구간이 있으면 그 시작점에서 연다. 없으면 `null`.
   ///
-  /// 요약 화면이 이 값을 쓴다 — 러닝이 끝난 뒤에는 따라갈 현재 위치가 없다.
+  /// 지도가 서는 첫 자리다. 달리는 중에는 곧 추적이 덮고, 다 달린 경로에서는
+  /// [_fitToTrack]이 덮는다 — **좌표가 없어 둘 다 못 할 때만** 남는다.
   NLatLng? _firstPoint() {
     for (final segment in widget.track) {
       if (segment.isNotEmpty) {

@@ -1,3 +1,4 @@
+import 'package:runiverse/features/record/domain/route_segments.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/domain/split_aggregator.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
@@ -108,8 +109,10 @@ abstract final class RoomResultDto {
           ),
     ];
 
-    // 지도 위젯이 세그먼트 목록을 받는다. 서버는 한 줄로 주므로 하나다.
-    return points.length < 2 ? const [] : [points];
+    // ⚠️ **한 줄로 왔어도 한 줄로 그리지 않는다.** 서버가 정지 구간과 오염
+    // 좌표를 빼고 주므로 빠진 자리가 있고, 그 양 끝을 이으면 가 본 적 없는
+    // 길에 선이 그려진다(가이드 4.2).
+    return RouteSegments.split(points);
   }
 
   /// 18번의 `splits[]`를 **사람별로** 가른다.
