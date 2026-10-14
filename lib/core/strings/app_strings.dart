@@ -1128,6 +1128,10 @@ abstract final class AppStrings {
 
   /// 지도 줌 버튼. **화면에 글자로 나오지 않고 스크린 리더가 읽는다** —
   /// 아이콘만 있는 버튼이라 이 이름이 없으면 "버튼"이라고만 읽힌다.
+  /// 끌어서 경로를 놓쳤을 때 돌아오는 길. **다 달린 경로에만 둔다** —
+  /// 러닝 중에는 현위치 버튼이 그 일을 한다.
+  static const mapFitRoute = '경로 맞추기';
+
   static const mapZoomIn = '지도 확대';
   static const mapZoomOut = '지도 축소';
 
