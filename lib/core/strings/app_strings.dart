@@ -1168,7 +1168,12 @@ abstract final class AppStrings {
   static const runResultTitle = '러닝 결과';
   static const runResultBack = '뒤로';
 
-  static const runResultTime = '시간';
+  /// ⚠️ **`시간`이 아니라 `움직인 시간`이다**(1.1.0 가이드 4.1).
+  ///
+  /// 서버가 주는 `totalDurationSeconds`는 정지 구간을 뺀 값이라 **시작~종료
+  /// 시각의 차이보다 짧다.** 그냥 `시간`이라고 적으면 러닝에 걸린 시간으로
+  /// 읽혀, 신호 대기로 서 있던 만큼이 사라진 것처럼 보인다.
+  static const runResultTime = '움직인 시간';
   static const runResultDistance = '거리';
   static const runResultPace = '페이스';
   static const runResultCadence = '케이던스';

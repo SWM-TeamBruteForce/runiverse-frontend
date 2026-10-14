@@ -173,6 +173,28 @@ void main() {
     expect(detail.tableSplitsOf('u-3'), isEmpty);
   });
 
+  test('⚠️ 한 줄로 온 경로를 벌어진 자리에서 끊는다', () {
+    // ⚠️ 서버는 정지 구간·오염 좌표를 **뺀** 경로를 한 줄로 준다. 그대로
+    // 한 토막으로 넘기면 빠진 자리가 직선으로 이어져 **가 본 적 없는 길이
+    // 그려진다**(가이드 4.2).
+    final detail = RoomResultDto.merge(
+      results: {
+        ...results,
+        'routes': [
+          [37.5, 127.0],
+          [37.50009, 127.0], // 약 10m
+          [37.5010, 127.0], // 약 100m 점프 — 여기서 끊긴다
+          [37.50109, 127.0],
+        ],
+      },
+      splitResults: splitResults,
+    );
+
+    expect(detail.track, hasLength(2));
+    expect(detail.track.first, hasLength(2));
+    expect(detail.track.last, hasLength(2));
+  });
+
   test('솔로는 나 하나뿐이고 파티원은 없다', () {
     final detail = RoomResultDto.merge(
       results: {
