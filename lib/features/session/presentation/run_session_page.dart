@@ -486,7 +486,7 @@ class _MapPage extends StatelessWidget {
           Expanded(
             child: ClipRRect(
               borderRadius: AppRadius.card,
-              child: RunMapView(track: track),
+              child: RunMapView.live(track: track),
             ),
           ),
           const SizedBox(height: AppSpacing.space4),
