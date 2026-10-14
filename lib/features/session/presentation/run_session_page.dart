@@ -83,18 +83,28 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   /// ⚠️ `forced` 는 **목표를 채우기 전에 그만두는가**다. 서버가 이 값과 자기가
   /// 확정한 거리를 함께 보고 제재를 정한다 — 앱이 잰 거리로 단정하지 않는다.
   /// 목표가 없는 솔로는 언제나 `false` 다.
+  ///
+  /// ⚠️ **기준은 목표 전체다. 80% 가 아니다.** 가이드 3.2 가 "화면 거리가
+  /// 목표 이상이면 `forced=false`, 미만이면 `forced=true`"로 정했다. 예전에는
+  /// 80%(`_safeRatio`)로 갈랐는데, 그러면 85% 에서 멈춘 사람이 `forced=false`
+  /// 로 나가 **끝낼 뜻이 분명한데 서버가 보류로 되돌려 보낸다.** 80% 는
+  /// 제재 선이지 완주 선이 아니다.
   void _finishByHold() {
     final metrics = _metricsOf(ref.read(runSessionControllerProvider));
     final target = _targetDistanceMeters();
-    final short =
-        target != null && metrics.distanceMeters < target * _safeRatio;
+    final short = target != null && metrics.distanceMeters < target;
     unawaited(_finishRun(forced: short));
   }
 
-  /// 목표까지 남은 거리(km). 안내할 것이 없으면 `null` 이다.
+  /// 목표의 80%까지 남은 거리(km). 이미 넘겼거나 목표가 없으면 `null` 이다.
   ///
   /// 예전에는 중지 시트가 이 안내를 들고 있었다. 시트를 없애면서 **종료를
   /// 누르고 있는 동안** 띄운다.
+  ///
+  /// ⚠️ **`null` 이 "제재 없다"는 뜻은 아니다.** 80% 판정은 서버가 정지
+  /// 구간과 오염 좌표를 빼고 센 거리로 한다(가이드 3.4) — 화면에서 넘겼어도
+  /// 모자랄 수 있다. 제재 안내는 `RunControls.hasTarget` 이 따로 들고 있고,
+  /// 이 값은 **거리 줄 하나**만 가른다.
   double? _penaltyRemainingKm() {
     final target = _targetDistanceMeters();
     if (target == null) return null;
@@ -141,11 +151,7 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     // ⚠️ **러닝이 이어진다.** 세션을 접지도, 화면을 옮기지도 않는다.
     if (outcome is FinishGoalPending) {
       setState(() => _finishing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppStrings.runGoalPending(outcome.remainingMeters)),
-        ),
-      );
+      unawaited(_showGoalPending(outcome.remainingMeters));
       return;
     }
 
@@ -153,6 +159,49 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     // 멀쩡한 러닝의 시계가 멈춘다.
     ref.read(runSessionControllerProvider.notifier).finish();
     context.pushReplacement(AppRoutes.runSummary);
+  }
+
+  /// 서버가 "아직 모자라다"고 답했다. **남은 거리를 보여 주고 고르게 한다** —
+  /// 가이드 3.3.
+  ///
+  /// 돌아오는 값이 `true` 면 사용자가 끝내기로 했다는 뜻이다. 그때는
+  /// `forced=true` 로 다시 보낸다 — 서버가 그 시점의 확정 거리로 완주인지
+  /// 조기 종료인지 정한다.
+  ///
+  /// ## ⚠️ 창이 열린 동안에도 종료가 도착한다
+  ///
+  /// 계속 달리는 사이에 서버가 목표를 확인하면 `RUNNING_FINISHED` 가 온다.
+  /// 가이드 3.3 은 그때 **창을 닫고** 종료 처리를 하라고 정했다.
+  ///
+  /// 닫는 일은 `Navigator` 가 한다 — 이 창은 **페이지 없는 경로**라 러닝
+  /// 페이지에 매달려 있고, 요약으로 교체되는 순간 함께 걷힌다. 그래서 여기서
+  /// 따로 `pop` 하지 않는다. (`pop` 을 끼워 둔 채로 **지워 보았다**. 창은 그대로
+  /// 사라졌다 — 닫는 주체가 이쪽이 아니라는 뜻이다.)
+  ///
+  /// 걷히면 이 `await` 가 `null` 로 풀려 아무것도 보내지 않는다. 뒤늦은 손가락은
+  /// [_finishing] 이 막는다 — 서버 종료를 받은 그 프레임에 세워진다.
+  Future<void> _showGoalPending(int remainingMeters) async {
+    final finish = await showDialog<bool>(
+      context: context,
+      // 바깥을 눌러 넘기지 못한다. 고를 것이 둘 다 뚜렷하다.
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text(AppStrings.runGoalPendingTitle),
+        content: Text(AppStrings.runGoalPendingBody(remainingMeters)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(AppStrings.runGoalPendingKeep),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(AppStrings.runGoalPendingFinish),
+          ),
+        ],
+      ),
+    );
+    if (finish != true || !mounted) return;
+    unawaited(_finishRun(forced: true));
   }
 
   /// 끝내는 중인가. 목표 도달과 중지 시트가 겹쳐 두 번 보내는 것을 막는다.
@@ -343,6 +392,7 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                 enabled: state is RunRunning || state is RunPaused,
                 onPauseToggle: _togglePause,
                 onFinish: _finishByHold,
+                hasTarget: target != null,
                 penaltyRemainingKm: _penaltyRemainingKm(),
               ),
             ],
