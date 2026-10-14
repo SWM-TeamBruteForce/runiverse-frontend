@@ -21,6 +21,7 @@ import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/run_snapshot.dart';
+import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
@@ -65,8 +66,17 @@ void main() {
         trackRepositoryProvider.overrideWithValue(FakeTrackRepository()),
         bodyProfileStoreProvider.overrideWithValue(InMemoryBodyProfileStore()),
         stepRepositoryProvider.overrideWithValue(FakeStepRepository()),
+        // ⚠️ **달리는 중이라고 답해야 한다.** 시작 확인을 받으면 서버 상태를
+        // 다시 읽는데, 기본값(`Idle`)이면 "진행 중인 것이 없다"고 보고
+        // **연결을 내려놓는다.** 그러면 재전송도 `PAUSE`도 중간에 끊긴다.
         userStatusRepositoryProvider.overrideWithValue(
-          FakeUserStatusRepository(),
+          FakeUserStatusRepository(
+            status: UserStatusRunning(
+              runningRoomId: 1,
+              isSolo: false,
+              scheduledStartAt: DateTime(2026, 10, 14, 7),
+            ),
+          ),
         ),
         runningChannelFactoryProvider.overrideWithValue((_) => channel),
       ],
@@ -145,7 +155,11 @@ void main() {
   Future<void> reconnect(WidgetTester tester) async {
     channel.reconnect();
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    // ⚠️ **재전송이 끝난 뒤에야 `PAUSE`가 나간다**(가이드 2.2의 순서).
+    // `drain`이 배치 사이에 300ms를 쉬므로 한 번 펌프로는 안 닿는다.
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 400));
+    }
   }
 
   group('⚠️ 멈추면 서버에도 알린다 — 가이드 2.1', () {
@@ -314,6 +328,42 @@ void main() {
       await unmount(tester, container);
     });
 
+    testWidgets('⚠️ 로컬 트랙을 처음부터 다시 보낸다', (tester) async {
+      // ⚠️ 좌표 전송에는 ack가 없다. **어디까지 닿았는지 알 길이 없어**
+      // 명세가 전체 재전송을 정했다 — 빠진 구간이 있으면 서버가 그 자리를
+      // 직선으로 이어 거리가 짧게 확정된다.
+      final container = await pumpRunning(tester);
+      await tester.pump(const Duration(seconds: 11)); // 한 번 보내 둔다
+      channel.log.clear();
+      channel.sent.clear();
+
+      await reconnect(tester);
+
+      expect(channel.sent, isNotEmpty, reason: '다시 보내야 한다');
+      expect(channel.sent.first.first, 1, reason: '첫 좌표부터다');
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 좌표를 다 보낸 뒤에 멈춤을 알린다', (tester) async {
+      // ⚠️ 순서가 `START` → 좌표 → `PAUSE` 다(가이드 2.2). 뒤집히면 **뒤늦게
+      // 닿은 좌표가 일시정지를 풀어** 상대 화면에서 내가 다시 달린다.
+      final container = await pumpRunning(tester);
+      await tapPause(tester, AppStrings.runPauseCta);
+      channel.log.clear();
+      channel.sent.clear();
+
+      await reconnect(tester);
+
+      final locations = channel.log.indexWhere(
+        (e) => e.startsWith('locations'),
+      );
+      final pause = channel.log.indexOf('pause');
+      expect(locations, isNonNegative, reason: '멈춰 있어도 다시 보낸다');
+      expect(pause, isNonNegative);
+      expect(locations, lessThan(pause), reason: '좌표가 먼저다');
+      await unmount(tester, container);
+    });
+
     testWidgets('⚠️ 다음 러닝이 멈춤을 들고 가지 않는다', (tester) async {
       // 표식을 안 되돌리면 **다음 러닝이 붙자마자 `PAUSE`를 보낸다** — 이
       // 길을 타고서다.
@@ -341,11 +391,15 @@ class _PauseChannel implements RunningChannel {
   final log = <String>[];
 
   final _snapshots = StreamController<RunSnapshot>.broadcast();
+  final _states = StreamController<WsConnectionState>.broadcast();
+
+  /// 배치마다 실려 나간 `sequence` 목록. **어디서부터 보냈는지**를 본다.
+  final sent = <List<int>>[];
 
   int? _roomId;
 
   @override
-  Stream<WsConnectionState> get states => const Stream.empty();
+  Stream<WsConnectionState> get states => _states.stream;
 
   @override
   WsConnectionState get state => WsConnectionState.connected;
@@ -373,21 +427,31 @@ class _PauseChannel implements RunningChannel {
 
   /// 끊겼다 다시 붙었다. **진짜 채널은 여기서 `RUNNING_START`를 다시 보내고,
   /// 그 확인(`RUNNING_STARTED`)이 스냅샷으로 올라온다.**
+  ///
+  /// ⚠️ **끊김부터 알린다.** 전송기가 그 신호로 커서를 처음으로 되돌린다
+  /// (가이드 2.2). 빠뜨리면 재전송이 일어나지 않아 **순서를 보는 테스트가
+  /// 통과해 버린다** — 보낼 것이 없으니 `pause`만 남아서다.
   void reconnect() {
-    log.add('start');
-    _snapshots.add(
-      RunSnapshot(
-        runningRoomId: _roomId ?? 1,
-        players: const [],
-        combos: const RunCombo([]),
-      ),
-    );
+    _states.add(WsConnectionState.reconnecting);
+    _states.add(WsConnectionState.connected);
+    // 되감기가 먼저 끝나야 한다. 진짜도 다시 붙어 ack가 오기까지 틈이 있다.
+    scheduleMicrotask(() {
+      log.add('start');
+      _snapshots.add(
+        RunSnapshot(
+          runningRoomId: _roomId ?? 1,
+          players: const [],
+          combos: const RunCombo([]),
+        ),
+      );
+    });
   }
 
   @override
   bool sendLocations(List<TrackPoint> points) {
     if (points.isEmpty) return true;
     log.add('locations:${points.length}');
+    sent.add([for (final point in points) point.sequence]);
     return true;
   }
 
