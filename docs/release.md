@@ -36,6 +36,17 @@ android/key-dev.properties      android/app/upload-keystore-dev.jks
 - **원본은 저장소 밖에 따로 백업한다.** `git clean -fdx` 한 번이면 `android/app/`의 jks가 지워진다.
   업로드 키를 잃으면 Play에 재설정을 요청해야 한다.
 
+Firebase 설정 파일도 같은 취급이다. flavor 폴더에 두면 빌드가 알아서 집는다.
+
+```
+android/app/src/dev/google-services.json     ios/Runner/Firebase/dev/GoogleService-Info.plist
+android/app/src/prod/google-services.json    ios/Runner/Firebase/prod/GoogleService-Info.plist
+```
+
+- Firebase 콘솔 → `runiverse-dev`·`runiverse` 프로젝트 → 프로젝트 설정 → 해당 플랫폼 앱의 구성 파일을 받는다.
+- iOS는 `Copy Firebase Config` 빌드 단계가 구성 이름(`Debug-dev`면 dev, 아니면 prod)으로 골라 앱에 복사한다.
+  파일이 없으면 빌드가 그 자리에서 멈춘다.
+
 ## dev 앱 — CI가 올린다
 
 `.github/workflows/dev-internal-release.yml`이 dev 브랜치를 빌드해 내부 테스트에 올린다.
