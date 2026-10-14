@@ -41,13 +41,18 @@ class HomeWaiting extends StatelessWidget {
   /// 로비로 들어간다. 시안의 CTA 는 잠겨 있지만, 들어갈 길은 남겨 둔다.
   final VoidCallback onLobby;
 
-  /// 나를 둘레에서 빼는 데 쓴다.
+  /// 나를 둘레에서 빼고, **가운데에 그릴 내 줄을 찾는 데** 쓴다.
   ///
   /// ⚠️ **서버가 나를 명단에 넣는지 아닌지와 무관하게 맞는다.** 넣으면
-  /// 빠지고, 안 넣으면 뺄 것이 없다.
+  /// 빠지고, 안 넣으면 뺄 것이 없다 — 그때는 아래 두 값으로 물러선다.
   final String? myUserId;
 
+  /// 명단에 내가 없을 때 쓸 이름. 출처는 `GET /users/me`(36번)다.
   final String? myNickname;
+
+  /// ⚠️ **지금은 늘 `null`이다.** 36번 응답에 `profileImageUrl`이 없다 —
+  /// `userId`·`email`·`loginType`·`nickname`·`isOnboarded`뿐이다. 서버가
+  /// 필드를 더하는 날 살아나라고 자리만 남긴다.
   final String? myPhotoUrl;
 
   /// 시안 `158:2952`의 높이.
@@ -66,9 +71,15 @@ class HomeWaiting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
-    final others = room.players
-        .where((player) => player.userId != myUserId)
-        .toList();
+    final others = <RoomPlayer>[];
+    RoomPlayer? mine;
+    for (final player in room.players) {
+      if (player.userId == myUserId) {
+        mine = player;
+      } else {
+        others.add(player);
+      }
+    }
 
     return ClipRRect(
       borderRadius: AppRadius.card,
@@ -104,8 +115,13 @@ class HomeWaiting extends StatelessWidget {
                 boxShadow: [BoxShadow(color: colors.primary, blurRadius: 24)],
               ),
               child: RunnerAvatarV2(
-                nickname: myNickname ?? '',
-                imageUrl: myPhotoUrl,
+                nickname: mine?.nickname ?? myNickname ?? '',
+                // ⚠️ **방 명단이 먼저다.** [myPhotoUrl]의 출처인
+                // `GET /users/me`(36번)에는 **`profileImageUrl`이 없다** —
+                // 응답은 `userId`·`email`·`loginType`·`nickname`·`isOnboarded`
+                // 뿐이라 늘 `null`이고, 가운데 내 얼굴만 기본 이미지로 남았다.
+                // 둘레 사람들은 같은 명단에서 사진을 받아 제대로 떴다.
+                imageUrl: mine?.profileImageUrl ?? myPhotoUrl,
                 size: _mySize,
               ),
             ),
