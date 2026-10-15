@@ -59,8 +59,8 @@ import 'package:runiverse/features/onboarding/presentation/onboarding_provider.d
 ///
 /// ## 페이스는 비워도 된다
 ///
-/// `null`은 **미측정**이다. 기본값을 몰래 채우면 그 숫자가 그대로 시그니처
-/// 컬러가 되고, 사용자는 자기가 고르지 않은 색을 갖게 된다.
+/// `null`은 **미측정**이다. 기본값을 몰래 채우면 그 숫자가 그대로 매칭 근거가
+/// 되고, 사용자는 자기가 고르지 않은 조건으로 매칭된다.
 ///
 /// ## 상태를 provider로 올리지 않는다
 ///
@@ -427,8 +427,6 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
       return;
     }
 
-    // ⚠️ 원래는 시그니처 컬러 리빌(S04.5)로 간다. 그 화면이 아직 없어 여기서 끝난다.
-    //
     // **왔던 자리로 돌려보낸다.** 프로필 탭의 유도 시트에서 시작했으면 그 탭으로
     // 돌아가 방금 채운 이름이 그 자리에 뜬다.
     //

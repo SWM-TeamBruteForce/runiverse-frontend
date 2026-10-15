@@ -4,7 +4,7 @@ import 'package:runiverse/core/theme/v2/run_palette.dart';
 
 /// 새 러닝 팔레트 — **빠진 hue도 겹치는 색도 없다.**
 ///
-/// 컬렉션 그리드는 30칸을 한 번에 그린다. hue 하나가 비면 그 자리에서 죽고,
+/// 아우라는 hue 여럿을 한 번에 겹친다. hue 하나가 비면 그 자리에서 죽고,
 /// 두 hue가 같은 색이면 무엇을 모았는지 구분할 수 없다.
 void main() {
   test('⚠️ 모든 hue에 색이 있다', () {

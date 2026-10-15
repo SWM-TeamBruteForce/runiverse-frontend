@@ -20,7 +20,7 @@ class OnboardingProfile {
   /// 1km당 초. **`null`은 '미측정'이지 '아직 안 물어봄'이 아니다.**
   ///
   /// 서버는 이 값을 필수로 받는다. 그 차이는 DTO에서 메운다 —
-  /// 화면과 시그니처 컬러는 `null`을 그대로 본다.
+  /// 화면은 `null`을 그대로 본다.
   final int? paceSecondsPerKm;
 
   final int heightCm;

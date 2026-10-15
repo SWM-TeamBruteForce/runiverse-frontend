@@ -13,7 +13,7 @@ import 'package:flutter/physics.dart';
 ///
 /// ## 햅틱은 모션과 함께 간다
 ///
-/// 카운트다운 3-2-1(숫자가 바뀔 때마다) · 색 리빌 피크 · 매칭 확정 토스트.
+/// 카운트다운 3-2-1(숫자가 바뀔 때마다) · 매칭 확정 토스트.
 /// **음소거 상태에서도 햅틱은 유지한다.** 끄는 것은 음성뿐이다.
 abstract final class AppMotion {
   // ── 이징 ─────────────────────────────────────────────────────
@@ -25,7 +25,7 @@ abstract final class AppMotion {
   static const easeSlow = Cubic(0.2, 0, 0.2, 1);
 
   /// 빛이 번지는 느낌. 초반에 확 퍼지고 길게 잦아든다.
-  /// 색 리빌과 토스트 드롭이 이 곡선을 공유한다.
+  /// 빛 번짐과 토스트 드롭이 이 곡선을 공유한다.
   static const easeBloom = Cubic(0.16, 1, 0.3, 1);
 
   // ── 지속 시간 ────────────────────────────────────────────────
@@ -43,8 +43,8 @@ abstract final class AppMotion {
   /// [easeBloom]과 짝지어 쓰는 것이 달라 별도 토큰으로 둔다.
   static const drop = Duration(milliseconds: 320);
 
-  /// 1000ms — 색 리빌 번짐. 문서가 정한 범위는 800~1200ms다.
-  /// 연출 비중이 큰 곳(S04.5 시그니처 리빌, S14 컬러 리빌)은 [revealLong]을 쓴다.
+  /// 1000ms — 빛 번짐. 문서가 정한 범위는 800~1200ms다.
+  /// 연출 비중이 큰 곳은 [revealLong]을 쓴다.
   static const reveal = Duration(milliseconds: 1000);
 
   /// 1200ms — 리빌 범위의 상한.
