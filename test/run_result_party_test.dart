@@ -161,11 +161,11 @@ void main() {
     });
   });
 
-  /// 선 색 — **칩과 같은 색인가.**
+  /// 참가자 색 — **나는 파랑 고정인가.**
   ///
-  /// 전에는 내 선이 `colors.primary`(파랑)로 박혀 있었다. 칩은 레인 색을
-  /// 쓰는데 선만 파랑이라, 파티원도 파랑이면 **두 선이 구별되지 않았다.**
-  group('내 선 색', () {
+  /// `lane(0)`(브랜드 파랑)은 내 자리다. 전에는 명단 자리 번호를 그대로 써서
+  /// **내가 명단 둘째면 첫 자리 상대가 내 파랑을 가져갔다.**
+  group('참가자 색', () {
     /// 화면이 그리는 모든 꺾은선의 내 선 색.
     List<Color> lineColors(WidgetTester tester) => [
       for (final chart in tester.widgetList<SplitLineChart>(
@@ -174,17 +174,18 @@ void main() {
         chart.color,
     ];
 
-    testWidgets('⚠️ 명단 첫 자리가 아니어도 내 레인 색이다', (tester) async {
-      // 첫 자리면 `lane(0)`이 파랑이라 `colors.primary`와 구별되지 않는다.
-      // 끝에 세워 **다른 색이 나와야만** 통과하게 한다.
+    final blue = RunPaletteV2.lane(0);
+
+    testWidgets('⚠️ 명단 어디에 서도 내 선은 파랑이다', (tester) async {
+      // 명단 끝에 세운다. 자리 번호를 쓰면 `lane(2)`(분홍)가 나온다.
       await pump(tester, detail(meLast: true));
 
-      final mine = RunPaletteV2.lane(2);
       expect(lineColors(tester), isNotEmpty);
-      expect(lineColors(tester), everyElement(mine));
+      expect(lineColors(tester), everyElement(blue));
     });
 
-    testWidgets('⚠️ 파티원 선과 다른 색이다', (tester) async {
+    testWidgets('⚠️ 파티원이 내 파랑을 가져가지 않는다', (tester) async {
+      // 명단 첫 자리가 이서연이다. 자리 번호를 쓰면 그 사람이 `lane(0)`이다.
       await pump(tester, detail(meLast: true));
 
       await tester.tap(find.text('이서연').last);
@@ -193,21 +194,35 @@ void main() {
       final chart = tester.widget<SplitLineChart>(
         find.byType(SplitLineChart).first,
       );
+      expect(chart.color, blue);
       expect(chart.secondaryColor, isNotNull);
-      expect(chart.secondaryColor, isNot(chart.color));
+      expect(chart.secondaryColor, isNot(blue));
     });
 
-    testWidgets('⚠️ 명단에 내가 없으면 primary로 물러선다', (tester) async {
-      // 못 찾으면 `indexWhere`가 `-1`을 주고 `lane(-1)`은 초록이 된다 —
-      // 터지지 않고 **엉뚱한 색이 조용히 나온다.**
+    testWidgets('⚠️ 명단에 내가 없어도 파랑이다', (tester) async {
+      // 서버가 나를 빠뜨린 경우다. 이때도 파티원은 파랑을 못 가져간다.
       await pump(tester, detail(noMe: true));
+
+      expect(lineColors(tester), everyElement(blue));
+
+      await tester.tap(find.text('이서연').last);
+      await tester.pump();
+
+      final chart = tester.widget<SplitLineChart>(
+        find.byType(SplitLineChart).first,
+      );
+      expect(chart.secondaryColor, isNot(blue));
+    });
+
+    testWidgets('내 색은 테마의 primary와 같은 값이다', (tester) async {
+      // 두 값이 갈리면 화면마다 내 색이 달라진다.
+      await pump(tester, detail());
 
       final primary = tester
           .element(find.byType(RunResultView))
           .appColorsV2
           .primary;
-      expect(lineColors(tester), everyElement(primary));
-      expect(lineColors(tester), isNot(contains(RunPaletteV2.lane(-1))));
+      expect(blue, primary);
     });
   });
 }
