@@ -115,21 +115,42 @@ void main() {
       await pumpSignIn(tester);
     }
 
-    testWidgets('⚠️ 내비게이션 바에 가리지 않는다', (tester) async {
-      const inset = 48.0;
-      await pumpWithInset(tester, inset);
+    // 0 = 내비게이션 바 없음 · 24 = 제스처 바 · 48 = 3버튼 바.
+    // **기기가 얼마를 주든 그만큼 비켜야 한다** — 한 값만 보면 고정값으로
+    // 때운 것과 구별되지 않는다.
+    for (final inset in const [0.0, 24.0, 48.0]) {
+      testWidgets('⚠️ 하단 여백 $inset에서 가리지 않는다', (tester) async {
+        await pumpWithInset(tester, inset);
 
+        final link = find.text(AppStrings.authToSignUp);
+        await tester.ensureVisible(link);
+        await tester.pumpAndSettle();
+
+        final bottom = tester.getBottomLeft(link).dy;
+        final safeTop = tester.view.physicalSize.height / 3 - inset;
+        expect(
+          bottom,
+          lessThanOrEqualTo(safeTop),
+          reason: '하단 여백 $inset에서 가입하기 줄이 시스템 영역으로 들어갔다',
+        );
+      });
+    }
+
+    testWidgets('⚠️ 여백이 커지면 그만큼 더 올라간다', (tester) async {
+      // 위 검사만으로는 **바닥에 아주 큰 고정값**을 둔 것도 통과한다.
+      // 두 기기의 차이가 여백의 차이와 같아야 실제로 반영한 것이다.
+      await pumpWithInset(tester, 0);
       final link = find.text(AppStrings.authToSignUp);
       await tester.ensureVisible(link);
       await tester.pumpAndSettle();
+      final flat = tester.getBottomLeft(link).dy;
 
-      final bottom = tester.getBottomLeft(link).dy;
-      final safeTop = tester.view.physicalSize.height / 3 - inset;
-      expect(
-        bottom,
-        lessThanOrEqualTo(safeTop),
-        reason: '가입하기 줄이 시스템 여백 안으로 들어갔다',
-      );
+      await pumpWithInset(tester, 48);
+      await tester.ensureVisible(link);
+      await tester.pumpAndSettle();
+      final lifted = tester.getBottomLeft(link).dy;
+
+      expect(flat - lifted, moreOrLessEquals(48, epsilon: 0.5));
     });
 
     testWidgets('가입하기는 primary 색이다', (tester) async {
