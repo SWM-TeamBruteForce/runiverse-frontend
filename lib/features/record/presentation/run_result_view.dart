@@ -55,8 +55,25 @@ class _RunResultViewState extends State<RunResultView> {
   RunDetail get detail => widget.detail;
 
   /// 그 사람의 레인 색. 러닝 화면과 같은 순서라 같은 색이다.
+  ///
+  /// ⚠️ **명단에 없는 `userId`를 주면 안 된다.** `indexWhere`가 `-1`을 돌려주고
+  /// `lane(-1)`은 `_party[3]`(초록)이 된다 — 터지지 않고 **엉뚱한 색이 조용히
+  /// 나온다.** 그래서 부르는 쪽이 먼저 명단에서 찾아 본다([_myColor]).
   Color _colorOf(String userId) =>
       RunPaletteV2.lane(detail.players.indexWhere((p) => p.userId == userId));
+
+  /// 그래프에서 쓰는 **내 선 색.**
+  ///
+  /// 전에는 `colors.primary`(파랑)로 박혀 있었다. 칩은 레인 색(주황일 수 있다)을
+  /// 쓰는데 선만 파랑이라, **같은 파랑인 파티원 선과 구별되지 않았다** — 두 선을
+  /// 겹쳐 보는 화면에서 어느 쪽이 나인지가 색으로 안 갈렸다.
+  ///
+  /// 칩과 **같은 규칙**을 쓴다. 명단에서 나를 못 찾으면 `colors.primary`로
+  /// 물러선다 — 그러지 않으면 [_colorOf]가 팔레트의 엉뚱한 색을 준다.
+  Color _myColor(AppColorsV2 colors) {
+    final me = detail.players.where((p) => p.isMe).firstOrNull;
+    return me == null ? colors.primary : _colorOf(me.userId);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +83,8 @@ class _RunResultViewState extends State<RunResultView> {
         ? null
         : detail.chartSamplesOf(compare);
     final compareColor = compare == null ? null : _colorOf(compare);
+    // 칩과 같은 색이라야 겹쳐 그린 두 선에서 내 것이 갈린다.
+    final myColor = _myColor(colors);
     // 테이블은 1km, 그래프는 50m다. 같은 러닝을 두 배율로 본다 — 표는
     // "몇 번째 킬로를 몇 분에 뛰었나"를, 그래프는 "어디서 흔들렸나"를 답한다.
     final splits = detail.tableSplits;
@@ -121,7 +140,7 @@ class _RunResultViewState extends State<RunResultView> {
                       labels: _labels(splits, detail.distanceKm),
                       format: (v) =>
                           PaceCalculator.format(Duration(seconds: v.round())),
-                      color: colors.primary,
+                      color: myColor,
                       hint: AppStrings.runResultChartHint,
                       secondary: compare == null
                           ? null
@@ -135,6 +154,9 @@ class _RunResultViewState extends State<RunResultView> {
                       // 그래프가 같은 방향이어야 한다** — 위아래로 붙어 있는데
                       // 축이 반대면 같은 러닝이 서로 다른 얘기를 한다.
                       inverted: true,
+                      // 구간이 몇 개뿐이라 점을 찍어 **멈추는 자리**를 보인다.
+                      // 아래 50m 상세는 점이 수십 개라 찍지 않는다.
+                      showPoints: true,
                     ),
                     const SizedBox(height: AppSpacing.space4),
                     _SplitTable(
@@ -159,7 +181,7 @@ class _RunResultViewState extends State<RunResultView> {
                       labels: _sampleLabels(samples),
                       format: (v) =>
                           PaceCalculator.format(Duration(seconds: v.round())),
-                      color: colors.primary,
+                      color: myColor,
                       hint: AppStrings.runResultChartHint,
                       secondary: compareSamples == null
                           ? null
@@ -187,7 +209,7 @@ class _RunResultViewState extends State<RunResultView> {
                         ],
                         labels: _sampleLabels(samples),
                         format: (v) => v.round().toString(),
-                        color: colors.primary,
+                        color: myColor,
                         hint: AppStrings.runResultChartHint,
                         // 50m 상세라 페이스 상세와 같은 모양으로 둔다.
                         // ⚠️ 뒤집지 않는다 — 케이던스는 클수록 좋은 값이다.
