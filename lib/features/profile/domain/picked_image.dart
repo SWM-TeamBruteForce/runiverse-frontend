@@ -28,6 +28,10 @@ class PickedImage {
   final int sizeBytes;
 
   /// 서버 상한과 같은 값(`@Max(10_485_760)`). 여기서 먼저 막는다.
+  ///
+  /// ⚠️ **재는 것은 `ImageTransformer`를 거친 뒤의 파일이다.** 짧은 변 1080px
+  /// JPEG이라 보통 수백 KB이고, 이 상한에 닿는 일은 사실상 없다. 그래서
+  /// **10MB가 넘는 원본도 이제 올라간다** — 줄여서 올리기 때문이다.
   static const maxBytes = 10 * 1024 * 1024;
 
   /// 확장자로 [mimeType]을 정한다. **내용을 보지 않는다** —
@@ -50,7 +54,12 @@ class PickedImage {
     return PickedImage._(path: path, mimeType: mimeType, sizeBytes: sizeBytes);
   }
 
-  /// 모르는 확장자면 `null`. 아이폰 기본인 `heic`가 여기 걸린다.
+  /// 모르는 확장자면 `null`.
+  ///
+  /// ⚠️ **정상 경로에서는 언제나 `jpg`다.** `GalleryPhotoPicker`가 무엇을
+  /// 골랐든 JPEG로 다시 저장한다. 그래서 아이폰 기본인 `heic`도 이제 올라간다 —
+  /// 네이티브 디코더가 읽고 JPEG로 내보낸다. 여기 분기는 그 약속이 깨졌을 때
+  /// 발급 요청까지 가지 않게 하는 안전망이다.
   static String? _mimeTypeOf(String path) {
     final dot = path.lastIndexOf('.');
     if (dot < 0) return null;

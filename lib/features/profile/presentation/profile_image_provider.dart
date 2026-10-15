@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/profile/data/compressed_image_transformer.dart';
 import 'package:runiverse/features/profile/data/gallery_photo_picker.dart';
 import 'package:runiverse/features/profile/data/http_profile_image_repository.dart';
 import 'package:runiverse/features/profile/domain/pending_photo.dart';
@@ -26,7 +27,7 @@ final profileImageRepositoryProvider = Provider<ProfileImageRepository>(
 /// ⚠️ **위젯 테스트는 이것을 override해야 한다.** 앨범을 여는 것은 플랫폼 채널이라
 /// 테스트 환경에서 `MissingPluginException`이 난다.
 final photoPickerProvider = Provider<PhotoPicker>(
-  (ref) => const GalleryPhotoPicker(),
+  (ref) => const GalleryPhotoPicker(CompressedImageTransformer()),
 );
 
 final profileImageControllerProvider =

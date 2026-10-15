@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/extensions/app_colors.dart';
@@ -9,6 +8,7 @@ import 'package:runiverse/core/theme/tokens/app_radius.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
 import 'package:runiverse/core/theme/tokens/run_palette.dart';
+import 'package:runiverse/core/widgets/profile_photo_image.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/session/domain/party_board.dart';
 import 'package:runiverse/features/session/domain/runner_status.dart';
@@ -485,8 +485,8 @@ class _Head extends StatelessWidget {
           alignment: Alignment.center,
           child: photo == null
               ? initial
-              : Image.network(
-                  photo,
+              : Image(
+                  image: profilePhoto(context, photo, AppSpacing.space7),
                   fit: BoxFit.cover,
                   // 만료된 presigned URL이면 이니셜로 돌아간다.
                   errorBuilder: (_, error, stack) => initial,

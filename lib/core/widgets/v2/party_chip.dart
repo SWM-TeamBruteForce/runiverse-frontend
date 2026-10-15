@@ -3,6 +3,7 @@ import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/profile_photo_image.dart';
 
 /// 함께 뛰는 사람 하나 — 아바타 위, 이름 아래.
 ///
@@ -59,7 +60,7 @@ class PartyChip extends StatelessWidget {
             image: image == null
                 ? null
                 : DecorationImage(
-                    image: NetworkImage(image),
+                    image: profilePhoto(context, image, size),
                     fit: BoxFit.cover,
                   ),
           ),
