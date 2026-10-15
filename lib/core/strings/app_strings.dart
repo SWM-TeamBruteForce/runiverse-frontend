@@ -1255,14 +1255,11 @@ abstract final class AppStrings {
 
   /// 차이 값의 기준. **표 머리에 적는다.**
   ///
-  /// 적지 않으면 같은 `+4s`가 아무도 안 골랐을 때는 내 평균 대비, 파티원을
-  /// 골랐을 때는 그 사람의 같은 구간 대비인데 글자가 똑같아 **구별되지
-  /// 않는다.** 색까지 뒤집힌다 — 내 평균보다 느려 빨갛던 구간이 상대보다는
-  /// 빨라 초록이 되는 일이 같은 표에서 일어난다.
+  /// 차이는 파티원을 골랐을 때만 뜨지만, 적지 않으면 구간 옆의 숫자가
+  /// **직전 구간과의 차이로 읽힌다.**
   ///
   /// 닉네임을 넣지 않는다. 누구를 골랐는지는 바로 위 칩에 이미 떠 있고,
   /// 긴 닉네임이 들어오면 머리줄이 밀린다.
-  static const runResultGapBaseAverage = '내 평균 대비';
   static const runResultGapBaseParty = '파티원 대비';
   static const runResultMoreSplits = '구간 더 보기';
   static const runResultUnitKcal = 'kcal';

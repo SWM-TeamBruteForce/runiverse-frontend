@@ -88,23 +88,19 @@ void main() {
     expect(find.text(AppStrings.runResultCompareHint), findsNothing);
   });
 
-  testWidgets('칩을 누르면 격차의 기준이 그 사람으로 바뀐다', (tester) async {
+  testWidgets('칩을 누르면 그 사람 대비 격차가 뜬다', (tester) async {
     await pump(tester, detail());
-
-    // 기준이 내 평균(5'30")일 때: 5'00"은 30초 빠르다.
-    expect(find.text('-30s'), findsWidgets);
 
     await tester.tap(find.text('이서연').last);
     await tester.pump();
 
     // 기준이 이서연(10m당 4초 = 6'40")일 때: 100초 빠르다.
     expect(find.text('-100s'), findsWidgets);
-    expect(find.text('-30s'), findsNothing);
 
-    // 다시 누르면 내 평균으로 돌아온다.
+    // 다시 누르면 기준이 사라져 차이도 걷힌다.
     await tester.tap(find.text('이서연').last);
     await tester.pump();
-    expect(find.text('-30s'), findsWidgets);
+    expect(find.text('-100s'), findsNothing);
   });
 
   testWidgets('기록 없는 사람의 칩은 눌리지 않는다', (tester) async {
@@ -113,40 +109,43 @@ void main() {
     await tester.tap(find.text('박지훈').last);
     await tester.pump();
 
-    expect(find.text('-30s'), findsWidgets);
+    expect(find.text(AppStrings.runResultGapBaseParty), findsNothing);
   });
 
-  /// 차이 값의 기준 — **표 머리에 적히는가.**
+  /// 차이 값 — **파티원을 골랐을 때만, 무엇 대비인지 적고 뜨는가.**
   ///
-  /// 같은 `+4s`가 내 평균 대비일 때와 파티원 대비일 때 글자가 똑같아서,
-  /// 적어 두지 않으면 **무엇과 견준 값인지 화면에서 알 길이 없었다.**
+  /// 전에는 혼자 볼 때도 내 평균 대비로 떴다. 첫 구간부터 숫자가 붙어 있어
+  /// **직전 구간과의 차이로 읽혔다** — 읽히는 뜻이 틀리면 없느니만 못하다.
   group('차이의 기준', () {
-    testWidgets('아무도 안 고르면 내 평균 대비라고 적는다', (tester) async {
+    /// 표에 그려진 차이 값. 하나도 없으면 비어 있다.
+    Finder gaps() => find.textContaining(RegExp(r'^[+-]?\d+s$'));
+
+    testWidgets('⚠️ 아무도 안 고르면 차이를 그리지 않는다', (tester) async {
       await pump(tester, detail());
 
-      expect(find.text(AppStrings.runResultGapBaseAverage), findsOneWidget);
+      expect(gaps(), findsNothing);
       expect(find.text(AppStrings.runResultGapBaseParty), findsNothing);
     });
 
-    testWidgets('⚠️ 칩을 고르면 파티원 대비로 바뀐다', (tester) async {
+    testWidgets('⚠️ 칩을 고르면 차이와 기준이 함께 뜬다', (tester) async {
       await pump(tester, detail());
 
       await tester.tap(find.text('이서연').last);
       await tester.pump();
 
+      expect(gaps(), findsWidgets);
       expect(find.text(AppStrings.runResultGapBaseParty), findsOneWidget);
-      expect(find.text(AppStrings.runResultGapBaseAverage), findsNothing);
     });
 
-    testWidgets('⚠️ 골라도 상대 구간이 없으면 내 평균 대비 그대로다', (tester) async {
-      // 모든 줄이 내 평균으로 돌아간 상태다. 고른 것만 보고 적으면
-      // **머리줄이 거짓말을 한다.**
+    testWidgets('⚠️ 골라도 상대 구간이 없으면 아무것도 뜨지 않는다', (tester) async {
+      // 잴 것이 하나도 없는 상태다. 고른 것만 보고 적으면 **머리줄이
+      // 거짓말을 한다.**
       await pump(tester, detail(noPartySplits: true));
 
       await tester.tap(find.text('이서연').last);
       await tester.pump();
 
-      expect(find.text(AppStrings.runResultGapBaseAverage), findsOneWidget);
+      expect(gaps(), findsNothing);
       expect(find.text(AppStrings.runResultGapBaseParty), findsNothing);
     });
 

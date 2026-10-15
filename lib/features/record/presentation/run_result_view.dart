@@ -710,18 +710,15 @@ class _SplitTableState extends State<_SplitTable> {
     final all = widget.detail.tableSplits;
     final collapsed = !_expanded && all.length > _SplitTable.collapsedCount;
     final shown = collapsed ? all.take(_SplitTable.collapsedCount) : all;
-    // 차이 값이 **무엇 대비인지**를 머리줄에 적는다.
+    // 차이는 **파티원을 골랐을 때만** 적는다.
+    //
+    // 혼자 볼 때도 내 평균 대비로 적을 수 있지만, 구간 옆에 붙은 숫자를
+    // 평균과의 거리로 읽는 사람이 없었다 — 첫 구간부터 값이 붙어 있어
+    // **직전 구간과의 차이로 읽힌다.** 읽히는 뜻이 틀리면 없느니만 못하다.
     //
     // ⚠️ 빈 목록은 고르지 않은 것과 같다. 상대가 방에는 있는데 서버가 구간을
-    // 하나도 안 준 경우가 있고, 그때는 모든 줄이 내 평균으로 돌아간다 —
-    // 고른 것만 보고 `파티원 대비`라 적으면 **머리줄이 거짓말을 한다.**
-    final basis = switch (widget.compareTo) {
-      final other? when other.isNotEmpty => AppStrings.runResultGapBaseParty,
-      _ when widget.detail.averagePace != null =>
-        AppStrings.runResultGapBaseAverage,
-      // 잴 것이 없으면 차이도 안 그린다. 기준만 적어 두지 않는다.
-      _ => null,
-    };
+    // 하나도 안 준 경우가 있고, 그때는 잴 것이 하나도 없다.
+    final comparing = widget.compareTo?.isNotEmpty ?? false;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -731,17 +728,20 @@ class _SplitTableState extends State<_SplitTable> {
       ),
       child: Column(
         children: [
-          _SplitHead(basis: basis),
+          _SplitHead(
+            basis: comparing ? AppStrings.runResultGapBaseParty : null,
+          ),
           for (final (i, split) in shown.indexed)
             _SplitRow(
               split: split,
               totalKm: widget.detail.distanceKm,
-              average: widget.detail.averagePace,
               // 같은 경계라 같은 자리가 같은 구간이다. 먼저 끝난 사람은 뒤
               // 구간이 없다 — 그때는 비교할 것이 없어 내 평균으로 돌아간다.
-              other: widget.compareTo == null || i >= widget.compareTo!.length
+              base: !comparing
                   ? null
-                  : widget.compareTo![i].pace,
+                  : i >= widget.compareTo!.length
+                  ? widget.detail.averagePace
+                  : widget.compareTo![i].pace ?? widget.detail.averagePace,
             ),
           if (collapsed)
             InkWell(
@@ -815,29 +815,22 @@ class _SplitHead extends StatelessWidget {
 }
 
 class _SplitRow extends StatelessWidget {
-  const _SplitRow({
-    required this.split,
-    required this.totalKm,
-    required this.average,
-    this.other,
-  });
+  const _SplitRow({required this.split, required this.totalKm, this.base});
 
   final SplitBucket split;
   final double totalKm;
-  final Duration? average;
 
-  /// 겹쳐 보는 파티원의 같은 구간 페이스. 있으면 격차의 기준이 이쪽이다.
-  final Duration? other;
+  /// 차이를 재는 기준. `null`이면 **차이를 그리지 않는다** — 혼자 보는
+  /// 중이거나 이 구간을 잴 것이 없다는 뜻이다.
+  final Duration? base;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
     final burned = split.caloriesKcal;
-    // 격차의 기준. 파티원을 골랐으면 그 사람, 아니면 내 평균이다. 순위가
-    // 아니라 거리다 — 음수면 내가 빨랐다.
-    final base = other ?? average;
+    // 순위가 아니라 거리다 — 음수면 내가 빨랐다.
     final pace = split.pace;
-    final gap = (base == null || pace == null) ? null : pace - base;
+    final gap = (base == null || pace == null) ? null : pace - base!;
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -873,8 +866,7 @@ class _SplitRow extends StatelessWidget {
                   const SizedBox(width: AppSpacing.space2),
                   Text(
                     _gapText(gap),
-                    // 평균보다 빨랐으면 success, 느렸으면 error. 순위가
-                    // 아니라 내 평균과의 거리다.
+                    // 기준보다 빨랐으면 success, 느렸으면 error.
                     //
                     // ⚠️ **0은 어느 쪽도 아니다.** `isNegative`만 보면 0이
                     // 느린 쪽으로 빨갛게 칠해진다 — 평균과 같은 구간을
