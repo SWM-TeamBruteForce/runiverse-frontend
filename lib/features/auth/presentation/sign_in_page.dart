@@ -171,11 +171,14 @@ class _SignInPageState extends ConsumerState<SignInPage> {
             const _Hero(),
 
             Padding(
-              padding: const EdgeInsets.fromLTRB(
+              // ⚠️ **바닥에 시스템 여백을 더한다.** 위를 `SafeArea`로 감싸지
+              // 않았으므로 아래도 받지 못한다 — 고정값만 두면 제스처 바나
+              // 3버튼 내비게이션 바가 맨 끝 줄(가입하기)을 덮는다.
+              padding: EdgeInsets.fromLTRB(
                 AppSpacing.space6,
                 AppSpacing.space9,
                 AppSpacing.space6,
-                AppSpacing.space6,
+                AppSpacing.space6 + MediaQuery.paddingOf(context).bottom,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -499,7 +502,9 @@ class _TextLink extends StatelessWidget {
           alignment: Alignment.center,
           child: Text(
             label,
-            style: AppTypographyV2.body11.copyWith(color: colors.textSecondary),
+            // 누를 수 있는 줄이라는 것을 색으로 알린다. 회색이면 안내 문구와
+            // 구별되지 않아 **가입할 길이 있는 줄 모른다.**
+            style: AppTypographyV2.body11.copyWith(color: colors.primary),
           ),
         ),
       ),
