@@ -36,10 +36,12 @@ void main() {
 
   /// [meLast]면 명단의 **끝**에 내가 선다 — 레인 색이 첫 자리가 아니게 된다.
   /// [noMe]면 명단에 내가 아예 없다(서버가 빠뜨린 경우).
+  /// [noPartySplits]면 명단에는 기록이 있는데 구간만 안 왔다.
   RunDetail detail({
     bool solo = false,
     bool meLast = false,
     bool noMe = false,
+    bool noPartySplits = false,
   }) {
     final others = solo ? const <RunPlayerResult>[] : [seoyeon, jihun];
     return RunDetail(
@@ -49,7 +51,9 @@ void main() {
       averagePace: const Duration(minutes: 5, seconds: 30),
       rawSplits: splitsOf(200, 3), // 2km, 10m당 3초 = 5'00"
       players: [if (!noMe && !meLast) me, ...others, if (!noMe && meLast) me],
-      splitsByPlayer: solo ? const {} : {'u-1': splitsOf(200, 4)},
+      splitsByPlayer: solo || noPartySplits
+          ? const {}
+          : {'u-1': splitsOf(200, 4)},
     );
   }
 
@@ -110,6 +114,52 @@ void main() {
     await tester.pump();
 
     expect(find.text('-30s'), findsWidgets);
+  });
+
+  /// 차이 값의 기준 — **표 머리에 적히는가.**
+  ///
+  /// 같은 `+4s`가 내 평균 대비일 때와 파티원 대비일 때 글자가 똑같아서,
+  /// 적어 두지 않으면 **무엇과 견준 값인지 화면에서 알 길이 없었다.**
+  group('차이의 기준', () {
+    testWidgets('아무도 안 고르면 내 평균 대비라고 적는다', (tester) async {
+      await pump(tester, detail());
+
+      expect(find.text(AppStrings.runResultGapBaseAverage), findsOneWidget);
+      expect(find.text(AppStrings.runResultGapBaseParty), findsNothing);
+    });
+
+    testWidgets('⚠️ 칩을 고르면 파티원 대비로 바뀐다', (tester) async {
+      await pump(tester, detail());
+
+      await tester.tap(find.text('이서연').last);
+      await tester.pump();
+
+      expect(find.text(AppStrings.runResultGapBaseParty), findsOneWidget);
+      expect(find.text(AppStrings.runResultGapBaseAverage), findsNothing);
+    });
+
+    testWidgets('⚠️ 골라도 상대 구간이 없으면 내 평균 대비 그대로다', (tester) async {
+      // 모든 줄이 내 평균으로 돌아간 상태다. 고른 것만 보고 적으면
+      // **머리줄이 거짓말을 한다.**
+      await pump(tester, detail(noPartySplits: true));
+
+      await tester.tap(find.text('이서연').last);
+      await tester.pump();
+
+      expect(find.text(AppStrings.runResultGapBaseAverage), findsOneWidget);
+      expect(find.text(AppStrings.runResultGapBaseParty), findsNothing);
+    });
+
+    testWidgets('닉네임은 머리줄에 넣지 않는다', (tester) async {
+      // 긴 닉네임이 들어오면 머리줄이 밀린다. 누구를 골랐는지는 칩이 말한다.
+      await pump(tester, detail());
+
+      await tester.tap(find.text('이서연').last);
+      await tester.pump();
+
+      // 카드와 칩에 한 번씩 — 머리줄에는 늘지 않았다.
+      expect(find.text('이서연'), findsNWidgets(2));
+    });
   });
 
   /// 선 색 — **칩과 같은 색인가.**

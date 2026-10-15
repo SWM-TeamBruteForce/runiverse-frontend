@@ -690,7 +690,8 @@ class _SplitTable extends StatefulWidget {
 
   final RunDetail detail;
 
-  /// 겹쳐 보는 파티원의 1km 묶음. `null`이면 격차는 내 평균 대비다.
+  /// 겹쳐 보는 파티원의 1km 묶음. `null`이거나 비어 있으면 격차는 내 평균
+  /// 대비다 — 고르기만 하고 상대 구간이 없는 경우가 뒤쪽이다.
   final List<SplitBucket>? compareTo;
 
   /// 이만큼 넘어가면 접는다. 10km(10구간)에서도 차트 둘이 한 화면에 들어오게.
@@ -709,6 +710,18 @@ class _SplitTableState extends State<_SplitTable> {
     final all = widget.detail.tableSplits;
     final collapsed = !_expanded && all.length > _SplitTable.collapsedCount;
     final shown = collapsed ? all.take(_SplitTable.collapsedCount) : all;
+    // 차이 값이 **무엇 대비인지**를 머리줄에 적는다.
+    //
+    // ⚠️ 빈 목록은 고르지 않은 것과 같다. 상대가 방에는 있는데 서버가 구간을
+    // 하나도 안 준 경우가 있고, 그때는 모든 줄이 내 평균으로 돌아간다 —
+    // 고른 것만 보고 `파티원 대비`라 적으면 **머리줄이 거짓말을 한다.**
+    final basis = switch (widget.compareTo) {
+      final other? when other.isNotEmpty => AppStrings.runResultGapBaseParty,
+      _ when widget.detail.averagePace != null =>
+        AppStrings.runResultGapBaseAverage,
+      // 잴 것이 없으면 차이도 안 그린다. 기준만 적어 두지 않는다.
+      _ => null,
+    };
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -718,7 +731,7 @@ class _SplitTableState extends State<_SplitTable> {
       ),
       child: Column(
         children: [
-          const _SplitHead(),
+          _SplitHead(basis: basis),
           for (final (i, split) in shown.indexed)
             _SplitRow(
               split: split,
@@ -752,7 +765,10 @@ class _SplitTableState extends State<_SplitTable> {
 }
 
 class _SplitHead extends StatelessWidget {
-  const _SplitHead();
+  const _SplitHead({this.basis});
+
+  /// 차이 값의 기준. `null`이면 그릴 차이가 없다는 뜻이라 적지 않는다.
+  final String? basis;
 
   @override
   Widget build(BuildContext context) {
@@ -772,7 +788,25 @@ class _SplitHead extends StatelessWidget {
             width: 64,
             child: Text(AppStrings.runResultSplitColumn, style: style),
           ),
-          Expanded(child: Text(AppStrings.runResultPace, style: style)),
+          Expanded(
+            child: Row(
+              children: [
+                Text(AppStrings.runResultPace, style: style),
+                if (basis case final text?) ...[
+                  // 아래 줄의 페이스와 차이도 이만큼 떨어져 있다.
+                  const SizedBox(width: AppSpacing.space2),
+                  Flexible(
+                    child: Text(
+                      text,
+                      style: style,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
           Text(AppStrings.runResultBurnedColumn, style: style),
         ],
       ),
