@@ -94,7 +94,7 @@ abstract final class RunPalette {
 
   /// 파티원 카드·레인의 색 4벌 (Figma `runiverse_final` 파티원 상태).
   ///
-  /// 시그니처 컬러가 생기기 전까지 자리 번호로 돌린다. 방은 최대 4명이다.
+  /// 자리 번호로 돌린다. 방은 최대 4명이다.
   static const _party = <Color>[
     Color(0xFF227DFF),
     Color(0xFFFF8335),
