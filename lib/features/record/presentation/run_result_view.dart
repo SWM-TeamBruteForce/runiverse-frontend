@@ -135,6 +135,9 @@ class _RunResultViewState extends State<RunResultView> {
                       // 그래프가 같은 방향이어야 한다** — 위아래로 붙어 있는데
                       // 축이 반대면 같은 러닝이 서로 다른 얘기를 한다.
                       inverted: true,
+                      // 구간이 몇 개뿐이라 점을 찍어 **멈추는 자리**를 보인다.
+                      // 아래 50m 상세는 점이 수십 개라 찍지 않는다.
+                      showPoints: true,
                     ),
                     const SizedBox(height: AppSpacing.space4),
                     _SplitTable(
