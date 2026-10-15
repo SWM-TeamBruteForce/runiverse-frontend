@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -52,6 +54,8 @@ void main() async {
   // 구글도 같은 규칙이다. **웹** 클라이언트 ID로 초기화한다 — ID 토큰에 찍히는
   // 수신자가 서버가 확인하는 값과 같아야 한다(`AppConfig.googleServerClientId`).
   //
+  // iOS는 iOS 클라이언트 ID도 함께 넘긴다 — 빠지면 플러그인이 웹 ID를 버린다.
+  //
   // ID가 없으면 건너뛴다. 그러면 `GoogleCodeSource` 가 SDK를 부르기 전에
   // `oauthUnavailable` 로 돌아서고, 버튼은 `준비 중`이라 답한다.
   _requireInRelease(
@@ -60,6 +64,7 @@ void main() async {
   );
   if (AppConfig.hasGoogleServerClientId) {
     await GoogleSignIn.instance.initialize(
+      clientId: Platform.isIOS ? AppConfig.googleIosClientId : null,
       serverClientId: AppConfig.googleServerClientId,
     );
   }
