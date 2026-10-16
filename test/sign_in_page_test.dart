@@ -1,3 +1,5 @@
+// `debugDefaultTargetPlatformOverride`가 여기 있다. material 이 재수출하지 않는다.
+import 'package:flutter/foundation.dart';
 // TextField를 이름으로 찾으려면 필요하다. flutter_test는 material을 재수출하지 않는다.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -333,6 +335,68 @@ void main() {
     // 풀리기만 하면 되는 게 아니다. 아무 말도 없으면 사용자는 **버튼이 안 눌렸다**고
     // 읽고 같은 자리를 계속 누른다.
     expect(find.text(AppStrings.authFailedOauth), findsOneWidget);
+  });
+
+  /// 애플 타일 — **iOS에만 있다.**
+  ///
+  /// 안드로이드에서 누르면 패키지가 애플 웹 흐름을 열고, 그렇게 받은 토큰은
+  /// 발급 대상이 번들 ID가 아니라서 **서버가 401을 돌려준다**(연동 가이드
+  /// 3·6절). 앱에서는 인가가 성공처럼 보여 원인이 서버에서만 드러난다.
+  ///
+  /// `dart:io`의 `Platform.isIOS`를 보면 테스트에서 늘 호스트(Windows)라
+  /// **두 경우 중 하나만 시험된다.** 화면이 `defaultTargetPlatform`을 보므로
+  /// 여기서 둘 다 세울 수 있다.
+  group('애플 타일', () {
+    /// ⚠️ **`addTearDown`으로는 되돌릴 수 없다.** `testWidgets`가 본문이
+    /// 끝나는 자리에서 "디버그 변수를 건드린 채 끝났는지"를 검사하는데,
+    /// tearDown 은 그 뒤에 돈다. 본문 안에서 되돌려야 한다.
+    Future<void> asPlatform(
+      TargetPlatform platform,
+      Future<void> Function() body,
+    ) async {
+      debugDefaultTargetPlatformOverride = platform;
+      try {
+        await body();
+      } finally {
+        // 실패해도 되돌린다. 남으면 뒤따르는 테스트가 엉뚱한 플랫폼에서 돈다.
+        debugDefaultTargetPlatformOverride = null;
+      }
+    }
+
+    testWidgets('iOS에서는 뜬다', (tester) async {
+      await asPlatform(TargetPlatform.iOS, () async {
+        await pumpSignIn(tester);
+
+        expect(find.byTooltip(AppStrings.authApple), findsOneWidget);
+        // 나머지 둘은 그대로 있다.
+        expect(find.byTooltip(AppStrings.authGoogle), findsOneWidget);
+        expect(find.byTooltip(AppStrings.authKakao), findsOneWidget);
+      });
+    });
+
+    testWidgets('⚠️ 안드로이드에서는 없다', (tester) async {
+      await asPlatform(TargetPlatform.android, () async {
+        await pumpSignIn(tester);
+
+        expect(find.byTooltip(AppStrings.authApple), findsNothing);
+        expect(find.byTooltip(AppStrings.authGoogle), findsOneWidget);
+        expect(find.byTooltip(AppStrings.authKakao), findsOneWidget);
+      });
+    });
+
+    testWidgets('⚠️ 누르면 애플 제공자로 인가한다', (tester) async {
+      // 로고만 있는 타일이라 **엉뚱한 제공자에 이어져도 화면만 보고는 모른다.**
+      // 서버 경로가 제공자 이름으로 만들어지므로 어긋나면 404가 된다.
+      final codeSource = FakeOauthCodeSource();
+      await asPlatform(TargetPlatform.iOS, () async {
+        await pumpSignIn(tester, codeSource: codeSource);
+
+        await tapVisible(tester, find.byTooltip(AppStrings.authApple));
+        await tester.pumpAndSettle();
+      });
+
+      expect(codeSource.lastProvider, OauthProvider.apple);
+    });
   });
 }
 

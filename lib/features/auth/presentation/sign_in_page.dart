@@ -23,6 +23,7 @@ import 'package:runiverse/features/auth/domain/sign_in_method.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/auth/presentation/password_field_v2.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 /// 로그인 (S02.5).
 ///
@@ -280,6 +281,21 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                         lastUsed: _lastMethod == SignInMethod.kakao,
                         onPressed: _busy ? null : _startKakao,
                       ),
+                      // ⚠️ **애플은 iOS에만 둔다.** 안드로이드에서 누르면
+                      // 패키지가 애플 웹 흐름을 열고, 그 토큰은 번들 ID가 아닌
+                      // 값으로 발급돼 서버가 401을 돌려준다(연동 가이드 3·6절).
+                      // 눌리지 않을 타일을 보이는 것보다 없는 편이 낫다 —
+                      // 준비 중 안내로 때울 수 있는 성질이 아니다.
+                      if (_showApple) ...[
+                        const SizedBox(width: AppSpacing.space4),
+                        _SocialTile(
+                          label: AppStrings.authApple,
+                          logo: const _AppleLogo(),
+                          background: AppPaletteV2.black,
+                          lastUsed: _lastMethod == SignInMethod.apple,
+                          onPressed: _busy ? null : _startApple,
+                        ),
+                      ],
                     ],
                   ),
 
@@ -314,6 +330,19 @@ class _SignInPageState extends ConsumerState<SignInPage> {
   Future<void> _startKakao() => _startSocial(OauthProvider.kakao);
 
   Future<void> _startGoogle() => _startSocial(OauthProvider.google);
+
+  Future<void> _startApple() => _startSocial(OauthProvider.apple);
+
+  /// 애플 타일을 그리는가. **iOS에서만 `true`다.**
+  ///
+  /// `Platform.isIOS`가 아니라 [defaultTargetPlatform]을 보는 이유는 위젯
+  /// 테스트가 `debugDefaultTargetPlatformOverride`로 이것을 바꿀 수 있어서다 —
+  /// `dart:io`의 값은 테스트에서 늘 호스트(Windows·macOS)라 **두 경우 중
+  /// 하나만 시험된다.**
+  ///
+  /// macOS도 애플 로그인을 지원하지만 넣지 않는다. 서버가 인정하는 번들 ID가
+  /// iOS 것 둘뿐이고(연동 가이드 3절), 데스크톱 빌드는 범위에 없다.
+  static bool get _showApple => defaultTargetPlatform == TargetPlatform.iOS;
 
   /// 간편 로그인을 시작한다. **약관 동의가 먼저다.**
   ///
@@ -664,6 +693,36 @@ class _SocialTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 애플 로고.
+///
+/// ## 파일을 두지 않는다
+///
+/// `sign_in_with_apple`이 애플의 공식 경로를 그려 준다(`AppleLogoPainter`).
+/// SVG 로 옮겨 그리면 **상표를 우리가 틀릴 자리가 생긴다** — 애플은 로고 모양을
+/// 바꾸지 말라고 요구한다.
+///
+/// ## ⚠️ 정사각형에 늘리지 않는다
+///
+/// 원래 비율이 **25:31**(세로가 길다)이다. [_SocialTile]이 로고를 정사각형
+/// 자리에 넣으므로 그대로 그리면 가로로 퍼져 사과가 뚱뚱해진다. 패키지의 버튼이
+/// 쓰는 비율을 그대로 따른다.
+class _AppleLogo extends StatelessWidget {
+  const _AppleLogo();
+
+  /// `sign_in_with_apple_button.dart`의 `fontSize * (25 / 31)`에서 온 값.
+  static const _ratio = 25 / 31;
+
+  @override
+  Widget build(BuildContext context) => const Center(
+    // ⚠️ [Center]가 있어야 한다. 꽉 맞는 제약이 그대로 내려오면 [AspectRatio]가
+    // 줄어들 여지가 없어 비율이 무시된다.
+    child: AspectRatio(
+      aspectRatio: _ratio,
+      child: CustomPaint(painter: AppleLogoPainter(color: AppPaletteV2.white)),
+    ),
+  );
 }
 
 class _OrDivider extends StatelessWidget {
