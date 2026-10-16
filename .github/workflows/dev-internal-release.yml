@@ -166,7 +166,7 @@ jobs:
     name: iOS dev 빌드 → TestFlight 업로드
     needs: prepare
     if: needs.prepare.outputs.build == 'true'
-    runs-on: macos-26 # 기본 Xcode 26.x. App Store는 Xcode 26(iOS 26 SDK) 이상 빌드만 받는다
+    runs-on: macos-26 # App Store는 Xcode 26(iOS 26 SDK) 이상으로 빌드한 앱만 받는다
     timeout-minutes: 60
     environment: dev
     env:
@@ -186,7 +186,6 @@ jobs:
           cache: true
 
       - name: 설정·서명 파일 만들기
-        id: signing
         env:
           DIST_CERT_BASE64: ${{ secrets.IOS_DIST_CERT_BASE64 }}
           DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
@@ -229,7 +228,7 @@ jobs:
           security import "$RUNNER_TEMP/dist.p12" -k "$KEYCHAIN" -P "$DIST_CERT_PASSWORD" -t cert -f pkcs12 -A
           rm "$RUNNER_TEMP/dist.p12"
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
-          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security list-keychains -d user -s "$KEYCHAIN" "$HOME/Library/Keychains/login.keychain-db"
 
           # dev 앱 App Store 배포 프로파일. Xcode가 찾는 두 자리(Xcode 16 전후)에 다 둔다
           PROFILE="$RUNNER_TEMP/dev.mobileprovision"
@@ -252,8 +251,7 @@ jobs:
           PROVISIONING_PROFILE_SPECIFIER = $PROFILE_NAME
           EOF
 
-          ASC_KEY_PATH="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
-          printf '%s' "$ASC_KEY_P8" > "$ASC_KEY_PATH"
+          printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
 
           # flutter build ipa는 .ipa로 내보내기까지만, 업로드는 아래 단계에서 API 키로 한다
           for destination in export upload; do
@@ -275,8 +273,6 @@ jobs:
           </plist>
           EOF
           done
-
-          echo "asc-key-path=$ASC_KEY_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Build ipa
         run: |
@@ -325,6 +321,6 @@ jobs:
             -archivePath "$ARCHIVE" \
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions-upload.plist" \
             -exportPath "$RUNNER_TEMP/upload" \
-            -authenticationKeyPath "${{ steps.signing.outputs.asc-key-path }}" \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID"
