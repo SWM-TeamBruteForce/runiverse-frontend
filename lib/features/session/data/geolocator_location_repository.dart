@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/features/session/domain/altitude_rule.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
@@ -105,13 +106,20 @@ class GeolocatorLocationRepository implements LocationRepository {
 
     // 값을 빠짐없이 적는다. 패키지가 값을 추가하면 여기서 컴파일이 깨지고,
     // 그때 무엇으로 볼지 결정하게 된다. 조용히 넘어가는 것보다 낫다.
-    return switch (permission) {
+    final access = switch (permission) {
       LocationPermission.always ||
       LocationPermission.whileInUse => LocationAccess.granted,
       LocationPermission.deniedForever => LocationAccess.deniedForever,
       LocationPermission.denied ||
       LocationPermission.unableToDetermine => LocationAccess.denied,
     };
+
+    // ⚠️ 러닝 알림은 Android 13부터 알림 권한이 있어야 보인다. 선언만으로는
+    // 서랍에 안 뜬다. 거절해도 기록은 그대로 돈다 — 결과를 보지 않는다.
+    if (Platform.isAndroid && access == LocationAccess.granted) {
+      await Permission.notification.request();
+    }
+    return access;
   }
 
   /// ⚠️ **[ensureAccess]가 통과시켜도 이 스트림은 실패할 수 있다.**
