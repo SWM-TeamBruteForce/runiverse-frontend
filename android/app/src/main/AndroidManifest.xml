@@ -54,7 +54,8 @@
       wakelock_plus와는 다른 것이고, 둘 다 필요하다.
 
       POST_NOTIFICATIONS는 Android 13+에서 알림을 보이게 하는 데 쓴다.
-      ⚠️ 선언만으로는 부족하고 런타임 요청이 있어야 한다(TMB-169). 요청 전에는
+      ⚠️ 선언만으로는 부족하고 런타임 요청이 있어야 한다. 위치 권한 직후에
+      앱이 직접 묻는다(`GeolocatorLocationRepository.ensureAccess`). 거절하면
       알림이 서랍에 안 보이지만 서비스는 정상적으로 돌고 좌표도 들어온다.
     -->
     <!--
