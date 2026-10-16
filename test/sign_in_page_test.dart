@@ -10,6 +10,7 @@ import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/theme/v2/app_palette.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/data/fake_oauth_code_source.dart';
@@ -381,6 +382,42 @@ void main() {
         expect(find.byTooltip(AppStrings.authApple), findsNothing);
         expect(find.byTooltip(AppStrings.authGoogle), findsOneWidget);
         expect(find.byTooltip(AppStrings.authKakao), findsOneWidget);
+      });
+    });
+
+    /// 타일 안의 테두리. 그려지지 않는 쪽(`BorderStyle.none`)은 세지 않는다.
+    Finder borderIn(Finder tile) => find.descendant(
+      of: tile,
+      matching: find.byWidgetPredicate(
+        // ⚠️ `as BoxDecoration` 로 캐스팅하면 안 된다. iOS 화면 전환이
+        // `_CupertinoEdgeShadowDecoration` 을 쓴 [DecoratedBox] 를 끼워 넣는다.
+        (widget) =>
+            widget is DecoratedBox &&
+            widget.decoration is BoxDecoration &&
+            (widget.decoration as BoxDecoration).border?.top.style ==
+                BorderStyle.solid,
+      ),
+    );
+
+    testWidgets('⚠️ 다크 테마에서 보이도록 테두리를 두른다', (tester) async {
+      // 애플의 바탕은 검정(`#000000`)이고 다크 테마의 `bgBase`는 `#0A0A0A`다.
+      // **앱의 기본이 다크라서** 테두리가 없으면 타일이 거의 보이지 않는다 —
+      // 누를 자리가 어디인지 알 수 없다.
+      await asPlatform(TargetPlatform.iOS, () async {
+        await pumpSignIn(tester);
+
+        final border = tester
+            .widgetList<DecoratedBox>(
+              borderIn(find.byTooltip(AppStrings.authApple)),
+            )
+            .single;
+        final side = (border.decoration as BoxDecoration).border!.top;
+
+        // 타일 바탕과 같은 색이면 둘러도 보이지 않는다.
+        expect(side.color, isNot(AppPaletteV2.black));
+        // 나머지 둘은 바탕이 밝아 테두리가 필요 없다.
+        expect(borderIn(find.byTooltip(AppStrings.authGoogle)), findsNothing);
+        expect(borderIn(find.byTooltip(AppStrings.authKakao)), findsNothing);
       });
     });
 

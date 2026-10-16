@@ -292,6 +292,9 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                           label: AppStrings.authApple,
                           logo: const _AppleLogo(),
                           background: AppPaletteV2.black,
+                          // 다크 테마의 바탕이 `#0A0A0A`다 — 테두리가 없으면
+                          // 검정 타일이 거의 보이지 않는다.
+                          bordered: true,
                           lastUsed: _lastMethod == SignInMethod.apple,
                           onPressed: _busy ? null : _startApple,
                         ),
@@ -606,6 +609,7 @@ class _SocialTile extends StatelessWidget {
     required this.logo,
     required this.background,
     required this.onPressed,
+    this.bordered = false,
     this.lastUsed = false,
   });
 
@@ -618,6 +622,19 @@ class _SocialTile extends StatelessWidget {
 
   final Color background;
   final VoidCallback? onPressed;
+
+  /// 테두리를 두르는가. **애플 타일만 `true`다.**
+  ///
+  /// ## ⚠️ 왜 필요한가
+  ///
+  /// 애플의 바탕은 검정(`#000000`)인데 다크 테마의 `bgBase`가 `#0A0A0A`다 —
+  /// 앱의 기본이 다크라서, 테두리가 없으면 **타일이 거의 보이지 않는다.**
+  /// 밝은 테마에서는 흰 배경에 검정 타일이라 필요가 없지만, 테두리 색을
+  /// 테마에서 가져오므로 그쪽에서도 어색하지 않다.
+  ///
+  /// 바탕색과 달리 테두리는 애플이 정한 값이 아니다 — 우리 배경과의 관계를
+  /// 메우는 것이라 [AppColorsV2]를 쓴다.
+  final bool bordered;
 
   /// 이 기기에서 마지막으로 성공한 방법인가.
   final bool lastUsed;
@@ -634,15 +651,25 @@ class _SocialTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
 
-    final tile = Material(
-      color: background,
-      borderRadius: AppRadius.lg,
-      child: InkWell(
-        onTap: onPressed,
+    // 테두리는 **앞에** 그린다. 뒤에 두면 [Material]의 바탕이 덮는다.
+    final tile = DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: BoxDecoration(
         borderRadius: AppRadius.lg,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: _padX, vertical: _padY),
-          child: SizedBox.square(dimension: _logoSize),
+        border: bordered
+            ? Border.all(color: colors.borderStrong)
+            : const Border.fromBorderSide(BorderSide.none),
+      ),
+      child: Material(
+        color: background,
+        borderRadius: AppRadius.lg,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: AppRadius.lg,
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: _padX, vertical: _padY),
+            child: SizedBox.square(dimension: _logoSize),
+          ),
         ),
       ),
     );
