@@ -78,14 +78,21 @@ class HttpAuthRepository implements AuthRepository {
   }) async {
     try {
       // ⚠️ **제공자마다 본문이 다르다.** 카카오는 인가 코드 + 검증값,
-      // 구글은 ID 토큰 하나다. `sealed` 라 제공자가 늘면 **여기서 컴파일이
-      // 깨진다** — 빈 본문을 보내고 서버에서 원인을 찾는 일이 없다.
+      // 구글은 ID 토큰 하나, 애플은 ID 토큰 + nonce 원본이다. `sealed` 라
+      // 제공자가 늘면 **여기서 컴파일이 깨진다** — 빈 본문을 보내고 서버에서
+      // 원인을 찾는 일이 없다.
       final body = switch (authorization) {
         OauthCode(:final authorizationCode, :final codeVerifier) => {
           'authorizationCode': authorizationCode,
           'codeVerifier': codeVerifier,
         },
         OauthIdToken(:final idToken) => {'idToken': idToken},
+        // ⚠️ `nonce` 는 **해시하지 않은 원본**이다. 서버가 이것을 해시해 ID
+        // 토큰 안의 값과 대조한다 — 해시를 보내면 401이 돌아온다.
+        OauthIdTokenWithNonce(:final idToken, :final nonce) => {
+          'idToken': idToken,
+          'nonce': nonce,
+        },
       };
 
       final response = await _dio.post<Map<String, dynamic>>(

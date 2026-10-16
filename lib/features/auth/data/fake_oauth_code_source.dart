@@ -23,9 +23,16 @@ class FakeOauthCodeSource implements OauthCodeSource {
   /// 가면 쓸모없는 요청이 나간다.
   var callCount = 0;
 
+  /// 마지막으로 어느 제공자로 불렸는가.
+  ///
+  /// **타일과 제공자가 바르게 이어졌는지** 보는 데 쓴다. 로고만 있는 타일이라
+  /// 엉뚱한 제공자에 이어져도 화면만 보고는 알 수 없다.
+  OauthProvider? lastProvider;
+
   @override
   Future<OauthAuthorization> authorize(OauthProvider provider) async {
     callCount++;
+    lastProvider = provider;
 
     final reason = failure;
     if (reason != null) throw AuthException(reason);

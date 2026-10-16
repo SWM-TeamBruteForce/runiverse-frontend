@@ -1,3 +1,5 @@
+// `debugDefaultTargetPlatformOverride`가 여기 있다. material 이 재수출하지 않는다.
+import 'package:flutter/foundation.dart';
 // TextField를 이름으로 찾으려면 필요하다. flutter_test는 material을 재수출하지 않는다.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,7 @@ import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/theme/v2/app_palette.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/data/fake_oauth_code_source.dart';
@@ -333,6 +336,140 @@ void main() {
     // 풀리기만 하면 되는 게 아니다. 아무 말도 없으면 사용자는 **버튼이 안 눌렸다**고
     // 읽고 같은 자리를 계속 누른다.
     expect(find.text(AppStrings.authFailedOauth), findsOneWidget);
+  });
+
+  /// 애플 타일 — **iOS에만 있다.**
+  ///
+  /// 안드로이드에서 누르면 패키지가 애플 웹 흐름을 열고, 그렇게 받은 토큰은
+  /// 발급 대상이 번들 ID가 아니라서 **서버가 401을 돌려준다**(연동 가이드
+  /// 3·6절). 앱에서는 인가가 성공처럼 보여 원인이 서버에서만 드러난다.
+  ///
+  /// `dart:io`의 `Platform.isIOS`를 보면 테스트에서 늘 호스트(Windows)라
+  /// **두 경우 중 하나만 시험된다.** 화면이 `defaultTargetPlatform`을 보므로
+  /// 여기서 둘 다 세울 수 있다.
+  group('애플 타일', () {
+    /// ⚠️ **`addTearDown`으로는 되돌릴 수 없다.** `testWidgets`가 본문이
+    /// 끝나는 자리에서 "디버그 변수를 건드린 채 끝났는지"를 검사하는데,
+    /// tearDown 은 그 뒤에 돈다. 본문 안에서 되돌려야 한다.
+    Future<void> asPlatform(
+      TargetPlatform platform,
+      Future<void> Function() body,
+    ) async {
+      debugDefaultTargetPlatformOverride = platform;
+      try {
+        await body();
+      } finally {
+        // 실패해도 되돌린다. 남으면 뒤따르는 테스트가 엉뚱한 플랫폼에서 돈다.
+        debugDefaultTargetPlatformOverride = null;
+      }
+    }
+
+    testWidgets('iOS에서는 뜬다', (tester) async {
+      await asPlatform(TargetPlatform.iOS, () async {
+        await pumpSignIn(tester);
+
+        expect(find.byTooltip(AppStrings.authApple), findsOneWidget);
+        // 나머지 둘은 그대로 있다.
+        expect(find.byTooltip(AppStrings.authGoogle), findsOneWidget);
+        expect(find.byTooltip(AppStrings.authKakao), findsOneWidget);
+      });
+    });
+
+    testWidgets('⚠️ 안드로이드에서는 없다', (tester) async {
+      await asPlatform(TargetPlatform.android, () async {
+        await pumpSignIn(tester);
+
+        expect(find.byTooltip(AppStrings.authApple), findsNothing);
+        expect(find.byTooltip(AppStrings.authGoogle), findsOneWidget);
+        expect(find.byTooltip(AppStrings.authKakao), findsOneWidget);
+      });
+    });
+
+    /// 타일 안의 테두리. 그려지지 않는 쪽(`BorderStyle.none`)은 세지 않는다.
+    Finder borderIn(Finder tile) => find.descendant(
+      of: tile,
+      matching: find.byWidgetPredicate(
+        // ⚠️ `as BoxDecoration` 로 캐스팅하면 안 된다. iOS 화면 전환이
+        // `_CupertinoEdgeShadowDecoration` 을 쓴 [DecoratedBox] 를 끼워 넣는다.
+        (widget) =>
+            widget is DecoratedBox &&
+            widget.decoration is BoxDecoration &&
+            (widget.decoration as BoxDecoration).border?.top.style ==
+                BorderStyle.solid,
+      ),
+    );
+
+    testWidgets('⚠️ 다크 테마에서 보이도록 테두리를 두른다', (tester) async {
+      // 애플의 바탕은 검정(`#000000`)이고 다크 테마의 `bgBase`는 `#0A0A0A`다.
+      // **앱의 기본이 다크라서** 테두리가 없으면 타일이 거의 보이지 않는다 —
+      // 누를 자리가 어디인지 알 수 없다.
+      await asPlatform(TargetPlatform.iOS, () async {
+        await pumpSignIn(tester);
+
+        final border = tester
+            .widgetList<DecoratedBox>(
+              borderIn(find.byTooltip(AppStrings.authApple)),
+            )
+            .single;
+        final side = (border.decoration as BoxDecoration).border!.top;
+
+        // 타일 바탕과 같은 색이면 둘러도 보이지 않는다.
+        expect(side.color, isNot(AppPaletteV2.black));
+        // 나머지 둘은 바탕이 밝아 테두리가 필요 없다.
+        expect(borderIn(find.byTooltip(AppStrings.authGoogle)), findsNothing);
+        expect(borderIn(find.byTooltip(AppStrings.authKakao)), findsNothing);
+      });
+    });
+
+    /// 쓸 수 없는 두 이유 — **같은 문구를 쓰면 안 된다.**
+    ///
+    /// 하나는 **빌드에 키가 없는 것**이라 다음 배포에서 열리고, 다른 하나는
+    /// **기기의 성질**이라 기다려도 열리지 않는다. 둘 다 "아직 준비 중이에요"로
+    /// 받으면, 기기 때문에 안 되는 사람이 **영영 오지 않을 것을 기다린다.**
+    testWidgets('⚠️ 지원하지 않는 기기에 준비 중이라고 하지 않는다', (tester) async {
+      await asPlatform(TargetPlatform.iOS, () async {
+        await pumpSignIn(
+          tester,
+          codeSource: FakeOauthCodeSource(
+            failure: AuthFailure.oauthNotSupported,
+          ),
+        );
+
+        await tapVisible(tester, find.byTooltip(AppStrings.authApple));
+        await tester.pumpAndSettle();
+
+        expect(find.text(AppStrings.authSocialUnsupported), findsOneWidget);
+        expect(find.text(AppStrings.authSocialComingSoon), findsNothing);
+      });
+    });
+
+    testWidgets('키가 없는 빌드는 그대로 준비 중이라고 한다', (tester) async {
+      // 이 줄이 위의 뜻을 지킨다. 둘을 합쳐도 위만 보면 통과해 버린다.
+      await pumpSignIn(
+        tester,
+        codeSource: FakeOauthCodeSource(failure: AuthFailure.oauthUnavailable),
+      );
+
+      await tapVisible(tester, find.byTooltip(AppStrings.authKakao));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.authSocialComingSoon), findsOneWidget);
+      expect(find.text(AppStrings.authSocialUnsupported), findsNothing);
+    });
+
+    testWidgets('⚠️ 누르면 애플 제공자로 인가한다', (tester) async {
+      // 로고만 있는 타일이라 **엉뚱한 제공자에 이어져도 화면만 보고는 모른다.**
+      // 서버 경로가 제공자 이름으로 만들어지므로 어긋나면 404가 된다.
+      final codeSource = FakeOauthCodeSource();
+      await asPlatform(TargetPlatform.iOS, () async {
+        await pumpSignIn(tester, codeSource: codeSource);
+
+        await tapVisible(tester, find.byTooltip(AppStrings.authApple));
+        await tester.pumpAndSettle();
+      });
+
+      expect(codeSource.lastProvider, OauthProvider.apple);
+    });
   });
 }
 

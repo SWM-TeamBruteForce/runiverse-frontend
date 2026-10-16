@@ -23,6 +23,7 @@ import 'package:runiverse/features/auth/domain/sign_in_method.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/auth/presentation/password_field_v2.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 /// 로그인 (S02.5).
 ///
@@ -280,6 +281,24 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                         lastUsed: _lastMethod == SignInMethod.kakao,
                         onPressed: _busy ? null : _startKakao,
                       ),
+                      // ⚠️ **애플은 iOS에만 둔다.** 안드로이드에서 누르면
+                      // 패키지가 애플 웹 흐름을 열고, 그 토큰은 번들 ID가 아닌
+                      // 값으로 발급돼 서버가 401을 돌려준다(연동 가이드 3·6절).
+                      // 눌리지 않을 타일을 보이는 것보다 없는 편이 낫다 —
+                      // 준비 중 안내로 때울 수 있는 성질이 아니다.
+                      if (_showApple) ...[
+                        const SizedBox(width: AppSpacing.space4),
+                        _SocialTile(
+                          label: AppStrings.authApple,
+                          logo: const _AppleLogo(),
+                          background: AppPaletteV2.black,
+                          // 다크 테마의 바탕이 `#0A0A0A`다 — 테두리가 없으면
+                          // 검정 타일이 거의 보이지 않는다.
+                          bordered: true,
+                          lastUsed: _lastMethod == SignInMethod.apple,
+                          onPressed: _busy ? null : _startApple,
+                        ),
+                      ],
                     ],
                   ),
 
@@ -314,6 +333,19 @@ class _SignInPageState extends ConsumerState<SignInPage> {
   Future<void> _startKakao() => _startSocial(OauthProvider.kakao);
 
   Future<void> _startGoogle() => _startSocial(OauthProvider.google);
+
+  Future<void> _startApple() => _startSocial(OauthProvider.apple);
+
+  /// 애플 타일을 그리는가. **iOS에서만 `true`다.**
+  ///
+  /// `Platform.isIOS`가 아니라 [defaultTargetPlatform]을 보는 이유는 위젯
+  /// 테스트가 `debugDefaultTargetPlatformOverride`로 이것을 바꿀 수 있어서다 —
+  /// `dart:io`의 값은 테스트에서 늘 호스트(Windows·macOS)라 **두 경우 중
+  /// 하나만 시험된다.**
+  ///
+  /// macOS도 애플 로그인을 지원하지만 넣지 않는다. 서버가 인정하는 번들 ID가
+  /// iOS 것 둘뿐이고(연동 가이드 3절), 데스크톱 빌드는 범위에 없다.
+  static bool get _showApple => defaultTargetPlatform == TargetPlatform.iOS;
 
   /// 간편 로그인을 시작한다. **약관 동의가 먼저다.**
   ///
@@ -577,6 +609,7 @@ class _SocialTile extends StatelessWidget {
     required this.logo,
     required this.background,
     required this.onPressed,
+    this.bordered = false,
     this.lastUsed = false,
   });
 
@@ -589,6 +622,19 @@ class _SocialTile extends StatelessWidget {
 
   final Color background;
   final VoidCallback? onPressed;
+
+  /// 테두리를 두르는가. **애플 타일만 `true`다.**
+  ///
+  /// ## ⚠️ 왜 필요한가
+  ///
+  /// 애플의 바탕은 검정(`#000000`)인데 다크 테마의 `bgBase`가 `#0A0A0A`다 —
+  /// 앱의 기본이 다크라서, 테두리가 없으면 **타일이 거의 보이지 않는다.**
+  /// 밝은 테마에서는 흰 배경에 검정 타일이라 필요가 없지만, 테두리 색을
+  /// 테마에서 가져오므로 그쪽에서도 어색하지 않다.
+  ///
+  /// 바탕색과 달리 테두리는 애플이 정한 값이 아니다 — 우리 배경과의 관계를
+  /// 메우는 것이라 [AppColorsV2]를 쓴다.
+  final bool bordered;
 
   /// 이 기기에서 마지막으로 성공한 방법인가.
   final bool lastUsed;
@@ -605,15 +651,25 @@ class _SocialTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
 
-    final tile = Material(
-      color: background,
-      borderRadius: AppRadius.lg,
-      child: InkWell(
-        onTap: onPressed,
+    // 테두리는 **앞에** 그린다. 뒤에 두면 [Material]의 바탕이 덮는다.
+    final tile = DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: BoxDecoration(
         borderRadius: AppRadius.lg,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: _padX, vertical: _padY),
-          child: SizedBox.square(dimension: _logoSize),
+        border: bordered
+            ? Border.all(color: colors.borderStrong)
+            : const Border.fromBorderSide(BorderSide.none),
+      ),
+      child: Material(
+        color: background,
+        borderRadius: AppRadius.lg,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: AppRadius.lg,
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: _padX, vertical: _padY),
+            child: SizedBox.square(dimension: _logoSize),
+          ),
         ),
       ),
     );
@@ -666,6 +722,36 @@ class _SocialTile extends StatelessWidget {
   }
 }
 
+/// 애플 로고.
+///
+/// ## 파일을 두지 않는다
+///
+/// `sign_in_with_apple`이 애플의 공식 경로를 그려 준다(`AppleLogoPainter`).
+/// SVG 로 옮겨 그리면 **상표를 우리가 틀릴 자리가 생긴다** — 애플은 로고 모양을
+/// 바꾸지 말라고 요구한다.
+///
+/// ## ⚠️ 정사각형에 늘리지 않는다
+///
+/// 원래 비율이 **25:31**(세로가 길다)이다. [_SocialTile]이 로고를 정사각형
+/// 자리에 넣으므로 그대로 그리면 가로로 퍼져 사과가 뚱뚱해진다. 패키지의 버튼이
+/// 쓰는 비율을 그대로 따른다.
+class _AppleLogo extends StatelessWidget {
+  const _AppleLogo();
+
+  /// `sign_in_with_apple_button.dart`의 `fontSize * (25 / 31)`에서 온 값.
+  static const _ratio = 25 / 31;
+
+  @override
+  Widget build(BuildContext context) => const Center(
+    // ⚠️ [Center]가 있어야 한다. 꽉 맞는 제약이 그대로 내려오면 [AspectRatio]가
+    // 줄어들 여지가 없어 비율이 무시된다.
+    child: AspectRatio(
+      aspectRatio: _ratio,
+      child: CustomPaint(painter: AppleLogoPainter(color: AppPaletteV2.white)),
+    ),
+  );
+}
+
 class _OrDivider extends StatelessWidget {
   const _OrDivider();
 
@@ -711,8 +797,11 @@ class _FailureNotice extends StatelessWidget {
     // 소셜 로그인 — 이 화면에서 실제로 난다.
     AuthFailure.oauthFailed => AppStrings.authFailedOauth,
     // 이 빌드에 앱 키가 없다. **"다시 시도해주세요"를 쓰지 않는다** —
-    // 다시 눌러도 키는 생기지 않는다. 애플 버튼과 같은 말을 한다.
+    // 다시 눌러도 키는 생기지 않는다. 다음 배포에서 열린다.
     AuthFailure.oauthUnavailable => AppStrings.authSocialComingSoon,
+    // ⚠️ 위와 **같은 문구를 쓰지 않는다.** 이쪽은 기기의 성질이라 기다려도
+    // 열리지 않는다 — "준비 중"은 영영 오지 않을 것을 기다리게 한다.
+    AuthFailure.oauthNotSupported => AppStrings.authSocialUnsupported,
     AuthFailure.oauthEmailMissing => AppStrings.authFailedOauthEmail,
     // 카카오 계정의 이메일로 이미 가입한 사람이다. 서버가 자동 연동하지 않으므로
     // **이메일 로그인으로 안내한다** — "이미 가입했다"만으로는 갈 곳을 모른다.

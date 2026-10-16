@@ -83,6 +83,16 @@ dependencies:
   firebase_core: ^4.15.0
   firebase_analytics: ^12.6.0
   flutter_image_compress: ^2.5.1
+  # 애플 로그인. **iOS 에서만 부른다** — 안드로이드·웹에서는 애플 웹 흐름을
+  # 열어야 해서 `serviceIdentifier` 와 `redirectUri` 가 필요한데, 서버는 iOS
+  # 번들 ID 로 발급된 ID 토큰만 받는다(연동 가이드 3·6절).
+  sign_in_with_apple: ^8.2.0
+  # nonce 를 SHA-256 으로 해시한다(`AppleNonce`). 애플에는 해시를, 서버에는
+  # 원본을 보낸다.
+  #
+  # ⚠️ **간접 의존성이어서 import 는 이미 되지만 직접 적는다.** 남의 의존성에
+  # 얹혀 있으면 그쪽이 버전을 올리거나 떼는 날 조용히 깨진다.
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_test:

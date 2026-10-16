@@ -8,6 +8,7 @@ import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/secure_token_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
+import 'package:runiverse/features/auth/data/apple_code_source.dart';
 import 'package:runiverse/features/auth/data/http_auth_repository.dart';
 import 'package:runiverse/features/auth/data/google_code_source.dart';
 import 'package:runiverse/features/auth/data/kakao_code_source.dart';
@@ -94,14 +95,17 @@ final tokenRefresherProvider = Provider<TokenRefresher>(
 
 /// 소셜 인가를 어디서 얻는가. **제공자마다 다른 SDK를 부른다.**
 ///
-/// ⚠️ **테스트는 이것을 override해야 한다.** 두 SDK 모두 플랫폼 채널을 부르는데
+/// ⚠️ **테스트는 이것을 override해야 한다.** 세 SDK 모두 플랫폼 채널을 부르는데
 /// 테스트 환경에는 채널이 없다. `FakeOauthCodeSource`를 넣으면 된다.
 ///
-/// `family` 라 제공자별로 따로 덮을 수도 있고, 하나로 덮으면 둘 다 그것을 쓴다.
+/// `family` 라 제공자별로 따로 덮을 수도 있고, 하나로 덮으면 셋 다 그것을 쓴다.
 final oauthCodeSourceProvider = Provider.family<OauthCodeSource, OauthProvider>(
   (ref, provider) => switch (provider) {
     OauthProvider.kakao => const KakaoCodeSource(),
     OauthProvider.google => const GoogleCodeSource(),
+    // iOS가 아니면 부르기 전에 돌아선다. 화면에도 타일이 없지만, 플랫폼 판단을
+    // 소스가 스스로 하므로 여기서 가르지 않는다.
+    OauthProvider.apple => const AppleCodeSource(),
   },
 );
 
@@ -260,6 +264,7 @@ class AuthController extends Notifier<AuthState> {
       switch (provider) {
         OauthProvider.kakao => SignInMethod.kakao,
         OauthProvider.google => SignInMethod.google,
+        OauthProvider.apple => SignInMethod.apple,
       },
     );
   }
