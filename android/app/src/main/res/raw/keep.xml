@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  릴리스 빌드의 리소스 축소가 지우지 말아야 할 리소스.
+
+  코드에서 이름 문자열로만 찾는 리소스는 축소기가 "안 쓰는 것"으로 본다.
+  - ic_stat_running: geolocator가 러닝 알림 아이콘으로 이름을 받아 찾는다.
+    지워지면 알림 아이콘이 없어 위치 서비스가 시작하지 못한다.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_running" />

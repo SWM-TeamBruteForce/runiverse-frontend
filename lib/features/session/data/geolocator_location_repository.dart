@@ -61,12 +61,15 @@ class GeolocatorLocationRepository implements LocationRepository {
         // 없으면 화면이 꺼지거나 앱이 뒤로 가는 순간 Android가 갱신을 시간당
         // 몇 번으로 제한하고, 그 구간이 좌표 공백이 된다 — 서버는 빈 자리를
         // 직선으로 이어 **거리를 실제보다 짧게 계산한다.**
-        //
-        // `notificationIcon`은 생략한다. 기본값이 `mipmap/ic_launcher`다.
         foregroundNotificationConfig: const ForegroundNotificationConfig(
           notificationTitle: AppStrings.runNotificationTitle,
           notificationText: AppStrings.runNotificationText,
           notificationChannelName: AppStrings.runNotificationChannel,
+          // 단색 실루엣이어야 한다. 컬러 앱 아이콘은 동그라미로 뭉개진다.
+          notificationIcon: AndroidResource(
+            name: 'ic_stat_running',
+            defType: 'drawable',
+          ),
           // 화면이 꺼진 동안 CPU를 깨워 둔다. 화면을 켜 두는 wakelock_plus와
           // 다른 것이다 — 그쪽은 화면, 이쪽은 CPU다.
           enableWakeLock: true,
