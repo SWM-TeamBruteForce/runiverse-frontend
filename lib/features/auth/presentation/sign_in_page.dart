@@ -797,8 +797,11 @@ class _FailureNotice extends StatelessWidget {
     // 소셜 로그인 — 이 화면에서 실제로 난다.
     AuthFailure.oauthFailed => AppStrings.authFailedOauth,
     // 이 빌드에 앱 키가 없다. **"다시 시도해주세요"를 쓰지 않는다** —
-    // 다시 눌러도 키는 생기지 않는다. 애플 버튼과 같은 말을 한다.
+    // 다시 눌러도 키는 생기지 않는다. 다음 배포에서 열린다.
     AuthFailure.oauthUnavailable => AppStrings.authSocialComingSoon,
+    // ⚠️ 위와 **같은 문구를 쓰지 않는다.** 이쪽은 기기의 성질이라 기다려도
+    // 열리지 않는다 — "준비 중"은 영영 오지 않을 것을 기다리게 한다.
+    AuthFailure.oauthNotSupported => AppStrings.authSocialUnsupported,
     AuthFailure.oauthEmailMissing => AppStrings.authFailedOauthEmail,
     // 카카오 계정의 이메일로 이미 가입한 사람이다. 서버가 자동 연동하지 않으므로
     // **이메일 로그인으로 안내한다** — "이미 가입했다"만으로는 갈 곳을 모른다.

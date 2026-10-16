@@ -43,8 +43,11 @@ class AppleCodeSource implements OauthCodeSource {
     if (defaultTargetPlatform != TargetPlatform.iOS) {
       // [AuthFailure.oauthFailed]로 뭉뚱그리지 않는다 — "다시 시도해주세요"는
       // 거짓말이다. 다시 눌러도 이 기기에서는 되지 않는다.
+      //
+      // [AuthFailure.oauthUnavailable](키가 없는 빌드)과도 나눈다. 저쪽은 다음
+      // 배포에서 열리지만 이쪽은 기기의 성질이라 기다려도 열리지 않는다.
       _log('건너뜀', 'iOS가 아니다 ($defaultTargetPlatform)');
-      throw const AuthException(AuthFailure.oauthUnavailable);
+      throw const AuthException(AuthFailure.oauthNotSupported);
     }
 
     // ⚠️ **로그인마다 새로 만든다.** 재사용하면 nonce 가 막으려던 재전송을
@@ -88,7 +91,7 @@ class AppleCodeSource implements OauthCodeSource {
       // iOS 13 미만. 배포 타깃이 13.0이라 정상적으로는 오지 않지만,
       // 온다면 다시 눌러도 되지 않으므로 [AuthFailure.oauthFailed]와 나눈다.
       _log('건너뜀', '이 기기가 지원하지 않는다: ${error.message}');
-      throw const AuthException(AuthFailure.oauthUnavailable);
+      throw const AuthException(AuthFailure.oauthNotSupported);
     } on SignInWithAppleException catch (error) {
       // 위 둘의 부모다. **아래에 둬야 한다** — 위로 올리면 앞의 두 분기가
       // 죽고 취소가 오류로 읽힌다.

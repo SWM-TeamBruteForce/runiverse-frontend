@@ -116,7 +116,7 @@ void main() {
         .signInWithOauth(OauthProvider.apple);
 
     // "다시 시도해주세요"가 아니라 "쓸 수 없다"다 — 다시 눌러도 되지 않는다.
-    expect(failure, AuthFailure.oauthUnavailable);
+    expect(failure, AuthFailure.oauthNotSupported);
   });
 
   test("서버의 'APPLE'을 계정 성질로 읽는다", () async {

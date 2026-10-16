@@ -128,7 +128,7 @@ void main() {
     // "다시 시도해주세요"는 거짓말이다. iOS 13 미만에서 온다.
     respond(error: PlatformException(code: 'not-supported'));
 
-    expect(await failureOf(), AuthFailure.oauthUnavailable);
+    expect(await failureOf(), AuthFailure.oauthNotSupported);
   });
 
   test('⚠️ ID 토큰이 비어 오면 서버에 보내지 않는다', () async {
@@ -170,7 +170,7 @@ void main() {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     respond();
 
-    expect(await failureOf(), AuthFailure.oauthUnavailable);
+    expect(await failureOf(), AuthFailure.oauthNotSupported);
     expect(request, isNull, reason: 'SDK 까지 가면 안 된다');
   });
 }

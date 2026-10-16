@@ -421,6 +421,42 @@ void main() {
       });
     });
 
+    /// 쓸 수 없는 두 이유 — **같은 문구를 쓰면 안 된다.**
+    ///
+    /// 하나는 **빌드에 키가 없는 것**이라 다음 배포에서 열리고, 다른 하나는
+    /// **기기의 성질**이라 기다려도 열리지 않는다. 둘 다 "아직 준비 중이에요"로
+    /// 받으면, 기기 때문에 안 되는 사람이 **영영 오지 않을 것을 기다린다.**
+    testWidgets('⚠️ 지원하지 않는 기기에 준비 중이라고 하지 않는다', (tester) async {
+      await asPlatform(TargetPlatform.iOS, () async {
+        await pumpSignIn(
+          tester,
+          codeSource: FakeOauthCodeSource(
+            failure: AuthFailure.oauthNotSupported,
+          ),
+        );
+
+        await tapVisible(tester, find.byTooltip(AppStrings.authApple));
+        await tester.pumpAndSettle();
+
+        expect(find.text(AppStrings.authSocialUnsupported), findsOneWidget);
+        expect(find.text(AppStrings.authSocialComingSoon), findsNothing);
+      });
+    });
+
+    testWidgets('키가 없는 빌드는 그대로 준비 중이라고 한다', (tester) async {
+      // 이 줄이 위의 뜻을 지킨다. 둘을 합쳐도 위만 보면 통과해 버린다.
+      await pumpSignIn(
+        tester,
+        codeSource: FakeOauthCodeSource(failure: AuthFailure.oauthUnavailable),
+      );
+
+      await tapVisible(tester, find.byTooltip(AppStrings.authKakao));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.authSocialComingSoon), findsOneWidget);
+      expect(find.text(AppStrings.authSocialUnsupported), findsNothing);
+    });
+
     testWidgets('⚠️ 누르면 애플 제공자로 인가한다', (tester) async {
       // 로고만 있는 타일이라 **엉뚱한 제공자에 이어져도 화면만 보고는 모른다.**
       // 서버 경로가 제공자 이름으로 만들어지므로 어긋나면 404가 된다.
