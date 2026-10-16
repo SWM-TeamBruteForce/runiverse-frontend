@@ -62,6 +62,9 @@ void main() async {
     AppConfig.hasGoogleServerClientId,
     'GOOGLE_SERVER_CLIENT_ID',
   );
+  if (Platform.isIOS) {
+    _requireInRelease(AppConfig.hasGoogleIosClientId, 'GOOGLE_IOS_CLIENT_ID');
+  }
   if (AppConfig.hasGoogleServerClientId) {
     await GoogleSignIn.instance.initialize(
       clientId: Platform.isIOS ? AppConfig.googleIosClientId : null,

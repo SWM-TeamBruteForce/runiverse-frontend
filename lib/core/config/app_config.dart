@@ -71,6 +71,9 @@ class AppConfig {
     'GOOGLE_IOS_CLIENT_ID',
   );
 
+  /// iOS 구글 로그인에 쓸 iOS 클라이언트 ID가 있는가.
+  static bool get hasGoogleIosClientId => googleIosClientId.isNotEmpty;
+
   /// 구글 로그인을 걸어도 되는가.
   ///
   /// 카카오와 같은 규칙이다 — 값이 없으면 초기화하지 않고, 버튼은 `준비 중`으로
