@@ -149,7 +149,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   // ── 탈퇴 ──────────────────────────────────────────────────
 
   Future<void> _withdraw() async {
-    if (!await showWithdrawSheet(context) || !mounted) return;
+    // 애플 계정이면 시트가 "애플 쪽 연결을 직접 끊으라"는 줄을 덧붙인다.
+    // 아직 `/users/me`를 못 읽었으면 `null`이라 그 줄이 빠진다 — 없는 안내보다
+    // 틀린 안내가 나쁘다.
+    final loginType = ref.read(
+      authControllerProvider.select(
+        (state) => state is AuthSignedIn ? state.user?.loginType : null,
+      ),
+    );
+    if (!await showWithdrawSheet(context, loginType: loginType) || !mounted) {
+      return;
+    }
 
     final failure = await ref
         .read(settingsControllerProvider.notifier)
@@ -275,6 +285,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     LoginType.local => AppStrings.settingsLoginLocal,
     LoginType.kakao => AppStrings.settingsLoginKakao,
     LoginType.google => AppStrings.settingsLoginGoogle,
+    LoginType.apple => AppStrings.settingsLoginApple,
     null => AppStrings.settingsLoginUnknown,
   };
 }

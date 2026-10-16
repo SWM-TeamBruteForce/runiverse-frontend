@@ -133,11 +133,15 @@ class FakeAuthRepository implements AuthRepository {
     oauthCallCount++;
     await Future<void>.delayed(latency);
 
-    // 사람을 가려내는 열쇠가 제공자마다 다르다 — 카카오는 인가 코드,
-    // 구글은 ID 토큰이다. 가짜 저장소는 그 값을 그대로 열쇠로 쓴다.
+    // 사람을 가려내는 열쇠가 제공자마다 다르다 — 카카오는 인가 코드, 구글과
+    // 애플은 ID 토큰이다. 가짜 저장소는 그 값을 그대로 열쇠로 쓴다.
+    //
+    // 애플의 nonce 는 열쇠에 넣지 않는다. 로그인마다 달라지므로 넣으면
+    // **같은 사람이 매번 다른 계정으로 보인다.**
     final key = switch (authorization) {
       OauthCode(:final authorizationCode) => authorizationCode,
       OauthIdToken(:final idToken) => idToken,
+      OauthIdTokenWithNonce(:final idToken) => idToken,
     };
 
     // 심어 두지 않았으면 처음 오는 사람이다. 열쇠에서 이메일을 만들어

@@ -40,7 +40,10 @@ abstract interface class Analytics {
   /// 화면 하나를 봤다. [name] 은 `GoRoute` 에 붙인 이름이다.
   Future<void> screenView({required String name});
 
-  /// 로그인 성공. [method] 는 `email` · `kakao` · `google`.
+  /// 로그인 성공. [method] 는 `email` · `kakao` · `google` · `apple`.
+  ///
+  /// `SignInMethod.name`을 그대로 쓴다. 제공자가 늘면 값도 따라 늘어난다 —
+  /// 대시보드의 분류를 손봐야 한다는 뜻이다.
   Future<void> login({required String method});
 
   /// 프로필 설정 저장 성공. **가입 완료로 센다.**

@@ -326,6 +326,10 @@ abstract final class AppStrings {
   static const authGoogle = '구글로 계속하기';
   static const authKakao = '카카오로 계속하기';
 
+  /// ⚠️ **iOS에서만 그려진다.** 안드로이드는 애플 웹 흐름을 거쳐야 하는데
+  /// 서버가 iOS 번들 ID로 발급된 토큰만 받는다(연동 가이드 3·6절).
+  static const authApple = '애플로 계속하기';
+
   /// 이메일 로그인과 소셜 버튼 사이의 구분선.
   ///
   /// 시안(`158:2927`)은 여기에 `또는` 대신 **아래가 무엇인지**를 적는다.
@@ -1469,6 +1473,10 @@ abstract final class AppStrings {
   static const settingsLoginKakao = '카카오';
   static const settingsLoginGoogle = '구글';
 
+  /// ⚠️ **안드로이드에서도 뜬다.** 버튼은 iOS에만 있지만 계정의 성질은 기기와
+  /// 무관하다 — iOS에서 애플로 가입한 사람이 기기를 바꾸면 이 라벨을 본다.
+  static const settingsLoginApple = '애플';
+
   /// 서버가 모르는 제공자를 보냈다. **비밀번호 메뉴는 숨는다.**
   static const settingsLoginUnknown = '확인 불가';
 
@@ -1565,6 +1573,20 @@ abstract final class AppStrings {
   static const withdrawBody =
       '기록과 색이 모두 사라져요. 되돌릴 수 없어요.\n'
       '이미 올린 피드는 작성자가 가려진 채 남아요.';
+
+  /// 애플 계정으로 가입한 사람에게만 덧붙인다.
+  ///
+  /// ## ⚠️ 탈퇴해도 애플 쪽 연결은 남는다
+  ///
+  /// 우리가 계정을 지워도 애플의 "이 앱에 로그인했다" 기록은 그대로다
+  /// (연동 가이드 6절). 그것을 모르면 **탈퇴했는데 애플 설정에 앱이 남아 있는
+  /// 것**이 고장으로 읽힌다. 앱이 대신 끊을 방법이 없으니 어디서 끊는지만 적는다.
+  ///
+  /// 카카오·구글도 같은 잔재가 남는다. 백엔드 가이드가 애플만 요청해 우선
+  /// 애플만 적었다 — 나머지도 같은 안내가 필요하다.
+  static const withdrawAppleNotice =
+      '애플 ID 설정 > 암호 및 보안 > Apple로 로그인에서\n'
+      '이 앱의 연결을 직접 해제해주세요.';
 
   static const withdrawConfirm = '탈퇴하기';
 

@@ -69,6 +69,101 @@ void main() {
     // 이름이 바뀌어도 테스트가 통과해 버린다.
     expect(await failureOf(401, 'SOMETHING_NEW'), AuthFailure.unknown);
   });
+
+  /// 보내는 모양 — **경로와 본문이 제공자마다 다르다.**
+  ///
+  /// 실패 매핑만 보던 그물에는 이 구멍이 있었다. 본문의 열쇠 이름이 틀리면
+  /// 서버는 400 `INVALID_REQUEST`를 주는데, 그 화면 문구("입력을 확인해
+  /// 주세요")가 원인을 가린다.
+  group('보내는 모양', () {
+    /// 요청을 가로채 **보낸 것 그대로** 돌려준다.
+    Future<_Sent> sentOf(
+      OauthProvider provider,
+      OauthAuthorization authorization,
+    ) async {
+      final adapter = _CaptureAdapter();
+      final dio = Dio(BaseOptions(baseUrl: 'http://test.invalid'))
+        ..httpClientAdapter = adapter;
+
+      await HttpAuthRepository(
+        dio,
+      ).signInWithOauth(provider: provider, authorization: authorization);
+      return adapter.sent!;
+    }
+
+    test('⚠️ 애플은 ID 토큰과 nonce 원본을 함께 보낸다', () async {
+      final sent = await sentOf(
+        OauthProvider.apple,
+        const OauthIdTokenWithNonce(idToken: 'id-token', nonce: 'raw-nonce'),
+      );
+
+      expect(sent.path, '/api/v1/auth/oauth/apple');
+      expect(sent.body, {'idToken': 'id-token', 'nonce': 'raw-nonce'});
+    });
+
+    test('⚠️ 구글에는 nonce 가 붙지 않는다', () async {
+      // 애플을 붙이면서 공통 자리에 nonce 를 넣으면, 구글 요청에 모르는
+      // 열쇠가 섞여 들어간다.
+      final sent = await sentOf(
+        OauthProvider.google,
+        const OauthIdToken('id-token'),
+      );
+
+      expect(sent.path, '/api/v1/auth/oauth/google');
+      expect(sent.body, {'idToken': 'id-token'});
+    });
+
+    test('카카오는 인가 코드와 검증값이다', () async {
+      final sent = await sentOf(
+        OauthProvider.kakao,
+        const OauthCode(authorizationCode: 'code', codeVerifier: 'verifier'),
+      );
+
+      expect(sent.path, '/api/v1/auth/oauth/kakao');
+      expect(sent.body, {
+        'authorizationCode': 'code',
+        'codeVerifier': 'verifier',
+      });
+    });
+  });
+}
+
+/// 앱이 실제로 내보낸 경로와 본문.
+class _Sent {
+  const _Sent(this.path, this.body);
+
+  final String path;
+  final Map<String, dynamic> body;
+}
+
+/// 요청을 받아 적고, 성공 응답을 흉내 내 돌려준다.
+class _CaptureAdapter implements HttpClientAdapter {
+  _Sent? sent;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    sent = _Sent(options.path, (options.data as Map).cast<String, dynamic>());
+
+    return ResponseBody.fromString(
+      jsonEncode({
+        'userId': 'u-1',
+        'accessToken': 'access',
+        'refreshToken': 'refresh',
+        'isOnboarded': true,
+      }),
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }
 
 /// 정해둔 상태 코드와 `code` 로 거절한다.
