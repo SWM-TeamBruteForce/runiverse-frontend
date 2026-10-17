@@ -73,6 +73,12 @@ abstract interface class Analytics {
 
   /// 탈퇴 성공.
   Future<void> withdraw();
+
+  /// 이후 기록에 회원 ID 를 붙인다. 로그아웃·탈퇴하면 `null` 로 뗀다.
+  ///
+  /// 이벤트가 아니라 **이벤트에 붙는 표식**이다. GA 와 Crashlytics 에 같은
+  /// 값을 건다 — 오류를 겪은 회원의 이용 흐름을 이어 보려고.
+  Future<void> setUserId(String? userId);
 }
 
 /// 아무 데도 보내지 않는 구현. **이것이 기본값이다.**
@@ -118,6 +124,9 @@ class NoopAnalytics implements Analytics {
 
   @override
   Future<void> withdraw() async {}
+
+  @override
+  Future<void> setUserId(String? userId) async {}
 }
 
 /// 화면과 provider 가 보는 것.
