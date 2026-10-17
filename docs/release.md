@@ -49,6 +49,9 @@ android/app/src/prod/google-services.json    ios/Runner/Firebase/prod/GoogleServ
   파일이 없으면 빌드가 그 자리에서 멈춘다.
 - iOS 카카오·구글 로그인 복귀 스킴은 `Add URL Schemes` 빌드 단계가 `config/*.json`의 `KAKAO_NATIVE_APP_KEY`·`GOOGLE_IOS_CLIENT_ID`로
   `Info.plist`에 넣는다. 값이 없으면 경고만 남기고 빌드는 된다(그 로그인만 안 된다).
+- iOS 릴리스 빌드는 마지막 `Upload Crashlytics Symbols` 빌드 단계가 dSYM을 Crashlytics에 올린다. 앱에 복사된
+  `GoogleService-Info.plist`를 읽으므로 flavor를 따라간다. 스크립트를 못 찾으면 경고만 남기고 빌드는 된다(오류 위치만 못 읽는다).
+  Android는 Crashlytics Gradle 플러그인이 릴리스 빌드의 매핑 파일을 올린다.
 
 ## dev 앱 — CI가 올린다
 

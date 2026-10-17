@@ -6,6 +6,8 @@ plugins {
     // google-services.json 을 읽어 Firebase 설정을 빌드에 심는다.
     // flavor별로 src/dev/·src/prod/ 아래 것을 가져간다.
     id("com.google.gms.google-services")
+    // 릴리스 빌드의 난독화 매핑을 Crashlytics에 올려 오류 위치를 읽을 수 있게 한다.
+    id("com.google.firebase.crashlytics")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
