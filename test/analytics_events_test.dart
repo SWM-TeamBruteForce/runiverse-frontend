@@ -271,6 +271,20 @@ void main() {
       expect(analytics.userIds, [signedIn.userId, null]);
     });
 
+    testWidgets('⚠️ 켜자마자 로그아웃으로 판정돼도 뗀다', (tester) async {
+      // 지난 실행에 로그인했다가 이번에 세션이 만료된 사람이다. GA 는 회원 ID 를
+      // 기기에 남겨 두므로, 여기서 `null` 을 안 보내면 지난 ID 가 계속 붙는다.
+      final container = await pumpApp(tester);
+
+      await tester.runAsync(
+        container.read(authControllerProvider.notifier).restore,
+      );
+      await tester.pump();
+
+      expect(container.read(authControllerProvider), isA<AuthSignedOut>());
+      expect(analytics.userIds, [null]);
+    });
+
     testWidgets('⚠️ 로그인 여부를 아직 모르면 아무것도 걸지 않는다', (tester) async {
       // 앱이 막 뜬 순간이다. 여기서 `null` 을 걸면 이전 실행의 회원 ID 를
       // 쓸데없이 한 번 떼고 다시 거는 셈이다.
