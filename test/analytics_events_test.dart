@@ -20,7 +20,12 @@ import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/session/data/fake_location_repository.dart';
+import 'package:runiverse/features/session/data/fake_step_repository.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/domain/location_repository.dart';
+import 'package:runiverse/features/session/domain/permission_access.dart';
+import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// GA 이벤트 — **성공한 시점에만 남는가.**
@@ -272,6 +277,75 @@ void main() {
       await pumpApp(tester);
 
       expect(analytics.userIds, isEmpty);
+    });
+  });
+
+  group('permission_result', () {
+    // 러닝 준비가 묻는 순서대로 남는가 — 위치, 알림, 신체 활동.
+    Future<List<String>> prepare({
+      LocationAccess location = LocationAccess.granted,
+      PermissionAccess? notification = PermissionAccess.granted,
+      bool activity = true,
+    }) async {
+      analytics = FakeAnalytics();
+      final container = ProviderContainer.test(
+        overrides: [
+          analyticsProvider.overrideWithValue(analytics),
+          locationRepositoryProvider.overrideWithValue(
+            FakeLocationRepository(
+              access: location,
+              notification: notification,
+            ),
+          ),
+          stepRepositoryProvider.overrideWithValue(
+            FakeStepRepository(granted: activity),
+          ),
+        ],
+      );
+      await container.read(runSessionControllerProvider.notifier).prepare();
+      // 걸음 권한은 기다리지 않고 묻는다. 한 바퀴 돌려 마저 남게 한다.
+      await Future<void>.delayed(Duration.zero);
+      return [
+        for (final e in analytics.events)
+          if (e.$1 == 'permission_result')
+            '${e.$2!['permission']}:${e.$2!['result']}',
+      ];
+    }
+
+    test('허용하면 셋 다 남는다', () async {
+      expect(await prepare(), [
+        'location:granted',
+        'notification:granted',
+        'activity:granted',
+      ]);
+    });
+
+    test('⚠️ 위치를 거절하면 위치만 남는다', () async {
+      // 러닝이 거기서 멈춘다. 알림·걸음은 묻지도 않았다.
+      expect(await prepare(location: LocationAccess.deniedForever), [
+        'location:denied_forever',
+      ]);
+    });
+
+    test('기기 위치 기능이 꺼져 있으면 권한과 따로 센다', () async {
+      expect(await prepare(location: LocationAccess.serviceDisabled), [
+        'location:service_disabled',
+      ]);
+    });
+
+    test('걸음을 거절해도 남는다', () async {
+      expect(await prepare(activity: false), [
+        'location:granted',
+        'notification:granted',
+        'activity:denied',
+      ]);
+    });
+
+    test('알림을 묻지 않는 플랫폼에서는 알림이 남지 않는다', () async {
+      expect(await prepare(notification: null), [
+        'location:granted',
+        'activity:granted',
+      ]);
     });
   });
 }

@@ -54,6 +54,15 @@ class FakeAnalytics implements Analytics {
   @override
   Future<void> withdraw() async => events.add(('withdraw', null));
 
+  @override
+  Future<void> permissionResult({
+    required String permission,
+    required String result,
+  }) async => events.add((
+    'permission_result',
+    {'permission': permission, 'result': result},
+  ));
+
   /// 회원 ID 를 건 순서. [events] 와 따로 둔다 — 이벤트가 아니라서 섞으면
   /// "아무것도 안 남았다"를 보는 테스트가 깨진다.
   final List<String?> userIds = [];
