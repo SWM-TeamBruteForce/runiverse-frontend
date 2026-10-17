@@ -1,3 +1,5 @@
+import 'package:runiverse/features/session/domain/permission_access.dart';
+
 /// 기기가 센 걸음 한 번.
 ///
 /// ## ⚠️ 부팅 이후 누적이다
@@ -24,7 +26,7 @@ abstract interface class StepRepository {
   ///
   /// ⚠️ **`ACTIVITY_RECOGNITION`은 Android 10부터 런타임 권한이다.** 선언만
   /// 해두면 센서가 조용히 아무것도 주지 않는다 — 에러도 나지 않는다.
-  Future<bool> ensureAccess();
+  Future<PermissionAccess> ensureAccess();
 
   /// 걸음이 늘 때마다 알린다.
   ///

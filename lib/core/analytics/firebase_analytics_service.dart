@@ -66,6 +66,13 @@ class FirebaseAnalyticsService implements Analytics {
   Future<void> withdraw() => _send('withdraw', null);
 
   @override
+  Future<void> permissionResult({
+    required String permission,
+    required String result,
+  }) =>
+      _send('permission_result', {'permission': permission, 'result': result});
+
+  @override
   Future<void> setUserId(String? userId) async {
     try {
       await _analytics.setUserId(id: userId);

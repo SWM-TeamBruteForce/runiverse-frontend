@@ -74,6 +74,15 @@ abstract interface class Analytics {
   /// 탈퇴 성공.
   Future<void> withdraw();
 
+  /// 러닝 준비 중 권한을 확인한 결과. 이미 허용돼 창이 안 떴어도 남긴다.
+  ///
+  /// [permission] 은 `location` · `activity` · `notification`, [result] 는
+  /// `granted` · `denied` · `denied_forever` · `service_disabled`(위치만).
+  Future<void> permissionResult({
+    required String permission,
+    required String result,
+  });
+
   /// 이후 기록에 회원 ID 를 붙인다. 로그아웃·탈퇴하면 `null` 로 뗀다.
   ///
   /// 이벤트가 아니라 **이벤트에 붙는 표식**이다. GA 와 Crashlytics 에 같은
@@ -124,6 +133,12 @@ class NoopAnalytics implements Analytics {
 
   @override
   Future<void> withdraw() async {}
+
+  @override
+  Future<void> permissionResult({
+    required String permission,
+    required String result,
+  }) async {}
 
   @override
   Future<void> setUserId(String? userId) async {}

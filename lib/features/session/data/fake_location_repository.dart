@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
+import 'package:runiverse/features/session/domain/permission_access.dart';
 
 /// 좌표를 손으로 먹이는 구현 — 테스트와 에뮬레이터용.
 ///
@@ -10,10 +11,16 @@ import 'package:runiverse/features/session/domain/location_repository.dart';
 ///
 /// ⚠️ **프로덕션에 끼우지 않는다.** 갈아 끼우는 자리는 `run_session_provider.dart` 한 줄이다.
 class FakeLocationRepository implements LocationRepository {
-  FakeLocationRepository({this.access = LocationAccess.granted});
+  FakeLocationRepository({
+    this.access = LocationAccess.granted,
+    this.notification = PermissionAccess.granted,
+  });
 
   /// [ensureAccess]가 돌려줄 값. 거절 흐름을 확인할 때 바꾼다.
   final LocationAccess access;
+
+  /// [ensureRunNotification]이 돌려줄 값. `null` 이면 묻지 않는 플랫폼이다.
+  final PermissionAccess? notification;
 
   final _controller = StreamController<GeoPoint>.broadcast();
 
@@ -22,6 +29,9 @@ class FakeLocationRepository implements LocationRepository {
 
   @override
   Future<LocationAccess> ensureAccess() async => access;
+
+  @override
+  Future<PermissionAccess?> ensureRunNotification() async => notification;
 
   @override
   Stream<GeoPoint> watchPosition() => _controller.stream;
