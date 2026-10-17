@@ -50,6 +50,10 @@ class _RuniverseAppState extends ConsumerState<RuniverseApp> {
   /// 다시 걸지 않는다.
   String? _lastUserId;
 
+  /// 이번 실행에서 회원 ID 를 한 번이라도 보냈는가. `null` 을 보낸 것과
+  /// 아직 안 보낸 것을 가른다.
+  bool _userIdSynced = false;
+
   @override
   void initState() {
     super.initState();
@@ -72,13 +76,20 @@ class _RuniverseAppState extends ConsumerState<RuniverseApp> {
   }
 
   void _onAuthChanged(AuthState auth) {
-    final userId = switch (auth) {
-      AuthSignedIn(:final userId) => userId,
-      AuthSignedOut() => null,
+    final String? userId;
+    switch (auth) {
       // 아직 모른다. 떼지도 걸지도 않는다.
-      AuthUnknown() => _lastUserId,
-    };
-    if (userId == _lastUserId) return;
+      case AuthUnknown():
+        return;
+      case AuthSignedIn(userId: final id):
+        userId = id;
+      case AuthSignedOut():
+        userId = null;
+    }
+    // ⚠️ **처음 판정된 로그아웃도 보낸다.** GA 는 회원 ID 를 기기에 남겨 두므로,
+    // 지난 실행에 로그인했다가 이번에 세션이 만료된 사람은 `null` 을 보내야 떨어진다.
+    if (_userIdSynced && userId == _lastUserId) return;
+    _userIdSynced = true;
     _lastUserId = userId;
     unawaited(ref.read(analyticsProvider).setUserId(userId));
   }
