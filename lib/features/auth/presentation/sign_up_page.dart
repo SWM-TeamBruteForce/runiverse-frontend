@@ -618,6 +618,7 @@ class _FailureNotice extends StatelessWidget {
     AuthFailure.oauthCancelled ||
     AuthFailure.oauthFailed ||
     AuthFailure.oauthUnavailable ||
+    AuthFailure.oauthNotSupported ||
     AuthFailure.oauthEmailMissing ||
     AuthFailure.unknown => AppStrings.authFailedUnknown,
   };

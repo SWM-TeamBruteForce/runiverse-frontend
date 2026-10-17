@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
@@ -112,6 +113,12 @@ class _SplashPageState extends ConsumerState<SplashPage> {
         // `restore()`가 부른 `/users/me`에서 온다 — 저장된 값이 아니다.
         //
         // 폼으로 보내는 것은 **인증 직후**(가입 · 이메일 로그인 · 카카오)뿐이다.
+        //
+        // ⚠️ **신체 정보를 미리 읽어 둔다.** 앱을 다시 켜고 곧바로 러닝에
+        // 들어가면(아래 `running` 복구가 그렇다) 러닝 중에 처음 읽게 되어
+        // 칼로리가 잠깐 `--`로 보인다. 기다리지 않는다 — 실패해도 갈 곳은
+        // 그대로고, `bodyProfileProvider`가 알아서 다시 읽는다.
+        unawaited(ref.read(bodyProfileProvider.notifier).refresh());
         await _goByStatus();
       case AuthSignedOut(:final returning):
         // 로그인했던 적이 있으면 소개를 건너뛴다.

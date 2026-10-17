@@ -13,6 +13,8 @@ import 'package:runiverse/app/app.dart';
 import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/analytics/firebase_analytics_service.dart';
 import 'package:runiverse/core/config/app_config.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
+import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 
 /// 앱 진입점. Riverpod 스코프를 열고, 앱 루트를 띄운다.
 ///
@@ -108,6 +110,12 @@ void main() async {
     ProviderScope(
       overrides: [
         analyticsProvider.overrideWithValue(FirebaseAnalyticsService()),
+        // ⚠️ **이것을 지우면 러닝 중 칼로리가 `--`로 돌아간다.** 기본값은
+        // `null`(묻지 않는다)이고, 서버에서 몸무게를 읽는 길은 이 한 줄뿐이다.
+        // 포트가 `core`에 있는 이유는 `BodyProfileRemote` 주석에 있다.
+        bodyProfileRemoteProvider.overrideWith(
+          (ref) => ref.watch(profileRepositoryProvider),
+        ),
       ],
       child: const RuniverseApp(),
     ),

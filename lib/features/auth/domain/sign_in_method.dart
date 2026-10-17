@@ -15,10 +15,12 @@
 enum SignInMethod {
   email,
   kakao,
-  google;
+  google,
 
-  // ⚠️ Apple은 아직 없다. `OauthProvider`에도 없고, 로그인 화면에 버튼도
-  // 없다. 붙을 때 여기에 더한다.
+  /// ⚠️ **iOS에서만 남는다.** 안드로이드에는 애플 타일이 없으므로 이 값이
+  /// 저장될 길이 없다. 기기를 옮기면 기록도 함께 사라지므로 안드로이드에서
+  /// 읽히는 일도 없다.
+  apple;
 
   /// 저장할 때 쓰는 값. **enum 이름을 그대로 쓰지 않는다** —
   /// 이름을 바꾸면 기기에 남아 있던 값이 읽히지 않는다.
@@ -26,6 +28,7 @@ enum SignInMethod {
     SignInMethod.email => 'email',
     SignInMethod.kakao => 'kakao',
     SignInMethod.google => 'google',
+    SignInMethod.apple => 'apple',
   };
 
   /// 저장된 값에서 되살린다. 모르는 값이면 `null` — 예전 버전이 남긴 값일 수 있다.
@@ -33,6 +36,7 @@ enum SignInMethod {
     'email' => SignInMethod.email,
     'kakao' => SignInMethod.kakao,
     'google' => SignInMethod.google,
+    'apple' => SignInMethod.apple,
     _ => null,
   };
 }

@@ -441,15 +441,9 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     // 연결마다 한 번씩만 온다(ack가 그렇다). 재연결로 또 와도 같은 답이라 해롭지 않다.
     channel.snapshots.listen((_) {
       debugPrint('[running] 시작이 확인됐다. 상태를 다시 읽는다');
-      // ⚠️ **멈춘 채로 다시 붙었으면 다시 알린다**(가이드 2.2).
-      //
-      // 순서가 `START` → 좌표 → `PAUSE` 여야 하는데, 멈춰 있는 동안에는
-      // 전송기가 서 있어 사이에 낄 좌표가 없다([pause] 가 흘리고 세운다).
-      // `RUNNING_STARTED` 를 받은 자리라 서버가 시작을 이미 처리한 뒤다.
-      if (_paused) {
-        debugPrint('[running] 멈춰 있던 것을 다시 알린다');
-        channel.pause();
-      }
+      // ⚠️ **로컬 트랙을 통째로 다시 보낸다**(가이드 2.2). `RUNNING_STARTED`
+      // 를 받은 자리라 서버가 시작을 이미 처리한 뒤다 — 순서가 지켜진다.
+      unawaited(_resendTrack(channel));
       // ⚠️ **방마다 한 번만 남긴다.** 이 ack 는 재연결 때도 오므로, 끊겼다
       // 붙을 때마다 남기면 한 번의 러닝이 여러 번 시작한 것으로 세어진다.
       final startedId = state.room?.id;
@@ -498,6 +492,28 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     // 그 이벤트를 놓치고, 소켓은 붙었는데 화면은 "연결하는 중"이라고 말한다.
     // 시작 직후 현재값을 한 번 읽어 맞춘다.
     state = state.copyWith(connection: channel.state);
+  }
+
+  /// 다시 붙었으니 **로컬 트랙 전체**를 처음 `sequence`부터 다시 보낸다 —
+  /// 가이드 2.2.
+  ///
+  /// ## ⚠️ 순서가 `START` → 좌표 → `PAUSE` 다
+  ///
+  /// 이 함수는 `RUNNING_STARTED` ack 자리에서 불린다. 그래서 `START`는 이미
+  /// 끝났고, 여기서 좌표를 **다 보낸 뒤에** `PAUSE`를 보낸다. 반대로 하면
+  /// 뒤늦게 닿은 좌표가 **일시정지를 풀어 버린다** — 서버가 "처음 보는 좌표가
+  /// 담긴 배치는 상태를 되돌린다"고 적은 자리다(재전송분만 담긴 배치는
+  /// 안 바꾼다고도 적혀 있지만, 끊긴 사이에 쌓인 좌표는 처음 보는 것이다).
+  ///
+  /// 멈춰 있는 동안에도 보낸다. [TrackSender.pauseTimer]는 10초 타이머만
+  /// 세우고 [TrackSender.drain]은 타이머와 무관하다 — 멈춘 채로 재연결해도
+  /// 밀린 좌표는 서버에 닿아야 한다.
+  Future<void> _resendTrack(RunningChannel channel) async {
+    await _sender?.drain();
+    if (_paused) {
+      debugPrint('[running] 멈춰 있던 것을 다시 알린다');
+      channel.pause();
+    }
   }
 
   /// 방을 연다. 못 열면 `null`이고 상태에 이유가 담긴다.

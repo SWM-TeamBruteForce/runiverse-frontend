@@ -138,9 +138,9 @@ void main() {
   });
 
   group('재연결', () {
-    test('⚠️ 끊기면 30점 물러서서 다시 보낸다', () async {
-      // ack가 없어 서버가 어디까지 받았는지 모른다. 끊기던 순간 날아가던
-      // 배치를 덮으려면 겹쳐야 한다.
+    test('⚠️ 끊기면 처음부터 다시 보낸다', () async {
+      // ack가 없어 서버가 어디까지 받았는지 모른다. 소켓에 넘긴 것도 근거가
+      // 못 된다 — 끊기던 순간 날아가던 배치는 사라진다(가이드 2.2).
       await store(1, 100);
       sender.start(roomId);
       await sender.flush();
@@ -149,10 +149,11 @@ void main() {
       channel.emitState(WsConnectionState.reconnecting);
       await Future<void>.delayed(Duration.zero);
 
-      expect(sender.lastSent, 70);
+      expect(sender.lastSent, 0);
     });
 
-    test('⚠️ 겹치는 구간을 실제로 다시 보낸다', () async {
+    test('⚠️ 첫 좌표부터 실제로 다시 보낸다', () async {
+      // 커서만 되돌리고 안 보내면 아무 일도 안 일어난 것과 같다.
       await store(1, 100);
       sender.start(roomId);
       await sender.flush();
@@ -161,11 +162,28 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       await sender.flush();
 
-      expect(channel.batches.last.first.sequence, 71);
+      expect(channel.batches.last.first.sequence, 1);
       expect(channel.batches.last.last.sequence, 100);
     });
 
-    test('아직 보낸 게 없으면 물러설 것도 없다', () async {
+    test('⚠️ 밀린 것이 한 배치를 넘어도 끝까지 다시 보낸다', () async {
+      // 30분을 달린 뒤 끊기면 1,800점이다. `flush` 한 번으로는 150점만 가고,
+      // **나머지가 서버에 없는 채로 기록이 확정된다.**
+      await store(1, 400);
+      sender.start(roomId);
+      await sender.drain();
+      channel.batches.clear();
+
+      channel.emitState(WsConnectionState.reconnecting);
+      await Future<void>.delayed(Duration.zero);
+      await sender.drain();
+
+      expect(channel.batches.first.first.sequence, 1);
+      expect(channel.batches.last.last.sequence, 400);
+      expect(sentSequences(), List.generate(400, (i) => i + 1));
+    });
+
+    test('아직 보낸 게 없으면 되돌릴 것도 없다', () async {
       sender.start(roomId);
 
       channel.emitState(WsConnectionState.reconnecting);
@@ -174,8 +192,7 @@ void main() {
       expect(sender.lastSent, 0);
     });
 
-    test('⚠️ 겹침이 시작보다 앞서지 않는다', () async {
-      // 음수가 되면 `after`가 무엇을 돌려줄지 알 수 없다.
+    test('⚠️ 보낸 것이 적어도 처음으로 돌아간다', () async {
       await store(1, 10);
       sender.start(roomId);
       await sender.flush();

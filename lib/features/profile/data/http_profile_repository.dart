@@ -1,4 +1,6 @@
 import 'package:dio/dio.dart';
+import 'package:runiverse/core/storage/body_profile_remote.dart';
+import 'package:runiverse/core/storage/body_profile_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
@@ -94,6 +96,55 @@ class HttpProfileRepository implements ProfileRepository {
       return null;
     }
   }
+
+  /// 신체 정보를 읽는다(51번). **`StoredBody`로 좁혀 담는다** — 응답의
+  /// `introduction`·`gender`는 이 포트가 다루지 않는다([BodyProfileRemote]).
+  @override
+  Future<StoredBody> fetchBody() async {
+    final stored = await _store.read();
+    final accessToken = stored.accessToken;
+    if (accessToken == null) {
+      throw const ProfileException(ProfileFailure.sessionExpired);
+    }
+
+    try {
+      return await _getBody(accessToken);
+    } on DioException catch (error) {
+      if (error.response?.statusCode != 401) {
+        throw ProfileException(_failureOf(error));
+      }
+      try {
+        return await _getBody(await _refreshed(stored.refreshToken));
+      } on DioException catch (retried) {
+        throw ProfileException(_failureOf(retried));
+      }
+    }
+  }
+
+  Future<StoredBody> _getBody(String accessToken) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      _profilePath,
+      options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+    );
+    final body = response.data;
+    return StoredBody(
+      // ⚠️ **`as String?`로 읽지 않는다.** 200인데 타입이 다르면 그 캐스팅이
+      // 던지고, 프로필 편집은 그것을 *불러오기 실패*로 읽어 칸을 잠근다.
+      // 모르는 값은 "없다"로 다룬다 — 그쪽이 서버가 말한 것에 더 가깝다.
+      birthday: DateTime.tryParse(_stringOrNull(body?['birthday']) ?? ''),
+      heightCm: _roundedOrNull(body?['heightCm']),
+      weightKg: _roundedOrNull(body?['weightKg']),
+    );
+  }
+
+  /// ⚠️ **`as int`로 읽으면 터진다.** 서버가 소수 한 자리로 저장해
+  /// `70.5`가 온다(명세 51번). 앱의 선택기는 정수라 반올림해 담는다.
+  ///
+  /// 반올림이 값을 흘리지 않는다 — 앱은 정수만 보내므로, 소수가 들어 있다면
+  /// 다른 데서 들어온 값이고 그때도 **고치지 않으면 보내지 않는다**
+  /// (`ProfileEditPage`가 바뀐 것만 싣는다).
+  static int? _roundedOrNull(Object? value) =>
+      value is num ? value.round() : null;
 
   @override
   Future<void> updateProfile({
