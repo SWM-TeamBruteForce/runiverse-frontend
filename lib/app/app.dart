@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_router.dart';
 import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 
 /// 앱 루트 — 테마와 라우터를 [MaterialApp]에 꽂는다.
 ///
@@ -44,6 +46,10 @@ class _RuniverseAppState extends ConsumerState<RuniverseApp> {
   /// 마지막으로 남긴 화면. 같은 화면이 연달아 남지 않게 막는다.
   String? _lastScreen;
 
+  /// 마지막으로 건 회원 ID. 프로필 갱신처럼 같은 회원으로 상태만 바뀔 때는
+  /// 다시 걸지 않는다.
+  String? _lastUserId;
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +60,27 @@ class _RuniverseAppState extends ConsumerState<RuniverseApp> {
     _router.routerDelegate.addListener(_onRouteChanged);
     // 첫 화면은 이 리스너가 붙기 전에 이미 섰다. 한 번 직접 남긴다.
     WidgetsBinding.instance.addPostFrameCallback((_) => _onRouteChanged());
+
+    // 회원 ID 도 로그인 상태를 듣고 건다. 로그인 성공 자리에서 걸면 앱을 다시
+    // 켜 자동 로그인된 경우를 놓친다 — 상태는 로그인·자동 로그인·로그아웃·탈퇴·
+    // 세션 만료를 다 지난다.
+    ref.listenManual(
+      authControllerProvider,
+      (_, next) => _onAuthChanged(next),
+      fireImmediately: true,
+    );
+  }
+
+  void _onAuthChanged(AuthState auth) {
+    final userId = switch (auth) {
+      AuthSignedIn(:final userId) => userId,
+      AuthSignedOut() => null,
+      // 아직 모른다. 떼지도 걸지도 않는다.
+      AuthUnknown() => _lastUserId,
+    };
+    if (userId == _lastUserId) return;
+    _lastUserId = userId;
+    unawaited(ref.read(analyticsProvider).setUserId(userId));
   }
 
   void _onRouteChanged() {

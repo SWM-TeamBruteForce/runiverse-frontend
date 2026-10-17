@@ -10,6 +10,8 @@ import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/analytics/fake_analytics.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
+import 'package:runiverse/core/storage/body_profile_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
@@ -17,6 +19,7 @@ import 'package:runiverse/features/auth/data/fake_oauth_code_source.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
@@ -202,6 +205,73 @@ void main() {
       await tapTab(tester, AppStrings.tabRecord);
 
       expect(screens(), ['home', 'record']);
+    });
+  });
+
+  group('user_id', () {
+    // 로그인 성공 자리가 아니라 **로그인 상태**를 듣는다. 앱을 다시 켜 자동
+    // 로그인된 사람은 로그인 성공을 거치지 않는다.
+    Future<ProviderContainer> pumpApp(WidgetTester tester) async {
+      analytics = FakeAnalytics();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            analyticsProvider.overrideWithValue(analytics),
+            tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
+            signInMemoryStoreProvider.overrideWithValue(
+              InMemorySignInMemoryStore(),
+            ),
+            // 로그인·로그아웃이 신체 정보를 읽고 지운다. 진짜는 플랫폼 채널을 부른다.
+            bodyProfileStoreProvider.overrideWithValue(
+              InMemoryBodyProfileStore(),
+            ),
+            authRepositoryProvider.overrideWithValue(
+              FakeAuthRepository(latency: Duration.zero),
+            ),
+            matchRepositoryProvider.overrideWithValue(FakeMatchRepository()),
+            runRecordRepositoryProvider.overrideWithValue(
+              FakeRunRecordRepository(),
+            ),
+            userStatusRepositoryProvider.overrideWithValue(
+              FakeUserStatusRepository(),
+            ),
+          ],
+          child: const RuniverseApp(initialLocation: AppRoutes.home),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return ProviderScope.containerOf(
+        tester.element(find.byType(RuniverseApp)),
+      );
+    }
+
+    testWidgets('로그인하면 걸고, 로그아웃하면 뗀다', (tester) async {
+      final container = await pumpApp(tester);
+      final repository =
+          container.read(authRepositoryProvider) as FakeAuthRepository;
+      repository.seedAccount(email: 'a@b.com', password: 'runi123!');
+
+      // ⚠️ `runAsync` 로 감싼다. 가짜 저장소의 지연(`Future.delayed`)은 위젯
+      // 테스트의 가짜 시계에서 저절로 흐르지 않아, 그냥 기다리면 영영 멈춘다.
+      final controller = container.read(authControllerProvider.notifier);
+      await tester.runAsync(
+        () => controller.signIn(email: 'a@b.com', password: 'runi123!'),
+      );
+      await tester.pump();
+      final signedIn = container.read(authControllerProvider) as AuthSignedIn;
+
+      await tester.runAsync(controller.signOut);
+      await tester.pump();
+
+      expect(analytics.userIds, [signedIn.userId, null]);
+    });
+
+    testWidgets('⚠️ 로그인 여부를 아직 모르면 아무것도 걸지 않는다', (tester) async {
+      // 앱이 막 뜬 순간이다. 여기서 `null` 을 걸면 이전 실행의 회원 ID 를
+      // 쓸데없이 한 번 떼고 다시 거는 셈이다.
+      await pumpApp(tester);
+
+      expect(analytics.userIds, isEmpty);
     });
   });
 }
