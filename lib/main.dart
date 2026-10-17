@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,6 +42,18 @@ void main() async {
   // ⚠️ 위의 세 SDK 와 달리 **키 유무를 보고 거르지 않는다.** 설정 파일이
   // 없으면 Gradle 이 빌드를 먼저 세우므로, 여기까지 왔다면 파일은 있다.
   await Firebase.initializeApp();
+
+  // 잡히지 않은 오류를 Crashlytics로 보낸다. 디버그 빌드는 보내지 않는다 —
+  // `flutter run` 중에 난 오류가 운영·dev 대시보드에 섞이면 진짜를 못 가린다.
+  final crashlytics = FirebaseCrashlytics.instance;
+  await crashlytics.setCrashlyticsCollectionEnabled(!kDebugMode);
+  // 화면을 그리다 난 오류(위젯 빌드·레이아웃).
+  FlutterError.onError = crashlytics.recordFlutterFatalError;
+  // 그 밖의 비동기 오류. `true` 를 돌려줘야 처리된 것으로 본다.
+  PlatformDispatcher.instance.onError = (error, stack) {
+    unawaited(crashlytics.recordError(error, stack, fatal: true));
+    return true;
+  };
 
   // 키가 없으면 초기화하지 않는다. 빈 키로 초기화하면 SDK가 `kakao://oauth`를
   // 리다이렉트 주소로 삼고, 카카오 버튼을 눌렀을 때 원인을 알기 어려운 오류가

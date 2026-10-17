@@ -23,6 +23,7 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.3.20" apply false
     // Firebase. 여기서는 받아만 두고, 쓰는 것은 app/build.gradle.kts 다.
     id("com.google.gms.google-services") version "4.4.4" apply false
+    id("com.google.firebase.crashlytics") version "3.0.8" apply false
 }
 
 include(":app")
