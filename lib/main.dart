@@ -45,6 +45,9 @@ void main() async {
 
   // 잡히지 않은 오류를 Crashlytics로 보낸다. 디버그 빌드는 보내지 않는다 —
   // `flutter run` 중에 난 오류가 운영·dev 대시보드에 섞이면 진짜를 못 가린다.
+  //
+  // ⚠️ 수집은 **꺼진 채로 뜬다**(매니페스트·Info.plist). 여기서 끄기만 하면
+  // 이 줄 전에 난 네이티브 오류는 이미 보내진 뒤다. 켜는 쪽만 여기서 한다.
   final crashlytics = FirebaseCrashlytics.instance;
   await crashlytics.setCrashlyticsCollectionEnabled(!kDebugMode);
   // 화면을 그리다 난 오류(위젯 빌드·레이아웃).
