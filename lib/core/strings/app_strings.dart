@@ -326,15 +326,28 @@ abstract final class AppStrings {
   static const authGoogle = '구글로 계속하기';
   static const authKakao = '카카오로 계속하기';
 
+  /// ⚠️ **iOS에서만 그려진다.** 안드로이드는 애플 웹 흐름을 거쳐야 하는데
+  /// 서버가 iOS 번들 ID로 발급된 토큰만 받는다(연동 가이드 3·6절).
+  static const authApple = '애플로 계속하기';
+
   /// 이메일 로그인과 소셜 버튼 사이의 구분선.
   ///
   /// 시안(`158:2927`)은 여기에 `또는` 대신 **아래가 무엇인지**를 적는다.
   /// 구분선이 두 선택지를 가르는 것이 아니라 소셜 묶음의 이름표가 된다.
   static const authOr = '간편한 로그인';
 
-  /// 카카오·애플을 눌렀을 때. 버튼을 회색으로 잠그지 않는 이유는
-  /// 피드·대회일정 탭과 같다 — 눌리고, 준비 중임을 알린다.
+  /// **이 빌드에 키가 없다.** 버튼을 회색으로 잠그지 않는 이유는 피드·대회일정
+  /// 탭과 같다 — 눌리고, 준비 중임을 알린다.
+  ///
+  /// ⚠️ [authSocialUnsupported]와 섞지 않는다. 이쪽은 다음 배포에서 열린다.
   static const authSocialComingSoon = '아직 준비 중이에요';
+
+  /// **이 기기가 그 방법을 지원하지 않는다.** 애플 로그인이 안드로이드거나
+  /// iOS 13 미만일 때다.
+  ///
+  /// "준비 중"이라고 하면 **영영 오지 않을 것을 기다리게 한다.** 기기의
+  /// 성질이라 기다려도 열리지 않으므로, 지금 할 수 있는 것을 함께 적는다.
+  static const authSocialUnsupported = '이 기기에서는 쓸 수 없어요. 다른 방법으로 로그인해주세요';
 
   /// 로그인 화면의 머리글. 시안(`158:2916`)의 문구다.
   ///
@@ -781,6 +794,15 @@ abstract final class AppStrings {
 
   // ── 출발 대기실 (S11) ────────────────────────────────────────
 
+  // ── 출발 안내 (어느 화면에서나) ────────────────────────────
+
+  /// 출발 1분 전에 어느 화면에서든 뜬다. **누를 것이 없다** — 띄우고 바로
+  /// 로비로 옮긴다.
+  static const matchLaunchNoticeTitle = '곧 러닝이 시작돼요';
+
+  /// 무엇이 일어날지 먼저 말한다. 화면이 갑자기 바뀌면 사용자는 앱이 튄 줄 안다.
+  static const matchLaunchNoticeBody = '로비로 이동합니다';
+
   static const matchCountdownTitle = '출발 대기실';
 
   /// 여기서 나갈 수 없다는 사실을 미리 말한다. 뒤로가기가 안 먹는 것을
@@ -909,12 +931,16 @@ abstract final class AppStrings {
   /// 프로필 탭까지 온 사람에게는 나오지 않아야 하는 말이다.
   static const profileNicknameNotOnboarded = '프로필을 먼저 완성해주세요';
 
-  /// 아직 값을 모른다.
-  ///
-  /// ⚠️ **`설정하기` 같은 말을 쓰지 않는다.** 서버에 값이 없는 것이 아니라
-  /// **불러올 API가 없는 것**이라, 안 채운 사람에게 채우라고 말하는 셈이 된다.
-  /// 온보딩에서 이미 넣은 값이다.
+  /// 아직 값을 모른다. 51번이 `null`을 준 경우 — **온보딩 전이다.**
   static const profileEditUnknown = '—';
+
+  /// 51번을 못 불러왔다.
+  ///
+  /// ⚠️ **이 말이 나오는 동안 생년월일·키·몸무게 칸은 잠긴다.** 서버 값을
+  /// 모르는 채로 선택기를 열면 기본값(172cm·63kg)이 뜨고, 키만 고치려던
+  /// 사람이 **몸무게를 63으로 덮어쓴다.** 잠근 이유를 적지 않으면 왜 안
+  /// 눌리는지 알 수 없다(정본 C9 — 색만으로 알리지 않는다).
+  static const profileBodyLoadFailed = '신체 정보를 불러오지 못했어요. 잠시 뒤에 다시 열어주세요.';
 
   /// 저장하지 않고 나가려 할 때.
   static const profileEditDiscardTitle = '바꾼 내용을 버릴까요';
@@ -1128,6 +1154,10 @@ abstract final class AppStrings {
 
   /// 지도 줌 버튼. **화면에 글자로 나오지 않고 스크린 리더가 읽는다** —
   /// 아이콘만 있는 버튼이라 이 이름이 없으면 "버튼"이라고만 읽힌다.
+  /// 끌어서 경로를 놓쳤을 때 돌아오는 길. **다 달린 경로에만 둔다** —
+  /// 러닝 중에는 현위치 버튼이 그 일을 한다.
+  static const mapFitRoute = '경로 맞추기';
+
   static const mapZoomIn = '지도 확대';
   static const mapZoomOut = '지도 축소';
 
@@ -1452,6 +1482,10 @@ abstract final class AppStrings {
   static const settingsLoginKakao = '카카오';
   static const settingsLoginGoogle = '구글';
 
+  /// ⚠️ **안드로이드에서도 뜬다.** 버튼은 iOS에만 있지만 계정의 성질은 기기와
+  /// 무관하다 — iOS에서 애플로 가입한 사람이 기기를 바꾸면 이 라벨을 본다.
+  static const settingsLoginApple = '애플';
+
   /// 서버가 모르는 제공자를 보냈다. **비밀번호 메뉴는 숨는다.**
   static const settingsLoginUnknown = '확인 불가';
 
@@ -1547,6 +1581,20 @@ abstract final class AppStrings {
   static const withdrawBody =
       '기록과 색이 모두 사라져요. 되돌릴 수 없어요.\n'
       '이미 올린 피드는 작성자가 가려진 채 남아요.';
+
+  /// 애플 계정으로 가입한 사람에게만 덧붙인다.
+  ///
+  /// ## ⚠️ 탈퇴해도 애플 쪽 연결은 남는다
+  ///
+  /// 우리가 계정을 지워도 애플의 "이 앱에 로그인했다" 기록은 그대로다
+  /// (연동 가이드 6절). 그것을 모르면 **탈퇴했는데 애플 설정에 앱이 남아 있는
+  /// 것**이 고장으로 읽힌다. 앱이 대신 끊을 방법이 없으니 어디서 끊는지만 적는다.
+  ///
+  /// 카카오·구글도 같은 잔재가 남는다. 백엔드 가이드가 애플만 요청해 우선
+  /// 애플만 적었다 — 나머지도 같은 안내가 필요하다.
+  static const withdrawAppleNotice =
+      '애플 ID 설정 > 암호 및 보안 > Apple로 로그인에서\n'
+      '이 앱의 연결을 직접 해제해주세요.';
 
   static const withdrawConfirm = '탈퇴하기';
 

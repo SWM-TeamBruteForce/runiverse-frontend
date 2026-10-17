@@ -3,6 +3,33 @@ import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/features/record/presentation/split_axis.dart';
+
+/// 손가락이 가리키는 구간.
+///
+/// [dx]는 **거터를 포함한 카드 기준**이고 [plotWidth]는 그림 영역의 너비다.
+///
+/// ⚠️ **[gutter]만큼 빼지 않으면 집는 구간이 통째로 밀린다.** 손가락은 첫 점을
+/// 가리키는데 두 번째가 집히는 식이라, 말풍선에 그럴듯한 값이 떠서 **틀렸다는
+/// 것이 화면에 드러나지 않는다.**
+///
+/// 위젯이 아니라 함수로 둔 이유도 그것이다 — 말풍선은 캔버스에 그려 위젯
+/// 트리에 남지 않으므로, 이 계산을 테스트로 잡으려면 꺼내 놓아야 한다.
+@visibleForTesting
+int focusedSplitOf({
+  required double dx,
+  required double plotWidth,
+  required double gutter,
+  required double inset,
+  required int count,
+}) {
+  if (count <= 1) return 0;
+  final span = plotWidth - inset * 2;
+  final ratio = span <= 0
+      ? 0.0
+      : ((dx - gutter - inset) / span).clamp(0.0, 1.0);
+  return (ratio * (count - 1)).round();
+}
 
 /// 구간별 꺾은선 하나. Figma `47:90`(페이스)·`47:152`(케이던스)가 같은 모양이다.
 ///
@@ -19,6 +46,13 @@ import 'package:runiverse/core/theme/v2/app_typography.dart';
 /// 구간"이 되어, 사람이 그래프에서 기대하는 것과 반대로 읽힌다. 그래서
 /// 페이스만 [inverted]로 뒤집어 **빠를수록 위**로 둔다. 케이던스는 클수록
 /// 좋은 값이라 그대로 둔다.
+///
+/// ## 격자선은 값을 갖는다
+///
+/// 전에는 선 셋을 `높이 × i/4`에 그렸다. 데이터와 아무 관계가 없어서 **모양만
+/// 보이고 크기를 못 읽었다** — 들쭉날쭉이 10초 차이인지 2분 차이인지 집어보기
+/// 전에는 알 수 없었다. 지금은 [SplitAxis]가 잡은 최고·중간·최저에 긋고
+/// 왼쪽 거터에 그 값을 적는다.
 class SplitLineChart extends StatefulWidget {
   const SplitLineChart({
     required this.title,
@@ -31,6 +65,7 @@ class SplitLineChart extends StatefulWidget {
     this.badge,
     this.inverted = false,
     this.filled = false,
+    this.showPoints = false,
     this.secondary,
     this.secondaryColor,
     super.key,
@@ -79,6 +114,15 @@ class SplitLineChart extends StatefulWidget {
   /// 보여 준다. 1km 그래프는 점이 몇 개뿐이라 채우면 오히려 뭉개진다.
   final bool filled;
 
+  /// 구간마다 `o`를 찍을 것인가. **1km 그래프만 `true`다.**
+  ///
+  /// 선만 있으면 **멈출 수 있는 자리가 몇 개인지 보이지 않는다.** 점을 찍으면
+  /// 밀어서 짚을 곳이 눈에 들어온다. 50m 상세는 점이 수십 개라 찍는 순간
+  /// 선이 뭉개져 끈다.
+  ///
+  /// ⚠️ **내 선에만 찍는다.** 비교 중에 둘 다 찍으면 132px 안이 빽빽해진다.
+  final bool showPoints;
+
   @override
   State<SplitLineChart> createState() => _SplitLineChartState();
 }
@@ -93,10 +137,21 @@ class _SplitLineChartState extends State<SplitLineChart> {
   /// Figma `47:94`. 카드 높이가 아니라 그림 영역의 높이다.
   static const _plotHeight = 132.0;
 
-  void _focus(double dx, double width) {
-    final span = width - _inset * 2;
-    final ratio = span <= 0 ? 0.0 : ((dx - _inset) / span).clamp(0.0, 1.0);
-    final next = (ratio * (widget.values.length - 1)).round();
+  /// 세로 눈금 값이 들어가는 왼쪽 자리.
+  ///
+  /// ⚠️ **`space8`(40)로는 모자란다.** `10'05"`처럼 여섯 글자가 되면 앞자리가
+  /// 잘려 `0'05"`로 읽히는데, 숫자가 틀리게 보이는 쪽이 그림이 8px 좁아지는
+  /// 것보다 나쁘다.
+  static const _gutter = AppSpacing.space9;
+
+  void _focus(double dx, double plotWidth) {
+    final next = focusedSplitOf(
+      dx: dx,
+      plotWidth: plotWidth,
+      gutter: _gutter,
+      inset: _inset,
+      count: widget.values.length,
+    );
     if (next != _focused) setState(() => _focused = next);
   }
 
@@ -134,56 +189,94 @@ class _SplitLineChartState extends State<SplitLineChart> {
 
             LayoutBuilder(
               builder: (context, constraints) {
-                final width = constraints.maxWidth;
+                final plotWidth = constraints.maxWidth - _gutter;
+                // ⚠️ **자는 한 벌이다.** 격자선은 캔버스가, 눈금 값은 위젯이
+                // 그리므로 각자 계산하면 선과 숫자가 어긋난다.
+                final axis = SplitAxis.of(
+                  widget.values,
+                  secondary: widget.secondary,
+                  inverted: widget.inverted,
+                );
+
                 return GestureDetector(
                   // 탭도 받는다. 짧게 눌러 본 사람에게 아무 반응이 없으면
                   // 밀어야 한다는 걸 알 길이 없다.
-                  onTapDown: (d) => _focus(d.localPosition.dx, width),
+                  onTapDown: (d) => _focus(d.localPosition.dx, plotWidth),
                   onHorizontalDragStart: (d) =>
-                      _focus(d.localPosition.dx, width),
+                      _focus(d.localPosition.dx, plotWidth),
                   onHorizontalDragUpdate: (d) =>
-                      _focus(d.localPosition.dx, width),
+                      _focus(d.localPosition.dx, plotWidth),
                   onHorizontalDragEnd: (_) => setState(() => _focused = null),
                   onTapUp: (_) => setState(() => _focused = null),
                   onTapCancel: () => setState(() => _focused = null),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      CustomPaint(
-                        size: const Size.fromHeight(_plotHeight),
-                        painter: _LinePainter(
-                          values: widget.values,
-                          focused: focused,
-                          line: widget.color,
-                          grid: colors.borderDefault,
-                          inset: _inset,
-                          inverted: widget.inverted,
-                          filled: widget.filled,
-                          secondary: widget.secondary,
-                          secondaryLine:
-                              widget.secondaryColor ?? colors.textTertiary,
-                          // ⚠️ 집은 값은 **그 점 바로 위**에 띄운다. 제목 줄
-                          // 오른쪽에 두면 눈이 그래프와 카드 모서리를 오가야
-                          // 해서 훑는 동안 읽히지 않는다.
-                          reading: focused == null ? null : _readingAt(focused),
-                          // 값만으로는 "어디서" 그랬는지 모른다. x축 라벨은
-                          // 솎아 그리므로 짚은 자리가 그 사이면 읽을 수 없다.
-                          readingAt:
-                              focused == null || focused >= widget.labels.length
-                              ? null
-                              : widget.labels[focused],
-                          bubble: colors.bgElevated,
-                          bubbleBorder: colors.borderStrong,
-                          readingColor: colors.textPrimary,
-                          readingAtColor: colors.textTertiary,
-                        ),
+                      Row(
+                        // 거터 글자는 저마다 제 높이에 놓인다. 늘이지 않는다.
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: _gutter,
+                            height: _plotHeight,
+                            child: _YLabels(
+                              axis: axis,
+                              format: widget.format,
+                              height: _plotHeight,
+                              color: colors.textTertiary,
+                            ),
+                          ),
+                          Expanded(
+                            child: CustomPaint(
+                              size: const Size.fromHeight(_plotHeight),
+                              painter: _LinePainter(
+                                axis: axis,
+                                values: widget.values,
+                                focused: focused,
+                                line: widget.color,
+                                grid: colors.borderDefault,
+                                inset: _inset,
+                                filled: widget.filled,
+                                showPoints: widget.showPoints,
+                                surface: colors.bgSurface,
+                                secondary: widget.secondary,
+                                secondaryLine:
+                                    widget.secondaryColor ??
+                                    colors.textTertiary,
+                                // ⚠️ 집은 값은 **그 점 바로 위**에 띄운다.
+                                // 제목 줄 오른쪽에 두면 눈이 그래프와 카드
+                                // 모서리를 오가야 해서 훑는 동안 안 읽힌다.
+                                reading: focused == null
+                                    ? null
+                                    : _readingAt(focused),
+                                // 값만으로는 "어디서" 그랬는지 모른다. x축
+                                // 라벨은 솎아 그리므로 짚은 자리가 그 사이면
+                                // 읽을 수 없다.
+                                readingAt:
+                                    focused == null ||
+                                        focused >= widget.labels.length
+                                    ? null
+                                    : widget.labels[focused],
+                                bubble: colors.bgElevated,
+                                bubbleBorder: colors.borderStrong,
+                                readingColor: colors.textPrimary,
+                                readingAtColor: colors.textTertiary,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(
-                        height: AppSpacing.space4,
-                        child: _Labels(
-                          labels: widget.labels,
-                          inset: _inset,
-                          color: colors.textTertiary,
+                      // x축 라벨도 거터만큼 비켜 선다. 안 비키면 점과 라벨이
+                      // 어긋나 어느 구간인지 잘못 읽힌다.
+                      Padding(
+                        padding: const EdgeInsets.only(left: _gutter),
+                        child: SizedBox(
+                          height: AppSpacing.space4,
+                          child: _Labels(
+                            labels: widget.labels,
+                            inset: _inset,
+                            color: colors.textTertiary,
+                          ),
                         ),
                       ),
                     ],
@@ -274,6 +367,55 @@ class _Badge extends StatelessWidget {
   }
 }
 
+/// 세로 눈금 값. 격자선과 **같은 높이에** 오른쪽 맞춤으로 적는다.
+///
+/// 캔버스가 아니라 위젯으로 그린다. 글자가 위젯 트리에 남아야
+/// 스크린리더가 읽고 테스트가 찾는다 — x축 라벨(`_Labels`)과 같은 판단이다.
+/// 높이는 [SplitAxis]가 정하므로 격자선과 어긋날 자리가 없다.
+class _YLabels extends StatelessWidget {
+  const _YLabels({
+    required this.axis,
+    required this.format,
+    required this.height,
+    required this.color,
+  });
+
+  final SplitAxis axis;
+  final String Function(double value) format;
+  final double height;
+  final Color color;
+
+  /// 글자 한 줄이 차지하는 높이. 본문 12px에 줄간격 1.24라 14.88이고,
+  /// 4pt 스케일에서 가장 가까운 값을 쓴다 — 0.5px 차이는 눈에 띄지 않는다.
+  static const _lineHeight = AppSpacing.space4;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      for (final value in axis.ticks)
+        Positioned(
+          right: AppSpacing.space1,
+          // 글자 **가운데**를 격자선에 맞춘다. 위아래 끝에서 잘리지 않게
+          // 가둔다 — 여백이 15%라 평소에는 닿지 않지만, 눈금이 하나뿐인
+          // 평평한 그래프에서는 한가운데에 몰린다.
+          top: (axis.dy(value, height) - _lineHeight / 2).clamp(
+            0.0,
+            height - _lineHeight,
+          ),
+          child: Text(
+            format(value),
+            maxLines: 1,
+            style: AppTypographyV2.body18.copyWith(
+              color: color,
+              // 오른쪽 맞춤이 자릿수마다 흔들리지 않게 한다.
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+    ],
+  );
+}
+
 /// x축 라벨. 점 위치에 가운데를 맞춰 놓는다.
 ///
 /// 구간이 많아지면 **일부만 남긴다.** 10km를 달리면 라벨 10개가 356px 안에
@@ -341,13 +483,15 @@ class _Labels extends StatelessWidget {
 
 class _LinePainter extends CustomPainter {
   const _LinePainter({
+    required this.axis,
     required this.values,
     required this.focused,
     required this.line,
     required this.grid,
     required this.inset,
-    required this.inverted,
     required this.filled,
+    required this.showPoints,
+    required this.surface,
     required this.reading,
     required this.readingAt,
     required this.bubble,
@@ -357,6 +501,9 @@ class _LinePainter extends CustomPainter {
     this.secondary,
     required this.secondaryLine,
   });
+
+  /// 세로 자. 격자선 자리와 점 높이가 전부 여기서 나온다.
+  final SplitAxis axis;
 
   final List<double> values;
 
@@ -368,11 +515,14 @@ class _LinePainter extends CustomPainter {
   final Color grid;
   final double inset;
 
-  /// 작은 값을 위로 올리는가. 페이스가 `true`다.
-  final bool inverted;
-
   /// 선 아래를 채우는가. 50m 상세가 `true`다.
   final bool filled;
+
+  /// 구간마다 `o`를 찍는가. 1km 그래프가 `true`다.
+  final bool showPoints;
+
+  /// 점 가운데를 메울 색. 카드 바탕이라야 선이 뚫고 지나가지 않는다.
+  final Color surface;
 
   /// 집은 값을 사람이 읽는 말로. 손을 떼면 `null`이다.
   final String? reading;
@@ -385,41 +535,26 @@ class _LinePainter extends CustomPainter {
   final Color readingColor;
   final Color readingAtColor;
 
-  /// 위아래 여백 비율. 선이 카드 천장과 바닥에 닿으면 값의 크기를 못 읽는다.
-  static const _padRatio = 0.15;
-
   double _x(int i, Size size) {
     final span = size.width - inset * 2;
     if (values.length == 1) return inset + span / 2;
     return inset + span * i / (values.length - 1);
   }
 
-  double _y(double value, Size size) {
-    // 두 선이 같은 자로 그려져야 비교가 된다. 범위는 둘을 합쳐 잡는다.
-    final all = [...values, ...?secondary];
-    final min = all.reduce((a, b) => a < b ? a : b);
-    final max = all.reduce((a, b) => a > b ? a : b);
-    final pad = size.height * _padRatio;
-    final usable = size.height - pad * 2;
-
-    // 값이 전부 같으면 나눌 폭이 없다. 가운데에 눕힌다.
-    if (max - min < 0.000001) return size.height / 2;
-
-    final ratio = (value - min) / (max - min);
-    // 화면 좌표는 아래로 갈수록 크다. 보통은 큰 값이 위로 가야 하므로
-    // 뒤집고(`1 - ratio`), 페이스는 **작을수록 빠르므로** 그대로 쓴다.
-    return pad + (inverted ? ratio : 1 - ratio) * usable;
-  }
+  double _y(double value, Size size) => axis.dy(value, size.height);
 
   @override
   void paint(Canvas canvas, Size size) {
     if (values.isEmpty) return;
 
+    // ⚠️ **눈금 자리에 긋는다.** 전에는 `높이 × i/4`였는데, 데이터와 아무
+    // 관계가 없어 선이 어떤 값을 뜻하는지 말해 주지 못했다. 같은 자리를
+    // `_YLabels`가 숫자로 적는다.
     final gridPaint = Paint()
       ..color = grid
       ..strokeWidth = 1;
-    for (var i = 1; i <= 3; i++) {
-      final y = size.height * i / 4;
+    for (final value in axis.ticks) {
+      final y = _y(value, size);
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
@@ -465,6 +600,7 @@ class _LinePainter extends CustomPainter {
     }
 
     _paintSecondary(canvas, size);
+    if (showPoints) _paintPoints(canvas, points);
 
     final index = focused;
     if (index == null || index >= points.length) return;
@@ -484,7 +620,32 @@ class _LinePainter extends CustomPainter {
     _paintReading(canvas, size, at);
   }
 
+  /// 구간마다의 `o`.
+  ///
+  /// 선만 있으면 **멈출 수 있는 자리가 몇 개인지 보이지 않는다.** 점을 찍으면
+  /// 밀어서 짚을 곳이 눈에 들어오고, 1km 그래프가 연속 신호가 아니라 **칸**
+  /// 이라는 것도 함께 말해 준다.
+  ///
+  /// 가운데를 카드 바탕색으로 메운다. 비우면 선이 원을 뚫고 지나가 `o`가
+  /// 아니라 매듭처럼 보인다.
+  void _paintPoints(Canvas canvas, List<Offset> points) {
+    final hole = Paint()..color = surface;
+    final ring = Paint()
+      ..color = line
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    for (final point in points) {
+      canvas
+        ..drawCircle(point, 3, hole)
+        ..drawCircle(point, 3, ring);
+    }
+  }
+
   /// 파티원의 선. 채우지 않고 가늘게 — 주인공은 내 선이다.
+  ///
+  /// ⚠️ **점을 찍지 않는다.** 두 선에 다 찍으면 132px 안이 빽빽해지고,
+  /// 집어서 읽는 것은 내 구간이라 점은 내 선의 표시로 남긴다.
   void _paintSecondary(Canvas canvas, Size size) {
     final other = secondary;
     if (other == null || other.isEmpty) return;
@@ -586,8 +747,10 @@ class _LinePainter extends CustomPainter {
       old.focused != focused ||
       old.values != values ||
       old.line != line ||
-      old.inverted != inverted ||
+      old.axis != axis ||
       old.filled != filled ||
+      old.showPoints != showPoints ||
+      old.surface != surface ||
       old.reading != reading ||
       old.readingAt != readingAt ||
       old.secondary != secondary ||

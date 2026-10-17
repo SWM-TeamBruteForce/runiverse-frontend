@@ -128,6 +128,16 @@ void main() {
       expect(find.text(AppStrings.settingsPassword), findsNothing);
     });
 
+    testWidgets('⚠️ 애플 계정이면 숨고 라벨은 애플이다', (tester) async {
+      // 애플 버튼은 iOS에만 있지만 **이 화면은 안드로이드에서도 이 값을 받는다**
+      // — 계정의 성질은 기기와 무관하다. 라벨을 플랫폼으로 가리면 기기를 바꾼
+      // 사람이 "확인 불가"를 본다.
+      await pumpSettings(tester, loginType: LoginType.apple);
+
+      expect(find.text(AppStrings.settingsPassword), findsNothing);
+      expect(find.text(AppStrings.settingsLoginApple), findsOneWidget);
+    });
+
     testWidgets('⚠️ 계정 유형을 모르면 숨는다', (tester) async {
       // 서버가 새 제공자를 보냈다. 모르는 것은 대개 소셜이다.
       await pumpSettings(tester, loginType: null);
@@ -244,6 +254,31 @@ void main() {
 
       expect(find.text(AppStrings.settingsTitle), findsOneWidget);
       expect((await tokens.read()).accessToken, isNotNull);
+    });
+
+    /// 애플 쪽에 남는 연결 — **탈퇴로는 끊기지 않는다.**
+    ///
+    /// 우리가 계정을 지워도 애플의 "이 앱에 로그인했다" 기록은 남는다(연동
+    /// 가이드 6절). 그것을 모르면 탈퇴한 뒤 애플 설정에 앱이 남아 있는 것이
+    /// 고장으로 읽히고, 다시 로그인하면 **새 계정이 또 만들어진다.**
+    testWidgets('⚠️ 애플 계정이면 연결 해제 안내가 뜬다', (tester) async {
+      await pumpSettings(tester, loginType: LoginType.apple);
+
+      await tapRow(tester, AppStrings.settingsWithdraw);
+
+      expect(find.text(AppStrings.withdrawAppleNotice), findsOneWidget);
+      // 본문도 그대로 있다 — 안내가 본문을 밀어내지 않는다.
+      expect(find.text(AppStrings.withdrawBody), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 로컬 계정에는 애플 안내가 없다', (tester) async {
+      // 이메일로 가입한 사람에게 애플 설정을 열라고 하면 쓸모없는 줄이
+      // 하나 늘 뿐이다.
+      await pumpSettings(tester);
+
+      await tapRow(tester, AppStrings.settingsWithdraw);
+
+      expect(find.text(AppStrings.withdrawAppleNotice), findsNothing);
     });
   });
 }

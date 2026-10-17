@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
+import 'package:runiverse/core/storage/body_profile_store.dart';
 import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
@@ -16,6 +18,7 @@ import 'package:runiverse/features/profile/data/fake_profile_repository.dart';
 import 'package:runiverse/features/profile/domain/photo_picker.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
+import 'package:runiverse/features/profile/domain/profile_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
 import 'package:runiverse/features/profile/presentation/profile_edit_page.dart';
@@ -39,12 +42,17 @@ void main() {
     String? photoUrl,
     ProfileImageFailure? photoFails,
     PhotoPicker? picker,
+    // 서버가 가지고 있다고 할 신체 정보(51번). 기본은 **온보딩 전**이다.
+    StoredBody body = StoredBody.empty,
+    ProfileFailure? bodyFails,
   }) async {
     repo = FakeProfileRepository(
       nickname: nickname,
       introduction: introduction,
       profileImageUrl: photoUrl,
       editFailure: editFails,
+      body: body,
+      bodyFailure: bodyFails,
     );
     photos = FakeProfileImageRepository(
       latency: Duration.zero,
@@ -83,6 +91,14 @@ void main() {
           // ⚠️ 앨범을 여는 것은 플랫폼 채널이라 테스트에 없다.
           photoPickerProvider.overrideWithValue(picker ?? _FakePicker()),
           profileRepositoryProvider.overrideWithValue(repo),
+          // ⚠️ **없으면 신체 정보 칸이 잠긴 채로 열린다.** 기본값은 `null`
+          // (묻지 않는다)이고, 화면은 못 물어본 것을 못 불러온 것으로 다룬다.
+          // 진짜 앱에서 이 자리를 잇는 것은 `main.dart`다.
+          bodyProfileRemoteProvider.overrideWithValue(repo),
+          // 플랫폼 채널이 없어 진짜 저장소는 읽기·쓰기에서 던진다.
+          bodyProfileStoreProvider.overrideWithValue(
+            InMemoryBodyProfileStore(),
+          ),
         ],
         child: const RuniverseApp(initialLocation: AppRoutes.profile),
       ),
@@ -328,12 +344,106 @@ void main() {
     expect(find.text(AppStrings.profileGenderFemale), findsNothing);
   });
 
-  testWidgets('⚠️ 못 불러온 값은 채우라고 하지 않고 —로 둔다', (tester) async {
-    // 서버에 값이 없는 게 아니라 **불러올 API가 없는 것**이다. 온보딩에서
-    // 이미 넣은 값이라 "설정하기"는 틀린 말이 된다.
+  testWidgets('⚠️ 서버에 값이 없으면 채우라고 하지 않고 —로 둔다', (tester) async {
+    // 51번이 `null`을 주는 경우 = **온보딩 전**이다. "설정하기"로 부추기지
+    // 않는다 — 온보딩을 먼저 마쳐야 서버가 `PATCH`를 받는다(409).
     await pumpEdit(tester);
 
     expect(find.text(AppStrings.profileEditUnknown), findsWidgets);
+  });
+
+  /// 신체 정보 — **모르는 값 위에 기본값을 쓰지 않는가.**
+  ///
+  /// 전에는 기기에 남은 값으로만 선택기를 열었다. 다른 기기에서 로그인한
+  /// 사람은 그 값이 없어 172cm·63kg으로 열렸고, **키만 고쳐 저장해도 몸무게가
+  /// 63kg으로 덮였다** — 시트가 두 값을 함께 돌려주기 때문이다.
+  group('신체 정보', () {
+    const stored = StoredBody(heightCm: 175, weightKg: 71);
+
+    /// `키 · 몸무게` 줄을 눌러 시트를 연다.
+    Future<void> openBodySheet(WidgetTester tester) async {
+      await tester.tap(find.text(AppStrings.profileBodyLabel));
+      await tester.pumpAndSettle();
+    }
+
+    /// 시트가 열려 있는가. 잠긴 줄은 눌러도 열리지 않는다.
+    bool sheetOpen() =>
+        find.text(AppStrings.wheelPickerConfirm).evaluate().isNotEmpty;
+
+    testWidgets('서버 값으로 칸이 채워진다', (tester) async {
+      await pumpEdit(tester, body: stored);
+
+      expect(find.textContaining('175cm'), findsOneWidget);
+      expect(find.textContaining('71kg'), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 서버 값을 그대로 확인해도 아무것도 보내지 않는다', (tester) async {
+      // 기본값으로 열렸다면 `172 · 63`을 확인한 셈이 되어 저장이 열린다.
+      await pumpEdit(tester, body: stored);
+
+      await openBodySheet(tester);
+      await tester.tap(find.text(AppStrings.wheelPickerConfirm));
+      await tester.pumpAndSettle();
+
+      expect(await saveOpens(tester), isFalse);
+    });
+
+    testWidgets('⚠️ 키만 고치면 몸무게는 보내지 않는다', (tester) async {
+      // **이 테스트가 이 작업의 이유다.** 시트는 두 값을 함께 돌려주므로,
+      // 바뀐 것을 가리는 기준이 서버 값이어야 몸무게가 빠진다.
+      await pumpEdit(tester, body: stored);
+
+      await openBodySheet(tester);
+      // 첫 휠(키)만 한 칸 굴린다. 44px = 항목 하나.
+      await tester.drag(
+        find.byType(ListWheelScrollView).first,
+        const Offset(0, -44),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.wheelPickerConfirm));
+      await tester.pumpAndSettle();
+      await tester.tap(saveButton());
+      await tester.pumpAndSettle();
+
+      expect(repo.updated, isNotNull);
+      expect(repo.updated!['heightCm'], 176.0);
+      // 몸무게가 실리면 **서버의 71kg이 덮인다.**
+      expect(repo.updated!.containsKey('weightKg'), isFalse);
+    });
+
+    testWidgets('⚠️ 못 불러왔으면 칸이 잠기고 이유가 보인다', (tester) async {
+      // 서버 값을 모르는 채로 선택기를 열면 기본값이 저장된다.
+      // **못 고치는 편이 틀린 값을 쓰는 것보다 낫다.**
+      await pumpEdit(tester, bodyFails: ProfileFailure.network);
+
+      expect(find.text(AppStrings.profileBodyLoadFailed), findsOneWidget);
+
+      await openBodySheet(tester);
+      expect(sheetOpen(), isFalse);
+
+      await tester.tap(find.text(AppStrings.profileBirthLabel));
+      await tester.pumpAndSettle();
+      expect(sheetOpen(), isFalse);
+    });
+
+    testWidgets('온보딩 전이면 잠그지 않는다 — 덮을 값이 없다', (tester) async {
+      // 51번이 성공했고 값만 비었다. 이때는 선택기 기본값을 써도 **아무것도
+      // 덮지 않는다** — 실패와 빈 응답을 가르는 이유가 이것이다.
+      await pumpEdit(tester);
+
+      expect(find.text(AppStrings.profileBodyLoadFailed), findsNothing);
+
+      await openBodySheet(tester);
+      expect(sheetOpen(), isTrue);
+    });
+
+    testWidgets('들어올 때 서버에 한 번 묻는다', (tester) async {
+      // 화면이 안 물으면 기기에 남은 값으로 선택기가 열린다 — 그것이
+      // 172cm·63kg이 서버에 쓰이던 경로다.
+      await pumpEdit(tester, body: stored);
+
+      expect(repo.bodyCalls, 1);
+    });
   });
 
   testWidgets('⚠️ 화면 위의 뒤로가기 버튼으로 나갈 수 있다', (tester) async {

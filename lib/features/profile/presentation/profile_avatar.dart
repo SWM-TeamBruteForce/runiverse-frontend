@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/widgets/profile_photo_image.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/profile/domain/pending_photo.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
@@ -132,8 +133,10 @@ class _ProfileAvatarState extends ConsumerState<ProfileAvatar> {
                     color: colors.textTertiary,
                   )
                 else
-                  Image.network(
-                    url,
+                  Image(
+                    // 원본이 8160×6120까지 온다. 88px 원에 띄우려고 통째로
+                    // 풀지 않는다. 서명이 바뀌어도 캐시가 살아 있다.
+                    image: profilePhoto(context, url, ProfileAvatar.size),
                     fit: BoxFit.cover,
                     // ⚠️ presigned 주소는 만료된다. 만료된 뒤에는 403이 오는데,
                     // 그때 깨진 이미지 아이콘을 두면 앱이 고장 난 것처럼 보인다.

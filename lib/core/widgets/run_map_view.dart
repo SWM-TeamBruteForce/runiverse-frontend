@@ -192,7 +192,22 @@ class _RunMapViewState extends State<RunMapView>
           Positioned(
             right: AppSpacing.space3,
             bottom: AppSpacing.space3,
-            child: _ZoomControls(controller: _controller),
+            child: _ZoomControls(
+              controller: _controller,
+              // ⚠️ **끌어서 경로를 놓치면 돌아올 길이 없었다.**
+              //
+              // `forceGesture` 로 지도가 제스처를 먼저 가져가므로, 결과
+              // 화면에서 **페이지를 스크롤하려고 지도 위를 쓸면 지도가
+              // 끌려간다.** 세 번만 쓸어도 경로가 화면 밖으로 나가는데,
+              // 다 달린 경로에는 현위치 버튼도 없다(켜면 추적이 붙어 지금
+              // 내 위치로 떠난다). 그래서 **경로로 돌아오는 버튼**을 둔다.
+              //
+              // 러닝 중 화면에는 두지 않는다 — 거기는 현위치 버튼이 맡고,
+              // 경로는 계속 자라므로 맞출 대상이 흔들린다.
+              onFit: widget.followsMe || _controller == null || !_hasRoute
+                  ? null
+                  : () => _fitToTrack(_controller!),
+            ),
           ),
         ],
       ),
@@ -258,6 +273,10 @@ class _RunMapViewState extends State<RunMapView>
       },
     );
   }
+
+  /// 맞출 경로가 있는가. 좌표가 없으면 버튼을 두지 않는다 — 눌러도
+  /// 아무 일도 안 일어나는 버튼은 고장 난 것으로 읽힌다.
+  bool get _hasRoute => TrackBounds.of(widget.track) != null;
 
   /// 경로 전체가 들어오게 카메라를 맞춘다.
   ///
@@ -389,10 +408,13 @@ class _RunMapViewState extends State<RunMapView>
 /// 줌 계산은 그 위젯이 하던 방식을 그대로 따른다 — 현재 줌을 **반올림한 뒤**
 /// ±1이다. 애니메이션 도중에 눌러도 정수 레벨로 떨어진다.
 class _ZoomControls extends StatelessWidget {
-  const _ZoomControls({required this.controller});
+  const _ZoomControls({required this.controller, this.onFit});
 
   /// 지도가 준비되기 전에는 `null`이다. 그동안 버튼은 눌리지 않는다.
   final NaverMapController? controller;
+
+  /// 경로 전체를 다시 담는다. `null`이면 버튼을 두지 않는다.
+  final VoidCallback? onFit;
 
   static const _size = 40.0;
 
@@ -432,6 +454,19 @@ class _ZoomControls extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (onFit case final fit?) ...[
+            _ZoomButton(
+              icon: LucideIcons.maximize,
+              label: AppStrings.mapFitRoute,
+              onTap: fit,
+              size: _size,
+            ),
+            SizedBox(
+              width: _size,
+              height: 1,
+              child: ColoredBox(color: colors.borderStrong),
+            ),
+          ],
           _ZoomButton(
             icon: LucideIcons.plus,
             label: AppStrings.mapZoomIn,

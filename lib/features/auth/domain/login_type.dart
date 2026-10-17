@@ -20,7 +20,12 @@
 enum LoginType {
   local,
   google,
-  kakao;
+  kakao,
+
+  /// ⚠️ **안드로이드에서도 올 수 있다.** 버튼은 iOS에만 있지만 계정의 성질은
+  /// 기기와 무관하다 — iOS에서 애플로 가입한 사람이 안드로이드로 갈아타면
+  /// 이 값이 그대로 온다. 그래서 라벨을 플랫폼으로 가리지 않는다.
+  apple;
 
   /// 서버가 준 값에서 되살린다. 모르는 값이면 `null`.
   ///
@@ -30,6 +35,7 @@ enum LoginType {
     'LOCAL' => LoginType.local,
     'GOOGLE' => LoginType.google,
     'KAKAO' => LoginType.kakao,
+    'APPLE' => LoginType.apple,
     _ => null,
   };
 

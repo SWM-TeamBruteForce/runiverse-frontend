@@ -2,9 +2,10 @@
 ///
 /// ## ⚠️ 제공자마다 모양이 다르다
 ///
-/// 카카오는 **인가 코드 + PKCE 검증값**을, 구글은 **ID 토큰** 하나를 준다.
-/// 둘을 한 클래스에 담으면 "구글인데 `codeVerifier`가 뭐지" 같은 빈 자리가
-/// 생기고, 그 자리를 채우거나 비우는 판단이 코드 여기저기로 흩어진다.
+/// 카카오는 **인가 코드 + PKCE 검증값**을, 구글은 **ID 토큰** 하나를, 애플은
+/// **ID 토큰 + nonce 원본**을 준다. 셋을 한 클래스에 담으면 "구글인데
+/// `codeVerifier`가 뭐지" 같은 빈 자리가 생기고, 그 자리를 채우거나 비우는
+/// 판단이 코드 여기저기로 흩어진다.
 ///
 /// sealed 로 가르면 **서버 본문을 만드는 자리에서 컴파일러가 빠짐을 잡는다**
 /// (`http_auth_repository.signInWithOauth`). 제공자가 늘 때도 같다.
@@ -43,4 +44,26 @@ class OauthIdToken extends OauthAuthorization {
   const OauthIdToken(this.idToken);
 
   final String idToken;
+}
+
+/// 애플 — ID 토큰과 **nonce 원본.** 둘을 함께 보낸다.
+///
+/// ## 왜 [OauthIdToken]에 nonce 를 덧붙이지 않는가
+///
+/// 그러면 구글 쪽에 늘 비어 있는 자리가 생기고, "구글인데 nonce 가 왜 있지"를
+/// 읽는 사람이 매번 판단해야 한다. 따로 두면 **서버 본문을 만드는 자리에서
+/// 컴파일러가 빠짐을 잡는다**(`http_auth_repository.signInWithOauth`).
+///
+/// ## ⚠️ [nonce]는 애플에 넘긴 값이 아니다
+///
+/// 애플에는 **해시**를, 서버에는 **원본**을 보낸다. 서버가 원본을 해시해 ID 토큰
+/// 안의 값과 대조하므로, 여기에 해시가 들어오면 401이 된다. 짝을 지어 들고
+/// 있는 `AppleNonce`가 그 혼동을 줄인다.
+class OauthIdTokenWithNonce extends OauthAuthorization {
+  const OauthIdTokenWithNonce({required this.idToken, required this.nonce});
+
+  final String idToken;
+
+  /// 해시하지 않은 원본.
+  final String nonce;
 }

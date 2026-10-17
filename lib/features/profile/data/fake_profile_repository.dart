@@ -1,3 +1,4 @@
+import 'package:runiverse/core/storage/body_profile_store.dart';
 import 'package:runiverse/features/profile/domain/nickname_change_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_failure.dart';
@@ -14,6 +15,8 @@ class FakeProfileRepository implements ProfileRepository {
     this.failure,
     this.nicknameFailure,
     this.editFailure,
+    this.body = StoredBody.empty,
+    this.bodyFailure,
   });
 
   final String? nickname;
@@ -29,6 +32,17 @@ class FakeProfileRepository implements ProfileRepository {
 
   /// 주면 프로필 수정이 그 이유로 실패한다.
   final ProfileEditFailure? editFailure;
+
+  /// 서버가 가지고 있다고 할 신체 정보(51번). 기본은 **온보딩 전**이라
+  /// 셋 다 비어 있다.
+  final StoredBody body;
+
+  /// 주면 신체 정보 조회가 그 이유로 실패한다. **`body`가 비어 있는 것과
+  /// 다르다** — 못 불러온 것과 설정한 적 없는 것을 가르는 테스트가 이것을 쓴다.
+  final ProfileFailure? bodyFailure;
+
+  /// 신체 정보를 몇 번 물었는가.
+  var bodyCalls = 0;
 
   /// 몇 번 불렸는가. 부르지 말아야 할 때 부르지 않는지 보는 데 쓴다.
   var calls = 0;
@@ -74,6 +88,14 @@ class FakeProfileRepository implements ProfileRepository {
     };
     final reason = editFailure;
     if (reason != null) throw ProfileEditException(reason);
+  }
+
+  @override
+  Future<StoredBody> fetchBody() async {
+    bodyCalls++;
+    final reason = bodyFailure;
+    if (reason != null) throw ProfileException(reason);
+    return body;
   }
 
   @override
