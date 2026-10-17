@@ -1,4 +1,5 @@
 import 'package:runiverse/features/session/domain/geo_point.dart';
+import 'package:runiverse/features/session/domain/permission_access.dart';
 
 /// 위치를 쓸 수 있는가.
 ///
@@ -46,6 +47,14 @@ abstract interface class LocationRepository {
   ///
   /// 이미 허용돼 있으면 묻지 않고 바로 [LocationAccess.granted]를 돌려준다.
   Future<LocationAccess> ensureAccess();
+
+  /// 러닝 중 알림을 띄울 권한을 묻는다. 위치를 허용받은 뒤에 부른다.
+  ///
+  /// ⚠️ **Android 13부터 알림 권한이 있어야 러닝 알림이 보인다.** 선언만으로는
+  /// 서랍에 안 뜬다. 거절해도 기록은 그대로 돈다.
+  ///
+  /// 묻지 않는 플랫폼(iOS)은 `null` 이다.
+  Future<PermissionAccess?> ensureRunNotification();
 
   /// 위치 스트림을 연다.
   ///

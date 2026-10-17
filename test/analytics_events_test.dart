@@ -10,6 +10,8 @@ import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/analytics/fake_analytics.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
+import 'package:runiverse/core/storage/body_profile_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
@@ -17,7 +19,13 @@ import 'package:runiverse/features/auth/data/fake_oauth_code_source.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/session/data/fake_location_repository.dart';
+import 'package:runiverse/features/session/data/fake_step_repository.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/domain/location_repository.dart';
+import 'package:runiverse/features/session/domain/permission_access.dart';
+import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// GA 이벤트 — **성공한 시점에만 남는가.**
@@ -202,6 +210,156 @@ void main() {
       await tapTab(tester, AppStrings.tabRecord);
 
       expect(screens(), ['home', 'record']);
+    });
+  });
+
+  group('user_id', () {
+    // 로그인 성공 자리가 아니라 **로그인 상태**를 듣는다. 앱을 다시 켜 자동
+    // 로그인된 사람은 로그인 성공을 거치지 않는다.
+    Future<ProviderContainer> pumpApp(WidgetTester tester) async {
+      analytics = FakeAnalytics();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            analyticsProvider.overrideWithValue(analytics),
+            tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
+            signInMemoryStoreProvider.overrideWithValue(
+              InMemorySignInMemoryStore(),
+            ),
+            // 로그인·로그아웃이 신체 정보를 읽고 지운다. 진짜는 플랫폼 채널을 부른다.
+            bodyProfileStoreProvider.overrideWithValue(
+              InMemoryBodyProfileStore(),
+            ),
+            authRepositoryProvider.overrideWithValue(
+              FakeAuthRepository(latency: Duration.zero),
+            ),
+            matchRepositoryProvider.overrideWithValue(FakeMatchRepository()),
+            runRecordRepositoryProvider.overrideWithValue(
+              FakeRunRecordRepository(),
+            ),
+            userStatusRepositoryProvider.overrideWithValue(
+              FakeUserStatusRepository(),
+            ),
+          ],
+          child: const RuniverseApp(initialLocation: AppRoutes.home),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return ProviderScope.containerOf(
+        tester.element(find.byType(RuniverseApp)),
+      );
+    }
+
+    testWidgets('로그인하면 걸고, 로그아웃하면 뗀다', (tester) async {
+      final container = await pumpApp(tester);
+      final repository =
+          container.read(authRepositoryProvider) as FakeAuthRepository;
+      repository.seedAccount(email: 'a@b.com', password: 'runi123!');
+
+      // ⚠️ `runAsync` 로 감싼다. 가짜 저장소의 지연(`Future.delayed`)은 위젯
+      // 테스트의 가짜 시계에서 저절로 흐르지 않아, 그냥 기다리면 영영 멈춘다.
+      final controller = container.read(authControllerProvider.notifier);
+      await tester.runAsync(
+        () => controller.signIn(email: 'a@b.com', password: 'runi123!'),
+      );
+      await tester.pump();
+      final signedIn = container.read(authControllerProvider) as AuthSignedIn;
+
+      await tester.runAsync(controller.signOut);
+      await tester.pump();
+
+      expect(analytics.userIds, [signedIn.userId, null]);
+    });
+
+    testWidgets('⚠️ 켜자마자 로그아웃으로 판정돼도 뗀다', (tester) async {
+      // 지난 실행에 로그인했다가 이번에 세션이 만료된 사람이다. GA 는 회원 ID 를
+      // 기기에 남겨 두므로, 여기서 `null` 을 안 보내면 지난 ID 가 계속 붙는다.
+      final container = await pumpApp(tester);
+
+      await tester.runAsync(
+        container.read(authControllerProvider.notifier).restore,
+      );
+      await tester.pump();
+
+      expect(container.read(authControllerProvider), isA<AuthSignedOut>());
+      expect(analytics.userIds, [null]);
+    });
+
+    testWidgets('⚠️ 로그인 여부를 아직 모르면 아무것도 걸지 않는다', (tester) async {
+      // 앱이 막 뜬 순간이다. 여기서 `null` 을 걸면 이전 실행의 회원 ID 를
+      // 쓸데없이 한 번 떼고 다시 거는 셈이다.
+      await pumpApp(tester);
+
+      expect(analytics.userIds, isEmpty);
+    });
+  });
+
+  group('permission_result', () {
+    // 러닝 준비가 묻는 순서대로 남는가 — 위치, 알림, 신체 활동.
+    Future<List<String>> prepare({
+      LocationAccess location = LocationAccess.granted,
+      PermissionAccess? notification = PermissionAccess.granted,
+      bool activity = true,
+    }) async {
+      analytics = FakeAnalytics();
+      final container = ProviderContainer.test(
+        overrides: [
+          analyticsProvider.overrideWithValue(analytics),
+          locationRepositoryProvider.overrideWithValue(
+            FakeLocationRepository(
+              access: location,
+              notification: notification,
+            ),
+          ),
+          stepRepositoryProvider.overrideWithValue(
+            FakeStepRepository(granted: activity),
+          ),
+        ],
+      );
+      await container.read(runSessionControllerProvider.notifier).prepare();
+      // 걸음 권한은 기다리지 않고 묻는다. 한 바퀴 돌려 마저 남게 한다.
+      await Future<void>.delayed(Duration.zero);
+      return [
+        for (final e in analytics.events)
+          if (e.$1 == 'permission_result')
+            '${e.$2!['permission']}:${e.$2!['result']}',
+      ];
+    }
+
+    test('허용하면 셋 다 남는다', () async {
+      expect(await prepare(), [
+        'location:granted',
+        'notification:granted',
+        'activity:granted',
+      ]);
+    });
+
+    test('⚠️ 위치를 거절하면 위치만 남는다', () async {
+      // 러닝이 거기서 멈춘다. 알림·걸음은 묻지도 않았다.
+      expect(await prepare(location: LocationAccess.deniedForever), [
+        'location:denied_forever',
+      ]);
+    });
+
+    test('기기 위치 기능이 꺼져 있으면 권한과 따로 센다', () async {
+      expect(await prepare(location: LocationAccess.serviceDisabled), [
+        'location:service_disabled',
+      ]);
+    });
+
+    test('걸음을 거절해도 남는다', () async {
+      expect(await prepare(activity: false), [
+        'location:granted',
+        'notification:granted',
+        'activity:denied',
+      ]);
+    });
+
+    test('알림을 묻지 않는 플랫폼에서는 알림이 남지 않는다', () async {
+      expect(await prepare(notification: null), [
+        'location:granted',
+        'activity:granted',
+      ]);
     });
   });
 }

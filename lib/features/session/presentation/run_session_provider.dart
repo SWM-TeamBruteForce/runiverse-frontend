@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/database/database_provider.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/features/session/domain/calorie_calculator.dart';
@@ -14,6 +15,7 @@ import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/domain/location_smoother.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
+import 'package:runiverse/features/session/domain/permission_access.dart';
 import 'package:runiverse/features/session/domain/run_metrics.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/step_repository.dart';
@@ -186,9 +188,21 @@ class RunSessionController extends Notifier<RunSessionState> {
     state = const RunPreparing();
 
     final access = await _repository.ensureAccess();
+    _logPermission('location', switch (access) {
+      LocationAccess.granted => 'granted',
+      LocationAccess.denied => 'denied',
+      LocationAccess.deniedForever => 'denied_forever',
+      LocationAccess.serviceDisabled => 'service_disabled',
+    });
     if (!access.isGranted) {
       state = const RunIdle();
       return access;
+    }
+
+    // 알림은 위치를 허용받은 뒤에 묻는다. 거절해도 러닝은 막지 않는다.
+    final notification = await _repository.ensureRunNotification();
+    if (notification != null) {
+      _logPermission('notification', _name(notification));
     }
 
     _subscription = _repository.watchPosition().listen(
@@ -229,7 +243,9 @@ class RunSessionController extends Notifier<RunSessionState> {
   /// 에뮬레이터에는 걸음 센서가 아예 없어 스트림이 곧바로 오류를 낸다.
   Future<void> _startSteps() async {
     try {
-      if (!await ref.read(stepRepositoryProvider).ensureAccess()) {
+      final access = await ref.read(stepRepositoryProvider).ensureAccess();
+      _logPermission('activity', _name(access));
+      if (!access.isGranted) {
         debugPrint('[cadence] 걸음 권한이 없다. 케이던스를 내지 않는다');
         return;
       }
@@ -608,4 +624,16 @@ class RunSessionController extends Notifier<RunSessionState> {
     _resumedAt = null;
     _startedAt = null;
   }
+
+  void _logPermission(String permission, String result) => unawaited(
+    ref
+        .read(analyticsProvider)
+        .permissionResult(permission: permission, result: result),
+  );
+
+  static String _name(PermissionAccess access) => switch (access) {
+    PermissionAccess.granted => 'granted',
+    PermissionAccess.denied => 'denied',
+    PermissionAccess.deniedForever => 'denied_forever',
+  };
 }

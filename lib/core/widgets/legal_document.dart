@@ -16,8 +16,8 @@ import 'package:url_launcher/url_launcher.dart';
 /// 안드로이드에서 열리려면 매니페스트 `<queries>`에 VIEW+https 인텐트가
 /// 있어야 한다. 없으면 예외도 로그도 없이 실패한다.
 ///
-/// 주소가 아직 없는 문서([LegalLinks.terms])는 "준비 중"으로 알린다 —
-/// 눌러도 조용하면 고장으로 읽힌다.
+/// 주소가 아직 없는 문서([LegalLinks.isReady]가 `false`)는 "준비 중"으로
+/// 알린다 — 눌러도 조용하면 고장으로 읽힌다.
 Future<void> openLegalDocument(BuildContext context, String url) async {
   final messenger = ScaffoldMessenger.of(context);
 

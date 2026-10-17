@@ -760,7 +760,10 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
         unawaited(
           ref
               .read(analyticsProvider)
-              .runFinish(runType: _runType(state.room?.isMatched)),
+              .runFinish(
+                runType: _runType(state.room?.isMatched),
+                early: forced,
+              ),
         );
         await ref.read(trackRecorderProvider).discard();
         // ⚠️ 좌표와 **같은 순간에** 지운다. 번호만 남으면 다음 러닝이 이미 끝난
@@ -824,7 +827,7 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       unawaited(
         ref
             .read(analyticsProvider)
-            .runFinish(runType: _runType(state.room?.isMatched)),
+            .runFinish(runType: _runType(state.room?.isMatched), early: false),
       );
       await ref.read(trackRecorderProvider).discard();
       await ref.read(trackRepositoryProvider).clearActiveRoom();

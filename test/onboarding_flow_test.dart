@@ -205,7 +205,7 @@ void main() {
   });
 
   testWidgets('문서가 없는 항목은 준비 중이라고 알린다', (tester) async {
-    // 눌러도 조용하면 고장으로 읽힌다. 이용약관 문서는 아직 없다.
+    // 눌러도 조용하면 고장으로 읽힌다. 마케팅 조항은 아직 방침에 없다.
     await pumpApp(tester);
     await tester.tap(find.byType(SplashPage));
     await tester.pumpAndSettle();
@@ -216,7 +216,10 @@ void main() {
     await tester.tap(find.text(AppStrings.authToSignUp));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip(AppStrings.termsViewDocument).first);
+    final marketing = find.byTooltip(AppStrings.termsViewDocument).last;
+    await tester.ensureVisible(marketing);
+    await tester.pumpAndSettle();
+    await tester.tap(marketing);
     await tester.pumpAndSettle();
 
     expect(find.text(AppStrings.legalDocumentPending), findsOneWidget);

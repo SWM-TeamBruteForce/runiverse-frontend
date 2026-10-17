@@ -1491,11 +1491,10 @@ abstract final class AppStrings {
 
   static const settingsPassword = '비밀번호 변경';
 
-  /// ⚠️ **이용약관만 가리킨다.** 예전에는 문서가 하나도 없어 한 행이 둘을
-  /// 함께 맡았는데, 개인정보처리방침이 생겨 행이 갈라졌다.
+  /// ⚠️ **이용약관만 가리킨다.** 개인정보처리방침은 아래 별도 행이다.
   static const settingsTerms = '이용약관';
 
-  /// 구글 플레이 심사가 요구하는 두 링크. 앱 밖 문서를 브라우저로 연다.
+  /// 스토어 심사가 요구하는 두 링크. 앱 밖 문서를 브라우저로 연다.
   static const settingsPrivacy = '개인정보처리방침';
   static const settingsAccountDeletion = '계정·데이터 삭제 안내';
 

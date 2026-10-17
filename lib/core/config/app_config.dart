@@ -62,6 +62,18 @@ class AppConfig {
     'GOOGLE_SERVER_CLIENT_ID',
   );
 
+  /// 구글 iOS 클라이언트 ID.
+  ///
+  /// iOS에서는 [googleServerClientId]와 **함께** 넘겨야 한다. 웹 ID만 넘기면
+  /// iOS 플러그인이 설정을 만들지 않고 웹 ID를 버린다 — 토큰 수신자가 iOS ID로
+  /// 찍혀 서버가 401을 돌려준다. 빌드 단계가 같은 값을 Info.plist `GIDClientID`에도 넣는다.
+  static const googleIosClientId = String.fromEnvironment(
+    'GOOGLE_IOS_CLIENT_ID',
+  );
+
+  /// iOS 구글 로그인에 쓸 iOS 클라이언트 ID가 있는가.
+  static bool get hasGoogleIosClientId => googleIosClientId.isNotEmpty;
+
   /// 구글 로그인을 걸어도 되는가.
   ///
   /// 카카오와 같은 규칙이다 — 값이 없으면 초기화하지 않고, 버튼은 `준비 중`으로
