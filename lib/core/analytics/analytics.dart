@@ -69,7 +69,11 @@ abstract interface class Analytics {
   Future<void> runStart({required String runType});
 
   /// `RUNNING_FINISHED` 를 처음 받았을 때. [runType] 은 `match` · `solo`.
-  Future<void> runFinish({required String runType});
+  ///
+  /// [early] 는 **본인이 목표 전에 끝내기로 했는가**(`forced=true`)다. 서버가
+  /// 그 시점 거리로 완주 처리할 수도 있어서 "완주 못 함"과 같은 뜻은 아니다.
+  /// 서버가 끝낸 경우는 `false` 다.
+  Future<void> runFinish({required String runType, required bool early});
 
   /// 탈퇴 성공.
   Future<void> withdraw();
@@ -129,7 +133,10 @@ class NoopAnalytics implements Analytics {
   Future<void> runStart({required String runType}) async {}
 
   @override
-  Future<void> runFinish({required String runType}) async {}
+  Future<void> runFinish({
+    required String runType,
+    required bool early,
+  }) async {}
 
   @override
   Future<void> withdraw() async {}

@@ -48,8 +48,10 @@ class FakeAnalytics implements Analytics {
       events.add(('run_start', {'run_type': runType}));
 
   @override
-  Future<void> runFinish({required String runType}) async =>
-      events.add(('run_finish', {'run_type': runType}));
+  Future<void> runFinish({
+    required String runType,
+    required bool early,
+  }) async => events.add(('run_finish', {'run_type': runType, 'early': early}));
 
   @override
   Future<void> withdraw() async => events.add(('withdraw', null));
