@@ -424,10 +424,10 @@ class _PartyAvatars extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: AppSpacing.space4,
-      runSpacing: AppSpacing.space3,
+    return PartyChipRow(
+      // 이름을 보이는 자리만 칸을 넓힌다. 3-2-1 구간은 이름이 없어 칩 폭이
+      // 곧 아바타 폭이고, 칸을 넓히면 아바타만 멀어진다.
+      maxChipWidth: withNames ? AppSpacing.space10 : size,
       children: [
         for (var i = 0; i < players.length; i++)
           PartyChip(

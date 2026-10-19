@@ -467,11 +467,15 @@ class _Head extends StatelessWidget {
         lane.member?.nickname ??
         (lane.isMe ? AppStrings.runPartyMe : AppStrings.runPartyUnknown);
     final photo = lane.member?.profileImageUrl;
-    final initial = Text(
-      name.isEmpty ? '' : name.characters.first,
-      style: AppTypography.caption.copyWith(
-        color: colors.textOnPrimary,
-        fontWeight: FontWeight.w700,
+    // 사진이 없을 때의 머리글자. **가운데 정렬을 스스로 한다** — 아래 원이
+    // `alignment`를 쓸 수 없는 이유가 사진 쪽에 있다.
+    final initial = Center(
+      child: Text(
+        name.isEmpty ? '' : name.characters.first,
+        style: AppTypography.caption.copyWith(
+          color: colors.textOnPrimary,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
 
@@ -482,7 +486,11 @@ class _Head extends StatelessWidget {
           height: AppSpacing.space7,
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          alignment: Alignment.center,
+          // ⚠️ **`alignment`를 두지 않는다.** 두면 [Container]가 자식에게
+          // 느슨한 제약을 넘겨서, 사진이 **원래 비율대로** 놓인다 —
+          // 32×32 틀에 가로 사진이면 32×16이 되고 위아래에 레인 색이 비친다.
+          // `BoxFit.cover`는 받은 크기 안에서만 자르므로 도움이 되지 않는다.
+          // 제약을 꽉 조여야 비로소 잘라서 채운다([RunnerAvatarV2]와 같다).
           child: photo == null
               ? initial
               : Image(

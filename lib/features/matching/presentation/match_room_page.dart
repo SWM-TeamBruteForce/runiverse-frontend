@@ -406,11 +406,10 @@ class _PartyCard extends StatelessWidget {
             style: AppTypographyV2.body13.copyWith(color: colors.textTertiary),
           ),
           const SizedBox(height: AppSpacing.space4),
-          // 방은 최대 4명이지만 가로가 모자라면 접힌다.
-          Wrap(
-            spacing: AppSpacing.space4,
-            runSpacing: AppSpacing.space3,
-            alignment: WrapAlignment.center,
+          // 방은 최대 4명이다. 사람마다 같은 폭의 칸을 줘서 아바타 중심
+          // 간격을 맞춘다 — 이름 길이에 칩 폭을 맡기면 들쭉날쭉해진다.
+          PartyChipRow(
+            maxChipWidth: AppSpacing.space10,
             children: [
               for (final player in players)
                 PartyChip(
