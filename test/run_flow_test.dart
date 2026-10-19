@@ -13,6 +13,7 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/data/fake_running_room_repository.dart';
 import 'package:runiverse/features/session/data/fake_step_repository.dart';
 import 'package:runiverse/features/session/data/fake_track_repository.dart';
@@ -25,6 +26,7 @@ import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/presentation/run_controls.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
@@ -86,6 +88,11 @@ void main() {
           // ⚠️ 서버를 부르지 않는다. 갈아 끼우지 않으면 진짜 HTTP와 소켓을
           // 열려 하고, 테스트에는 주소가 없어 죽는다.
           runningRoomRepositoryProvider.overrideWithValue(room),
+          // ⚠️ 준비 화면이 들어올 때 상태를 다시 읽는다. 갈아 끼우지
+          // 않으면 진짜 HTTP를 열려다 주소가 없어 죽는다.
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
+          ),
           // ⚠️ 갈아 끼우지 않으면 진짜 DB를 열려다 실패하고, 컨트롤러가 그
           // 실패를 삼켜 **좌표가 쌓이는지 아무도 확인하지 않는 상태**가 된다.
           trackRepositoryProvider.overrideWithValue(track),

@@ -5,10 +5,12 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/presentation/run_prepare_page.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 출발 준비 — **신호를 받기 전에는 출발하지 못한다.**
 ///
@@ -25,7 +27,14 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [locationRepositoryProvider.overrideWithValue(location)],
+        overrides: [
+          locationRepositoryProvider.overrideWithValue(location),
+          // 준비 화면이 들어올 때 상태를 다시 읽는다. 진짜 HTTP를
+          // 열지 않게 갈아 끼운다 — 쉬는 중이라 막지 않는다.
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
+          ),
+        ],
         child: MaterialApp(
           theme: AppTheme.dark(),
           home: const RunPreparePage(),

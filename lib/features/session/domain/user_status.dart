@@ -31,6 +31,24 @@ sealed class UserStatus {
   bool canApplyMatch({required DateTime now}) =>
       this is UserStatusIdle && remainingCooldown(now: now) == Duration.zero;
 
+  /// 지금 **혼자 뛰기를 시작할 수 있는가.**
+  ///
+  /// 매칭이 걸려 있으면 `POST /running-rooms/solo`가 409
+  /// `RUNNING_ALREADY_IN_PROGRESS`로 막힌다. 눌러 보고 알아내는 대신 **누르기
+  /// 전에 알려 준다** — 막힌 이유도 상태마다 다르다.
+  ///
+  /// ⚠️ **쿨다운은 보지 않는다.** 이탈 제재는 매칭 신청만 막고 솔로는 열어
+  /// 둔다([canApplyMatch]와 갈리는 자리다).
+  ///
+  /// ⚠️ **솔로 `READY`는 막지 않는다.** 내가 만들어 둔 방이라 새로 만드는 것이
+  /// 아니라 그 방에 붙어 시작한다.
+  bool get canStartSolo => switch (this) {
+    UserStatusIdle() => true,
+    UserStatusWaiting() => false,
+    UserStatusReady(:final isSolo) => isSolo,
+    UserStatusRunning() => false,
+  };
+
   /// 제한이 풀릴 때까지 남은 시간. 없거나 이미 지났으면 [Duration.zero]다.
   ///
   /// ⚠️ **음수를 돌려주지 않는다.** 화면이 "-3분 후"를 그리게 두면 안 된다.

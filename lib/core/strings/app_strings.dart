@@ -986,6 +986,24 @@ abstract final class AppStrings {
 
   static const runAlreadyInProgressWhy = '앱이 갑자기 꺼졌다면 그때 러닝이 남아 있을 수 있어요.';
 
+  /// 매칭을 신청해 둔 사람이 혼자 뛰기를 누른 경우.
+  ///
+  /// ⚠️ [runAlreadyInProgress]와 나눈다. 서버는 둘 다 같은 409로 막지만
+  /// **할 일이 다르다** — 이쪽은 매칭을 취소하면 풀리고, 저쪽은 남은 러닝을
+  /// 끝내야 풀린다. 한 문구로 뭉뚱그리면 매칭을 신청해 둔 사람이 있지도 않은
+  /// 러닝을 찾게 된다.
+  static const runBlockedByMatch = '등록된 매칭이 있어요';
+
+  static const runBlockedByMatchWhy = '매칭을 취소한 뒤에 다시 시도해주세요.';
+
+  /// 매칭이 **확정된** 사람이 혼자 뛰기를 누른 경우.
+  ///
+  /// ⚠️ [runBlockedByMatch]와도 나눈다. 확정 뒤의 취소에는 제재가 붙어서
+  /// (`matchRoomLeavePenalty`) "취소하세요"라고만 하면 모르고 당한다.
+  static const runBlockedByMatched = '매칭이 확정됐어요';
+
+  static const runBlockedByMatchedWhy = '취소하면 바로 뛸 수 있지만, 20분 동안 다시 신청할 수 없어요.';
+
   static const runBackToHome = '홈으로';
 
   /// 연결이 없는 채로 달리는 중. **막지 않고 알리기만 한다.**

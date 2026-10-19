@@ -59,6 +59,16 @@ class _RunPreparePageState extends ConsumerState<RunPreparePage> {
   }
 
   Future<void> _prepare() async {
+    // ⚠️ **들어올 때 상태를 다시 읽는다.**
+    //
+    // 매칭이 걸려 있으면 솔로 방을 못 만든다. 그 판정을 **마지막으로 읽은
+    // 값**으로 하면, 다른 기기에서 취소했거나 방금 홈에서 취소한 사람을
+    // 앱이 혼자 막아 세운다 — 되돌릴 길이 화면에 없다.
+    //
+    // 기다리지 않는다. GPS를 잡는 동안 뒤에서 돌고, 답이 오면 화면이 다시
+    // 그려진다.
+    unawaited(ref.read(userStatusProvider.notifier).refresh());
+
     final access = await ref
         .read(runSessionControllerProvider.notifier)
         .prepare();
@@ -154,11 +164,18 @@ class _RunPreparePageState extends ConsumerState<RunPreparePage> {
       }
     });
 
+    // ⚠️ **눌러 보기 전에도 막는다.** 매칭이 걸려 있으면 `시작`은 409로만
+    // 끝난다 — 3초를 세고 나서 알려 주는 것은 알려 주는 것이 아니다.
+    //
+    // 상태를 못 읽었으면(`null`) 막지 않는다. 판정에 실패했다고 막으면 신호가
+    // 나쁜 곳에서 아무도 못 뛴다 — 그때는 서버의 409가 다시 걸러 준다.
+    final status = ref.watch(userStatusProvider);
     final conflicted =
+        status?.canStartSolo == false ||
         ref.watch(runningConnectionProvider).failure ==
-        RunningRoomFailure.alreadyRunning;
+            RunningRoomFailure.alreadyRunning;
     if (conflicted) {
-      return _Conflicted(onLeave: () => unawaited(_leave()));
+      return _Conflicted(status: status, onLeave: () => unawaited(_leave()));
     }
 
     final countdown = _countdown;
@@ -393,13 +410,34 @@ class _Countdown extends StatelessWidget {
 /// ⚠️ **"다시 시도"를 주지 않는다.** 몇 번을 눌러도 같은 답이 온다 —
 /// 서버에 남은 러닝이 정리돼야 풀린다.
 class _Conflicted extends StatelessWidget {
-  const _Conflicted({required this.onLeave});
+  const _Conflicted({required this.status, required this.onLeave});
+
+  /// 서버가 아는 상태. 막힌 이유가 여기서 갈린다. `null`이면 못 읽었다.
+  final UserStatus? status;
 
   final VoidCallback onLeave;
+
+  /// 무엇이 막고 있는지.
+  ///
+  /// 서버는 매칭이든 러닝이든 같은 409로 답하지만 **사용자가 할 일이 다르다.**
+  /// 못 읽었거나 러닝이 남은 경우가 기본이다 — 그쪽이 원래 이 화면이 맡던 일이고,
+  /// 상태를 모를 때 "매칭을 취소하세요"라고 하면 없는 매칭을 찾게 된다.
+  (String, String) get _copy => switch (status) {
+    UserStatusWaiting() => (
+      AppStrings.runBlockedByMatch,
+      AppStrings.runBlockedByMatchWhy,
+    ),
+    UserStatusReady(isSolo: false) => (
+      AppStrings.runBlockedByMatched,
+      AppStrings.runBlockedByMatchedWhy,
+    ),
+    _ => (AppStrings.runAlreadyInProgress, AppStrings.runAlreadyInProgressWhy),
+  };
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
+    final (title, why) = _copy;
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -416,7 +454,7 @@ class _Conflicted extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.space5),
               Text(
-                AppStrings.runAlreadyInProgress,
+                title,
                 textAlign: TextAlign.center,
                 style: AppTypographyV2.heading02.copyWith(
                   color: colors.textPrimary,
@@ -424,7 +462,7 @@ class _Conflicted extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.space3),
               Text(
-                AppStrings.runAlreadyInProgressWhy,
+                why,
                 textAlign: TextAlign.center,
                 style: AppTypographyV2.body07.copyWith(
                   color: colors.textSecondary,

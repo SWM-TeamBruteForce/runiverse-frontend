@@ -340,7 +340,21 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// 좁은 경합이 남는다. 상태 조회는 포그라운드 복귀에서만 도는데 그 순간
   /// 사용자가 시작을 누르는 경우라, 한 번의 왕복만큼이다.
   Future<void> _closeOnIdle() async {
-    if (_channel == null) return;
+    if (_channel == null) {
+      // ⚠️ **소켓은 없는데 막아 둔 이유만 남은 자리가 있다.**
+      //
+      // 매칭 중에 솔로를 시작하면 409로 막히고 [RunningRoomFailure.alreadyRunning]
+      // 만 남는다(방도 소켓도 못 열었다). 그 뒤 매칭을 취소해도 이 이유가 그대로
+      // 살아 있어서, **준비 화면이 들어가자마자 다시 충돌 화면을 그린다** —
+      // 서버는 이미 풀어 줬는데 앱만 막고 있다(2026-10-19 에뮬레이터에서 재현).
+      //
+      // 서버가 쉬는 중이라고 하면 그 이유는 더는 참이 아니다.
+      if (state.failure == RunningRoomFailure.alreadyRunning) {
+        debugPrint('[running] 진행 중인 것이 없다. 막아 둔 이유를 푼다');
+        state = const RunningConnectionState();
+      }
+      return;
+    }
     debugPrint('[running] 서버가 진행 중인 것이 없다고 한다. 연결을 내려놓는다');
     await close();
     // ⚠️ [close]가 상태를 통째로 비우므로 이유를 뒤에 세운다. 화면이 이것을
