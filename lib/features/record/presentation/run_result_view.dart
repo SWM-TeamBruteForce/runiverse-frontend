@@ -204,9 +204,11 @@ class _RunResultViewState extends State<RunResultView> {
                         // 1km 그래프와 헷갈리지 않는다.
                         title: AppStrings.runResultCadenceDetailChart,
                         unit: AppStrings.runResultCadenceDetailUnit,
+                        // ⚠️ **모르는 구간은 `null`로 넘긴다.** 0으로 바꾸면
+                        // 선이 바닥까지 떨어져 "그때 멈췄다"로 읽힌다 —
+                        // 걸음 표본이 모자란 것과 안 뛴 것은 다른 말이다.
                         values: [
-                          for (final s in samples)
-                            (s.cadenceSpm ?? 0).toDouble(),
+                          for (final s in samples) s.cadenceSpm?.toDouble(),
                         ],
                         labels: _sampleLabels(samples),
                         axisTicks: _sampleTicks(samples),

@@ -93,6 +93,40 @@ void main() {
     expect(labelLeft - cardLeft, greaterThan(40));
   });
 
+  /// 끊어 긋기 — **모르는 구간을 가로지르지 않는가.**
+  ///
+  /// 선은 캔버스에 그려 위젯 트리에 남지 않는다. 이어 그었는지 끊어 그었는지는
+  /// 화면에서 확인할 수 없어 계산을 직접 잰다.
+  group('끊어 긋기', () {
+    const a = Offset(0, 10);
+    const b = Offset(10, 20);
+    const c = Offset(20, 30);
+
+    test('빈 자리가 없으면 한 토막이다', () {
+      expect(lineRunsOf(const [a, b, c]), [
+        [a, b, c],
+      ]);
+    });
+
+    test('⚠️ 빈 자리에서 끊는다', () {
+      // 이어 그으면 **모르는 구간을 잰 것처럼 보인다.**
+      expect(lineRunsOf(const [a, null, b, c]), [
+        [a],
+        [b, c],
+      ]);
+    });
+
+    test('앞뒤가 비어도 가운데만 긋는다', () {
+      expect(lineRunsOf(const [null, a, b, null]), [
+        [a, b],
+      ]);
+    });
+
+    test('아는 구간이 없으면 그을 것도 없다', () {
+      expect(lineRunsOf(const [null, null]), isEmpty);
+    });
+  });
+
   /// x축 라벨 — **거리로 고른 자리에 찍는가.**
   ///
   /// 점 개수로 솎으면 50m 표본에서 `0.05 · 0.65 · 1.25km`가 나온다.

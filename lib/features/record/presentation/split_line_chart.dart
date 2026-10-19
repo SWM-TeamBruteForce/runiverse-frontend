@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
@@ -29,6 +30,32 @@ int focusedSplitOf({
       ? 0.0
       : ((dx - gutter - inset) / span).clamp(0.0, 1.0);
   return (ratio * (count - 1)).round();
+}
+
+/// 끊기지 않고 이어지는 토막들로 나눈다. 빈 자리(`null`)가 경계다.
+///
+/// ## ⚠️ 빈 자리를 건너뛰어 이으면 안 된다
+///
+/// 모르는 구간을 가로지르는 직선은 **그 구간을 잰 것처럼 보인다.** 경로를
+/// 30m 넘게 벌어진 자리에서 끊는 것(`RouteSegments`)과 같은 판단이다.
+///
+/// 위젯이 아니라 함수로 둔 이유는 [focusedSplitOf]와 같다 — 선은 캔버스에
+/// 그려 위젯 트리에 남지 않아서, 이어 그었는지 끊어 그었는지를 **화면에서는
+/// 확인할 수 없다.**
+@visibleForTesting
+List<List<Offset>> lineRunsOf(List<Offset?> points) {
+  final runs = <List<Offset>>[];
+  var run = <Offset>[];
+  for (final point in points) {
+    if (point == null) {
+      if (run.isNotEmpty) runs.add(run);
+      run = <Offset>[];
+      continue;
+    }
+    run.add(point);
+  }
+  if (run.isNotEmpty) runs.add(run);
+  return runs;
 }
 
 /// 구간별 꺾은선 하나. Figma `47:90`(페이스)·`47:152`(케이던스)가 같은 모양이다.
@@ -88,7 +115,9 @@ class SplitLineChart extends StatefulWidget {
 
   /// 겹쳐 그릴 두 번째 선(파티원). [values]와 같은 자리가 같은 구간이다.
   /// 더 짧으면 거기까지만 그린다 — 먼저 끝난 사람은 뒤 구간이 없다.
-  final List<double>? secondary;
+  ///
+  /// [values]와 마찬가지로 **모르는 구간은 `null`**이다.
+  final List<double?>? secondary;
 
   /// 두 번째 선의 색. 그 러너의 레인 색이다.
   final Color? secondaryColor;
@@ -100,7 +129,13 @@ class SplitLineChart extends StatefulWidget {
   final String unit;
 
   /// 구간마다의 값. 세로축이 이걸 그린다.
-  final List<double> values;
+  ///
+  /// ## ⚠️ 모르는 구간은 `null`이다 — 0이 아니다
+  ///
+  /// 케이던스는 걸음 표본이 모자라면 그 구간을 모른다. 0으로 바꿔 그리면
+  /// **선이 바닥까지 떨어져 "그때 멈췄다"로 읽힌다.** 모르는 것과 0인 것은
+  /// 다른 말이라, 여기서는 선을 끊는다.
+  final List<double?> values;
 
   /// [values]와 같은 길이의 x축 라벨. `1km` `2km` …
   final List<String> labels;
@@ -171,11 +206,17 @@ class _SplitLineChartState extends State<SplitLineChart> {
   }
 
   /// 집은 자리의 값. 두 번째 선이 있으면 `5'28" · 5'40"`처럼 나란히 적는다.
+  ///
+  /// 모르는 구간은 `--`다. 선이 끊긴 자리를 짚었을 때 **직전 값이 그대로
+  /// 떠 있으면** 그 구간을 아는 것으로 읽힌다.
   String _readingAt(int index) {
-    final mine = widget.format(widget.values[index]);
+    String read(double? value) =>
+        value == null ? AppStrings.runUnavailable : widget.format(value);
+
+    final mine = read(widget.values[index]);
     final other = widget.secondary;
     if (other == null || index >= other.length) return mine;
-    return '$mine · ${widget.format(other[index])}';
+    return '$mine · ${read(other[index])}';
   }
 
   @override
@@ -530,10 +571,11 @@ class _LinePainter extends CustomPainter {
   /// 세로 자. 격자선 자리와 점 높이가 전부 여기서 나온다.
   final SplitAxis axis;
 
-  final List<double> values;
+  /// 구간마다의 값. **모르는 구간은 `null`**이고 거기서 선이 끊긴다.
+  final List<double?> values;
 
   /// 두 번째 선. 없으면 `null`.
-  final List<double>? secondary;
+  final List<double?>? secondary;
   final Color secondaryLine;
   final int? focused;
   final Color line;
@@ -583,10 +625,7 @@ class _LinePainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    final points = [
-      for (var i = 0; i < values.length; i++)
-        Offset(_x(i, size), _y(values[i], size)),
-    ];
+    final points = _pointsOf(values, size);
 
     final linePaint = Paint()
       ..color = line
@@ -595,11 +634,14 @@ class _LinePainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round
       ..style = PaintingStyle.stroke;
 
-    if (points.length == 1) {
-      canvas.drawCircle(points.first, 3, Paint()..color = line);
-    } else {
-      final path = Path()..moveTo(points.first.dx, points.first.dy);
-      for (final point in points.skip(1)) {
+    for (final run in lineRunsOf(points)) {
+      if (run.length == 1) {
+        canvas.drawCircle(run.first, 3, Paint()..color = line);
+        continue;
+      }
+
+      final path = Path()..moveTo(run.first.dx, run.first.dy);
+      for (final point in run.skip(1)) {
         path.lineTo(point.dx, point.dy);
       }
 
@@ -607,8 +649,8 @@ class _LinePainter extends CustomPainter {
       // 구간마다 채운 높이가 서로 비교된다.
       if (filled) {
         final fill = Path.from(path)
-          ..lineTo(points.last.dx, size.height)
-          ..lineTo(points.first.dx, size.height)
+          ..lineTo(run.last.dx, size.height)
+          ..lineTo(run.first.dx, size.height)
           ..close();
         canvas.drawPath(
           fill,
@@ -632,18 +674,31 @@ class _LinePainter extends CustomPainter {
 
     // 세로 기준선은 손가락이 아니라 **그 구간의 점**에 선다. 손가락 위치에
     // 그대로 두면 어느 구간을 읽는 중인지 흔들린다.
+    //
+    // ⚠️ 모르는 구간에도 선은 세운다 — 짚은 자리가 어디인지는 말해 줘야
+    // 한다. 점만 찍지 않는다. 말풍선은 `--`를 적는다.
     final at = points[index];
+    final x = at?.dx ?? _x(index, size);
     canvas.drawLine(
-      Offset(at.dx, 0),
-      Offset(at.dx, size.height),
+      Offset(x, 0),
+      Offset(x, size.height),
       Paint()
         ..color = line.withValues(alpha: 0.4)
         ..strokeWidth = 1,
     );
-    canvas.drawCircle(at, 4, Paint()..color = line);
+    if (at != null) canvas.drawCircle(at, 4, Paint()..color = line);
 
-    _paintReading(canvas, size, at);
+    _paintReading(canvas, size, at ?? Offset(x, size.height / 2));
   }
+
+  /// 값마다의 좌표. **모르는 구간은 `null`**이라 자리를 비워 둔다.
+  List<Offset?> _pointsOf(List<double?> from, Size size) => [
+    for (var i = 0; i < from.length && i < values.length; i++)
+      if (from[i] case final value?)
+        Offset(_x(i, size), _y(value, size))
+      else
+        null,
+  ];
 
   /// 구간마다의 `o`.
   ///
@@ -653,7 +708,10 @@ class _LinePainter extends CustomPainter {
   ///
   /// 가운데를 카드 바탕색으로 메운다. 비우면 선이 원을 뚫고 지나가 `o`가
   /// 아니라 매듭처럼 보인다.
-  void _paintPoints(Canvas canvas, List<Offset> points) {
+  ///
+  /// ⚠️ **모르는 구간에는 찍지 않는다.** 점이 있으면 그 자리의 값을 아는
+  /// 것으로 읽힌다.
+  void _paintPoints(Canvas canvas, List<Offset?> points) {
     final hole = Paint()..color = surface;
     final ring = Paint()
       ..color = line
@@ -661,6 +719,7 @@ class _LinePainter extends CustomPainter {
       ..strokeWidth = 1.5;
 
     for (final point in points) {
+      if (point == null) continue;
       canvas
         ..drawCircle(point, 3, hole)
         ..drawCircle(point, 3, ring);
@@ -675,12 +734,6 @@ class _LinePainter extends CustomPainter {
     final other = secondary;
     if (other == null || other.isEmpty) return;
 
-    final points = [
-      for (var i = 0; i < other.length && i < values.length; i++)
-        Offset(_x(i, size), _y(other[i], size)),
-    ];
-    if (points.isEmpty) return;
-
     final paint = Paint()
       ..color = secondaryLine
       ..strokeWidth = 1.5
@@ -688,15 +741,17 @@ class _LinePainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round
       ..style = PaintingStyle.stroke;
 
-    if (points.length == 1) {
-      canvas.drawCircle(points.first, 3, Paint()..color = secondaryLine);
-      return;
+    for (final run in lineRunsOf(_pointsOf(other, size))) {
+      if (run.length == 1) {
+        canvas.drawCircle(run.first, 3, Paint()..color = secondaryLine);
+        continue;
+      }
+      final path = Path()..moveTo(run.first.dx, run.first.dy);
+      for (final point in run.skip(1)) {
+        path.lineTo(point.dx, point.dy);
+      }
+      canvas.drawPath(path, paint);
     }
-    final path = Path()..moveTo(points.first.dx, points.first.dy);
-    for (final point in points.skip(1)) {
-      path.lineTo(point.dx, point.dy);
-    }
-    canvas.drawPath(path, paint);
   }
 
   /// 집은 값을 **그 점 바로 위**에 띄운다.
