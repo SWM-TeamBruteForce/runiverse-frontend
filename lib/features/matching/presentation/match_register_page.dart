@@ -28,8 +28,6 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 ///
 /// ## 정본에서 뺀 것
 ///
-/// - **시그니처 컬러 확인 줄** — 색을 모으는 기능이 아직 없다. 확인할 색도
-///   바꿀 셰이드도 없는 자리에 줄을 두면 고장 난 것으로 읽힌다
 /// - **위치 권한 시트** — 위치가 실제로 필요한 시점은 달리기 시작할 때이고,
 ///   출발 준비 화면이 이미 그 자리에서 묻는다
 class MatchRegisterPage extends ConsumerStatefulWidget {

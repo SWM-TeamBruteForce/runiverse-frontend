@@ -7,7 +7,7 @@ import 'package:runiverse/core/theme/v2/app_palette.dart';
 /// `context.appColorsV2.bgSurface`처럼 쓰면 다크/라이트 전환이 따라온다.
 ///
 /// **러닝 색은 여기 없다.** 테마가 아니라 데이터여서 한 화면에 여러 개가
-/// 동시에 뜬다(컬렉션 30색). `RunPaletteV2`가 따로 든다.
+/// 동시에 뜬다(아우라는 hue 여럿을 겹친다). `RunPaletteV2`가 따로 든다.
 ///
 /// ## 글자 넷은 램프와 불투명도를 섞어 쓴다
 ///

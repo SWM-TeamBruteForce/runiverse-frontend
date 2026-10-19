@@ -34,7 +34,7 @@ class AppGlow extends ThemeExtension<AppGlow> {
   static const dark = AppGlow(intensity: 1);
   static const light = AppGlow(intensity: 0.5);
 
-  /// 컬렉션 슬롯·아바타. `0 0 12px 0`
+  /// 아바타. `0 0 12px 0`
   List<BoxShadow> sm(Color runColor) => [
     BoxShadow(
       color: runColor.withValues(alpha: 0.4 * intensity),
@@ -42,7 +42,7 @@ class AppGlow extends ThemeExtension<AppGlow> {
     ),
   ];
 
-  /// 색 리빌 순간·프로필 아우라. `0 0 28px 4px`
+  /// 프로필 아우라. `0 0 28px 4px`
   List<BoxShadow> md(Color runColor) => [
     BoxShadow(
       color: runColor.withValues(alpha: 0.5 * intensity),

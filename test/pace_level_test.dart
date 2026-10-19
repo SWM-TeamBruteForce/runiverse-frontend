@@ -3,7 +3,7 @@ import 'package:runiverse/features/onboarding/domain/pace_level.dart';
 
 /// 페이스 구간 판정 — 순수 계산 로직.
 ///
-/// 이 구간이 시그니처 컬러의 hue를 가른다. 경계에서 한 칸 밀리면
+/// 이 구간이 홈의 연습 유도를 가른다. 경계에서 한 칸 밀리면
 /// 사용자가 받는 **색이 바뀐다.** 경계값만 본다.
 void main() {
   test('재보지 않았으면 미측정이다', () {

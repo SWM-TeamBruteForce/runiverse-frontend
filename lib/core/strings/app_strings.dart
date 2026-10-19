@@ -276,7 +276,7 @@ abstract final class AppStrings {
   // "1km를 6분에 뛴다"는 누구에게나 같은 값이다.
   static const profilePaceLabel = '페이스';
   static const profilePaceQuestion = '5km를 뛰면 어느 정도인가요';
-  static const profilePaceWhy = '1km를 몇 분에 뛰는지 알려주세요. 시그니처 컬러를 정하는 데 써요.';
+  static const profilePaceWhy = '1km를 몇 분에 뛰는지 알려주세요. 비슷한 러너를 찾는 데 써요.';
   static const profilePaceSheetTitle = '1km당 페이스';
   static const profileUnitMinute = '분';
   static const profileUnitSecond = '초';
@@ -842,36 +842,6 @@ abstract final class AppStrings {
   /// 제목은 그 화면의 이름이다.
   static const profileEditOpen = '프로필 편집';
 
-  static const profileSignatureLabel = '시그니처 컬러';
-
-  /// 시그니처 컬러가 아직 없을 때. **"없어요"라고 하지 않는다** —
-  /// 결핍이 아니라 무엇을 하면 생기는지를 말한다.
-  static const profileSignatureEmpty = '함께 달리면 색이 생겨요';
-
-  /// 서로 수락해 함께 달리는 사람 수.
-  ///
-  /// ⚠️ **"친구"라고 쓰지 않는다.** 요청→수락 모델이고, 서비스가 쓰는 말은
-  /// 블렌드다(함께 달리면 색이 섞인다). 서버 응답 필드는 `friendCount`지만
-  /// 화면에 나가는 말은 이쪽이다.
-  static const profileBlendRunners = '블렌드 러너';
-
-  static const profileBasicCollection = '기본 컬렉션';
-  static const profileBlendCollection = '블렌드 컬렉션';
-  static const profileFeed = '피드';
-
-  /// 컬렉션 진행. `17/30` 꼴로 채운다.
-  static String profileCollected(int owned, int total) => '$owned/$total';
-
-  /// 블렌드 개수. `2개` 꼴.
-  static String profileBlendCount(int count) => '$count개';
-
-  static const profileBlendEmpty = '아직 블렌드가 없어요';
-  static const profileBlendEmptyHint = '다른 러너와 함께 달리면 섞여요';
-  static const profileFeedEmpty = '아직 올린 기록이 없어요';
-
-  /// 잠긴 컬렉션 격자 위 안내. **무엇을 모으는지** 알려준다.
-  static const profileCollectionHint = '함께 달리며 30색을 모아요';
-
   // ── 프로필 사진 ─────────────────────────────────────────────
 
   /// 아바타를 눌렀을 때 뜨는 시트의 제목.
@@ -1252,6 +1222,15 @@ abstract final class AppStrings {
 
   static const runResultSplitColumn = '구간';
   static const runResultBurnedColumn = '소모';
+
+  /// 차이 값의 기준. **표 머리에 적는다.**
+  ///
+  /// 차이는 파티원을 골랐을 때만 뜨지만, 적지 않으면 구간 옆의 숫자가
+  /// **직전 구간과의 차이로 읽힌다.**
+  ///
+  /// 닉네임을 넣지 않는다. 누구를 골랐는지는 바로 위 칩에 이미 떠 있고,
+  /// 긴 닉네임이 들어오면 머리줄이 밀린다.
+  static const runResultGapBaseParty = '파티원 대비';
   static const runResultMoreSplits = '구간 더 보기';
   static const runResultUnitKcal = 'kcal';
 
@@ -1434,22 +1413,6 @@ abstract final class AppStrings {
     if (hours == 0) return '$minutes분';
     return '$hours시간 $minutes분';
   }
-
-  // ── 러닝 색 10범주 ───────────────────────────────────────────
-  //
-  // `RunHue`의 이름을 화면에 쓰는 말로 옮긴다. enum에 붙이지 않는 이유는
-  // **`domain`이 순수 Dart여야 하고 UI 문구는 여기 모여야** 하기 때문이다.
-
-  static const hueDistance = '거리';
-  static const hueSpeed = '속도';
-  static const hueEndurance = '지구력';
-  static const hueConsistency = '꾸준함';
-  static const hueCadence = '케이던스';
-  static const hueInterval = '인터벌';
-  static const hueHills = '언덕';
-  static const hueRecovery = '회복';
-  static const hueCompany = '동행';
-  static const hueAdversity = '악조건';
 
   // ── 프로필 유도 바텀시트 ─────────────────────────────────────
   //

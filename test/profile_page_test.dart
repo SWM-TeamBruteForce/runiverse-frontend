@@ -8,7 +8,6 @@ import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/theme/tokens/run_palette.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
@@ -197,55 +196,6 @@ void main() {
     // 여기가 깨지면 **뒤로가기 한 번으로 관문이 뚫린다.**
     expect(find.byType(ProfileSetupPage), findsNothing);
     expect(find.text(AppStrings.profileSheetCta), findsOneWidget);
-  });
-
-  group('⚠️ 일단 뺀 것 — 되살아나면 알아차려야 한다', () {
-    // 2026-10-05에 컬러 도감·블렌드·피드를 걷어냈다(요청). 시안에는 있는
-    // 것들이라, **시안을 보고 작업하다 무심코 되살리기 쉽다.** 되살릴 때는
-    // 이 그물이 먼저 걸린다 — 그때 지우면 된다.
-
-    testWidgets('컬러 도감 10범주가 없다', (tester) async {
-      await pumpProfile(tester, onboarded: true);
-
-      for (final label in const [
-        AppStrings.hueDistance,
-        AppStrings.hueSpeed,
-        AppStrings.hueEndurance,
-        AppStrings.hueConsistency,
-        AppStrings.hueCadence,
-        AppStrings.hueInterval,
-        AppStrings.hueHills,
-        AppStrings.hueRecovery,
-        AppStrings.hueCompany,
-        AppStrings.hueAdversity,
-      ]) {
-        expect(find.text(label), findsNothing, reason: '$label 칸이 남아 있다');
-      }
-    });
-
-    testWidgets('모은 색 수를 세지 않는다', (tester) async {
-      await pumpProfile(tester, onboarded: true);
-
-      expect(
-        find.text(
-          AppStrings.profileCollected(
-            0,
-            RunHue.values.length * RunPalette.shadeCount,
-          ),
-        ),
-        findsNothing,
-      );
-    });
-
-    testWidgets('블렌드 러너 수가 없다', (tester) async {
-      await pumpProfile(
-        tester,
-        onboarded: true,
-        summary: FakeProfileRepository(nickname: '서버이름', friendCount: 3),
-      );
-
-      expect(find.text(AppStrings.profileBlendRunners), findsNothing);
-    });
   });
 
   // ── 프로필 요약 ─────────────────────────────────────────────

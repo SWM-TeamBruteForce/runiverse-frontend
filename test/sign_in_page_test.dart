@@ -10,6 +10,7 @@ import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_palette.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
@@ -98,6 +99,70 @@ void main() {
     await tester.enterText(find.byType(TextField).at(1), password);
     await tester.pumpAndSettle();
   }
+
+  /// 맨 끝 줄과 시스템 내비게이션 바 — **겹치는가.**
+  ///
+  /// 위를 `SafeArea`로 감싸지 않았다(사진을 상태바 뒤까지 깐다). 그래서 아래
+  /// 여백도 받지 못하는데 고정값만 두면 **제스처 바가 가입하기를 덮는다.**
+  group('맨 아래 줄', () {
+    /// 시스템 하단 여백이 [bottom]인 기기에서 띄운다.
+    Future<void> pumpWithInset(WidgetTester tester, double bottom) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3;
+      tester.view.viewPadding = FakeViewPadding(bottom: bottom * 3);
+      tester.view.padding = FakeViewPadding(bottom: bottom * 3);
+      addTearDown(tester.view.reset);
+      await pumpSignIn(tester);
+    }
+
+    // 0 = 내비게이션 바 없음 · 24 = 제스처 바 · 48 = 3버튼 바.
+    // **기기가 얼마를 주든 그만큼 비켜야 한다** — 한 값만 보면 고정값으로
+    // 때운 것과 구별되지 않는다.
+    for (final inset in const [0.0, 24.0, 48.0]) {
+      testWidgets('⚠️ 하단 여백 $inset에서 가리지 않는다', (tester) async {
+        await pumpWithInset(tester, inset);
+
+        final link = find.text(AppStrings.authToSignUp);
+        await tester.ensureVisible(link);
+        await tester.pumpAndSettle();
+
+        final bottom = tester.getBottomLeft(link).dy;
+        final safeTop = tester.view.physicalSize.height / 3 - inset;
+        expect(
+          bottom,
+          lessThanOrEqualTo(safeTop),
+          reason: '하단 여백 $inset에서 가입하기 줄이 시스템 영역으로 들어갔다',
+        );
+      });
+    }
+
+    testWidgets('⚠️ 여백이 커지면 그만큼 더 올라간다', (tester) async {
+      // 위 검사만으로는 **바닥에 아주 큰 고정값**을 둔 것도 통과한다.
+      // 두 기기의 차이가 여백의 차이와 같아야 실제로 반영한 것이다.
+      await pumpWithInset(tester, 0);
+      final link = find.text(AppStrings.authToSignUp);
+      await tester.ensureVisible(link);
+      await tester.pumpAndSettle();
+      final flat = tester.getBottomLeft(link).dy;
+
+      await pumpWithInset(tester, 48);
+      await tester.ensureVisible(link);
+      await tester.pumpAndSettle();
+      final lifted = tester.getBottomLeft(link).dy;
+
+      expect(flat - lifted, moreOrLessEquals(48, epsilon: 0.5));
+    });
+
+    testWidgets('가입하기는 primary 색이다', (tester) async {
+      await pumpSignIn(tester);
+
+      final text = tester.widget<Text>(find.text(AppStrings.authToSignUp));
+      final colors = tester
+          .element(find.text(AppStrings.authToSignUp))
+          .appColorsV2;
+      expect(text.style?.color, colors.primary);
+    });
+  });
 
   testWidgets('아무것도 입력하지 않으면 로그인할 수 없다', (tester) async {
     await pumpSignIn(tester);

@@ -7,7 +7,7 @@ import 'package:runiverse/core/theme/tokens/app_palette.dart';
 /// `context.appColors.bgSurface`처럼 쓰면 다크/라이트 전환이 자동으로 따라온다.
 ///
 /// **러닝 색은 여기 없다.** 러닝 색은 테마가 아니라 데이터여서
-/// 한 화면에 여러 개가 동시에 뜬다(컬렉션 30색). 위젯 파라미터로 전달한다.
+/// 한 화면에 여러 개가 동시에 뜬다(아우라는 hue 여럿을 겹친다). 위젯 파라미터로 전달한다.
 @immutable
 class AppColors extends ThemeExtension<AppColors> {
   const AppColors({

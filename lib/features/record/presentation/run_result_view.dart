@@ -54,26 +54,37 @@ class _RunResultViewState extends State<RunResultView> {
 
   RunDetail get detail => widget.detail;
 
-  /// 그 사람의 레인 색. 러닝 화면과 같은 순서라 같은 색이다.
+  /// 내 색 — **파랑 고정이다.**
   ///
-  /// ⚠️ **명단에 없는 `userId`를 주면 안 된다.** `indexWhere`가 `-1`을 돌려주고
-  /// `lane(-1)`은 `_party[3]`(초록)이 된다 — 터지지 않고 **엉뚱한 색이 조용히
-  /// 나온다.** 그래서 부르는 쪽이 먼저 명단에서 찾아 본다([_myColor]).
-  Color _colorOf(String userId) =>
-      RunPaletteV2.lane(detail.players.indexWhere((p) => p.userId == userId));
+  /// `lane(0)`은 브랜드 파랑(`#227DFF`)이고 `colors.primary`와 **같은 값**이다.
+  /// 어느 방에서 몇 번째에 서든 나는 늘 이 색이라, 화면을 옮겨 다녀도 내 것을
+  /// 찾는 눈이 흔들리지 않는다.
+  static final _myColor = RunPaletteV2.lane(0);
 
-  /// 그래프에서 쓰는 **내 선 색.**
+  /// 그 사람의 색. **나를 뺀 나머지가** 주황·분홍·초록을 명단 순서로 나눠 갖는다.
   ///
-  /// 전에는 `colors.primary`(파랑)로 박혀 있었다. 칩은 레인 색(주황일 수 있다)을
-  /// 쓰는데 선만 파랑이라, **같은 파랑인 파티원 선과 구별되지 않았다** — 두 선을
-  /// 겹쳐 보는 화면에서 어느 쪽이 나인지가 색으로 안 갈렸다.
+  /// 방은 최대 4명이라 나 하나와 상대 셋이 팔레트 4색에 꼭 맞는다.
   ///
-  /// 칩과 **같은 규칙**을 쓴다. 명단에서 나를 못 찾으면 `colors.primary`로
-  /// 물러선다 — 그러지 않으면 [_colorOf]가 팔레트의 엉뚱한 색을 준다.
-  Color _myColor(AppColorsV2 colors) {
-    final me = detail.players.where((p) => p.isMe).firstOrNull;
-    return me == null ? colors.primary : _colorOf(me.userId);
+  /// ⚠️ **명단 자리 번호를 그대로 쓰면 안 된다.** 명단에 내가 둘째로 들어 있으면
+  /// 첫 자리의 상대가 `lane(0)`, 즉 **내 파랑을 가져간다.** 서버가 주는 명단
+  /// 순서는 내가 몇 번째에 설지 정해 주지 않는다.
+  Color _colorOf(String userId) {
+    if (userId == _myUserId) return _myColor;
+
+    final others = [
+      for (final player in detail.players)
+        if (!player.isMe) player.userId,
+    ];
+    final index = others.indexOf(userId);
+    // ⚠️ 못 찾아도 **0으로 떨어뜨리지 않는다** — 0은 내 파랑이라 남이 나로
+    // 보인다. 팔레트 끝 색을 준다. 명단에 없으면 그릴 이름도 없어 실제로는
+    // 오지 않는 길이다.
+    return RunPaletteV2.lane(index < 0 ? 3 : index + 1);
   }
+
+  /// 명단 속의 나. 서버가 나를 빠뜨리면 `null`이고, 그래도 내 색은 파랑이다.
+  String? get _myUserId =>
+      detail.players.where((player) => player.isMe).firstOrNull?.userId;
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +103,7 @@ class _RunResultViewState extends State<RunResultView> {
               .firstOrNull
               ?.nickname;
     // 칩과 같은 색이라야 겹쳐 그린 두 선에서 내 것이 갈린다.
-    final myColor = _myColor(colors);
+    final myColor = _myColor;
     // 테이블은 1km, 그래프는 50m다. 같은 러닝을 두 배율로 본다 — 표는
     // "몇 번째 킬로를 몇 분에 뛰었나"를, 그래프는 "어디서 흔들렸나"를 답한다.
     final splits = detail.tableSplits;
@@ -130,6 +141,7 @@ class _RunResultViewState extends State<RunResultView> {
                       _RunnerChips(
                         detail: detail,
                         selected: compare,
+                        myColor: myColor,
                         colorOf: _colorOf,
                         onSelect: (userId) =>
                             setState(() => _compareTo = userId),
@@ -592,12 +604,17 @@ class _RunnerChips extends StatelessWidget {
   const _RunnerChips({
     required this.detail,
     required this.selected,
+    required this.myColor,
     required this.colorOf,
     required this.onSelect,
   });
 
   final RunDetail detail;
   final String? selected;
+
+  /// 내 칩의 색. 명단에 내가 없어도 그려야 해서 따로 받는다.
+  final Color myColor;
+
   final Color Function(String userId) colorOf;
   final void Function(String? userId) onSelect;
 
@@ -646,8 +663,6 @@ class _RunnerChips extends StatelessWidget {
       ),
     );
 
-    final me = detail.players.where((p) => p.isMe).firstOrNull;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -655,11 +670,7 @@ class _RunnerChips extends StatelessWidget {
           spacing: AppSpacing.space2,
           runSpacing: AppSpacing.space2,
           children: [
-            chip(
-              label: AppStrings.runPartyMe,
-              dot: me == null ? colors.primary : colorOf(me.userId),
-              active: true,
-            ),
+            chip(label: AppStrings.runPartyMe, dot: myColor, active: true),
             for (final player in detail.party)
               chip(
                 label: player.nickname,
@@ -690,7 +701,12 @@ class _SplitTable extends StatefulWidget {
 
   final RunDetail detail;
 
-  /// 겹쳐 보는 파티원의 1km 묶음. `null`이면 격차는 내 평균 대비다.
+  /// 겹쳐 보는 파티원의 1km 묶음. `null`이거나 비어 있으면 **차이를 그리지
+  /// 않는다** — 고르기만 하고 상대 구간이 없는 경우가 뒤쪽이다.
+  ///
+  /// 내 것보다 짧을 수 있다. 먼저 끝난 사람은 뒤 구간이 없고, **그 줄도
+  /// 비운다** — 잴 상대가 없는데 내 평균으로 바꿔 재면 한 표 안에서 자가
+  /// 둘이 된다.
   final List<SplitBucket>? compareTo;
 
   /// 이만큼 넘어가면 접는다. 10km(10구간)에서도 차트 둘이 한 화면에 들어오게.
@@ -709,6 +725,15 @@ class _SplitTableState extends State<_SplitTable> {
     final all = widget.detail.tableSplits;
     final collapsed = !_expanded && all.length > _SplitTable.collapsedCount;
     final shown = collapsed ? all.take(_SplitTable.collapsedCount) : all;
+    // 차이는 **파티원을 골랐을 때만** 적는다.
+    //
+    // 혼자 볼 때도 내 평균 대비로 적을 수 있지만, 구간 옆에 붙은 숫자를
+    // 평균과의 거리로 읽는 사람이 없었다 — 첫 구간부터 값이 붙어 있어
+    // **직전 구간과의 차이로 읽힌다.** 읽히는 뜻이 틀리면 없느니만 못하다.
+    //
+    // ⚠️ 빈 목록은 고르지 않은 것과 같다. 상대가 방에는 있는데 서버가 구간을
+    // 하나도 안 준 경우가 있고, 그때는 잴 것이 하나도 없다.
+    final comparing = widget.compareTo?.isNotEmpty ?? false;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -718,15 +743,22 @@ class _SplitTableState extends State<_SplitTable> {
       ),
       child: Column(
         children: [
-          const _SplitHead(),
+          _SplitHead(
+            basis: comparing ? AppStrings.runResultGapBaseParty : null,
+          ),
           for (final (i, split) in shown.indexed)
             _SplitRow(
               split: split,
               totalKm: widget.detail.distanceKm,
-              average: widget.detail.averagePace,
-              // 같은 경계라 같은 자리가 같은 구간이다. 먼저 끝난 사람은 뒤
-              // 구간이 없다 — 그때는 비교할 것이 없어 내 평균으로 돌아간다.
-              other: widget.compareTo == null || i >= widget.compareTo!.length
+              // 같은 경계라 같은 자리가 같은 구간이다.
+              //
+              // ⚠️ **먼저 끝난 사람의 빈 구간은 비운다.** 내 평균으로
+              // 돌아가면 머리줄은 `파티원 대비`인데 그 줄만 다른 자로 잰
+              // 값이 된다. 색까지 뒤집힌다 — 상대보다 빨랐던 구간이 내
+              // 평균보다는 느려 빨갛게 뜨는 일이 **같은 표 안에서** 일어난다.
+              base: !comparing
+                  ? null
+                  : i >= widget.compareTo!.length
                   ? null
                   : widget.compareTo![i].pace,
             ),
@@ -752,7 +784,10 @@ class _SplitTableState extends State<_SplitTable> {
 }
 
 class _SplitHead extends StatelessWidget {
-  const _SplitHead();
+  const _SplitHead({this.basis});
+
+  /// 차이 값의 기준. `null`이면 그릴 차이가 없다는 뜻이라 적지 않는다.
+  final String? basis;
 
   @override
   Widget build(BuildContext context) {
@@ -772,7 +807,25 @@ class _SplitHead extends StatelessWidget {
             width: 64,
             child: Text(AppStrings.runResultSplitColumn, style: style),
           ),
-          Expanded(child: Text(AppStrings.runResultPace, style: style)),
+          Expanded(
+            child: Row(
+              children: [
+                Text(AppStrings.runResultPace, style: style),
+                if (basis case final text?) ...[
+                  // 아래 줄의 페이스와 차이도 이만큼 떨어져 있다.
+                  const SizedBox(width: AppSpacing.space2),
+                  Flexible(
+                    child: Text(
+                      text,
+                      style: style,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
           Text(AppStrings.runResultBurnedColumn, style: style),
         ],
       ),
@@ -781,29 +834,22 @@ class _SplitHead extends StatelessWidget {
 }
 
 class _SplitRow extends StatelessWidget {
-  const _SplitRow({
-    required this.split,
-    required this.totalKm,
-    required this.average,
-    this.other,
-  });
+  const _SplitRow({required this.split, required this.totalKm, this.base});
 
   final SplitBucket split;
   final double totalKm;
-  final Duration? average;
 
-  /// 겹쳐 보는 파티원의 같은 구간 페이스. 있으면 격차의 기준이 이쪽이다.
-  final Duration? other;
+  /// 차이를 재는 기준. `null`이면 **차이를 그리지 않는다** — 혼자 보는
+  /// 중이거나 이 구간을 잴 것이 없다는 뜻이다.
+  final Duration? base;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
     final burned = split.caloriesKcal;
-    // 격차의 기준. 파티원을 골랐으면 그 사람, 아니면 내 평균이다. 순위가
-    // 아니라 거리다 — 음수면 내가 빨랐다.
-    final base = other ?? average;
+    // 순위가 아니라 거리다 — 음수면 내가 빨랐다.
     final pace = split.pace;
-    final gap = (base == null || pace == null) ? null : pace - base;
+    final gap = (base == null || pace == null) ? null : pace - base!;
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -839,8 +885,7 @@ class _SplitRow extends StatelessWidget {
                   const SizedBox(width: AppSpacing.space2),
                   Text(
                     _gapText(gap),
-                    // 평균보다 빨랐으면 success, 느렸으면 error. 순위가
-                    // 아니라 내 평균과의 거리다.
+                    // 기준보다 빨랐으면 success, 느렸으면 error.
                     //
                     // ⚠️ **0은 어느 쪽도 아니다.** `isNegative`만 보면 0이
                     // 느린 쪽으로 빨갛게 칠해진다 — 평균과 같은 구간을
