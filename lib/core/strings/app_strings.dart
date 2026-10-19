@@ -1268,6 +1268,14 @@ abstract final class AppStrings {
   static String runResultPartialLabel(double totalKm) =>
       '${totalKm.toStringAsFixed(2)}km';
 
+  /// 50m 표본이 닿은 지점. `1km` `2.5km` `3.02km`.
+  ///
+  /// ⚠️ [runResultPartialLabel]과 달리 **끝자리 0을 뗀다.** x축을 거리마다
+  /// 찍게 되면서 `1.00km`가 바로 위 1km 그래프의 `1km`와 나란히 놓인다 —
+  /// 같은 지점인데 다르게 적혀 있으면 다른 값으로 읽힌다.
+  static String runResultSampleLabel(double km) =>
+      '${km.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '')}km';
+
   // ── 기록 탭 S21 ──────────────────────────────────────────────
 
   /// 주간 요약 줄. 누적 거리 · 누적 시간 · 누적 경사를 나란히 놓는다.

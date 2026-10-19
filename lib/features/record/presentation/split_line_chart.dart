@@ -68,8 +68,23 @@ class SplitLineChart extends StatefulWidget {
     this.showPoints = false,
     this.secondary,
     this.secondaryColor,
+    this.axisTicks,
     super.key,
   });
+
+  /// x축에 라벨을 찍을 자리. `null`이면 **개수로 솎는다**(전체의 1/5마다).
+  ///
+  /// ## ⚠️ 개수로 솎으면 어중간한 거리가 나온다
+  ///
+  /// 50m 표본은 3km가 점 60개라 12개마다 찍히는데, 그러면 첫 점부터 세어
+  /// `0.05 · 0.65 · 1.25km`가 된다. 읽는 사람이 쓰는 자는 **거리**지 점 번호가
+  /// 아니다. 그래서 부르는 쪽이 `0.5km`처럼 딱 떨어지는 자리를 골라 넘긴다.
+  ///
+  /// 구간 번호가 곧 거리인 1km 그래프(`1km` `2km` …)는 넘기지 않는다 —
+  /// 개수로 솎아도 어차피 딱 떨어진다.
+  ///
+  /// **마지막 점은 여기에 없어도 늘 찍힌다** — 총 거리를 읽는 자리다.
+  final List<int>? axisTicks;
 
   /// 겹쳐 그릴 두 번째 선(파티원). [values]와 같은 자리가 같은 구간이다.
   /// 더 짧으면 거기까지만 그린다 — 먼저 끝난 사람은 뒤 구간이 없다.
@@ -274,6 +289,7 @@ class _SplitLineChartState extends State<SplitLineChart> {
                           height: AppSpacing.space4,
                           child: _Labels(
                             labels: widget.labels,
+                            ticks: widget.axisTicks,
                             inset: _inset,
                             color: colors.textTertiary,
                           ),
@@ -423,11 +439,16 @@ class _YLabels extends StatelessWidget {
 class _Labels extends StatelessWidget {
   const _Labels({
     required this.labels,
+    required this.ticks,
     required this.inset,
     required this.color,
   });
 
   final List<String> labels;
+
+  /// 찍을 자리. `null`이면 개수로 솎는다. [SplitLineChart.axisTicks] 참조.
+  final List<int>? ticks;
+
   final double inset;
   final Color color;
 
@@ -437,6 +458,7 @@ class _Labels extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final at = ticks;
     // 다섯 개쯤으로 솎되 마지막 구간은 항상 남긴다 — 총 거리를 읽는 자리다.
     final step = (labels.length / 5).ceil().clamp(1, labels.length);
 
@@ -449,13 +471,16 @@ class _Labels extends StatelessWidget {
         double centerOf(int i) =>
             inset + (last == 0 ? span / 2 : span * i / last);
 
-        // ⚠️ **솎은 라벨이 마지막과 붙는 일이 있다.** 11점이면 3칸씩 골라
+        bool picked(int i) => at == null ? i % step == 0 : at.contains(i);
+
+        // ⚠️ **고른 라벨이 마지막과 붙는 일이 있다.** 11점이면 3칸씩 골라
         // 0·3·6·9가 되는데 마지막 10을 항상 남기므로 9와 10이 겹쳐 찍힌다.
+        // 거리로 골라도 마찬가지다 — 3.02km를 뛰면 3km와 3.02km가 붙는다.
         // 마지막에서 한 칸 안에 든 것은 버린다 — 총 거리를 읽는 쪽이 우선이다.
         final shown = [
           for (var i = 0; i < labels.length; i++)
             if (i == last ||
-                (i % step == 0 && centerOf(last) - centerOf(i) >= _slot))
+                (picked(i) && centerOf(last) - centerOf(i) >= _slot))
               i,
         ];
 
