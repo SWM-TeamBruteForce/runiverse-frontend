@@ -701,8 +701,12 @@ class _SplitTable extends StatefulWidget {
 
   final RunDetail detail;
 
-  /// 겹쳐 보는 파티원의 1km 묶음. `null`이거나 비어 있으면 격차는 내 평균
-  /// 대비다 — 고르기만 하고 상대 구간이 없는 경우가 뒤쪽이다.
+  /// 겹쳐 보는 파티원의 1km 묶음. `null`이거나 비어 있으면 **차이를 그리지
+  /// 않는다** — 고르기만 하고 상대 구간이 없는 경우가 뒤쪽이다.
+  ///
+  /// 내 것보다 짧을 수 있다. 먼저 끝난 사람은 뒤 구간이 없고, **그 줄도
+  /// 비운다** — 잴 상대가 없는데 내 평균으로 바꿔 재면 한 표 안에서 자가
+  /// 둘이 된다.
   final List<SplitBucket>? compareTo;
 
   /// 이만큼 넘어가면 접는다. 10km(10구간)에서도 차트 둘이 한 화면에 들어오게.
@@ -746,13 +750,17 @@ class _SplitTableState extends State<_SplitTable> {
             _SplitRow(
               split: split,
               totalKm: widget.detail.distanceKm,
-              // 같은 경계라 같은 자리가 같은 구간이다. 먼저 끝난 사람은 뒤
-              // 구간이 없다 — 그때는 비교할 것이 없어 내 평균으로 돌아간다.
+              // 같은 경계라 같은 자리가 같은 구간이다.
+              //
+              // ⚠️ **먼저 끝난 사람의 빈 구간은 비운다.** 내 평균으로
+              // 돌아가면 머리줄은 `파티원 대비`인데 그 줄만 다른 자로 잰
+              // 값이 된다. 색까지 뒤집힌다 — 상대보다 빨랐던 구간이 내
+              // 평균보다는 느려 빨갛게 뜨는 일이 **같은 표 안에서** 일어난다.
               base: !comparing
                   ? null
                   : i >= widget.compareTo!.length
-                  ? widget.detail.averagePace
-                  : widget.compareTo![i].pace ?? widget.detail.averagePace,
+                  ? null
+                  : widget.compareTo![i].pace,
             ),
           if (collapsed)
             InkWell(

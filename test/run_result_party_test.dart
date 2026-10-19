@@ -42,6 +42,7 @@ void main() {
     bool meLast = false,
     bool noMe = false,
     bool noPartySplits = false,
+    bool shortParty = false,
   }) {
     final others = solo ? const <RunPlayerResult>[] : [seoyeon, jihun];
     return RunDetail(
@@ -53,7 +54,8 @@ void main() {
       players: [if (!noMe && !meLast) me, ...others, if (!noMe && meLast) me],
       splitsByPlayer: solo || noPartySplits
           ? const {}
-          : {'u-1': splitsOf(200, 4)},
+          // 1km 만 달리고 먼저 끝났다 — 내 2km 중 뒤 구간은 쟴 상대가 없다.
+          : {'u-1': splitsOf(shortParty ? 100 : 200, 4)},
     );
   }
 
@@ -147,6 +149,23 @@ void main() {
 
       expect(gaps(), findsNothing);
       expect(find.text(AppStrings.runResultGapBaseParty), findsNothing);
+    });
+
+    testWidgets('⚠️ 먼저 끝난 사람의 빈 구간은 차이를 비운다', (tester) async {
+      // 내 평균으로 돌아가면 머리줄은 `파티원 대비`인데 **그 줄만 다른 자로**
+      // 재다. 색까지 뒤집혀 같은 표 안에서 빠름과 느림이 거꾸로 읽힌다.
+      await pump(tester, detail(shortParty: true));
+
+      await tester.tap(find.text('이서연').last);
+      await tester.pump();
+
+      // 1km 줄은 이서연(6'40\") 대비 100초 빠르다.
+      expect(find.text('-100s'), findsOneWidget);
+      // 2km 줄은 쟴 상대가 없다. 내 평균(5'30\") 대비 `-30s`가 뜨던 자리다.
+      expect(find.text('-30s'), findsNothing);
+      expect(gaps(), findsOneWidget);
+      // 머리줄은 그대로 남는다 — 쟴 줄이 하나라도 있다.
+      expect(find.text(AppStrings.runResultGapBaseParty), findsOneWidget);
     });
 
     testWidgets('닉네임은 머리줄에 넣지 않는다', (tester) async {
