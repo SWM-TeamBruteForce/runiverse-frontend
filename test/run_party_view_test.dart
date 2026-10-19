@@ -108,6 +108,32 @@ void main() {
     expect(find.text("--'--\""), findsOneWidget);
   });
 
+  testWidgets('⚠️ 파티원 사진이 원을 꽉 채운다', (tester) async {
+    final board = const PartyBoard()
+        .withRoster(const [
+          PartyMember(userId: 'me-1', nickname: '러너42'),
+          PartyMember(
+            userId: 'u-1',
+            nickname: '김도윤',
+            profileImageUrl: 'https://example.test/p.jpg?X-Amz-Signature=a',
+          ),
+        ], myUserId: 'me-1')
+        .withProgress(progress('u-1', 1200));
+    await pump(tester, board);
+
+    // 원이 자식에게 느슨한 제약을 주면 사진이 **원래 비율대로** 놓인다 —
+    // 가로 사진은 32×16이 되고 남은 자리에 레인 색이 비친다. 꽉 조여야
+    // `BoxFit.cover`가 잘라서 채운다.
+    //
+    // ⚠️ 사진이 아직 안 온 첫 프레임을 본다. 느슨하면 `0×0`, 조이면 틀 크기다.
+    final photo = find.byType(Image);
+    expect(photo, findsOneWidget);
+    expect(
+      tester.getSize(photo),
+      const Size(AppSpacing.space7, AppSpacing.space7),
+    );
+  });
+
   testWidgets('이름을 모르는 사람도 그린다', (tester) async {
     // 러닝 중 재시작하면 명단이 비어 있다.
     final board = const PartyBoard().withProgress(progress('u-9', 800));
