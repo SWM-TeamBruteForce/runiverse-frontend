@@ -1,12 +1,18 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_running_room_repository.dart';
 import 'package:runiverse/features/session/data/fake_track_repository.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
+import 'package:runiverse/features/session/domain/user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/run_prepare_page.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
@@ -92,6 +98,99 @@ void main() {
         container.read(runningConnectionProvider).failure,
         RunningRoomFailure.alreadyRunning,
       );
+    });
+  });
+
+  group('무엇이 막는지 말한다', () {
+    Future<void> pump(WidgetTester tester, UserStatus? status) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            locationRepositoryProvider.overrideWithValue(
+              FakeLocationRepository(),
+            ),
+            userStatusRepositoryProvider.overrideWithValue(
+              FakeUserStatusRepository(
+                status: status ?? const UserStatusIdle(),
+                failure: status == null ? UserStatusFailure.network : null,
+              ),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const RunPreparePage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('⚠️ 매칭을 신청해 뒀으면 매칭을 가리킨다', (tester) async {
+      await pump(
+        tester,
+        UserStatusWaiting(runningRoomId: 12, scheduledStartAt: _startAt),
+      );
+
+      expect(find.text(AppStrings.runBlockedByMatch), findsOneWidget);
+      expect(find.text(AppStrings.runBlockedByMatchWhy), findsOneWidget);
+      // 있지도 않은 러닝을 찾게 하면 안 된다.
+      expect(find.text(AppStrings.runAlreadyInProgress), findsNothing);
+    });
+
+    testWidgets('⚠️ 매칭이 확정됐으면 제재도 함께 말한다', (tester) async {
+      // "취소하세요"라고만 하면 20분 제재를 모르고 당한다.
+      await pump(
+        tester,
+        UserStatusReady(
+          runningRoomId: 12,
+          isSolo: false,
+          scheduledStartAt: _startAt,
+        ),
+      );
+
+      expect(find.text(AppStrings.runBlockedByMatched), findsOneWidget);
+      expect(find.text(AppStrings.runBlockedByMatchedWhy), findsOneWidget);
+    });
+
+    testWidgets('러닝이 남았으면 러닝을 가리킨다', (tester) async {
+      await pump(
+        tester,
+        UserStatusRunning(
+          runningRoomId: 12,
+          isSolo: true,
+          scheduledStartAt: _startAt,
+        ),
+      );
+
+      expect(find.text(AppStrings.runAlreadyInProgress), findsOneWidget);
+    });
+
+    testWidgets('쉬는 중이면 막지 않는다', (tester) async {
+      await pump(tester, const UserStatusIdle());
+
+      expect(find.text(AppStrings.runStartCta), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 내가 만들어 둔 솔로 방은 막지 않는다', (tester) async {
+      // 복구로 들어온 자리다. 새로 만드는 것이 아니라 그 방에 붙어 시작한다.
+      await pump(
+        tester,
+        UserStatusReady(
+          runningRoomId: 12,
+          isSolo: true,
+          scheduledStartAt: _startAt,
+        ),
+      );
+
+      expect(find.text(AppStrings.runStartCta), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 상태를 못 읽었으면 막지 않는다', (tester) async {
+      // 판정에 실패했다고 막으면 신호가 나쁜 곳에서 아무도 못 뛴다.
+      // 틀렸을 때의 값은 서버의 409 한 번이다.
+      await pump(tester, null);
+
+      expect(find.text(AppStrings.runStartCta), findsOneWidget);
     });
   });
 }
