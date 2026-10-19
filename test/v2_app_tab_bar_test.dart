@@ -24,7 +24,17 @@ void main() {
     AppTabSpec(icon: AppIcons.profile, label: '프로필'),
   ];
 
-  Future<List<int>> pump(WidgetTester tester, {int current = 0}) async {
+  Future<List<int>> pump(
+    WidgetTester tester, {
+    int current = 0,
+    double? width,
+  }) async {
+    if (width != null) {
+      tester.view.physicalSize = Size(width * 3, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+    }
+
     final taps = <int>[];
     await tester.pumpWidget(
       MaterialApp(
@@ -140,6 +150,50 @@ void main() {
       expect(size.height, greaterThanOrEqualTo(44), reason: spec.label);
       expect(size.width, greaterThanOrEqualTo(44), reason: spec.label);
     }
+  });
+
+  /// 좁은 화면 — **넷이 다 들어가는가.**
+  ///
+  /// 칸을 86으로 못 박으면 넷에 344가 필요하다. 바 안쪽 폭은 `화면 폭 − 56`
+  /// 이라 **400보다 좁은 기기에서 넘친다** — 흔한 안드로이드 폰도, 일반형
+  /// 아이폰(393)도 거기 든다. 넘친 자리는 둥근 모서리에 깎이고, 릴리스
+  /// 빌드는 넘침 경고도 안 띄운다. 그래서 테스트 기본 폭(800)으로는 영영
+  /// 안 잡힌다.
+  group('좁은 화면', () {
+    for (final width in [320.0, 360.0, 384.0, 393.0]) {
+      testWidgets('⚠️ ${width.toInt()}에서 마지막 탭이 안 깎인다', (tester) async {
+        await pump(tester, width: width);
+
+        expect(tester.takeException(), isNull, reason: '넘쳤다');
+
+        final bar = tester.getRect(find.byType(ClipRRect));
+        final last = tester.getRect(find.byType(InkWell).last);
+        // 바 안쪽 여백(4) 안에 들어와야 둥근 모서리에 안 닿는다.
+        expect(last.right, lessThanOrEqualTo(bar.right - 4));
+        expect(
+          tester.getRect(find.byType(InkWell).first).left,
+          greaterThanOrEqualTo(bar.left + 4),
+        );
+      });
+    }
+
+    testWidgets('⚠️ 좁아져도 손가락이 닿는 넓이는 남는다', (tester) async {
+      await pump(tester, width: 320);
+
+      for (final spec in tabs) {
+        final size = tester.getSize(
+          find.descendant(of: tab(spec.label), matching: find.byType(InkWell)),
+        );
+        expect(size.width, greaterThanOrEqualTo(44), reason: spec.label);
+      }
+    });
+
+    testWidgets('넓으면 시안대로 86에서 멈춘다', (tester) async {
+      // 남는 폭을 나눠 가지면 큰 화면에서 알약이 터무니없이 길어진다.
+      await pump(tester, width: 430);
+
+      expect(tester.getSize(find.byType(InkWell).first).width, 86);
+    });
   });
 
   testWidgets('⚠️ 본문 위에 뜬다 — 자리를 빼앗지 않는다', (tester) async {
