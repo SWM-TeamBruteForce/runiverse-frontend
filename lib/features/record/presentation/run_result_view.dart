@@ -83,6 +83,14 @@ class _RunResultViewState extends State<RunResultView> {
         ? null
         : detail.chartSamplesOf(compare);
     final compareColor = compare == null ? null : _colorOf(compare);
+    // 색 칩에 적을 이름. 명단에 없으면 칩도 띄우지 않는다 — 이름 없는 색은
+    // 설명이 되지 못한다.
+    final compareName = compare == null
+        ? null
+        : detail.players
+              .where((p) => p.userId == compare)
+              .firstOrNull
+              ?.nickname;
     // 칩과 같은 색이라야 겹쳐 그린 두 선에서 내 것이 갈린다.
     final myColor = _myColor(colors);
     // 테이블은 1km, 그래프는 50m다. 같은 러닝을 두 배율로 본다 — 표는
@@ -215,6 +223,22 @@ class _RunResultViewState extends State<RunResultView> {
                         format: (v) => v.round().toString(),
                         color: myColor,
                         hint: AppStrings.runResultChartHint,
+                        // 페이스 그래프 둘과 **같은 사람**을 겹친다. 칩 하나가
+                        // 세 그래프를 함께 바꾸지 않으면, 같은 화면에서 비교
+                        // 기준이 그래프마다 달라진다.
+                        secondary: compareSamples == null
+                            ? null
+                            : [
+                                for (final s in compareSamples)
+                                  s.cadenceSpm?.toDouble(),
+                              ],
+                        secondaryColor: compareColor,
+                        legend: compareName == null
+                            ? null
+                            : ChartLegend(
+                                mine: AppStrings.runPartyMe,
+                                other: compareName,
+                              ),
                         // 50m 상세라 페이스 상세와 같은 모양으로 둔다.
                         // ⚠️ 뒤집지 않는다 — 케이던스는 클수록 좋은 값이다.
                         filled: true,

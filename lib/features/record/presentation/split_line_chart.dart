@@ -58,6 +58,28 @@ List<List<Offset>> lineRunsOf(List<Offset?> points) {
   return runs;
 }
 
+/// 두 선이 각각 누구 것인지 알리는 이름표.
+///
+/// 칩으로 고른 사람의 선이 겹쳐 그려지는데, **색만으로는 어느 쪽이 나인지
+/// 알 수 없다.** 위쪽 러너 칩이 같은 색을 쓰지만 화면을 내려오면서 눈에서
+/// 멀어진다 — 그래프 자리에서 한 번 더 말해 준다(시안 `158:3680`).
+class ChartLegend {
+  const ChartLegend({required this.mine, required this.other});
+
+  /// 내 선의 이름. 시안은 닉네임을 쓴다.
+  final String mine;
+
+  /// 겹쳐 그린 선의 이름. 고른 파티원의 닉네임이다.
+  final String other;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ChartLegend && other.mine == mine && other.other == this.other;
+
+  @override
+  int get hashCode => Object.hash(mine, other);
+}
+
 /// 구간별 꺾은선 하나. Figma `47:90`(페이스)·`47:152`(케이던스)가 같은 모양이다.
 ///
 /// ## 왜 차트 패키지를 쓰지 않았나
@@ -96,8 +118,12 @@ class SplitLineChart extends StatefulWidget {
     this.secondary,
     this.secondaryColor,
     this.axisTicks,
+    this.legend,
     super.key,
   });
+
+  /// 두 선의 이름표. **비교 중일 때만 넘긴다** — 혼자면 설명할 것이 없다.
+  final ChartLegend? legend;
 
   /// x축에 라벨을 찍을 자리. `null`이면 **개수로 솎는다**(전체의 1/5마다).
   ///
@@ -240,7 +266,14 @@ class _SplitLineChartState extends State<SplitLineChart> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _Title(title: widget.title, unit: widget.unit, badge: widget.badge),
+            _Title(
+              title: widget.title,
+              unit: widget.unit,
+              badge: widget.badge,
+              legend: widget.legend,
+              mineColor: widget.color,
+              otherColor: widget.secondaryColor ?? colors.textTertiary,
+            ),
             const SizedBox(height: AppSpacing.space2),
 
             LayoutBuilder(
@@ -358,26 +391,41 @@ class _SplitLineChartState extends State<SplitLineChart> {
 }
 
 class _Title extends StatelessWidget {
-  const _Title({required this.title, required this.unit, required this.badge});
+  const _Title({
+    required this.title,
+    required this.unit,
+    required this.badge,
+    required this.legend,
+    required this.mineColor,
+    required this.otherColor,
+  });
 
   final String title;
   final String unit;
   final String? badge;
+  final ChartLegend? legend;
+  final Color mineColor;
+  final Color otherColor;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
     final label = badge;
+    final names = legend;
 
     return Padding(
       padding: const EdgeInsets.only(left: AppSpacing.space1),
       child: Row(
         children: [
-          Text(
-            title,
-            style: AppTypographyV2.body18.copyWith(
-              color: colors.textSecondary,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypographyV2.body18.copyWith(
+                color: colors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           const SizedBox(width: AppSpacing.space1),
@@ -389,8 +437,58 @@ class _Title extends StatelessWidget {
             const SizedBox(width: AppSpacing.space2),
             _Badge(label: label),
           ],
+          if (names != null) ...[
+            const Spacer(),
+            // 시안(`158:3680`)은 이름표를 제목 줄 오른쪽 끝에 둔다.
+            _LegendChip(name: names.mine, color: mineColor),
+            const SizedBox(width: AppSpacing.space2),
+            _LegendChip(name: names.other, color: otherColor),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// 색 칩 하나 — 동그라미 하나와 이름.
+///
+/// 선 토막이 아니라 **칩**으로 둔다. 1.5px 선은 12px 글자 옆에서 거의 보이지
+/// 않아 어느 색인지 가려내지 못한다. 시안(`158:3680`)은 네모지만 **위쪽 러너
+/// 칩과 같은 동그라미**로 맞춘다 — 같은 색을 두 자리에서 다른 모양으로
+/// 보이면 같은 사람을 가리키는 표시로 읽히지 않는다.
+class _LegendChip extends StatelessWidget {
+  const _LegendChip({required this.name, required this.color});
+
+  final String name;
+  final Color color;
+
+  /// 러너 칩의 점과 같은 8이다.
+  static const _dot = AppSpacing.space2;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: _dot,
+          height: _dot,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: AppSpacing.space1),
+        // 닉네임은 최대 16자다. 제목과 다투지 않게 줄인다.
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: AppSpacing.space10),
+          child: Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypographyV2.body18.copyWith(color: colors.textSecondary),
+          ),
+        ),
+      ],
     );
   }
 }

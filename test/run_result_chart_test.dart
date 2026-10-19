@@ -149,6 +149,32 @@ void main() {
           ),
         );
 
+    /// 칩은 `InkWell`이다. 이름만으로 찾으면 비교 카드의 글자가 먼저 걸린다.
+    Future<void> choose(WidgetTester tester, String name) async {
+      await tester.tap(find.widgetWithText(InkWell, name));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('⚠️ 칩으로 고른 사람이 케이던스에도 겹친다', (tester) async {
+      await pump(tester, party());
+      expect(cadenceChart(tester).secondary, isNull);
+
+      await choose(tester, '이서연');
+
+      // 10m당 4초로 달린 이서연의 값이다.
+      expect(cadenceChart(tester).secondary, equals(List.filled(40, 168.0)));
+    });
+
+    testWidgets('⚠️ 색 칩이 두 선의 주인을 밝힌다', (tester) async {
+      await pump(tester, party());
+      expect(inChart(title, '이서연'), findsNothing);
+
+      await choose(tester, '이서연');
+
+      expect(inChart(title, AppStrings.runPartyMe), findsOneWidget);
+      expect(inChart(title, '이서연'), findsOneWidget);
+    });
+
     testWidgets('⚠️ 모르는 구간은 0이 아니라 비운다', (tester) async {
       // 0으로 바꿔 그리면 선이 바닥까지 떨어져 "그때 멈췄다"로 읽힌다.
       await pump(tester, party(gap: true));
