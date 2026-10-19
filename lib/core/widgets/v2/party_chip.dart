@@ -74,9 +74,71 @@ class PartyChip extends StatelessWidget {
         ),
         if (showName) ...[
           const SizedBox(height: AppSpacing.space2),
-          Text(name, style: AppTypographyV2.body11.copyWith(color: accent)),
+          Text(
+            name,
+            // ⚠️ **닉네임은 최대 16자다.** [PartyChipRow]가 칸 폭을 정해 주므로
+            // 줄이지 않으면 긴 이름이 두 줄로 내려가 칩 높이가 서로 달라진다.
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypographyV2.body11.copyWith(color: accent),
+          ),
         ],
       ],
+    );
+  }
+}
+
+/// [PartyChip] 여럿을 **아바타 중심 간격이 고르게** 늘어놓는다.
+///
+/// ## ⚠️ [Wrap]으로는 간격이 맞지 않는다
+///
+/// [PartyChip]은 아바타 아래에 이름을 붙여서 **칩 폭이 닉네임 길이를 따라간다.**
+/// [Wrap]은 칩 **사이** 간격만 같게 맞추므로, 이름이 길고 짧은 사람이 섞이면
+/// 아바타 중심 간격이 들쭉날쭉해진다.
+///
+/// 그래서 사람마다 **같은 폭의 칸**을 주고 그 안에서 가운데 정렬한다.
+/// 칸 폭은 [maxChipWidth]와 `(남은 폭 − 칸 사이 간격) ÷ 인원수` 중 작은 값이다.
+/// 둘 중 하나만 쓰면 한쪽이 깨진다 — 상한이 없으면 2명일 때 양쪽으로 벌어지고,
+/// 상한만 쓰면 4명일 때 넘친다.
+class PartyChipRow extends StatelessWidget {
+  const PartyChipRow({
+    required this.children,
+    required this.maxChipWidth,
+    super.key,
+  });
+
+  final List<PartyChip> children;
+
+  /// 칸 폭의 상한.
+  ///
+  /// 이름을 보이는 자리는 넉넉히 주되 끝이 있어야 한다 — 닉네임이 최대 16자라
+  /// 칸을 넓혀도 다 보이지 않고, 아바타만 멀어진다.
+  /// **이름이 없는 자리에서는 아바타 지름을 넘겨** 칸과 아바타를 같게 둔다.
+  final double maxChipWidth;
+
+  /// 칸 사이 간격. 쓰는 두 화면이 같은 값이라 밖에서 정하지 않는다.
+  static const _gap = AppSpacing.space4;
+
+  @override
+  Widget build(BuildContext context) {
+    // 명단이 비는 순간이 있다 — 아래 `maxWidth` 셈이 음수가 된다.
+    if (children.isEmpty) return const SizedBox.shrink();
+
+    final cells = <Widget>[];
+    for (final chip in children) {
+      if (cells.isNotEmpty) cells.add(const SizedBox(width: _gap));
+      // 남은 폭을 똑같이 나눠 가진다. 폭의 상한은 아래 [ConstrainedBox]가 쥔다.
+      cells.add(Expanded(child: chip));
+    }
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth:
+              children.length * maxChipWidth + (children.length - 1) * _gap,
+        ),
+        child: Row(children: cells),
+      ),
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/widgets/v2/party_chip.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/data/fake_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
@@ -29,6 +30,7 @@ void main() {
     DateTime? closeAt,
     int players = 3,
     bool deletedLast = false,
+    List<String>? names,
   }) => RoomInfo(
     runningRoomId: 125,
     status: status,
@@ -39,7 +41,7 @@ void main() {
       for (var i = 0; i < players; i++)
         RoomPlayer(
           userId: 'u-$i',
-          nickname: '러너$i',
+          nickname: names?[i] ?? '러너$i',
           isDeleted: deletedLast && i == players - 1,
         ),
     ],
@@ -180,6 +182,32 @@ void main() {
       expect(find.text(AppStrings.matchDistanceText(5)), findsOneWidget);
       expect(find.text(AppStrings.matchRoomPlayers(3)), findsOneWidget);
       expect(find.text('러너0'), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 이름 길이가 달라도 아바타 간격이 고르다', (tester) async {
+      await pumpRoom(
+        tester,
+        snapshot: room(
+          status: RoomStatus.matched,
+          closeAt: closedAlready,
+          players: 4,
+          names: const ['나', '김도윤', '열여섯자까지되는긴닉네임이야', '이서연'],
+        ),
+      );
+
+      double avatarX(int index) => tester
+          .getCenter(
+            find.descendant(
+              of: find.byType(PartyChip).at(index),
+              matching: find.byType(Container),
+            ),
+          )
+          .dx;
+
+      // 칩 폭을 이름 길이에 맡기면 여기서 어긋난다.
+      final step = avatarX(1) - avatarX(0);
+      expect(avatarX(2) - avatarX(1), moreOrLessEquals(step, epsilon: 0.01));
+      expect(avatarX(3) - avatarX(2), moreOrLessEquals(step, epsilon: 0.01));
     });
 
     testWidgets('⚠️ 탈퇴한 참가자도 자리를 지킨다', (tester) async {
