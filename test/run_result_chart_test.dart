@@ -114,6 +114,18 @@ void main() {
       expect(inChart(title, '0.5km'), findsNothing);
     });
 
+    testWidgets('⚠️ 짧은 러닝에서도 자리가 남는다', (tester) async {
+      // 220m를 뛰면 0.5km에 닿은 점이 하나도 없다. 간격 후보가 0.5km부터면
+      // **총 거리 하나만 남아** 축이 사실상 비어 버린다.
+      await pump(tester, detail(meters: 220));
+
+      const title = AppStrings.runResultPaceDetailChart;
+      expect(inChart(title, '0.05km'), findsOneWidget);
+      expect(inChart(title, '0.1km'), findsOneWidget);
+      expect(inChart(title, '0.15km'), findsOneWidget);
+      expect(inChart(title, '0.22km'), findsOneWidget);
+    });
+
     testWidgets('마지막 점은 딱 떨어지지 않아도 찍는다', (tester) async {
       // 총 거리를 읽는 자리다.
       await pump(tester, detail(meters: 2150));
