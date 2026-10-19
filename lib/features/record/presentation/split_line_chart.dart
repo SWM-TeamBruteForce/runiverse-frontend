@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
@@ -29,6 +30,54 @@ int focusedSplitOf({
       ? 0.0
       : ((dx - gutter - inset) / span).clamp(0.0, 1.0);
   return (ratio * (count - 1)).round();
+}
+
+/// 끊기지 않고 이어지는 토막들로 나눈다. 빈 자리(`null`)가 경계다.
+///
+/// ## ⚠️ 빈 자리를 건너뛰어 이으면 안 된다
+///
+/// 모르는 구간을 가로지르는 직선은 **그 구간을 잰 것처럼 보인다.** 경로를
+/// 30m 넘게 벌어진 자리에서 끊는 것(`RouteSegments`)과 같은 판단이다.
+///
+/// 위젯이 아니라 함수로 둔 이유는 [focusedSplitOf]와 같다 — 선은 캔버스에
+/// 그려 위젯 트리에 남지 않아서, 이어 그었는지 끊어 그었는지를 **화면에서는
+/// 확인할 수 없다.**
+@visibleForTesting
+List<List<Offset>> lineRunsOf(List<Offset?> points) {
+  final runs = <List<Offset>>[];
+  var run = <Offset>[];
+  for (final point in points) {
+    if (point == null) {
+      if (run.isNotEmpty) runs.add(run);
+      run = <Offset>[];
+      continue;
+    }
+    run.add(point);
+  }
+  if (run.isNotEmpty) runs.add(run);
+  return runs;
+}
+
+/// 두 선이 각각 누구 것인지 알리는 이름표.
+///
+/// 칩으로 고른 사람의 선이 겹쳐 그려지는데, **색만으로는 어느 쪽이 나인지
+/// 알 수 없다.** 위쪽 러너 칩이 같은 색을 쓰지만 화면을 내려오면서 눈에서
+/// 멀어진다 — 그래프 자리에서 한 번 더 말해 준다(시안 `158:3680`).
+class ChartLegend {
+  const ChartLegend({required this.mine, required this.other});
+
+  /// 내 선의 이름. 시안은 닉네임을 쓴다.
+  final String mine;
+
+  /// 겹쳐 그린 선의 이름. 고른 파티원의 닉네임이다.
+  final String other;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ChartLegend && other.mine == mine && other.other == this.other;
+
+  @override
+  int get hashCode => Object.hash(mine, other);
 }
 
 /// 구간별 꺾은선 하나. Figma `47:90`(페이스)·`47:152`(케이던스)가 같은 모양이다.
@@ -68,12 +117,33 @@ class SplitLineChart extends StatefulWidget {
     this.showPoints = false,
     this.secondary,
     this.secondaryColor,
+    this.axisTicks,
+    this.legend,
     super.key,
   });
 
+  /// 두 선의 이름표. **비교 중일 때만 넘긴다** — 혼자면 설명할 것이 없다.
+  final ChartLegend? legend;
+
+  /// x축에 라벨을 찍을 자리. `null`이면 **개수로 솎는다**(전체의 1/5마다).
+  ///
+  /// ## ⚠️ 개수로 솎으면 어중간한 거리가 나온다
+  ///
+  /// 50m 표본은 3km가 점 60개라 12개마다 찍히는데, 그러면 첫 점부터 세어
+  /// `0.05 · 0.65 · 1.25km`가 된다. 읽는 사람이 쓰는 자는 **거리**지 점 번호가
+  /// 아니다. 그래서 부르는 쪽이 `0.5km`처럼 딱 떨어지는 자리를 골라 넘긴다.
+  ///
+  /// 구간 번호가 곧 거리인 1km 그래프(`1km` `2km` …)는 넘기지 않는다 —
+  /// 개수로 솎아도 어차피 딱 떨어진다.
+  ///
+  /// **마지막 점은 여기에 없어도 늘 찍힌다** — 총 거리를 읽는 자리다.
+  final List<int>? axisTicks;
+
   /// 겹쳐 그릴 두 번째 선(파티원). [values]와 같은 자리가 같은 구간이다.
   /// 더 짧으면 거기까지만 그린다 — 먼저 끝난 사람은 뒤 구간이 없다.
-  final List<double>? secondary;
+  ///
+  /// [values]와 마찬가지로 **모르는 구간은 `null`**이다.
+  final List<double?>? secondary;
 
   /// 두 번째 선의 색. 그 러너의 레인 색이다.
   final Color? secondaryColor;
@@ -85,7 +155,13 @@ class SplitLineChart extends StatefulWidget {
   final String unit;
 
   /// 구간마다의 값. 세로축이 이걸 그린다.
-  final List<double> values;
+  ///
+  /// ## ⚠️ 모르는 구간은 `null`이다 — 0이 아니다
+  ///
+  /// 케이던스는 걸음 표본이 모자라면 그 구간을 모른다. 0으로 바꿔 그리면
+  /// **선이 바닥까지 떨어져 "그때 멈췄다"로 읽힌다.** 모르는 것과 0인 것은
+  /// 다른 말이라, 여기서는 선을 끊는다.
+  final List<double?> values;
 
   /// [values]와 같은 길이의 x축 라벨. `1km` `2km` …
   final List<String> labels;
@@ -156,11 +232,17 @@ class _SplitLineChartState extends State<SplitLineChart> {
   }
 
   /// 집은 자리의 값. 두 번째 선이 있으면 `5'28" · 5'40"`처럼 나란히 적는다.
+  ///
+  /// 모르는 구간은 `--`다. 선이 끊긴 자리를 짚었을 때 **직전 값이 그대로
+  /// 떠 있으면** 그 구간을 아는 것으로 읽힌다.
   String _readingAt(int index) {
-    final mine = widget.format(widget.values[index]);
+    String read(double? value) =>
+        value == null ? AppStrings.runUnavailable : widget.format(value);
+
+    final mine = read(widget.values[index]);
     final other = widget.secondary;
     if (other == null || index >= other.length) return mine;
-    return '$mine · ${widget.format(other[index])}';
+    return '$mine · ${read(other[index])}';
   }
 
   @override
@@ -184,7 +266,14 @@ class _SplitLineChartState extends State<SplitLineChart> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _Title(title: widget.title, unit: widget.unit, badge: widget.badge),
+            _Title(
+              title: widget.title,
+              unit: widget.unit,
+              badge: widget.badge,
+              legend: widget.legend,
+              mineColor: widget.color,
+              otherColor: widget.secondaryColor ?? colors.textTertiary,
+            ),
             const SizedBox(height: AppSpacing.space2),
 
             LayoutBuilder(
@@ -274,6 +363,7 @@ class _SplitLineChartState extends State<SplitLineChart> {
                           height: AppSpacing.space4,
                           child: _Labels(
                             labels: widget.labels,
+                            ticks: widget.axisTicks,
                             inset: _inset,
                             color: colors.textTertiary,
                           ),
@@ -301,26 +391,41 @@ class _SplitLineChartState extends State<SplitLineChart> {
 }
 
 class _Title extends StatelessWidget {
-  const _Title({required this.title, required this.unit, required this.badge});
+  const _Title({
+    required this.title,
+    required this.unit,
+    required this.badge,
+    required this.legend,
+    required this.mineColor,
+    required this.otherColor,
+  });
 
   final String title;
   final String unit;
   final String? badge;
+  final ChartLegend? legend;
+  final Color mineColor;
+  final Color otherColor;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
     final label = badge;
+    final names = legend;
 
     return Padding(
       padding: const EdgeInsets.only(left: AppSpacing.space1),
       child: Row(
         children: [
-          Text(
-            title,
-            style: AppTypographyV2.body18.copyWith(
-              color: colors.textSecondary,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypographyV2.body18.copyWith(
+                color: colors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           const SizedBox(width: AppSpacing.space1),
@@ -332,8 +437,58 @@ class _Title extends StatelessWidget {
             const SizedBox(width: AppSpacing.space2),
             _Badge(label: label),
           ],
+          if (names != null) ...[
+            const Spacer(),
+            // 시안(`158:3680`)은 이름표를 제목 줄 오른쪽 끝에 둔다.
+            _LegendChip(name: names.mine, color: mineColor),
+            const SizedBox(width: AppSpacing.space2),
+            _LegendChip(name: names.other, color: otherColor),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// 색 칩 하나 — 동그라미 하나와 이름.
+///
+/// 선 토막이 아니라 **칩**으로 둔다. 1.5px 선은 12px 글자 옆에서 거의 보이지
+/// 않아 어느 색인지 가려내지 못한다. 시안(`158:3680`)은 네모지만 **위쪽 러너
+/// 칩과 같은 동그라미**로 맞춘다 — 같은 색을 두 자리에서 다른 모양으로
+/// 보이면 같은 사람을 가리키는 표시로 읽히지 않는다.
+class _LegendChip extends StatelessWidget {
+  const _LegendChip({required this.name, required this.color});
+
+  final String name;
+  final Color color;
+
+  /// 러너 칩의 점과 같은 8이다.
+  static const _dot = AppSpacing.space2;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: _dot,
+          height: _dot,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: AppSpacing.space1),
+        // 닉네임은 최대 16자다. 제목과 다투지 않게 줄인다.
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: AppSpacing.space10),
+          child: Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypographyV2.body18.copyWith(color: colors.textSecondary),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -423,11 +578,16 @@ class _YLabels extends StatelessWidget {
 class _Labels extends StatelessWidget {
   const _Labels({
     required this.labels,
+    required this.ticks,
     required this.inset,
     required this.color,
   });
 
   final List<String> labels;
+
+  /// 찍을 자리. `null`이면 개수로 솎는다. [SplitLineChart.axisTicks] 참조.
+  final List<int>? ticks;
+
   final double inset;
   final Color color;
 
@@ -437,6 +597,7 @@ class _Labels extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final at = ticks;
     // 다섯 개쯤으로 솎되 마지막 구간은 항상 남긴다 — 총 거리를 읽는 자리다.
     final step = (labels.length / 5).ceil().clamp(1, labels.length);
 
@@ -449,13 +610,16 @@ class _Labels extends StatelessWidget {
         double centerOf(int i) =>
             inset + (last == 0 ? span / 2 : span * i / last);
 
-        // ⚠️ **솎은 라벨이 마지막과 붙는 일이 있다.** 11점이면 3칸씩 골라
+        bool picked(int i) => at == null ? i % step == 0 : at.contains(i);
+
+        // ⚠️ **고른 라벨이 마지막과 붙는 일이 있다.** 11점이면 3칸씩 골라
         // 0·3·6·9가 되는데 마지막 10을 항상 남기므로 9와 10이 겹쳐 찍힌다.
+        // 거리로 골라도 마찬가지다 — 3.02km를 뛰면 3km와 3.02km가 붙는다.
         // 마지막에서 한 칸 안에 든 것은 버린다 — 총 거리를 읽는 쪽이 우선이다.
         final shown = [
           for (var i = 0; i < labels.length; i++)
             if (i == last ||
-                (i % step == 0 && centerOf(last) - centerOf(i) >= _slot))
+                (picked(i) && centerOf(last) - centerOf(i) >= _slot))
               i,
         ];
 
@@ -505,10 +669,11 @@ class _LinePainter extends CustomPainter {
   /// 세로 자. 격자선 자리와 점 높이가 전부 여기서 나온다.
   final SplitAxis axis;
 
-  final List<double> values;
+  /// 구간마다의 값. **모르는 구간은 `null`**이고 거기서 선이 끊긴다.
+  final List<double?> values;
 
   /// 두 번째 선. 없으면 `null`.
-  final List<double>? secondary;
+  final List<double?>? secondary;
   final Color secondaryLine;
   final int? focused;
   final Color line;
@@ -558,10 +723,7 @@ class _LinePainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    final points = [
-      for (var i = 0; i < values.length; i++)
-        Offset(_x(i, size), _y(values[i], size)),
-    ];
+    final points = _pointsOf(values, size);
 
     final linePaint = Paint()
       ..color = line
@@ -570,11 +732,14 @@ class _LinePainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round
       ..style = PaintingStyle.stroke;
 
-    if (points.length == 1) {
-      canvas.drawCircle(points.first, 3, Paint()..color = line);
-    } else {
-      final path = Path()..moveTo(points.first.dx, points.first.dy);
-      for (final point in points.skip(1)) {
+    for (final run in lineRunsOf(points)) {
+      if (run.length == 1) {
+        canvas.drawCircle(run.first, 3, Paint()..color = line);
+        continue;
+      }
+
+      final path = Path()..moveTo(run.first.dx, run.first.dy);
+      for (final point in run.skip(1)) {
         path.lineTo(point.dx, point.dy);
       }
 
@@ -582,8 +747,8 @@ class _LinePainter extends CustomPainter {
       // 구간마다 채운 높이가 서로 비교된다.
       if (filled) {
         final fill = Path.from(path)
-          ..lineTo(points.last.dx, size.height)
-          ..lineTo(points.first.dx, size.height)
+          ..lineTo(run.last.dx, size.height)
+          ..lineTo(run.first.dx, size.height)
           ..close();
         canvas.drawPath(
           fill,
@@ -607,18 +772,31 @@ class _LinePainter extends CustomPainter {
 
     // 세로 기준선은 손가락이 아니라 **그 구간의 점**에 선다. 손가락 위치에
     // 그대로 두면 어느 구간을 읽는 중인지 흔들린다.
+    //
+    // ⚠️ 모르는 구간에도 선은 세운다 — 짚은 자리가 어디인지는 말해 줘야
+    // 한다. 점만 찍지 않는다. 말풍선은 `--`를 적는다.
     final at = points[index];
+    final x = at?.dx ?? _x(index, size);
     canvas.drawLine(
-      Offset(at.dx, 0),
-      Offset(at.dx, size.height),
+      Offset(x, 0),
+      Offset(x, size.height),
       Paint()
         ..color = line.withValues(alpha: 0.4)
         ..strokeWidth = 1,
     );
-    canvas.drawCircle(at, 4, Paint()..color = line);
+    if (at != null) canvas.drawCircle(at, 4, Paint()..color = line);
 
-    _paintReading(canvas, size, at);
+    _paintReading(canvas, size, at ?? Offset(x, size.height / 2));
   }
+
+  /// 값마다의 좌표. **모르는 구간은 `null`**이라 자리를 비워 둔다.
+  List<Offset?> _pointsOf(List<double?> from, Size size) => [
+    for (var i = 0; i < from.length && i < values.length; i++)
+      if (from[i] case final value?)
+        Offset(_x(i, size), _y(value, size))
+      else
+        null,
+  ];
 
   /// 구간마다의 `o`.
   ///
@@ -628,7 +806,10 @@ class _LinePainter extends CustomPainter {
   ///
   /// 가운데를 카드 바탕색으로 메운다. 비우면 선이 원을 뚫고 지나가 `o`가
   /// 아니라 매듭처럼 보인다.
-  void _paintPoints(Canvas canvas, List<Offset> points) {
+  ///
+  /// ⚠️ **모르는 구간에는 찍지 않는다.** 점이 있으면 그 자리의 값을 아는
+  /// 것으로 읽힌다.
+  void _paintPoints(Canvas canvas, List<Offset?> points) {
     final hole = Paint()..color = surface;
     final ring = Paint()
       ..color = line
@@ -636,6 +817,7 @@ class _LinePainter extends CustomPainter {
       ..strokeWidth = 1.5;
 
     for (final point in points) {
+      if (point == null) continue;
       canvas
         ..drawCircle(point, 3, hole)
         ..drawCircle(point, 3, ring);
@@ -650,12 +832,6 @@ class _LinePainter extends CustomPainter {
     final other = secondary;
     if (other == null || other.isEmpty) return;
 
-    final points = [
-      for (var i = 0; i < other.length && i < values.length; i++)
-        Offset(_x(i, size), _y(other[i], size)),
-    ];
-    if (points.isEmpty) return;
-
     final paint = Paint()
       ..color = secondaryLine
       ..strokeWidth = 1.5
@@ -663,15 +839,17 @@ class _LinePainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round
       ..style = PaintingStyle.stroke;
 
-    if (points.length == 1) {
-      canvas.drawCircle(points.first, 3, Paint()..color = secondaryLine);
-      return;
+    for (final run in lineRunsOf(_pointsOf(other, size))) {
+      if (run.length == 1) {
+        canvas.drawCircle(run.first, 3, Paint()..color = secondaryLine);
+        continue;
+      }
+      final path = Path()..moveTo(run.first.dx, run.first.dy);
+      for (final point in run.skip(1)) {
+        path.lineTo(point.dx, point.dy);
+      }
+      canvas.drawPath(path, paint);
     }
-    final path = Path()..moveTo(points.first.dx, points.first.dy);
-    for (final point in points.skip(1)) {
-      path.lineTo(point.dx, point.dy);
-    }
-    canvas.drawPath(path, paint);
   }
 
   /// 집은 값을 **그 점 바로 위**에 띄운다.

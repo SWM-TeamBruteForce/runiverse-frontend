@@ -38,6 +38,29 @@ void main() {
       expect(axis.isFlat, isTrue);
       expect(axis.ticks, [0]);
     });
+
+    test('⚠️ 모르는 구간은 세지 않는다', () {
+      // 케이던스는 걸음 표본이 모자라면 그 구간을 모른다. 0으로 치면
+      // 축이 바닥까지 늘어나 **아는 구간들의 차이가 납작해진다.**
+      final axis = SplitAxis.of([null, 170, 180, null]);
+
+      expect(axis.lo, 170);
+      expect(axis.hi, 180);
+    });
+
+    test('파티원 쪽이 모르는 구간도 세지 않는다', () {
+      final axis = SplitAxis.of([170, 180], secondary: [null, 190]);
+
+      expect(axis.lo, 170);
+      expect(axis.hi, 190);
+    });
+
+    test('아는 구간이 하나도 없으면 그릴 것이 없다', () {
+      final axis = SplitAxis.of([null, null]);
+
+      expect(axis.isFlat, isTrue);
+      expect(axis.ticks, [0]);
+    });
   });
 
   group('눈금', () {

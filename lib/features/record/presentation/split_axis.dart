@@ -25,22 +25,25 @@ class SplitAxis {
   });
 
   /// 그릴 값들로 자를 잡는다. [secondary]가 있으면 **합쳐서** 잡는다.
+  ///
+  /// ⚠️ **모르는 구간(`null`)은 세지 않는다.** 0으로 치면 축이 바닥까지
+  /// 늘어나, 아는 구간들의 차이가 납작해져 보이지 않게 된다.
   factory SplitAxis.of(
-    List<double> values, {
-    List<double>? secondary,
+    List<double?> values, {
+    List<double?>? secondary,
     bool inverted = false,
   }) {
-    final all = [...values, ...?secondary];
-    // 그릴 것이 없다. 부르는 쪽이 먼저 걸러내지만 여기서 죽지는 않는다.
-    if (all.isEmpty) {
-      return const SplitAxis._(lo: 0, hi: 0, inverted: false);
+    double? lo;
+    double? hi;
+    for (final value in [...values, ...?secondary]) {
+      if (value == null) continue;
+      if (lo == null || value < lo) lo = value;
+      if (hi == null || value > hi) hi = value;
     }
 
-    var lo = all.first;
-    var hi = all.first;
-    for (final value in all) {
-      if (value < lo) lo = value;
-      if (value > hi) hi = value;
+    // 그릴 것이 없다. 부르는 쪽이 먼저 걸러내지만 여기서 죽지는 않는다.
+    if (lo == null || hi == null) {
+      return const SplitAxis._(lo: 0, hi: 0, inverted: false);
     }
     return SplitAxis._(lo: lo, hi: hi, inverted: inverted);
   }

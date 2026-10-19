@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/record/presentation/split_line_chart.dart';
@@ -19,6 +20,8 @@ void main() {
     List<double>? secondary,
     bool inverted = true,
     bool showPoints = true,
+    List<String>? labels,
+    List<int>? axisTicks,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -28,7 +31,9 @@ void main() {
             title: '구간별 페이스',
             unit: '/km',
             values: values,
-            labels: [for (var i = 1; i <= values.length; i++) '${i}km'],
+            labels:
+                labels ?? [for (var i = 1; i <= values.length; i++) '${i}km'],
+            axisTicks: axisTicks,
             format: pace,
             color: const Color(0xFF3B82F6),
             hint: '그래프를 누른 채 좌우로 밀어 구간별 기록을 확인하세요',
@@ -86,6 +91,100 @@ void main() {
     final labelLeft = tester.getTopLeft(find.text('1km')).dx;
 
     expect(labelLeft - cardLeft, greaterThan(40));
+  });
+
+  /// 끊어 긋기 — **모르는 구간을 가로지르지 않는가.**
+  ///
+  /// 선은 캔버스에 그려 위젯 트리에 남지 않는다. 이어 그었는지 끊어 그었는지는
+  /// 화면에서 확인할 수 없어 계산을 직접 잰다.
+  group('끊어 긋기', () {
+    const a = Offset(0, 10);
+    const b = Offset(10, 20);
+    const c = Offset(20, 30);
+
+    test('빈 자리가 없으면 한 토막이다', () {
+      expect(lineRunsOf(const [a, b, c]), [
+        [a, b, c],
+      ]);
+    });
+
+    test('⚠️ 빈 자리에서 끊는다', () {
+      // 이어 그으면 **모르는 구간을 잰 것처럼 보인다.**
+      expect(lineRunsOf(const [a, null, b, c]), [
+        [a],
+        [b, c],
+      ]);
+    });
+
+    test('앞뒤가 비어도 가운데만 긋는다', () {
+      expect(lineRunsOf(const [null, a, b, null]), [
+        [a, b],
+      ]);
+    });
+
+    test('아는 구간이 없으면 그을 것도 없다', () {
+      expect(lineRunsOf(const [null, null]), isEmpty);
+    });
+  });
+
+  /// x축 라벨 — **거리로 고른 자리에 찍는가.**
+  ///
+  /// 점 개수로 솎으면 50m 표본에서 `0.05 · 0.65 · 1.25km`가 나온다.
+  /// 읽는 사람이 쓰는 자는 거리지 점 번호가 아니다.
+  group('가로 라벨', () {
+    /// 50m씩 스무 점(1km). 라벨은 닿은 거리를 적는다.
+    List<String> sampleLabels() => [
+      for (var i = 1; i <= 20; i++) AppStrings.runResultSampleLabel(i * 0.05),
+    ];
+
+    testWidgets('⚠️ 찍을 자리를 주면 거기에만 찍는다', (tester) async {
+      await pump(
+        tester,
+        values: [for (var i = 0; i < 20; i++) 300],
+        labels: sampleLabels(),
+        // 0.5km(아홉 번째)와 1km(마지막).
+        axisTicks: const [9, 19],
+      );
+
+      expect(find.text('0.5km'), findsOneWidget);
+      expect(find.text('1km'), findsOneWidget);
+      // 개수로 솎던 시절에 나오던 자리.
+      expect(find.text('0.05km'), findsNothing);
+      expect(find.text('0.25km'), findsNothing);
+    });
+
+    testWidgets('⚠️ 마지막 점은 자리에 없어도 찍는다', (tester) async {
+      // 총 거리를 읽는 자리다. 비워 두면 얼마나 뛰었는지가 그래프에서 사라진다.
+      await pump(
+        tester,
+        values: [for (var i = 0; i < 20; i++) 300],
+        labels: sampleLabels(),
+        axisTicks: const [],
+      );
+
+      expect(find.text('1km'), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 마지막과 붙는 자리는 버린다', (tester) async {
+      // 3.02km를 뛰면 3km 라벨이 마지막 라벨 바로 옆에 포개진다.
+      await pump(
+        tester,
+        values: [for (var i = 0; i < 20; i++) 300],
+        labels: sampleLabels(),
+        axisTicks: const [18],
+      );
+
+      expect(find.text('0.95km'), findsNothing);
+      expect(find.text('1km'), findsOneWidget);
+    });
+
+    testWidgets('자리를 주지 않으면 개수로 솎는다', (tester) async {
+      // 1km 그래프는 구간 번호가 곧 거리라 이대로가 맞다.
+      await pump(tester, values: [300, 310, 320, 330, 340, 350]);
+
+      expect(find.text('1km'), findsOneWidget);
+      expect(find.text('6km'), findsOneWidget);
+    });
   });
 
   /// 집는 자리 — **거터를 빼는가.**

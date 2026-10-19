@@ -83,6 +83,14 @@ class _RunResultViewState extends State<RunResultView> {
         ? null
         : detail.chartSamplesOf(compare);
     final compareColor = compare == null ? null : _colorOf(compare);
+    // 색 칩에 적을 이름. 명단에 없으면 칩도 띄우지 않는다 — 이름 없는 색은
+    // 설명이 되지 못한다.
+    final compareName = compare == null
+        ? null
+        : detail.players
+              .where((p) => p.userId == compare)
+              .firstOrNull
+              ?.nickname;
     // 칩과 같은 색이라야 겹쳐 그린 두 선에서 내 것이 갈린다.
     final myColor = _myColor(colors);
     // 테이블은 1km, 그래프는 50m다. 같은 러닝을 두 배율로 본다 — 표는
@@ -179,6 +187,7 @@ class _RunResultViewState extends State<RunResultView> {
                           (s.pace ?? Duration.zero).inSeconds.toDouble(),
                       ],
                       labels: _sampleLabels(samples),
+                      axisTicks: _sampleTicks(samples),
                       format: (v) =>
                           PaceCalculator.format(Duration(seconds: v.round())),
                       color: myColor,
@@ -203,14 +212,33 @@ class _RunResultViewState extends State<RunResultView> {
                         // 1km 그래프와 헷갈리지 않는다.
                         title: AppStrings.runResultCadenceDetailChart,
                         unit: AppStrings.runResultCadenceDetailUnit,
+                        // ⚠️ **모르는 구간은 `null`로 넘긴다.** 0으로 바꾸면
+                        // 선이 바닥까지 떨어져 "그때 멈췄다"로 읽힌다 —
+                        // 걸음 표본이 모자란 것과 안 뛴 것은 다른 말이다.
                         values: [
-                          for (final s in samples)
-                            (s.cadenceSpm ?? 0).toDouble(),
+                          for (final s in samples) s.cadenceSpm?.toDouble(),
                         ],
                         labels: _sampleLabels(samples),
+                        axisTicks: _sampleTicks(samples),
                         format: (v) => v.round().toString(),
                         color: myColor,
                         hint: AppStrings.runResultChartHint,
+                        // 페이스 그래프 둘과 **같은 사람**을 겹친다. 칩 하나가
+                        // 세 그래프를 함께 바꾸지 않으면, 같은 화면에서 비교
+                        // 기준이 그래프마다 달라진다.
+                        secondary: compareSamples == null
+                            ? null
+                            : [
+                                for (final s in compareSamples)
+                                  s.cadenceSpm?.toDouble(),
+                              ],
+                        secondaryColor: compareColor,
+                        legend: compareName == null
+                            ? null
+                            : ChartLegend(
+                                mine: AppStrings.runPartyMe,
+                                other: compareName,
+                              ),
                         // 50m 상세라 페이스 상세와 같은 모양으로 둔다.
                         // ⚠️ 뒤집지 않는다 — 케이던스는 클수록 좋은 값이다.
                         filled: true,
@@ -243,8 +271,54 @@ class _RunResultViewState extends State<RunResultView> {
   /// 아무 뜻도 갖지 못한다. 어디쯤이었는지가 읽고 싶은 값이다.
   static List<String> _sampleLabels(List<SplitBucket> samples) => [
     for (final sample in samples)
-      AppStrings.runResultPartialLabel(sample.endDistanceMeters / 1000),
+      AppStrings.runResultSampleLabel(sample.endDistanceMeters / 1000),
   ];
+
+  /// 50m 그래프의 x축에 **라벨을 찍을 자리.**
+  ///
+  /// ## ⚠️ 점 개수로 솎으면 어중간한 거리가 나온다
+  ///
+  /// 3km는 점이 60개다. 전체의 1/5마다 찍으면 첫 점부터 열둘씩 세어
+  /// `0.05 · 0.65 · 1.25 · 1.85 · 2.45km`가 된다. 겹치지 않게 줄이려던
+  /// 것이지만, **읽는 사람이 쓰는 자는 거리**지 점 번호가 아니다.
+  ///
+  /// ## 간격은 러닝 길이를 보고 고른다
+  ///
+  /// `5km 미만은 0.5km`처럼 하나로 못 박으면 4.9km 러닝에서 라벨이 아홉
+  /// 개가 되어 12px 글자끼리 포갠다. 자리가 [_maxTicks]개를 넘지 않는
+  /// **가장 촘촘한 간격**을 고른다.
+  static List<int> _sampleTicks(List<SplitBucket> samples) {
+    if (samples.isEmpty) return const [];
+
+    final totalMeters = samples.last.endDistanceMeters;
+    var step = _tickStepsMeters.last;
+    for (final candidate in _tickStepsMeters) {
+      if (totalMeters ~/ candidate <= _maxTicks) {
+        step = candidate;
+        break;
+      }
+    }
+
+    return [
+      for (var i = 0; i < samples.length; i++)
+        // 서버 경계가 10m라 50m 표본의 끝은 늘 50의 배수다 — 딱 떨어지는
+        // 거리에 닿은 점이 반드시 있다.
+        if (samples[i].endDistanceMeters % step == 0) i,
+    ];
+  }
+
+  /// 라벨 사이로 둘 수 있는 거리 — **촘촘한 것부터** 본다.
+  ///
+  /// ⚠️ **0.5km부터 시작하면 짧은 러닝에 찍을 자리가 없다.** 220m를 뛰면
+  /// 0.5km에 닿은 점이 하나도 없어 총 거리 하나만 남는다(에뮬레이터에서
+  /// 그렇게 나왔다). 50m 표본의 끝은 늘 50의 배수라 여기도 50부터 둔다.
+  static const _tickStepsMeters = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
+
+  /// x축에 둘 거리 라벨의 최대 개수.
+  ///
+  /// 그림 영역이 270px 남짓이라 여섯 개부터는 `2.5km`가 옆 라벨에 닿는다.
+  /// 마지막 점은 이 수에 들어가지 않는다 — 총 거리는 늘 따로 찍힌다.
+  static const _maxTicks = 5;
 }
 
 class _Header extends StatelessWidget {
