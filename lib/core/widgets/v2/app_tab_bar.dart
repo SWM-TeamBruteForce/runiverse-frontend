@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -44,7 +45,16 @@ class AppTabBarV2 extends StatelessWidget {
   static const _barHeight = 60.0;
   static const _barRadius = 40.0;
 
-  /// 알약 하나. 86×52 이고 바 안쪽으로 4 들어와 앉는다.
+  /// 알약 하나의 **최대** 폭. 시안은 86×52이고 바 안쪽으로 4 들어와 앉는다.
+  ///
+  /// ## ⚠️ 못 박으면 좁은 기기에서 마지막 탭이 깎인다
+  ///
+  /// 바 안쪽 폭은 `화면 폭 − 56`이다(좌우 여백 24씩, 안쪽 여백 4씩). 넷이면
+  /// 344가 필요하니 **화면이 400보다 좁으면 넘친다** — 흔한 안드로이드 폰
+  /// (360·384)도, 일반형 아이폰(393)도 여기에 든다. 넘친 자리는 둥근 모서리에
+  /// 잘려 나가고, 릴리스 빌드는 넘침 경고도 안 띄운다.
+  ///
+  /// 그래서 이 값은 상한이고, 좁으면 `안쪽 폭 ÷ 탭 수`로 줄어든다.
   static const _slotWidth = 86.0;
   static const _slotHeight = 52.0;
   static const _barPadding = 4.0;
@@ -73,16 +83,26 @@ class AppTabBarV2 extends StatelessWidget {
             height: _barHeight,
             padding: const EdgeInsets.all(_barPadding),
             color: colors.bgGlass,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                for (final (index, tab) in tabs.indexed)
-                  _Slot(
-                    tab: tab,
-                    selected: index == currentIndex,
-                    onTap: () => onSelected(index),
-                  ),
-              ],
+            // 칸 폭은 **그릴 자리를 보고** 정한다. [_slotWidth] 참조.
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final slotWidth = tabs.isEmpty
+                    ? _slotWidth
+                    : math.min(_slotWidth, constraints.maxWidth / tabs.length);
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    for (final (index, tab) in tabs.indexed)
+                      _Slot(
+                        tab: tab,
+                        width: slotWidth,
+                        selected: index == currentIndex,
+                        onTap: () => onSelected(index),
+                      ),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -103,9 +123,18 @@ class AppTabSpec {
 }
 
 class _Slot extends StatelessWidget {
-  const _Slot({required this.tab, required this.selected, required this.onTap});
+  const _Slot({
+    required this.tab,
+    required this.width,
+    required this.selected,
+    required this.onTap,
+  });
 
   final AppTabSpec tab;
+
+  /// 바가 정해 준 폭. 넷이 나란히 들어가는 값이다([AppTabBarV2._slotWidth]).
+  final double width;
+
   final bool selected;
   final VoidCallback onTap;
 
@@ -132,7 +161,7 @@ class _Slot extends StatelessWidget {
             onTap: onTap,
             borderRadius: BorderRadius.circular(AppTabBarV2._slotHeight / 2),
             child: SizedBox(
-              width: AppTabBarV2._slotWidth,
+              width: width,
               height: AppTabBarV2._slotHeight,
               child: Center(
                 child: AppIcon(
