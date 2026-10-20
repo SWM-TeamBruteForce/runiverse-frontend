@@ -88,6 +88,58 @@ void main() {
     expect(location.openSettingsCount, 1);
   });
 
+  /// 설정에 다녀온 사람을 받는가.
+  ///
+  /// iOS는 한 번 거절하면 곧바로 `deniedForever`라 앱에서 다시 물을 길이 없다 —
+  /// **설정 앱에 다녀와야** 한다. 권한을 화면에 들어올 때 한 번만 읽으면, 켜고
+  /// 돌아와도 "위치 권한이 필요해요"가 그대로 남는다. 홈으로 나갔다 다시
+  /// 들어와야 풀렸다.
+  group('설정에 다녀오면', () {
+    /// 앱이 뒤로 갔다 돌아온다. **곧장 `resumed`로 보낼 수 없다** —
+    /// 생명주기는 단계를 건너뛰지 못한다.
+    Future<void> leaveAndReturn(WidgetTester tester) async {
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('⚠️ 권한을 켜고 오면 안내가 사라진다', (tester) async {
+      await pumpPrepare(tester, access: LocationAccess.deniedForever);
+      expect(find.text(AppStrings.runPermissionTitle), findsOneWidget);
+
+      // 설정 앱에서 켜고 돌아온다.
+      location.access = LocationAccess.granted;
+      await leaveAndReturn(tester);
+
+      // 화면을 나갔다 들어와야만 풀리던 것이 이 자리다.
+      expect(find.text(AppStrings.runPermissionTitle), findsNothing);
+    });
+
+    testWidgets('⚠️ 켜지 않고 오면 안내가 남는다', (tester) async {
+      await pumpPrepare(tester, access: LocationAccess.deniedForever);
+
+      await leaveAndReturn(tester);
+
+      // 다시 읽기는 하되, 답이 그대로면 화면도 그대로여야 한다.
+      expect(find.text(AppStrings.runPermissionTitle), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 이미 허용된 상태면 다시 묻지 않는다', (tester) async {
+      // 달리는 중에 앱을 다시 띄울 때마다 `prepare()`를 부르면 위치 구독을
+      // 끊고 새로 연다 — 러닝이 끊긴다.
+      await pumpPrepare(tester);
+      expect(location.ensureAccessCount, 1);
+
+      await leaveAndReturn(tester);
+
+      expect(location.ensureAccessCount, 1);
+    });
+  });
+
   testWidgets('⚠️ 기기의 위치 기능이 꺼진 것과 권한 거부를 갈라 말한다', (tester) async {
     // 묶으면 설정에서 권한을 켜고 와도 여전히 안 되는 이유를 알 수 없다.
     await pumpPrepare(tester, access: LocationAccess.serviceDisabled);
