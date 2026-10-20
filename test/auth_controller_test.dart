@@ -619,6 +619,87 @@ void main() {
     expect((await container.read(tokenStoreProvider).read()).userId, isNull);
   });
 
+  /// 로그아웃이 **서버에도 가는가.**
+  ///
+  /// 폰의 토큰만 지우면 서버 쪽 `refreshToken`은 만료될 때까지 산다. 토큰이
+  /// 새어 나간 뒤라면 로그아웃을 눌러도 남의 손에서는 그대로 쓰인다.
+  ///
+  /// ⚠️ **겉으로는 차이가 없는 결함이다.** 앱은 어느 쪽이든 로그인 화면으로
+  /// 나가므로, 상태와 저장소만 보는 테스트는 서버를 안 불러도 통과한다.
+  /// 그래서 가짜가 받은 토큰을 세어 본다.
+  group('서버 로그아웃', () {
+    /// 로그인한 뒤의 액세스 토큰.
+    Future<String> signedInToken(ProviderContainer container) async {
+      await container
+          .read(authControllerProvider.notifier)
+          .signIn(
+            email: FakeAuthRepository.seedEmail,
+            password: FakeAuthRepository.seedPassword,
+          );
+      return (await container.read(tokenStoreProvider).read()).accessToken!;
+    }
+
+    FakeAuthRepository repoOf(ProviderContainer container) =>
+        container.read(authRepositoryProvider) as FakeAuthRepository;
+
+    test('지금 쓰는 토큰을 실어 보낸다', () async {
+      final container = makeContainer();
+      final token = await signedInToken(container);
+
+      await container.read(authControllerProvider.notifier).signOut();
+
+      // 토큰 없이 부르면 서버가 누구를 끊을지 모른다.
+      expect(repoOf(container).revokedTokens, [token]);
+    });
+
+    test('⚠️ 401이면 갱신하고 한 번 더 부른다', () async {
+      final container = makeContainer();
+      final stale = await signedInToken(container);
+      // 오래 켜 둔 앱에서 로그아웃을 누른 상황. 액세스 토큰이 이미 죽었다.
+      repoOf(container).revokeFailsOnce = AuthFailure.sessionExpired;
+
+      await container.read(authControllerProvider.notifier).signOut();
+
+      // 포기하면 정작 끊어야 할 refreshToken이 살아남는다.
+      final revoked = repoOf(container).revokedTokens;
+      expect(revoked, hasLength(1));
+      expect(revoked.single, isNot(stale));
+    });
+
+    test('⚠️ 네트워크 오류면 다시 부르지 않는다', () async {
+      final container = makeContainer();
+      await signedInToken(container);
+      repoOf(container).revokeFailsOnce = AuthFailure.network;
+
+      await container.read(authControllerProvider.notifier).signOut();
+
+      // 지나가는 실패다. 갱신해 봐야 같은 자리에서 막힌다 —
+      // 여기서 갱신하면 리프레시 토큰만 괜히 회전시킨다.
+      expect(repoOf(container).revokedTokens, isEmpty);
+    });
+
+    test('⚠️ 서버가 거절해도 로그아웃은 된다', () async {
+      final container = makeContainer();
+      await signedInToken(container);
+      repoOf(container).revokeFailsOnce = AuthFailure.network;
+
+      await container.read(authControllerProvider.notifier).signOut();
+
+      // 못 알렸다고 로그아웃을 막으면 비행기 안에서는 영영 못 나간다.
+      expect(container.read(authControllerProvider), isA<AuthSignedOut>());
+      expect((await container.read(tokenStoreProvider).read()).userId, isNull);
+    });
+
+    test('토큰이 없으면 부르지 않는다', () async {
+      final container = makeContainer();
+
+      await container.read(authControllerProvider.notifier).signOut();
+
+      // 끊을 세션이 없는데 부르면 서버가 401만 돌려준다.
+      expect(repoOf(container).revokedTokens, isEmpty);
+    });
+  });
+
   _emailVerificationGroup();
 
   group('/me 디바이스 캐시', () {
