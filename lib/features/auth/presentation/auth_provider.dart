@@ -323,6 +323,35 @@ class AuthController extends Notifier<AuthState> {
     if (accessToken != null) await _loadCurrentUser(accessToken);
   }
 
+  /// 프로필에서 바꾼 닉네임을 **지금 로그인한 사람에게도** 반영한다.
+  ///
+  /// ## ⚠️ 홈은 이 값으로 이름을 부른다
+  ///
+  /// 이름의 출처가 화면마다 다르다 — 프로필 탭은 프로필 요약을 보고, 홈은
+  /// [AuthSignedIn.user]를 본다(`home_page.dart`). 바꾼 값을 요약과 저장소에만
+  /// 넣으면 **프로필은 즉시 바뀌는데 홈은 앱을 다시 켤 때까지 옛 이름**이다.
+  ///
+  /// 서버에 다시 묻지 않는다. `PATCH .../me/nickname`이 확정한 이름을 그대로
+  /// 돌려주므로 손에 든 것이 곧 답이다
+  /// (`ProfileSummaryController.changeNickname` 참조).
+  void applyNickname(String nickname) {
+    final current = state;
+    // 로그인 상태가 아니면 상태를 만들지 않는다 — 여기서 AuthSignedIn을 새로
+    // 만들면 로그인하지 않은 사람이 홈에 들어간다([markOnboarded]와 같은 이유).
+    if (current is! AuthSignedIn) return;
+
+    final user = current.user;
+    // `/me`가 아직 안 왔다. 이름 하나로 [CurrentUser]를 지어내면 **"서버가 답한
+    // 내 정보"라는 뜻이 흐려진다** — 비어 있는 것이 옳고, 다음 `/me`가 채운다.
+    if (user == null) return;
+
+    state = AuthSignedIn(
+      current.userId,
+      isOnboarded: current.isOnboarded,
+      user: user.withNickname(nickname),
+    );
+  }
+
   Future<void> signOut() async {
     // 서버 호출이 실패해도 로컬은 반드시 비운다. 안 비우면 사용자는
     // "로그아웃을 눌렀는데 여전히 로그인 상태"인 앱을 보게 된다.

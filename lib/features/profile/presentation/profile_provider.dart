@@ -127,6 +127,11 @@ class ProfileSummaryController extends Notifier<ProfileSummaryState> {
       );
     }
 
+    // ⚠️ **홈이 부르는 이름은 아래 요약이 아니다.** 홈은 `AuthSignedIn.user`를
+    // 읽어서(`home_page.dart`), 여기서 같이 고치지 않으면 프로필 탭만 바뀌고
+    // 홈은 앱을 다시 켤 때까지 옛 이름이다.
+    ref.read(authControllerProvider.notifier).applyNickname(changed);
+
     final summary = state.summary;
     state = ProfileSummaryState(
       summary: summary != null
