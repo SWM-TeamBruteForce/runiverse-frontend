@@ -13,7 +13,14 @@ class FakeLocationRepository implements LocationRepository {
   FakeLocationRepository({this.access = LocationAccess.granted});
 
   /// [ensureAccess]가 돌려줄 값. 거절 흐름을 확인할 때 바꾼다.
-  final LocationAccess access;
+  ///
+  /// ⚠️ **도중에 바꿀 수 있어야 한다.** 설정 앱에서 권한을 켜고 돌아오는
+  /// 상황은 "같은 저장소가 **다른 답**을 주는 것"이라, 값이 고정이면 그
+  /// 흐름을 세울 수 없다.
+  LocationAccess access;
+
+  /// 권한을 몇 번 물었나. **다시 읽었는지를 테스트가 이것으로 본다.**
+  int ensureAccessCount = 0;
 
   final _controller = StreamController<GeoPoint>.broadcast();
 
@@ -21,7 +28,10 @@ class FakeLocationRepository implements LocationRepository {
   int openSettingsCount = 0;
 
   @override
-  Future<LocationAccess> ensureAccess() async => access;
+  Future<LocationAccess> ensureAccess() async {
+    ensureAccessCount++;
+    return access;
+  }
 
   @override
   Stream<GeoPoint> watchPosition() => _controller.stream;

@@ -50,12 +50,50 @@ class _RunPreparePageState extends ConsumerState<RunPreparePage> {
 
   Timer? _ticker;
 
+  /// 설정에 다녀온 사람을 받는 자리([_recheck]).
+  late final AppLifecycleListener _lifecycle;
+
   @override
   void initState() {
     super.initState();
+    _lifecycle = AppLifecycleListener(onResume: _recheck);
     // ⚠️ `initState`에서 provider를 고치면 빌드 도중 상태가 바뀌어 죽는다.
     // 첫 프레임 뒤로 미룬다(`implementation-notes.md` §10-1).
     WidgetsBinding.instance.addPostFrameCallback((_) => _prepare());
+  }
+
+  /// 다시 묻는 중인가. 겹쳐 부르면 플랫폼이 **"요청이 이미 진행 중"으로
+  /// 거절한다**(iOS `GeolocatorErrorPermissionRequestInProgress`).
+  var _rechecking = false;
+
+  /// 앱으로 돌아왔다. **막혀 있었으면 권한을 다시 읽는다.**
+  ///
+  /// ## 왜 필요한가
+  ///
+  /// iOS는 한 번 거절하면 곧바로 `deniedForever`라 앱에서 다시 물을 길이 없다 —
+  /// 사용자는 **설정 앱에 다녀와야** 한다. 그런데 권한은 [initState]에서 한 번만
+  /// 읽으므로, 켜고 돌아와도 화면은 "위치 권한이 필요해요"인 채로 남는다.
+  /// 홈으로 나갔다 다시 들어와야 맞는 값이 나왔다.
+  ///
+  /// ## 막혀 있을 때만 다시 읽는다
+  ///
+  /// ⚠️ **[_prepare]를 아무 때나 다시 부르면 안 된다.** 그 안의 `prepare()`가
+  /// 위치 구독을 끊고 새로 연다 — 달리는 중에 앱을 다시 띄울 때마다 러닝이
+  /// 끊긴다.
+  ///
+  /// ⚠️ **아직 묻는 중(`_access == null`)이면 손대지 않는다.** 권한 팝업이
+  /// 떠 있는 동안에도 앱은 `inactive`를 거쳐 `resumed`로 돌아온다. 그때 또
+  /// 물으면 첫 번째 요청이 거절당한다.
+  Future<void> _recheck() async {
+    final access = _access;
+    if (access == null || access.isGranted || _rechecking) return;
+
+    _rechecking = true;
+    try {
+      await _prepare();
+    } finally {
+      _rechecking = false;
+    }
   }
 
   Future<void> _prepare() async {
@@ -78,6 +116,7 @@ class _RunPreparePageState extends ConsumerState<RunPreparePage> {
   @override
   void dispose() {
     _ticker?.cancel();
+    _lifecycle.dispose();
     super.dispose();
   }
 

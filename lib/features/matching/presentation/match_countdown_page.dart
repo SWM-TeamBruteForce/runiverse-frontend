@@ -74,9 +74,13 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
   /// 위치를 열 때 받은 답. 거절이면 화면이 설정으로 가는 길을 연다.
   LocationAccess? _access;
 
+  /// 설정에 다녀온 사람을 받는 자리([_recheck]).
+  late final AppLifecycleListener _lifecycle;
+
   @override
   void initState() {
     super.initState();
+    _lifecycle = AppLifecycleListener(onResume: _recheck);
     // 3-2-1을 그리려면 초보다 촘촘해야 한다. 1초 간격이면 숫자가 한 박자씩
     // 늦게 바뀐다.
     _ticker = Timer.periodic(const Duration(milliseconds: 100), (_) {
@@ -95,9 +99,38 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
     if (mounted) setState(() => _access = access);
   }
 
+  /// 다시 묻는 중인가. 겹쳐 부르면 플랫폼이 **"요청이 이미 진행 중"으로
+  /// 거절한다**(iOS `GeolocatorErrorPermissionRequestInProgress`).
+  var _rechecking = false;
+
+  /// 앱으로 돌아왔다. **막혀 있었으면 권한을 다시 읽는다.**
+  ///
+  /// iOS는 한 번 거절하면 `deniedForever`라 **설정 앱에 다녀와야** 한다. 권한을
+  /// [initState]에서 한 번만 읽으면, 켜고 돌아와도 "위치 권한이 없어요"가
+  /// 그대로 남는다(`run_prepare_page._recheck`에 같은 설명을 적어 뒀다).
+  ///
+  /// ⚠️ **발사한 뒤에는 손대지 않는다.** [_launch]가 러닝 화면으로 바꿔치기한
+  /// 뒤라 이 화면은 사라지는 중이고, 거기서 `prepare()`를 다시 부르면 **방금
+  /// 연 위치 구독을 끊고 새로 연다.**
+  ///
+  /// ⚠️ **아직 묻는 중(`_access == null`)이면 손대지 않는다.** 권한 팝업이 떠
+  /// 있는 동안에도 앱은 `resumed`로 돌아온다.
+  Future<void> _recheck() async {
+    final access = _access;
+    if (_launched || access == null || access.isGranted || _rechecking) return;
+
+    _rechecking = true;
+    try {
+      await _prepare();
+    } finally {
+      _rechecking = false;
+    }
+  }
+
   @override
   void dispose() {
     _ticker?.cancel();
+    _lifecycle.dispose();
     super.dispose();
   }
 
