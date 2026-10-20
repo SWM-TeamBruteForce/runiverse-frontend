@@ -270,8 +270,29 @@ class FakeAuthRepository implements AuthRepository {
     return issueTicket(key);
   }
 
+  /// 로그아웃에 실려 온 액세스 토큰들. **불렸는지를 테스트가 이것으로 본다.**
+  ///
+  /// 서버를 안 부르는 로그아웃은 겉으로 아무 차이가 없어서, 기록이 없으면
+  /// "토큰을 지웠다"만 보고 통과하게 된다 — 고치기 전 코드가 그랬다.
+  final revokedTokens = <String>[];
+
+  /// 다음 로그아웃이 이 실패로 거절된다. 한 번 쓰면 비워진다.
+  ///
+  /// 401 뒤에 갱신하고 **한 번만 더** 부르는 동작을 세우려면 첫 호출만 거절할
+  /// 수 있어야 한다.
+  AuthFailure? revokeFailsOnce;
+
   @override
-  Future<void> signOut() => Future<void>.delayed(latency);
+  Future<void> signOut(String accessToken) async {
+    await Future<void>.delayed(latency);
+
+    final failure = revokeFailsOnce;
+    if (failure != null) {
+      revokeFailsOnce = null;
+      throw AuthException(failure);
+    }
+    revokedTokens.add(accessToken);
+  }
 
   /// 발급했던 토큰만 받아준다.
   ///

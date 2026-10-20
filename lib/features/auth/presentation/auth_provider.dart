@@ -353,14 +353,54 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> signOut() async {
+    await _revokeSession();
     // 서버 호출이 실패해도 로컬은 반드시 비운다. 안 비우면 사용자는
     // "로그아웃을 눌렀는데 여전히 로그인 상태"인 앱을 보게 된다.
-    try {
-      await _repository.signOut();
-    } on AuthException {
-      // 무시한다. 서버 세션은 만료되면 어차피 죽는다.
-    }
     await forgetSession();
+  }
+
+  /// 서버에 로그아웃을 알린다. **못 알려도 조용히 넘어간다.**
+  ///
+  /// ## 왜 서버를 부르는가
+  ///
+  /// 폰의 토큰만 지우면 서버 쪽 `refreshToken`은 만료될 때까지 산다. 토큰이
+  /// 새어 나간 뒤라면 **로그아웃을 눌러도 남의 손에서는 그대로 쓰인다.**
+  ///
+  /// ## 401이면 갱신하고 한 번만 더
+  ///
+  /// 액세스 토큰이 이미 만료된 채로 로그아웃을 누를 수 있다 — 앱을 오래
+  /// 켜 뒀거나, 설정 화면에서 한참 머문 경우다. 그때 그냥 포기하면 **정작
+  /// 끊어야 할 `refreshToken`이 살아남는다.**
+  ///
+  /// ⚠️ **한 번만 다시 부른다.** 두 번째도 401이면 서버가 이미 세션을 버린
+  /// 것이라 더 불러도 같은 답이다.
+  ///
+  /// ⚠️ **갱신은 [tokenRefresherProvider]를 거친다.** 직접 부르면 다른 곳의
+  /// 갱신과 겹쳐 서버가 탈취로 보고 리프레시 토큰을 지운다
+  /// (`docs/implementation-notes.md` 9-6).
+  Future<void> _revokeSession() async {
+    final accessToken = (await _store.read()).accessToken;
+    // 토큰이 없으면 끊을 세션도 없다.
+    if (accessToken == null) return;
+
+    try {
+      await _repository.signOut(accessToken);
+      return;
+    } on AuthException catch (error) {
+      // 네트워크·서버 오류는 여기서 끝낸다. 지나가는 실패라 다시 불러도
+      // 같은 자리에서 막힌다.
+      if (error.failure != AuthFailure.sessionExpired) return;
+    }
+
+    final refreshed = await ref.read(tokenRefresherProvider).refresh();
+    // 갱신까지 거절되면 서버가 이 세션을 이미 버린 것이다.
+    if (refreshed == null) return;
+
+    try {
+      await _repository.signOut(refreshed);
+    } on AuthException {
+      // 무시한다. 로컬은 어차피 비운다.
+    }
   }
 
   /// **서버를 부르지 않고** 로컬만 비운다.

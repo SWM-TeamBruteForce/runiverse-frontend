@@ -594,5 +594,5 @@ class _MeFailsRepository implements AuthRepository {
       inner.verifyCode(email: email, code: code);
 
   @override
-  Future<void> signOut() => inner.signOut();
+  Future<void> signOut(String accessToken) => inner.signOut(accessToken);
 }
