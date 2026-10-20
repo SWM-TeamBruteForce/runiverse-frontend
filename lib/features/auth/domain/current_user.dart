@@ -58,4 +58,19 @@ class CurrentUser {
   final String? nickname;
   final String? profileImageUrl;
   final String? introduction;
+
+  /// 이름만 갈아 끼운 사본. 프로필에서 닉네임을 바꾼 뒤 쓴다.
+  ///
+  /// ⚠️ **부르는 쪽에서 손으로 새로 만들지 않는다.** 필드가 일곱이라 하나만
+  /// 빠뜨려도 조용히 사라지는데, [email]·[loginType]이 사라지면 설정 화면의
+  /// 계정 섹션과 비밀번호 메뉴가 **같이** 사라진다.
+  CurrentUser withNickname(String nickname) => CurrentUser(
+    userId: userId,
+    isOnboarded: isOnboarded,
+    email: email,
+    loginType: loginType,
+    nickname: nickname,
+    profileImageUrl: profileImageUrl,
+    introduction: introduction,
+  );
 }
