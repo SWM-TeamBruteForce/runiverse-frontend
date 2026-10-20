@@ -1,4 +1,6 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart';
 import 'package:runiverse/core/config/app_config.dart';
 import 'package:runiverse/features/auth/data/kakao_code_source.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
@@ -32,5 +34,65 @@ void main() {
         ),
       ),
     );
+  });
+
+  /// 취소 판정 — **카카오톡으로 갈지 브라우저로 갈지가 여기서 갈린다.**
+  ///
+  /// 카카오톡으로 못 받으면 브라우저로 한 번 더 간다. 그런데 **취소까지
+  /// 그러면** 끈 창이 다른 모습으로 또 열린다. 그 둘을 가르는 것이 이 함수다.
+  ///
+  /// 세 가지 예외가 각각 다른 자리에서 온다 — 네이티브가 창을 닫을 때,
+  /// SDK가 Dart에서 막을 때, 동의 화면에서 거절할 때.
+  group('취소 판정', () {
+    test('네이티브가 창을 닫으면 취소다', () {
+      expect(
+        KakaoCodeSource.cancelledBy(PlatformException(code: 'CANCELED')),
+        isTrue,
+      );
+      expect(
+        KakaoCodeSource.cancelledBy(PlatformException(code: 'UNKNOWN')),
+        isFalse,
+      );
+    });
+
+    test('SDK가 취소라고 하면 취소다', () {
+      expect(
+        KakaoCodeSource.cancelledBy(
+          KakaoClientException(ClientErrorCause.cancelled, '사용자가 닫았다'),
+        ),
+        isTrue,
+      );
+    });
+
+    test('⚠️ 카카오톡으로 못 하는 것은 취소가 아니다', () {
+      // 이것이 **브라우저로 물러서는** 자리다. 취소로 보면 카카오톡이 없는
+      // 사람은 로그인할 길이 없어진다.
+      expect(
+        KakaoCodeSource.cancelledBy(
+          KakaoClientException(ClientErrorCause.notSupported, '카카오톡이 없다'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('동의 화면에서 거절하면 취소다', () {
+      expect(
+        KakaoCodeSource.cancelledBy(
+          KakaoAuthException(AuthErrorCause.accessDenied, '동의하지 않았다'),
+        ),
+        isTrue,
+      );
+      // 설정이 틀린 것은 취소가 아니다. 화면은 오류 문구를 보여야 한다.
+      expect(
+        KakaoCodeSource.cancelledBy(
+          KakaoAuthException(AuthErrorCause.invalidClient, '앱 키가 틀렸다'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('모르는 예외는 취소가 아니다', () {
+      expect(KakaoCodeSource.cancelledBy(Exception('무엇인가')), isFalse);
+    });
   });
 }
