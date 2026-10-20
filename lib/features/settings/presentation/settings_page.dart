@@ -15,6 +15,7 @@ import 'package:runiverse/core/widgets/legal_document.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/core/widgets/v2/preset_chip.dart';
 import 'package:runiverse/features/auth/domain/login_type.dart';
+import 'package:runiverse/features/auth/domain/private_relay_email.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/settings/domain/profile_visibility.dart';
@@ -241,7 +242,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               children: [
                 _ValueRow(
                   label: AppStrings.settingsEmail,
-                  value: account?.email,
+                  value: _emailLabel(account?.email),
                 ),
                 _ValueRow(
                   label: AppStrings.settingsLoginMethod,
@@ -279,6 +280,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ),
     );
   }
+
+  /// 이메일 칸에 그릴 것.
+  ///
+  /// ⚠️ **애플이 가린 주소는 그대로 띄우지 않는다.** 릴레이 주소는 애플이
+  /// 앱마다 다르게 만들어 주는 값이라, 보이는 쪽에서는 처음 보는 주소가 자기
+  /// 계정에 박혀 있는 것으로 읽힌다. 가린 것은 사용자가 고른 일이므로 **가렸다는
+  /// 사실**을 알린다 — 값은 서버·DB에 그대로 있다([PrivateRelayEmail]).
+  static String? _emailLabel(String? email) => switch (email) {
+    null => null,
+    _ when PrivateRelayEmail.hides(email) =>
+      AppStrings.settingsEmailHiddenByApple,
+    _ => email,
+  };
 
   /// 서버가 모르는 제공자를 보내면 "확인 불가"다. 비밀번호 메뉴는 이때 숨는다.
   static String _loginLabel(LoginType? type) => switch (type) {

@@ -1465,6 +1465,16 @@ abstract final class AppStrings {
 
   static const settingsEmail = '이메일';
 
+  /// 애플 "이메일 가리기"로 들어온 사람의 이메일 칸.
+  ///
+  /// ⚠️ **주소 대신 이 문구를 그린다.** 릴레이 주소
+  /// (`a1b2c3@privaterelay.appleid.com`)는 애플이 앱마다 다르게 만들어 주는
+  /// 값이라, 그대로 띄우면 처음 보는 주소가 자기 계정에 박혀 있는 것으로
+  /// 보인다. 가린 것은 사용자가 고른 일이므로, **가렸다는 사실**을 알린다.
+  ///
+  /// 서버·DB 값은 그대로다([PrivateRelayEmail] 참조).
+  static const settingsEmailHiddenByApple = '애플이 가린 주소';
+
   static const settingsLoginMethod = '로그인';
 
   static const settingsLoginLocal = '이메일';
