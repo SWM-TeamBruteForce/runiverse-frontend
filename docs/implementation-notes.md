@@ -523,7 +523,33 @@ POST /api/v1/auth/oauth/kakao
 
 ⚠️ **흔한 예제를 그대로 쓰면 안 된다.** `UserApi.instance.loginWithKakaoTalk()`은
 **액세스 토큰을 앱이 받는다** — 이 서버와 맞지 않는다. 써야 하는 것은
-`AuthCodeClient.authorize()`이고, 그것은 인가 코드만 돌려준다.
+`AuthCodeClient`이고, 그것은 인가 코드만 돌려준다.
+
+#### ⚠️ 카카오톡으로 갈지 브라우저로 갈지는 앱이 정한다
+
+`AuthCodeClient`에 입구가 둘이다. **SDK가 알아서 가르지 않는다.**
+
+| 부르는 것 | 가는 곳 |
+|---|---|
+| `authorize` | 브라우저(카카오계정) — 아이디·비밀번호를 친다 |
+| `authorizeWithTalk` | 카카오톡 앱 |
+
+둘 다 **인가 코드 + PKCE**를 돌려주므로 서버가 하는 일은 같다. `authorize`만
+쓰면 카카오톡이 깔려 있어도 브라우저가 열린다(개선사항 7).
+
+`isKakaoTalkInstalled()`로 가른다. 그 함수가 보는 것은 **"깔려 있는가"보다 좁다** —
+안드로이드는 카카오톡의 `CAPRI_LOGGED_IN_ACTIVITY`, iOS는
+`canOpenURL('kakaokompassauth://authorize')`라서 **카카오톡에 로그인해 둔
+상태**여야 `true`다. 로그아웃이면 브라우저로 가는 것이 맞다.
+
+⚠️ 카카오톡으로 **못 했으면 브라우저로 한 번 더 간다**(앱 버전이 낮거나
+인텐트가 막힌 경우). 다만 **취소는 그러지 않는다** — 끈 창이 다른 모습으로 또
+열린다. 그 둘을 가르는 것이 `KakaoCodeSource.cancelledBy`다.
+
+iOS에서 앱으로 가려면 `Info.plist`에 **질의 스킴(`kakaokompassauth`)과 복귀
+스킴(`kakao<앱키>`)이 둘 다** 있어야 한다. 안드로이드는 SDK 매니페스트가 넣어
+주지만 iOS는 앱이 적는다 — 둘 다 **없어도 앱은 멀쩡히 돌고 조용히 브라우저로
+간다.** 그 선언과 앱 키 주입은 flavor·CI 쪽에서 다룬다(PR #155).
 
 #### ⚠️ `redirect_uri`는 앱이 고를 수 없다
 
@@ -542,10 +568,11 @@ POST /api/v1/auth/oauth/kakao
 
 | 어디서 취소 | 예외 | 값 |
 |---|---|---|
-| 브라우저를 닫음 | `KakaoClientException` | `reason == ClientErrorCause.cancelled` |
+| 창을 닫음 (네이티브가 보낸다) | `PlatformException` | `code == 'CANCELED'` |
+| 브라우저를 닫음 (SDK가 Dart에서 막음) | `KakaoClientException` | `reason == ClientErrorCause.cancelled` |
 | 동의 화면에서 취소 | `KakaoAuthException` | `error == AuthErrorCause.accessDenied` |
 
-**둘 다 잡지 않으면 한쪽 취소에서 빨간 문구가 뜬다.** 그리고 취소는 오류가 아니므로
+**셋 다 잡지 않으면 한쪽 취소에서 빨간 문구가 뜬다.** 그리고 취소는 오류가 아니므로
 화면이 아무 문구도 띄우지 않는다 — `AuthFailure.oauthCancelled`를 따로 둔 이유다.
 `_signInWithKakao`가 그 값을 걸러낸다.
 
