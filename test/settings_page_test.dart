@@ -1,5 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
+// `RenderParagraph`가 여기 있다. 긴 주소가 잘렸는지 보려면 그려진 글의
+// `didExceedMaxLines`를 읽어야 한다.
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
@@ -36,7 +40,16 @@ void main() {
     WidgetTester tester, {
     LoginType? loginType = LoginType.local,
     SettingsFailure? withdrawFailure,
+    String email = FakeAuthRepository.seedEmail,
+    double? width,
   }) async {
+    if (width != null) {
+      // 기본 테스트 화면은 800 이라 **좁은 기기에서만 나는 잘림이 안 잡힌다.**
+      tester.view.physicalSize = Size(width * 3, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+    }
+
     tokens = InMemoryTokenStore();
     // 이미 약관에 동의하고 쓰던 사람이다. 처음 깐 사람이 아니다.
     consent = InMemoryConsentStore();
@@ -53,7 +66,7 @@ void main() {
     final auth = FakeAuthRepository(
       latency: Duration.zero,
       loginType: loginType,
-    )..seedSession(accessToken: 'a-1', refreshToken: 'r-1');
+    )..seedSession(accessToken: 'a-1', refreshToken: 'r-1', email: email);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -144,6 +157,82 @@ void main() {
 
       expect(find.text(AppStrings.settingsPassword), findsNothing);
       expect(find.text(AppStrings.settingsLoginUnknown), findsOneWidget);
+    });
+  });
+
+  group('이메일 칸', () {
+    /// 한 줄에 안 들어가는 주소.
+    ///
+    /// ⚠️ **글자 수로 실제 기기를 가늠하지 말 것.** 테스트 글꼴은 글자마다
+    /// 폭이 글자 크기와 같은 네모(16)라 실제 글꼴보다 두 배쯤 넓다. 여기서
+    /// 24자가 차지하는 폭이 실제 기기의 45자쯤에 해당한다.
+    const long = 'runner.kim@hanyang.ac.kr';
+
+    /// 그려진 글. **잘렸는지는 위젯이 아니라 이것만 안다** —
+    /// `Text`는 전체 문자열을 들고 있고, 몇 줄에 담겼는지는 그린 쪽이 센다.
+    RenderParagraph drawn(WidgetTester tester, Finder text) =>
+        tester.renderObject<RenderParagraph>(
+          find.descendant(of: text, matching: find.byType(RichText)),
+        );
+
+    testWidgets('보통 주소는 그대로 보여준다', (tester) async {
+      await pumpSettings(tester);
+
+      expect(find.text(FakeAuthRepository.seedEmail), findsOneWidget);
+      expect(find.text(AppStrings.settingsEmailHiddenByApple), findsNothing);
+    });
+
+    testWidgets('⚠️ 애플이 가린 주소는 그대로 보여주지 않는다', (tester) async {
+      // 릴레이 주소는 애플이 앱마다 다르게 만들어 주는 값이다. 그대로 띄우면
+      // **처음 보는 주소가 자기 계정에 박혀 있는 것**으로 읽힌다.
+      await pumpSettings(
+        tester,
+        loginType: LoginType.apple,
+        email: 'a1b2c3d4e5@privaterelay.appleid.com',
+      );
+
+      expect(find.text(AppStrings.settingsEmailHiddenByApple), findsOneWidget);
+      expect(find.textContaining('privaterelay'), findsNothing);
+      // 가린 것과 **못 읽은 것**은 다르다. 로그인 수단은 그대로 뜬다.
+      expect(find.text(AppStrings.settingsLoginApple), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 좁은 기기에서 긴 주소가 잘리지 않는다', (tester) async {
+      // 값 칸이 `Spacer`와 **남은 폭을 반씩 나눠 가져서** 잘렸다. 오른쪽에
+      // 자리가 뻔히 비어 있는데도 `…`가 붙었다.
+      await pumpSettings(tester, width: 360, email: long);
+
+      final text = find.text(long);
+      expect(text, findsOneWidget);
+      await tester.ensureVisible(text);
+      await tester.pumpAndSettle();
+
+      expect(drawn(tester, text).didExceedMaxLines, isFalse, reason: '주소가 잘렸다');
+    });
+
+    testWidgets('값이 라벨을 밀어내지 않는다', (tester) async {
+      // 값이 남은 폭을 다 쓰게 했으니, 라벨이 깎이지 않는지도 함께 본다.
+      //
+      // ⚠️ 카카오 계정으로 세운다. 로컬 계정은 **로그인 수단 칸의 값도
+      // `이메일`**이라(`settingsLoginLocal`) 라벨을 글자로 찾을 수 없다.
+      await pumpSettings(
+        tester,
+        width: 360,
+        email: long,
+        loginType: LoginType.kakao,
+      );
+
+      final label = find.text(AppStrings.settingsEmail);
+      expect(
+        tester.getRect(label).right,
+        lessThanOrEqualTo(tester.getRect(find.text(long)).left),
+        reason: '라벨과 값이 겹쳤다',
+      );
+      expect(
+        drawn(tester, label).didExceedMaxLines,
+        isFalse,
+        reason: '라벨이 잘렸다',
+      );
     });
   });
 

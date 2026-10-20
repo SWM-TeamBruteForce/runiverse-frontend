@@ -15,6 +15,7 @@ import 'package:runiverse/core/widgets/legal_document.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/core/widgets/v2/preset_chip.dart';
 import 'package:runiverse/features/auth/domain/login_type.dart';
+import 'package:runiverse/features/auth/domain/private_relay_email.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/settings/domain/profile_visibility.dart';
@@ -241,7 +242,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               children: [
                 _ValueRow(
                   label: AppStrings.settingsEmail,
-                  value: account?.email,
+                  value: _emailLabel(account?.email),
                 ),
                 _ValueRow(
                   label: AppStrings.settingsLoginMethod,
@@ -279,6 +280,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ),
     );
   }
+
+  /// 이메일 칸에 그릴 것.
+  ///
+  /// ⚠️ **애플이 가린 주소는 그대로 띄우지 않는다.** 릴레이 주소는 애플이
+  /// 앱마다 다르게 만들어 주는 값이라, 보이는 쪽에서는 처음 보는 주소가 자기
+  /// 계정에 박혀 있는 것으로 읽힌다. 가린 것은 사용자가 고른 일이므로 **가렸다는
+  /// 사실**을 알린다 — 값은 서버·DB에 그대로 있다([PrivateRelayEmail]).
+  static String? _emailLabel(String? email) => switch (email) {
+    null => null,
+    _ when PrivateRelayEmail.hides(email) =>
+      AppStrings.settingsEmailHiddenByApple,
+    _ => email,
+  };
 
   /// 서버가 모르는 제공자를 보내면 "확인 불가"다. 비밀번호 메뉴는 이때 숨는다.
   static String _loginLabel(LoginType? type) => switch (type) {
@@ -427,20 +441,35 @@ class _ValueRow extends StatelessWidget {
       child: Row(
         children: [
           Text(label, style: AppTypographyV2.body07),
-          const Spacer(),
+          const SizedBox(width: AppSpacing.space4),
+          // ⚠️ **`Spacer`를 두면 값이 쓸 수 있는 폭이 절반으로 깎인다.**
+          //
+          // `Spacer`는 `Expanded`(flex 1)이고 값도 `Flexible`(flex 1)이라,
+          // 라벨을 뺀 남은 폭을 **둘이 반씩 나눠 가졌다.** 그래서 긴 이메일이
+          // 오른쪽에 자리가 뻔히 비어 있는데도 `…`로 잘렸다. 값을
+          // `Expanded`로 두고 오른쪽 정렬하면 남은 폭을 전부 쓴다.
           if (text != null)
-            Flexible(
+            Expanded(
               child: Text(
                 text,
                 textAlign: TextAlign.end,
+                // 한 줄에 안 들어가는 주소가 있다. 자르기 전에 **한 줄 더
+                // 쓴다** — 뒤를 잘라내면 도메인이 사라져 무슨 주소인지도 모른다.
+                //
+                // 주소에는 띄어쓰기가 없어 **줄이 주소 가운데서 넘어간다.**
+                // 보기 좋지는 않지만 전부 보이는 쪽을 골랐다.
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypographyV2.body07.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
             )
-          else
+          else ...[
+            // 자리표시자는 폭이 정해져 있다. 밀어서 오른쪽에 붙인다.
+            const Spacer(),
             _Skeleton(color: colors.borderDefault),
+          ],
         ],
       ),
     );
