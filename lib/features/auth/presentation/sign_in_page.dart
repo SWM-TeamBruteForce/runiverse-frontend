@@ -293,11 +293,8 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                         const SizedBox(width: AppSpacing.space4),
                         _SocialTile(
                           label: AppStrings.authApple,
-                          logo: const _AppleLogo(),
-                          background: AppPaletteV2.black,
-                          // 다크 테마의 바탕이 `#0A0A0A`다 — 테두리가 없으면
-                          // 검정 타일이 거의 보이지 않는다.
-                          bordered: true,
+                          logo: _AppleLogo(color: _appleInk(context)),
+                          background: _appleSurface(context),
                           lastUsed: _lastMethod == SignInMethod.apple,
                           onPressed: _busy ? null : _startApple,
                         ),
@@ -349,6 +346,34 @@ class _SignInPageState extends ConsumerState<SignInPage> {
   /// macOS도 애플 로그인을 지원하지만 넣지 않는다. 서버가 인정하는 번들 ID가
   /// iOS 것 둘뿐이고(연동 가이드 3절), 데스크톱 빌드는 범위에 없다.
   static bool get _showApple => defaultTargetPlatform == TargetPlatform.iOS;
+
+  /// 애플 타일의 바탕색. **배경이 어두우면 흰 타일, 밝으면 검정 타일이다.**
+  ///
+  /// ## ⚠️ 왜 이 타일만 테마를 보는가
+  ///
+  /// 구글의 흰색과 카카오의 노랑은 **색이 하나로 정해진** 값이다. 애플은 그렇게
+  /// 주지 않는다 — **검정·흰색·흰색(외곽선) 세 스타일**을 주고 하나를 고르게
+  /// 한다(WWDC20 `Get the most out of Sign in with Apple`). 고를 기준은 배경에
+  /// 묻지 않는 쪽이라, 고정값을 박으면 다크·라이트 중 한쪽에서 반드시 묻는다.
+  ///
+  /// 전에는 어느 테마에서나 검정 타일이었다. 다크 테마의 바탕이 `#0A0A0A`라
+  /// **검정 타일이 배경에 묻어** 흰 사과만 떠 보였고, 테두리를 둘러도 타일의
+  /// 경계가 흐려서 **옆 두 타일보다 작아 보였다.** 크기는 셋이 같았다.
+  ///
+  /// 애플이 정한 값이므로 [AppColorsV2]가 아니라 팔레트의 고정값을 쓴다.
+  /// 테마는 **둘 중 어느 것을 고를지**에만 쓴다.
+  static Color _appleSurface(BuildContext context) =>
+      _onDark(context) ? AppPaletteV2.white : AppPaletteV2.black;
+
+  /// 애플 로고 색. 바탕의 반대쪽이다([_appleSurface]).
+  ///
+  /// ⚠️ **사과를 다른 색으로 칠하지 않는다.** 애플은 로고를 검정 또는 흰색으로만
+  /// 쓰라고 한다. 브랜드색·회색은 상표를 우리가 고치는 일이 된다.
+  static Color _appleInk(BuildContext context) =>
+      _onDark(context) ? AppPaletteV2.black : AppPaletteV2.white;
+
+  static bool _onDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
 
   /// 간편 로그인을 시작한다. **약관 동의가 먼저다.**
   ///
@@ -608,13 +633,16 @@ class _CheckBox extends StatelessWidget {
 ///
 /// 구글의 흰색도 카카오의 노랑도 **그쪽이 정한 값**이다. 다크·라이트에서
 /// 갈리는 [AppColorsV2] 대신 팔레트의 고정값을 쓴다.
+///
+/// 애플만 **두 고정값 중 하나를 테마로 고른다** — 애플의 규칙 자체가 배경
+/// 밝기를 가리키기 때문이다(`_SignInPageState._appleSurface`). 고르는 일은
+/// 부르는 쪽에서 하고, 이 타일은 받은 색을 그대로 깐다.
 class _SocialTile extends StatelessWidget {
   const _SocialTile({
     required this.label,
     required this.logo,
     required this.background,
     required this.onPressed,
-    this.bordered = false,
     this.lastUsed = false,
   });
 
@@ -627,19 +655,6 @@ class _SocialTile extends StatelessWidget {
 
   final Color background;
   final VoidCallback? onPressed;
-
-  /// 테두리를 두르는가. **애플 타일만 `true`다.**
-  ///
-  /// ## ⚠️ 왜 필요한가
-  ///
-  /// 애플의 바탕은 검정(`#000000`)인데 다크 테마의 `bgBase`가 `#0A0A0A`다 —
-  /// 앱의 기본이 다크라서, 테두리가 없으면 **타일이 거의 보이지 않는다.**
-  /// 밝은 테마에서는 흰 배경에 검정 타일이라 필요가 없지만, 테두리 색을
-  /// 테마에서 가져오므로 그쪽에서도 어색하지 않다.
-  ///
-  /// 바탕색과 달리 테두리는 애플이 정한 값이 아니다 — 우리 배경과의 관계를
-  /// 메우는 것이라 [AppColorsV2]를 쓴다.
-  final bool bordered;
 
   /// 이 기기에서 마지막으로 성공한 방법인가.
   final bool lastUsed;
@@ -656,25 +671,17 @@ class _SocialTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
 
-    // 테두리는 **앞에** 그린다. 뒤에 두면 [Material]의 바탕이 덮는다.
-    final tile = DecoratedBox(
-      position: DecorationPosition.foreground,
-      decoration: BoxDecoration(
+    // 테두리를 두르지 않는다. 세 타일 모두 바탕이 배경과 또렷이 갈려
+    // 경계가 보인다 — 애플 타일도 이제 그렇다([_appleSurface]).
+    final tile = Material(
+      color: background,
+      borderRadius: AppRadius.lg,
+      child: InkWell(
+        onTap: onPressed,
         borderRadius: AppRadius.lg,
-        border: bordered
-            ? Border.all(color: colors.borderStrong)
-            : const Border.fromBorderSide(BorderSide.none),
-      ),
-      child: Material(
-        color: background,
-        borderRadius: AppRadius.lg,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: AppRadius.lg,
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: _padX, vertical: _padY),
-            child: SizedBox.square(dimension: _logoSize),
-          ),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: _padX, vertical: _padY),
+          child: SizedBox.square(dimension: _logoSize),
         ),
       ),
     );
@@ -741,18 +748,22 @@ class _SocialTile extends StatelessWidget {
 /// 자리에 넣으므로 그대로 그리면 가로로 퍼져 사과가 뚱뚱해진다. 패키지의 버튼이
 /// 쓰는 비율을 그대로 따른다.
 class _AppleLogo extends StatelessWidget {
-  const _AppleLogo();
+  const _AppleLogo({required this.color});
+
+  /// 사과 색. 바탕에 따라 검정이나 흰색만 들어온다
+  /// (`_SignInPageState._appleInk`).
+  final Color color;
 
   /// `sign_in_with_apple_button.dart`의 `fontSize * (25 / 31)`에서 온 값.
   static const _ratio = 25 / 31;
 
   @override
-  Widget build(BuildContext context) => const Center(
+  Widget build(BuildContext context) => Center(
     // ⚠️ [Center]가 있어야 한다. 꽉 맞는 제약이 그대로 내려오면 [AspectRatio]가
     // 줄어들 여지가 없어 비율이 무시된다.
     child: AspectRatio(
       aspectRatio: _ratio,
-      child: CustomPaint(painter: AppleLogoPainter(color: AppPaletteV2.white)),
+      child: CustomPaint(painter: AppleLogoPainter(color: color)),
     ),
   );
 }

@@ -1,9 +1,14 @@
+// 명암비를 구하는 `pow`가 여기 있다.
+import 'dart:math' as math;
+
 // `debugDefaultTargetPlatformOverride`가 여기 있다. material 이 재수출하지 않는다.
 import 'package:flutter/foundation.dart';
 // TextField를 이름으로 찾으려면 필요하다. flutter_test는 material을 재수출하지 않는다.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+// 애플 로고에 칠한 색을 읽는다. 패키지가 `AppleLogoPainter`를 공개한다.
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/storage/consent_store.dart';
@@ -450,39 +455,105 @@ void main() {
       });
     });
 
-    /// 타일 안의 테두리. 그려지지 않는 쪽(`BorderStyle.none`)은 세지 않는다.
-    Finder borderIn(Finder tile) => find.descendant(
-      of: tile,
-      matching: find.byWidgetPredicate(
-        // ⚠️ `as BoxDecoration` 로 캐스팅하면 안 된다. iOS 화면 전환이
-        // `_CupertinoEdgeShadowDecoration` 을 쓴 [DecoratedBox] 를 끼워 넣는다.
-        (widget) =>
-            widget is DecoratedBox &&
-            widget.decoration is BoxDecoration &&
-            (widget.decoration as BoxDecoration).border?.top.style ==
-                BorderStyle.solid,
-      ),
-    );
+    /// 타일의 바탕색. [InkWell]을 담은 [Material]이 그린다.
+    Color surfaceOf(WidgetTester tester, String label) => tester
+        .widgetList<Material>(
+          find.descendant(
+            of: find.byTooltip(label),
+            matching: find.byType(Material),
+          ),
+        )
+        .first
+        .color!;
 
-    testWidgets('⚠️ 다크 테마에서 보이도록 테두리를 두른다', (tester) async {
-      // 애플의 바탕은 검정(`#000000`)이고 다크 테마의 `bgBase`는 `#0A0A0A`다.
-      // **앱의 기본이 다크라서** 테두리가 없으면 타일이 거의 보이지 않는다 —
-      // 누를 자리가 어디인지 알 수 없다.
+    /// 애플 로고에 칠한 색. 패키지의 [AppleLogoPainter]가 들고 있다.
+    ///
+    /// ⚠️ **`find.byType(CustomPaint)`로는 못 찾는다.** [InkWell]과 [Material]이
+    /// 잉크와 그림자를 [CustomPaint]로 그려서 여럿이 걸린다. 사과를 칠하는
+    /// 화가로 가린다.
+    Color appleInk(WidgetTester tester) =>
+        (tester
+                    .widget<CustomPaint>(
+                      find.descendant(
+                        of: find.byTooltip(AppStrings.authApple),
+                        matching: find.byWidgetPredicate(
+                          (widget) =>
+                              widget is CustomPaint &&
+                              widget.painter is AppleLogoPainter,
+                        ),
+                      ),
+                    )
+                    .painter!
+                as AppleLogoPainter)
+            .color;
+
+    /// 애플 타일이 **왜 작아 보였는가** — 크기가 아니라 대비였다.
+    ///
+    /// 바탕이 검정(`#000000`)이고 다크 테마의 `bgBase`가 `#0A0A0A`라 타일의
+    /// 경계가 배경에 묻었다. 보이는 것은 흰 사과뿐이어서, 옆 두 타일보다
+    /// **작아 보였다.** 그래서 이 묶음은 **색의 대비**를 검사한다.
+    ///
+    /// 두 색의 명암비(WCAG 2.1 §1.4.11). UI 요소의 경계는 **3:1** 이상이어야
+    /// 한다. 검정과 `#0A0A0A`는 1.06:1이라 한참 모자랐다.
+    double contrast(Color a, Color b) {
+      double channel(double v) => v <= 0.03928
+          ? v / 12.92
+          : math.pow((v + 0.055) / 1.055, 2.4) as double;
+      double luminance(Color c) =>
+          0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b);
+
+      final (high, low) = (luminance(a), luminance(b));
+      return high > low
+          ? (high + 0.05) / (low + 0.05)
+          : (low + 0.05) / (high + 0.05);
+    }
+
+    testWidgets('⚠️ 애플 타일이 배경에 묻지 않는다', (tester) async {
       await asPlatform(TargetPlatform.iOS, () async {
         await pumpSignIn(tester);
 
-        final border = tester
-            .widgetList<DecoratedBox>(
-              borderIn(find.byTooltip(AppStrings.authApple)),
-            )
-            .single;
-        final side = (border.decoration as BoxDecoration).border!.top;
+        // 앱은 다크로 고정이다(`RuniverseApp`의 `themeMode`).
+        final background = AppColorsV2.dark.bgBase;
+        final surface = surfaceOf(tester, AppStrings.authApple);
 
-        // 타일 바탕과 같은 색이면 둘러도 보이지 않는다.
-        expect(side.color, isNot(AppPaletteV2.black));
-        // 나머지 둘은 바탕이 밝아 테두리가 필요 없다.
-        expect(borderIn(find.byTooltip(AppStrings.authGoogle)), findsNothing);
-        expect(borderIn(find.byTooltip(AppStrings.authKakao)), findsNothing);
+        // 옛 값(검정)이면 1.06:1로 여기서 걸린다.
+        expect(contrast(surface, background), greaterThan(3));
+        // 나머지 둘도 같은 기준을 지킨다 — 애플만 고친 것이 아님을 못 박는다.
+        expect(
+          contrast(surfaceOf(tester, AppStrings.authGoogle), background),
+          greaterThan(3),
+        );
+        expect(
+          contrast(surfaceOf(tester, AppStrings.authKakao), background),
+          greaterThan(3),
+        );
+      });
+    });
+
+    testWidgets('⚠️ 사과가 바탕에 묻지 않고, 검정이나 흰색이다', (tester) async {
+      await asPlatform(TargetPlatform.iOS, () async {
+        await pumpSignIn(tester);
+
+        final surface = surfaceOf(tester, AppStrings.authApple);
+        final ink = appleInk(tester);
+
+        // 바탕을 흰색으로 바꾸고 로고를 흰색으로 두면 사과가 사라진다.
+        expect(contrast(ink, surface), greaterThan(3));
+        // ⚠️ 애플은 로고를 검정·흰색으로만 쓰라고 한다. 브랜드색으로 칠하는
+        // 것은 상표를 우리가 고치는 일이다.
+        expect(ink, anyOf(AppPaletteV2.black, AppPaletteV2.white));
+      });
+    });
+
+    testWidgets('세 타일의 크기가 같다', (tester) async {
+      // 보고된 현상이 "애플만 작아 보임"이었다. 실제로는 셋이 같은
+      // `_SocialTile`이라 크기가 같다 — 그 사실을 여기 못 박아 둔다.
+      await asPlatform(TargetPlatform.iOS, () async {
+        await pumpSignIn(tester);
+
+        final google = tester.getSize(find.byTooltip(AppStrings.authGoogle));
+        expect(tester.getSize(find.byTooltip(AppStrings.authKakao)), google);
+        expect(tester.getSize(find.byTooltip(AppStrings.authApple)), google);
       });
     });
 
