@@ -27,6 +27,7 @@ class HttpAuthRepository implements AuthRepository {
   static const _loginPath = '/api/v1/auth/login';
   static const _signUpPath = '/api/v1/auth/signup';
   static const _refreshPath = '/api/v1/auth/refresh';
+  static const _logoutPath = '/api/v1/auth/logout';
 
   /// provider가 뒤에 붙는다 — `/auth/oauth/kakao`.
   static const _oauthPath = '/api/v1/auth/oauth';
@@ -41,6 +42,9 @@ class HttpAuthRepository implements AuthRepository {
   /// 이 호출은 **스플래시가 기다리는 유일한 요청**이다. dio 기본값(10초)을 그대로
   /// 쓰면 연결이 나쁜 곳에서 앱이 10초 멈춘 것처럼 보인다.
   static const _refreshTimeout = Duration(seconds: 5);
+
+  /// 로그아웃이 기다리는 시간. 갱신과 같은 이유로 짧다.
+  static const _logoutTimeout = Duration(seconds: 5);
 
   @override
   Future<AuthSession> signIn({
@@ -137,17 +141,31 @@ class HttpAuthRepository implements AuthRepository {
     }
   }
 
-  /// 서버를 부르지 않는다.
+  /// 서버 세션을 끊는다. 성공은 **204라 몸통이 없다.**
   ///
-  /// 서버 세션을 끊으려면 `accessToken`을 헤더에 실어야 하는데 이 저장소는
-  /// 토큰을 들고 있지 않다 — 보관은 `TokenStore`의 몫이다. 인터페이스에 토큰을
-  /// 받는 자리를 뚫는 일은 이 변경의 범위를 넘어선다.
-  ///
-  /// 호출자가 로컬 토큰을 지우므로 앱은 로그아웃된다. 다만 **서버 쪽
-  /// `refreshToken`은 만료될 때까지 살아 있다.** 기기를 잃어버렸을 때
-  /// 세션을 끊을 방법이 없다는 뜻이라, 토큰을 실어 보내는 일은 따로 해야 한다.
+  /// ⚠️ **기다리는 시간을 짧게 잡는다.** 설정 화면은 이 호출이 끝나야 로그인
+  /// 화면으로 나가는데 그동안 아무 표시도 하지 않는다. 기본 10초를 그대로 쓰면
+  /// 서버가 죽었을 때 **로그아웃이 10초 동안 먹통인 것처럼 보인다.** 갱신
+  /// 호출과 같은 판단이다([_refreshTimeout]).
   @override
-  Future<void> signOut() async {}
+  Future<void> signOut(String accessToken) async {
+    try {
+      await _dio.post<void>(
+        _logoutPath,
+        options: Options(
+          headers: {'Authorization': 'Bearer $accessToken'},
+          sendTimeout: _logoutTimeout,
+          receiveTimeout: _logoutTimeout,
+        ),
+      );
+    } on DioException catch (error) {
+      // 401은 토큰이 죽은 것이다. 부르는 쪽이 갱신하고 한 번 더 온다.
+      if (error.response?.statusCode == 401) {
+        throw const AuthException(AuthFailure.sessionExpired);
+      }
+      throw AuthException(_failureOf(error));
+    }
+  }
 
   @override
   Future<AuthTokens> refresh(String refreshToken) async {

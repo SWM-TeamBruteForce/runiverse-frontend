@@ -813,7 +813,7 @@ class _OfflineAuthRepository implements AuthRepository {
       inner.verifyCode(email: email, code: code);
 
   @override
-  Future<void> signOut() => inner.signOut();
+  Future<void> signOut(String accessToken) => inner.signOut(accessToken);
 }
 
 /// `/me`만 네트워크 오류로 답하는 저장소. 나머지는 [inner]에 맡긴다.
@@ -861,7 +861,7 @@ class _MeFailsAuthRepository implements AuthRepository {
       inner.verifyCode(email: email, code: code);
 
   @override
-  Future<void> signOut() => inner.signOut();
+  Future<void> signOut(String accessToken) => inner.signOut(accessToken);
 }
 
 /// 서버가 `isOnboarded`를 **말하지 않고**, `/users/me`도 **없는** 상태.
@@ -923,7 +923,7 @@ class _SilentAboutOnboarding implements AuthRepository {
       inner.verifyCode(email: email, code: code);
 
   @override
-  Future<void> signOut() => inner.signOut();
+  Future<void> signOut(String accessToken) => inner.signOut(accessToken);
 }
 
 /// `/users/me`는 오는데 그 답에 `isOnboarded`만 **빠져 있는** 서버.

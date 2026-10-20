@@ -89,5 +89,17 @@ abstract interface class AuthRepository {
   Future<AuthTokens> refresh(String refreshToken);
 
   /// 서버 세션을 끊는다. 로컬 토큰을 지우는 것은 호출자 몫이다.
-  Future<void> signOut();
+  ///
+  /// ## ⚠️ 폰의 토큰만 지우는 것은 로그아웃이 아니다
+  ///
+  /// 서버는 **accessToken을 차단하고 refreshToken을 지운다.** 부르지 않으면
+  /// 그 둘이 만료될 때까지 살아 있어서, 토큰이 새어 나간 뒤에 로그아웃해도
+  /// 남의 손에서는 그대로 쓰인다. 기기를 잃어버렸을 때 끊을 길이 없다는 뜻이다.
+  ///
+  /// [fetchCurrentUser]와 같은 이유로 토큰을 **인자로 받는다.**
+  ///
+  /// 실패: `sessionExpired`(401) · `network` · `server`. 어느 쪽이든 **호출자는
+  /// 로컬을 비운다** — 서버에 못 알렸다고 로그아웃을 막으면, 네트워크가 끊긴
+  /// 사람은 영영 로그아웃하지 못한다.
+  Future<void> signOut(String accessToken);
 }

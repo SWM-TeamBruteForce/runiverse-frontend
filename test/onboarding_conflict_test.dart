@@ -215,5 +215,5 @@ class _UnusedAuthRepository implements AuthRepository {
   Future<String> verifyCode({required String email, required String code}) =>
       _unused();
   @override
-  Future<void> signOut() => _unused();
+  Future<void> signOut(String accessToken) => _unused();
 }
