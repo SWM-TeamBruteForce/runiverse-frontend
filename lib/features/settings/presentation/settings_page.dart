@@ -441,20 +441,35 @@ class _ValueRow extends StatelessWidget {
       child: Row(
         children: [
           Text(label, style: AppTypographyV2.body07),
-          const Spacer(),
+          const SizedBox(width: AppSpacing.space4),
+          // ⚠️ **`Spacer`를 두면 값이 쓸 수 있는 폭이 절반으로 깎인다.**
+          //
+          // `Spacer`는 `Expanded`(flex 1)이고 값도 `Flexible`(flex 1)이라,
+          // 라벨을 뺀 남은 폭을 **둘이 반씩 나눠 가졌다.** 그래서 긴 이메일이
+          // 오른쪽에 자리가 뻔히 비어 있는데도 `…`로 잘렸다. 값을
+          // `Expanded`로 두고 오른쪽 정렬하면 남은 폭을 전부 쓴다.
           if (text != null)
-            Flexible(
+            Expanded(
               child: Text(
                 text,
                 textAlign: TextAlign.end,
+                // 한 줄에 안 들어가는 주소가 있다. 자르기 전에 **한 줄 더
+                // 쓴다** — 뒤를 잘라내면 도메인이 사라져 무슨 주소인지도 모른다.
+                //
+                // 주소에는 띄어쓰기가 없어 **줄이 주소 가운데서 넘어간다.**
+                // 보기 좋지는 않지만 전부 보이는 쪽을 골랐다.
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypographyV2.body07.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
             )
-          else
+          else ...[
+            // 자리표시자는 폭이 정해져 있다. 밀어서 오른쪽에 붙인다.
+            const Spacer(),
             _Skeleton(color: colors.borderDefault),
+          ],
         ],
       ),
     );
