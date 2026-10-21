@@ -87,10 +87,14 @@ abstract final class WsEvents {
   static const runningGoalPending = 'RUNNING_GOAL_PENDING';
 }
 
-/// `ERROR`의 `code` 10종.
+/// `ERROR`의 `code` 11종.
 ///
-/// **대부분은 로그로 끝나지만 셋은 다르다.** 서버가 무엇을 하라고 말해주는
+/// **대부분은 로그로 끝나지만 넷은 다르다.** 서버가 무엇을 하라고 말해주는
 /// 코드들이라 [needsRestart]로 갈라 둔다.
+///
+/// ⚠️ **모르는 코드는 [unknown]이다.** 그래서 서버가 새 코드를 쓰기 시작하면
+/// 앱은 조용히 아무 일도 하지 않는다 — `PAUSE_SEGMENT_DECREASED`가 실제로
+/// 그랬다(1.1.1에서 늘었는데 여기 없어 로그조차 남지 않았다).
 enum WsErrorCode {
   malformedMessage,
   missingMessageType,
@@ -111,8 +115,27 @@ enum WsErrorCode {
 
   /// 서버가 좌표를 저장하지 못했다. **러닝은 계속된다.**
   ///
-  /// 다시 보낼 필요는 없다 — 재연결 겹침이 어차피 다시 보낸다.
+  /// ## ⚠️ 그 배치는 다시 보내야 한다
+  ///
+  /// 예전 주석은 "재연결 겹침이 어차피 다시 보낸다"고 적혀 있었는데
+  /// **반만 맞다.** 재연결은 커서를 처음으로 되돌리지만, 연결이 멀쩡한 채로
+  /// 저장만 실패하면 그 일은 일어나지 않는다 — 전송기는 소켓에 넘긴 것을
+  /// 보낸 것으로 보고 커서를 이미 옮겼다. 한 시간을 달려도 안 끊기면 그
+  /// 구간은 **영영 올라가지 않는다.**
+  ///
+  /// 서버가 `(방, 사람, sequence)`로 중복을 거르므로 겹쳐 보내는 것은 공짜다.
   runningTrackUnavailable,
+
+  /// 배치 안에서 `pauseSegment`가 **순번 순으로 줄어들었다** — 1.1.1 3절.
+  ///
+  /// ## ⚠️ 이 코드가 오면 그 러닝은 더 기록되지 않는다
+  ///
+  /// 앱이 매기는 번호는 줄지 않는다(`RunNumbers.mergedWith`). 그래서 이 답은
+  /// **서버가 기억하는 번호가 앱이 보낸 것보다 크다**는 뜻이고, 다음 배치도
+  /// 같은 이유로 거부된다 — 달리는 동안 아무것도 안 남는다.
+  ///
+  /// 다시 보내도 같은 답이다. 그래서 알리고 끝내는 길로 간다.
+  pauseSegmentDecreased,
 
   roomNotFound,
   notRoomPlayer,
@@ -154,6 +177,7 @@ enum WsErrorCode {
     'RUNNING_NOT_STARTED' => WsErrorCode.runningNotStarted,
     'RUNNING_SESSION_UNAVAILABLE' => WsErrorCode.runningSessionUnavailable,
     'RUNNING_TRACK_UNAVAILABLE' => WsErrorCode.runningTrackUnavailable,
+    'PAUSE_SEGMENT_DECREASED' => WsErrorCode.pauseSegmentDecreased,
     'ROOM_NOT_FOUND' => WsErrorCode.roomNotFound,
     'NOT_ROOM_PLAYER' => WsErrorCode.notRoomPlayer,
     'INVALID_ROOM_STATE' => WsErrorCode.invalidRoomState,

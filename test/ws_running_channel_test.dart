@@ -296,6 +296,19 @@ void main() {
 
       expect(seen, [WsErrorCode.roomNotFound]);
     });
+
+    test('⚠️ 구간 번호 거부도 제 이름으로 올라간다', () async {
+      // `PAUSE_SEGMENT_DECREASED`는 1.1.1에서 늘어난 코드다. 이름을 못 읽으면
+      // `unknown`이 되어 **아무 일도 일어나지 않는다** — 그 뒤 좌표가 전부
+      // 거부되는데 로그조차 남지 않는다.
+      await channel.start(roomId);
+      final seen = <WsErrorCode>[];
+      channel.errors.listen(seen.add);
+
+      await receive('ERROR', {'code': 'PAUSE_SEGMENT_DECREASED'});
+
+      expect(seen, [WsErrorCode.pauseSegmentDecreased]);
+    });
   });
 
   group('모르는 이벤트', () {

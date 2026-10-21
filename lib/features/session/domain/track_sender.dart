@@ -95,6 +95,9 @@ class TrackSender {
   /// 여기까지 소켓에 넘겼다. 0이면 아직 아무것도 안 보냈다.
   var _lastSent = 0;
 
+  /// **직전 배치를 보내기 전의** 커서. [rewindLast]가 여기로 되돌린다.
+  var _sentBefore = 0;
+
   /// 지금 보내는 중인가. 틱이 겹쳐 같은 좌표를 두 번 읽지 않게 막는다.
   var _sending = false;
 
@@ -140,6 +143,7 @@ class TrackSender {
     stop();
     _roomId = runningRoomId;
     _lastSent = 0;
+    _sentBefore = 0;
     _timer = Timer.periodic(_interval, (_) => unawaited(flush()));
 
     // ⚠️ **끊기면 커서를 처음으로 되돌린다**(가이드 2.2). 어디까지 닿았는지
@@ -161,6 +165,7 @@ class TrackSender {
     _connections = null;
     _roomId = null;
     _lastSent = 0;
+    _sentBefore = 0;
     _sending = false;
   }
 
@@ -186,6 +191,9 @@ class TrackSender {
         debugPrint('[track] 못 보냈다 · ${points.length}점을 다음에 다시 보낸다');
         return;
       }
+      // ⚠️ **되돌아갈 자리를 남긴다.** 서버가 이 배치를 저장하지 못했다고
+      // 답하면([rewindLast]) 여기로 커서를 물려 한 번 더 보낸다.
+      _sentBefore = _lastSent;
       _lastSent = points.last.sequence;
     } on Object catch (error) {
       // 저장소가 실패해도 러닝은 계속된다. 다음 틱에 다시 읽는다.
@@ -220,7 +228,36 @@ class TrackSender {
     }
   }
 
+  /// 커서를 **직전 배치 앞으로** 물린다. 다음 [flush]·[drain]이 그 배치를
+  /// 한 번 더 보낸다.
+  ///
+  /// ## 왜 전체가 아닌가
+  ///
+  /// 서버가 저장에 실패했다고 답하는 자리(`RUNNING_TRACK_UNAVAILABLE`)에서
+  /// 부른다. 그 답은 **방금 보낸 배치**에 대한 것이라 그만 되돌리면 된다.
+  /// [_rewindAll]처럼 처음으로 돌리면, 저장 실패가 10초마다 되풀이되는 동안
+  /// 매번 트랙 전체가 다시 나가 **앱이 서버 장애를 키운다** — 전체 재전송이
+  /// 1009로 끊기며 스스로 증폭한 적이 있다(클래스 주석).
+  ///
+  /// ## ⚠️ 보내는 중이면 이번 되돌림은 흘러간다
+  ///
+  /// [flush]가 끝나며 커서를 앞으로 옮기므로, 겹치면 물려 둔 자리가 덮인다.
+  /// 저장 실패는 배치마다 오므로 **다음 오류가 다시 부른다** — 틈을 좁히려고
+  /// 잠금을 두기보다 한 박자 늦게 올라가는 쪽을 택했다.
+  void rewindLast() {
+    // ⚠️ **앞으로 가는 일은 없어야 한다.** [_rewindAll]이 커서를 0으로
+    // 돌려놓은 뒤라면 물려 둔 자리가 지금 커서보다 뒤에 있다 — 그대로 쓰면
+    // 커서가 **앞으로 뛰어** 아직 안 보낸 좌표를 건너뛴다.
+    if (_sentBefore >= _lastSent) return;
+    _lastSent = _sentBefore;
+    debugPrint('[track] 서버가 저장하지 못했다. 직전 배치를 다시 보낸다');
+  }
+
   /// 커서를 **처음으로** 되돌린다. 다음 [drain]이 로컬 트랙 전체를 다시 보낸다.
+  /// ⚠️ **[_sentBefore]는 건드리지 않는다.** 여기서 함께 0으로 돌리면
+  /// [rewindLast]의 가드가 닿을 일이 없어져 **죽은 코드가 된다** — 보호가 두
+  /// 군데로 갈리면 어느 쪽이 일하는지 테스트로 가릴 수 없다. 뒤에 남은 자리는
+  /// 그 가드가 막는다.
   void _rewindAll() {
     if (_lastSent == 0) return;
     _lastSent = 0;
