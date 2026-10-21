@@ -8,6 +8,7 @@ import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/app_update/presentation/app_update_gate.dart';
 import 'package:runiverse/features/matching/presentation/launch_gate.dart';
 
 /// 앱 루트 — 테마와 라우터를 [MaterialApp]에 꽂는다.
@@ -123,8 +124,15 @@ class _RuniverseAppState extends ConsumerState<RuniverseApp> {
       // ⚠️ **출발은 화면을 가리지 않는다.** 로비에 서 있어야만 러닝이
       // 시작되던 것을 여기서 받는다 — 어느 화면에 있든 1분 전에 안내하고
       // 로비로, 30초 전에는 카운트다운으로 보낸다([LaunchGate]).
-      builder: (context, child) =>
-          LaunchGate(router: _router, child: child ?? const SizedBox.shrink()),
+      // ⚠️ **업데이트 게이트가 바깥이다.** 안쪽에 두면 `LaunchGate`의 자동
+      // 이동이 막힌 앱을 러닝으로 밀어 넣는다 — 서버는 403만 돌려주므로
+      // 좌표 한 점 없는 러닝 화면이 남는다.
+      builder: (context, child) => AppUpdateGate(
+        child: LaunchGate(
+          router: _router,
+          child: child ?? const SizedBox.shrink(),
+        ),
+      ),
     );
   }
 }
