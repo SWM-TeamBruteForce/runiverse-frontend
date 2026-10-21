@@ -21,6 +21,11 @@ import 'package:runiverse/features/session/domain/track_repository.dart';
 /// 버튼을 누를 때만** 1 올라간다([markPause]). 둘 다 [RunNumbers]에 묶여
 /// 저장되고, 앱이 죽었다 살아나면 [bind]가 되살린다.
 ///
+/// 되살릴 근거가 둘이다 — **로컬 저장소**([bind])와 **서버**
+/// ([applyServerNumbers]). 로컬을 잃으면 서버 쪽이 유일한 근거가 되고, 멀쩡할
+/// 때는 로컬이 더 크므로 서버 값이 아무것도 바꾸지 않는다. 어느 쪽이든 **큰
+/// 쪽을 따른다** — 작은 번호는 그 구간을 기록에서 지운다.
+///
 /// ⚠️ **번호를 매기는 자리가 여기 하나뿐이어야 한다.** 화면이나 전송기가 따로
 /// 매기면 둘이 어긋나고, 어긋난 번호는 서버가 배치째로 거부한다.
 class TrackRecorder {
@@ -85,6 +90,34 @@ class TrackRecorder {
         ),
       );
     }
+  }
+
+  /// `RUNNING_STARTED`가 싣고 온 **서버 번호를 반영한다** — 1.1.1 2절.
+  ///
+  /// ## 큰 쪽을 쓴다
+  ///
+  /// 로컬이 서버 이상이면 그대로 남는다. 그래서 **재설치 여부를 따로 판단할
+  /// 필요가 없다** — 멀쩡한 러닝에서 이 호출은 아무것도 바꾸지 않는다.
+  ///
+  /// 거꾸로 러닝 중에 앱을 다시 설치했으면 로컬은 1번부터인데 서버는 이미
+  /// 120번까지 받았을 수 있다. 그대로 1번을 보내면 **중복으로 버려지고**, 더
+  /// 달려 로컬 순번이 120을 넘어서면 구간 번호가 서버 값보다 작아 **배치가
+  /// 통째로 거부된다**(`PAUSE_SEGMENT_DECREASED`).
+  ///
+  /// ## ⚠️ 이미 저장된 좌표의 번호는 바꾸지 않는다
+  ///
+  /// **앞으로 수집할 좌표에만** 적용한다(가이드 2절). 저장된 좌표의 번호를
+  /// 밀면 서버가 좌표에서 복원하는 일시정지 경계가 어긋난다.
+  ///
+  /// 연결마다 한 번씩 온다. 두 번째부터는 대개 로컬이 더 커서 조용하다.
+  Future<void> applyServerNumbers(RunNumbers fromServer) async {
+    _numbers = _numbers.mergedWith(fromServer);
+
+    final roomId = _roomId;
+    // 방을 모르면 메모리만 맞춰 둔다. [bind]가 그 값을 들고 간다.
+    if (roomId == null) return;
+
+    await _repository.saveNumbers(roomId, _numbers);
   }
 
   /// 좌표 하나를 쌓는다.

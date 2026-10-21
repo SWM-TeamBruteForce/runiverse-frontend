@@ -319,6 +319,91 @@ void main() {
       expect(repository.saved[7]?.last.sequence, 3);
     });
 
+    test('⚠️ 서버 번호를 받으면 그 뒤부터 매긴다', () async {
+      // 러닝 중 재설치의 유일한 탈출구다. 로컬은 1번부터인데 서버는 이미
+      // 120번까지 받았다 — 1번을 보내면 중복으로 버려지고, 더 달려 로컬
+      // 순번이 120을 넘어서면 구간 번호가 작아 배치가 통째로 거부된다.
+      await recorder.bind(7);
+
+      await recorder.applyServerNumbers(
+        const RunNumbers(nextSequence: 120, pauseSegment: 2),
+      );
+      await recorder.add(geo(1));
+
+      expect(repository.saved[7]?.single.sequence, 120);
+      expect(repository.saved[7]?.single.pauseSegment, 2);
+    });
+
+    test('⚠️ 서버가 뒤처져 있으면 로컬이 남는다', () async {
+      // 멀쩡한 러닝에서는 서버가 받은 것보다 로컬이 앞선다 — 아직 안 보낸
+      // 좌표가 있어서다. 서버 값을 따르면 그 좌표를 덮어쓴다.
+      await recorder.bind(7);
+      await recorder.markPause();
+      await recorder.add(geo(1));
+
+      await recorder.applyServerNumbers(RunNumbers.serverZero);
+      await recorder.add(geo(2));
+
+      expect(repository.saved[7]?.last.sequence, 2);
+      expect(repository.saved[7]?.last.pauseSegment, 1);
+    });
+
+    test('⚠️ 이미 저장된 좌표의 번호는 바뀌지 않는다', () async {
+      // 앞으로 수집할 좌표에만 적용한다(가이드 2절). 저장된 번호를 밀면
+      // 서버가 좌표에서 복원하는 일시정지 경계가 어긋난다.
+      await recorder.bind(7);
+      await recorder.add(geo(1));
+
+      await recorder.applyServerNumbers(
+        const RunNumbers(nextSequence: 500, pauseSegment: 5),
+      );
+
+      expect(repository.saved[7]?.single.sequence, 1);
+      expect(repository.saved[7]?.single.pauseSegment, 0);
+    });
+
+    test('맞춘 번호를 저장소에 남긴다', () async {
+      // 남기지 않으면 다음 실행이 또 1번부터다.
+      await recorder.bind(7);
+
+      await recorder.applyServerNumbers(
+        const RunNumbers(nextSequence: 120, pauseSegment: 2),
+      );
+
+      expect(
+        repository.numbered[7],
+        const RunNumbers(nextSequence: 120, pauseSegment: 2),
+      );
+    });
+
+    test('⚠️ 방을 모르면 메모리만 맞춘다', () async {
+      // 방 번호 없이 저장소에 쓸 수 없다(PK가 `(방, 순번)`이다). 그래도
+      // 올려 둬야 [bind]가 큰 쪽으로 들고 간다.
+      await recorder.applyServerNumbers(
+        const RunNumbers(nextSequence: 120, pauseSegment: 2),
+      );
+
+      expect(recorder.numbers.nextSequence, 120);
+      expect(repository.saves, 0);
+
+      await recorder.bind(7);
+      await recorder.add(geo(1));
+
+      expect(repository.saved[7]?.single.sequence, 120);
+    });
+
+    test('다시 붙어 같은 값을 또 받아도 번호가 밀리지 않는다', () async {
+      // 연결마다 한 번씩 온다. 멱등이어야 재연결이 번호를 앞당기지 않는다.
+      await recorder.bind(7);
+      final twice = const RunNumbers(nextSequence: 120, pauseSegment: 2);
+
+      await recorder.applyServerNumbers(twice);
+      await recorder.applyServerNumbers(twice);
+      await recorder.add(geo(1));
+
+      expect(repository.saved[7]?.single.sequence, 120);
+    });
+
     test('다음 러닝은 번호가 처음으로 돌아간다', () async {
       await recorder.bind(7);
       await recorder.markPause();

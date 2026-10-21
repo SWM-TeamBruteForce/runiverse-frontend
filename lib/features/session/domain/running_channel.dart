@@ -1,6 +1,7 @@
 import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
+import 'package:runiverse/features/session/domain/run_numbers.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
@@ -23,6 +24,18 @@ abstract interface class RunningChannel {
   ///
   /// 이름·사진은 여기에만 있다. 진행·콤보 통지는 사람을 `userId`로만 가리킨다.
   Stream<RunSnapshot> get snapshots;
+
+  /// `RUNNING_STARTED`가 싣고 온 **본인 기준 번호 둘** — 1.1.1 2절.
+  ///
+  /// [snapshots]와 **같은 메시지**에서 온다. 그런데 따로 흘린다 — 스냅샷은
+  /// `runningRoomId`를 못 읽으면 통째로 버려지는데(`RunSnapshot.of`),
+  /// **번호는 버리면 안 된다.** 러닝 도중 앱을 다시 설치했다면 이 값이 서버가
+  /// 어디까지 받았는지를 아는 유일한 근거고, 모르는 채로 1번부터 매기면 그
+  /// 좌표가 전부 버려지거나 배치째 거부된다.
+  ///
+  /// 받는 쪽은 다음에 쓸 순번과 구간 번호를 **로컬 값과 이 값 중 큰 쪽으로**
+  /// 맞춘다. 이미 저장된 좌표의 번호는 바꾸지 않는다.
+  Stream<RunNumbers> get serverNumbers;
 
   /// 파티원 한 명의 진행이 바뀔 때마다.
   ///

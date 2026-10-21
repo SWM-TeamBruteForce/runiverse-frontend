@@ -20,6 +20,7 @@ import 'package:runiverse/features/session/data/fake_track_repository.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
+import 'package:runiverse/features/session/domain/run_numbers.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/run_snapshot.dart';
@@ -112,9 +113,17 @@ void main() {
   }
 
   /// 달리는 화면을 세운다.
-  Future<ProviderContainer> pumpRunning(WidgetTester tester) async {
+  ///
+  /// [fromServer]는 시작 확인이 싣고 올 번호다. 기본값은 "서버가 받은 좌표가
+  /// 없다" — 새 러닝이 그렇다. **[makeContainer]가 채널을 새로 만들므로 여기서
+  /// 넘겨야 한다.**
+  Future<ProviderContainer> pumpRunning(
+    WidgetTester tester, {
+    RunNumbers fromServer = RunNumbers.serverZero,
+  }) async {
     final container = await makeContainer();
     addTearDown(container.dispose);
+    channel.fromServer = fromServer;
 
     await container.read(runningConnectionProvider.notifier).openMatched(1);
 
@@ -313,11 +322,7 @@ void main() {
       await tapPause(tester, AppStrings.runResumeCta);
       await emit(tester, north(200));
 
-      expect(
-        track.all.last.pauseSegment,
-        1,
-        reason: '2면 재개에서도 번호를 올린 것이다',
-      );
+      expect(track.all.last.pauseSegment, 1, reason: '2면 재개에서도 번호를 올린 것이다');
 
       await unmount(tester, container);
     });
@@ -358,6 +363,62 @@ void main() {
       await tapPause(tester, AppStrings.runPauseCta);
 
       expect(track.all.map((p) => p.pauseSegment).toList(), before);
+
+      await unmount(tester, container);
+    });
+  });
+
+  /// 서버가 아는 번호를 받아 맞춘다 — 1.1.1 2절.
+  ///
+  /// ## ⚠️ 러닝 중 재설치를 이 값으로만 알 수 있다
+  ///
+  /// 로컬 DB가 사라지면 번호가 1번·0번부터 다시 태어나는데, **서버는 이미
+  /// 받은 데가 있다.** 그대로 보내면 이미 쓴 순번이라 중복으로 버려지고, 더
+  /// 달려 로컬 순번이 서버를 넘어서는 순간부터는 구간 번호가 서버 값보다
+  /// 작아 **배치가 통째로 거부된다**(`PAUSE_SEGMENT_DECREASED`).
+  ///
+  /// 재설치 여부를 앱이 판단하지 않는다. **언제나 큰 쪽을 쓰면** 멀쩡한
+  /// 러닝에서는 로컬이 크므로 아무 일도 일어나지 않는다.
+  group('⚠️ 서버 번호 복원 — 1.1.1 2절', () {
+    testWidgets('⚠️ 서버가 앞서 있으면 그 뒤부터 매긴다', (tester) async {
+      final container = await pumpRunning(
+        tester,
+        fromServer: const RunNumbers(nextSequence: 120, pauseSegment: 2),
+      );
+
+      expect(track.all.first.sequence, 120, reason: '1이면 서버 값을 버렸다');
+      expect(track.all.first.pauseSegment, 2);
+
+      await unmount(tester, container);
+    });
+
+    testWidgets('로컬이 앞서 있으면 그대로 간다', (tester) async {
+      // 서버가 받은 좌표가 없으면 0을 준다. 0을 그대로 쓰면 **모든 러닝의
+      // 첫 좌표가 0번**이 되는데, 앱은 1번부터 매긴다.
+      final container = await pumpRunning(tester);
+
+      expect(track.all.map((p) => p.sequence), [1, 2, 3]);
+      expect(track.all.map((p) => p.pauseSegment), everyElement(0));
+
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 이미 저장된 좌표의 번호는 바뀌지 않는다', (tester) async {
+      // 저장된 번호를 서버 값으로 갈아 끼우면 **일시정지 경계가 사라진다.**
+      // 다시 붙을 때마다 오는 값이라 이 길이 열려 있으면 매번 밀린다.
+      final container = await pumpRunning(tester);
+      final before = [for (final p in track.all) (p.sequence, p.pauseSegment)];
+
+      channel.fromServer = const RunNumbers(nextSequence: 500, pauseSegment: 5);
+      await reconnect(tester);
+      await emit(tester, north(500));
+
+      expect([
+        for (final p in track.all.take(before.length))
+          (p.sequence, p.pauseSegment),
+      ], before);
+      expect(track.all.last.sequence, 500);
+      expect(track.all.last.pauseSegment, 5);
 
       await unmount(tester, container);
     });
@@ -516,7 +577,14 @@ class _PauseChannel implements RunningChannel {
   final log = <String>[];
 
   final _snapshots = StreamController<RunSnapshot>.broadcast();
+  final _serverNumbers = StreamController<RunNumbers>.broadcast();
   final _states = StreamController<WsConnectionState>.broadcast();
+
+  /// 서버가 아는 번호. **시작 확인마다 이 값이 올라온다.**
+  ///
+  /// 기본값은 "받은 좌표가 없다"다 — 새 러닝이 그렇다. 테스트가 이것을 올려
+  /// 두면 **러닝 중 앱을 다시 설치한 상황**이 된다.
+  var fromServer = RunNumbers.serverZero;
 
   /// 배치마다 실려 나간 `sequence` 목록. **어디서부터 보냈는지**를 본다.
   final sent = <List<int>>[];
@@ -545,9 +613,15 @@ class _PauseChannel implements RunningChannel {
   Stream<RunSnapshot> get snapshots => _snapshots.stream;
 
   @override
+  Stream<RunNumbers> get serverNumbers => _serverNumbers.stream;
+
+  @override
   Future<void> start(int runningRoomId) async {
     _roomId = runningRoomId;
     log.add('start');
+    // 진짜 서버는 `RUNNING_START`마다 `RUNNING_STARTED`로 답하고, 그 몸통에
+    // 본인 기준 번호가 실려 온다(1.1.1 2절).
+    _serverNumbers.add(fromServer);
   }
 
   /// 끊겼다 다시 붙었다. **진짜 채널은 여기서 `RUNNING_START`를 다시 보내고,
@@ -562,6 +636,7 @@ class _PauseChannel implements RunningChannel {
     // 되감기가 먼저 끝나야 한다. 진짜도 다시 붙어 ack가 오기까지 틈이 있다.
     scheduleMicrotask(() {
       log.add('start');
+      _serverNumbers.add(fromServer);
       _snapshots.add(
         RunSnapshot(
           runningRoomId: _roomId ?? 1,

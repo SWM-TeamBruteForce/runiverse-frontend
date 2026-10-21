@@ -22,6 +22,7 @@ import 'package:runiverse/features/session/data/fake_user_status_repository.dart
 import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
+import 'package:runiverse/features/session/domain/run_numbers.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
@@ -625,6 +626,9 @@ class _SilentChannel implements RunningChannel {
 
   @override
   Stream<RunSnapshot> get snapshots => const Stream.empty();
+
+  @override
+  Stream<RunNumbers> get serverNumbers => const Stream.empty();
 
   @override
   Future<void> start(int runningRoomId) async {}

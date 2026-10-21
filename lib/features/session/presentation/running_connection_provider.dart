@@ -455,6 +455,28 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     // 끝낸다. 이 통지를 안 받으면 러닝이 끝났는데 화면이 영영 남는다.
     channel.finished.listen((_) => unawaited(_onServerFinished()));
 
+    // ⚠️ **서버가 아는 번호를 좌표 기록기에 맞춘다** — 1.1.1 2절.
+    //
+    // 러닝 중에 앱을 다시 설치했으면 로컬 번호가 1번부터인데 서버는 이미
+    // 받은 데가 있다. 이 값을 반영하지 않으면 그 뒤 좌표가 **중복으로
+    // 버려지거나 `PAUSE_SEGMENT_DECREASED`로 배치째 거부된다.**
+    //
+    // ⚠️ **스냅샷과 따로 듣는다.** 같은 메시지에서 오지만 스냅샷은 몸통을
+    // 못 읽으면 통째로 버려진다 — 번호는 그때도 와야 한다.
+    //
+    // ⚠️ **실패해도 러닝은 계속된다.** 여기서 던지면 아무도 받지 않는
+    // 비동기 오류가 되어 달리는 중에 앱이 죽는다. 못 맞추면 다음 연결의
+    // ack가 같은 값을 다시 실어 온다.
+    channel.serverNumbers.listen((numbers) {
+      unawaited(
+        ref.read(trackRecorderProvider).applyServerNumbers(numbers).catchError((
+          Object error,
+        ) {
+          debugPrint('[track] 서버 번호를 반영하지 못했다 · $error');
+        }),
+      );
+    });
+
     // ⚠️ **시작 확인을 받으면 서버가 아는 상태를 다시 읽는다.**
     //
     // 매칭 SSE는 상태가 `RUNNING`이 되면 닫히는데(`MatchRoomController._syncWith`),
