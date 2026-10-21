@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/record/data/room_result_dto.dart';
+import 'package:runiverse/features/record/domain/run_detail.dart';
 
 /// 결과 두 API를 합칠 때 **파티원을 버리지 않는가.**
 ///
@@ -53,9 +54,12 @@ void main() {
     'runningRoomId': 125,
     'startedAt': '2026-09-17T19:00:00',
     'finishedAt': '2026-09-17T19:30:00',
+    // ⚠️ **한 겹이 더 있다**(1.1.1). 끊긴 곳이 없어도 바깥 배열은 있다.
     'routes': [
-      [37.5, 127.0],
-      [37.5001, 127.0001],
+      [
+        [37.5, 127.0],
+        [37.5001, 127.0001],
+      ],
     ],
     'players': [
       player('u-2', '이서연'),
@@ -173,120 +177,138 @@ void main() {
     expect(detail.tableSplitsOf('u-3'), isEmpty);
   });
 
-  /// 경로의 두 가지 모양 — 1.1.1 4절.
-  ///
-  /// ## ⚠️ 여기가 기기에서 터진 자리다
-  ///
-  /// 서버가 경로를 **조각으로 묶어** 주기 시작했는데 앱은 점이 한 줄로 오는
-  /// 줄 알고 읽었다. 점 자리에 배열이 들어와 캐스트가 터졌고, 그 예외가 화면
-  /// 까지 올라가 **끝낸 러닝의 상세가 하나도 안 열렸다** — 서버는 200을
-  /// 주는데 화면은 "기록을 불러오지 못했어요"였다(2026-10-21 확인).
-  group('⚠️ 조각으로 묶여 온 경로', () {
-    test('조각마다 한 토막으로 읽는다', () {
-      final detail = RoomResultDto.merge(
-        results: {
-          ...results,
-          'routes': [
-            [
-              [37.5, 127.0],
-              [37.50009, 127.0],
-            ],
-            [
-              [37.6, 127.1],
-              [37.60009, 127.1],
-            ],
-          ],
-        },
-        splitResults: splitResults,
-      );
+  group('경로 조각', () {
+    /// ⚠️ **서버가 나눠 준 대로 쓴다.** 1.1.0까지는 앱이 30m 넘게 벌어진 자리를
+    /// 찾아 끊었는데, 이제 일시정지·관측 공백·GPS 튐을 **서버가 경계로 보고
+    /// 나눠 준다.** 앱이 또 끊으면 서버가 이어도 된다고 판단한 자리까지
+    /// 갈라진다.
+    ///
+    /// ⚠️ **옛 모양(점이 한 줄)은 옛 규칙으로 읽는다** — 맨 아래에서 따로 본다.
+    RunDetail parsed(Object? routes) => RoomResultDto.merge(
+      results: {...results, 'routes': routes},
+      splitResults: splitResults,
+    );
+
+    test('⚠️ 조각 수와 점을 그대로 가져온다', () {
+      final detail = parsed([
+        [
+          [37.5, 127.0],
+          [37.50009, 127.0],
+        ],
+        [
+          [37.5010, 127.0],
+          [37.50109, 127.0],
+        ],
+      ]);
 
       expect(detail.track, hasLength(2));
-      expect(detail.track.first.first.latitude, 37.5);
-      expect(detail.track.last.first.latitude, 37.6);
+      expect(detail.track.first, hasLength(2));
+      expect(detail.track.last, hasLength(2));
     });
 
-    test('⚠️ 붙어 있는 조각이라도 잇지 않는다', () {
-      // 서버가 나눠 준 경계가 정본이다. 가까워 보인다고 이으면 **멈춰 있던
-      // 자리를 가로질러** 선이 그려진다.
-      final detail = RoomResultDto.merge(
-        results: {
-          ...results,
-          'routes': [
-            [
-              [37.5, 127.0],
-              [37.50009, 127.0],
-            ],
-            [
-              [37.50018, 127.0],
-              [37.50027, 127.0],
-            ],
-          ],
-        },
-        splitResults: splitResults,
-      );
+    test('⚠️ 앱이 더 끊지 않는다 — 멀리 떨어진 점도 한 조각이다', () {
+      // 100m 넘게 벌어져 있어도 서버가 한 조각으로 줬으면 한 조각이다.
+      // 고치기 전에는 여기서 둘로 갈라졌다.
+      final detail = parsed([
+        [
+          [37.5, 127.0],
+          [37.5010, 127.0],
+        ],
+      ]);
 
-      expect(detail.track, hasLength(2));
+      expect(detail.track, hasLength(1));
+      expect(detail.track.single, hasLength(2));
     });
 
-    test('⚠️ 조각 안에서 벌어진 자리는 그대로 끊는다', () {
-      // 조각 안에도 빠진 자리가 남을 수 있다(가이드 4.2).
-      final detail = RoomResultDto.merge(
-        results: {
-          ...results,
-          'routes': [
-            [
-              [37.5, 127.0],
-              [37.50009, 127.0],
-              [37.5010, 127.0], // 약 100m 점프
-              [37.50109, 127.0],
-            ],
-          ],
-        },
-        splitResults: splitResults,
-      );
+    test('⚠️ 점이 하나인 조각도 버리지 않는다', () {
+      // 끊긴 경계에 걸린 구간이 그렇게 온다. 버리면 그 자리가 통째로 빈다.
+      // 그리는 쪽이 선을 긋지 않을 뿐이다.
+      final detail = parsed([
+        [
+          [37.5, 127.0],
+        ],
+        [
+          [37.5010, 127.0],
+          [37.50109, 127.0],
+        ],
+      ]);
 
       expect(detail.track, hasLength(2));
+      expect(detail.track.first, hasLength(1));
+    });
+
+    test('⚠️ 점이 없는 조각은 버린다', () {
+      // 비어 오거나 읽을 수 없는 점만 든 조각이다. 남겨 두면 **그릴 것이 없는
+      // 토막**이 조각 수에만 섞인다.
+      final detail = parsed([
+        [
+          [37.5, 127.0],
+          [37.50009, 127.0],
+        ],
+        <Object?>[],
+        [
+          ['읽을 수 없는 점', 127.0],
+        ],
+      ]);
+
+      expect(detail.track, hasLength(1));
     });
 
     test('⚠️ 읽을 수 없는 점은 버리고 나머지를 그린다', () {
-      // 하나가 이상하다고 던지면 **기록 전체가 안 열린다.** 선 한 토막이
-      // 비는 편이 낫다.
-      final detail = RoomResultDto.merge(
-        results: {
-          ...results,
-          'routes': [
-            [37.5, 127.0],
-            ['이상한 값', 127.0],
-            [37.50009, 127.0],
-          ],
-        },
-        splitResults: splitResults,
-      );
+      // 하나가 이상하다고 던지면 **기록 전체가 안 열린다** — 서버가 200을
+      // 주는데 화면이 "기록을 불러오지 못했어요"가 되던 자리다(2026-10-21
+      // 기기 확인). 선 한 토막이 비는 편이 낫다.
+      final detail = parsed([
+        [
+          [37.5, 127.0],
+          ['이상한 값', 127.0],
+          [37.50009, 127.0],
+        ],
+      ]);
 
       expect(detail.track.single, hasLength(2));
     });
-  });
 
-  test('⚠️ 한 줄로 온 경로를 벌어진 자리에서 끊는다', () {
-    // ⚠️ 서버는 정지 구간·오염 좌표를 **뺀** 경로를 한 줄로 준다. 그대로
-    // 한 토막으로 넘기면 빠진 자리가 직선으로 이어져 **가 본 적 없는 길이
-    // 그려진다**(가이드 4.2).
-    final detail = RoomResultDto.merge(
-      results: {
-        ...results,
-        'routes': [
+    /// 서버가 **아직 조각을 주지 않는 환경** — 점이 한 줄로 온다.
+    ///
+    /// ## ⚠️ 빈 경로로 떨어뜨리지 않는다
+    ///
+    /// 새 모양만 읽으면 그런 서버에서 경로가 통째로 빈다 — 점 하나를 조각으로
+    /// 보고 그 안을 뒤지다 아무것도 못 찾기 때문이다. 지도만 조용히 비고
+    /// 아무도 모른다.
+    ///
+    /// ## ⚠️ 그리고 그때는 앱이 끊어야 한다
+    ///
+    /// 옛 서버가 주는 한 줄에는 빠진 자리가 그대로 들어 있다. 이어 버리면
+    /// **가 본 적 없는 길**이 그려진다(가이드 4.2).
+    group('옛 모양', () {
+      test('점 목록을 그대로 읽는다', () {
+        final detail = parsed([
+          [37.5, 127.0],
+          [37.50009, 127.0],
+        ]);
+
+        expect(detail.track.single, hasLength(2));
+      });
+
+      test('⚠️ 벌어진 자리에서 끊는다', () {
+        final detail = parsed([
           [37.5, 127.0],
           [37.50009, 127.0], // 약 10m
           [37.5010, 127.0], // 약 100m 점프 — 여기서 끊긴다
           [37.50109, 127.0],
-        ],
-      },
-      splitResults: splitResults,
-    );
+        ]);
 
-    expect(detail.track, hasLength(2));
-    expect(detail.track.first, hasLength(2));
-    expect(detail.track.last, hasLength(2));
+        expect(detail.track, hasLength(2));
+        expect(detail.track.first, hasLength(2));
+        expect(detail.track.last, hasLength(2));
+      });
+    });
+
+    test('경로가 없으면 빈 목록이다', () {
+      expect(parsed(null).track, isEmpty);
+      expect(parsed(const []).track, isEmpty);
+    });
   });
 
   test('솔로는 나 하나뿐이고 파티원은 없다', () {

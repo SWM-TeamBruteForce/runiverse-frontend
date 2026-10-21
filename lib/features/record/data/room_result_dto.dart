@@ -91,8 +91,27 @@ abstract final class RoomResultDto {
   static Duration? _seconds(Object? value) =>
       value is int ? Duration(seconds: value) : null;
 
-  /// ⚠️ **위도가 먼저다**(`[[위도, 경도], …]`). GeoJSON과 반대라 뒤집어
-  /// 읽으면 경로가 엉뚱한 곳에 그려진다 — 명세가 따로 못 박은 지점이다.
+  /// 경로. **서버가 이미 조각으로 나눠 준다**(1.1.1).
+  ///
+  /// ## ⚠️ 한 겹이 더 있다
+  ///
+  /// 1.1.0까지는 `[[위도, 경도], …]` 점 목록 하나였고, 앱이 30m 넘게 벌어진
+  /// 자리를 찾아 끊었다. 이제 `[[[위도, 경도], …], …]`로 **조각마다 배열
+  /// 하나**다. 끊긴 곳이 없어도 바깥 배열은 있다(조각 하나).
+  ///
+  /// 한 겹을 덜 벗기면 `point[0]`이 좌표가 아니라 **점 목록**이라 `as num`에서
+  /// 죽는다. 반대로 옛 모양이 그대로 오면 `point[0]`이 숫자라 점 목록으로
+  /// 읽히지 않는다 — 어느 쪽이든 조용히 틀리지 않고 빈 경로가 된다.
+  ///
+  /// ## ⚠️ 위도가 먼저다
+  ///
+  /// `[위도, 경도]`다. GeoJSON과 반대라 뒤집어 읽으면 경로가 엉뚱한 곳에
+  /// 그려진다 — 명세가 따로 못 박은 지점이다.
+  ///
+  /// ## 앱이 더 끊지 않는다
+  ///
+  /// 일시정지·관측 공백·GPS 튐을 **서버가 경계로 보고 나눈다.** 앱이 30m 규칙으로
+  /// 또 끊으면 서버가 이어도 된다고 판단한 자리까지 갈라진다.
   ///
   /// 본인 기록이 없으면 `null`이 온다(빈 배열이 아니다).
   /// 경로를 읽는다. **두 가지 모양을 다 받는다.**
@@ -109,20 +128,38 @@ abstract final class RoomResultDto {
   /// 된다** — 서버는 200을 주는데 끝낸 러닝의 상세가 하나도 안 열렸다
   /// (2026-10-21 기기 확인).
   ///
-  /// ## ⚠️ 조각 사이는 잇지 않는다
+  /// ## ⚠️ 새 모양은 앱이 **다시 끊지 않는다**
   ///
-  /// 서버가 나눠 준 경계가 정본이다. 조각 **안**에서는 예전처럼 한 번 더
-  /// 끊는다 — 빠진 자리가 남아 있을 수 있고, 그 양 끝을 이으면 가 본 적 없는
-  /// 길에 선이 그려진다(가이드 4.2).
+  /// 일시정지·관측 공백·GPS 튐을 **서버가 경계로 보고 나눠 준다**(1.1.1 4절).
+  /// 앱이 그 안에서 또 끊으면 **서버가 이어도 된다고 판단한 자리까지
+  /// 갈라진다** — 조각 수가 실제 경계보다 훨씬 많아진다.
+  ///
+  /// ## ⚠️ 옛 모양은 앱이 끊어야 한다
+  ///
+  /// 점이 한 줄로 오고 빠진 자리가 그대로 들어 있다. 그대로 이으면 가 본 적
+  /// 없는 길에 선이 그려지므로(가이드 4.2) [RouteSegments]가 끊는다.
+  ///
+  /// **이 길을 남겨 두는 이유는 서버가 아직 조각을 주지 않는 환경 때문이다.**
+  /// 새 모양만 읽으면 그런 서버에서는 경로가 통째로 빈 채 그려진다 — 점 하나를
+  /// 조각으로 보고 그 안을 뒤지다 아무것도 못 찾기 때문이다.
   static List<List<GeoPoint>> _track(Object? routes) {
     if (routes is! List || routes.isEmpty) return const [];
 
-    // 첫 점의 첫 칸이 또 배열이면 조각으로 묶여 온 것이다.
+    // 첫 칸이 또 배열이면 조각으로 묶여 온 것이다.
     final first = routes.first;
     final nested = first is List && first.isNotEmpty && first.first is List;
-    final groups = nested ? routes.whereType<List>() : [routes];
+    if (!nested) return RouteSegments.split(_points(routes));
 
-    return [for (final group in groups) ...RouteSegments.split(_points(group))];
+    final segments = [
+      for (final segment in routes)
+        if (segment is List) _points(segment),
+    ];
+    // 빈 조각은 버린다. 점이 없는 토막은 그릴 것이 없고, 지도는 그것을
+    // 빈 선으로 세기만 한다.
+    return [
+      for (final segment in segments)
+        if (segment.isNotEmpty) segment,
+    ];
   }
 
   /// `[위도, 경도]` 묶음을 점으로 읽는다.
