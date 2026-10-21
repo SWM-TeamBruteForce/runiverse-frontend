@@ -13,6 +13,7 @@ import 'package:runiverse/app/app.dart';
 import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/analytics/firebase_analytics_service.dart';
 import 'package:runiverse/core/config/app_config.dart';
+import 'package:runiverse/core/version/installed_app_version.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 
@@ -36,6 +37,15 @@ import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 /// 기동하자마자 멈춰서 빌드 파이프라인이 잡게 한다.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 설치된 앱의 버전 이름. **화면이 서기 전에 읽어 둔다** — 서버로 가는 모든
+  // 요청에 헤더로 싣고(`X-App-Version`), 스플래시가 이 값으로 업데이트 여부를
+  // 판정한다. 플랫폼 채널을 부르므로 위의 `ensureInitialized`가 먼저다.
+  //
+  // ⚠️ **실패해도 멈추지 않는다.** 버전을 못 읽는 것은 앱을 못 쓸 이유가
+  // 아니다. 헤더를 안 싣고 판정도 하지 않을 뿐이고, 서버도 헤더가 없으면
+  // 그냥 통과시킨다(API 명세서 공통 규칙).
+  await InstalledAppVersion.load();
 
   // Firebase — **인자를 넘기지 않는다.** 설정은 플랫폼별 설정 파일에서 오고,
   // flavor 폴더(`dev`·`prod`)에 따로 있다(Android `android/app/src/` 아래,
