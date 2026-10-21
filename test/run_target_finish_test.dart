@@ -46,12 +46,14 @@ void main() {
 
   late _FinishChannel channel;
   late FakeLocationRepository location;
+  late FakeTrackRepository track;
   late DateTime clock;
 
   Future<ProviderContainer> makeContainer() async {
     clock = DateTime(2026, 9, 19, 7);
     channel = _FinishChannel();
     location = FakeLocationRepository();
+    track = FakeTrackRepository();
 
     final tokens = InMemoryTokenStore();
     await tokens.saveSession(
@@ -70,7 +72,7 @@ void main() {
         ),
         tokenStoreProvider.overrideWithValue(tokens),
         locationRepositoryProvider.overrideWithValue(location),
-        trackRepositoryProvider.overrideWithValue(FakeTrackRepository()),
+        trackRepositoryProvider.overrideWithValue(track),
         bodyProfileStoreProvider.overrideWithValue(InMemoryBodyProfileStore()),
         stepRepositoryProvider.overrideWithValue(FakeStepRepository()),
         userStatusRepositoryProvider.overrideWithValue(
@@ -219,6 +221,26 @@ void main() {
 
     final state = container.read(runSessionControllerProvider);
     expect(state, isA<RunRunning>(), reason: '세션이 살아 있어야 좌표가 쌓인다');
+    await unmount(tester, container);
+  });
+
+  testWidgets('⚠️ 매칭 첫 진입은 시작 확인을 기다리지 않는다 — 1.1.1 2절', (tester) async {
+    // 복구로 붙은 방은 서버가 좌표를 이미 받았을 수 있어 첫 확인을 기다린다
+    // (`TrackRecorder.bind`). **매칭 첫 진입은 그 자리가 아니다** — 서버에
+    // 아무것도 없는 것이 확실하다.
+    //
+    // 여기서도 기다리면 신호 없는 곳에서 시작한 러닝의 첫 구간이 **메모리에만
+    // 남아** 앱이 걷어내질 때 사라진다. 이 채널은 시작 확인을 흘리지 않으므로
+    // (`serverNumbers`가 빈 스트림이다) 기다린다면 좌표가 영영 안 나간다.
+    // ⚠️ **좌표 둘만 넣는다.** 셋을 넘기면 `TrackRecorder.holdLimit`(30초)에
+    // 닿아 기다리기를 포기하므로, 기다렸는지 안 기다렸는지 가릴 수 없다 —
+    // 이 그물은 좌표 사이가 10초다.
+    final container = await pumpRunning(tester);
+
+    await emit(tester, north(30));
+    await emit(tester, north(60));
+
+    expect(await track.count(1), greaterThan(0), reason: '저장소에 남아야 한다');
     await unmount(tester, container);
   });
 

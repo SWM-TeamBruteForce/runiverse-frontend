@@ -260,6 +260,140 @@ void main() {
   /// 멈추면 번호가 올라가는데 **그 뒤로 새 좌표가 들어오지 않는다.** 그래서
   /// 쌓인 좌표의 최대 구간 번호는 언제나 올리기 전 값이다 — 되살릴 근거가
   /// 저장된 번호뿐이다.
+  /// 복구로 붙었는데 **로컬에 흔적이 없을 때** — 1.1.1 2절.
+  ///
+  /// ## ⚠️ 러닝 중에 앱을 다시 설치한 경우다
+  ///
+  /// 저장소가 비어 있는데 서버는 이미 120번까지 받았을 수 있다. 그 상태로
+  /// 1번부터 매기면 **중복으로 버려지고**, 구간 번호 0은 서버가 아는 값보다
+  /// 작아 **배치가 통째로 거부된다**(`PAUSE_SEGMENT_DECREASED`) — 그 코드를
+  /// 받으면 앱이 러닝을 끝낸다(1.1.1 3절). 번호를 알기 전에 쓰는 것이 러닝
+  /// 하나를 날리는 길이다.
+  ///
+  /// **새 러닝은 기다리지 않는다.** 서버에 아무것도 없는 것이 확실하고,
+  /// 기다리면 신호 없는 곳에서 시작한 첫 구간이 메모리에만 남는다.
+  group('⚠️ 서버 번호를 기다릴 때', () {
+    test('흔적이 없으면 아직 쓰지 않는다', () async {
+      await recorder.bind(7, serverMayHaveTrack: true);
+
+      await recorder.add(geo(1));
+      await recorder.add(geo(2));
+
+      expect(repository.saved[7], isNull);
+      expect(recorder.pendingCount, 2);
+    });
+
+    test('⚠️ 확인을 받으면 그 번호부터 쓴다', () async {
+      await recorder.bind(7, serverMayHaveTrack: true);
+      await recorder.add(geo(1));
+      await recorder.add(geo(2));
+
+      await recorder.applyServerNumbers(
+        const RunNumbers(nextSequence: 120, pauseSegment: 2),
+      );
+
+      expect(repository.saved[7]?.map((p) => p.sequence), [120, 121]);
+      expect(repository.saved[7]?.map((p) => p.pauseSegment), [2, 2]);
+      expect(recorder.pendingCount, 0);
+    });
+
+    test('⚠️ 받은 것이 없다는 답이어도 그때 쓴다', () async {
+      // 새로 만들어진 매칭 방을 복구로 다시 붙는 경우다. 서버가 0을 주면
+      // 로컬 번호가 그대로 남아 1번부터 간다 — 기다린 것이 헛되지 않다.
+      await recorder.bind(7, serverMayHaveTrack: true);
+      await recorder.add(geo(1));
+
+      await recorder.applyServerNumbers(RunNumbers.serverZero);
+
+      expect(repository.saved[7]?.single.sequence, 1);
+    });
+
+    test('⚠️ 새 러닝은 기다리지 않는다', () async {
+      await recorder.bind(7);
+
+      await recorder.add(geo(1));
+
+      expect(repository.saved[7]?.single.sequence, 1);
+    });
+
+    test('⚠️ 쌓인 좌표가 있으면 기다리지 않는다', () async {
+      // 로컬 흔적이 서버보다 믿을 만한 근거다 — 그 번호 뒤부터 매기면 된다.
+      await repository.add(
+        7,
+        TrackPoint(
+          sequence: 40,
+          pauseSegment: 0,
+          latitude: 37.5,
+          longitude: 127.0,
+          accuracyMeters: 5,
+          speedMetersPerSecond: 2.8,
+          recordedAt: DateTime(2026, 8, 26, 19, 9),
+        ),
+      );
+
+      await recorder.bind(7, serverMayHaveTrack: true);
+      await recorder.add(geo(1));
+
+      expect(repository.saved[7]?.last.sequence, 41);
+    });
+
+    test('⚠️ 번호 행만 있어도 기다리지 않는다', () async {
+      // 좌표는 다 보내고 지워졌어도 번호는 남는다(`_write`가 먼저 남긴다).
+      await repository.saveNumbers(
+        7,
+        const RunNumbers(nextSequence: 55, pauseSegment: 1),
+      );
+
+      await recorder.bind(7, serverMayHaveTrack: true);
+      await recorder.add(geo(1));
+
+      expect(repository.saved[7]?.single.sequence, 55);
+    });
+
+    test('⚠️ 너무 오래 기다리지는 않는다', () async {
+      // 신호 없는 곳에서는 확인이 안 온다. 메모리에만 있는 구간이 길어질수록
+      // 앱이 걷어내질 때 잃는 것이 커진다 — 한도에 닿으면 로컬 번호로 쓴다.
+      await recorder.bind(7, serverMayHaveTrack: true);
+      await recorder.add(geo(1));
+      expect(repository.saved[7], isNull);
+
+      await recorder.add(geo(1 + TrackRecorder.holdLimit.inSeconds + 1));
+
+      expect(repository.saved[7]?.map((p) => p.sequence), [1, 2]);
+      expect(recorder.pendingCount, 0);
+    });
+
+    test('⚠️ 한도 안에서는 계속 기다린다', () async {
+      await recorder.bind(7, serverMayHaveTrack: true);
+      await recorder.add(geo(1));
+
+      await recorder.add(geo(1 + TrackRecorder.holdLimit.inSeconds - 1));
+
+      expect(repository.saved[7], isNull);
+    });
+
+    test('⚠️ 끝낼 때는 들고 있던 것을 쓴다', () async {
+      // 그대로 끝내면 그 구간이 **저장소에도 서버에도 없다.** 거부될 수 있는
+      // 번호로라도 남기는 쪽이 낫다 — 거부는 1.1.1 3절이 받는다.
+      await recorder.bind(7, serverMayHaveTrack: true);
+      await recorder.add(geo(1));
+      await recorder.add(geo(2));
+
+      await recorder.stopWaiting();
+
+      expect(repository.saved[7]?.map((p) => p.sequence), [1, 2]);
+    });
+
+    test('기다리는 중이 아니면 끝낼 때 아무 일도 없다', () async {
+      await recorder.bind(7);
+      await recorder.add(geo(1));
+
+      await recorder.stopWaiting();
+
+      expect(repository.saved[7]?.length, 1);
+    });
+  });
+
   group('⚠️ 번호 되살리기', () {
     test('저장된 구간 번호를 이어 쓴다', () async {
       repository.numbered[7] = const RunNumbers(
