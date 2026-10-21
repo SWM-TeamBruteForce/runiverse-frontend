@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/record/data/room_result_dto.dart';
+import 'package:runiverse/features/record/domain/run_detail.dart';
 
 /// 결과 두 API를 합칠 때 **파티원을 버리지 않는가.**
 ///
@@ -53,9 +54,12 @@ void main() {
     'runningRoomId': 125,
     'startedAt': '2026-09-17T19:00:00',
     'finishedAt': '2026-09-17T19:30:00',
+    // ⚠️ **한 겹이 더 있다**(1.1.1). 끊긴 곳이 없어도 바깥 배열은 있다.
     'routes': [
-      [37.5, 127.0],
-      [37.5001, 127.0001],
+      [
+        [37.5, 127.0],
+        [37.5001, 127.0001],
+      ],
     ],
     'players': [
       player('u-2', '이서연'),
@@ -173,26 +177,79 @@ void main() {
     expect(detail.tableSplitsOf('u-3'), isEmpty);
   });
 
-  test('⚠️ 한 줄로 온 경로를 벌어진 자리에서 끊는다', () {
-    // ⚠️ 서버는 정지 구간·오염 좌표를 **뺀** 경로를 한 줄로 준다. 그대로
-    // 한 토막으로 넘기면 빠진 자리가 직선으로 이어져 **가 본 적 없는 길이
-    // 그려진다**(가이드 4.2).
-    final detail = RoomResultDto.merge(
-      results: {
-        ...results,
-        'routes': [
-          [37.5, 127.0],
-          [37.50009, 127.0], // 약 10m
-          [37.5010, 127.0], // 약 100m 점프 — 여기서 끊긴다
-          [37.50109, 127.0],
-        ],
-      },
+  group('경로 조각', () {
+    /// ⚠️ **서버가 나눠 준 대로 쓴다.** 1.1.0까지는 앱이 30m 넘게 벌어진 자리를
+    /// 찾아 끊었는데, 이제 일시정지·관측 공백·GPS 튐을 **서버가 경계로 보고
+    /// 나눠 준다.** 앱이 또 끊으면 서버가 이어도 된다고 판단한 자리까지
+    /// 갈라진다.
+    RunDetail parsed(Object? routes) => RoomResultDto.merge(
+      results: {...results, 'routes': routes},
       splitResults: splitResults,
     );
 
-    expect(detail.track, hasLength(2));
-    expect(detail.track.first, hasLength(2));
-    expect(detail.track.last, hasLength(2));
+    test('⚠️ 조각 수와 점을 그대로 가져온다', () {
+      final detail = parsed([
+        [
+          [37.5, 127.0],
+          [37.50009, 127.0],
+        ],
+        [
+          [37.5010, 127.0],
+          [37.50109, 127.0],
+        ],
+      ]);
+
+      expect(detail.track, hasLength(2));
+      expect(detail.track.first, hasLength(2));
+      expect(detail.track.last, hasLength(2));
+    });
+
+    test('⚠️ 앱이 더 끊지 않는다 — 멀리 떨어진 점도 한 조각이다', () {
+      // 100m 넘게 벌어져 있어도 서버가 한 조각으로 줬으면 한 조각이다.
+      // 고치기 전에는 여기서 둘로 갈라졌다.
+      final detail = parsed([
+        [
+          [37.5, 127.0],
+          [37.5010, 127.0],
+        ],
+      ]);
+
+      expect(detail.track, hasLength(1));
+      expect(detail.track.single, hasLength(2));
+    });
+
+    test('⚠️ 점이 하나인 조각도 버리지 않는다', () {
+      // 끊긴 경계에 걸린 구간이 그렇게 온다. 버리면 그 자리가 통째로 빈다.
+      // 그리는 쪽이 선을 긋지 않을 뿐이다.
+      final detail = parsed([
+        [
+          [37.5, 127.0],
+        ],
+        [
+          [37.5010, 127.0],
+          [37.50109, 127.0],
+        ],
+      ]);
+
+      expect(detail.track, hasLength(2));
+      expect(detail.track.first, hasLength(1));
+    });
+
+    test('⚠️ 옛 모양(점 목록 하나)이 오면 빈 경로다', () {
+      // 조용히 틀리지 않게 한다. 한 겹을 덜 벗기면 `point[0]`이 숫자라
+      // 좌표로 읽히지 않는다 — 엉뚱한 곳에 그려지는 것보다 비는 편이 낫다.
+      final detail = parsed([
+        [37.5, 127.0],
+        [37.5001, 127.0001],
+      ]);
+
+      expect(detail.track.expand((segment) => segment), isEmpty);
+    });
+
+    test('경로가 없으면 빈 목록이다', () {
+      expect(parsed(null).track, isEmpty);
+      expect(parsed(const []).track, isEmpty);
+    });
   });
 
   test('솔로는 나 하나뿐이고 파티원은 없다', () {

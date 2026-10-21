@@ -1,4 +1,3 @@
-import 'package:runiverse/features/record/domain/route_segments.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/domain/split_aggregator.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
@@ -91,28 +90,46 @@ abstract final class RoomResultDto {
   static Duration? _seconds(Object? value) =>
       value is int ? Duration(seconds: value) : null;
 
-  /// ⚠️ **위도가 먼저다**(`[[위도, 경도], …]`). GeoJSON과 반대라 뒤집어
-  /// 읽으면 경로가 엉뚱한 곳에 그려진다 — 명세가 따로 못 박은 지점이다.
+  /// 경로. **서버가 이미 조각으로 나눠 준다**(1.1.1).
+  ///
+  /// ## ⚠️ 한 겹이 더 있다
+  ///
+  /// 1.1.0까지는 `[[위도, 경도], …]` 점 목록 하나였고, 앱이 30m 넘게 벌어진
+  /// 자리를 찾아 끊었다. 이제 `[[[위도, 경도], …], …]`로 **조각마다 배열
+  /// 하나**다. 끊긴 곳이 없어도 바깥 배열은 있다(조각 하나).
+  ///
+  /// 한 겹을 덜 벗기면 `point[0]`이 좌표가 아니라 **점 목록**이라 `as num`에서
+  /// 죽는다. 반대로 옛 모양이 그대로 오면 `point[0]`이 숫자라 점 목록으로
+  /// 읽히지 않는다 — 어느 쪽이든 조용히 틀리지 않고 빈 경로가 된다.
+  ///
+  /// ## ⚠️ 위도가 먼저다
+  ///
+  /// `[위도, 경도]`다. GeoJSON과 반대라 뒤집어 읽으면 경로가 엉뚱한 곳에
+  /// 그려진다 — 명세가 따로 못 박은 지점이다.
+  ///
+  /// ## 앱이 더 끊지 않는다
+  ///
+  /// 일시정지·관측 공백·GPS 튐을 **서버가 경계로 보고 나눈다.** 앱이 30m 규칙으로
+  /// 또 끊으면 서버가 이어도 된다고 판단한 자리까지 갈라진다.
   ///
   /// 본인 기록이 없으면 `null`이 온다(빈 배열이 아니다).
   static List<List<GeoPoint>> _track(Object? routes) {
     if (routes is! List || routes.isEmpty) return const [];
 
-    final points = <GeoPoint>[
-      for (final point in routes)
-        if (point is List && point.length >= 2)
-          GeoPoint(
-            latitude: (point[0] as num).toDouble(),
-            longitude: (point[1] as num).toDouble(),
-            // 서버 경로에 시각이 없다. 지도만 그리므로 쓰이지 않는다.
-            recordedAt: DateTime.fromMillisecondsSinceEpoch(0),
-          ),
+    return [
+      for (final segment in routes)
+        if (segment is List)
+          [
+            for (final point in segment)
+              if (point is List && point.length >= 2)
+                GeoPoint(
+                  latitude: (point[0] as num).toDouble(),
+                  longitude: (point[1] as num).toDouble(),
+                  // 서버 경로에 시각이 없다. 지도만 그리므로 쓰이지 않는다.
+                  recordedAt: DateTime.fromMillisecondsSinceEpoch(0),
+                ),
+          ],
     ];
-
-    // ⚠️ **한 줄로 왔어도 한 줄로 그리지 않는다.** 서버가 정지 구간과 오염
-    // 좌표를 빼고 주므로 빠진 자리가 있고, 그 양 끝을 이으면 가 본 적 없는
-    // 길에 선이 그려진다(가이드 4.2).
-    return RouteSegments.split(points);
   }
 
   /// 18번의 `splits[]`를 **사람별로** 가른다.
