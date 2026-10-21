@@ -58,9 +58,35 @@ jobs:
             echo "flutter=$(jq -r .flutter .fvmrc)"
           } >> "$GITHUB_OUTPUT"
 
+  check:
+    name: 검사
+    needs: prepare
+    if: needs.prepare.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ needs.prepare.outputs.flutter }}
+          channel: stable
+          cache: true
+
+      # 폴더를 정해 준다. pub get이 build/ios/SourcePackages에 플러그인 사본을 만들어, 통째로 돌리면 그것까지 검사해 실패한다
+      - name: Analyze
+        run: flutter analyze lib test integration_test
+
+      - name: Test
+        run: flutter test
+
   android:
     name: Android 배포
-    needs: prepare
+    needs: [prepare, check] # 검사가 실패하면 올리지 않는다
     if: needs.prepare.outputs.build == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -164,7 +190,7 @@ jobs:
 
   ios:
     name: iOS 배포
-    needs: prepare
+    needs: [prepare, check]
     if: needs.prepare.outputs.build == 'true'
     runs-on: macos-26 # App Store는 Xcode 26(iOS 26 SDK) 이상으로 빌드한 앱만 받는다
     timeout-minutes: 60
