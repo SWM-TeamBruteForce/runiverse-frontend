@@ -26,6 +26,8 @@ import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
+import 'package:runiverse/features/session/domain/party_board.dart';
+import 'package:runiverse/features/session/presentation/party_provider.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
@@ -168,6 +170,45 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
     }
   }
+
+  /// 멈춘 것이 **파티원 장까지 닿는가.**
+  ///
+  /// ⚠️ 문구 자체는 `run_party_view_test`가 지킨다. 여기서 보는 것은 **화면이
+  /// 그 사실을 넘겨주는가**다 — 넘기지 않으면 카드는 서 있는 사람에게
+  /// "곁에서 달리는 중"이라고 계속 말한다.
+  group('⚠️ 멈추면 콤보가 끊긴다고 알린다', () {
+    testWidgets('내 카드가 그렇게 말한다', (tester) async {
+      final container = await pumpRunning(tester);
+      container.read(partyProvider.notifier).setRoster(const [
+        PartyMember(userId: 'u-1', nickname: '나'),
+        PartyMember(userId: 'u-2', nickname: '옆사람'),
+      ], myUserId: 'u-1');
+
+      await tapPause(tester, AppStrings.runPauseCta);
+      // 파티원 장으로 넘긴다. **손가락을 왼쪽으로** 민다.
+      await tester.drag(find.byType(PageView), const Offset(-500, 0));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text(AppStrings.runPartyComboPaused), findsOneWidget);
+      await unmount(tester, container);
+    });
+
+    testWidgets('달리는 중에는 뜨지 않는다', (tester) async {
+      final container = await pumpRunning(tester);
+      container.read(partyProvider.notifier).setRoster(const [
+        PartyMember(userId: 'u-1', nickname: '나'),
+        PartyMember(userId: 'u-2', nickname: '옆사람'),
+      ], myUserId: 'u-1');
+
+      await tester.drag(find.byType(PageView), const Offset(-500, 0));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text(AppStrings.runPartyComboPaused), findsNothing);
+      await unmount(tester, container);
+    });
+  });
 
   group('⚠️ 멈추면 서버에도 알린다 — 가이드 2.1', () {
     testWidgets('`RUNNING_PAUSE`를 보낸다', (tester) async {

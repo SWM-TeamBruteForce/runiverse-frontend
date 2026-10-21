@@ -1047,6 +1047,19 @@ abstract final class AppStrings {
   /// 콤보 중인 내 카드 아래 줄과 임팩트 덮개의 한 줄.
   static String runPartyBeside(String name) => '$name 곁에서 달리는 중';
 
+  /// 멈춰 있는 동안 내 카드 아래 줄.
+  ///
+  /// ## ⚠️ 이 줄이 없으면 화면이 거짓말을 한다
+  ///
+  /// 콤보는 두 사람이 30m 안에서 **함께 달리는** 동안 이어진다. 멈추면 내
+  /// 진행이 멈추므로 서버가 콤보 판정에서 나를 뺀다 — 그런데 그 사실이
+  /// 화면에 닿기까지 시간이 걸려, 서 있는 사람에게 [runPartyBeside]가
+  /// **"곁에서 달리는 중"이라고 말하고 있었다.**
+  ///
+  /// 멈추는 것을 막지는 않는다(건널목·신호가 있다). **대가를 알려 주고
+  /// 고르게 한다** — 다시 달리기는 한 번 누르면 된다.
+  static const runPartyComboPaused = '일시정지하면 콤보가 끊겨요';
+
   /// `나보다 160m 앞` / `나보다 120m 뒤` / `나란히` — 상대 카드 아래 줄.
   static String runPartyGapLine(int meters) => switch (meters) {
     > 0 => '나보다 ${meters}m 앞',

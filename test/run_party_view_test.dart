@@ -38,6 +38,7 @@ void main() {
     PartyBoard board, {
     int? target = 5000,
     DateTime? now,
+    bool paused = false,
   }) => tester.pumpWidget(
     MaterialApp(
       theme: AppTheme.dark(),
@@ -47,6 +48,7 @@ void main() {
           myPace: const Duration(minutes: 5, seconds: 38),
           targetDistanceMeters: target,
           now: now,
+          paused: paused,
         ),
       ),
     ),
@@ -234,6 +236,65 @@ void main() {
 
     expect(find.text(AppStrings.runPartyBestCombo(7)), findsNWidgets(2));
     expect(find.text(AppStrings.runPartyComboHint), findsOneWidget);
+  });
+
+  /// 멈춰 있는 동안 내 카드가 **무엇이라고 말하는가.**
+  ///
+  /// ## ⚠️ 여기가 거짓말을 하던 자리다
+  ///
+  /// 콤보는 두 사람이 30m 안에서 **함께 달리는** 동안 이어진다. 멈추면 서버가
+  /// 콤보 판정에서 나를 빼는데, 통지는 10초마다 오고 판정에는 그보다 더
+  /// 걸린다 — 그 사이 서 있는 사람에게 카드가 **"곁에서 달리는 중"이라고
+  /// 말했다.**
+  group('⚠️ 멈춰 있으면 콤보가 끊긴다고 말한다', () {
+    ComboPeer peer(int count) => ComboPeer(
+      userId: 'u-1',
+      gapMeters: 12,
+      comboCount: count,
+      maxComboCount: count,
+    );
+
+    PartyBoard boardWith({required bool combo}) {
+      final base = const PartyBoard()
+          .withRoster(everyone.take(2).toList(), myUserId: 'me-1')
+          .withProgress(progress('u-1', 1200));
+      return combo ? base.withCombos(RunCombo([peer(12)])) : base;
+    }
+
+    testWidgets('콤보 중에 멈추면 곁에서 달린다고 하지 않는다', (tester) async {
+      await pump(tester, boardWith(combo: true), paused: true);
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runPartyComboPaused), findsOneWidget);
+      expect(find.text(AppStrings.runPartyBeside('김도윤')), findsNothing);
+    });
+
+    testWidgets('⚠️ 콤보가 없을 때도 같은 말을 한다', (tester) async {
+      // 서 있는 동안에는 "30m 안으로 붙으면 콤보가 시작돼요"도 지금 할 수
+      // 있는 이야기가 아니다.
+      await pump(tester, boardWith(combo: false), paused: true);
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runPartyComboPaused), findsOneWidget);
+      expect(find.text(AppStrings.runPartyComboHint), findsNothing);
+    });
+
+    testWidgets('⚠️ 배지의 콤보 수는 그대로 둔다', (tester) async {
+      // 앱이 끊겼다고 단정하면 **아직 살아 있는 콤보를 지워 보인다** —
+      // 몇 초 멈췄다 다시 달리면 그대로 이어진다. 끊겼다는 판정은 서버 몫이다.
+      await pump(tester, boardWith(combo: true), paused: true);
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runPartyCombo(12)), findsNWidgets(2));
+    });
+
+    testWidgets('달리는 중에는 뜨지 않는다', (tester) async {
+      await pump(tester, boardWith(combo: true), paused: false);
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runPartyComboPaused), findsNothing);
+      expect(find.text(AppStrings.runPartyBeside('김도윤')), findsOneWidget);
+    });
   });
 
   testWidgets('⚠️ 아무도 없어도 내 카드는 남고 빈 문구가 붙는다', (tester) async {
