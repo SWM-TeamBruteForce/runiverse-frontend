@@ -3,9 +3,7 @@
 name: Dev Release
 
 on:
-  workflow_dispatch: # Actions 화면의 Run workflow 버튼
-  schedule:
-    - cron: '0 18 * * *' # 매일 03:00 KST, 지난 하루 dev에 커밋이 있을 때만 빌드
+  workflow_dispatch: # Actions 화면의 Run workflow 버튼. 브랜치는 dev를 고른다
 
 concurrency:
   group: dev-release
@@ -22,29 +20,22 @@ jobs:
     name: 준비
     runs-on: ubuntu-24.04
     outputs:
-      build: ${{ steps.changes.outputs.build }}
       code: ${{ steps.version.outputs.code }}
       commit: ${{ steps.version.outputs.commit }}
       sha: ${{ steps.version.outputs.sha }}
       flutter: ${{ steps.version.outputs.flutter }}
     steps:
-      - name: Checkout dev
-        uses: actions/checkout@v6
-        with:
-          ref: dev
-          fetch-depth: 50
-
-      - name: 새 커밋 확인
-        id: changes
+      - name: dev 브랜치인지 확인
         run: |
-          if [ "${{ github.event_name }}" != "schedule" ]; then
-            echo "build=true" >> "$GITHUB_OUTPUT"
-          elif [ -n "$(git log -1 --since='25 hours ago' --format=%H)" ]; then
-            echo "build=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "지난 하루 dev에 새 커밋이 없어 건너뛴다"
-            echo "build=false" >> "$GITHUB_OUTPUT"
+          # 다른 브랜치에서 누르면 그 브랜치 코드가 dev 앱으로 나간다
+          if [ "$GITHUB_REF" != "refs/heads/dev" ]; then
+            echo "::error::dev 브랜치에서만 실행한다 ($GITHUB_REF_NAME)"
+            exit 1
           fi
+
+      # Run workflow를 누른 순간의 dev 커밋을 빌드한다
+      - name: Checkout
+        uses: actions/checkout@v6
 
       - name: 버전 코드 정하기
         id: version
@@ -61,7 +52,6 @@ jobs:
   check:
     name: 검사
     needs: prepare
-    if: needs.prepare.outputs.build == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -87,7 +77,6 @@ jobs:
   android:
     name: Android 배포
     needs: [prepare, check] # 검사가 실패하면 올리지 않는다
-    if: needs.prepare.outputs.build == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: dev # Secret·Variable은 dev 환경에 있다. 이름은 config/*.json 키와 같다
@@ -191,7 +180,6 @@ jobs:
   ios:
     name: iOS 배포
     needs: [prepare, check]
-    if: needs.prepare.outputs.build == 'true'
     runs-on: macos-26 # App Store는 Xcode 26(iOS 26 SDK) 이상으로 빌드한 앱만 받는다
     timeout-minutes: 60
     environment: dev

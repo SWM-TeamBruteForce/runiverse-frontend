@@ -58,13 +58,13 @@ android/app/src/prod/google-services.json    ios/Runner/Firebase/prod/GoogleServ
 `.github/workflows/dev-release.yml`이 dev 브랜치의 같은 커밋을 빌드해 Android는 Play 내부 테스트,
 iOS는 TestFlight에 올린다. 두 job은 따로 돌아 한쪽이 실패해도 다른 쪽은 올라간다.
 
-- **지금 올리기**: Actions → Dev Release → Run workflow. 10~15분 뒤 테스터 폰에 업데이트가 온다
+- **올리기**: Actions → Dev Release → Run workflow(브랜치는 `dev`, 다른 브랜치면 멈춘다). 테스트가 필요한 사람이 누르고 두 플랫폼 결과까지 확인한다. 10~15분 뒤 테스터 폰에 업데이트가 온다
   (iOS는 업로드 뒤 TestFlight 처리가 끝나면 내부 그룹 `완전탐색`에 자동 배포된다).
-- **매일 03:00 KST**: 지난 하루 dev에 커밋이 있으면 자동으로 돈다.
 - 머지마다 돌리지 않는다. 하루에 머지가 십수 번 몰려 테스터 앱이 계속 바뀐다.
+- 같은 커밋도 누를 때마다 새 번호로 다시 올라간다. 서버 주소나 키만 바꿨을 때도 그냥 누르면 된다.
 - 버전 코드(iOS 빌드 번호)는 실행 번호(`github.run_number`)다. 출시명 `3 (dev a1b2c3d)`의 해시가 들어간 커밋이다.
   처음 손으로 올린 1~3(Play·TestFlight 둘 다)은 첫 세 실행을 취소해 건너뛰었다(취소한 실행도 번호를 쓴다).
-- **dev 앱은 손으로 올리지 않는다.** 손으로 올린 번호를 CI가 따라잡을 때까지 업로드가 거절된다. 급하면 Run workflow를 누른다.
+- **dev 앱은 스토어에 직접 올리지 않고 Run workflow로만 올린다.** 손으로 올린 번호를 CI가 따라잡을 때까지 업로드가 거절된다.
 - **Re-run은 실행 번호가 같아 버전 코드가 겹친다.** 한쪽만 실패했으면 Re-run failed jobs로 그쪽만 다시 돌린다.
   이미 올라간 쪽까지 다시 돌리면 번호가 겹쳐 거절된다. 둘 다 새로 올리려면 Run workflow로 새로 돌린다.
 - 빌드 전에 `flutter analyze`·`flutter test`를 돌린다. 실패하면 두 플랫폼 다 빌드하지 않는다.
