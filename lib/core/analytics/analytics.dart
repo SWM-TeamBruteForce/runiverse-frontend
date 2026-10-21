@@ -72,10 +72,29 @@ abstract interface class Analytics {
   Future<void> runStart({required String runType});
 
   /// `RUNNING_FINISHED` 를 처음 받았을 때. [runType] 은 `match` · `solo`.
-  Future<void> runFinish({required String runType});
+  ///
+  /// [early] 는 **본인이 목표 전에 끝내기로 했는가**(`forced=true`)다. 서버가
+  /// 그 시점 거리로 완주 처리할 수도 있어서 "완주 못 함"과 같은 뜻은 아니다.
+  /// 서버가 끝낸 경우는 `false` 다.
+  Future<void> runFinish({required String runType, required bool early});
 
   /// 탈퇴 성공.
   Future<void> withdraw();
+
+  /// 러닝 준비 중 권한을 확인한 결과. 이미 허용돼 창이 안 떴어도 남긴다.
+  ///
+  /// [permission] 은 `location` · `activity` · `notification`, [result] 는
+  /// `granted` · `denied` · `denied_forever` · `service_disabled`(위치만).
+  Future<void> permissionResult({
+    required String permission,
+    required String result,
+  });
+
+  /// 이후 기록에 회원 ID 를 붙인다. 로그아웃·탈퇴하면 `null` 로 뗀다.
+  ///
+  /// 이벤트가 아니라 **이벤트에 붙는 표식**이다. GA 와 Crashlytics 에 같은
+  /// 값을 건다 — 오류를 겪은 회원의 이용 흐름을 이어 보려고.
+  Future<void> setUserId(String? userId);
 }
 
 /// 아무 데도 보내지 않는 구현. **이것이 기본값이다.**
@@ -117,10 +136,22 @@ class NoopAnalytics implements Analytics {
   Future<void> runStart({required String runType}) async {}
 
   @override
-  Future<void> runFinish({required String runType}) async {}
+  Future<void> runFinish({
+    required String runType,
+    required bool early,
+  }) async {}
 
   @override
   Future<void> withdraw() async {}
+
+  @override
+  Future<void> permissionResult({
+    required String permission,
+    required String result,
+  }) async {}
+
+  @override
+  Future<void> setUserId(String? userId) async {}
 }
 
 /// 화면과 provider 가 보는 것.

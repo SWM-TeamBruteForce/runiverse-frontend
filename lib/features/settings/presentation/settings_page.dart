@@ -137,12 +137,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   // ── 약관 ──────────────────────────────────────────────────
 
-  /// 이용약관 문서는 아직 없다. 법정 필수가 아니라 신고·제재 기능을 붙일 때
-  /// 만든다. 그동안 이 행은 눌러도 "준비 중"이 뜬다 —
-  /// [openLegalDocument]가 주소 유무를 보고 가른다.
-  ///
-  /// 행을 감추지 않는 이유는, **약관을 볼 수 있어야 한다는 사실 자체가 약속**이라
-  /// 자리를 비워두면 나중에 붙이는 것을 잊기 때문이다.
+  /// 이용약관. 가입 화면이 필수 동의로 받은 문서라 설정에서도 언제든 다시
+  /// 볼 수 있어야 한다.
   void _openTerms() => unawaited(_openDocument(LegalLinks.terms));
 
   Future<void> _openDocument(String url) => openLegalDocument(context, url);

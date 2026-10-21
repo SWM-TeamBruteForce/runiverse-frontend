@@ -22,7 +22,8 @@ import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 /// 서버가 401을 돌려준다** — 앱에서는 성공처럼 보여서 찾기 어렵다.
 ///
 /// Android 클라이언트(패키지명 + SHA-1)는 콘솔에 등록만 돼 있으면 되고
-/// 코드에는 들어가지 않는다.
+/// 코드에는 들어가지 않는다. iOS 클라이언트 ID는 들어간다 — `main.dart`가 iOS에서
+/// 함께 넘긴다(빠지면 웹 ID가 버려져 401).
 class GoogleCodeSource implements OauthCodeSource {
   const GoogleCodeSource();
 

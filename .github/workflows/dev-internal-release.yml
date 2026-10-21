@@ -1,0 +1,326 @@
+# dev 앱(com.runiverse.app.dev)을 빌드해 Play 내부 테스트 트랙과 TestFlight에 올린다.
+# 머지마다 돌리지 않는다 — 하루에 머지가 십수 번 몰려 테스터 앱이 계속 바뀐다.
+name: Dev Internal Release
+
+on:
+  workflow_dispatch: # Actions 화면의 Run workflow 버튼
+  schedule:
+    - cron: '0 18 * * *' # 매일 03:00 KST, 지난 하루 dev에 커밋이 있을 때만 빌드
+
+concurrency:
+  group: dev-internal-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  PACKAGE_NAME: com.runiverse.app.dev
+
+jobs:
+  prepare:
+    name: 빌드할 커밋 정하기
+    runs-on: ubuntu-24.04
+    outputs:
+      build: ${{ steps.changes.outputs.build }}
+      code: ${{ steps.version.outputs.code }}
+      commit: ${{ steps.version.outputs.commit }}
+      sha: ${{ steps.version.outputs.sha }}
+      flutter: ${{ steps.version.outputs.flutter }}
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v6
+        with:
+          ref: dev
+          fetch-depth: 50
+
+      - name: 새 커밋 확인
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          elif [ -n "$(git log -1 --since='25 hours ago' --format=%H)" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "지난 하루 dev에 새 커밋이 없어 건너뛴다"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 버전 코드 정하기
+        id: version
+        run: |
+          # 실행 번호를 그대로 쓴다. 손으로 올린 1~3은 첫 세 실행을 취소해 건너뛰었다(Play·TestFlight 둘 다)
+          # 두 플랫폼이 같은 커밋을 빌드하도록 여기서 정한 커밋을 넘긴다
+          {
+            echo "code=${{ github.run_number }}"
+            echo "commit=$(git rev-parse HEAD)"
+            echo "sha=$(git rev-parse --short HEAD)"
+            echo "flutter=$(jq -r .flutter .fvmrc)"
+          } >> "$GITHUB_OUTPUT"
+
+  android:
+    name: Android dev 빌드 → 내부 테스트 업로드
+    needs: prepare
+    if: needs.prepare.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: dev # Secret·Variable은 dev 환경에 있다. 이름은 config/*.json 키와 같다
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ needs.prepare.outputs.flutter }}
+          channel: stable
+          cache: true
+
+      - name: 설정·서명 파일 만들기
+        env:
+          KEYSTORE_BASE64: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+          NAVER_MAP_CLIENT_ID: ${{ secrets.NAVER_MAP_CLIENT_ID }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ secrets.GOOGLE_SERVER_CLIENT_ID }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KAKAO_NATIVE_APP_KEY NAVER_MAP_CLIENT_ID GOOGLE_SERVER_CLIENT_ID GOOGLE_SERVICES_JSON API_BASE_URL; do
+            if [ -z "${!name}" ]; then echo "::error::$name이 비어 있다"; exit 1; fi
+          done
+
+          KEYSTORE="$RUNNER_TEMP/upload-keystore-dev.jks"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE"
+          cat > android/key-dev.properties <<EOF
+          storeFile=$KEYSTORE
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=upload-dev
+          keyPassword=$KEYSTORE_PASSWORD
+          EOF
+
+          jq -n \
+            --arg api "$API_BASE_URL" \
+            --arg naver "$NAVER_MAP_CLIENT_ID" \
+            --arg kakao "$KAKAO_NATIVE_APP_KEY" \
+            --arg google "$GOOGLE_SERVER_CLIENT_ID" \
+            '{API_BASE_URL: $api, NAVER_MAP_CLIENT_ID: $naver, KAKAO_NATIVE_APP_KEY: $kakao, GOOGLE_SERVER_CLIENT_ID: $google}' \
+            > config/dev.json
+
+          # Firebase(runiverse-dev) 설정. dev flavor만 읽는 자리에 둔다
+          mkdir -p android/app/src/dev
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/src/dev/google-services.json
+
+      - name: Build app bundle
+        env:
+          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+        run: |
+          flutter build appbundle --release --flavor dev \
+            --build-number=${{ needs.prepare.outputs.code }} \
+            --dart-define-from-file=config/dev.json \
+            -PKAKAO_NATIVE_APP_KEY="$KAKAO_NATIVE_APP_KEY"
+
+      - name: 산출물 검증
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          UPLOAD_CERT_SHA1: ${{ vars.UPLOAD_CERT_SHA1 }} # 업로드 키의 공개 지문. 다른 키로 서명됐으면 멈춘다
+        run: |
+          set -euo pipefail
+          [ -n "$UPLOAD_CERT_SHA1" ] || { echo "::error::UPLOAD_CERT_SHA1이 비어 있다"; exit 1; }
+          AAB=build/app/outputs/bundle/devRelease/app-dev-release.aab
+          MANIFEST=$(find build/app/intermediates/merged_manifest/devRelease -name AndroidManifest.xml | head -1)
+
+          grep -q "package=\"$PACKAGE_NAME\"" "$MANIFEST" || { echo "::error::패키지가 $PACKAGE_NAME이 아니다"; exit 1; }
+          if grep -q 'android:debuggable="true"' "$MANIFEST"; then echo "::error::debuggable 빌드다"; exit 1; fi
+
+          SHA1=$(keytool -printcert -jarfile "$AAB" | awk '/SHA1:/ && !found {print $2; found=1}')
+          [ "$SHA1" = "$UPLOAD_CERT_SHA1" ] || { echo "::error::dev 업로드 키로 서명되지 않았다 ($SHA1)"; exit 1; }
+
+          unzip -q -o "$AAB" 'base/lib/arm64-v8a/libapp.so' -d "$RUNNER_TEMP/aab"
+          # 파일로 받아 검사한다. pipefail에서 `strings | grep -q`는 grep이 먼저 끝나 SIGPIPE(141)로 실패한다
+          STRINGS="$RUNNER_TEMP/libapp-strings.txt"
+          strings "$RUNNER_TEMP/aab/base/lib/arm64-v8a/libapp.so" > "$STRINGS"
+          grep -qF "$API_BASE_URL" "$STRINGS" || { echo "::error::dev 서버 주소가 앱에 없다"; exit 1; }
+          if grep -qF 'api.runiverseapp.com' "$STRINGS"; then echo "::error::운영 주소가 들어갔다"; exit 1; fi
+
+      - name: Upload to Play internal testing
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ env.PACKAGE_NAME }}
+          releaseFiles: build/app/outputs/bundle/devRelease/app-dev-release.aab
+          releaseName: ${{ needs.prepare.outputs.code }} (dev ${{ needs.prepare.outputs.sha }})
+          track: internal
+          status: completed
+
+  ios:
+    name: iOS dev 빌드 → TestFlight 업로드
+    needs: prepare
+    if: needs.prepare.outputs.build == 'true'
+    runs-on: macos-26 # App Store는 Xcode 26(iOS 26 SDK) 이상으로 빌드한 앱만 받는다
+    timeout-minutes: 60
+    environment: dev
+    env:
+      TEAM_ID: L3W3PJTF9B
+      ARCHIVE: build/ios/archive/Runner.xcarchive
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ needs.prepare.outputs.flutter }}
+          channel: stable
+          cache: true
+
+      - name: 설정·서명 파일 만들기
+        env:
+          DIST_CERT_BASE64: ${{ secrets.IOS_DIST_CERT_BASE64 }}
+          DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+          NAVER_MAP_CLIENT_ID: ${{ secrets.NAVER_MAP_CLIENT_ID }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ secrets.GOOGLE_SERVER_CLIENT_ID }}
+          GOOGLE_IOS_CLIENT_ID: ${{ secrets.GOOGLE_IOS_CLIENT_ID }}
+          GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          for name in DIST_CERT_BASE64 DIST_CERT_PASSWORD PROFILE_BASE64 ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 KAKAO_NATIVE_APP_KEY NAVER_MAP_CLIENT_ID GOOGLE_SERVER_CLIENT_ID GOOGLE_IOS_CLIENT_ID GOOGLE_SERVICE_INFO_PLIST API_BASE_URL; do
+            if [ -z "${!name}" ]; then echo "::error::$name이 비어 있다"; exit 1; fi
+          done
+
+          jq -n \
+            --arg api "$API_BASE_URL" \
+            --arg naver "$NAVER_MAP_CLIENT_ID" \
+            --arg kakao "$KAKAO_NATIVE_APP_KEY" \
+            --arg google "$GOOGLE_SERVER_CLIENT_ID" \
+            --arg googleIos "$GOOGLE_IOS_CLIENT_ID" \
+            '{API_BASE_URL: $api, NAVER_MAP_CLIENT_ID: $naver, KAKAO_NATIVE_APP_KEY: $kakao, GOOGLE_SERVER_CLIENT_ID: $google, GOOGLE_IOS_CLIENT_ID: $googleIos}' \
+            > config/dev.json
+
+          # Firebase(runiverse-dev) 설정. Copy Firebase Config 빌드 단계가 여기서 집는다
+          mkdir -p ios/Runner/Firebase/dev
+          printf '%s' "$GOOGLE_SERVICE_INFO_PLIST" > ios/Runner/Firebase/dev/GoogleService-Info.plist
+
+          # 배포 인증서는 이 실행에서만 쓰는 키체인에 넣는다(러너는 job이 끝나면 버려진다)
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 16)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          echo "$DIST_CERT_BASE64" | base64 -d > "$RUNNER_TEMP/dist.p12"
+          security import "$RUNNER_TEMP/dist.p12" -k "$KEYCHAIN" -P "$DIST_CERT_PASSWORD" -t cert -f pkcs12 -A
+          rm "$RUNNER_TEMP/dist.p12"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" "$HOME/Library/Keychains/login.keychain-db"
+
+          # dev 앱 App Store 배포 프로파일. Xcode가 찾는 두 자리(Xcode 16 전후)에 다 둔다
+          PROFILE="$RUNNER_TEMP/dev.mobileprovision"
+          echo "$PROFILE_BASE64" | base64 -d > "$PROFILE"
+          security cms -D -i "$PROFILE" > "$RUNNER_TEMP/profile.plist"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/profile.plist")
+          for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$dir"
+            cp "$PROFILE" "$dir/$PROFILE_UUID.mobileprovision"
+          done
+
+          # 프로젝트는 로컬용 자동 서명이다. Runner만 읽는 xcconfig에 덧붙여 배포 인증서·프로파일로 바꾼다
+          # (명령줄로 넘기면 SPM 패키지 대상까지 수동 서명이 걸려 빌드가 멈춘다)
+          cat >> ios/Flutter/Release.xcconfig <<EOF
+
+          CODE_SIGN_STYLE = Manual
+          CODE_SIGN_IDENTITY = Apple Distribution
+          CODE_SIGN_IDENTITY[sdk=iphoneos*] = Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER = $PROFILE_NAME
+          EOF
+
+          printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+
+          # flutter build ipa는 .ipa로 내보내기까지만, 업로드는 아래 단계에서 API 키로 한다
+          for destination in export upload; do
+            cat > "$RUNNER_TEMP/ExportOptions-$destination.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>$destination</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict><key>$PACKAGE_NAME</key><string>$PROFILE_NAME</string></dict>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          EOF
+          done
+
+      - name: Build ipa
+        run: |
+          flutter build ipa --release --flavor dev \
+            --build-number=${{ needs.prepare.outputs.code }} \
+            --dart-define-from-file=config/dev.json \
+            --export-options-plist="$RUNNER_TEMP/ExportOptions-export.plist"
+
+      - name: 산출물 검증
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          APP="$ARCHIVE/Products/Applications/Runner.app"
+          INFO="$APP/Info.plist"
+          PB=/usr/libexec/PlistBuddy
+
+          BUNDLE_ID=$($PB -c 'Print :CFBundleIdentifier' "$INFO")
+          [ "$BUNDLE_ID" = "$PACKAGE_NAME" ] || { echo "::error::번들 ID가 $PACKAGE_NAME이 아니다 ($BUNDLE_ID)"; exit 1; }
+          BUILD=$($PB -c 'Print :CFBundleVersion' "$INFO")
+          [ "$BUILD" = "${{ needs.prepare.outputs.code }}" ] || { echo "::error::빌드 번호가 실행 번호와 다르다 ($BUILD)"; exit 1; }
+
+          codesign -d --entitlements - --xml "$APP" > "$RUNNER_TEMP/entitlements.plist" 2>/dev/null
+          grep -q 'com.apple.developer.applesignin' "$RUNNER_TEMP/entitlements.plist" || { echo "::error::애플 로그인 권한이 없다"; exit 1; }
+          if grep -q '<key>get-task-allow</key><true/>' "$RUNNER_TEMP/entitlements.plist"; then echo "::error::개발 서명이다"; exit 1; fi
+
+          # 복귀 스킴이 없으면 빌드 단계는 경고만 남긴다. 그 로그인이 안 되니 여기서 멈춘다
+          SCHEMES=$($PB -c 'Print :CFBundleURLTypes' "$INFO")
+          echo "$SCHEMES" | grep -q 'kakao' || { echo "::error::카카오 복귀 스킴이 없다"; exit 1; }
+          echo "$SCHEMES" | grep -q 'com.googleusercontent.apps.' || { echo "::error::구글 복귀 스킴이 없다"; exit 1; }
+          [ -f "$APP/GoogleService-Info.plist" ] || { echo "::error::Firebase 설정이 앱에 없다"; exit 1; }
+
+          # 파일로 받아 검사한다. pipefail에서 `strings | grep -q`는 grep이 먼저 끝나 SIGPIPE(141)로 실패한다
+          STRINGS="$RUNNER_TEMP/app-strings.txt"
+          strings "$APP/Frameworks/App.framework/App" > "$STRINGS"
+          grep -qF "$API_BASE_URL" "$STRINGS" || { echo "::error::dev 서버 주소가 앱에 없다"; exit 1; }
+          if grep -qF 'api.runiverseapp.com' "$STRINGS"; then echo "::error::운영 주소가 들어갔다"; exit 1; fi
+
+      - name: Upload to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          # 올라가면 TestFlight가 처리한 뒤 내부 그룹(완전탐색)에 자동 배포한다
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions-upload.plist" \
+            -exportPath "$RUNNER_TEMP/upload" \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"

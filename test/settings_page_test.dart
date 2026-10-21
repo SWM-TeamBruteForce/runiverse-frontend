@@ -245,8 +245,8 @@ void main() {
       expect(find.text(AppStrings.settingsAccountDeletion), findsOneWidget);
     });
 
-    testWidgets('이용약관 행은 문서가 없어도 남아 있다', (tester) async {
-      // 자리를 비워두면 문서가 생겼을 때 붙이는 것을 잊는다.
+    testWidgets('이용약관 행이 있다', (tester) async {
+      // 가입 때 필수로 동의한 문서라 다시 볼 길이 있어야 한다.
       await pumpSettings(tester);
 
       expect(find.text(AppStrings.settingsTerms), findsOneWidget);

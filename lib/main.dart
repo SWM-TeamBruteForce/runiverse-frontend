@@ -1,5 +1,9 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,13 +37,28 @@ import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase — **인자를 넘기지 않는다.** 설정은 `google-services.json` 에서
-  // 오고, 그 파일은 빌드 타입마다 다른 자리에 있다(운영은 `android/app/`,
-  // 개발은 `src/debug`·`src/profile`). 그래서 `firebase_options.dart` 도 없다.
+  // Firebase — **인자를 넘기지 않는다.** 설정은 플랫폼별 설정 파일에서 오고,
+  // flavor 폴더(`dev`·`prod`)에 따로 있다(Android `android/app/src/` 아래,
+  // iOS `ios/Runner/Firebase/` 아래). 그래서 `firebase_options.dart` 도 없다.
   //
   // ⚠️ 위의 세 SDK 와 달리 **키 유무를 보고 거르지 않는다.** 설정 파일이
   // 없으면 Gradle 이 빌드를 먼저 세우므로, 여기까지 왔다면 파일은 있다.
   await Firebase.initializeApp();
+
+  // 잡히지 않은 오류를 Crashlytics로 보낸다. 디버그 빌드는 보내지 않는다 —
+  // `flutter run` 중에 난 오류가 운영·dev 대시보드에 섞이면 진짜를 못 가린다.
+  //
+  // ⚠️ 수집은 **꺼진 채로 뜬다**(매니페스트·Info.plist). 여기서 끄기만 하면
+  // 이 줄 전에 난 네이티브 오류는 이미 보내진 뒤다. 켜는 쪽만 여기서 한다.
+  final crashlytics = FirebaseCrashlytics.instance;
+  await crashlytics.setCrashlyticsCollectionEnabled(!kDebugMode);
+  // 화면을 그리다 난 오류(위젯 빌드·레이아웃).
+  FlutterError.onError = crashlytics.recordFlutterFatalError;
+  // 그 밖의 비동기 오류. `true` 를 돌려줘야 처리된 것으로 본다.
+  PlatformDispatcher.instance.onError = (error, stack) {
+    unawaited(crashlytics.recordError(error, stack, fatal: true));
+    return true;
+  };
 
   // 키가 없으면 초기화하지 않는다. 빈 키로 초기화하면 SDK가 `kakao://oauth`를
   // 리다이렉트 주소로 삼고, 카카오 버튼을 눌렀을 때 원인을 알기 어려운 오류가
@@ -54,14 +73,20 @@ void main() async {
   // 구글도 같은 규칙이다. **웹** 클라이언트 ID로 초기화한다 — ID 토큰에 찍히는
   // 수신자가 서버가 확인하는 값과 같아야 한다(`AppConfig.googleServerClientId`).
   //
+  // iOS는 iOS 클라이언트 ID도 함께 넘긴다 — 빠지면 플러그인이 웹 ID를 버린다.
+  //
   // ID가 없으면 건너뛴다. 그러면 `GoogleCodeSource` 가 SDK를 부르기 전에
   // `oauthUnavailable` 로 돌아서고, 버튼은 `준비 중`이라 답한다.
   _requireInRelease(
     AppConfig.hasGoogleServerClientId,
     'GOOGLE_SERVER_CLIENT_ID',
   );
+  if (Platform.isIOS) {
+    _requireInRelease(AppConfig.hasGoogleIosClientId, 'GOOGLE_IOS_CLIENT_ID');
+  }
   if (AppConfig.hasGoogleServerClientId) {
     await GoogleSignIn.instance.initialize(
+      clientId: Platform.isIOS ? AppConfig.googleIosClientId : null,
       serverClientId: AppConfig.googleServerClientId,
     );
   }

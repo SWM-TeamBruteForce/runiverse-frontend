@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:pedometer/pedometer.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:runiverse/features/session/data/permission_access_mapper.dart';
+import 'package:runiverse/features/session/domain/permission_access.dart';
 import 'package:runiverse/features/session/domain/step_repository.dart';
 
 /// 실제 걸음 센서를 읽는 구현.
@@ -11,12 +15,17 @@ class PedometerStepRepository implements StepRepository {
   const PedometerStepRepository();
 
   @override
-  Future<bool> ensureAccess() async {
+  Future<PermissionAccess> ensureAccess() async {
     // ⚠️ **`pedometer` 패키지는 권한을 요청하지 않는다.** 매니페스트가 비어
     // 있고 요청 코드도 없다. 여기서 하지 않으면 센서가 조용히 아무것도 주지
     // 않는다 — 에러도 나지 않아 "왜 케이던스가 안 뜨지"를 한참 쫓게 된다.
-    final status = await Permission.activityRecognition.request();
-    return status.isGranted;
+    //
+    // iOS에서 `activityRecognition`은 늘 거부로 온다. iOS는 동작·피트니스
+    // 권한(`sensors`)이다.
+    final permission = Platform.isIOS
+        ? Permission.sensors
+        : Permission.activityRecognition;
+    return toPermissionAccess(await permission.request());
   }
 
   @override

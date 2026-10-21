@@ -1,4 +1,5 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:runiverse/core/analytics/analytics.dart';
 
@@ -13,10 +14,14 @@ import 'package:runiverse/core/analytics/analytics.dart';
 /// ⚠️ 삼키는 대신 **디버그에서는 반드시 찍는다.** 안 찍으면 "DebugView 에 아무것도
 /// 안 뜬다"의 원인이 보내지 않은 것인지 보냈는데 실패한 것인지 알 수 없다.
 class FirebaseAnalyticsService implements Analytics {
-  FirebaseAnalyticsService([FirebaseAnalytics? analytics])
-    : _analytics = analytics ?? FirebaseAnalytics.instance;
+  FirebaseAnalyticsService([
+    FirebaseAnalytics? analytics,
+    FirebaseCrashlytics? crashlytics,
+  ]) : _analytics = analytics ?? FirebaseAnalytics.instance,
+       _crashlytics = crashlytics ?? FirebaseCrashlytics.instance;
 
   final FirebaseAnalytics _analytics;
+  final FirebaseCrashlytics _crashlytics;
 
   @override
   Future<void> screenView({required String name}) async {
@@ -54,11 +59,31 @@ class FirebaseAnalyticsService implements Analytics {
       _send('run_start', {'run_type': runType});
 
   @override
-  Future<void> runFinish({required String runType}) =>
-      _send('run_finish', {'run_type': runType});
+  Future<void> runFinish({required String runType, required bool early}) =>
+      // GA 파라미터는 문자열·숫자만 받는다. `bool` 을 실으면 플러그인이 거절한다.
+      _send('run_finish', {'run_type': runType, 'early': early.toString()});
 
   @override
   Future<void> withdraw() => _send('withdraw', null);
+
+  @override
+  Future<void> permissionResult({
+    required String permission,
+    required String result,
+  }) =>
+      _send('permission_result', {'permission': permission, 'result': result});
+
+  @override
+  Future<void> setUserId(String? userId) async {
+    try {
+      await _analytics.setUserId(id: userId);
+      // Crashlytics 는 `null` 을 받지 않는다. 빈 문자열이 "없음"이다.
+      await _crashlytics.setUserIdentifier(userId ?? '');
+      if (kDebugMode) debugPrint('[ga] user_id ${userId ?? '(없음)'}');
+    } on Object catch (error) {
+      if (kDebugMode) debugPrint('[ga] user_id 실패: $error');
+    }
+  }
 
   Future<void> _send(String name, Map<String, Object>? parameters) async {
     try {

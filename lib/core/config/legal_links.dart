@@ -2,16 +2,8 @@
 ///
 /// ## 링크마다 따로 본다
 ///
-/// 예전에는 `isReady` 하나로 묶여 있었다. 그때는 문서가 하나도 없어서 그걸로
-/// 충분했지만, 지금은 **방침과 계정삭제는 있고 이용약관만 없다.** 묶어 두면
-/// 있는 문서까지 함께 잠긴다.
-///
-/// ## 이용약관은 아직 없다
-///
-/// 법정 필수가 아니라 신고·제재 기능을 붙일 때 만든다. 그때까지 설정의
-/// 이용약관 행은 눌러도 "준비 중"이 뜬다. **행을 감추지 않는 이유는, 약관을
-/// 볼 수 있어야 한다는 사실 자체가 약속**이라 자리를 비워두면 나중에 붙이는
-/// 것을 잊기 때문이다.
+/// 아직 게시하지 않은 문서는 주소를 `''`로 둔다. [isReady]가 링크마다
+/// 판정해서 빈 문서만 "준비 중"을 띄우고, 있는 문서는 그대로 열린다.
 ///
 /// ## ⚠️ 주소를 옮기면 앱을 다시 내야 한다
 ///
@@ -25,7 +17,7 @@
 abstract final class LegalLinks {
   const LegalLinks._();
 
-  /// 개인정보처리방침 전문. **구글 플레이 심사가 요구한다.**
+  /// 개인정보처리방침 전문. **두 스토어 심사가 모두 요구한다.**
   static const privacy =
       'https://swm-teambruteforce.github.io/runiverse-legal/privacy.html';
 
@@ -34,8 +26,9 @@ abstract final class LegalLinks {
   static const accountDeletion =
       'https://swm-teambruteforce.github.io/runiverse-legal/account-deletion.html';
 
-  /// 이용약관 전문. 아직 문서가 없다.
-  static const terms = '';
+  /// 이용약관 전문. 가입 화면이 필수 동의로 받는다.
+  static const terms =
+      'https://swm-teambruteforce.github.io/runiverse-legal/terms.html';
 
   /// 열 수 있는 주소인가.
   static bool isReady(String url) => url.isNotEmpty;

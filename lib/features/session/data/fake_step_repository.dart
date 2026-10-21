@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:runiverse/features/session/domain/permission_access.dart';
 import 'package:runiverse/features/session/domain/step_repository.dart';
 
 /// 걸음 센서 없이 케이던스를 돌려보기 위한 가짜.
@@ -18,9 +19,9 @@ class FakeStepRepository implements StepRepository {
   var accessCalls = 0;
 
   @override
-  Future<bool> ensureAccess() async {
+  Future<PermissionAccess> ensureAccess() async {
     accessCalls++;
-    return granted;
+    return granted ? PermissionAccess.granted : PermissionAccess.denied;
   }
 
   @override

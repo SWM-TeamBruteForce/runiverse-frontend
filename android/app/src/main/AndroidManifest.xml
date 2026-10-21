@@ -54,7 +54,8 @@
       wakelock_plus와는 다른 것이고, 둘 다 필요하다.
 
       POST_NOTIFICATIONS는 Android 13+에서 알림을 보이게 하는 데 쓴다.
-      ⚠️ 선언만으로는 부족하고 런타임 요청이 있어야 한다(TMB-169). 요청 전에는
+      ⚠️ 선언만으로는 부족하고 런타임 요청이 있어야 한다. 위치 권한 직후에
+      앱이 직접 묻는다(`GeolocatorLocationRepository.ensureAccess`). 거절하면
       알림이 서랍에 안 보이지만 서비스는 정상적으로 돌고 좌표도 들어온다.
     -->
     <!--
@@ -151,6 +152,14 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- 화면은 라우터 리스너가 이름을 붙여 남긴다. 자동 기록은 이름 없는 screen_view만 더한다. -->
+        <meta-data
+            android:name="google_analytics_automatic_screen_reporting_enabled"
+            android:value="false" />
+        <!-- Crashlytics는 꺼진 채로 뜨고, 릴리스 빌드에서만 main.dart가 켠다. 디버그 오류가 대시보드에 섞이지 않게. -->
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
