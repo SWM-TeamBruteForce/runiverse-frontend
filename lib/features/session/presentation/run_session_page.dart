@@ -386,6 +386,10 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                         // 가 맡는다.
                         myPace: metrics.currentPace,
                         targetDistanceMeters: target,
+                        // ⚠️ **멈춘 것은 앱이 먼저 안다.** 서버가 콤보에서
+                        // 나를 빼기까지는 시간이 걸려, 그 사이 내 카드가
+                        // 서 있는 사람에게 "곁에서 달리는 중"이라고 말한다.
+                        paused: state is RunPaused,
                       ),
                   ],
                 ),

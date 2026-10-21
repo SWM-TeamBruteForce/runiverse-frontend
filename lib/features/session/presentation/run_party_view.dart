@@ -41,6 +41,7 @@ class RunPartyView extends StatelessWidget {
     required this.board,
     this.myPace,
     this.targetDistanceMeters,
+    this.paused = false,
     this.now,
     super.key,
   });
@@ -52,6 +53,20 @@ class RunPartyView extends StatelessWidget {
 
   /// 목표 거리. 모르면 막대를 채우지 않는다 — 임의의 기준으로 칠하면 거짓말이다.
   final int? targetDistanceMeters;
+
+  /// 내가 **버튼으로 멈춰 있는가.**
+  ///
+  /// ## ⚠️ 서버가 아는 것보다 앱이 먼저 안다
+  ///
+  /// 콤보 통지는 10초마다 오고, 서버가 나를 콤보에서 빼는 데는 그보다 더
+  /// 걸린다. 그 사이 내 카드는 **서 있는 사람에게 "곁에서 달리는 중"이라고
+  /// 말한다.** 멈춘 것은 앱이 그 즉시 아는 사실이라, 이 값으로 아래 줄을
+  /// 바꿔 준다([AppStrings.runPartyComboPaused]).
+  ///
+  /// ⚠️ **배지의 콤보 수는 건드리지 않는다.** 그것은 서버가 마지막으로 알려
+  /// 준 값이고, 앱이 끊겼다고 단정하면 **아직 살아 있는 콤보를 지워 보인다** —
+  /// 몇 초 멈췄다 다시 달리면 그대로 이어진다.
+  final bool paused;
 
   /// 지금. 통지가 오래된 카드를 흐리게 하는 기준이다. 테스트만 넣는다.
   final DateTime? now;
@@ -125,7 +140,12 @@ class RunPartyView extends StatelessWidget {
                     },
               // 아래 줄. 상대는 격차, 나는 누구 곁인지(콤보 중) 또는 안내.
               footnote: lane.isMe
-                  ? (myCombo == null
+                  ? (paused
+                        // ⚠️ 콤보가 있든 없든 이 말이 먼저다. 서 있는 동안에는
+                        // "곁에서 달리는 중"도 "30m 안으로 붙으면"도 지금
+                        // 할 수 있는 이야기가 아니다.
+                        ? AppStrings.runPartyComboPaused
+                        : myCombo == null
                         ? AppStrings.runPartyComboHint
                         : AppStrings.runPartyBeside(nameOf(myCombo.userId)))
                   : _footnoteOf(lane),
