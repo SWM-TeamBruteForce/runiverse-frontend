@@ -29,7 +29,7 @@ class AppUpdatePage extends StatelessWidget {
     // 없다.
     return const PopScope(
       canPop: false,
-      child: _UpdateScaffold(
+      child: _UpdateView(
         icon: LucideIcons.arrowBigUpDash,
         title: AppStrings.updateRequiredTitle,
         body: AppStrings.updateRequiredBody,
@@ -40,8 +40,8 @@ class AppUpdatePage extends StatelessWidget {
 }
 
 /// 업데이트 안내와 강제 화면이 같은 뼈대를 쓴다.
-class _UpdateScaffold extends StatelessWidget {
-  const _UpdateScaffold({
+class _UpdateView extends StatelessWidget {
+  const _UpdateView({
     required this.icon,
     required this.title,
     required this.body,

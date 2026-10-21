@@ -79,6 +79,37 @@ class AppUpdateController extends Notifier<AppUpdateState> {
     }
   }
 
+  /// **서버가 직접 알려줬다.** 403 `APP_UPDATE_REQUIRED`를 받은 자리가 부른다.
+  ///
+  /// 버전 API에 다시 묻지 않는다 — 서버가 "이 버전으로는 안 된다"고 답한
+  /// 것이라 그보다 확실한 판정이 없다. 묻는 동안 사용자는 계속 403만 받는다.
+  ///
+  /// ⚠️ **이미 막혀 있으면 상태를 새로 세우지 않는다.** 403은 여러 요청에서
+  /// 한꺼번에 쏟아진다. 매번 새 상태를 만들면 그때마다 화면이 다시 그려진다.
+  void markRequired() {
+    final current = state;
+    if (current is AppUpdateChecked &&
+        current.status == AppUpdateStatus.required) {
+      return;
+    }
+    debugPrint('[version] 서버가 막았다. 업데이트 화면으로 간다');
+    state = const AppUpdateChecked(AppUpdateStatus.required);
+  }
+
+  /// **앱이 낡아서 막힌 것인가.** 서버에 다시 물어 가린다.
+  ///
+  /// WebSocket 핸드셰이크가 403으로 거절됐을 때 쓴다. 거기에는 읽을 몸통이
+  /// 없어서 `code`를 볼 수 없다(작업 가이드).
+  ///
+  /// ⚠️ **못 물어봤으면 `false`다.** 403은 앱 버전 말고도 난다(방 권한 등).
+  /// 모르는 것을 "낡았다"로 보면 멀쩡한 러닝이 연결을 잃는다.
+  Future<bool> blockedByVersion() async {
+    await recheck();
+    final current = state;
+    return current is AppUpdateChecked &&
+        current.status == AppUpdateStatus.required;
+  }
+
   /// 다시 묻는다. 재시도 버튼과 포그라운드 복귀가 쓴다.
   ///
   /// ⚠️ **막혀 있을 때도 다시 묻는다.** 최소 버전이 내려가면 풀어 줘야 한다

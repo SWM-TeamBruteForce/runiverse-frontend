@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:runiverse/core/version/app_version_headers.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -61,7 +62,18 @@ class WsClient {
     this.healthCheckInterval = const Duration(seconds: 30),
     this.connect = _connectIo,
     this.authFailureLimit = 6,
+    this.onForbidden,
   });
+
+  /// 핸드셰이크가 **403으로 거절됐을 때** 묻는다. `true`면 다시 붙지 않는다.
+  ///
+  /// ## ⚠️ 403에는 본문이 없다
+  ///
+  /// REST·SSE는 `code`를 읽어 `APP_UPDATE_REQUIRED`인지 가릴 수 있지만,
+  /// 핸드셰이크 거절에는 읽을 몸통이 없다. 그래서 **버전 API로 다시 확인**해야
+  /// 한다(작업 가이드). 그 일은 `core`가 알 바가 아니라 함수 하나로 받는다 —
+  /// [token]이 `TokenRefresher`를 모르는 것과 같은 판단이다.
+  final Future<bool> Function()? onForbidden;
 
   /// 인증이 막혔을 때 갱신을 몇 번까지 다시 해보나.
   ///
@@ -227,6 +239,11 @@ class WsClient {
         await _onUnauthorized();
         return;
       }
+      if (_isForbidden(error) && await _blockedByVersion()) {
+        debugPrint('[ws] 앱이 낡아 거절됐다. 재연결하지 않는다');
+        _moveTo(WsConnectionState.closed);
+        return;
+      }
       _onDone(error);
     }
   }
@@ -368,6 +385,28 @@ class WsClient {
         inner.httpStatusCode == HttpStatus.unauthorized;
   }
 
+  /// 핸드셰이크가 403으로 거절됐는가. [_isUnauthorized]와 같은 방식이다.
+  static bool _isForbidden(Object error) {
+    final inner = error is WebSocketChannelException ? error.inner : error;
+    return inner is WebSocketException &&
+        inner.httpStatusCode == HttpStatus.forbidden;
+  }
+
+  /// 앱이 낡아서 막힌 것인가. **물어볼 곳이 없으면 아니라고 본다.**
+  ///
+  /// ⚠️ 403은 앱 버전 말고도 날 수 있다(방 권한 등). 모르면 종전대로 다시
+  /// 붙는 편이 낫다 — 여기서 멈추면 멀쩡한 러닝이 연결을 잃는다.
+  Future<bool> _blockedByVersion() async {
+    final ask = onForbidden;
+    if (ask == null) return false;
+    try {
+      return await ask();
+    } on Object catch (error) {
+      debugPrint('[ws] 버전을 되묻지 못했다 · ${error.runtimeType}');
+      return false;
+    }
+  }
+
   /// 서버가 중복 연결을 끊을 때 쓰는 close code.
   static const _duplicateConnection = 4001;
 
@@ -378,7 +417,11 @@ class WsClient {
   static WebSocketChannel _connectIo(String url, String accessToken) {
     return IOWebSocketChannel.connect(
       Uri.parse(url),
-      headers: {'Authorization': 'Bearer $accessToken'},
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+        // 앱 버전 헤더. 못 읽었으면 비어 있고, 서버는 없으면 그냥 통과시킨다.
+        ...AppVersionHeaders.current,
+      },
     );
   }
 }
