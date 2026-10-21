@@ -45,7 +45,7 @@ android/app/src/prod/google-services.json    ios/Runner/Firebase/prod/GoogleServ
 ```
 
 - Firebase 콘솔 → `runiverse-dev`·`runiverse` 프로젝트 → 프로젝트 설정 → 해당 플랫폼 앱의 구성 파일을 받는다.
-- iOS는 `Copy Firebase Config` 빌드 단계가 구성 이름(`Debug-dev`면 dev, 아니면 prod)으로 골라 앱에 복사한다.
+- iOS는 `Copy Firebase Config` 빌드 단계가 구성 이름(`Debug-dev`·`Release-dev`처럼 dev가 들어 있으면 dev, 아니면 prod)으로 골라 앱에 복사한다.
   파일이 없으면 빌드가 그 자리에서 멈춘다.
 - iOS 카카오·구글 로그인 복귀 스킴은 `Add URL Schemes` 빌드 단계가 `config/*.json`의 `KAKAO_NATIVE_APP_KEY`·`GOOGLE_IOS_CLIENT_ID`로
   `Info.plist`에 넣는다. 값이 없으면 경고만 남기고 빌드는 된다(그 로그인만 안 된다).
@@ -123,8 +123,8 @@ iOS는 TestFlight에 올린다. 여기까지가 자동이고, **스토어 공개
 - **Re-run은 실행 번호가 같아 버전 코드가 겹친다.** 한쪽만 실패했으면 Re-run failed jobs로 그쪽만 다시 돌린다.
   이미 올라간 쪽까지 다시 돌리면 번호가 겹쳐 거절된다. 업로드 단계에서 실패했으면 먼저 Play 내부 테스트·TestFlight에
   그 번호가 들어왔는지 보고, 없을 때만 다시 돌린다.
-- 검사(analyze·test)에서 멈췄으면 고쳐서 dev→main을 다시 머지한다. 이때 버전 이름도 다시 올린다 —
-  직전 main과 비교하기 때문이다. 나가지 않은 번호를 건너뛰어도 문제없다.
+- 코드를 고쳐야 하는 실패면(검사·빌드·산출물 검증 어디서든) 고쳐서 dev→main을 다시 머지한다. 이때 버전 이름도
+  다시 올린다 — 실패한 머지 커밋이 직전 main으로 남아 그것과 비교하기 때문이다. 나가지 않은 번호를 건너뛰어도 문제없다.
 - 성공한 실행을 Run workflow로 또 돌리지 않는다. 같은 버전 이름이 새 버전 코드로 한 번 더 올라간다.
 
 운영 값은 Settings → Environments → **`prod`** 에 dev와 같은 이름으로 있다. `prod` 환경은 main 브랜치에서만 쓸 수 있다.
