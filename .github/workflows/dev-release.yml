@@ -73,7 +73,7 @@ jobs:
 
       - name: Test
         env:
-          TZ: Asia/Seoul # 사용자 기기와 같은 시간대. 러너 기본값 UTC에선 로컬==UTC라 시간대 표시가 섞인 버그(#152)가 테스트에 안 드러난다
+          TZ: Asia/Seoul # 테스트는 사용자 기기와 같은 시간대로 돈다
         run: flutter test
 
   android:
