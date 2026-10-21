@@ -8,6 +8,7 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/fake_track_repository.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/domain/run_numbers.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
@@ -173,6 +174,9 @@ class _TrackedChannel implements RunningChannel {
 
   @override
   Stream<RunSnapshot> get snapshots => snapshots_.stream;
+
+  @override
+  Stream<RunNumbers> get serverNumbers => const Stream.empty();
 
   @override
   Future<void> start(int runningRoomId) async {}

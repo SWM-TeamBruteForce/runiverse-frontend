@@ -100,6 +100,59 @@ void main() {
     });
   });
 
+  /// `RUNNING_STARTED`가 싣고 오는 서버 번호 읽기 — 1.1.1 2절.
+  ///
+  /// ## ⚠️ 못 읽어도 러닝은 계속돼야 한다
+  ///
+  /// 이 값이 없다고 달리기를 끊을 수는 없다. 그래서 던지지 않고 0을 주는데,
+  /// **0은 아무것도 안 바꾸는 값**이다 — [RunNumbers.mergedWith]가 큰 쪽을
+  /// 쓰므로 로컬 번호가 그대로 남는다.
+  group('서버 번호 읽기', () {
+    test('두 값을 그대로 읽는다', () {
+      final numbers = RunNumbers.of({'nextSequence': 120, 'pauseSegment': 2});
+
+      expect(numbers.nextSequence, 120);
+      expect(numbers.pauseSegment, 2);
+    });
+
+    test('⚠️ 몸통이 비어 있으면 0이다', () {
+      // 서버가 받은 좌표가 없을 때의 값과 같다. 명세의 재연결 payload가 아직
+      // 확정되지 않아 **비어 올 수 있다.**
+      expect(RunNumbers.of({}), RunNumbers.serverZero);
+    });
+
+    test('⚠️ 0은 로컬 번호를 바꾸지 않는다', () {
+      // 0을 그대로 쓰면 **모든 러닝의 첫 좌표가 0번**이 된다. 앱은 1번부터다.
+      final local = const RunNumbers(nextSequence: 42, pauseSegment: 3);
+
+      expect(local.mergedWith(RunNumbers.of({})), local);
+    });
+
+    test('숫자가 아니면 0으로 본다', () {
+      final numbers = RunNumbers.of({
+        'nextSequence': '120',
+        'pauseSegment': null,
+      });
+
+      expect(numbers, RunNumbers.serverZero);
+    });
+
+    test('⚠️ 음수는 0으로 본다', () {
+      // 번호가 줄어드는 쪽으로는 한 칸도 움직이지 않는다.
+      final numbers = RunNumbers.of({'nextSequence': -1, 'pauseSegment': -7});
+
+      expect(numbers, RunNumbers.serverZero);
+    });
+
+    test('⚠️ 상한을 넘는 구간 번호는 깎는다', () {
+      // 그대로 실어 보내면 서버가 **자기가 준 번호를 `INVALID_REQUEST`로
+      // 되받는다.**
+      final numbers = RunNumbers.of({'pauseSegment': 100001});
+
+      expect(numbers.pauseSegment, RunNumbers.maxPauseSegment);
+    });
+  });
+
   group('값으로 비교한다', () {
     test('같은 번호면 같다', () {
       expect(

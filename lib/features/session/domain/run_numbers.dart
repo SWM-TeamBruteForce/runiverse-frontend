@@ -24,6 +24,43 @@ class RunNumbers {
   /// 서버가 받아 주는 구간 번호의 상한. 넘으면 `INVALID_REQUEST`다(1.1.1 2절).
   static const maxPauseSegment = 100000;
 
+  /// **서버가 이 러닝의 좌표를 하나도 못 받았다.**
+  ///
+  /// [start]와 다르다 — 서버의 `nextSequence`는 받은 좌표가 없으면 0이고, 앱은
+  /// 첫 좌표에 1을 매긴다. [mergedWith]에서 어느 값과 합쳐도 상대가 그대로
+  /// 남으므로, **못 읽은 몸통의 자리를 메우는 데도 쓴다.**
+  static const serverZero = RunNumbers(nextSequence: 0, pauseSegment: 0);
+
+  /// `RUNNING_STARTED`가 싣고 온 **본인 기준** 번호를 읽는다 — 1.1.1 2절.
+  ///
+  /// `nextSequence`는 서버가 받은 마지막 좌표의 순번 + 1, `pauseSegment`는 그
+  /// 좌표의 구간 번호다. 둘 다 받은 좌표가 없으면 0이다.
+  ///
+  /// ## ⚠️ 못 읽어도 던지지 않는다
+  ///
+  /// 이 값을 못 읽었다고 러닝을 끊을 수는 없다. [serverZero]를 주면
+  /// [mergedWith]가 로컬 번호를 그대로 남긴다 — 재설치가 아니라면 원래 그래야
+  /// 하는 결과다.
+  ///
+  /// ## ⚠️ 상한을 넘는 값은 깎는다
+  ///
+  /// 그대로 실어 보내면 서버가 **자기가 준 번호를 `INVALID_REQUEST`로
+  /// 되받는다.** 음수도 0으로 본다 — 번호가 줄어드는 쪽으로는 한 칸도
+  /// 움직이지 않는 편이 안전하다.
+  static RunNumbers of(Map<String, dynamic> data) {
+    final next = data['nextSequence'];
+    final segment = data['pauseSegment'];
+
+    return RunNumbers(
+      nextSequence: next is int && next > 0 ? next : 0,
+      pauseSegment: segment is! int || segment < 0
+          ? 0
+          : segment > maxPauseSegment
+          ? maxPauseSegment
+          : segment,
+    );
+  }
+
   /// 다음 **새** 좌표에 매길 순번.
   ///
   /// ⚠️ 이미 저장된 좌표의 순번은 이 값으로 바꾸지 않는다. 번호를 바꾸면

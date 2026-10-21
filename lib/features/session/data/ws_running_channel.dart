@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
+import 'package:runiverse/features/session/domain/run_numbers.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/finish_outcome.dart';
@@ -37,6 +38,7 @@ class WsRunningChannel implements RunningChannel {
   final _combos = StreamController<RunCombo>.broadcast();
   final _finished = StreamController<void>.broadcast();
   final _snapshots = StreamController<RunSnapshot>.broadcast();
+  final _serverNumbers = StreamController<RunNumbers>.broadcast();
 
   /// 어느 방에서 달리는가. 재연결 때 `RUNNING_START`를 다시 보내려면 필요하다.
   int? _roomId;
@@ -76,6 +78,9 @@ class WsRunningChannel implements RunningChannel {
 
   @override
   Stream<RunSnapshot> get snapshots => _snapshots.stream;
+
+  @override
+  Stream<RunNumbers> get serverNumbers => _serverNumbers.stream;
 
   @override
   Future<void> start(int runningRoomId) async {
@@ -140,6 +145,7 @@ class WsRunningChannel implements RunningChannel {
     await _combos.close();
     await _finished.close();
     await _snapshots.close();
+    await _serverNumbers.close();
     await _client.dispose();
   }
 
@@ -170,6 +176,15 @@ class WsRunningChannel implements RunningChannel {
       case WsEvents.runningStarted:
         // ⚠️ **ack의 몸통이 비어 있지 않은 유일한 메시지다.** 최초 진입과
         // 재연결에 같은 ack를 쓰기 때문에, 화면을 되살릴 현재 상태가 실려 온다.
+        // ⚠️ **번호를 먼저 흘린다.** 스냅샷은 `runningRoomId`를 못 읽으면
+        // 통째로 `null`이 되는데(명세의 재연결 payload가 아직 확정되지 않아
+        // 몸통이 비어 올 수 있다), **번호는 그때도 와야 한다** — 러닝 중
+        // 재설치한 앱이 서버가 어디까지 받았는지 아는 유일한 근거다
+        // (1.1.1 2절). 둘을 한 길로 묶으면 조용히 함께 사라진다.
+        if (!_serverNumbers.isClosed) {
+          _serverNumbers.add(RunNumbers.of(message.data));
+        }
+
         final snapshot = RunSnapshot.of(message.data);
         if (snapshot == null) {
           debugPrint('[running] 시작 확인 · 스냅샷을 읽지 못했다');

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/features/session/data/fake_track_repository.dart';
+import 'package:runiverse/features/session/domain/run_numbers.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
@@ -290,6 +291,9 @@ class _RecordingChannel implements RunningChannel {
 
   @override
   Stream<RunSnapshot> get snapshots => const Stream.empty();
+
+  @override
+  Stream<RunNumbers> get serverNumbers => const Stream.empty();
 
   @override
   Future<void> start(int runningRoomId) async {}

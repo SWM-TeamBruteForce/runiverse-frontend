@@ -6,6 +6,7 @@ import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/features/session/data/ws_running_channel.dart';
 import 'package:runiverse/features/session/domain/finish_outcome.dart';
+import 'package:runiverse/features/session/domain/run_numbers.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 /// 러닝 계약 — **봉투 위에 얹은 규칙이 맞게 도는가.**
@@ -60,6 +61,61 @@ void main() {
 
       expect(sentEvents(), ['RUNNING_START']);
       expect(lastData()['runningRoomId'], roomId);
+    });
+  });
+
+  /// 시작 확인이 싣고 오는 번호 — 1.1.1 2절.
+  ///
+  /// ## ⚠️ 스냅샷과 **따로** 흘려야 한다
+  ///
+  /// `RunSnapshot.of`는 `runningRoomId`를 못 읽으면 통째로 `null`이다. 명세의
+  /// 재연결 payload가 아직 확정되지 않아 몸통이 **번호만 담고 올 수 있는데**,
+  /// 둘을 한 길로 묶으면 그때 번호가 조용히 함께 사라진다.
+  ///
+  /// 사라지면 러닝 중 재설치한 앱이 1번부터 매기고, 그 좌표는 전부 버려지거나
+  /// `PAUSE_SEGMENT_DECREASED`로 배치째 거부된다.
+  group('시작 확인의 번호', () {
+    test('스냅샷과 함께 올라온다', () async {
+      await channel.start(roomId);
+      final numbers = channel.serverNumbers.first;
+      final snapshots = channel.snapshots.first;
+
+      await receive('RUNNING_STARTED', {
+        'runningRoomId': roomId,
+        'players': <Object>[],
+        'nextSequence': 120,
+        'pauseSegment': 2,
+      });
+
+      expect((await numbers).nextSequence, 120);
+      expect((await numbers).pauseSegment, 2);
+      expect((await snapshots).runningRoomId, roomId);
+    });
+
+    test('⚠️ 스냅샷을 못 읽어도 번호는 올라온다', () async {
+      await channel.start(roomId);
+      final numbers = channel.serverNumbers.first;
+      var sawSnapshot = false;
+      channel.snapshots.listen((_) => sawSnapshot = true);
+
+      // 방 번호가 없다. 스냅샷은 통째로 버려진다.
+      await receive('RUNNING_STARTED', {
+        'nextSequence': 120,
+        'pauseSegment': 2,
+      });
+
+      expect((await numbers).nextSequence, 120);
+      expect(sawSnapshot, isFalse, reason: '스냅샷이 올라오면 이 테스트가 무의미하다');
+    });
+
+    test('몸통이 비어 있으면 0이 올라온다', () async {
+      // 0은 로컬 번호를 그대로 남긴다. 조용히 아무것도 안 하는 것이 맞다.
+      await channel.start(roomId);
+      final numbers = channel.serverNumbers.first;
+
+      await receive('RUNNING_STARTED');
+
+      expect(await numbers, RunNumbers.serverZero);
     });
   });
 
