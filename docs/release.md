@@ -116,9 +116,10 @@ iOS는 TestFlight에 올린다. 여기까지가 자동이고, **스토어 공개
 
 ### 운영에서 하지 말 것
 
-- **Play 프로덕션 심사 중에는 main에 머지하지 않는다. Run workflow·Re-run도 누르지 않는다.**
-  내부 테스트에 올리는 것만으로 진행 중인 심사가 취소되고 다시 제출된다(Play API 기본 동작이고, 업로드 액션은 이를 바꾸는 옵션을 넘기지 않는다).
-- 심사 제출 전에 Actions에서 실행 중이거나 대기 중인 Prod Release가 없는지 본다. 머지 직후 돌던 실행이 심사 중에 올리면 같은 일이 생긴다.
+- **Play Console 게시 개요에 검토 중이거나 아직 보내지 않은 변경사항이 있으면 main에 머지하지 않는다.
+  Run workflow·Re-run도 누르지 않는다.** 프로덕션 출시뿐 아니라 트랙 일시중지·스토어 등록정보 같은 변경도 해당한다.
+  내부 테스트에 올리는 것만으로 앱의 진행 중인 심사가 취소되고 다시 제출된다(Play API 기본 동작이고, 업로드 액션은 이를 바꾸는 옵션을 넘기지 않는다).
+- 심사에 보내기 전에 Actions에서 실행 중이거나 대기 중인 Prod Release가 없는지 본다. 머지 직후 돌던 실행이 심사 중에 올리면 같은 일이 생긴다.
 - **Re-run은 실행 번호가 같아 버전 코드가 겹친다.** 한쪽만 실패했으면 Re-run failed jobs로 그쪽만 다시 돌린다.
   이미 올라간 쪽까지 다시 돌리면 번호가 겹쳐 거절된다. 업로드 단계에서 실패했으면 먼저 Play 내부 테스트·TestFlight에
   그 번호가 들어왔는지 보고, 없을 때만 다시 돌린다.
@@ -127,7 +128,7 @@ iOS는 TestFlight에 올린다. 여기까지가 자동이고, **스토어 공개
 - 성공한 실행을 Run workflow로 또 돌리지 않는다. 같은 버전 이름이 새 버전 코드로 한 번 더 올라간다.
 
 운영 값은 Settings → Environments → **`prod`** 에 dev와 같은 이름으로 있다. `prod` 환경은 main 브랜치에서만 쓸 수 있다.
-값이 dev와 같은 것(배포 인증서·App Store Connect API 키)도 환경마다 따로 넣는다. 다른 값은 이렇다.
+dev와 값이 같은 건 `ASC_ISSUER_ID`(팀 공통)뿐이고, 나머지는 운영용을 따로 만들었다. 다른 값은 이렇다.
 
 | 이름 | 운영 값 |
 |---|---|
@@ -135,7 +136,9 @@ iOS는 TestFlight에 올린다. 여기까지가 자동이고, **스토어 공개
 | `KAKAO_NATIVE_APP_KEY` · `NAVER_MAP_CLIENT_ID` · `GOOGLE_SERVER_CLIENT_ID` · `GOOGLE_IOS_CLIENT_ID` | `config/prod.json`과 같은 값 |
 | `GOOGLE_SERVICES_JSON` · `GOOGLE_SERVICE_INFO_PLIST` | Firebase `runiverse` 프로젝트의 구성 파일 |
 | `PLAY_SERVICE_ACCOUNT_JSON` | 운영 앱에만 테스트 트랙 출시 권한이 있는 서비스 계정. 프로덕션 출시 권한은 없다 |
-| `IOS_PROFILE_BASE64` | `com.runiverse.app`의 App Store 배포 프로파일 |
+| `IOS_DIST_CERT_BASE64` · `IOS_DIST_CERT_PASSWORD` | 운영용 Apple Distribution 인증서(개인 키 포함 p12) |
+| `IOS_PROFILE_BASE64` | `com.runiverse.app`의 App Store 배포 프로파일. 위 운영 인증서로 만든다 |
+| `ASC_KEY_ID` · `ASC_KEY_P8` | 운영용 App Store Connect API 키 |
 | `API_BASE_URL` | 운영 서버 주소. 워크플로가 `https://api.runiverseapp.com`과 다르면 멈춘다 |
 
 ## 손으로 빌드하기
