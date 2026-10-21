@@ -24,15 +24,22 @@ import 'package:runiverse/features/session/presentation/run_session_provider.dar
 void main() {
   late FakeLocationRepository location;
 
-  /// 출발 시각이 **정해지지 않은** 대기실.
+  /// 아직 쏘지 않는 대기실.
   ///
-  /// ⚠️ 시각을 주면 카운트다운이 돌다가 러닝 화면으로 넘어간다. 여기서 볼 것은
-  /// 권한 표시 하나라, 쏘지 않는 상태로 세운다.
+  /// ## ⚠️ 출발 시각을 **달력에 박으면 안 된다**
+  ///
+  /// `MatchRoomState.launch`는 `launchAt`이 없으면 **방의 `scheduledStartAt`으로
+  /// 내려간다.** 그래서 "시각을 안 줬으니 안 쏜다"가 아니다 — 박아 둔 시각이
+  /// 지나는 순간 카운트다운이 돌고 `_launch()`가 러닝 화면으로 넘어가려다
+  /// `No GoRouter found in context`로 죽는다.
+  ///
+  /// 실제로 그렇게 깨졌다(2026-10-20에 쓰고 하루 뒤 빨개졌다). **지금으로부터
+  /// 떨어진 시각**으로 둬야 날짜가 바뀌어도 같은 뜻이다.
   MatchRoomState waiting() => MatchRoomState(
     room: RoomInfo(
       runningRoomId: 7,
       status: RoomStatus.matched,
-      scheduledStartAt: DateTime(2026, 10, 20, 19),
+      scheduledStartAt: DateTime.now().add(const Duration(hours: 1)),
       players: const [
         RoomPlayer(userId: 'u-1', nickname: '나', isDeleted: false),
       ],
