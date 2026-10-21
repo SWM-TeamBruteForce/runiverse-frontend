@@ -1,6 +1,6 @@
 # dev 앱(com.runiverse.app.dev)을 빌드해 Play 내부 테스트 트랙과 TestFlight에 올린다.
 # 머지마다 돌리지 않는다 — 하루에 머지가 십수 번 몰려 테스터 앱이 계속 바뀐다.
-name: Dev Internal Release
+name: Dev Release
 
 on:
   workflow_dispatch: # Actions 화면의 Run workflow 버튼
@@ -8,7 +8,7 @@ on:
     - cron: '0 18 * * *' # 매일 03:00 KST, 지난 하루 dev에 커밋이 있을 때만 빌드
 
 concurrency:
-  group: dev-internal-release
+  group: dev-release
   cancel-in-progress: false
 
 permissions:
@@ -19,7 +19,7 @@ env:
 
 jobs:
   prepare:
-    name: 빌드할 커밋 정하기
+    name: 준비
     runs-on: ubuntu-24.04
     outputs:
       build: ${{ steps.changes.outputs.build }}
@@ -59,7 +59,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   android:
-    name: Android dev 빌드 → 내부 테스트 업로드
+    name: Android 배포
     needs: prepare
     if: needs.prepare.outputs.build == 'true'
     runs-on: ubuntu-24.04
@@ -163,7 +163,7 @@ jobs:
           status: completed
 
   ios:
-    name: iOS dev 빌드 → TestFlight 업로드
+    name: iOS 배포
     needs: prepare
     if: needs.prepare.outputs.build == 'true'
     runs-on: macos-26 # App Store는 Xcode 26(iOS 26 SDK) 이상으로 빌드한 앱만 받는다

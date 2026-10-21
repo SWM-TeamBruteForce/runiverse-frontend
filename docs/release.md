@@ -55,10 +55,10 @@ android/app/src/prod/google-services.json    ios/Runner/Firebase/prod/GoogleServ
 
 ## dev 앱 — CI가 올린다
 
-`.github/workflows/dev-internal-release.yml`이 dev 브랜치의 같은 커밋을 빌드해 Android는 Play 내부 테스트,
+`.github/workflows/dev-release.yml`이 dev 브랜치의 같은 커밋을 빌드해 Android는 Play 내부 테스트,
 iOS는 TestFlight에 올린다. 두 job은 따로 돌아 한쪽이 실패해도 다른 쪽은 올라간다.
 
-- **지금 올리기**: Actions → Dev Internal Release → Run workflow. 10~15분 뒤 테스터 폰에 업데이트가 온다
+- **지금 올리기**: Actions → Dev Release → Run workflow. 10~15분 뒤 테스터 폰에 업데이트가 온다
   (iOS는 업로드 뒤 TestFlight 처리가 끝나면 내부 그룹 `완전탐색`에 자동 배포된다).
 - **매일 03:00 KST**: 지난 하루 dev에 커밋이 있으면 자동으로 돈다.
 - 머지마다 돌리지 않는다. 하루에 머지가 십수 번 몰려 테스터 앱이 계속 바뀐다.
