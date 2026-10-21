@@ -1,0 +1,40 @@
+name: Main Branch Guard
+
+# main으로는 같은 레포의 dev 브랜치에서 온 PR만 받는다.
+# 브랜치 보호 규칙에서 이 체크를 필수로 지정해야 실제로 머지가 막힌다.
+on:
+  pull_request:
+    branches:
+      - main
+    # base를 main으로 바꾼 PR도 다시 검사하도록 edited를 포함한다
+    types: [opened, synchronize, reopened, edited]
+
+permissions: { }
+
+jobs:
+  check-source-branch:
+    name: main PR 출처 브랜치 확인
+    runs-on: ubuntu-24.04
+    steps:
+      # 브랜치 이름은 PR 작성자가 정하는 값이라 run에 직접 넣지 않고 env로 넘긴다
+      - name: dev에서 온 PR인지 확인
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+        run: |
+          echo "Head: ${HEAD_REPO}:${HEAD_REF}"
+
+          # 포크에 같은 이름의 브랜치를 만들어 우회하지 못하게 레포도 확인한다
+          if [ "$HEAD_REPO" != "$BASE_REPO" ]; then
+            echo "::error::포크에서 온 PR은 main으로 머지할 수 없다"
+            exit 1
+          fi
+
+          if [ "$HEAD_REF" = "dev" ]; then
+            echo "dev에서 온 PR을 허용한다"
+            exit 0
+          fi
+
+          echo "::error::dev에서 온 PR만 main으로 허용한다"
+          exit 1
