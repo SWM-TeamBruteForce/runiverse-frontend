@@ -1,7 +1,7 @@
-name: Main Branch Guard
-
 # main으로는 같은 레포의 dev 브랜치에서 온 PR만 받는다.
 # 브랜치 보호 규칙에서 이 체크를 필수로 지정해야 실제로 머지가 막힌다.
+name: Main Branch Guard
+
 on:
   pull_request:
     branches:

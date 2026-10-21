@@ -240,7 +240,7 @@ jobs:
           channel: stable
           cache: true
 
-      # flutter build ipa가 Xcode에 SPM 패키지 자리로 넘기는 폴더다(-clonedSourcePackagesDirPath).
+      # flutter build ipa가 Xcode에 SPM 패키지 자리로 넘기는 폴더다(-clonedSourcePackagesDirPath)
       # 플러그인 사본은 pub get이 다시 만들어 받은 패키지와 상태 파일만 둔다. lock이 바뀌면 옛 캐시에서 바뀐 것만 받는다
       - name: SPM 패키지 캐시
         uses: actions/cache@v5
