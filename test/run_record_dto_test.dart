@@ -26,7 +26,6 @@ void main() {
     'totalDurationSeconds': 1648,
     'averagePaceSecondsPerKm': 328,
     'totalElevationGainMeters': ?elevation,
-    'routePolyline': 'u{~vFvyys@fS]pT_@',
   };
 
   group('응답 모양', () {
@@ -38,6 +37,20 @@ void main() {
       expect(list, hasLength(1));
       expect(list.single.id, 501);
       expect(list.single.runningRoomId, 125);
+    });
+
+    test('⚠️ 서버가 아직 `routePolyline`을 보내도 읽지 않는다', () {
+      // 1.1.1에서 기록 목록은 경로를 싣지 않기로 했다(API 명세서 공통 규칙).
+      // 다만 **서버 배포와 앱 출시 사이에는 옛 서버가 그대로 보낸다.** 모르는
+      // 필드가 섞였다고 깨지면 그 구간에 기록 탭이 통째로 비어 버린다.
+      final list = RunRecordDto.listFrom({
+        'runningRecords': [
+          {...record(), 'routePolyline': 'u{~vFvyys@fS]pT_@'},
+        ],
+      });
+
+      expect(list, hasLength(1));
+      expect(list.single.distanceMeters, 5020);
     });
 
     test('⚠️ 옛 키(`items`)로는 아무것도 못 읽는다', () {

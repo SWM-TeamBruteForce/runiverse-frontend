@@ -168,7 +168,6 @@ class FakeRunRecordRepository implements RunRecordRepository {
               .round(),
         ),
         // 목록 카드는 아직 경로를 그리지 않는다. 빈 문자열로 둔다.
-        routePolyline: '',
         // 짝수 번째는 매칭, 홀수 번째는 솔로로 둔다. **셋째는 매칭인데 혼자**다
         // — `MATCH` + `playerCount 1` 조합을 화면이 만나 보게 한다.
         kind: i % 2 == 0 ? RunKind.match : RunKind.solo,

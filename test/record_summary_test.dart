@@ -22,7 +22,6 @@ void main() {
     averagePace: Duration(
       microseconds: (duration.inMicroseconds * 1000 / meters).round(),
     ),
-    routePolyline: '',
     elevationGainMeters: elevationGainMeters,
   );
 

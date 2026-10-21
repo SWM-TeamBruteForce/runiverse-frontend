@@ -42,7 +42,6 @@ abstract final class RunRecordDto {
     distanceMeters: json['totalDistanceMeters'] as int,
     duration: Duration(seconds: json['totalDurationSeconds'] as int),
     averagePace: Duration(seconds: json['averagePaceSecondsPerKm'] as int),
-    routePolyline: json['routePolyline'] as String? ?? '',
     // ⚠️ **모르는 값은 `null`이다.** 아무 값으로도 뭉개지 않는다.
     kind: RunKind.of(json['type']),
     // ⚠️ **못 읽으면 0이다.** 서버는 1 이상을 주므로 0은 "우리가 못 읽었다"는

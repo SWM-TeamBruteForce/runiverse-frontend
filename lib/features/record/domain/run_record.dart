@@ -41,7 +41,6 @@ class RunRecord {
     required this.distanceMeters,
     required this.duration,
     required this.averagePace,
-    required this.routePolyline,
     required this.playerCount,
     this.kind,
     this.elevationGainMeters,
@@ -71,12 +70,6 @@ class RunRecord {
 
   /// 1km당 평균 페이스.
   final Duration averagePace;
-
-  /// 카드의 경로 미리보기용 Google Encoded Polyline.
-  ///
-  /// 목록에서는 지도를 띄우지 않고 이 문자열만 들고 있는다 — 카드마다 지도를
-  /// 올리면 목록 스크롤이 버틴다.
-  final String routePolyline;
 
   /// 누적 상승 고도(m). 주간 요약이 이걸 더한다.
   ///

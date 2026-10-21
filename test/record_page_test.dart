@@ -339,7 +339,6 @@ void main() {
         distanceMeters: 2500,
         duration: const Duration(minutes: 30),
         averagePace: const Duration(seconds: 720),
-        routePolyline: '',
         playerCount: 1,
       );
 
@@ -379,7 +378,6 @@ void main() {
                   distanceMeters: 2500,
                   duration: const Duration(minutes: 30),
                   averagePace: const Duration(seconds: 720),
-                  routePolyline: '',
                   playerCount: 1,
                 ),
               ],
@@ -418,7 +416,6 @@ void main() {
                     distanceMeters: 2500,
                     duration: const Duration(minutes: 30),
                     averagePace: const Duration(seconds: 720),
-                    routePolyline: '',
                     playerCount: 1,
                   ),
                 ],
@@ -472,7 +469,6 @@ void main() {
                   distanceMeters: 2500,
                   duration: const Duration(minutes: 30),
                   averagePace: const Duration(seconds: 720),
-                  routePolyline: '',
                   playerCount: 1,
                 ),
               ],
