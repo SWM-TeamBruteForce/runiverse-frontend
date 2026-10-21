@@ -175,7 +175,7 @@ jobs:
           packageName: ${{ env.PACKAGE_NAME }}
           releaseFiles: build/app/outputs/bundle/devRelease/app-dev-release.aab
           releaseName: ${{ needs.prepare.outputs.code }} (dev ${{ needs.prepare.outputs.sha }})
-          track: internal
+          tracks: internal
           status: completed
 
   ios:
