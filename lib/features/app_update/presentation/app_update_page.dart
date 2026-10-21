@@ -21,20 +21,23 @@ import 'package:url_launcher/url_launcher.dart';
 class AppUpdatePage extends StatelessWidget {
   const AppUpdatePage({super.key});
 
+  /// ## ⚠️ `PopScope`를 두지 않는다 — **여기서는 동작하지 않는다**
+  ///
+  /// 이 화면은 `MaterialApp.builder`에 있어 [Navigator]보다 **위**다. `PopScope`는
+  /// 가장 가까운 [ModalRoute]에 자신을 등록하는데 그런 조상이 없어 **아무 일도
+  /// 하지 않는다.** 실제로 뒤로가기를 누르면 그대로 앱이 내려간다(2026-10-21
+  /// 에뮬레이터 확인). 막아 준다고 적힌 죽은 코드는 없는 것보다 나쁘다.
+  ///
+  /// **앱이 내려가는 것은 막을 일이 아니다.** 명세의 "닫을 수 없다"는 *이 화면을
+  /// 치우고 앱을 쓰는 것*을 막으라는 뜻이고, 그쪽은 게이트가 라우터의 결과를
+  /// 통째로 갈아 끼워 길 자체가 없다. 다시 켜면 게이트가 또 막는다.
   @override
   Widget build(BuildContext context) {
-    // ⚠️ `canPop: false`만으로는 안드로이드 제스처 뒤로가기가 앱을 **끄는** 것을
-    // 막지 못한다. 끄는 것 자체는 막을 이유가 없다 — 막아야 하는 것은 이
-    // 화면을 **지나쳐 앱 안으로 들어가는 것**이고, 그쪽은 라우터 밖이라 길이
-    // 없다.
-    return const PopScope(
-      canPop: false,
-      child: _UpdateView(
-        icon: LucideIcons.arrowBigUpDash,
-        title: AppStrings.updateRequiredTitle,
-        body: AppStrings.updateRequiredBody,
-        dismissible: false,
-      ),
+    return const _UpdateView(
+      icon: LucideIcons.arrowBigUpDash,
+      title: AppStrings.updateRequiredTitle,
+      body: AppStrings.updateRequiredBody,
+      dismissible: false,
     );
   }
 }
