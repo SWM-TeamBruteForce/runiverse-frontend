@@ -16,6 +16,7 @@ import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/domain/finish_outcome.dart';
+import 'package:runiverse/features/session/domain/geo_point.dart';
 
 /// 러닝 중 서버가 보내는 `ERROR`에 연결이 **어떻게 반응하는가.**
 ///
@@ -143,6 +144,36 @@ void main() {
     await resent();
 
     expect(channel.batches, hasLength(1));
+  });
+
+  /// 서버 번호를 기다리는 중에 러닝이 끝났다 — 1.1.1 2절.
+  ///
+  /// ## ⚠️ 그대로 끝내면 그 구간이 어디에도 없다
+  ///
+  /// 복구로 붙었는데 로컬에 흔적이 없으면 기록기가 첫 시작 확인을 기다리고,
+  /// 그동안 좌표는 **메모리에만** 있다. 종료는 저장소를 읽어 보내므로
+  /// (`TrackSender.drain`) 그 좌표를 볼 수 없고, 확정되면 함께 버려진다.
+  test('⚠️ 기다리던 좌표도 끝낼 때 올라간다', () async {
+    final container = await makeContainer();
+    final connection = container.read(runningConnectionProvider.notifier);
+    // 복구 경로다 — 서버가 이 러닝의 좌표를 이미 받았을 수 있다.
+    await connection.reopen(125);
+    // ⚠️ 이 채널은 시작 확인을 흘리지 않는다. 신호가 나쁜 곳에서 ack가 아직
+    // 안 온 상태와 같다.
+    await container
+        .read(trackRecorderProvider)
+        .add(
+          GeoPoint(
+            latitude: 37.5,
+            longitude: 127.0,
+            recordedAt: DateTime(2026, 10, 21, 19, 10),
+          ),
+        );
+    expect(channel.batches, isEmpty, reason: '아직 들고 있다');
+
+    await connection.finish();
+
+    expect(channel.batches.single.single.sequence, 1);
   });
 
   /// 구간 번호가 거부됐을 때 — 1.1.1 3절.

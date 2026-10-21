@@ -496,8 +496,14 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   ///
   /// [targetDistanceMeters]는 방 정보가 실어 온 목표다. 파티원 통지에도 같은
   /// 값이 오지만 그것은 첫 통지까지 최대 10초가 빈다.
+  /// ⚠️ **복구가 아니다.** 매칭 방은 신청할 때 만들어졌고 이 호출이 그 방의
+  /// **첫 진입**이라, 서버가 받은 좌표가 없다 — 그래서 [recovered]가 거짓이다.
   Future<void> openMatched(int runningRoomId, {int? targetDistanceMeters}) =>
-      reopen(runningRoomId, targetDistanceMeters: targetDistanceMeters);
+      reopen(
+        runningRoomId,
+        targetDistanceMeters: targetDistanceMeters,
+        recovered: false,
+      );
 
   /// 이미 서버에 열려 있는 방에 **다시 붙는다.**
   ///
@@ -506,10 +512,21 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   ///
   /// [matched]가 거짓이면 솔로 방이다. 화면이 이 값으로 파티원 장을 띄울지
   /// 정하므로, 솔로에 참을 넘기면 빈 파티원 장이 생긴다.
+  ///
+  /// ## ⚠️ [recovered] 는 기본값이 참이다
+  ///
+  /// 이 함수의 이름이 곧 그 뜻이다 — **이미 열려 있는 방에 다시 붙는다.**
+  /// 그 길로 들어왔다면 서버가 이 러닝의 좌표를 **이미 받았을 수 있고**, 러닝
+  /// 중에 앱을 다시 설치했다면 로컬에는 흔적이 없다. 그때 1번부터 매기면 그
+  /// 좌표가 전부 버려지거나 배치째 거부된다 — [TrackRecorder.bind]가 이 값을
+  /// 보고 첫 시작 확인을 기다린다(1.1.1 2절).
+  ///
+  /// 첫 진입이 확실한 경로만 거짓을 넘긴다([openMatched]).
   Future<void> reopen(
     int runningRoomId, {
     int? targetDistanceMeters,
     bool matched = true,
+    bool recovered = true,
   }) async {
     if (state.opening || state.isReady) return;
     _retry?.cancel();
@@ -523,11 +540,11 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     // 솔로와 같은 이유로 번호를 남긴다. 러닝 중 앱이 죽어도 이 번호로
     // 다시 붙어 끝낼 수 있다.
     await ref.read(trackRepositoryProvider).markActiveRoom(room.id);
-    await _connect(room);
+    await _connect(room, recovered: recovered);
   }
 
   /// 소켓을 붙이고 `RUNNING_START`를 보낸다. 솔로와 매칭이 여기서 합쳐진다.
-  Future<void> _connect(RunningRoom room) async {
+  Future<void> _connect(RunningRoom room, {bool recovered = false}) async {
     final accessToken = (await ref.read(tokenStoreProvider).read()).accessToken;
     if (accessToken == null) {
       state = const RunningConnectionState(
@@ -625,7 +642,9 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     // ⚠️ **방을 알게 된 순간 좌표 기록기에 알린다.** 방이 늦게 생기는 동안
     // 쌓아 둔 좌표가 여기서 한꺼번에 저장된다 — 안 알리면 러닝 초반 좌표가
     // 메모리에만 남아 앱이 죽으면 사라진다.
-    await ref.read(trackRecorderProvider).bind(room.id);
+    await ref
+        .read(trackRecorderProvider)
+        .bind(room.id, serverMayHaveTrack: recovered);
 
     await channel.start(room.id);
 
@@ -869,6 +888,12 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     var pending = false;
 
     try {
+      // ⚠️ **들고 있던 좌표를 먼저 저장소에 내려놓는다** — 1.1.1 2절.
+      //
+      // 서버 번호를 기다리는 중이면(`TrackRecorder`) 그 구간이 메모리에만
+      // 있다. 그대로 끝내면 **저장소에도 서버에도 없다** — 아래 `drain`은
+      // 저장소를 읽으므로 볼 수 없고, 종료가 확정되면 함께 버려진다.
+      await ref.read(trackRecorderProvider).stopWaiting();
       await _sender?.drain();
       // 다 보냈으면 타이머를 세운다. ack를 기다리는 동안 또 돌 이유가 없다.
       //

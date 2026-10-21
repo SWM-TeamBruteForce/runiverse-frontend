@@ -42,6 +42,50 @@ class TrackRecorder {
   /// 다음에 쓸 번호 둘.
   var _numbers = RunNumbers.start;
 
+  /// **서버가 아는 번호를 기다리는 중인가** — 1.1.1 2절.
+  ///
+  /// ## ⚠️ 로컬에 흔적이 없으면 1번부터 매길 수 없다
+  ///
+  /// 러닝 중에 앱을 다시 설치하면 저장소가 비어 있다. 그런데 서버는 이미
+  /// 120번까지 받았을 수 있고, 그 상태로 1번을 쓰면 **중복으로 버려진다.**
+  /// 구간 번호는 더 나쁘다 — 0은 서버가 아는 값보다 작아 **배치가 통째로
+  /// `PAUSE_SEGMENT_DECREASED`로 거부되고**, 그 코드를 받으면 앱이 러닝을
+  /// 끝낸다(1.1.1 3절).
+  ///
+  /// ## ⚠️ 그래도 **새 러닝은 기다리지 않는다**
+  ///
+  /// 저장소가 비어 있는 것만으로는 "다시 설치했다"와 "방금 시작했다"를 가를
+  /// 수 없다. 그래서 **부르는 쪽이 알려 준다** — [bind]의 `serverMayHaveTrack`.
+  /// 서버에 이미 열려 있는 방에 다시 붙는 경로만 참을 넘긴다.
+  ///
+  /// 새 러닝까지 기다리게 하면 신호 없는 곳에서 시작한 러닝의 **첫 구간이
+  /// 저장소에 안 남는다** — 메모리에만 있다가 앱이 걷어내지면 사라진다.
+  /// 서버에 아무것도 없는 것이 확실한 자리에서 그 위험을 질 이유가 없다.
+  var _awaitingServerNumbers = false;
+
+  /// 서버 번호를 **한 번이라도 받았는가.**
+  ///
+  /// ⚠️ 받아 둔 뒤에 [bind]가 불릴 수 있다 — 방을 모르는 동안 시작 확인이
+  /// 먼저 닿는 경우다. 그때는 **기다릴 이유가 없다.** 이 값을 안 보면 이미
+  /// 아는 번호를 들고도 좌표를 붙들고 있는다.
+  var _sawServerNumbers = false;
+
+  /// 기다리기를 포기하는 한도.
+  ///
+  /// ## ⚠️ 영영 기다리면 저장소에 아무것도 안 남는다
+  ///
+  /// 신호가 없는 곳에서 시작하면 확인이 오지 않는다. 그동안 좌표는 메모리에만
+  /// 있어, 안드로이드가 앱을 걷어내면 **그 구간이 통째로 사라진다.** 오래
+  /// 기다릴수록 잃을 것이 커지므로 한도를 둔다.
+  ///
+  /// 한도에 닿으면 로컬 번호로 쓴다 — 다시 설치한 경우라면 그 좌표가 서버에
+  /// 거부될 수 있지만, 그쪽은 1.1.1 3절이 받는다(알리고 끝낸다). **아무것도
+  /// 안 남는 것보다 낫다.**
+  ///
+  /// 시계를 두지 않고 **좌표에 박힌 시각**으로 센다 — 타이머가 없어야 테스트가
+  /// 흔들리지 않는다.
+  static const holdLimit = Duration(seconds: 30);
+
   /// 아직 저장소에 못 쓴 좌표 수. 테스트와 진단에 쓴다.
   int get pendingCount => _pending.length;
 
@@ -65,9 +109,27 @@ class TrackRecorder {
   /// ## 기다리던 좌표도 번호를 다시 받는다
   ///
   /// 아직 저장도 전송도 안 된 것이라 밀어도 잃는 것이 없다. 순서는 그대로다.
-  Future<void> bind(int runningRoomId) async {
+  ///
+  /// ## [serverMayHaveTrack] — 서버가 이 러닝의 좌표를 이미 받았을 수 있나
+  ///
+  /// **서버에 열려 있는 방에 다시 붙는 경로만** 참을 넘긴다(복구 · 재설치).
+  /// 그때 로컬에 흔적이 없으면 1번부터 매길 수 없어 첫 시작 확인을 기다린다
+  /// ([_awaitingServerNumbers]).
+  ///
+  /// ⚠️ **새로 만든 방에는 거짓이다.** 서버에 아무것도 없는 것이 확실하므로
+  /// 기다릴 이유가 없고, 기다리면 신호 없는 곳에서 시작한 러닝의 첫 구간이
+  /// 메모리에만 남는다.
+  Future<void> bind(
+    int runningRoomId, {
+    bool serverMayHaveTrack = false,
+  }) async {
     _roomId = runningRoomId;
-    _numbers = _numbers.mergedWith(await _restore(runningRoomId));
+    final restored = await _restore(runningRoomId);
+    // 서버가 받은 데가 있을 수 있는데 로컬에 흔적도, 받아 둔 번호도 없다 —
+    // 알 길이 없어 첫 확인을 기다린다.
+    _awaitingServerNumbers =
+        serverMayHaveTrack && restored == null && !_sawServerNumbers;
+    if (restored != null) _numbers = _numbers.mergedWith(restored);
 
     // ⚠️ **여기서 번호를 저장하지 않는다.** 저장이 실패하면 그 예외가 방을
     // 붙이는 길로 터져 나가 **러닝이 아예 시작되지 않는다** — 좌표 하나 때문에
@@ -75,6 +137,23 @@ class TrackRecorder {
     //
     // 저장을 미뤄도 잃는 것이 없다. 되살린 값은 [_restore]가 쌓인 좌표와 남긴
     // 번호에서 **매번 다시 계산하고**, 첫 좌표가 들어오면 [_write]가 남긴다.
+    // ⚠️ **기다리는 중이면 아직 쓰지 않는다.** 여기서 쓰면 서버가 아는 번호를
+    // 모르는 채 1번부터 매기게 되고, 그것이 [_awaitingServerNumbers]가 막으려는
+    // 바로 그 결과다.
+    if (_awaitingServerNumbers) return;
+
+    await _flushPending(runningRoomId);
+  }
+
+  /// 기다리던 좌표를 **지금 들고 있는 번호로** 쓴다.
+  ///
+  /// 아직 저장도 전송도 안 된 것이라 번호를 다시 매겨도 잃는 것이 없다. 순서는
+  /// 그대로다.
+  ///
+  /// ⚠️ **같은 구간 번호를 달고 나간다.** 기다리는 동안 [markPause]가 불렸다면
+  /// 멈추기 전 좌표도 멈춘 뒤 번호를 받는다 — 서버가 그 짧은 멈춤을 거리에서
+  /// 빼지 못한다. 번호가 줄어드는 쪽(배치째 거부)보다 나은 쪽을 골랐다.
+  Future<void> _flushPending(int runningRoomId) async {
     if (_pending.isEmpty) return;
 
     // 복사해서 돌린다. 쓰는 동안 새 좌표가 들어와도 목록이 흔들리지 않는다.
@@ -90,6 +169,22 @@ class TrackRecorder {
         ),
       );
     }
+  }
+
+  /// **더 기다리지 않는다.** 들고 있던 좌표를 로컬 번호로 쓴다.
+  ///
+  /// 러닝을 끝내기 직전에 부른다. 끝내면서 버리면 그 구간이 **어디에도 남지
+  /// 않는다** — 저장소에도 서버에도 없다. 거부될 수 있는 번호로라도 남기는
+  /// 쪽이 낫다(1.1.1 3절이 거부를 받는다).
+  ///
+  /// 기다리는 중이 아니면 아무 일도 하지 않는다.
+  Future<void> stopWaiting() async {
+    if (!_awaitingServerNumbers) return;
+    _awaitingServerNumbers = false;
+
+    final roomId = _roomId;
+    if (roomId == null) return;
+    await _flushPending(roomId);
   }
 
   /// `RUNNING_STARTED`가 싣고 온 **서버 번호를 반영한다** — 1.1.1 2절.
@@ -112,12 +207,21 @@ class TrackRecorder {
   /// 연결마다 한 번씩 온다. 두 번째부터는 대개 로컬이 더 커서 조용하다.
   Future<void> applyServerNumbers(RunNumbers fromServer) async {
     _numbers = _numbers.mergedWith(fromServer);
+    _sawServerNumbers = true;
 
     final roomId = _roomId;
     // 방을 모르면 메모리만 맞춰 둔다. [bind]가 그 값을 들고 간다.
     if (roomId == null) return;
 
     await _repository.saveNumbers(roomId, _numbers);
+
+    // ⚠️ **기다리던 좌표를 이제 쓴다.** 번호를 알게 된 자리가 여기다
+    // ([_awaitingServerNumbers]). 안 쓰면 그 구간이 메모리에만 남아 러닝이
+    // 끝날 때까지 저장소에 닿지 않는다.
+    if (_awaitingServerNumbers) {
+      _awaitingServerNumbers = false;
+      await _flushPending(roomId);
+    }
   }
 
   /// 좌표 하나를 쌓는다.
@@ -143,11 +247,15 @@ class TrackRecorder {
     );
 
     final roomId = _roomId;
-    if (roomId == null) {
-      // ⚠️ **번호를 밀지 않는다.** 방을 알게 되면 [bind]가 되살린 번호로 다시
+    if (roomId == null || _awaitingServerNumbers) {
+      // ⚠️ **번호를 밀지 않는다.** 번호를 알게 되면 [_flushPending]이 다시
       // 매긴다. 여기서 밀어 두면 되살린 번호와 겹치거나 앞질러, 쓰이지 않은
       // 번호가 중간에 비어 버린다.
       _pending.add(track);
+
+      // ⚠️ **너무 오래 기다리지는 않는다**([holdLimit]). 메모리에만 있는
+      // 구간이 길어질수록 앱이 걷어내질 때 잃는 것이 커진다.
+      if (roomId != null && _heldLongerThanLimit(track)) await stopWaiting();
       return;
     }
 
@@ -198,7 +306,19 @@ class TrackRecorder {
   void reset() {
     _roomId = null;
     _numbers = RunNumbers.start;
+    _awaitingServerNumbers = false;
+    _sawServerNumbers = false;
     _pending.clear();
+  }
+
+  /// 들고 있는 첫 좌표와 [latest] 사이가 [holdLimit]을 넘었나.
+  ///
+  /// 기기 시각이 뒤로 돌면 음수가 나올 수 있다. 그때는 넘지 않은 것으로 본다 —
+  /// 시계를 믿지 못하는 상황에서 **쓰기를 서두를 이유는 없다.**
+  bool _heldLongerThanLimit(TrackPoint latest) {
+    final first = _pending.firstOrNull;
+    if (first == null) return false;
+    return latest.recordedAt.difference(first.recordedAt) > holdLimit;
   }
 
   /// 좌표 하나를 번호와 함께 남긴다.
@@ -228,11 +348,15 @@ class TrackRecorder {
   /// ⚠️ **좌표 행의 구간 번호는 보지 않는다.** 멈추면 번호가 올라가는데 그 뒤로
   /// 새 좌표가 안 들어오므로, 쌓인 좌표의 최대값은 언제나 **올리기 전 값**이다.
   /// v2에서 올라온 좌표는 기본값 0이라 그것도 근거가 못 된다.
-  Future<RunNumbers> _restore(int runningRoomId) async {
+  /// ⚠️ **아무 흔적도 없으면 `null`이다.** `RunNumbers.start`와 구분해야 한다 —
+  /// "1번부터 쓰면 된다"와 "1번부터 써도 되는지 모른다"는 다른 사실이고,
+  /// 뒤쪽이 [_awaitingServerNumbers]가 서는 자리다.
+  Future<RunNumbers?> _restore(int runningRoomId) async {
     final stored = await _repository.numbers(runningRoomId);
     final last = await _repository.lastSequence(runningRoomId);
-    final fromPoints = RunNumbers(nextSequence: last + 1, pauseSegment: 0);
+    if (stored == null && last == 0) return null;
 
+    final fromPoints = RunNumbers(nextSequence: last + 1, pauseSegment: 0);
     return stored == null ? fromPoints : fromPoints.mergedWith(stored);
   }
 }
