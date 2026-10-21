@@ -78,6 +78,7 @@ class RunningConnectionState {
     this.opening = false,
     this.settling = false,
     this.trackUnavailable = false,
+    this.trackRejected = false,
     this.finishedRoomId,
   });
 
@@ -99,6 +100,19 @@ class RunningConnectionState {
   /// 같은 오류가 오므로 **알림은 한 장**으로 접는다(연동 가이드) — 잠시 뒤
   /// 저절로 내려가고, 또 오면 다시 올라온다.
   final bool trackUnavailable;
+
+  /// 서버가 **구간 번호를 이유로** 배치를 거부했다(`PAUSE_SEGMENT_DECREASED`).
+  ///
+  /// ## ⚠️ [trackUnavailable]과 달리 저절로 풀리지 않는다
+  ///
+  /// 저쪽은 서버가 잠시 저장을 못 한 것이라 다시 보내면 들어간다. 이쪽은
+  /// 서버가 기억하는 구간 번호가 앱이 보낸 것보다 크다는 뜻이라, **다음
+  /// 배치도 같은 이유로 거부된다** — 더 달려도 아무것도 안 남는다.
+  ///
+  /// 그래서 이 값이 서면 러닝을 끝내는 길로 간다. 화면은 이 값을 보고
+  /// **왜 끝났는지** 알린다 — 말해 주지 않으면 러닝이 저절로 끝난 것처럼
+  /// 보인다.
+  final bool trackRejected;
 
   /// 서버가 준 방. `null`이면 아직 못 열었다.
   final RunningRoom? room;
@@ -132,6 +146,7 @@ class RunningConnectionState {
     bool? opening,
     bool? settling,
     bool? trackUnavailable,
+    bool? trackRejected,
     int? finishedRoomId,
   }) => RunningConnectionState(
     finishedRoomId: finishedRoomId ?? this.finishedRoomId,
@@ -142,6 +157,7 @@ class RunningConnectionState {
     opening: opening ?? this.opening,
     settling: settling ?? this.settling,
     trackUnavailable: trackUnavailable ?? this.trackUnavailable,
+    trackRejected: trackRejected ?? this.trackRejected,
   );
 }
 
@@ -197,6 +213,21 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// 오면 계속 떠 있고, 안 오면 풀린 것이다.
   static const _trackNoticeFor = Duration(seconds: 30);
 
+  /// 거부된 배치를 다시 보낸 시각. 너무 자주 보내지 않게 재는 것.
+  DateTime? _lastTrackResend;
+
+  /// 지금 다시 보내는 중인가.
+  var _resendingTrack = false;
+
+  /// 다시 보내기 사이의 최소 간격.
+  ///
+  /// ## ⚠️ 오류는 배치마다 온다
+  ///
+  /// 서버 저장이 망가져 있으면 10초마다 같은 답이 온다. 그때마다 다시 보내면
+  /// **앱이 서버 장애를 키운다.** 배치 간격과 같은 10초를 두면 늘어나는 양이
+  /// 최대 두 배로 묶인다 — 그 이상은 서버가 숨 쉴 틈을 빼앗는다.
+  static const _trackResendGap = Duration(seconds: 10);
+
   void _onServerError(WsErrorCode code) {
     if (code == WsErrorCode.notRoomPlayer) {
       // 재시도해도 같은 답이다. 보내던 것을 멈추고 소켓을 닫는다 — 화면이
@@ -214,11 +245,22 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       );
       return;
     }
+    if (code == WsErrorCode.pauseSegmentDecreased) {
+      unawaited(_finishOnRejectedTrack());
+      return;
+    }
     if (code.needsDelayedRestart) {
       unawaited(_restartLater(code));
       return;
     }
     if (code != WsErrorCode.runningTrackUnavailable) return;
+    // ⚠️ **거부된 배치를 다시 보낸다** — 1.1.1 3절.
+    //
+    // 알리기만 하던 자리다. 그런데 전송기는 소켓에 넘긴 것을 보낸 것으로 보고
+    // 커서를 이미 옮겼으므로, **연결이 멀쩡한 채로 저장만 실패하면 그 구간은
+    // 영영 올라가지 않는다.** 끊겼다 붙을 때만 처음부터 다시 보내던 길이라
+    // 한 시간을 안 끊기고 달리면 빠진 채로 기록이 확정된다.
+    unawaited(_resendRejectedBatch());
     _trackNotice?.cancel();
     _trackNotice = Timer(_trackNoticeFor, () {
       state = state.copyWith(trackUnavailable: false);
@@ -226,6 +268,59 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     if (!state.trackUnavailable) {
       state = state.copyWith(trackUnavailable: true);
     }
+  }
+
+  /// 서버가 저장하지 못한 배치를 **한 번 더 보낸다** — 1.1.1 3절.
+  ///
+  /// ⚠️ **간격을 둔다.** 저장 실패는 배치마다 오므로 그때마다 보내면 장애
+  /// 중인 서버에 두 배로 쏟는다([_trackResendGap]).
+  ///
+  /// ⚠️ **실패해도 러닝은 계속된다.** 못 올라간 좌표는 로컬에 남아 있고,
+  /// 다음 재연결이 처음부터 다시 보내는 길을 또 탄다.
+  Future<void> _resendRejectedBatch() async {
+    if (_resendingTrack) return;
+    final sender = _sender;
+    if (sender == null) return;
+
+    final since = _lastTrackResend;
+    final now = DateTime.now();
+    if (since != null && now.difference(since) < _trackResendGap) return;
+    _lastTrackResend = now;
+
+    _resendingTrack = true;
+    try {
+      sender.rewindLast();
+      await sender.drain();
+    } on Object catch (error) {
+      debugPrint('[track] 거부된 배치를 다시 보내지 못했다 · $error');
+    } finally {
+      _resendingTrack = false;
+    }
+  }
+
+  /// 서버가 **구간 번호를 이유로** 배치를 거부했다. 알리고 끝낸다 — 1.1.1 3절.
+  ///
+  /// ## ⚠️ 왜 끝내는가
+  ///
+  /// 앱이 매기는 번호는 줄지 않으므로, 이 답은 서버가 기억하는 번호가 더
+  /// 크다는 뜻이다. 그러면 **다음 배치도 같은 이유로 거부된다** — 더 달려도
+  /// 아무것도 안 남는다. 모르는 채로 뛰게 두는 것이 가장 나쁜 결과라,
+  /// 받은 데까지로 기록을 확정하고 사용자에게 알린다.
+  ///
+  /// `forced=true`다. 목표를 채우기 전에 끝내는 것이라 조기 종료가 맞다.
+  ///
+  /// ⚠️ **한 번만 돈다.** 오류는 배치마다 오는데 그때마다 끝내려 들면 종료가
+  /// 겹쳐 나간다.
+  Future<void> _finishOnRejectedTrack() async {
+    if (state.trackRejected) return;
+    debugPrint('[running] 구간 번호가 거부됐다. 더 기록되지 않아 끝낸다');
+    state = state.copyWith(trackRejected: true);
+
+    // ⚠️ **보내기를 먼저 해체한다.** [finish]는 남은 좌표를 흘리는 것으로
+    // 시작하는데, 여기서는 그 좌표가 전부 같은 이유로 거부된다 — 트랙
+    // 전체가 공짜로 한 번 더 나가고 종료만 늦어진다.
+    _sender?.stop();
+    await finish(forced: true);
   }
 
   @override
@@ -844,11 +939,17 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// 여기 남은 번호가 다음 러닝을 방해하지 않는다.
   Future<void> _cleanUpAfterFinish() async {
     final room = state.room;
+    // ⚠️ **끝난 이유도 들고 넘어간다.** [close]가 상태를 통째로 비우는데,
+    // 화면은 종료를 알아챈 **그 순간** 이 값을 읽어 왜 끝났는지 알린다
+    // ([RunningConnectionState.trackRejected]) — 여기서 지우면 러닝이 저절로
+    // 끝난 것처럼 보인다.
+    final rejected = state.trackRejected;
     await close();
     if (room != null) {
       state = RunningConnectionState(
         room: room,
         finishedRoomId: _finishedRoomId,
+        trackRejected: rejected,
       );
     }
   }
@@ -887,6 +988,14 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   Future<void> close() async {
     _retry?.cancel();
     _retry = null;
+    // ⚠️ **배너 시계도 끈다.** 안 끄면 화면을 떠난 뒤에도 30초를 더 살아
+    // 남는다 — 상태가 이미 비워진 자리에 저장 실패를 지우는 일이라 해롭지는
+    // 않지만, 러닝이 끝났는데 도는 타이머다(테스트가 그것으로 거부한다).
+    _trackNotice?.cancel();
+    _trackNotice = null;
+    // 다시 보내기 간격도 되돌린다. 다음 러닝이 지난 러닝의 시계를 물려받으면
+    // 첫 저장 실패를 조용히 흘린다.
+    _lastTrackResend = null;
     _attempt = 0;
     _restarts = 0;
     // ⚠️ 멈춤 표식도 되돌린다. 남겨 두면 **다음 러닝이 붙자마자

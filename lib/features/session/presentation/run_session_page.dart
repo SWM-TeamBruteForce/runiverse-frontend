@@ -311,7 +311,20 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
       debugPrint('[running] 서버가 끝냈다. 요약으로 간다');
       _finishing = true;
       ref.read(runSessionControllerProvider.notifier).finish();
-      if (mounted) context.pushReplacement(AppRoutes.runSummary);
+      if (!mounted) return;
+
+      // ⚠️ **왜 끝났는지 말해 준다.** 서버가 구간 번호를 이유로 좌표를 받지
+      // 않으면 앱이 러닝을 끝내는데(1.1.1 3절), 알리지 않으면 **달리던 화면이
+      // 저절로 요약으로 넘어간 것**으로만 보인다.
+      //
+      // `ScaffoldMessenger`는 라우트보다 위에 있어 요약으로 넘어가도 남는다 —
+      // 이 화면에서 띄우고 바로 떠나는 것이 그래서 가능하다.
+      if (ref.read(runningConnectionProvider).trackRejected) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(AppStrings.runTrackRejected)),
+        );
+      }
+      context.pushReplacement(AppRoutes.runSummary);
     });
 
     final party = ref.watch(partyProvider);

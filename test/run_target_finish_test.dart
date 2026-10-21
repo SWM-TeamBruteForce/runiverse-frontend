@@ -262,6 +262,51 @@ void main() {
     });
   });
 
+  /// 서버가 **구간 번호를 이유로** 좌표를 거부했다 — 1.1.1 3절.
+  ///
+  /// ## ⚠️ 말해 주지 않으면 러닝이 저절로 끝난 것처럼 보인다
+  ///
+  /// 이 경우는 앱이 끝낸다. 더 달려도 아무것도 안 남기 때문인데, 사용자에게는
+  /// **달리던 화면이 갑자기 요약으로 넘어간 것**으로만 보인다. 끝내는 것과
+  /// 알리는 것이 한 몸이라 둘을 한 자리에서 본다.
+  group('⚠️ 구간 번호가 거부되면 — 1.1.1 3절', () {
+    testWidgets('조기 종료를 보내고 요약으로 간다', (tester) async {
+      final container = await pumpRunning(tester);
+
+      channel.errors_.add(WsErrorCode.pauseSegmentDecreased);
+      await settleFinish(tester);
+      await tester.pumpAndSettle();
+
+      expect(channel.finishes, [true]);
+      expect(find.byType(RunSessionPage, skipOffstage: false), findsNothing);
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 왜 끝났는지 말해 준다', (tester) async {
+      final container = await pumpRunning(tester);
+
+      channel.errors_.add(WsErrorCode.pauseSegmentDecreased);
+      await settleFinish(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runTrackRejected), findsOneWidget);
+      await unmount(tester, container);
+    });
+
+    testWidgets('저장 실패만으로는 끝내지 않는다', (tester) async {
+      // 그쪽은 다시 보내면 들어간다. 러닝은 계속돼야 한다.
+      final container = await pumpRunning(tester);
+
+      channel.errors_.add(WsErrorCode.runningTrackUnavailable);
+      await settleFinish(tester);
+      await tester.pumpAndSettle();
+
+      expect(channel.finishes, isEmpty);
+      expect(find.byType(RunSessionPage), findsOneWidget);
+      await unmount(tester, container);
+    });
+  });
+
   testWidgets('목표가 없는 솔로는 스스로 끝내지 않는다', (tester) async {
     // 솔로에는 목표가 없다. 끝내는 것은 사용자의 몫이다.
     final container = await pumpRunning(tester, targetMeters: null);
@@ -482,8 +527,11 @@ class _FinishChannel implements RunningChannel {
   @override
   WsConnectionState get state => WsConnectionState.connected;
 
+  /// 서버가 거절한 것을 손으로 흘려보낸다.
+  final errors_ = StreamController<WsErrorCode>.broadcast();
+
   @override
-  Stream<WsErrorCode> get errors => const Stream.empty();
+  Stream<WsErrorCode> get errors => errors_.stream;
 
   @override
   Stream<RunProgress> get progress => const Stream.empty();

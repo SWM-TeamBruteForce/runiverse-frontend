@@ -985,6 +985,13 @@ abstract final class AppStrings {
   /// 서버가 좌표를 저장하지 못하는 중. 러닝은 계속되고 좌표는 앱에 남는다.
   static const runTrackUnavailable = '기록 저장이 늦어지고 있어요. 앱에 남겨 두고 있어요';
 
+  /// 서버가 구간 번호를 이유로 좌표를 받지 않는다(`PAUSE_SEGMENT_DECREASED`).
+  ///
+  /// ⚠️ **더 달려도 안 남는다는 것을 말해 줘야 한다.** 앱이 러닝을 끝내는데,
+  /// 이유를 알리지 않으면 저절로 끝난 것처럼 보인다. 원인은 사용자가 어쩔 수
+  /// 없는 것이라 "다시 해보세요"라고 하지 않는다.
+  static const runTrackRejected = '기록을 더 저장할 수 없어 러닝을 종료했어요. 여기까지는 저장됐어요';
+
   static const runOfflineWhy = '기록은 계속 재고 있어요. 연결되면 자동으로 올라가요.';
 
   /// 위치 권한이 없을 때. 설정 앱으로 보낸다.

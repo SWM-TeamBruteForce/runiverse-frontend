@@ -206,6 +206,86 @@ void main() {
     });
   });
 
+  /// 서버가 **저장에 실패했다**고 답한 배치 다시 보내기 — 1.1.1 3절.
+  ///
+  /// ## ⚠️ 끊기지 않으면 아무도 다시 보내지 않았다
+  ///
+  /// 커서는 소켓에 넘긴 순간 앞으로 간다. 그래서 연결이 멀쩡한 채로 저장만
+  /// 실패하면 **그 구간은 영영 올라가지 않는다** — 재연결이 커서를 되돌리는
+  /// 길뿐이었고, 한 시간을 안 끊기고 달리면 그 길을 타지 않는다.
+  group('저장 실패로 거부된 배치', () {
+    test('직전 배치를 다시 보낸다', () async {
+      await store(1, 10);
+      sender.start(roomId);
+      await sender.flush();
+
+      await store(11, 20);
+      await sender.flush();
+      expect(sender.lastSent, 20);
+
+      sender.rewindLast();
+
+      expect(sender.lastSent, 10);
+    });
+
+    test('⚠️ 처음부터가 아니라 그 배치만 다시 간다', () async {
+      // 전체를 다시 보내면, 저장 실패가 10초마다 되풀이되는 동안 트랙 전체가
+      // 매번 나가 **앱이 서버 장애를 키운다**(전체 재전송이 1009로 끊긴 적이
+      // 있다).
+      await store(1, 10);
+      sender.start(roomId);
+      await sender.flush();
+      await store(11, 20);
+      await sender.flush();
+      channel.batches.clear();
+
+      sender.rewindLast();
+      await sender.drain();
+
+      expect(sentSequences(), List.generate(10, (i) => i + 11));
+    });
+
+    test('⚠️ 두 번 불러도 한 배치만 물린다', () async {
+      // 오류는 배치마다 온다. 부를 때마다 한 칸씩 뒤로 가면 결국 처음까지
+      // 거슬러 올라간다.
+      await store(1, 20);
+      sender.start(roomId);
+      await sender.flush();
+      await store(21, 30);
+      await sender.flush();
+
+      sender.rewindLast();
+      sender.rewindLast();
+
+      expect(sender.lastSent, 20);
+    });
+
+    test('아직 보낸 것이 없으면 아무 일도 없다', () async {
+      sender.start(roomId);
+
+      sender.rewindLast();
+
+      expect(sender.lastSent, 0);
+      expect(channel.batches, isEmpty);
+    });
+
+    test('⚠️ 끊겨서 처음으로 돌아간 뒤에는 커서를 앞으로 밀지 않는다', () async {
+      // 되돌림이 **앞으로** 작동하면 아직 보내지 않은 좌표를 건너뛴다 —
+      // 고치려던 것보다 나쁜 결과다.
+      await store(1, 300);
+      sender.start(roomId);
+      await sender.drain();
+
+      channel.emitState(WsConnectionState.reconnecting);
+      await Future<void>.delayed(Duration.zero);
+      expect(sender.lastSent, 0);
+
+      sender.rewindLast();
+
+      expect(sender.lastSent, 0);
+    });
+  });
+
   group('많이 밀렸을 때', () {
     test('⚠️ 한 번에 다 싣지 않고 나눠 보낸다', () async {
       // 몇 분 끊겼다 붙으면 수백 점이다. 한 프레임에 다 실으면 서버가 거절할 수 있다.
