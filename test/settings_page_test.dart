@@ -14,13 +14,15 @@ import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
+import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
+import 'package:runiverse/features/auth/domain/login_type.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/settings/data/fake_settings_repository.dart';
 import 'package:runiverse/features/settings/domain/settings_failure.dart';
-import 'package:runiverse/features/auth/domain/login_type.dart';
 import 'package:runiverse/features/settings/presentation/settings_provider.dart';
 
 /// 설정 화면 — **계정 유형에 따른 분기**와 **나가는 길**.
@@ -71,6 +73,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
+          // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
+          appVersionRepositoryProvider.overrideWithValue(
+            FakeAppVersionRepository(),
+          ),
           tokenStoreProvider.overrideWithValue(tokens),
           signInMemoryStoreProvider.overrideWithValue(
             InMemorySignInMemoryStore(),

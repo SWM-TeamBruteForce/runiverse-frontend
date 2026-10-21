@@ -3,20 +3,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
+import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/network/ws_client.dart';
+import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/storage/body_profile_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
-import 'package:runiverse/core/network/ws_message.dart';
-import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
+import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
-import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/data/fake_running_room_repository.dart';
 import 'package:runiverse/features/session/data/fake_step_repository.dart';
 import 'package:runiverse/features/session/data/fake_track_repository.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
@@ -26,9 +29,8 @@ import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/presentation/run_controls.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
-import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
-import 'package:runiverse/features/session/domain/finish_outcome.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 1인 러닝 — 출발 준비부터 요약까지 화면이 실제로 이어지는가.
 ///
@@ -81,6 +83,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
+          // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
+          appVersionRepositoryProvider.overrideWithValue(
+            FakeAppVersionRepository(),
+          ),
           tokenStoreProvider.overrideWithValue(tokens),
           locationRepositoryProvider.overrideWithValue(location),
           // 시각을 고정한다. `DateTime.now`를 그대로 두면 흐른 시간이 매번 달라진다.

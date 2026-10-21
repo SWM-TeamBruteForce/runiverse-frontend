@@ -7,6 +7,8 @@ import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
+import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
@@ -15,6 +17,7 @@ import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_step_repository.dart';
 import 'package:runiverse/features/session/data/fake_track_repository.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
@@ -24,7 +27,6 @@ import 'package:runiverse/features/session/domain/user_status_repository.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
-import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
 /// 홈의 **"러닝 화면으로 가기"** — 들어가기 전에 상태를 다시 읽는가.
 ///
@@ -58,6 +60,11 @@ void main() {
 
     final container = ProviderContainer.test(
       overrides: [
+        // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
+        // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
+        appVersionRepositoryProvider.overrideWithValue(
+          FakeAppVersionRepository(),
+        ),
         tokenStoreProvider.overrideWithValue(tokens),
         matchRepositoryProvider.overrideWithValue(FakeMatchRepository()),
         userStatusRepositoryProvider.overrideWithValue(status),
