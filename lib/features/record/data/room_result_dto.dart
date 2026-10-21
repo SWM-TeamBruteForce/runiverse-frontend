@@ -95,25 +95,53 @@ abstract final class RoomResultDto {
   /// 읽으면 경로가 엉뚱한 곳에 그려진다 — 명세가 따로 못 박은 지점이다.
   ///
   /// 본인 기록이 없으면 `null`이 온다(빈 배열이 아니다).
+  /// 경로를 읽는다. **두 가지 모양을 다 받는다.**
+  ///
+  /// ## ⚠️ 서버가 조각으로 묶어 주기 시작했다 — 1.1.1 4절
+  ///
+  /// ```
+  /// 옛 모양  routes: [[37.5, 127.0], [37.5001, 127.0001], ...]      점이 한 줄
+  /// 새 모양  routes: [[[37.5, 127.0], ...], [[37.6, 127.1], ...]]   조각의 목록
+  /// ```
+  ///
+  /// 새 모양을 옛 방식으로 읽으면 점 자리에 **배열**이 들어와 캐스트가 터지고,
+  /// 그 예외가 화면까지 올라가 **기록 상세가 통째로 "불러오지 못했어요"가
+  /// 된다** — 서버는 200을 주는데 끝낸 러닝의 상세가 하나도 안 열렸다
+  /// (2026-10-21 기기 확인).
+  ///
+  /// ## ⚠️ 조각 사이는 잇지 않는다
+  ///
+  /// 서버가 나눠 준 경계가 정본이다. 조각 **안**에서는 예전처럼 한 번 더
+  /// 끊는다 — 빠진 자리가 남아 있을 수 있고, 그 양 끝을 이으면 가 본 적 없는
+  /// 길에 선이 그려진다(가이드 4.2).
   static List<List<GeoPoint>> _track(Object? routes) {
     if (routes is! List || routes.isEmpty) return const [];
 
-    final points = <GeoPoint>[
-      for (final point in routes)
-        if (point is List && point.length >= 2)
-          GeoPoint(
-            latitude: (point[0] as num).toDouble(),
-            longitude: (point[1] as num).toDouble(),
-            // 서버 경로에 시각이 없다. 지도만 그리므로 쓰이지 않는다.
-            recordedAt: DateTime.fromMillisecondsSinceEpoch(0),
-          ),
-    ];
+    // 첫 점의 첫 칸이 또 배열이면 조각으로 묶여 온 것이다.
+    final first = routes.first;
+    final nested = first is List && first.isNotEmpty && first.first is List;
+    final groups = nested ? routes.whereType<List>() : [routes];
 
-    // ⚠️ **한 줄로 왔어도 한 줄로 그리지 않는다.** 서버가 정지 구간과 오염
-    // 좌표를 빼고 주므로 빠진 자리가 있고, 그 양 끝을 이으면 가 본 적 없는
-    // 길에 선이 그려진다(가이드 4.2).
-    return RouteSegments.split(points);
+    return [for (final group in groups) ...RouteSegments.split(_points(group))];
   }
+
+  /// `[위도, 경도]` 묶음을 점으로 읽는다.
+  ///
+  /// ⚠️ **읽을 수 없는 점은 버리고 넘어간다.** 하나가 이상하다고 던지면
+  /// 러닝 기록 전체가 안 열린다 — 선 한 토막이 비는 편이 낫다.
+  static List<GeoPoint> _points(List<Object?> raw) => [
+    for (final point in raw)
+      if (point is List &&
+          point.length >= 2 &&
+          point[0] is num &&
+          point[1] is num)
+        GeoPoint(
+          latitude: (point[0] as num).toDouble(),
+          longitude: (point[1] as num).toDouble(),
+          // 서버 경로에 시각이 없다. 지도만 그리므로 쓰이지 않는다.
+          recordedAt: DateTime.fromMillisecondsSinceEpoch(0),
+        ),
+  ];
 
   /// 18번의 `splits[]`를 **사람별로** 가른다.
   ///

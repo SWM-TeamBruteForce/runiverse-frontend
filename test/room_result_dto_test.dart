@@ -173,6 +173,100 @@ void main() {
     expect(detail.tableSplitsOf('u-3'), isEmpty);
   });
 
+  /// 경로의 두 가지 모양 — 1.1.1 4절.
+  ///
+  /// ## ⚠️ 여기가 기기에서 터진 자리다
+  ///
+  /// 서버가 경로를 **조각으로 묶어** 주기 시작했는데 앱은 점이 한 줄로 오는
+  /// 줄 알고 읽었다. 점 자리에 배열이 들어와 캐스트가 터졌고, 그 예외가 화면
+  /// 까지 올라가 **끝낸 러닝의 상세가 하나도 안 열렸다** — 서버는 200을
+  /// 주는데 화면은 "기록을 불러오지 못했어요"였다(2026-10-21 확인).
+  group('⚠️ 조각으로 묶여 온 경로', () {
+    test('조각마다 한 토막으로 읽는다', () {
+      final detail = RoomResultDto.merge(
+        results: {
+          ...results,
+          'routes': [
+            [
+              [37.5, 127.0],
+              [37.50009, 127.0],
+            ],
+            [
+              [37.6, 127.1],
+              [37.60009, 127.1],
+            ],
+          ],
+        },
+        splitResults: splitResults,
+      );
+
+      expect(detail.track, hasLength(2));
+      expect(detail.track.first.first.latitude, 37.5);
+      expect(detail.track.last.first.latitude, 37.6);
+    });
+
+    test('⚠️ 붙어 있는 조각이라도 잇지 않는다', () {
+      // 서버가 나눠 준 경계가 정본이다. 가까워 보인다고 이으면 **멈춰 있던
+      // 자리를 가로질러** 선이 그려진다.
+      final detail = RoomResultDto.merge(
+        results: {
+          ...results,
+          'routes': [
+            [
+              [37.5, 127.0],
+              [37.50009, 127.0],
+            ],
+            [
+              [37.50018, 127.0],
+              [37.50027, 127.0],
+            ],
+          ],
+        },
+        splitResults: splitResults,
+      );
+
+      expect(detail.track, hasLength(2));
+    });
+
+    test('⚠️ 조각 안에서 벌어진 자리는 그대로 끊는다', () {
+      // 조각 안에도 빠진 자리가 남을 수 있다(가이드 4.2).
+      final detail = RoomResultDto.merge(
+        results: {
+          ...results,
+          'routes': [
+            [
+              [37.5, 127.0],
+              [37.50009, 127.0],
+              [37.5010, 127.0], // 약 100m 점프
+              [37.50109, 127.0],
+            ],
+          ],
+        },
+        splitResults: splitResults,
+      );
+
+      expect(detail.track, hasLength(2));
+    });
+
+    test('⚠️ 읽을 수 없는 점은 버리고 나머지를 그린다', () {
+      // 하나가 이상하다고 던지면 **기록 전체가 안 열린다.** 선 한 토막이
+      // 비는 편이 낫다.
+      final detail = RoomResultDto.merge(
+        results: {
+          ...results,
+          'routes': [
+            [37.5, 127.0],
+            ['이상한 값', 127.0],
+            [37.50009, 127.0],
+          ],
+        },
+        splitResults: splitResults,
+      );
+
+      expect(detail.track.single, hasLength(2));
+    });
+  });
+
   test('⚠️ 한 줄로 온 경로를 벌어진 자리에서 끊는다', () {
     // ⚠️ 서버는 정지 구간·오염 좌표를 **뺀** 경로를 한 줄로 준다. 그대로
     // 한 토막으로 넘기면 빠진 자리가 직선으로 이어져 **가 본 적 없는 길이
