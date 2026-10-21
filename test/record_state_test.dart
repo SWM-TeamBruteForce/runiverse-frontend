@@ -18,7 +18,6 @@ void main() {
     distanceMeters: meters,
     duration: const Duration(minutes: 30),
     averagePace: const Duration(minutes: 6),
-    routePolyline: '',
   );
 
   // 9월 2일(수)에 보는 화면. 이번 주는 8월 31일(월)~9월 6일(일)이라

@@ -182,7 +182,6 @@ class _GrowingRecords implements RunRecordRepository {
         distanceMeters: 1220,
         duration: const Duration(minutes: 7),
         averagePace: const Duration(seconds: 344),
-        routePolyline: '',
         playerCount: 1,
       ),
     ];
