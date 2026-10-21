@@ -8,7 +8,8 @@ import 'package:runiverse/features/session/domain/user_status_repository.dart';
 /// 잘못 읽으면 달리는 중인 사람을 홈으로 보내고 기록이 끊긴다. `status`와
 /// `type` 두 문자열의 조합이라, 조합마다 무엇으로 읽히는지가 이 테스트의 전부다.
 void main() {
-  final now = DateTime(2026, 9, 15, 15);
+  // 시각은 순간으로 적는다 — 기기 시간대와 무관
+  final now = DateTime.utc(2026, 9, 15, 6).toLocal();
 
   Map<String, dynamic> body({
     required String status,
@@ -46,7 +47,7 @@ void main() {
       expect(status, isA<UserStatusWaiting>());
       final waiting = status as UserStatusWaiting;
       expect(waiting.runningRoomId, 125);
-      expect(waiting.scheduledStartAt, DateTime(2026, 9, 15, 19));
+      expect(waiting.scheduledStartAt, DateTime.utc(2026, 9, 15, 10).toLocal());
       expect(waiting.targetDistanceMeters, 5000);
     });
 
@@ -141,7 +142,7 @@ void main() {
 
     test('⚠️ 미래면 남은 시간만큼 막는다', () {
       final status = UserStatusIdle(
-        cooldownUntil: DateTime(2026, 9, 15, 15, 20),
+        cooldownUntil: DateTime.utc(2026, 9, 15, 6, 20).toLocal(),
       );
 
       expect(status.remainingCooldown(now: now), const Duration(minutes: 20));
@@ -151,7 +152,7 @@ void main() {
     test('⚠️ 지났으면 0이다. 음수를 돌려주지 않는다', () {
       // 음수를 그대로 내보내면 화면이 "-3분 후"를 그린다.
       final status = UserStatusIdle(
-        cooldownUntil: DateTime(2026, 9, 15, 14, 57),
+        cooldownUntil: DateTime.utc(2026, 9, 15, 5, 57).toLocal(),
       );
 
       expect(status.remainingCooldown(now: now), Duration.zero);
