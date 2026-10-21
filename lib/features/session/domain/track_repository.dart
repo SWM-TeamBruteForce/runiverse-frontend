@@ -1,3 +1,4 @@
+import 'package:runiverse/features/session/domain/run_numbers.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 
 /// 서버로 보낼 좌표를 잠시 맡아 둔다.
@@ -31,7 +32,25 @@ abstract interface class TrackRepository {
   /// 그 러닝의 좌표를 전부 지운다. `RUNNING_FINISHED` ack 뒤에 부른다.
   ///
   /// ⚠️ **남겨두면 기록이 두 벌이 된다.** 서버가 원본이라는 원칙이 깨진다.
+  ///
+  /// ⚠️ **[numbers]도 같이 지운다.** 남겨두면 다음 러닝이 지난 러닝의 구간
+  /// 번호를 이어받아, 멈춘 적 없는 첫 좌표가 0이 아닌 번호를 달고 나간다.
   Future<void> clear(int runningRoomId);
+
+  /// 그 러닝이 다음에 쓸 번호. **한 번도 저장한 적 없으면 `null`이다.**
+  ///
+  /// `null`과 [RunNumbers.start]를 구분한다 — 전자는 "아직 모른다", 후자는
+  /// "새 러닝이라고 정했다"다. 복원할 때 그 차이가 필요하다.
+  Future<RunNumbers?> numbers(int runningRoomId);
+
+  /// 번호를 남긴다. 같은 러닝에 다시 쓰면 덮어쓴다.
+  ///
+  /// ## ⚠️ 전송 결과를 기다리지 않는다
+  ///
+  /// 좌표 전송에는 ack가 없다. 전송이 끝나기를 기다렸다가 저장하면 연결이
+  /// 끊기거나 앱이 죽을 때 **증가분이 누락된다** — 서버는 번호가 올라간 좌표를
+  /// 받아야 일시정지 경계를 안다(1.1.1 2절).
+  Future<void> saveNumbers(int runningRoomId, RunNumbers numbers);
 
   /// 그 러닝에 쌓인 좌표 수. 비어 있으면 0.
   Future<int> count(int runningRoomId);

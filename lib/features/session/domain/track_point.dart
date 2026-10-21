@@ -16,6 +16,7 @@ import 'package:runiverse/features/session/domain/geo_point.dart';
 class TrackPoint {
   const TrackPoint({
     required this.sequence,
+    required this.pauseSegment,
     required this.latitude,
     required this.longitude,
     required this.accuracyMeters,
@@ -32,6 +33,22 @@ class TrackPoint {
   /// 서버가 `(runningRoomId, userId, sequence)`로 중복을 거른다. 그래서 같은
   /// 좌표를 두 번 보내도 안전하고, 재전송이 겹쳐도 문제가 없다.
   final int sequence;
+
+  /// **몇 번째 멈춤 이후에 찍힌 좌표인가.** 0부터 센다 — 1.1.1 2절.
+  ///
+  /// ## ⚠️ 저장할 때 박고, 재전송할 때 바꾸지 않는다
+  ///
+  /// 서버는 **번호가 다른 연속 좌표 사이**를 멈춘 구간으로 보고 거리·시간·
+  /// 고도에서 뺀다. 그래서 과거 좌표를 다시 보내면서 지금 번호로 갈아 끼우면
+  /// **경계가 사라져 멈춘 사이 이동이 거리에 들어간다** — 고치려던 버그로
+  /// 돌아간다.
+  ///
+  /// ## ⚠️ 빠지거나 줄어들면 배치 전체가 거부된다
+  ///
+  /// 없으면 `INVALID_REQUEST`, 순번 순으로 줄어들면 `PAUSE_SEGMENT_DECREASED`
+  /// 다. **그 배치의 좌표가 하나도 저장되지 않는다**(1.1.1 3절). 그래서
+  /// nullable이 아니고 기본값도 없다 — 빠뜨린 자리를 컴파일러가 잡아야 한다.
+  final int pauseSegment;
 
   final double latitude;
   final double longitude;
@@ -62,11 +79,13 @@ class TrackPoint {
   factory TrackPoint.from(
     GeoPoint point, {
     required int sequence,
+    required int pauseSegment,
     int? cadenceSpm,
     Duration? currentPace,
     double? headingDegrees,
   }) => TrackPoint(
     sequence: sequence,
+    pauseSegment: pauseSegment,
     latitude: point.latitude,
     longitude: point.longitude,
     accuracyMeters: point.accuracy,
@@ -79,23 +98,34 @@ class TrackPoint {
     recordedAt: point.recordedAt,
   );
 
-  /// 순번만 바꾼 사본.
+  /// 번호만 바꾼 사본.
   ///
   /// **아직 저장도 전송도 안 된 좌표에만 쓴다.** 앱이 러닝 도중에 죽었다
   /// 살아나면 방을 알기 전에 들어온 좌표가 1번부터 번호를 받는데, 그 번호는
   /// 재시작 전에 이미 쓴 것이다. 저장소에 쓰기 직전 뒤로 밀어야 한다.
-  TrackPoint withSequence(int sequence) => TrackPoint(
-    sequence: sequence,
-    latitude: latitude,
-    longitude: longitude,
-    accuracyMeters: accuracyMeters,
-    speedMetersPerSecond: speedMetersPerSecond,
-    recordedAt: recordedAt,
-    altitudeMeters: altitudeMeters,
-    headingDegrees: headingDegrees,
-    cadenceSpm: cadenceSpm,
-    currentPaceSecondsPerKm: currentPaceSecondsPerKm,
-  );
+  ///
+  /// ## ⚠️ [pauseSegment]도 함께 받는다
+  ///
+  /// 방을 모르는 동안 쌓인 좌표는 구간 번호도 0부터 붙는다. 멈춘 채로 앱이
+  /// 죽었다 살아난 경우 되살린 번호가 그보다 크므로, 0을 그대로 보내면
+  /// **번호가 줄어들어 배치 전체가 `PAUSE_SEGMENT_DECREASED`로 거부된다.**
+  ///
+  /// 순번만 바꾸는 사본을 두지 않는 이유가 그것이다 — 한쪽만 밀면 조용히
+  /// 거부된다.
+  TrackPoint withNumbers({required int sequence, required int pauseSegment}) =>
+      TrackPoint(
+        sequence: sequence,
+        pauseSegment: pauseSegment,
+        latitude: latitude,
+        longitude: longitude,
+        accuracyMeters: accuracyMeters,
+        speedMetersPerSecond: speedMetersPerSecond,
+        recordedAt: recordedAt,
+        altitudeMeters: altitudeMeters,
+        headingDegrees: headingDegrees,
+        cadenceSpm: cadenceSpm,
+        currentPaceSecondsPerKm: currentPaceSecondsPerKm,
+      );
 
   /// 서버가 받는 모양 그대로.
   ///
@@ -103,6 +133,9 @@ class TrackPoint {
   /// 보내고, 서버가 WS 세션에서 알아낸다.
   Map<String, dynamic> toJson() => {
     'sequence': sequence,
+    // ⚠️ **빠지면 배치 전체가 거부된다**(`INVALID_REQUEST`). 필수 필드가
+    // 5개에서 6개로 늘었다 — 1.1.1 2절.
+    'pauseSegment': pauseSegment,
     'latitude': latitude,
     'longitude': longitude,
     'altitudeMeters': altitudeMeters,

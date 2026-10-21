@@ -405,6 +405,20 @@ class RunSessionController extends Notifier<RunSessionState> {
     // 접는 것은 [resume]이 비우기 직전에 한다.
 
     state = RunPaused(_metrics());
+
+    // ⚠️ **번호를 올리는 것은 상태를 바꾼 뒤다**(1.1.1 2절의 순서). 위에서
+    // [RunPaused]가 되면 [_onPoint]가 들어오는 좌표를 버리므로, 이 줄 뒤에
+    // 멈추기 전 번호를 달 좌표가 더 생기지 않는다.
+    //
+    // ⚠️ **기다리지 않는다.** 가이드가 "연결 상태나 전송 결과와 관계없이"
+    // 올리라고 못 박았다. 올리는 것 자체는 [TrackRecorder.markPause]가
+    // 동기로 끝내고, 여기서 기다리는 것은 저장뿐이다 — 저장이 실패해도
+    // 다음 좌표는 올라간 번호를 단다.
+    unawaited(
+      ref.read(trackRecorderProvider).markPause().catchError((Object error) {
+        debugPrint('[track] 일시정지 번호를 남기지 못했다 · $error');
+      }),
+    );
   }
 
   void resume() {

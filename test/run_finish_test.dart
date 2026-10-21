@@ -41,6 +41,7 @@ void main() {
 
   TrackPoint point(int sequence) => TrackPoint(
     sequence: sequence,
+    pauseSegment: 0,
     latitude: 37.5 + sequence * 0.0001,
     longitude: 127.0,
     accuracyMeters: 5,

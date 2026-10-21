@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/database/app_database.dart';
 import 'package:runiverse/features/session/data/sqflite_track_repository.dart';
+import 'package:runiverse/features/session/domain/run_numbers.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -26,8 +27,14 @@ void main() {
   const roomB = 200;
 
   /// 좌표 하나. 값 자체는 중요하지 않고 **순번이 중요하다.**
-  TrackPoint point(int sequence, {double? heading, int? pace}) => TrackPoint(
+  TrackPoint point(
+    int sequence, {
+    double? heading,
+    int? pace,
+    int pauseSegment = 0,
+  }) => TrackPoint(
     sequence: sequence,
+    pauseSegment: pauseSegment,
     latitude: 37.5 + sequence * 0.0001,
     longitude: 127.0,
     accuracyMeters: 5,
@@ -141,6 +148,90 @@ void main() {
 
       expect(read.recordedAt, DateTime(2026, 8, 26, 19, 10, 7));
     });
+
+    test('⚠️ 일시정지 구간 번호가 좌표마다 되살아난다', () async {
+      // 재전송할 때 **저장된 값을 그대로** 실어 보낸다. 지금 번호로 갈아
+      // 끼우면 서버가 복원하는 일시정지 경계가 사라진다(1.1.1 2절).
+      await repository.add(roomA, point(1));
+      await repository.add(roomA, point(2, pauseSegment: 1));
+
+      final read = await repository.after(roomA);
+
+      expect(read.map((p) => p.pauseSegment).toList(), [0, 1]);
+    });
+  });
+
+  /// 그 러닝이 다음에 쓸 번호.
+  ///
+  /// ## ⚠️ 좌표 행에서 알아낼 수 없다
+  ///
+  /// 멈추면 번호가 올라가는데 **그 뒤로 새 좌표가 들어오지 않는다.** 멈춘 채로
+  /// 앱이 죽으면 증가분이 사라지고, 다시 달린 좌표가 멈추기 전과 같은 번호를
+  /// 달고 나간다 — 서버는 멈춘 적이 없다고 본다.
+  group('번호 남기기', () {
+    test('남긴 값이 그대로 나온다', () async {
+      await repository.saveNumbers(
+        roomA,
+        const RunNumbers(nextSequence: 120, pauseSegment: 2),
+      );
+
+      expect(
+        await repository.numbers(roomA),
+        const RunNumbers(nextSequence: 120, pauseSegment: 2),
+      );
+    });
+
+    test('⚠️ 남긴 적 없으면 null이다 — 0이 아니다', () async {
+      // `null`은 "아직 모른다", `start`는 "새 러닝이라고 정했다"다. 복원할 때
+      // 그 차이가 필요하다.
+      expect(await repository.numbers(roomA), isNull);
+    });
+
+    test('다시 남기면 덮어쓴다', () async {
+      await repository.saveNumbers(roomA, RunNumbers.start);
+      await repository.saveNumbers(
+        roomA,
+        const RunNumbers(nextSequence: 9, pauseSegment: 3),
+      );
+
+      expect(await repository.numbers(roomA), isNotNull);
+      expect((await repository.numbers(roomA))!.pauseSegment, 3);
+    });
+
+    test('러닝마다 따로 남는다', () async {
+      await repository.saveNumbers(
+        roomA,
+        const RunNumbers(nextSequence: 5, pauseSegment: 1),
+      );
+
+      expect(await repository.numbers(roomB), isNull);
+    });
+
+    test('⚠️ 트랙을 지우면 번호도 지워진다', () async {
+      // 남겨두면 다음 러닝이 지난 러닝의 구간 번호를 이어받아, 멈춘 적 없는
+      // 첫 좌표가 0이 아닌 번호를 달고 나간다.
+      await repository.add(roomA, point(1));
+      await repository.saveNumbers(
+        roomA,
+        const RunNumbers(nextSequence: 2, pauseSegment: 1),
+      );
+
+      await repository.clear(roomA);
+
+      expect(await repository.numbers(roomA), isNull);
+    });
+
+    test('⚠️ 다른 러닝의 번호는 남는다', () async {
+      await repository.saveNumbers(roomA, RunNumbers.start);
+      await repository.saveNumbers(
+        roomB,
+        const RunNumbers(nextSequence: 3, pauseSegment: 1),
+      );
+
+      await repository.clear(roomA);
+
+      expect(await repository.numbers(roomB), isNotNull);
+    });
   });
 
   group('진행 중인 방', () {
@@ -223,7 +314,18 @@ void main() {
           '''),
         ),
       );
-      await SqfliteTrackRepository(() async => old).add(roomA, point(1));
+      // ⚠️ **저장소를 거치지 않고 직접 넣는다.** 지금 저장소는 v3 컬럼까지
+      // 쓰므로 v1 테이블에 넣으면 죽는다. 재현하려는 것은 "옛 스키마에 쌓인
+      // 좌표"다.
+      await old.insert('run_track_points', {
+        'running_room_id': roomA,
+        'sequence': 1,
+        'latitude': 37.5,
+        'longitude': 127.0,
+        'accuracy_meters': 5.0,
+        'speed_mps': 2.8,
+        'recorded_at': '2026-08-26T19:10:01',
+      });
       await old.close();
 
       // 같은 파일을 지금 버전으로 다시 연다 — `onUpgrade`가 돈다.
@@ -234,6 +336,73 @@ void main() {
       // 새 테이블도 쓸 수 있어야 한다.
       await migrated.markActiveRoom(roomA);
       expect(await migrated.activeRoom(), roomA);
+
+      await upgraded.close();
+      await dir.delete(recursive: true);
+    });
+
+    test('⚠️ 버전 2에서 올려도 쌓인 좌표가 남는다', () async {
+      // **달리는 중에 앱을 올린 사람**이 이 자리다. 테이블을 다시 만들면 아직
+      // 서버가 받았는지 모르는 좌표가 사라지고, 그 구간은 되돌릴 수 없다.
+      final dir = await Directory.systemTemp.createTemp('runiverse_v2');
+      final path = '${dir.path}/runiverse.db';
+      final old = await databaseFactory.openDatabase(
+        path,
+        options: OpenDatabaseOptions(
+          version: 2,
+          onCreate: (db, _) async {
+            await db.execute('''
+              CREATE TABLE run_track_points (
+                running_room_id  INTEGER NOT NULL,
+                sequence         INTEGER NOT NULL,
+                latitude         REAL    NOT NULL,
+                longitude        REAL    NOT NULL,
+                altitude_meters  REAL,
+                accuracy_meters  REAL    NOT NULL,
+                speed_mps        REAL    NOT NULL,
+                heading_degrees  REAL,
+                cadence_spm      INTEGER,
+                pace_sec_per_km  INTEGER,
+                recorded_at      TEXT    NOT NULL,
+                PRIMARY KEY (running_room_id, sequence)
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE active_run (
+                id               INTEGER PRIMARY KEY CHECK (id = 1),
+                running_room_id  INTEGER NOT NULL,
+                started_at       TEXT    NOT NULL
+              )
+            ''');
+          },
+        ),
+      );
+      await old.insert('run_track_points', {
+        'running_room_id': roomA,
+        'sequence': 1,
+        'latitude': 37.5,
+        'longitude': 127.0,
+        'accuracy_meters': 5.0,
+        'speed_mps': 2.8,
+        'recorded_at': '2026-08-26T19:10:01',
+      });
+      await old.close();
+
+      final upgraded = await AppDatabase.open(path);
+      final migrated = SqfliteTrackRepository(() async => upgraded);
+
+      expect(await migrated.count(roomA), 1, reason: '좌표가 사라졌다');
+
+      // ⚠️ **옛 좌표도 번호를 들고 나와야 한다.** 비어 있으면 서버가 배치
+      // 전체를 `INVALID_REQUEST`로 거부해 그 구간이 영영 안 올라간다.
+      expect((await migrated.after(roomA)).single.pauseSegment, 0);
+
+      // 번호 테이블도 바로 쓸 수 있어야 한다.
+      await migrated.saveNumbers(
+        roomA,
+        const RunNumbers(nextSequence: 2, pauseSegment: 1),
+      );
+      expect((await migrated.numbers(roomA))!.pauseSegment, 1);
 
       await upgraded.close();
       await dir.delete(recursive: true);

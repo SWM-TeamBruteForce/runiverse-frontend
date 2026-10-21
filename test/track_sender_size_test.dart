@@ -23,6 +23,7 @@ void main() {
   /// 문자열이 되므로 자릿수가 곧 바이트다.
   TrackPoint biggest(int sequence) => TrackPoint(
     sequence: sequence,
+    pauseSegment: 0,
     latitude: 37.500898300000004,
     longitude: 127.00001234567891,
     altitudeMeters: 41.832031250000004,
@@ -69,11 +70,18 @@ void main() {
     );
   });
 
-  test('점 하나가 300바이트를 넘지 않는다', () {
+  test('점 하나가 330바이트를 넘지 않는다', () {
     // 배치 상한을 개수로 정할 수 있는 근거다. 점당 크기가 흔들리면
     // 개수 기준이 무너지고 바이트 기준으로 잘라야 한다.
+    //
+    // ⚠️ **1.1.1에서 300 → 330으로 올렸다.** `pauseSegment`가 필수 필드로
+    // 늘어 점당 **292 → 316.5바이트**가 됐다(+24.5). 150점이면 약 47KB로
+    // 한도의 **여유가 27%** 남아 `batchLimit`은 그대로 둔다.
+    //
+    // 올린 폭이 4%뿐인 것은 일부러다 — 다음에 필드를 더하면 여기서 먼저
+    // 깨져야 한다.
     final perPoint = encodedBytes(100) / 100;
 
-    expect(perPoint, lessThan(300));
+    expect(perPoint, lessThan(330));
   });
 }
