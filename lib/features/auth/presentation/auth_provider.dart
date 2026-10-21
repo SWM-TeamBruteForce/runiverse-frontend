@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/network/dio_client.dart';
+import 'package:runiverse/features/app_update/presentation/app_update_provider.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/secure_token_store.dart';
@@ -54,7 +55,15 @@ final consentStoreProvider = Provider<ConsentStore>(
 ///
 /// 앱이 사는 동안 하나만 쓴다 — 요청마다 새로 만들면 연결을 매번 새로 연다.
 final dioProvider = Provider<Dio>((ref) {
-  final dio = createDio();
+  // ⚠️ **`core`는 업데이트 상태를 모른다.** 함수 하나만 넘겨 받는다 —
+  // `WsClient`가 `TokenRefresher`를 모르고 `Future<String?> Function()`만
+  // 아는 것과 같은 판단이다(`core → features`는 뒤집힌 방향이다).
+  //
+  // `ref.read`로 늦게 잡는다. 여기서 `watch`하면 인증 컨트롤러가 이 provider를
+  // 읽는 순간 순환이 된다.
+  final dio = createDio(
+    onUpdateRequired: () => ref.read(appUpdateProvider.notifier).markRequired(),
+  );
   ref.onDispose(dio.close);
   return dio;
 });

@@ -9,6 +9,8 @@ import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
+import 'package:runiverse/core/network/dio_client.dart';
+import 'package:runiverse/core/version/app_version_headers.dart';
 import 'package:runiverse/features/matching/domain/match_stream.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 
@@ -159,6 +161,20 @@ class SseMatchStream implements MatchStream {
   /// 한쪽에 맞춘 설정이 다른 쪽을 끊는다.
   HttpClient? _client;
 
+  /// 오류 본문을 JSON으로 읽는다. **못 읽으면 `null`이다.**
+  ///
+  /// 본문이 비었거나 JSON이 아닐 수 있다. 거기서 던지면 "업데이트가 필요한가"를
+  /// 묻다가 연결 실패의 진짜 이유를 잃는다.
+  static Future<Object?> _readJson(HttpClientResponse response) async {
+    try {
+      final text = await response.transform(utf8.decoder).join();
+      return jsonDecode(text);
+    } on Object catch (error) {
+      debugPrint('[match] 오류 본문을 읽지 못했다 · ${error.runtimeType}');
+      return null;
+    }
+  }
+
   Future<HttpClientResponse> _open(
     HttpClient client,
     String accessToken,
@@ -171,9 +187,24 @@ class SseMatchStream implements MatchStream {
       // 프록시가 중간에 모아서 보내면 이벤트가 늦게 도착한다.
       ..set(HttpHeaders.cacheControlHeader, 'no-cache');
 
+    // 앱 버전 헤더. 못 읽었으면 비어 있고, 서버는 없으면 그냥 통과시킨다.
+    AppVersionHeaders.current.forEach(request.headers.set);
+
     final response = await request.close();
     debugPrint('[api] ← ${response.statusCode} $_path');
     if (response.statusCode == 200) return response;
+
+    // ⚠️ **403은 본문을 읽어야 한다.** 권한 없는 리소스도 403이라, 코드를
+    // 보지 않으면 멀쩡한 앱을 업데이트 화면으로 보낸다. 다른 응답과 달리
+    // 버리지 않고 먼저 읽는다(작업 가이드).
+    if (response.statusCode == 403) {
+      final body = await _readJson(response);
+      throw MatchStreamException(
+        isUpdateRequired(403, body)
+            ? MatchStreamFailure.updateRequired
+            : MatchStreamFailure.unknown,
+      );
+    }
 
     // 몸통을 버려야 연결이 반납된다.
     unawaited(response.drain<void>());

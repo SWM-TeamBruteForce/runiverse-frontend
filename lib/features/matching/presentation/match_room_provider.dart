@@ -7,6 +7,7 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/matching/data/sse_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
+import 'package:runiverse/features/app_update/presentation/app_update_provider.dart';
 import 'package:runiverse/features/matching/domain/match_stream.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/domain/run_launch.dart';
@@ -187,6 +188,14 @@ class MatchRoomController extends Notifier<MatchRoomState> {
         // ⚠️ 방 정보는 지우지 않는다. 끊겼다고 대기방을 비우면 잠깐의
         // 네트워크 끊김에 사람이 홈으로 튕긴다.
         state = state.copyWith(connected: false, failure: failure);
+
+        // ⚠️ **앱이 낡아 거절당했으면 게이트에 알리고 멈춘다.** 다시 붙어 봐야
+        // 같은 403이고, 그동안 사용자는 왜 안 되는지 모른다.
+        if (failure == MatchStreamFailure.updateRequired) {
+          ref.read(appUpdateProvider.notifier).markRequired();
+          return;
+        }
+
         // 다시 로그인해야 하는 것은 기다린다고 풀리지 않는다.
         if (failure != MatchStreamFailure.sessionExpired) _scheduleRetry();
       },

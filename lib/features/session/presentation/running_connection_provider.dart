@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/config/app_config.dart';
 import 'package:runiverse/core/network/ws_client.dart';
+import 'package:runiverse/features/app_update/presentation/app_update_provider.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/session/data/http_running_room_repository.dart';
@@ -39,7 +40,15 @@ typedef RunningChannelFactory = RunningChannel Function(WsAccessToken token);
 final runningChannelFactoryProvider = Provider<RunningChannelFactory>(
   (ref) =>
       (token) => WsRunningChannel(
-        WsClient(url: '${AppConfig.wsBaseUrl}/api/v1/ws/running', token: token),
+        WsClient(
+          url: '${AppConfig.wsBaseUrl}/api/v1/ws/running',
+          token: token,
+          // ⚠️ **핸드셰이크 403에는 읽을 몸통이 없다.** 버전 API로 다시 물어
+          // 앱이 낡은 것인지 가린다 — 방 권한 같은 다른 403까지 멈추면
+          // 멀쩡한 러닝이 연결을 잃는다(작업 가이드).
+          onForbidden: () =>
+              ref.read(appUpdateProvider.notifier).blockedByVersion(),
+        ),
       ),
 );
 

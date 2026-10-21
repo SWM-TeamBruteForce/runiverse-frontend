@@ -16,6 +16,12 @@ enum MatchStreamFailure {
   /// 닿지 못했거나 도중에 끊겼다.
   network,
 
+  /// ⚠️ **앱이 낡아 서버가 연결을 거절했다**(403 `APP_UPDATE_REQUIRED`).
+  ///
+  /// 기다린다고 풀리지 않는다 — 업데이트를 해야 한다. 다시 붙으면 같은 거절을
+  /// 되풀이하면서 배터리만 쓴다. `sessionExpired`와 같은 성질이다.
+  updateRequired,
+
   unknown,
 }
 
