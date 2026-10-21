@@ -209,10 +209,28 @@ class _RunPreparePageState extends ConsumerState<RunPreparePage> {
     // 상태를 못 읽었으면(`null`) 막지 않는다. 판정에 실패했다고 막으면 신호가
     // 나쁜 곳에서 아무도 못 뛴다 — 그때는 서버의 409가 다시 걸러 준다.
     final status = ref.watch(userStatusProvider);
-    final conflicted =
-        status?.canStartSolo == false ||
+    final rejectedByServer =
         ref.watch(runningConnectionProvider).failure ==
-            RunningRoomFailure.alreadyRunning;
+        RunningRoomFailure.alreadyRunning;
+    // ⚠️ **세기 시작했으면 서버 상태로 막지 않는다.**
+    //
+    // 시작을 누르면 이 3초 안에 방이 생기고(`POST /running-rooms/solo` 201)
+    // 시작 확인이 오며, 그 자리에서 앱이 상태를 다시 읽는다 — 서버는 당연히
+    // `RUNNING`이라고 답한다. 그것을 충돌로 읽으면 **방금 시작한 내 러닝을
+    // 이유로 "이전 러닝이 아직 끝나지 않았어요"가 뜬다**(2026-10-21 기기
+    // 확인 · 시작 1.3초 뒤부터 약 2초).
+    //
+    // 눈에 거슬리는 데서 끝나지 않는다. 그 화면의 `홈으로`를 누르면 방금
+    // 시작한 러닝을 두고 나가고, 복구로 들어온 경우에는 [_leave]가 그 방을
+    // 서버에서 **없앤다.**
+    //
+    // 진짜 충돌은 서버가 409로 말해 준다. 그때는 위의 `ref.listen`이
+    // [_cancelForConflict]로 **세던 것을 멈추므로** 여기 조건이 그대로 선다 —
+    // 그 길 하나로 모은다. 세는 중에도 409를 따로 보게 두면 **닿지 않는
+    // 가지**가 되어, 어느 쪽이 일하는지 테스트로 가릴 수 없다.
+    final conflicted =
+        _countdown == null &&
+        (status?.canStartSolo == false || rejectedByServer);
     if (conflicted) {
       return _Conflicted(status: status, onLeave: () => unawaited(_leave()));
     }
