@@ -1,3 +1,4 @@
+import 'package:runiverse/features/session/domain/run_numbers.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/domain/track_repository.dart';
 
@@ -56,10 +57,28 @@ class FakeTrackRepository implements TrackRepository {
     return matched.take(limit).toList();
   }
 
+  /// 방 번호별로 남긴 번호. 테스트가 직접 세팅해 **재시작 뒤 복원**을 만든다.
+  final numbered = <int, RunNumbers>{};
+
   @override
   Future<void> clear(int runningRoomId) async {
     cleared.add(runningRoomId);
     saved.remove(runningRoomId);
+    // ⚠️ **진짜 저장소처럼 번호도 지운다.** 남겨두면 다음 러닝이 지난 러닝의
+    // 구간 번호를 이어받는데, 가짜만 지우지 않으면 그 버그를 테스트가 못 잡는다.
+    numbered.remove(runningRoomId);
+  }
+
+  @override
+  Future<RunNumbers?> numbers(int runningRoomId) async =>
+      numbered[runningRoomId];
+
+  @override
+  Future<void> saveNumbers(int runningRoomId, RunNumbers numbers) async {
+    final reason = failure;
+    if (reason != null) throw reason;
+
+    numbered[runningRoomId] = numbers;
   }
 
   @override

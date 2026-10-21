@@ -48,12 +48,14 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 void main() {
   late _PauseChannel channel;
   late FakeLocationRepository location;
+  late FakeTrackRepository track;
   late DateTime clock;
 
   Future<ProviderContainer> makeContainer() async {
     clock = DateTime(2026, 10, 14, 7);
     channel = _PauseChannel();
     location = FakeLocationRepository();
+    track = FakeTrackRepository();
 
     final tokens = InMemoryTokenStore();
     await tokens.saveSession(
@@ -72,7 +74,7 @@ void main() {
         ),
         tokenStoreProvider.overrideWithValue(tokens),
         locationRepositoryProvider.overrideWithValue(location),
-        trackRepositoryProvider.overrideWithValue(FakeTrackRepository()),
+        trackRepositoryProvider.overrideWithValue(track),
         bodyProfileStoreProvider.overrideWithValue(InMemoryBodyProfileStore()),
         stepRepositoryProvider.overrideWithValue(FakeStepRepository()),
         // ⚠️ **달리는 중이라고 답해야 한다.** 시작 확인을 받으면 서버 상태를
@@ -270,6 +272,7 @@ void main() {
             1,
             TrackPoint(
               sequence: 9000,
+              pauseSegment: 1,
               latitude: 37.5,
               longitude: 127.03,
               accuracyMeters: 5,
@@ -282,6 +285,80 @@ void main() {
       }
 
       expect(channel.log, isEmpty);
+      await unmount(tester, container);
+    });
+  });
+
+  /// 일시정지 구간 번호 — 1.1.1 2절.
+  ///
+  /// ## ⚠️ 버튼 흐름에서 확인해야 하는 것
+  ///
+  /// "재개할 때는 올리지 않는다"는 **없는 동작**이라 순수 로직으로는 검사할
+  /// 길이 없다. 올리는 길을 하나만 둬도 누가 [RunSessionController.resume]에
+  /// 한 줄을 더하면 끝이다 — 그러면 멈춤 한 번이 구간 두 개가 되고, 서버는
+  /// 있지도 않은 구간을 거리에서 뺀다.
+  group('⚠️ 일시정지 구간 번호 — 1.1.1 2절', () {
+    testWidgets('멈추기 전 좌표는 전부 0이다', (tester) async {
+      final container = await pumpRunning(tester);
+
+      expect(track.all.map((p) => p.pauseSegment), everyElement(0));
+
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 멈췄다 다시 가면 1이다 — 재개가 또 올리지 않는다', (tester) async {
+      final container = await pumpRunning(tester);
+
+      await tapPause(tester, AppStrings.runPauseCta);
+      await tapPause(tester, AppStrings.runResumeCta);
+      await emit(tester, north(200));
+
+      expect(
+        track.all.last.pauseSegment,
+        1,
+        reason: '2면 재개에서도 번호를 올린 것이다',
+      );
+
+      await unmount(tester, container);
+    });
+
+    testWidgets('두 번 멈추면 2다', (tester) async {
+      final container = await pumpRunning(tester);
+
+      await tapPause(tester, AppStrings.runPauseCta);
+      await tapPause(tester, AppStrings.runResumeCta);
+      await emit(tester, north(200));
+      await tapPause(tester, AppStrings.runPauseCta);
+      await tapPause(tester, AppStrings.runResumeCta);
+      await emit(tester, north(400));
+
+      expect(track.all.map((p) => p.pauseSegment).toList().last, 2);
+
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 누른 즉시 번호가 남는다 — 전송을 기다리지 않는다', (tester) async {
+      // 좌표 전송에는 ack가 없다. 전송이 끝나기를 기다렸다 올리면 연결이
+      // 끊기거나 앱이 죽을 때 **증가분이 누락된다** — 그러면 다시 달린 좌표가
+      // 멈추기 전과 같은 번호를 달고 나가고, 서버는 멈춘 적이 없다고 본다.
+      final container = await pumpRunning(tester);
+
+      await tapPause(tester, AppStrings.runPauseCta);
+
+      expect(track.numbered[1]?.pauseSegment, 1);
+
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 멈춰 있는 동안 쌓인 좌표의 번호는 바뀌지 않는다', (tester) async {
+      // 과거 좌표를 재전송하면서 지금 번호로 갈아 끼우면 **경계가 사라진다.**
+      final container = await pumpRunning(tester);
+      final before = track.all.map((p) => p.pauseSegment).toList();
+
+      await tapPause(tester, AppStrings.runPauseCta);
+
+      expect(track.all.map((p) => p.pauseSegment).toList(), before);
+
       await unmount(tester, container);
     });
   });

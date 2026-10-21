@@ -23,7 +23,8 @@ abstract final class AppDatabase {
   /// 스키마 버전. **올릴 때는 [_upgrade]에 옮기는 법을 함께 적는다.**
   ///
   /// 2 — `active_run` 추가 (2026-08-28).
-  static const version = 2;
+  /// 3 — 좌표에 `pause_segment`, 러닝에 [runNumbers] 추가 (2026-10-21, 1.1.1).
+  static const version = 3;
 
   /// 서버로 보낼 좌표를 담아 두는 곳.
   ///
@@ -44,6 +45,10 @@ abstract final class AppDatabase {
   /// 서버는 못 받은"** 상태가 남는다.
   static const trackPoints = 'run_track_points';
 
+  /// ⚠️ `pause_segment`에 **기본값을 둔다.** 올리기 전에 쌓인 좌표는 번호가
+  /// 없는데, 그대로 보내면 서버가 **배치 전체를 `INVALID_REQUEST`로 거부**해
+  /// 그 구간이 영영 안 올라간다(1.1.1 3절). 0은 "첫 구간"이라는 뜻이라
+  /// 엄밀히는 거짓일 수 있지만, 올리던 순간에 멈춰 있었는지는 알 길이 없다.
   static const _createTrackPoints =
       '''
     CREATE TABLE $trackPoints (
@@ -57,8 +62,43 @@ abstract final class AppDatabase {
       heading_degrees  REAL,
       cadence_spm      INTEGER,
       pace_sec_per_km  INTEGER,
+      pause_segment    INTEGER NOT NULL DEFAULT 0,
       recorded_at      TEXT    NOT NULL,
       PRIMARY KEY (running_room_id, sequence)
+    )
+  ''';
+
+  /// 그 러닝이 **다음에 쓸 번호**를 담는 곳. 러닝 하나당 한 행이다.
+  ///
+  /// ## ⚠️ 좌표 행에서 알아낼 수 없다
+  ///
+  /// 일시정지하면 번호가 1 올라가는데 **그 뒤로 새 좌표가 들어오지 않는다.**
+  /// 그래서 쌓인 좌표의 `MAX(pause_segment)`는 언제나 **올리기 전 값**이다.
+  /// 멈춘 채로 앱이 죽으면 증가분이 사라지고, 다시 달린 좌표가 **멈추기 전과
+  /// 같은 번호**를 달고 나간다 — 서버는 멈춘 적이 없다고 보고 그 사이 이동을
+  /// 거리에 넣는다. 고치려던 바로 그 버그다.
+  ///
+  /// `next_sequence`도 같은 이유로 둔다. 지금은 `MAX(sequence)`로 이어받지만,
+  /// 저장이 실패한 좌표는 **번호만 쓰고 행이 안 남아** 최대값이 실제보다 작다.
+  /// 그 번호를 다시 쓰면 서버가 중복으로 버린다.
+  ///
+  /// ## ⚠️ [activeRun]에 넣지 않는다
+  ///
+  /// 그쪽은 `INSERT OR REPLACE`로 덮어쓰는 자리다. 매칭 방에 다시 붙을 때
+  /// `markActiveRoom`이 다시 불리면서 **번호가 조용히 0으로 돌아간다.**
+  ///
+  /// ## 트랙과 같은 순간에 지워진다
+  ///
+  /// `clear(runningRoomId)`가 좌표와 함께 이 행도 지운다. 남겨두면 다음
+  /// 러닝이 지난 러닝의 번호를 이어받는다.
+  static const runNumbers = 'run_numbers';
+
+  static const _createRunNumbers =
+      '''
+    CREATE TABLE $runNumbers (
+      running_room_id  INTEGER PRIMARY KEY,
+      next_sequence    INTEGER NOT NULL,
+      pause_segment    INTEGER NOT NULL
     )
   ''';
 
@@ -106,6 +146,7 @@ abstract final class AppDatabase {
     onCreate: (db, version) async {
       await db.execute(_createTrackPoints);
       await db.execute(_createActiveRun);
+      await db.execute(_createRunNumbers);
     },
     onUpgrade: _upgrade,
     // ⚠️ sqflite는 외래 키를 **연결마다 켜야 한다.** 지금은 테이블이 하나라
@@ -127,5 +168,18 @@ abstract final class AppDatabase {
   ) async {
     // 진행 중인 방 번호를 남기지 않아 409를 못 풀던 것을 고친다.
     if (oldVersion < 2) await db.execute(_createActiveRun);
+
+    // 일시정지 구간 번호를 좌표에 싣는다 — 1.1.1.
+    //
+    // ⚠️ `ALTER TABLE`로 더한다. 테이블을 다시 만들면 **아직 서버가 받았는지
+    // 모르는 좌표**가 사라진다. SQLite는 `NOT NULL` 컬럼을 더할 때 기본값을
+    // 요구하고, 그 덕에 이미 있던 행도 0을 받는다.
+    if (oldVersion < 3) {
+      await db.execute(
+        'ALTER TABLE $trackPoints '
+        'ADD COLUMN pause_segment INTEGER NOT NULL DEFAULT 0',
+      );
+      await db.execute(_createRunNumbers);
+    }
   }
 }

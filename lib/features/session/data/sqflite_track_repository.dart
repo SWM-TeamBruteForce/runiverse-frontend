@@ -1,4 +1,5 @@
 import 'package:runiverse/core/database/app_database.dart';
+import 'package:runiverse/features/session/domain/run_numbers.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/domain/track_repository.dart';
 import 'package:sqflite/sqflite.dart';
@@ -46,11 +47,49 @@ class SqfliteTrackRepository implements TrackRepository {
   @override
   Future<void> clear(int runningRoomId) async {
     final db = await _open();
-    await db.delete(
-      AppDatabase.trackPoints,
+    // ⚠️ **번호도 같은 호출에서 지운다.** 트랜잭션으로 묶어 둬야 좌표만
+    // 지워지고 번호가 남는 상태가 생기지 않는다 — 그 상태로 다음 러닝을
+    // 시작하면 첫 좌표가 지난 러닝의 구간 번호를 달고 나간다.
+    await db.transaction((txn) async {
+      await txn.delete(
+        AppDatabase.trackPoints,
+        where: 'running_room_id = ?',
+        whereArgs: [runningRoomId],
+      );
+      await txn.delete(
+        AppDatabase.runNumbers,
+        where: 'running_room_id = ?',
+        whereArgs: [runningRoomId],
+      );
+    });
+  }
+
+  @override
+  Future<RunNumbers?> numbers(int runningRoomId) async {
+    final db = await _open();
+    final rows = await db.query(
+      AppDatabase.runNumbers,
       where: 'running_room_id = ?',
       whereArgs: [runningRoomId],
+      limit: 1,
     );
+    if (rows.isEmpty) return null;
+
+    final row = rows.first;
+    return RunNumbers(
+      nextSequence: row['next_sequence']! as int,
+      pauseSegment: row['pause_segment']! as int,
+    );
+  }
+
+  @override
+  Future<void> saveNumbers(int runningRoomId, RunNumbers numbers) async {
+    final db = await _open();
+    await db.insert(AppDatabase.runNumbers, {
+      'running_room_id': runningRoomId,
+      'next_sequence': numbers.nextSequence,
+      'pause_segment': numbers.pauseSegment,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   @override
@@ -109,6 +148,7 @@ class SqfliteTrackRepository implements TrackRepository {
   static Map<String, Object?> _toRow(int runningRoomId, TrackPoint p) => {
     'running_room_id': runningRoomId,
     'sequence': p.sequence,
+    'pause_segment': p.pauseSegment,
     'latitude': p.latitude,
     'longitude': p.longitude,
     'altitude_meters': p.altitudeMeters,
@@ -124,6 +164,7 @@ class SqfliteTrackRepository implements TrackRepository {
 
   static TrackPoint _toPoint(Map<String, Object?> row) => TrackPoint(
     sequence: row['sequence']! as int,
+    pauseSegment: row['pause_segment']! as int,
     latitude: row['latitude']! as double,
     longitude: row['longitude']! as double,
     altitudeMeters: row['altitude_meters'] as double?,

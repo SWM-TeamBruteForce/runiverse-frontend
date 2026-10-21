@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
+import 'package:runiverse/features/session/domain/run_numbers.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/domain/track_recorder.dart';
 import 'package:runiverse/features/session/domain/track_repository.dart';
@@ -123,7 +124,7 @@ void main() {
       for (var i = 1; i <= count; i++) {
         repository.saved
             .putIfAbsent(roomId, () => [])
-            .add(TrackPoint.from(geo(i), sequence: i));
+            .add(TrackPoint.from(geo(i), sequence: i, pauseSegment: 0));
       }
     }
 
@@ -165,6 +166,170 @@ void main() {
       );
     });
   });
+
+  /// 일시정지 구간 번호 — 1.1.1 2절.
+  ///
+  /// ## ⚠️ 틀려도 아무 오류가 안 난다
+  ///
+  /// 번호를 안 올리면 서버는 **멈춘 적이 없다고 보고** 그 사이 이동을 거리에
+  /// 넣는다. 앱에는 아무 표시도 없다 — 기록을 받아 보고서야 안다. 그래서
+  /// 여기서 못 박는다.
+  group('⚠️ 일시정지 구간 번호', () {
+    List<int> segmentsOf(int roomId) =>
+        (repository.saved[roomId] ?? []).map((p) => p.pauseSegment).toList();
+
+    test('멈추기 전 좌표는 0이다', () async {
+      await recorder.bind(7);
+
+      await recorder.add(geo(1));
+      await recorder.add(geo(2));
+
+      expect(segmentsOf(7), [0, 0]);
+    });
+
+    test('⚠️ 멈춘 뒤 좌표부터 1이다', () async {
+      await recorder.bind(7);
+      await recorder.add(geo(1));
+
+      await recorder.markPause();
+      await recorder.add(geo(2));
+
+      expect(segmentsOf(7), [0, 1]);
+    });
+
+    test('⚠️ 이미 쌓인 좌표의 번호는 바뀌지 않는다', () async {
+      // 과거 좌표를 재전송하면서 지금 번호로 갈아 끼우면 **경계가 사라져**
+      // 멈춘 사이 이동이 거리에 들어간다. 가이드가 못 박은 지점이다.
+      await recorder.bind(7);
+      await recorder.add(geo(1));
+      await recorder.add(geo(2));
+
+      await recorder.markPause();
+
+      expect(segmentsOf(7), [0, 0]);
+    });
+
+    test('멈춘 횟수만큼 올라간다', () async {
+      await recorder.bind(7);
+
+      await recorder.markPause();
+      await recorder.add(geo(1));
+      await recorder.markPause();
+      await recorder.add(geo(2));
+
+      expect(segmentsOf(7), [1, 2]);
+    });
+
+    test('⚠️ 순번은 일시정지와 무관하게 이어진다', () async {
+      await recorder.bind(7);
+      await recorder.add(geo(1));
+
+      await recorder.markPause();
+      await recorder.add(geo(2));
+
+      expect(repository.saved[7]?.map((p) => p.sequence).toList(), [1, 2]);
+    });
+
+    test('⚠️ 전송 결과를 기다리지 않고 남긴다', () async {
+      // 좌표 전송에는 ack가 없다. 전송이 끝나기를 기다렸다 올리면 연결이
+      // 끊기거나 앱이 죽을 때 **증가분이 누락된다.**
+      await recorder.bind(7);
+
+      await recorder.markPause();
+
+      expect(repository.numbered[7]?.pauseSegment, 1);
+    });
+
+    test('방을 모르면 메모리에만 올리고, 방을 알면 그 번호로 쓴다', () async {
+      // 방 생성이 재시도 중인 동안에도 멈출 수 있다.
+      await recorder.markPause();
+      await recorder.add(geo(1));
+
+      expect(recorder.numbers.pauseSegment, 1);
+
+      await recorder.bind(7);
+
+      expect(segmentsOf(7), [1]);
+    });
+  });
+
+  /// 멈춘 채로 앱이 죽었다 살아난 자리.
+  ///
+  /// ## ⚠️ 쌓인 좌표로는 알 수 없다
+  ///
+  /// 멈추면 번호가 올라가는데 **그 뒤로 새 좌표가 들어오지 않는다.** 그래서
+  /// 쌓인 좌표의 최대 구간 번호는 언제나 올리기 전 값이다 — 되살릴 근거가
+  /// 저장된 번호뿐이다.
+  group('⚠️ 번호 되살리기', () {
+    test('저장된 구간 번호를 이어 쓴다', () async {
+      repository.numbered[7] = const RunNumbers(
+        nextSequence: 120,
+        pauseSegment: 2,
+      );
+
+      await recorder.bind(7);
+      await recorder.add(geo(1));
+
+      expect(repository.saved[7]?.single.pauseSegment, 2);
+      expect(repository.saved[7]?.single.sequence, 120);
+    });
+
+    test('⚠️ 방을 알기 전에 들어온 좌표도 되살린 번호를 받는다', () async {
+      // 0을 그대로 보내면 **번호가 줄어들어 배치 전체가 거부된다.**
+      repository.numbered[7] = const RunNumbers(
+        nextSequence: 120,
+        pauseSegment: 2,
+      );
+
+      await recorder.add(geo(1));
+      await recorder.add(geo(2));
+      await recorder.bind(7);
+
+      expect(repository.saved[7]?.map((p) => p.pauseSegment).toList(), [2, 2]);
+      expect(repository.saved[7]?.map((p) => p.sequence).toList(), [120, 121]);
+    });
+
+    test('⚠️ 저장된 번호가 뒤처져 있으면 들고 있던 것을 쓴다', () async {
+      // 아직 안 보낸 좌표가 있다는 뜻이다. 뒤로 물리면 그 좌표를 덮어쓴다.
+      await recorder.bind(7);
+      await recorder.markPause();
+      await recorder.add(geo(1));
+
+      repository.numbered[7] = const RunNumbers(
+        nextSequence: 1,
+        pauseSegment: 0,
+      );
+
+      await recorder.bind(7);
+      await recorder.add(geo(2));
+
+      expect(repository.saved[7]?.last.pauseSegment, 1);
+    });
+
+    test('⚠️ 번호 행이 없어도 쌓인 좌표 뒤부터 매긴다', () async {
+      // v2에서 올라온 DB가 이 모양이다 — 좌표만 있고 번호 행이 없다.
+      repository.saved[7] = [
+        TrackPoint.from(geo(1), sequence: 1, pauseSegment: 0),
+        TrackPoint.from(geo(2), sequence: 2, pauseSegment: 0),
+      ];
+
+      await recorder.bind(7);
+      await recorder.add(geo(3));
+
+      expect(repository.saved[7]?.last.sequence, 3);
+    });
+
+    test('다음 러닝은 번호가 처음으로 돌아간다', () async {
+      await recorder.bind(7);
+      await recorder.markPause();
+      await recorder.add(geo(1));
+
+      await recorder.discard();
+
+      expect(recorder.numbers, RunNumbers.start);
+      expect(repository.numbered.containsKey(7), isFalse);
+    });
+  });
 }
 
 class _FakeRepository implements TrackRepository {
@@ -198,6 +363,24 @@ class _FakeRepository implements TrackRepository {
   Future<void> clear(int runningRoomId) async {
     cleared.add(runningRoomId);
     saved.remove(runningRoomId);
+    // ⚠️ 진짜 저장소처럼 번호도 함께 지운다.
+    numbered.remove(runningRoomId);
+  }
+
+  /// 방 번호별로 남긴 번호. 테스트가 직접 세팅해 **재시작 뒤 복원**을 만든다.
+  final numbered = <int, RunNumbers>{};
+
+  /// 번호를 남긴 횟수. 좌표마다 남기는지 보는 데 쓴다.
+  var saves = 0;
+
+  @override
+  Future<RunNumbers?> numbers(int runningRoomId) async =>
+      numbered[runningRoomId];
+
+  @override
+  Future<void> saveNumbers(int runningRoomId, RunNumbers numbers) async {
+    saves++;
+    numbered[runningRoomId] = numbers;
   }
 
   int? active;
