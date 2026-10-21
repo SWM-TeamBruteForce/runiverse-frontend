@@ -30,6 +30,7 @@ import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/presentation/run_controls.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
+import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 1인 러닝 — 출발 준비부터 요약까지 화면이 실제로 이어지는가.
@@ -51,6 +52,7 @@ void main() {
   late FakeLocationRepository location;
   late FakeRunningRoomRepository room;
   late FakeTrackRepository track;
+  late FakeUserStatusRepository status;
 
   late InMemoryBodyProfileStore body;
   late FakeStepRepository steps;
@@ -60,6 +62,7 @@ void main() {
     location = FakeLocationRepository();
     room = FakeRunningRoomRepository();
     track = FakeTrackRepository();
+    status = FakeUserStatusRepository();
     body = InMemoryBodyProfileStore();
     steps = FakeStepRepository();
   });
@@ -97,9 +100,7 @@ void main() {
           runningRoomRepositoryProvider.overrideWithValue(room),
           // ⚠️ 준비 화면이 들어올 때 상태를 다시 읽는다. 갈아 끼우지
           // 않으면 진짜 HTTP를 열려다 주소가 없어 죽는다.
-          userStatusRepositoryProvider.overrideWithValue(
-            FakeUserStatusRepository(),
-          ),
+          userStatusRepositoryProvider.overrideWithValue(status),
           // ⚠️ 갈아 끼우지 않으면 진짜 DB를 열려다 실패하고, 컨트롤러가 그
           // 실패를 삼켜 **좌표가 쌓이는지 아무도 확인하지 않는 상태**가 된다.
           trackRepositoryProvider.overrideWithValue(track),
@@ -228,6 +229,70 @@ void main() {
       await tester.pump();
 
       expect(find.text('3'), findsOneWidget);
+      await unmount(tester);
+    });
+
+    /// 세는 동안 **서버 상태가 `RUNNING`으로 바뀐다** — 그게 정상이다.
+    ///
+    /// ## ⚠️ 바로 이 화면이 그것을 충돌로 읽었다
+    ///
+    /// 시작을 누르면 3초 안에 방이 생기고(`POST /running-rooms/solo` 201)
+    /// 시작 확인이 오며, 그 자리에서 앱이 상태를 다시 읽는다 — 서버는 당연히
+    /// `RUNNING`이라고 답한다. 그런데 준비 화면은 `canStartSolo == false`를
+    /// **무조건 충돌**로 보고 **"이전 러닝이 아직 끝나지 않았어요"**를 띄웠다
+    /// (2026-10-21 기기 확인 · 시작 1.3초 뒤부터 약 2초 동안).
+    ///
+    /// 그 화면에는 `홈으로`가 있다. 눌러 보는 사람은 **방금 시작한 자기 러닝**을
+    /// 두고 나가고, 복구로 들어온 경우에는 그 방이 서버에서 지워진다.
+    Future<void> serverSaysRunning(WidgetTester tester) async {
+      status.status = UserStatusRunning(
+        runningRoomId: 1,
+        isSolo: true,
+        scheduledStartAt: clock,
+      );
+      // ⚠️ **누가 다시 읽었는지는 중요하지 않다.** 진짜 앱에서는 시작 확인을
+      // 받은 자리가 읽는다. 이 그물은 "세는 중에 서버가 `RUNNING`이라고
+      // 답한다"는 사실만 만든다.
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(MaterialApp)),
+      );
+      await container.read(userStatusProvider.notifier).refresh();
+      await tester.pump();
+    }
+
+    testWidgets('⚠️ 세는 중에 서버가 RUNNING이라고 해도 막지 않는다', (tester) async {
+      await pumpRun(tester);
+      await emit(tester, point(37.5, 127));
+      await tester.tap(
+        find.widgetWithText(AppButtonV2, AppStrings.runStartCta),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      await serverSaysRunning(tester);
+
+      expect(find.text(AppStrings.runAlreadyInProgress), findsNothing);
+      expect(find.text('2'), findsOneWidget, reason: '세던 것을 계속 센다');
+      await unmount(tester);
+    });
+
+    testWidgets('⚠️ 그대로 러닝 화면까지 간다', (tester) async {
+      // 충돌 화면이 떴다 사라지는 것만으로도 나쁘지만, 거기서 멈춰 버리면
+      // **방은 서버에 있는데 화면은 들어가지 못한다.**
+      await pumpRun(tester);
+      await emit(tester, point(37.5, 127));
+      await tester.tap(
+        find.widgetWithText(AppButtonV2, AppStrings.runStartCta),
+      );
+      await tester.pump();
+      await serverSaysRunning(tester);
+
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(seconds: 1));
+      }
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(RunControls), findsOneWidget);
       await unmount(tester);
     });
 
