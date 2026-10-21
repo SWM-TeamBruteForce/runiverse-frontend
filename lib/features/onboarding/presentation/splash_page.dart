@@ -12,6 +12,7 @@ import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/theme/v2/run_palette.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/color/aura_orb.dart';
+import 'package:runiverse/features/app_update/presentation/app_update_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/session/domain/run_resume.dart';
@@ -72,9 +73,9 @@ class _SplashPageState extends ConsumerState<SplashPage> {
 
   Timer? _timer;
 
-  /// 토큰 확인이 끝났는지. 타이머와 탭 어느 쪽이 먼저 와도 이것을 기다린다.
-  /// 재시도하면 새 Future로 갈아 끼운다.
-  late Future<void> _restored;
+  /// 버전 확인과 토큰 복원이 끝났는지. 타이머와 탭 어느 쪽이 먼저 와도
+  /// 이것을 기다린다. 재시도하면 새 Future로 갈아 끼운다.
+  late Future<void> _ready;
 
   /// 두 번 이동하는 것을 막는다. 타이머와 탭이 거의 동시에 올 수 있다.
   bool _leaving = false;
@@ -85,8 +86,23 @@ class _SplashPageState extends ConsumerState<SplashPage> {
   @override
   void initState() {
     super.initState();
-    _restored = ref.read(authControllerProvider.notifier).restore();
+    _ready = _prepare();
     _timer = Timer(_dwell, _goNext);
+  }
+
+  /// 들어갈 준비. **버전 확인이 토큰 복원보다 먼저다.**
+  ///
+  /// ## ⚠️ 순서가 규칙이다
+  ///
+  /// 최소 버전에 못 미치는 앱은 서버가 `/app/version`을 뺀 **모든 요청을
+  /// 403으로 거절한다.** 토큰부터 복원하면 그 갱신 요청이 403으로 떨어지고,
+  /// 앱은 "세션이 죽었다"로 읽어 **업데이트가 필요한 사람을 로그인 화면으로**
+  /// 보낸다. 거기서 로그인해도 또 403이다.
+  ///
+  /// 버전을 먼저 보면 막힌 앱은 게이트가 덮으므로 그 길로 가지 않는다.
+  Future<void> _prepare() async {
+    await ref.read(appUpdateProvider.notifier).check();
+    await ref.read(authControllerProvider.notifier).restore();
   }
 
   @override
@@ -101,8 +117,19 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     _leaving = true;
     _timer?.cancel();
 
-    await _restored;
+    await _ready;
     if (!mounted) return;
+
+    // ⚠️ **판정 없이 들여보내지 않는다**(명세). 서버에 닿지 못했으면 이 화면에
+    // 머물며 다시 시도할 길을 준다 — 구버전 앱을 그냥 통과시키면 안에서
+    // 403만 받으면서 이유를 모른다.
+    if (ref.read(appUpdateProvider) is! AppUpdateChecked) {
+      setState(() {
+        _offline = true;
+        _leaving = false;
+      });
+      return;
+    }
 
     switch (ref.read(authControllerProvider)) {
       case AuthSignedIn():
@@ -191,7 +218,7 @@ class _SplashPageState extends ConsumerState<SplashPage> {
   Future<void> _retry() async {
     setState(() {
       _offline = false;
-      _restored = ref.read(authControllerProvider.notifier).restore();
+      _ready = _prepare();
     });
     await _goNext();
   }

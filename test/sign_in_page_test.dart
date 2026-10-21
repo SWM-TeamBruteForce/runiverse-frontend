@@ -18,6 +18,8 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_palette.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
+import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/data/fake_oauth_code_source.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
@@ -25,10 +27,10 @@ import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
 import 'package:runiverse/features/auth/domain/oauth_code_source.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
-import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
-import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 로그인 화면 — 언제 버튼이 열리고, 실패했을 때 무엇이 보이는가.
 ///
@@ -59,6 +61,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
+          // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
+          appVersionRepositoryProvider.overrideWithValue(
+            FakeAppVersionRepository(),
+          ),
           // 앱은 SecureTokenStore를 쓰는데 그것은 플랫폼 채널을 부른다.
           // 로그인에 성공하면 토큰을 저장하므로 여기서도 갈아끼워야 한다.
           tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),

@@ -18,8 +18,8 @@
 
 - 저장소 루트 = Flutter 루트 = `frontend/`. 기획·디자인 문서는 저장소 **밖** `../Docs/`, `../design_system/`
 - `lib/app/router/` - go_router 설정, 라우트 상수, 딥링크
-- `lib/core/` - 기능 무관 공통: `config` `network` `storage` `theme/tokens` `theme/extensions` `strings` `utils` `widgets`
-- `lib/features/<name>/` - `onboarding` `auth` `home` `matching` `session` `record` `profile` `feed` `competition`
+- `lib/core/` - 기능 무관 공통: `analytics` `config` `database` `network` `storage` `strings` `theme/tokens` `theme/extensions` `theme/v2` `utils` `version` `widgets`
+- `lib/features/<name>/` - `onboarding` `auth` `home` `matching` `session` `record` `profile` `settings` `app_update` `feed` `competition`
   - `data/` DTO·API·repo 구현 / `domain/` 엔티티·repo 인터페이스 / `presentation/` page·widget·provider
 - **의존 방향: `presentation → domain ← data`.** presentation은 data를 import하지 않는다. domain은 순수 Dart만.
 - 다른 feature의 **화면·위젯**을 import하지 않는다. 공유가 필요하면 `core/widgets/`로 올린다.

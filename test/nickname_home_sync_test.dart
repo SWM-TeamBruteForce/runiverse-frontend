@@ -4,6 +4,8 @@ import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
+import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
+import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/domain/current_user.dart';
 import 'package:runiverse/features/auth/domain/login_type.dart';
@@ -127,6 +129,11 @@ void main() {
     // `build()`만 덮으므로 `applyNickname`은 실제 코드가 돈다.
     final container = ProviderContainer.test(
       overrides: [
+        // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
+        // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
+        appVersionRepositoryProvider.overrideWithValue(
+          FakeAppVersionRepository(),
+        ),
         ...fakes(),
         authControllerProvider.overrideWith(
           () => _SignedIn(

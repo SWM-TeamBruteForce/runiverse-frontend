@@ -9,10 +9,10 @@ import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
+import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
-import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
-import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/profile/data/fake_profile_image_repository.dart';
 import 'package:runiverse/features/profile/data/fake_profile_repository.dart';
 import 'package:runiverse/features/profile/domain/photo_picker.dart';
@@ -22,9 +22,11 @@ import 'package:runiverse/features/profile/domain/profile_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
 import 'package:runiverse/features/profile/presentation/profile_edit_page.dart';
-import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
+import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 프로필 편집 (S22.1) — **무엇이 저장 버튼에 묶이고 무엇이 아닌가.**
 ///
@@ -75,6 +77,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
+          // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
+          appVersionRepositoryProvider.overrideWithValue(
+            FakeAppVersionRepository(),
+          ),
           tokenStoreProvider.overrideWithValue(store),
           signInMemoryStoreProvider.overrideWithValue(
             InMemorySignInMemoryStore(),

@@ -2,24 +2,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
-import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/widgets/v2/app_tab_bar.dart';
-import 'package:runiverse/features/matching/data/fake_match_repository.dart';
-import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
-import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
-import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/analytics/fake_analytics.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/storage/body_profile_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/widgets/v2/app_tab_bar.dart';
+import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
+import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/data/fake_oauth_code_source.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/matching/data/fake_match_repository.dart';
+import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
+import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
+import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_step_repository.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
@@ -45,6 +47,11 @@ void main() {
     analytics = FakeAnalytics();
     return ProviderContainer.test(
       overrides: [
+        // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
+        // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
+        appVersionRepositoryProvider.overrideWithValue(
+          FakeAppVersionRepository(),
+        ),
         analyticsProvider.overrideWithValue(analytics),
         // 저장소는 플랫폼 채널을 부른다. 테스트에는 채널이 없다.
         tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
@@ -150,6 +157,11 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
+            // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
+            appVersionRepositoryProvider.overrideWithValue(
+              FakeAppVersionRepository(),
+            ),
             analyticsProvider.overrideWithValue(analytics),
             matchRepositoryProvider.overrideWithValue(FakeMatchRepository()),
             // 기록 탭이 들어서면서 목록을 받아온다. 진짜를 두면 dio 가 서버
@@ -221,6 +233,11 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
+            // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
+            appVersionRepositoryProvider.overrideWithValue(
+              FakeAppVersionRepository(),
+            ),
             analyticsProvider.overrideWithValue(analytics),
             tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
             signInMemoryStoreProvider.overrideWithValue(
@@ -304,6 +321,11 @@ void main() {
       analytics = FakeAnalytics();
       final container = ProviderContainer.test(
         overrides: [
+          // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
+          // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
+          appVersionRepositoryProvider.overrideWithValue(
+            FakeAppVersionRepository(),
+          ),
           analyticsProvider.overrideWithValue(analytics),
           locationRepositoryProvider.overrideWithValue(
             FakeLocationRepository(

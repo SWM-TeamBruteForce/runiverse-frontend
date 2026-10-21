@@ -1598,4 +1598,28 @@ abstract final class AppStrings {
   static const withdrawConfirm = '탈퇴하기';
 
   static const withdrawFailed = '탈퇴하지 못했어요. 다시 시도해주세요';
+
+  // ── 앱 업데이트 ──────────────────────────────────────────
+
+  /// 최소 버전에 못 미친다. **닫을 수 없는 화면**이다.
+  static const updateRequiredTitle = '업데이트가 필요해요';
+
+  /// ⚠️ **왜 막혔는지 말한다.** "업데이트하세요"만 두면 지금 앱이 왜 안 되는지
+  /// 알 수 없어, 버튼을 안 누르고 앱을 지우는 쪽으로 간다.
+  static const updateRequiredBody =
+      '지금 버전으로는 서버와 연결할 수 없어요.\n'
+      '스토어에서 최신 버전을 받아주세요.';
+
+  /// 쓸 수는 있는데 새 버전이 나와 있다. 닫을 수 있다.
+  static const updateAvailableTitle = '새 버전이 나왔어요';
+
+  static const updateAvailableBody = '더 나아진 러니버스를 만나보세요.';
+
+  static const updateCta = '업데이트하기';
+
+  /// ⚠️ **권장 안내에만 둔다.** 강제 화면에는 닫을 길이 없어야 한다.
+  static const updateLater = '나중에';
+
+  /// 스토어를 열지 못했다. 눌러도 조용하면 고장으로 읽힌다.
+  static const updateStoreFailed = '스토어를 열지 못했어요';
 }

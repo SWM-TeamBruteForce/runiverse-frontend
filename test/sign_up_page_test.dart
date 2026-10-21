@@ -8,11 +8,13 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/field_action.dart';
+import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
+import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
-import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 
 /// 가입 2 · 정보 입력 — 이메일 인증 → 비밀번호 순으로 열리는가.
 ///
@@ -31,6 +33,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
+          // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
+          appVersionRepositoryProvider.overrideWithValue(
+            FakeAppVersionRepository(),
+          ),
           // ⚠️ 이것을 빠뜨리면 **가입 성공 경로에서만** 테스트가 멈춘다.
           //
           // SecureTokenStore는 플랫폼 채널을 부르는데 테스트에는 채널이 없다.
