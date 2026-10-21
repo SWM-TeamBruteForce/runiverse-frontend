@@ -112,6 +112,13 @@ void main() {
   test('⚠️ 시작 확인을 받으면 상태를 다시 읽는다', () async {
     // 매칭 SSE는 상태가 `RUNNING`이 되면 닫힌다. 그것을 알려 줄 사람이 없어서
     // 예전에는 러닝 내내 열린 채 남아 있다가 30초 무음 감시로 겨우 닫혔다.
+    //
+    // ## ⚠️ 몸통이 **비어 있는** 확인으로 재현한다
+    //
+    // 예전에는 이 테스트가 스냅샷을 흘려 ack를 흉내 냈다. 그런데 스냅샷은
+    // `runningRoomId`를 못 읽으면 통째로 버려지고(`RunSnapshot.of`), 명세의
+    // 재연결 payload가 확정되지 않아 **실제로 비어 올 수 있다.** 그래서 번호만
+    // 올려 보낸다 — 진짜 채널이 그때 하는 것과 같다.
     final container = await makeContainer();
     final connection = container.read(runningConnectionProvider.notifier);
     status.status = UserStatusRunning(
@@ -122,9 +129,7 @@ void main() {
     await connection.openMatched(125, targetDistanceMeters: 3000);
     final before = status.calls;
 
-    channel.snapshots_.add(
-      const RunSnapshot(runningRoomId: 125, players: [], combos: RunCombo([])),
-    );
+    channel.serverNumbers_.add(RunNumbers.serverZero);
     await settle();
     await settle();
 
@@ -152,6 +157,9 @@ void main() {
 class _TrackedChannel implements RunningChannel {
   final progress_ = StreamController<RunProgress>.broadcast();
   final snapshots_ = StreamController<RunSnapshot>.broadcast();
+
+  /// 시작 확인. **몸통을 못 읽어도 올라오는 쪽이라** 여기로 흘린다.
+  final serverNumbers_ = StreamController<RunNumbers>.broadcast();
   var closed = false;
 
   @override
@@ -176,7 +184,7 @@ class _TrackedChannel implements RunningChannel {
   Stream<RunSnapshot> get snapshots => snapshots_.stream;
 
   @override
-  Stream<RunNumbers> get serverNumbers => const Stream.empty();
+  Stream<RunNumbers> get serverNumbers => serverNumbers_.stream;
 
   @override
   Future<void> start(int runningRoomId) async {}

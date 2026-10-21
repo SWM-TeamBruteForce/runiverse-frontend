@@ -550,19 +550,30 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     // 끝낸다. 이 통지를 안 받으면 러닝이 끝났는데 화면이 영영 남는다.
     channel.finished.listen((_) => unawaited(_onServerFinished()));
 
-    // ⚠️ **서버가 아는 번호를 좌표 기록기에 맞춘다** — 1.1.1 2절.
+    // ⚠️ **시작 확인(`RUNNING_STARTED`)을 받은 자리다** — 연결마다 한 번.
     //
-    // 러닝 중에 앱을 다시 설치했으면 로컬 번호가 1번부터인데 서버는 이미
-    // 받은 데가 있다. 이 값을 반영하지 않으면 그 뒤 좌표가 **중복으로
-    // 버려지거나 `PAUSE_SEGMENT_DECREASED`로 배치째 거부된다.**
+    // ## ⚠️ 스냅샷이 아니라 번호에 매달아 둔다
     //
-    // ⚠️ **스냅샷과 따로 듣는다.** 같은 메시지에서 오지만 스냅샷은 몸통을
-    // 못 읽으면 통째로 버려진다 — 번호는 그때도 와야 한다.
+    // 예전에는 이 넷이 전부 [RunningChannel.snapshots] 에 달려 있었다. 그런데
+    // 스냅샷은 `runningRoomId` 를 못 읽으면 **통째로 버려진다**
+    // (`RunSnapshot.of`) — 명세의 재연결 payload 가 확정되지 않아 몸통이 비어
+    // 올 수 있고, 그러면 **재전송도 상태 재조회도 통째로 안 돈다.** 끊겼다
+    // 붙었는데 로컬 트랙이 안 올라가는 것이 가장 비싼 결과다(가이드 2.2).
     //
-    // ⚠️ **실패해도 러닝은 계속된다.** 여기서 던지면 아무도 받지 않는
-    // 비동기 오류가 되어 달리는 중에 앱이 죽는다. 못 맞추면 다음 연결의
-    // ack가 같은 값을 다시 실어 온다.
+    // [RunningChannel.serverNumbers] 는 몸통을 못 읽어도 올라온다. 그래서
+    // **시작 확인 자체**를 여기서 받는다. 명단은 그대로 스냅샷이 맡는다 —
+    // 사람 목록은 못 읽으면 쓸 것이 없고, 비어 있다고 덮으면 화면이 지워진다.
     channel.serverNumbers.listen((numbers) {
+      debugPrint('[running] 시작이 확인됐다');
+
+      // ⚠️ **서버가 아는 번호를 좌표 기록기에 맞춘다** — 1.1.1 2절. 러닝 중에
+      // 앱을 다시 설치했으면 로컬 번호가 1번부터인데 서버는 이미 받은 데가
+      // 있다. 반영하지 않으면 그 뒤 좌표가 **중복으로 버려지거나
+      // `PAUSE_SEGMENT_DECREASED`로 배치째 거부된다.**
+      //
+      // ⚠️ **실패해도 러닝은 계속된다.** 여기서 던지면 아무도 받지 않는
+      // 비동기 오류가 되어 달리는 중에 앱이 죽는다. 못 맞추면 다음 연결의
+      // ack가 같은 값을 다시 실어 온다.
       unawaited(
         ref.read(trackRecorderProvider).applyServerNumbers(numbers).catchError((
           Object error,
@@ -570,20 +581,11 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
           debugPrint('[track] 서버 번호를 반영하지 못했다 · $error');
         }),
       );
-    });
 
-    // ⚠️ **시작 확인을 받으면 서버가 아는 상태를 다시 읽는다.**
-    //
-    // 매칭 SSE는 상태가 `RUNNING`이 되면 닫히는데(`MatchRoomController._syncWith`),
-    // 그것을 알려 줄 사람이 없었다. 그래서 러닝 내내 SSE가 열린 채 남아 있다가
-    // **30초 무음 감시 → 재연결 → 상태 조회**라는 먼 길로 겨우 닫혔다.
-    //
-    // 연결마다 한 번씩만 온다(ack가 그렇다). 재연결로 또 와도 같은 답이라 해롭지 않다.
-    channel.snapshots.listen((_) {
-      debugPrint('[running] 시작이 확인됐다. 상태를 다시 읽는다');
       // ⚠️ **로컬 트랙을 통째로 다시 보낸다**(가이드 2.2). `RUNNING_STARTED`
       // 를 받은 자리라 서버가 시작을 이미 처리한 뒤다 — 순서가 지켜진다.
       unawaited(_resendTrack(channel));
+
       // ⚠️ **방마다 한 번만 남긴다.** 이 ack 는 재연결 때도 오므로, 끊겼다
       // 붙을 때마다 남기면 한 번의 러닝이 여러 번 시작한 것으로 세어진다.
       final startedId = state.room?.id;
@@ -595,9 +597,14 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
               .runStart(runType: _runType(state.room?.isMatched)),
         );
       }
-      // ⚠️ **실패해도 러닝은 계속된다.** 이건 곁다리 정리라 여기서 던지면
-      // 아무도 받지 않는 비동기 오류가 되어 달리는 중에 앱이 죽는다.
-      // 못 읽으면 SSE가 조금 늦게 닫힐 뿐이다(30초 무음 감시가 받아 준다).
+
+      // ⚠️ **서버가 아는 상태를 다시 읽는다.** 매칭 SSE는 상태가 `RUNNING`이
+      // 되면 닫히는데(`MatchRoomController._syncWith`), 그것을 알려 줄 사람이
+      // 없었다 — 러닝 내내 열린 채 남아 있다가 **30초 무음 감시 → 재연결 →
+      // 상태 조회**라는 먼 길로 겨우 닫혔다.
+      //
+      // ⚠️ **실패해도 러닝은 계속된다.** 곁다리 정리라 여기서 던지면 아무도
+      // 받지 않는 비동기 오류가 된다. 못 읽으면 SSE가 조금 늦게 닫힐 뿐이다.
       unawaited(
         ref.read(userStatusProvider.notifier).refresh().catchError((
           Object error,

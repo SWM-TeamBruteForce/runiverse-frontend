@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
+import 'package:runiverse/core/analytics/fake_analytics.dart';
 import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
@@ -48,12 +50,14 @@ void main() {
   late _PauseChannel channel;
   late FakeLocationRepository location;
   late FakeTrackRepository track;
+  late FakeAnalytics analytics;
   late DateTime clock;
 
   Future<ProviderContainer> makeContainer() async {
     clock = DateTime(2026, 10, 14, 7);
     channel = _PauseChannel();
     location = FakeLocationRepository();
+    analytics = FakeAnalytics();
     track = FakeTrackRepository();
 
     final tokens = InMemoryTokenStore();
@@ -88,6 +92,7 @@ void main() {
             ),
           ),
         ),
+        analyticsProvider.overrideWithValue(analytics),
         runningChannelFactoryProvider.overrideWithValue((_) => channel),
       ],
     );
@@ -170,8 +175,11 @@ void main() {
   /// ⚠️ **그냥 두면 `FakeUserStatusRepository` 의 지연 타이머가 남는다.**
   /// 시작 확인을 받으면 서버 상태를 다시 읽는데(`UserStatusController.refresh`),
   /// 그것이 끝나기 전에 위젯을 걷으면 flutter_test 가 죽는다.
-  Future<void> reconnect(WidgetTester tester) async {
-    channel.reconnect();
+  Future<void> reconnect(
+    WidgetTester tester, {
+    bool withSnapshot = true,
+  }) async {
+    channel.reconnect(withSnapshot: withSnapshot);
     await tester.pump();
     // ⚠️ **재전송이 끝난 뒤에야 `PAUSE`가 나간다**(가이드 2.2의 순서).
     // `drain`이 배치 사이에 300ms를 쉬므로 한 번 펌프로는 안 닿는다.
@@ -509,6 +517,62 @@ void main() {
       await unmount(tester, container);
     });
 
+    /// 시작 확인의 **몸통을 못 읽은** 재연결 — 1.1.1.
+    ///
+    /// ## ⚠️ 여기가 가장 비싼 결함이었다
+    ///
+    /// 재전송·상태 재조회가 스냅샷에 달려 있었다. 스냅샷은 `runningRoomId`를
+    /// 못 읽으면 통째로 버려지고(`RunSnapshot.of`), 명세의 재연결 payload가
+    /// 확정되지 않아 **비어 올 수 있다.** 그 ack 하나로 로컬 트랙이 통째로
+    /// 안 올라가고, 서버는 빠진 구간을 직선으로 이어 **거리를 짧게 확정한다.**
+    testWidgets('⚠️ 몸통을 못 읽어도 트랙을 다시 보낸다', (tester) async {
+      final container = await pumpRunning(tester);
+      await tester.pump(const Duration(seconds: 11)); // 한 번 보내 둔다
+      channel.log.clear();
+      channel.sent.clear();
+
+      await reconnect(tester, withSnapshot: false);
+
+      expect(channel.sent, isNotEmpty, reason: '다시 보내야 한다');
+      expect(channel.sent.first.first, 1, reason: '첫 좌표부터다');
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 몸통을 못 읽어도 멈춤을 다시 알린다', (tester) async {
+      // 알리지 않으면 **멈춰 있는데 상대 화면에서 내가 달린다**(가이드 2.1).
+      final container = await pumpRunning(tester);
+      await tapPause(tester, AppStrings.runPauseCta);
+      channel.log.clear();
+
+      await reconnect(tester, withSnapshot: false);
+
+      expect(channel.log, contains('pause'));
+      await unmount(tester, container);
+    });
+
+    /// 시작 로그 — **방마다 한 번만.**
+    ///
+    /// ⚠️ `FakeAnalytics`의 주석이 "재연결마다 `run_start`가 쌓이는 것을
+    /// 놓친다"고 적어 두었는데 **그것을 보는 그물이 없었다.** 시작 확인을
+    /// 스냅샷에서 떼어 내며(1.1.1) 이 길이 **몸통이 빈 ack에도 닿게** 됐으므로,
+    /// 세는 자리를 여기 둔다.
+    testWidgets('⚠️ 몸통 없는 확인에도 남고, 다시 붙어도 한 번이다', (tester) async {
+      // ⚠️ **[_PauseChannel.start]는 스냅샷을 흘리지 않는다** — 번호만 올린다.
+      // 그래서 이 첫 기대가 곧 "몸통이 비어 와도 남는가"다. 스냅샷에 매달려
+      // 있던 동안에는 **한 번도 남지 않았다** — 매칭 방에서 `match_apply`
+      // 다음에 이것이 없으면 **신청하고 못 뛴 사람**으로 세어진다
+      // (`Analytics.runStart` 주석).
+      final container = await pumpRunning(tester);
+      expect(analytics.countOf('run_start'), 1);
+      expect(analytics.paramsOf('run_start'), {'run_type': 'match'});
+
+      await reconnect(tester);
+      await reconnect(tester, withSnapshot: false);
+
+      expect(analytics.countOf('run_start'), 1, reason: '방마다 한 번이다');
+      await unmount(tester, container);
+    });
+
     testWidgets('⚠️ 다음 러닝이 멈춤을 들고 가지 않는다', (tester) async {
       // 표식을 안 되돌리면 **다음 러닝이 붙자마자 `PAUSE`를 보낸다** — 이
       // 길을 타고서다.
@@ -589,13 +653,19 @@ class _PauseChannel implements RunningChannel {
   /// ⚠️ **끊김부터 알린다.** 전송기가 그 신호로 커서를 처음으로 되돌린다
   /// (가이드 2.2). 빠뜨리면 재전송이 일어나지 않아 **순서를 보는 테스트가
   /// 통과해 버린다** — 보낼 것이 없으니 `pause`만 남아서다.
-  void reconnect() {
+  /// [withSnapshot]이 거짓이면 **몸통을 못 읽은 확인**이다 — 번호만 올라온다.
+  ///
+  /// ⚠️ 꾸며낸 상황이 아니다. 명세의 재연결 payload가 확정되지 않아 `data`가
+  /// 비어 올 수 있고, 그때 `RunSnapshot.of`는 `null`을 준다. 재전송이 스냅샷에
+  /// 달려 있던 동안에는 **그 ack 하나로 로컬 트랙이 통째로 안 올라갔다.**
+  void reconnect({bool withSnapshot = true}) {
     _states.add(WsConnectionState.reconnecting);
     _states.add(WsConnectionState.connected);
     // 되감기가 먼저 끝나야 한다. 진짜도 다시 붙어 ack가 오기까지 틈이 있다.
     scheduleMicrotask(() {
       log.add('start');
       _serverNumbers.add(fromServer);
+      if (!withSnapshot) return;
       _snapshots.add(
         RunSnapshot(
           runningRoomId: _roomId ?? 1,
