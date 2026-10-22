@@ -138,7 +138,7 @@ class ProfileHeader extends ConsumerWidget {
                   AppButtonV2(
                     label: AppStrings.profileEditOpen,
                     // ⚠️ **아바타 옆에 서는 인라인 액션이다.** 기본 크기(56)로 두면
-                    // 아바타(88)와 덩치가 맞먹고, 화면에서 유일하게 색이 있는
+                    // 아바타(96)와 덩치가 맞먹고, 화면에서 유일하게 색이 있는
                     // 요소라 더 튄다. 측정값이 121×54 였다(시안 99×41).
                     size: AppButtonV2Size.compact,
                     expand: false,
