@@ -20,6 +20,7 @@ import 'package:runiverse/features/profile/presentation/nickname_sheet.dart';
 import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/background_picker.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
+import 'package:runiverse/features/profile/presentation/profile_header.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 
@@ -422,42 +423,20 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
 
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.space5,
-                    AppSpacing.space4,
-                    AppSpacing.space5,
-                    AppSpacing.space8,
-                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // 고른 것은 화면에만 남는다. 보내는 것은 저장 버튼이다.
-                      Center(
-                        child: Column(
-                          children: [
-                            ProfileAvatar(
-                              url: summary?.profileImageUrl,
-                              editable: true,
-                              pending: _photo,
-                              onPending: (photo) =>
-                                  setState(() => _photo = photo),
-                            ),
-                            const SizedBox(height: AppSpacing.space2),
-                            Text(
-                              AppStrings.profileEditPhoto,
-                              style: AppTypographyV2.body15.copyWith(
-                                color: colors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.space7),
-
+                      // ⚠️ **프로필 화면과 같은 배치다** — 커버가 맨 위에서 폭을
+                      // 다 쓰고 아바타가 아래변에 걸친다. 바꾸는 자리와 보이는
+                      // 자리가 닮아야 무엇을 바꾸는지 안다.
+                      //
+                      // ⚠️ **좌우 여백 밖에 둔다.** 스크롤 전체에 패딩을 걸면
+                      // 커버만 안쪽으로 들어와 카드처럼 보인다. 그래서 패딩을
+                      // 아래 [_Form]으로 내렸다.
+                      //
                       // ⚠️ **사진과 같은 규칙이다** — 고른 것은 화면에만 남고
                       // 저장 버튼이 보낸다. 배경만 즉시 올리면 한 화면에 규칙이
                       // 둘이 되고, 사용자는 무엇이 이미 갔는지 알 수 없다.
-                      _Label(AppStrings.profileBackgroundLabel),
                       BackgroundPicker(
                         pending: _background,
                         onPending: (photo) =>
@@ -469,96 +448,149 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                               SnackBar(content: Text(_photoMessageOf(failure))),
                             ),
                       ),
-                      const SizedBox(height: AppSpacing.space7),
-
-                      // 닉네임도 시트에서 즉시 저장된다.
-                      _Label(AppStrings.profileNicknameLabel),
-                      _ValueRow(
-                        value: summary?.nickname,
-                        onTap: () => showNicknameSheet(
-                          context,
-                          current: summary?.nickname,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.space5,
+                          0,
+                          AppSpacing.space5,
+                          AppSpacing.space8,
                         ),
-                      ),
-                      const SizedBox(height: AppSpacing.space6),
-
-                      _Label(AppStrings.profileIntroductionLabel),
-                      const SizedBox(height: AppSpacing.space2),
-                      AppInputV2(
-                        // ⚠️ **테스트가 이 입력을 찾는 유일한 손잡이다.**
-                        // 부품이 `TextField` 인지 무엇인지에 기대면 디자인을
-                        // 바꿀 때 테스트가 통째로 깨진다. 디자인을 바꿔도
-                        // **이 키는 이어받는다.**
-                        key: const ValueKey('profile-introduction'),
-                        controller: _introduction,
-                        hint: AppStrings.profileIntroductionHint,
-                        helper: _introductionTooLong
-                            ? AppStrings.profileIntroductionTooLong
-                            : null,
-                        tone: _introductionTooLong
-                            ? AppInputToneV2.error
-                            : AppInputToneV2.neutral,
-                        counter: '${_introduction.text.trim().length}/100',
-                        inputFormatters: [
-                          LengthLimitingTextInputFormatter(100),
-                        ],
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: AppSpacing.space7),
-
-                      _Label(AppStrings.profileBodySection),
-                      _ValueRow(
-                        label: AppStrings.profileBirthLabel,
-                        value: _birthday == null ? null : _dateText(_birthday!),
-                        // 서버 값을 모르는 동안은 잠긴다. 선택기 기본값이
-                        // 저장돼 버리는 것을 막는 유일한 자리다.
-                        onTap: _bodyEditable ? _pickBirthday : null,
-                      ),
-                      // 저장 버튼만 잠그면 왜 안 눌리는지 알 수 없다.
-                      if (_birthdayTooYoung)
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            bottom: AppSpacing.space2,
-                          ),
-                          child: Text(
-                            AppStrings.profileBirthTooYoung,
-                            style: AppTypographyV2.body15.copyWith(
-                              color: colors.error,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // 고른 것은 화면에만 남는다. 보내는 것은 저장 버튼이다.
+                            //
+                            // ⚠️ **커버에 걸친다**(`ProfileHeader.coverOverlap`).
+                            // `Transform`이라 **자리는 그대로 차지한다** — 아래
+                            // 닉네임이 따라 올라오지 않는다.
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Transform.translate(
+                                offset: const Offset(
+                                  0,
+                                  -ProfileHeader.coverOverlap,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    ProfileAvatar(
+                                      url: summary?.profileImageUrl,
+                                      editable: true,
+                                      pending: _photo,
+                                      onPending: (photo) =>
+                                          setState(() => _photo = photo),
+                                    ),
+                                    const SizedBox(height: AppSpacing.space2),
+                                    Text(
+                                      AppStrings.profileEditPhoto,
+                                      style: AppTypographyV2.body15.copyWith(
+                                        color: colors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      _ValueRow(
-                        label: AppStrings.profileBodyLabel,
-                        value: _heightCm == null || _weightKg == null
-                            ? null
-                            : '$_heightCm${AppStrings.profileUnitHeight}'
-                                  ' · $_weightKg${AppStrings.profileUnitWeight}',
-                        onTap: _bodyEditable ? _pickBody : null,
-                      ),
-                      // 잠긴 이유를 적는다. 안 적으면 눌러도 아무 일이
-                      // 없는 줄로 보인다.
-                      if (_bodyFailed)
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            top: AppSpacing.space2,
-                          ),
-                          child: Text(
-                            AppStrings.profileBodyLoadFailed,
-                            style: AppTypographyV2.body15.copyWith(
-                              color: colors.error,
-                            ),
-                          ),
-                        ),
+                            // ⚠️ **여백을 더하지 않는다.** 위 `Transform`이
+                            // 자리를 그대로 차지해 아바타 아래에 이미
+                            // `coverOverlap`(43)만큼 빈 자리가 남는다. 여기에
+                            // 여백을 또 주면 다음 구획과의 간격이 다른 곳의
+                            // 세 배가 된다.
 
-                      if (_failure != null) ...[
-                        const SizedBox(height: AppSpacing.space4),
-                        Text(
-                          _messageOf(_failure!),
-                          style: AppTypographyV2.body15.copyWith(
-                            color: colors.error,
-                          ),
+                            // 닉네임도 시트에서 즉시 저장된다.
+                            _Label(AppStrings.profileNicknameLabel),
+                            _ValueRow(
+                              value: summary?.nickname,
+                              onTap: () => showNicknameSheet(
+                                context,
+                                current: summary?.nickname,
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.space6),
+
+                            _Label(AppStrings.profileIntroductionLabel),
+                            const SizedBox(height: AppSpacing.space2),
+                            AppInputV2(
+                              // ⚠️ **테스트가 이 입력을 찾는 유일한 손잡이다.**
+                              // 부품이 `TextField` 인지 무엇인지에 기대면 디자인을
+                              // 바꿀 때 테스트가 통째로 깨진다. 디자인을 바꿔도
+                              // **이 키는 이어받는다.**
+                              key: const ValueKey('profile-introduction'),
+                              controller: _introduction,
+                              hint: AppStrings.profileIntroductionHint,
+                              helper: _introductionTooLong
+                                  ? AppStrings.profileIntroductionTooLong
+                                  : null,
+                              tone: _introductionTooLong
+                                  ? AppInputToneV2.error
+                                  : AppInputToneV2.neutral,
+                              counter:
+                                  '${_introduction.text.trim().length}/100',
+                              inputFormatters: [
+                                LengthLimitingTextInputFormatter(100),
+                              ],
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: AppSpacing.space7),
+
+                            _Label(AppStrings.profileBodySection),
+                            _ValueRow(
+                              label: AppStrings.profileBirthLabel,
+                              value: _birthday == null
+                                  ? null
+                                  : _dateText(_birthday!),
+                              // 서버 값을 모르는 동안은 잠긴다. 선택기 기본값이
+                              // 저장돼 버리는 것을 막는 유일한 자리다.
+                              onTap: _bodyEditable ? _pickBirthday : null,
+                            ),
+                            // 저장 버튼만 잠그면 왜 안 눌리는지 알 수 없다.
+                            if (_birthdayTooYoung)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AppSpacing.space2,
+                                ),
+                                child: Text(
+                                  AppStrings.profileBirthTooYoung,
+                                  style: AppTypographyV2.body15.copyWith(
+                                    color: colors.error,
+                                  ),
+                                ),
+                              ),
+                            _ValueRow(
+                              label: AppStrings.profileBodyLabel,
+                              value: _heightCm == null || _weightKg == null
+                                  ? null
+                                  : '$_heightCm${AppStrings.profileUnitHeight}'
+                                        ' · $_weightKg${AppStrings.profileUnitWeight}',
+                              onTap: _bodyEditable ? _pickBody : null,
+                            ),
+                            // 잠긴 이유를 적는다. 안 적으면 눌러도 아무 일이
+                            // 없는 줄로 보인다.
+                            if (_bodyFailed)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  top: AppSpacing.space2,
+                                ),
+                                child: Text(
+                                  AppStrings.profileBodyLoadFailed,
+                                  style: AppTypographyV2.body15.copyWith(
+                                    color: colors.error,
+                                  ),
+                                ),
+                              ),
+
+                            if (_failure != null) ...[
+                              const SizedBox(height: AppSpacing.space4),
+                              Text(
+                                _messageOf(_failure!),
+                                style: AppTypographyV2.body15.copyWith(
+                                  color: colors.error,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                      ],
+                      ),
                     ],
                   ),
                 ),

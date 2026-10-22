@@ -14,7 +14,12 @@ import 'package:runiverse/features/profile/presentation/background_image_provide
 import 'package:runiverse/features/profile/presentation/profile_image_state.dart';
 import 'package:runiverse/features/profile/presentation/profile_photo_sheet.dart';
 
-/// 편집 화면에서 배경을 고르는 자리. 커버와 같은 비율(2:1)로 미리 보여 준다.
+/// 편집 화면에서 배경을 고르는 자리. **프로필 화면의 커버와 같은 모양이다** —
+/// 같은 비율(2:1)로 화면 폭을 다 쓰고, 아바타가 아래변에 걸친다.
+///
+/// ⚠️ **둥근 모서리도 좌우 여백도 없다.** 넣으면 "카드에 담긴 미리보기"가 되어
+/// 프로필 화면의 커버와 다른 물건으로 보인다. 바꾸는 자리와 보이는 자리가
+/// 닮아야 무엇을 바꾸는지 안다.
 ///
 /// ## ⚠️ 고르기만 한다. 올리지 않는다
 ///
@@ -68,8 +73,7 @@ class BackgroundPicker extends ConsumerWidget {
               ),
         child: AspectRatio(
           aspectRatio: _aspectRatio,
-          child: ClipRRect(
-            borderRadius: AppRadius.md,
+          child: ClipRect(
             child: Stack(
               fit: StackFit.expand,
               children: [

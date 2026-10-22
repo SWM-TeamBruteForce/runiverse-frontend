@@ -197,7 +197,51 @@ void main() {
       await pumpEdit(tester, picker: picked);
 
       expect(find.byType(BackgroundPicker), findsOneWidget);
-      expect(find.text(AppStrings.profileBackgroundLabel), findsOneWidget);
+    });
+
+    /// ⚠️ **프로필 화면과 같은 배치다.** 커버가 맨 위에서 폭을 다 쓰고, 아바타가
+    /// 그 아래변에 걸친다. 편집 화면만 다른 모양이면 같은 것을 두 가지로
+    /// 기억해야 한다 — 바꾸는 자리와 보이는 자리가 닮아야 무엇을 바꾸는지 안다.
+    group('⚠️ 프로필 화면과 같은 배치다', () {
+      testWidgets('커버가 맨 위에서 폭을 다 쓴다', (tester) async {
+        await pumpEdit(tester, picker: picked);
+
+        final screen = tester.getSize(find.byType(Scaffold)).width;
+        final cover = tester.getRect(find.byType(BackgroundPicker));
+
+        expect(cover.left, 0, reason: '좌우 여백 없이 가장자리까지 간다');
+        expect(cover.width, screen);
+      });
+
+      testWidgets('커버가 아바타보다 위에 있다', (tester) async {
+        await pumpEdit(tester, picker: picked);
+
+        final cover = tester.getRect(find.byType(BackgroundPicker));
+        final avatar = tester.getRect(find.byType(ProfileAvatar));
+
+        expect(cover.top, lessThan(avatar.top));
+      });
+
+      testWidgets('⚠️ 아바타가 커버에 걸친다', (tester) async {
+        // 걸치지 않으면 커버와 프로필이 **두 덩어리**로 보인다. 프로필 화면이
+        // 같은 이유로 같은 일을 한다(`ProfileHeader.coverOverlap`).
+        await pumpEdit(tester, picker: picked);
+
+        final cover = tester.getRect(find.byType(BackgroundPicker));
+        final avatar = tester.getRect(find.byType(ProfileAvatar));
+
+        expect(avatar.top, lessThan(cover.bottom), reason: '윗변이 커버 안에 든다');
+        expect(avatar.bottom, greaterThan(cover.bottom), reason: '아래는 커버 밖');
+      });
+
+      testWidgets('아바타가 왼쪽에 선다', (tester) async {
+        await pumpEdit(tester, picker: picked);
+
+        final screen = tester.getSize(find.byType(Scaffold)).width;
+        final avatar = tester.getRect(find.byType(ProfileAvatar));
+
+        expect(avatar.center.dx, lessThan(screen / 2));
+      });
     });
 
     testWidgets('⚠️ 누를 수 있다는 표시가 있다', (tester) async {
