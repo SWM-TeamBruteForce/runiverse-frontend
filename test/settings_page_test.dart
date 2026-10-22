@@ -24,6 +24,10 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 import 'package:runiverse/features/settings/data/fake_settings_repository.dart';
 import 'package:runiverse/features/settings/domain/settings_failure.dart';
 import 'package:runiverse/features/settings/presentation/settings_provider.dart';
+import 'package:runiverse/features/profile/data/fake_profile_repository.dart';
+import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
+import 'package:runiverse/features/profile/domain/profile_failure.dart';
+import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 
 /// 설정 화면 — **계정 유형에 따른 분기**와 **나가는 길**.
 ///
@@ -38,13 +42,25 @@ void main() {
   /// 약관 동의 기록. **로그아웃에는 남고 탈퇴에는 지워져야 한다.**
   late InMemoryConsentStore consent;
 
+  /// 신체 정보가 오가는 곳. 설정이 51번으로 읽고 `PATCH`로 쓴다.
+  late FakeProfileRepository profile;
+
   Future<void> pumpSettings(
     WidgetTester tester, {
     LoginType? loginType = LoginType.local,
     SettingsFailure? withdrawFailure,
     String email = FakeAuthRepository.seedEmail,
     double? width,
+    // 서버가 가지고 있다고 할 신체 정보(51번). 기본은 **온보딩 전**이다.
+    StoredBody body = StoredBody.empty,
+    ProfileFailure? bodyFails,
+    ProfileEditFailure? editFails,
   }) async {
+    profile = FakeProfileRepository(
+      body: body,
+      bodyFailure: bodyFails,
+      editFailure: editFails,
+    );
     if (width != null) {
       // 기본 테스트 화면은 800 이라 **좁은 기기에서만 나는 잘림이 안 잡힌다.**
       tester.view.physicalSize = Size(width * 3, 2400);
@@ -86,6 +102,10 @@ void main() {
           bodyProfileStoreProvider.overrideWithValue(
             InMemoryBodyProfileStore(),
           ),
+          profileRepositoryProvider.overrideWithValue(profile),
+          // ⚠️ **없으면 신체 정보 행이 잠긴 채로 열린다.** 기본값은 `null`
+          // (묻지 않는다)이고, 화면은 못 물어본 것을 못 불러온 것으로 다룬다.
+          bodyProfileRemoteProvider.overrideWithValue(profile),
           // ⚠️ 계정 유형은 이제 **auth**가 답한다. `/users/me`가 함께 싣고,
           // 설정 화면은 따로 조회하지 않는다.
           // 스플래시가 서버 상태를 읽는다. 진짜를 두면 dio가 서버 주소를 찾다
@@ -375,6 +395,141 @@ void main() {
       await tapRow(tester, AppStrings.settingsWithdraw);
 
       expect(find.text(AppStrings.withdrawAppleNotice), findsNothing);
+    });
+  });
+
+  /// 신체 정보 — **편집 화면에서 옮겨 왔다**(2026-10-22 요청).
+  ///
+  /// ## ⚠️ 여기에는 저장 버튼이 없다
+  ///
+  /// 설정의 다른 항목이 전부 그렇듯 **고르는 즉시 간다.** 편집 화면에 있을
+  /// 때는 저장 버튼이 모아서 보냈다.
+  ///
+  /// ## 옮겨 와도 지켜야 하는 규칙
+  ///
+  /// 전에는 기기에 남은 값으로만 선택기를 열었다. 다른 기기에서 로그인한
+  /// 사람은 그 값이 없어 172cm·63kg으로 열렸고, **키만 고쳐 저장해도 몸무게가
+  /// 63kg으로 덮였다** — 시트가 두 값을 함께 돌려주기 때문이다.
+  group('신체 정보', () {
+    const stored = StoredBody(heightCm: 175, weightKg: 71);
+
+    /// `키 · 몸무게` 줄을 눌러 시트를 연다.
+    Future<void> openBodySheet(WidgetTester tester) async {
+      await tapRow(tester, AppStrings.profileBodyLabel);
+    }
+
+    /// 시트가 열려 있는가. 잠긴 줄은 눌러도 열리지 않는다.
+    bool sheetOpen() =>
+        find.text(AppStrings.wheelPickerConfirm).evaluate().isNotEmpty;
+
+    testWidgets('설정에 신체 정보 구획이 있다', (tester) async {
+      await pumpSettings(tester, body: stored);
+
+      expect(find.text(AppStrings.profileBodySection), findsOneWidget);
+      expect(find.text(AppStrings.profileBirthLabel), findsOneWidget);
+      expect(find.text(AppStrings.profileBodyLabel), findsOneWidget);
+    });
+
+    testWidgets('서버 값으로 행이 채워진다', (tester) async {
+      await pumpSettings(tester, body: stored);
+
+      expect(find.textContaining('175cm'), findsOneWidget);
+      expect(find.textContaining('71kg'), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 고르면 저장 버튼 없이 바로 간다', (tester) async {
+      // 설정에는 저장 버튼이 없다. 여기서 안 보내면 **고른 값이 어디에도
+      // 남지 않는다.**
+      await pumpSettings(tester, body: stored);
+
+      await openBodySheet(tester);
+      // 첫 휠(키)만 한 칸 굴린다. 44px = 항목 하나.
+      await tester.drag(
+        find.byType(ListWheelScrollView).first,
+        const Offset(0, -44),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.wheelPickerConfirm));
+      await tester.pumpAndSettle();
+
+      expect(profile.updated, isNotNull);
+      expect(profile.updated!['heightCm'], 176.0);
+    });
+
+    testWidgets('⚠️ 키만 고치면 몸무게는 보내지 않는다', (tester) async {
+      // **이 테스트가 그 작업의 이유였다.** 시트는 두 값을 함께 돌려주므로,
+      // 바뀐 것을 가리는 기준이 서버 값이어야 몸무게가 빠진다. 화면을 옮겨도
+      // 이 규칙은 그대로다.
+      await pumpSettings(tester, body: stored);
+
+      await openBodySheet(tester);
+      await tester.drag(
+        find.byType(ListWheelScrollView).first,
+        const Offset(0, -44),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.wheelPickerConfirm));
+      await tester.pumpAndSettle();
+
+      // 몸무게가 실리면 **서버의 71kg이 덮인다.**
+      expect(profile.updated!.containsKey('weightKg'), isFalse);
+    });
+
+    testWidgets('⚠️ 그대로 확인하면 아무것도 보내지 않는다', (tester) async {
+      // 기본값으로 열렸다면 `172 · 63`을 확인한 셈이 되어 서버로 나간다.
+      await pumpSettings(tester, body: stored);
+
+      await openBodySheet(tester);
+      await tester.tap(find.text(AppStrings.wheelPickerConfirm));
+      await tester.pumpAndSettle();
+
+      expect(profile.updated, isNull);
+    });
+
+    testWidgets('⚠️ 못 불러왔으면 잠기고 이유가 보인다', (tester) async {
+      // 서버 값을 모르는 채로 선택기를 열면 기본값이 저장된다.
+      // **못 고치는 편이 틀린 값을 쓰는 것보다 낫다.**
+      await pumpSettings(tester, bodyFails: ProfileFailure.network);
+
+      expect(find.text(AppStrings.profileBodyLoadFailed), findsOneWidget);
+
+      await openBodySheet(tester);
+      expect(sheetOpen(), isFalse);
+
+      await tapRow(tester, AppStrings.profileBirthLabel);
+      expect(sheetOpen(), isFalse);
+    });
+
+    testWidgets('온보딩 전이면 잠그지 않는다 — 덮을 값이 없다', (tester) async {
+      // 51번이 성공했고 값만 비었다. 이때는 선택기 기본값을 써도 **아무것도
+      // 덮지 않는다** — 실패와 빈 응답을 가르는 이유가 이것이다.
+      await pumpSettings(tester);
+
+      expect(find.text(AppStrings.profileBodyLoadFailed), findsNothing);
+
+      await openBodySheet(tester);
+      expect(sheetOpen(), isTrue);
+    });
+
+    testWidgets('⚠️ 보내다 실패하면 그렇다고 말한다', (tester) async {
+      // 저장 버튼이 없어 **다시 누를 자리도 없다.** 조용히 실패하면 사용자는
+      // 바뀐 줄 알고 화면을 떠난다.
+      await pumpSettings(
+        tester,
+        body: stored,
+        editFails: ProfileEditFailure.network,
+      );
+
+      await openBodySheet(tester);
+      await tester.drag(
+        find.byType(ListWheelScrollView).first,
+        const Offset(0, -44),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.wheelPickerConfirm));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsOneWidget);
     });
   });
 }
