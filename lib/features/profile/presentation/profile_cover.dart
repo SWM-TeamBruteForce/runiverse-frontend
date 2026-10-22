@@ -33,6 +33,21 @@ class ProfileCover extends ConsumerWidget {
   /// 종류로는 다른 것과 구분되지 않는다.
   static const scrimKey = ValueKey('profile-cover-scrim');
 
+  /// 그늘막이 **옅어지기 시작하는 지점**(띠 전체에 대한 비율).
+  ///
+  /// 띠는 `상태바 + [fadeLength]`라, 상태바가 끝나는 자리가 곧 여기다.
+  /// 상태바가 없는 기기(또는 테스트)면 0이 되어 예전처럼 꼭대기부터 옅어진다 —
+  /// 가릴 글자가 없으니 그래도 된다.
+  static double _holdUntil(double scrimHeight) =>
+      (scrimHeight - fadeLength) / scrimHeight;
+
+  /// 버티던 그늘막이 **사라지는 데 쓰는 길이.**
+  ///
+  /// ⚠️ 짧으면 띠가 사진 위에 얹힌 **회색 막대로 보인다.** 16으로 뒀을 때
+  /// 기기에서 경계가 그대로 보였다. 대비는 버티는 구간이 책임지므로, 이 값은
+  /// 길게 줘도 시계가 읽히는 데는 영향이 없다.
+  static const fadeLength = AppSpacing.space7;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColorsV2;
@@ -40,7 +55,7 @@ class ProfileCover extends ConsumerWidget {
     final url = state is ProfileImageReady ? state.url : null;
 
     // 상태바 높이 + 여유. 글자가 그늘 안에 들어와야 한다.
-    final scrimHeight = MediaQuery.paddingOf(context).top + AppSpacing.space4;
+    final scrimHeight = MediaQuery.paddingOf(context).top + fadeLength;
 
     return AspectRatio(
       aspectRatio: _designWidth / _designHeight,
@@ -101,7 +116,17 @@ class ProfileCover extends ConsumerWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [colors.coverScrim, colors.coverScrim.withAlpha(0)],
+                  // ⚠️ **상태바 띠 안에서는 버티고, 그 아래 여유에서만 옅어진다.**
+                  // 꼭대기에서 바로 옅어지게 두면 시계가 서 있는 높이에서 이미
+                  // 절반 넘게 사라져, 밝은 사진 위 흰 글자가 2.3:1까지 떨어진다.
+                  // 진하기를 올려도 구조가 같으면 같은 자리를 맴돈다 —
+                  // 기기에서 재 보고 고친 값이다(설계 10절).
+                  stops: [0, _holdUntil(scrimHeight), 1],
+                  colors: [
+                    colors.coverScrim,
+                    colors.coverScrim,
+                    colors.coverScrim.withAlpha(0),
+                  ],
                 ),
               ),
             ),

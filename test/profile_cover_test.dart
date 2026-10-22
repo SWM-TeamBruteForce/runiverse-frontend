@@ -133,6 +133,29 @@ void main() {
     expect(gradient.colors.last.a, 0, reason: '아래로 가며 사라진다');
   });
 
+  testWidgets('⚠️ 시계가 선 높이까지는 그늘막이 옅어지지 않는다', (tester) async {
+    // 기기에서 드러난 것이다. 꼭대기에서 바로 옅어지게 두면 **시계가 서 있는
+    // 높이에서는 이미 절반 넘게 사라져** 있다. 밝은 사진 위 흰 글자 대비가
+    // 2.3:1까지 떨어졌다(기준 4.5:1). 진하기를 올려도 구조가 같으면 같은 자리를
+    // 맴돈다 — 상태바 띠 안에서는 **같은 진하기로 버티고**, 그 아래 여유에서만
+    // 옅어져야 한다.
+    const topInset = 40.0;
+    await pumpCover(tester, url: null, topInset: topInset);
+    await tester.pump();
+
+    final scrim = tester.widget<Container>(find.byKey(ProfileCover.scrimKey));
+    final gradient =
+        (scrim.decoration! as BoxDecoration).gradient! as LinearGradient;
+
+    expect(gradient.colors.length, 3, reason: '버티는 구간 + 옅어지는 구간');
+    expect(gradient.colors[1], gradient.colors.first, reason: '둘째 점까지 같은 색');
+    expect(
+      gradient.stops![1],
+      closeTo(topInset / (topInset + ProfileCover.fadeLength), 0.001),
+      reason: '상태바 끝에서부터 옅어지기 시작한다',
+    );
+  });
+
   testWidgets('⚠️ 위 여백을 받지 않는다 — 상태바 뒤까지 올라간다', (tester) async {
     // SafeArea 안에 있으면 커버 위에 바탕색 띠가 생기고, 시안의 "사진이 시계
     // 뒤까지"가 성립하지 않는다.
