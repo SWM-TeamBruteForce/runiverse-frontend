@@ -39,9 +39,18 @@ class MatchRegisterPage extends ConsumerStatefulWidget {
 }
 
 class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
-  // ⚠️ **진입에 목록을 받지 않는다.** 조회가 거리를 반드시 받는데 거리는
-  // `null`로 시작하므로, 부를 수 있는 가장 이른 시점이 **거리를 고른 순간**이다
-  // (`selectDistance`).
+  @override
+  void initState() {
+    super.initState();
+    // ⚠️ **들어오자마자 오늘이 끝났는지 본다.** 거리를 고를 때까지 기다리면,
+    // 마감된 뒤에 들어온 사람이 **거리를 눌러 봐야** 그 사실을 안다.
+    //
+    // 화면이 서기 전에 provider를 만지면 안 된다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ref.read(matchRegisterProvider.notifier).probeToday());
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

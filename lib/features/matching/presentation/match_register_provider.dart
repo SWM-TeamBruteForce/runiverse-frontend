@@ -69,7 +69,11 @@ class MatchRegisterState {
   /// ⚠️ **"목록이 비지 않았다"로는 부족하다.** 전부 마감인 응답(22시 이후)이
   /// 오면 목록은 차 있는데 고를 것이 없다. 그때 선택기를 열어 두면 시트에
   /// `마감`만 늘어서고 등록 버튼은 영영 잠긴 채라 고장난 화면으로 읽힌다.
+  /// ⚠️ **거리를 고른 뒤라야 참이다.** 진입 조회(`probeToday`)는 아무 거리로
+  /// 물어 "오늘 뭐가 남았나"만 보는 것이라, 그 숫자를 시트에 그리면 3km
+  /// 대기자를 10km 고를 사람에게 보여주게 된다.
   bool get slotsReady =>
+      distance != null &&
       !loadingSlots &&
       loadFailure == null &&
       slots.any((slot) => slot.selectable);
@@ -176,6 +180,24 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
     state = state.copyWith(selected: slot, failure: null);
   }
 
+  /// 화면에 들어올 때 **오늘 뭐가 남았는지**만 본다.
+  ///
+  /// ## ⚠️ 거리를 안 골랐는데 어떻게 묻나
+  ///
+  /// 조회는 거리를 필수로 받는다. 그런데 **시각 목록과 `selectable`은 거리와
+  /// 무관하다** — 명세가 `slots`를 "그날의 신청 가능 시각"이라 적고, 거리별로
+  /// 달라지는 것은 `waitingCount` 하나다. 그래서 아무 거리로 한 번 묻는다.
+  ///
+  /// ⚠️ **받은 숫자는 쓰지 않는다.** 어느 거리의 수인지 말할 수 없어서다.
+  /// [MatchRegisterState.slotsReady]가 거리를 요구하므로 시트도 안 열리고,
+  /// 등록 버튼 위 줄도 거리가 있어야 선다. 쓰는 것은 **마감 여부뿐**이다.
+  ///
+  /// ⚠️ 서버가 거리별로 다른 시각 목록을 주기 시작하면 이 전제가 깨진다.
+  /// 그때는 마감 판정만 틀리고(거리를 고르면 곧 바로잡힌다) 숫자는 여전히
+  /// 안전하다 — 애초에 안 쓰기 때문이다.
+  Future<void> probeToday() =>
+      _loadSlots(++_loadToken, TargetDistance.values.first);
+
   /// 거리를 고르고 **그 거리의 슬롯을 받는다**(명세 No 16).
   ///
   /// ## ⚠️ 목록이 거리에 딸려 있다
@@ -223,24 +245,23 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
       _applySlots(slots);
     } on SlotLoadException catch (error) {
       if (!ref.mounted || token != _loadToken) return;
-      _failSlots(distance, error.failure);
+      _failSlots(error.failure);
     } on Object catch (error) {
       // ⚠️ **예상 밖의 예외도 받는다.** 플랫폼 채널 실패 같은 것을 흘려보내면
       // 화면이 "불러오는 중"에 영영 갇히고 `다시 시도` 버튼조차 안 붙는다.
       // 매칭 신청이 통째로 불가능해지면서 빠져나올 길이 없다.
       debugPrint('[match] 슬롯 조회가 예상 밖으로 죽었다 · $error');
       if (!ref.mounted || token != _loadToken) return;
-      _failSlots(distance, SlotLoadFailure.network);
+      _failSlots(SlotLoadFailure.network);
     }
   }
 
   /// 조회가 실패했다. **목록도 비운다** — 남겨두면 잠긴 선택기 뒤에 옛 거리의
   /// 숫자가 그대로 서 있다.
-  void _failSlots(TargetDistance distance, SlotLoadFailure failure) {
+  void _failSlots(SlotLoadFailure failure) {
     state = state.copyWith(
       slots: const [],
       selected: null,
-      distance: distance,
       loadingSlots: false,
       loadFailure: failure,
     );

@@ -186,7 +186,7 @@ void main() {
       expect(find.text(AppStrings.matchSlotSheetTitle), findsOneWidget);
     });
 
-    testWidgets('⚠️ 전부 마감이면 비었음과 같은 화면이다', (tester) async {
+    testWidgets('⚠️ 전부 마감이면 팝업 뒤에 비었음이 남는다', (tester) async {
       // 목록은 차 있는데 고를 것이 없다. 선택기를 열어 두면 시트에 `마감`만
       // 늘어서고 등록 버튼은 영영 잠긴 채라 고장난 화면으로 읽힌다.
       final matches = FakeMatchRepository(
@@ -194,9 +194,13 @@ void main() {
       );
       await pumpRegister(tester, repository: matches);
 
-      await pickDistance(tester, TargetDistance.km5);
-
-      expect(find.text(AppStrings.matchSlotsEmpty), findsOneWidget);
+      // 팝업이 먼저 뜬다. 닫으면 홈으로 가므로, 뒤에 남는 화면은 그 전에 본다.
+      expect(find.text(AppStrings.matchClosedTitle), findsOneWidget);
+      expect(
+        find.text(AppStrings.matchSlotsEmpty),
+        findsNothing,
+        reason: '거리 전이라 잠긴 이유는 거리 쪽이다',
+      );
     });
 
     testWidgets('⚠️ 0명인 시각에는 숫자를 적지 않는다', (tester) async {
@@ -289,14 +293,13 @@ void main() {
   });
 
   group('마감 안내', () {
-    testWidgets('⚠️ 전부 마감이면 팝업으로 알리고 홈으로 보낸다', (tester) async {
-      // 잠긴 선택기와 작은 글씨만으로는 "오늘은 끝났다"가 전해지지 않는다.
+    testWidgets('⚠️ 들어오자마자 팝업으로 알리고 홈으로 보낸다', (tester) async {
+      // ⚠️ **거리를 고르기를 기다리지 않는다.** 기다리면 마감된 뒤에 들어온
+      // 사람이 거리를 눌러 봐야 그 사실을 안다.
       final matches = FakeMatchRepository(
         slotList: [FakeMatchRepository.slotAt('10:00', selectable: false)],
       );
       await pumpRegister(tester, repository: matches);
-
-      await pickDistance(tester, TargetDistance.km3);
 
       expect(find.text(AppStrings.matchClosedTitle), findsOneWidget);
       // ⚠️ **빈손으로 돌려보내지 않는다.** 혼자 뛰기는 마감과 무관하다.
@@ -308,12 +311,24 @@ void main() {
       expect(find.text(AppStrings.matchRegisterTitle), findsNothing);
     });
 
-    testWidgets('⚠️ 거리를 고르기 전에는 팝업이 뜨지 않는다', (tester) async {
-      // 목록이 비어 있는 것과 고를 것이 없는 것은 다르다. 섞으면 화면에
-      // 들어오자마자 팝업이 뜬다.
+    testWidgets('⚠️ 고를 것이 남아 있으면 팝업이 뜨지 않는다', (tester) async {
+      // 가짜의 기본 목록은 셋 다 열려 있다.
       await pumpRegister(tester);
 
       expect(find.text(AppStrings.matchClosedTitle), findsNothing);
+    });
+
+    testWidgets('⚠️ 진입 조회의 숫자는 쓰지 않는다', (tester) async {
+      // 어느 거리의 수인지 말할 수 없다. 시간 선택기가 열리면 3km 대기자를
+      // 10km 고를 사람에게 보여주게 된다.
+      await pumpRegister(tester);
+
+      await tester.tap(find.text(AppStrings.matchTimePlaceholder));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.matchSlotSheetTitle), findsNothing);
+      expect(find.text(AppStrings.matchSlotsLockedByDistance), findsOneWidget);
+      expect(find.textContaining('대기중이에요'), findsNothing);
     });
 
     testWidgets('⚠️ 조회 실패에는 팝업이 뜨지 않는다', (tester) async {
@@ -322,10 +337,7 @@ void main() {
         ..slotsFailure = SlotLoadFailure.network;
       await pumpRegister(tester, repository: matches);
 
-      await pickDistance(tester, TargetDistance.km3);
-
       expect(find.text(AppStrings.matchClosedTitle), findsNothing);
-      expect(find.text(AppStrings.matchSlotsLoadFailed), findsOneWidget);
     });
 
     testWidgets('⚠️ 남은 시간대가 적으면 미리 알린다', (tester) async {
@@ -338,8 +350,8 @@ void main() {
       );
       await pumpRegister(tester, repository: matches);
 
-      await pickDistance(tester, TargetDistance.km3);
-
+      // ⚠️ **거리를 고르기 전에 뜬다.** 앱은 화면을 켜 둔 채 마감이 지나가는
+      // 것을 못 보므로, 들어온 김에 미리 말해 두는 것이 전부다.
       expect(
         find.text(AppStrings.matchClosingSoon('10:30, 11:00')),
         findsOneWidget,
@@ -350,8 +362,6 @@ void main() {
       // 가짜의 기본 목록은 셋 다 열려 있다.
       await pumpRegister(tester);
 
-      await pickDistance(tester, TargetDistance.km3);
-
       expect(find.textContaining('남은 시간대는'), findsNothing);
     });
 
@@ -361,8 +371,6 @@ void main() {
         slotList: [FakeMatchRepository.slotAt('10:00', selectable: false)],
       );
       await pumpRegister(tester, repository: matches);
-
-      await pickDistance(tester, TargetDistance.km3);
 
       expect(find.textContaining('남은 시간대는'), findsNothing);
     });
@@ -393,7 +401,8 @@ void main() {
       await tester.tap(find.text(AppStrings.matchSlotsRetry));
       await tester.pumpAndSettle();
 
-      expect(matches.slotsCalls, 2);
+      // 진입 1 · 거리 선택 2 · 다시 시도 3
+      expect(matches.slotsCalls, 3);
       expect(find.text(AppStrings.matchSlotsLoadFailed), findsNothing);
     });
 
@@ -423,7 +432,8 @@ void main() {
       matches.slotsFailure = null;
       await pickDistance(tester, TargetDistance.km10);
 
-      expect(matches.slotsCalls, 2);
+      // 진입 1 · km3 2 · km10 3
+      expect(matches.slotsCalls, 3);
       expect(find.text(AppStrings.matchSlotsLoadFailed), findsNothing);
     });
   });
@@ -514,14 +524,15 @@ void main() {
       );
       await pumpRegister(tester, repository: matches);
 
+      // 진입 조회가 1, 거리 선택이 2다.
       await pickDistance(tester, TargetDistance.km5);
       await pickSlot(tester, '10:00');
-      expect(matches.slotsCalls, 1);
+      expect(matches.slotsCalls, 2);
 
       await tester.tap(find.text(AppStrings.matchRegisterCta));
       await tester.pumpAndSettle();
 
-      expect(matches.slotsCalls, 2);
+      expect(matches.slotsCalls, 3, reason: '409 뒤에 다시 받는다');
     });
 
     testWidgets('⚠️ 마감 경합 문구가 두 번 뜨지 않는다', (tester) async {
