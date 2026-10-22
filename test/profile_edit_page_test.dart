@@ -280,6 +280,22 @@ void main() {
       );
     });
 
+    testWidgets('⚠️ 아바타에도 글자가 없다 — 라벨만 남는다', (tester) async {
+      // 커버 버튼과 같은 규칙이다(2026-10-22 요청). `사진 바꾸기` 글자를 뺀
+      // 만큼 **낭독기가 읽을 것은 `Semantics` 라벨뿐**이고, 그것이 빠지면
+      // 눈으로만 쓸 수 있는 버튼이 된다.
+      await pumpEdit(tester, picker: picked);
+
+      expect(find.text('사진 바꾸기'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(ProfileAvatar),
+          matching: find.bySemanticsLabel(AppStrings.profilePhotoChangeLabel),
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('⚠️ 버튼에 글자를 넣지 않는다', (tester) async {
       // 홈과 같은 그림으로 두기 위한 결정이다(2026-10-22 요청). 글자가 돌아오면
       // 커버 위에 말풍선 같은 덩어리가 생겨 홈과 다시 달라진다.

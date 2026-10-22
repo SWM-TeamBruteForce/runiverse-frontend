@@ -902,9 +902,6 @@ abstract final class AppStrings {
   static const profileEditTitle = '프로필 편집';
   static const profileEditSave = '저장';
 
-  /// 아바타 아래 문구. 정본 S22.1의 `프로필 사진 변경`을 줄였다.
-  static const profileEditPhoto = '사진 바꾸기';
-
   static const profileIntroductionLabel = '한 줄 소개';
   static const profileIntroductionHint = '오늘도 달립니다';
 

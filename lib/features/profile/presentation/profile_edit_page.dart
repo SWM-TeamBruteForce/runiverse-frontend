@@ -376,24 +376,16 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                                   0,
                                   -ProfileHeader.coverOverlap,
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    ProfileAvatar(
-                                      url: summary?.profileImageUrl,
-                                      editable: true,
-                                      pending: _photo,
-                                      onPending: (photo) =>
-                                          setState(() => _photo = photo),
-                                    ),
-                                    const SizedBox(height: AppSpacing.space2),
-                                    Text(
-                                      AppStrings.profileEditPhoto,
-                                      style: AppTypographyV2.body15.copyWith(
-                                        color: colors.textSecondary,
-                                      ),
-                                    ),
-                                  ],
+                                // ⚠️ **글자를 달지 않는다**(2026-10-22 요청).
+                                // 커버 버튼과 같은 규칙이다 — 아이콘만 두고,
+                                // 낭독기가 읽을 것은 아바타의 `Semantics`
+                                // 라벨(`프로필 사진 바꾸기`)뿐이다.
+                                child: ProfileAvatar(
+                                  url: summary?.profileImageUrl,
+                                  editable: true,
+                                  pending: _photo,
+                                  onPending: (photo) =>
+                                      setState(() => _photo = photo),
                                 ),
                               ),
                             ),
