@@ -195,8 +195,17 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
   /// ⚠️ 서버가 거리별로 다른 시각 목록을 주기 시작하면 이 전제가 깨진다.
   /// 그때는 마감 판정만 틀리고(거리를 고르면 곧 바로잡힌다) 숫자는 여전히
   /// 안전하다 — 애초에 안 쓰기 때문이다.
-  Future<void> probeToday() =>
-      _loadSlots(++_loadToken, TargetDistance.values.first);
+  /// ## ⚠️ 들어올 때마다 상태를 비우고 시작한다
+  ///
+  /// 이 상태는 화면을 나가도 죽지 않는다. 남겨두면 **지난번에 누른 거리가
+  /// 기본값처럼** 선택돼 있고, 그 거리의 낡은 숫자가 그대로 선다. 더 나쁜 것은
+  /// 마감 팝업이다 — 화면은 [MatchRegisterState.closedForToday]가 **바뀔 때**
+  /// 여는데, 지난번 판정이 남아 있으면 바뀌는 것이 없어 **영영 안 뜬다.**
+  /// 한 번 보고 홈에 갔다 돌아온 사람이 잠긴 화면 앞에 이유도 모르고 선다.
+  Future<void> probeToday() {
+    state = const MatchRegisterState();
+    return _loadSlots(++_loadToken, TargetDistance.values.first);
+  }
 
   /// 거리를 고르고 **그 거리의 슬롯을 받는다**(명세 No 16).
   ///

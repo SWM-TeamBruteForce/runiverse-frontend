@@ -374,6 +374,32 @@ void main() {
   });
 
   group('진입 조회', () {
+    test('⚠️ 다시 들어오면 지난번에 고른 것이 남지 않는다', () async {
+      // 상태가 화면을 나가도 죽지 않는다. 남겨두면 **지난번에 누른 거리가
+      // 기본값처럼** 선택돼 있고, 그 거리의 낡은 숫자까지 그대로 선다.
+      await notifier().selectDistance(TargetDistance.km10);
+      notifier().selectSlot(read().slots.first);
+
+      await notifier().probeToday();
+
+      expect(read().distance, isNull);
+      expect(read().selected, isNull);
+    });
+
+    test('⚠️ 다시 들어와도 마감을 다시 알린다', () async {
+      // 팝업은 `closedForToday`가 **바뀔 때** 열린다. 지난번 값이 남아 있으면
+      // 바뀌는 것이 없어 영영 안 뜬다.
+      repo.slotList = [FakeMatchRepository.slotAt('10:00', selectable: false)];
+      await notifier().probeToday();
+      expect(read().closedForToday, isTrue);
+
+      // 화면을 나갔다 다시 들어온 셈이다.
+      await notifier().probeToday();
+
+      expect(read().closedForToday, isTrue);
+      expect(repo.slotsCalls, 2, reason: '들어올 때마다 다시 묻는다');
+    });
+
     test('⚠️ 거리를 고르지 않아도 들어오면 한 번 묻는다', () async {
       // 조회가 거리를 필수로 받지만, **시각 목록과 마감 여부는 거리와
       // 무관하다**(명세: "그날의 신청 가능 시각"). 그래서 아무 거리로 물어

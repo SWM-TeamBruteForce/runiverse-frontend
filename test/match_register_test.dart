@@ -311,6 +311,41 @@ void main() {
       expect(find.text(AppStrings.matchRegisterTitle), findsNothing);
     });
 
+    testWidgets('⚠️ 홈에 갔다 다시 들어와도 또 알린다', (tester) async {
+      // 상태가 화면을 나가도 죽지 않는다. 지난번 판정이 남아 있으면 **바뀌는
+      // 것이 없어** 팝업이 영영 안 뜬다 — 한 번 보고 홈에 갔다 돌아온 사람이
+      // 잠긴 화면 앞에 이유도 모르고 서 있게 된다.
+      final matches = FakeMatchRepository(
+        slotList: [FakeMatchRepository.slotAt('10:00', selectable: false)],
+      );
+      await pumpRegister(tester, repository: matches);
+
+      expect(find.text(AppStrings.matchClosedTitle), findsOneWidget);
+      await tester.tap(find.text(AppStrings.matchClosedGoHome));
+      await tester.pumpAndSettle();
+
+      // 다시 들어온다.
+      await tester.tap(find.text(AppStrings.homeMatchCta));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.matchClosedTitle), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 다시 들어오면 지난번에 고른 거리가 남지 않는다', (tester) async {
+      // 남으면 **기본값처럼** 선택돼 있고, 그 거리의 낡은 숫자까지 그대로 선다.
+      final matches = await pumpRegister(tester);
+      await pickDistance(tester, TargetDistance.km10);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(AppStrings.homeMatchCta));
+      await tester.pumpAndSettle();
+
+      // 거리를 안 고른 상태라 시간 선택기가 잠겨 있다.
+      expect(find.text(AppStrings.matchSlotsLockedByDistance), findsOneWidget);
+      expect(matches.slotsCalls, 3, reason: '진입 1 · km10 2 · 재진입 3');
+    });
+
     testWidgets('⚠️ 고를 것이 남아 있으면 팝업이 뜨지 않는다', (tester) async {
       // 가짜의 기본 목록은 셋 다 열려 있다.
       await pumpRegister(tester);
