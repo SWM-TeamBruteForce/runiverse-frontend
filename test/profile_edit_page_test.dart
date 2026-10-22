@@ -21,6 +21,7 @@ import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
+import 'package:runiverse/features/profile/presentation/background_picker.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
 import 'package:runiverse/features/profile/presentation/profile_edit_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
@@ -48,6 +49,8 @@ void main() {
     ProfileEditFailure? editFails,
     String? photoUrl,
     ProfileImageFailure? photoFails,
+    String? backgroundUrl,
+    ProfileImageFailure? backgroundFails,
     PhotoPicker? picker,
     // 서버가 가지고 있다고 할 신체 정보(51번). 기본은 **온보딩 전**이다.
     StoredBody body = StoredBody.empty,
@@ -66,7 +69,11 @@ void main() {
       url: photoUrl,
       failWith: photoFails,
     );
-    background = FakeProfileImageRepository(latency: Duration.zero);
+    background = FakeProfileImageRepository(
+      latency: Duration.zero,
+      url: backgroundUrl,
+      failWith: backgroundFails,
+    );
 
     final auth = FakeAuthRepository(latency: Duration.zero);
     const email = 'runner@example.com';
@@ -167,6 +174,95 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// 배경 이미지 — **사진과 같은 규칙, 다른 자리** (1.1.1 배경 가이드).
+  ///
+  /// ⚠️ 고른 것은 화면에만 남고 **저장 버튼이 보낸다.** 배경만 즉시 올리면 한
+  /// 화면에 규칙이 둘이 되고, 사용자는 무엇이 이미 갔는지 알 수 없다.
+  group('배경 이미지', () {
+    /// 고른 사진. **기본 picker는 (취소)이라** 심어 줘야 한다.
+    final picked = _FakePicker(
+      image: PickedImage.validated(path: '/a/cover.png', sizeBytes: 2048),
+    );
+
+    /// 미리보기를 눌러 **앨범에서 선택**까지 고른다.
+    Future<void> pickBackground(WidgetTester tester) async {
+      await tester.tap(find.byType(BackgroundPicker));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.profilePhotoPick));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('편집 화면에 배경 자리가 있다', (tester) async {
+      await pumpEdit(tester, picker: picked);
+
+      expect(find.byType(BackgroundPicker), findsOneWidget);
+      expect(find.text(AppStrings.profileBackgroundLabel), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 고른 것은 저장 전까지 올라가지 않는다', (tester) async {
+      await pumpEdit(tester, picker: picked);
+
+      await pickBackground(tester);
+
+      expect(background.uploaded, isNull);
+    });
+
+    testWidgets('저장을 누르면 올라간다', (tester) async {
+      await pumpEdit(tester, picker: picked);
+      await pickBackground(tester);
+
+      await tester.tap(saveButton());
+      await tester.pumpAndSettle();
+
+      expect(background.uploaded, isNotNull);
+    });
+
+    testWidgets('⚠️ 배경만 바꿔도 저장이 열린다', (tester) async {
+      // 사진·소개글은 그대로인데 저장이 잠기면 **고른 배경이 버려진다.**
+      await pumpEdit(tester, picker: picked);
+
+      await pickBackground(tester);
+      await tester.tap(saveButton());
+      await tester.pumpAndSettle();
+
+      expect(background.uploaded, isNotNull);
+    });
+
+    testWidgets('기본 이미지로를 고르면 지운다', (tester) async {
+      await pumpEdit(
+        tester,
+        picker: picked,
+        backgroundUrl: 'https://cdn.test/cover.jpg',
+      );
+
+      await tester.tap(find.byType(BackgroundPicker));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.profilePhotoReset));
+      await tester.pumpAndSettle();
+      await tester.tap(saveButton());
+      await tester.pumpAndSettle();
+
+      expect(background.removed, isTrue);
+    });
+
+    testWidgets('⚠️ 배경이 실패하면 프로필 값이 안 나간다', (tester) async {
+      // 반만 저장되면 화면이 무엇을 들고 있는지 알 수 없다.
+      await pumpEdit(
+        tester,
+        picker: picked,
+        backgroundFails: ProfileImageFailure.upload,
+      );
+      await pickBackground(tester);
+      await tester.enterText(introductionField, '바뀐 소개');
+      await tester.pumpAndSettle();
+
+      await tester.tap(saveButton());
+      await tester.pumpAndSettle();
+
+      expect(repo.updated, isNull, reason: '프로필 값은 나가지 않는다');
+      expect(find.byType(ProfileEditPage), findsOneWidget, reason: '화면에 남는다');
+    });
+  });
   testWidgets('⚠️ 바꾼 게 없으면 저장이 잠긴다', (tester) async {
     await pumpEdit(tester);
 
@@ -377,7 +473,12 @@ void main() {
     const stored = StoredBody(heightCm: 175, weightKg: 71);
 
     /// `키 · 몸무게` 줄을 눌러 시트를 연다.
+    /// ⚠️ **먼저 보이게 스크롤한다.** 배경 미리보기(2:1)가 들어오면서 폼이
+    /// 길어져, 800×600 테스트 화면에서는 이 줄이 **접힌 아래**에 있다.
+    /// 그냥 누르면 "화면 밖이라 hit test가 안 된다"로 떨어진다.
     Future<void> openBodySheet(WidgetTester tester) async {
+      await tester.ensureVisible(find.text(AppStrings.profileBodyLabel));
+      await tester.pumpAndSettle();
       await tester.tap(find.text(AppStrings.profileBodyLabel));
       await tester.pumpAndSettle();
     }

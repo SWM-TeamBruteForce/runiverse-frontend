@@ -439,6 +439,10 @@ void main() {
     );
 
     await openEditPage(tester);
+    // ⚠️ **먼저 보이게 스크롤한다.** 배경 미리보기(2:1)가 들어오면서 폼이
+    // 길어져, 800×600 테스트 화면에서는 닉네임 줄이 접힌 아래에 있다.
+    await tester.ensureVisible(find.text('별밤러너'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('별밤러너'));
     await tester.pumpAndSettle();
 

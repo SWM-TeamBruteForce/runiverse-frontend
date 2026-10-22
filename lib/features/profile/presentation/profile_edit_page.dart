@@ -17,6 +17,8 @@ import 'package:runiverse/features/profile/domain/pending_photo.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/presentation/nickname_sheet.dart';
+import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
+import 'package:runiverse/features/profile/presentation/background_picker.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
@@ -81,6 +83,9 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
   /// 고르거나 지우기로 했지만 **아직 안 보낸** 사진. `null`이면 안 건드렸다.
   PendingPhoto? _photo;
 
+  /// 아직 안 보낸 배경. 사진과 **같은 규칙**으로 저장 버튼을 기다린다.
+  PendingPhoto? _background;
+
   bool _saving = false;
   ProfileEditFailure? _failure;
 
@@ -144,7 +149,7 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
   /// 저장 버튼이 다루는 값 중 **하나라도 바뀌었나.**
   ///
   /// 닉네임은 세지 않는다 — 시트에서 이미 저장돼 저장 버튼이 할 일이 없다.
-  bool get _dirty => _photo != null || _dirtyProfile;
+  bool get _dirty => _photo != null || _background != null || _dirtyProfile;
 
   /// `PATCH /users/me/profile` 이 다루는 값 중 하나라도 바뀌었나.
   ///
@@ -252,7 +257,11 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
     // 남겨 두면 다시 누르는 것으로 둘 다 간다.
     if (!await _savePhoto()) return;
 
-    // 사진만 바꿨다. 보낼 프로필 값이 없다.
+    // ⚠️ **배경도 같은 규칙으로 멈춘다.** 사진은 갔는데 배경이 실패한 채로
+    // 프로필 값까지 보내면, 화면이 무엇을 들고 있는지 알 수 없다.
+    if (!await _saveBackground()) return;
+
+    // 사진·배경만 바꿨다. 보낼 프로필 값이 없다.
     if (!_dirtyProfile) {
       if (mounted) context.pop();
       return;
@@ -306,6 +315,32 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
       // 새 주소를 다시 받는 것은 여기서 하지 않는다 — **편집 화면을 연
       // `ProfileHeader` 가 돌아온 자리에서 이미 부른다.**
       setState(() => _photo = null);
+      return true;
+    }
+
+    setState(() => _saving = false);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(_photoMessageOf(failure))));
+    return false;
+  }
+
+  /// 들고 있던 배경을 보낸다. 보낼 것이 없으면 그냥 참이다.
+  ///
+  /// ⚠️ **실패하면 멈춘다**([_savePhoto]와 같다). 화면에 남겨 두면 다시 누르는
+  /// 것으로 나머지가 함께 간다.
+  Future<bool> _saveBackground() async {
+    final background = _background;
+    if (background == null) return true;
+
+    final failure = await ref
+        .read(backgroundImageControllerProvider.notifier)
+        .apply(background);
+
+    if (!mounted) return false;
+    if (failure == null) {
+      // 보냈다. 다시 누를 때 또 올리지 않는다.
+      setState(() => _background = null);
       return true;
     }
 
@@ -416,6 +451,17 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                             ),
                           ],
                         ),
+                      ),
+                      const SizedBox(height: AppSpacing.space7),
+
+                      // ⚠️ **사진과 같은 규칙이다** — 고른 것은 화면에만 남고
+                      // 저장 버튼이 보낸다. 배경만 즉시 올리면 한 화면에 규칙이
+                      // 둘이 되고, 사용자는 무엇이 이미 갔는지 알 수 없다.
+                      _Label(AppStrings.profileBackgroundLabel),
+                      BackgroundPicker(
+                        pending: _background,
+                        onPending: (photo) =>
+                            setState(() => _background = photo),
                       ),
                       const SizedBox(height: AppSpacing.space7),
 

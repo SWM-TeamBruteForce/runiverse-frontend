@@ -32,22 +32,26 @@ enum ProfilePhotoAction {
 ///
 /// 사진이 없는 사람에게 `기본 이미지로`를 보이면, 눌러도 아무 일이 없다.
 /// 이미 기본 이미지이기 때문이다.
+/// [title]로 **배경 이미지도 이 시트를 쓴다.** 두 항목(`앨범에서 선택` ·
+/// `기본 이미지로`)이 하는 일이 같은데 시트를 복제하면 한쪽만 고쳐지는 날이 온다.
 Future<ProfilePhotoAction?> showProfilePhotoSheet(
   BuildContext context, {
   required bool hasPhoto,
+  String title = AppStrings.profilePhotoSheetTitle,
 }) {
   return showModalBottomSheet<ProfilePhotoAction>(
     context: context,
     backgroundColor: Colors.transparent,
     barrierColor: context.appColorsV2.bgScrim,
-    builder: (context) => _PhotoSheet(hasPhoto: hasPhoto),
+    builder: (context) => _PhotoSheet(hasPhoto: hasPhoto, title: title),
   );
 }
 
 class _PhotoSheet extends StatelessWidget {
-  const _PhotoSheet({required this.hasPhoto});
+  const _PhotoSheet({required this.hasPhoto, required this.title});
 
   final bool hasPhoto;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +87,7 @@ class _PhotoSheet extends StatelessWidget {
             const SizedBox(height: AppSpacing.space4),
 
             Text(
-              AppStrings.profilePhotoSheetTitle,
+              title,
               style: AppTypographyV2.heading06.copyWith(
                 color: colors.textPrimary,
               ),
