@@ -206,14 +206,19 @@ void main() {
       // 풀리면 CTA가 다시 열려 **같은 신청이 두 번 나간다.** `submitting`은
       // 바로 그것을 막으려고 있는 값이다.
       container = build();
-      repo.latency = const Duration(milliseconds: 100);
       await notifier().selectDistance(TargetDistance.km3);
       notifier().selectSlot(read().slots.first);
 
+      // ⚠️ **순서를 못 박는다.** 둘 다 같은 지연을 주면 어느 쪽이 먼저
+      // 끝나는지가 진짜 시계에 달려, 테스트가 절반쯤 깨진다. 가짜가 부를 때
+      // 지연을 집어 두므로(`fake_match_repository`) 신청은 느리게, 그다음
+      // 조회는 즉시로 둘 수 있다.
+      repo.latency = const Duration(milliseconds: 500);
       final sending = notifier().submit();
       expect(read().submitting, isTrue);
 
       // 거리 칩은 어떤 상태에서도 잠기지 않는다 — 신청 중에도 눌린다.
+      repo.latency = Duration.zero;
       await notifier().selectDistance(TargetDistance.km10);
 
       expect(read().submitting, isTrue, reason: '아직 보내는 중이다');
@@ -293,6 +298,78 @@ void main() {
 
       expect(read().failure, isNull, reason: '이미 알린 실패를 다시 세우지 않는다');
       expect(repo.slotsCalls, 2, reason: '목록은 다시 받는다');
+    });
+  });
+
+  group('마감 안내', () {
+    test('⚠️ 받아 보니 전부 마감이면 "오늘은 끝났다"로 본다', () async {
+      repo.slotList = [
+        FakeMatchRepository.slotAt('10:00', selectable: false),
+        FakeMatchRepository.slotAt('10:30', selectable: false),
+      ];
+
+      await notifier().selectDistance(TargetDistance.km3);
+
+      expect(read().closedForToday, isTrue);
+    });
+
+    test('⚠️ 거리를 고르기 전에는 "끝났다"가 아니다', () {
+      // 목록이 비어 있는 것과 **고를 것이 없는 것**은 다르다. 섞으면 화면에
+      // 들어오자마자 팝업이 뜬다.
+      expect(read().closedForToday, isFalse);
+    });
+
+    test('⚠️ 조회가 실패한 것도 "끝났다"가 아니다', () async {
+      // 못 받은 것을 마감으로 읽으면, 서버가 흔들릴 때마다 사람을 홈으로
+      // 쫓아낸다.
+      repo.slotsFailure = SlotLoadFailure.network;
+
+      await notifier().selectDistance(TargetDistance.km3);
+
+      expect(read().closedForToday, isFalse);
+    });
+
+    test('하나라도 열려 있으면 끝난 것이 아니다', () async {
+      repo.slotList = [
+        FakeMatchRepository.slotAt('10:00', selectable: false),
+        FakeMatchRepository.slotAt('10:30'),
+      ];
+
+      await notifier().selectDistance(TargetDistance.km3);
+
+      expect(read().closedForToday, isFalse);
+    });
+
+    test('⚠️ 남은 시간대가 둘 이하면 임박으로 본다', () async {
+      // **시계로 재지 않는다.** 마감이 "시작 10분 전"이라는 건 운영값이라
+      // 앱이 그 숫자를 가지면 설정이 바뀌는 날 어긋난다.
+      repo.slotList = [
+        FakeMatchRepository.slotAt('10:00', selectable: false),
+        FakeMatchRepository.slotAt('10:30'),
+        FakeMatchRepository.slotAt('11:00'),
+      ];
+
+      await notifier().selectDistance(TargetDistance.km3);
+
+      expect(read().closingSoon, isTrue);
+      expect(read().openSlots.map((s) => s.raw), hasLength(2));
+    });
+
+    test('셋 이상 남았으면 임박이 아니다', () async {
+      // 가짜의 기본 목록은 셋 다 열려 있다.
+      await notifier().selectDistance(TargetDistance.km3);
+
+      expect(read().closingSoon, isFalse);
+    });
+
+    test('⚠️ 전부 마감이면 임박이 아니다 — 팝업이 맡는다', () async {
+      // 둘을 겹쳐 띄우면 "곧 마감"과 "이미 마감"이 같은 화면에 선다.
+      repo.slotList = [FakeMatchRepository.slotAt('10:00', selectable: false)];
+
+      await notifier().selectDistance(TargetDistance.km3);
+
+      expect(read().closingSoon, isFalse);
+      expect(read().closedForToday, isTrue);
     });
   });
 }

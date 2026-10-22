@@ -67,6 +67,16 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
       ref.read(matchRegisterProvider.notifier).clearFailure();
     });
 
+    // ⚠️ **오늘이 끝났다고 서버가 말했을 때만 연다.** 목록이 비어 있는 것
+    // (거리 전)이나 못 받은 것(조회 실패)을 섞으면, 화면에 들어오자마자 또는
+    // 서버가 흔들릴 때마다 사람을 홈으로 쫓아낸다.
+    ref.listen(matchRegisterProvider.select((s) => s.closedForToday), (
+      _,
+      closed,
+    ) {
+      if (closed) unawaited(_tellClosed());
+    });
+
     final selected = state.selected;
     final distance = state.distance;
 
@@ -167,6 +177,21 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                   ),
                   const SizedBox(height: AppSpacing.space6),
 
+                  // ⚠️ **마감을 미리 알린다.** 앱은 목록을 거리 고를 때만
+                  // 받아서, 화면을 켜 둔 채 마감이 지나가는 것을 못 본다.
+                  // 그래서 들어온 김에 "얼마 안 남았다"를 말해 둔다.
+                  if (state.closingSoon) ...[
+                    _NoticeCard(
+                      message: AppStrings.matchClosingSoon(
+                        [
+                          for (final slot in state.openSlots)
+                            AppStrings.matchSlotTime(slot.startAt),
+                        ].join(', '),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.space4),
+                  ],
+
                   // ⚠️ 시안에는 이 셋의 자리가 없다. **그래도 남긴다** —
                   // 사용자가 고르지 않는 조건(페이스·인원)과 20분 제재를
                   // 알리는 유일한 자리다. 시안은 `도움말 / 취소정책` 카드로
@@ -253,6 +278,29 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
     }
     if (state.loadFailure != null) return AppStrings.matchSlotsLoadFailed;
     return AppStrings.matchSlotsEmpty;
+  }
+
+  /// 오늘은 더 고를 것이 없다. **빈손으로 돌려보내지 않는다** — 혼자 뛰기는
+  /// 마감과 무관하므로 그 길을 알려 주고 홈으로 보낸다.
+  Future<void> _tellClosed() async {
+    await showDialog<void>(
+      context: context,
+      // 닫을 길이 버튼 하나뿐이다. 바깥을 눌러 닫으면 잠긴 화면에 그대로
+      // 남아, 왜 아무것도 못 고르는지 모른 채 서 있게 된다.
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text(AppStrings.matchClosedTitle),
+        content: const Text(AppStrings.matchClosedBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(AppStrings.matchClosedGoHome),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    context.pop();
   }
 
   Future<void> _pickSlot() async {

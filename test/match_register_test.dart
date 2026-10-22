@@ -288,6 +288,86 @@ void main() {
     });
   });
 
+  group('마감 안내', () {
+    testWidgets('⚠️ 전부 마감이면 팝업으로 알리고 홈으로 보낸다', (tester) async {
+      // 잠긴 선택기와 작은 글씨만으로는 "오늘은 끝났다"가 전해지지 않는다.
+      final matches = FakeMatchRepository(
+        slotList: [FakeMatchRepository.slotAt('10:00', selectable: false)],
+      );
+      await pumpRegister(tester, repository: matches);
+
+      await pickDistance(tester, TargetDistance.km3);
+
+      expect(find.text(AppStrings.matchClosedTitle), findsOneWidget);
+      // ⚠️ **빈손으로 돌려보내지 않는다.** 혼자 뛰기는 마감과 무관하다.
+      expect(find.textContaining(AppStrings.homeSoloCta), findsOneWidget);
+
+      await tester.tap(find.text(AppStrings.matchClosedGoHome));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.matchRegisterTitle), findsNothing);
+    });
+
+    testWidgets('⚠️ 거리를 고르기 전에는 팝업이 뜨지 않는다', (tester) async {
+      // 목록이 비어 있는 것과 고를 것이 없는 것은 다르다. 섞으면 화면에
+      // 들어오자마자 팝업이 뜬다.
+      await pumpRegister(tester);
+
+      expect(find.text(AppStrings.matchClosedTitle), findsNothing);
+    });
+
+    testWidgets('⚠️ 조회 실패에는 팝업이 뜨지 않는다', (tester) async {
+      // 못 받은 것을 마감으로 읽으면 서버가 흔들릴 때마다 사람을 쫓아낸다.
+      final matches = FakeMatchRepository()
+        ..slotsFailure = SlotLoadFailure.network;
+      await pumpRegister(tester, repository: matches);
+
+      await pickDistance(tester, TargetDistance.km3);
+
+      expect(find.text(AppStrings.matchClosedTitle), findsNothing);
+      expect(find.text(AppStrings.matchSlotsLoadFailed), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 남은 시간대가 적으면 미리 알린다', (tester) async {
+      final matches = FakeMatchRepository(
+        slotList: [
+          FakeMatchRepository.slotAt('10:00', selectable: false),
+          FakeMatchRepository.slotAt('10:30'),
+          FakeMatchRepository.slotAt('11:00'),
+        ],
+      );
+      await pumpRegister(tester, repository: matches);
+
+      await pickDistance(tester, TargetDistance.km3);
+
+      expect(
+        find.text(AppStrings.matchClosingSoon('10:30, 11:00')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('여유가 있으면 안내하지 않는다', (tester) async {
+      // 가짜의 기본 목록은 셋 다 열려 있다.
+      await pumpRegister(tester);
+
+      await pickDistance(tester, TargetDistance.km3);
+
+      expect(find.textContaining('남은 시간대는'), findsNothing);
+    });
+
+    testWidgets('⚠️ 전부 마감일 때는 임박 안내를 겹치지 않는다', (tester) async {
+      // "곧 마감"과 "이미 마감"이 같은 화면에 서면 어느 쪽인지 알 수 없다.
+      final matches = FakeMatchRepository(
+        slotList: [FakeMatchRepository.slotAt('10:00', selectable: false)],
+      );
+      await pumpRegister(tester, repository: matches);
+
+      await pickDistance(tester, TargetDistance.km3);
+
+      expect(find.textContaining('남은 시간대는'), findsNothing);
+    });
+  });
+
   group('목록 조회 실패', () {
     testWidgets('⚠️ 이유가 머문다 — 스낵바로 사라지지 않는다', (tester) async {
       // 신청용 실패와 같은 자리에 담으면 화면이 스낵바를 띄우고 곧바로 지워서,

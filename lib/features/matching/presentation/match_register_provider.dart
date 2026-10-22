@@ -86,6 +86,40 @@ class MatchRegisterState {
     (sum, slot) => slot.selectable ? sum + slot.waitingCount : sum,
   );
 
+  /// 아직 들어갈 수 있는 시간대.
+  List<MatchSlot> get openSlots => [
+    for (final slot in slots)
+      if (slot.selectable) slot,
+  ];
+
+  /// **오늘은 더 고를 것이 없다.** 받아 봤는데 전부 마감이다.
+  ///
+  /// ⚠️ **"목록이 비었다"와 가른다.** 거리를 고르기 전에도 목록은 비어 있고,
+  /// 조회가 실패해도 비운다. 그 둘을 마감으로 읽으면 화면에 들어오자마자,
+  /// 또는 서버가 흔들릴 때마다 사람을 홈으로 쫓아낸다.
+  bool get closedForToday =>
+      !loadingSlots &&
+      loadFailure == null &&
+      slots.isNotEmpty &&
+      openSlots.isEmpty;
+
+  /// 마감이 **임박했다.** 남은 시간대를 미리 알린다.
+  ///
+  /// ## ⚠️ 시계로 재지 않는다
+  ///
+  /// 마감이 "시작 10분 전"이라는 건 운영값이다. 앱이 그 숫자를 가지면 설정이
+  /// 바뀌는 날 조용히 어긋난다 — 운영에서 아홉 칸이 하루 종일 마감으로 떴던
+  /// 사고가 그 계산 때문이었다. 대신 **서버가 준 `selectable`이 몇 개
+  /// 남았는지**로 가른다. 판정 주체가 계속 서버다.
+  ///
+  /// ⚠️ 전부 마감이면 거짓이다 — 그때는 [closedForToday]가 팝업으로 맡는다.
+  /// 둘을 겹쳐 띄우면 "곧 마감"과 "이미 마감"이 같은 화면에 선다.
+  bool get closingSoon =>
+      openSlots.isNotEmpty && openSlots.length <= closingSoonThreshold;
+
+  /// 임박으로 보는 경계. 운영값(18:00~22:00 · 30분)에서 마지막 한 시간쯤이다.
+  static const closingSoonThreshold = 2;
+
   /// 등록할 수 있는가. **둘 다 골라야 열린다.**
   bool get canSubmit => selected != null && distance != null && !submitting;
 
