@@ -608,8 +608,8 @@ void main() {
 
       expect(settings.bottom, lessThan(cover.bottom), reason: '커버 안에 있다');
       expect(settings.center.dx, greaterThan(cover.center.dx), reason: '오른쪽');
-      // ⚠️ **상태바를 피한다.** 커버가 상태바 뒤까지 올라가므로, 위 여백을
-      // 안 주면 시계와 겹친다.
+      // 커버가 상태바 아래에서 시작하므로 상태바를 피할 여백은 화면이 이미
+      // 받았다. 여기서 주는 것은 **시안 간격**뿐이다.
       expect(settings.top, greaterThan(cover.top));
     });
 
@@ -664,9 +664,9 @@ void main() {
     });
 
     testWidgets('⚠️ 상태바 글자를 밝게 고정한다', (tester) async {
-      // 그늘막은 **검정**이다. 기기가 상태바 아이콘을 어둡게 잡아 둔 상태라면
-      // 어두운 아이콘 + 검정 그늘막이 되어 **시계가 그대로 사라진다** —
-      // 그늘막을 깐 목적이 깨진다.
+      // 상태바 자리에는 이제 사진이 아니라 **어두운 바탕**(`bgBase`)이 선다.
+      // 기기가 아이콘을 어둡게 잡아 둔 상태라면 어두운 아이콘 + 어두운 바탕이
+      // 되어 **시계가 그대로 사라진다.**
       await pumpProfile(tester, onboarded: true);
 
       expect(
@@ -679,8 +679,9 @@ void main() {
       );
     });
 
-    testWidgets('⚠️ 커버가 상태바 뒤까지 올라간다', (tester) async {
-      // SafeArea 안에 있으면 커버 위에 바탕색 띠가 생긴다.
+    testWidgets('⚠️ 커버가 상태바 아래에서 시작한다', (tester) async {
+      // 상태바 뒤까지 올리면 사진 윗부분이 시계·배터리에 가린다. 그것을 막던
+      // 그늘막은 **사진을 가리는 회색 막대**로 보였다(2026-10-23).
       //
       // ⚠️ **여백을 직접 줘야 한다.** 테스트 화면의 기본 여백은 0이라, 그냥
       // 두면 `SafeArea`가 있든 없든 커버가 `y=0`에서 시작해 **이 그물이 아무것도
@@ -690,7 +691,7 @@ void main() {
 
       await pumpProfile(tester, onboarded: true);
 
-      expect(tester.getTopLeft(find.byType(ProfileCover)).dy, 0);
+      expect(tester.getTopLeft(find.byType(ProfileCover)).dy, 40);
     });
   });
 }

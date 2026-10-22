@@ -62,9 +62,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
     // ⚠️ **이 화면에서만 상태바 글자를 밝게 고정한다.**
     //
-    // 커버가 상태바 뒤까지 올라가고 그 위에 **검정 그늘막**이 깔린다. 기기가
-    // 아이콘을 어둡게 잡아 둔 상태라면 어두운 아이콘 + 검정 그늘막이 되어
-    // 시계·배터리가 그대로 사라진다 — 그늘막을 깐 목적이 깨진다.
+    // 상태바 자리에는 어두운 바탕(`bgBase`)이 선다. 기기가 아이콘을 어둡게
+    // 잡아 둔 상태라면 어두운 아이콘 + 어두운 바탕이 되어 시계·배터리가
+    // 그대로 사라진다.
     //
     // ⚠️ **앱 전체에 걸지 않는다.** 다른 화면은 지금 바탕에 맞춰 알아서 간다.
     // `AnnotatedRegion`이라 이 화면을 떠나면 저절로 돌아온다.
@@ -75,11 +75,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         // `v2_screen_background_test`가 검사 대상으로 보지도 않았다** —
         // 에뮬레이터에서 화소를 재고서야 `#0b0e14`인 것을 찾았다.
         backgroundColor: context.appColorsV2.bgBase,
-        // ⚠️ **커버가 상태바 뒤까지 올라가므로 위 여백을 받지 않는다**(시안
-        // `158:3905` — 커버와 상태바 틀이 같은 자리에서 시작한다). 시계·배터리
-        // 글자는 `ProfileCover`의 그늘막이 지킨다.
+        // ⚠️ **위 여백을 받는다 — 커버를 상태바 뒤로 올리지 않는다.**
+        //
+        // 시안(`158:3905`)은 커버와 상태바 틀을 같은 자리에서 시작하고, 그렇게
+        // 두려면 흰 시계·배터리를 지킬 **그늘막**이 사진 위에 필요했다. 그
+        // 그늘막이 기기에서 **사진 윗부분을 가리는 회색 막대**로 보였다
+        // (2026-10-23). 커버를 상태바 아래로 내리면 둘 다 없어도 된다.
         body: SafeArea(
-          top: false,
           bottom: false,
           child: SingleChildScrollView(
             child: Column(
@@ -96,10 +98,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   children: [
                     const ProfileCover(),
                     Positioned(
-                      // ⚠️ **상태바를 피한다.** 커버가 그 뒤까지 올라가므로
-                      // 위 여백을 안 주면 시계와 겹친다.
-                      top:
-                          MediaQuery.paddingOf(context).top + AppSpacing.space2,
+                      // 상태바를 피할 여백은 위의 `SafeArea`가 이미 받았다.
+                      // 여기 값은 **커버 안쪽 간격**이다.
+                      top: AppSpacing.space2,
                       right: AppSpacing.space4,
                       child: ProfileCoverAction(
                         icon: AppIcons.settings,
