@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -613,6 +614,22 @@ void main() {
       final avatar = tester.getRect(find.byType(ProfileAvatar));
       expect(avatar.top, lessThan(cover.bottom));
       expect(avatar.bottom, greaterThan(cover.bottom));
+    });
+
+    testWidgets('⚠️ 상태바 글자를 밝게 고정한다', (tester) async {
+      // 그늘막은 **검정**이다. 기기가 상태바 아이콘을 어둡게 잡아 둔 상태라면
+      // 어두운 아이콘 + 검정 그늘막이 되어 **시계가 그대로 사라진다** —
+      // 그늘막을 깐 목적이 깨진다.
+      await pumpProfile(tester, onboarded: true);
+
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is AnnotatedRegion<SystemUiOverlayStyle> &&
+              w.value.statusBarIconBrightness == Brightness.light,
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('⚠️ 커버가 상태바 뒤까지 올라간다', (tester) async {

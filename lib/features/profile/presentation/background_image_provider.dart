@@ -71,6 +71,17 @@ class BackgroundImageController extends Notifier<ProfileImageState> {
     await _fetch();
   }
 
+  /// **커버가 실제로 그려졌다.** 다음 만료를 메울 기회를 돌려준다.
+  ///
+  /// ⚠️ **[retryOnce]의 성공으로는 돌려주지 않는다.** 서버는 매번 새 주소를
+  /// 주므로, 조회가 되는 한 예산이 계속 풀린다 — 그림이 깨지는 동안 조회 →
+  /// 성공 → 다시 받기가 **무한히 돈다.** 그래서 신호는 "주소를 받았다"가
+  /// 아니라 **"그림이 나왔다"**여야 한다.
+  ///
+  /// 이것이 없으면 오래 켜 둔 앱에서 **두 번째 만료부터 커버가 영영 기본
+  /// 배경으로 남는다.**
+  void markRendered() => _canRetry = true;
+
   Future<void> _fetch() async {
     try {
       state = ProfileImageReady(url: await _repository.fetchUrl());

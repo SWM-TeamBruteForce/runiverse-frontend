@@ -462,6 +462,12 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                         pending: _background,
                         onPending: (photo) =>
                             setState(() => _background = photo),
+                        // 사진과 같은 문구로 말해 준다 — 서버에 가기 전에
+                        // 걸린 것이라 사용자가 할 일은 다시 고르는 것뿐이다.
+                        onFailure: (failure) =>
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(_photoMessageOf(failure))),
+                            ),
                       ),
                       const SizedBox(height: AppSpacing.space7),
 

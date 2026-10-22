@@ -6,6 +6,7 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/features/profile/domain/pending_photo.dart';
+import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_state.dart';
 import 'package:runiverse/features/profile/presentation/profile_photo_sheet.dart';
@@ -18,13 +19,24 @@ import 'package:runiverse/features/profile/presentation/profile_photo_sheet.dart
 /// **저장 버튼이 보낸다.** 배경만 즉시 올리면 한 화면에 규칙이 둘이 되고,
 /// 사용자는 무엇이 이미 갔는지 알 수 없다.
 class BackgroundPicker extends ConsumerWidget {
-  const BackgroundPicker({required this.onPending, this.pending, super.key});
+  const BackgroundPicker({
+    required this.onPending,
+    required this.onFailure,
+    this.pending,
+    super.key,
+  });
 
   /// 아직 안 보낸 변경. 있으면 **그것이 지금 화면의 배경이다.**
   final PendingPhoto? pending;
 
   /// 고른 것을 밖으로 알린다. **취소하면 부르지 않는다.**
   final ValueChanged<PendingPhoto> onPending;
+
+  /// 고르지 못한 이유. **화면이 문구를 띄운다.**
+  ///
+  /// ⚠️ 삼키면 미리보기도 안 바뀌고 문구도 안 떠서, 사용자는 같은 사진을 다시
+  /// 고른다. 프로필 사진은 이미 같은 자리에서 말해 준다.
+  final ValueChanged<ProfileImageFailure> onFailure;
 
   /// 커버와 같은 비율(시안 412×200).
   static const _aspectRatio = 412 / 200;
@@ -96,6 +108,11 @@ class BackgroundPicker extends ConsumerWidget {
         final picked = await ref
             .read(backgroundImageControllerProvider.notifier)
             .pick();
+        final failure = picked.failure;
+        if (failure != null) {
+          onFailure(failure);
+          return;
+        }
         final image = picked.image;
         // 취소는 실패가 아니다. 둘 다 `null`이면 아무 일도 없었던 것이다.
         if (image != null) onPending(PhotoPicked(image));

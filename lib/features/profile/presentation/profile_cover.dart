@@ -61,11 +61,35 @@ class ProfileCover extends ConsumerWidget {
               // 막거나 **다시 그리기가 스스로를 부르며 멈추지 않는다.**
               errorBuilder: (context, error, stack) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
+                  // ⚠️ 그 사이에 화면을 떠났을 수 있다. `ref.read`는 트리에서
+                  // 빠진 뒤에 부르면 **던진다.**
+                  if (!context.mounted) return;
                   ref
                       .read(backgroundImageControllerProvider.notifier)
                       .retryOnce();
                 });
                 return const SizedBox.shrink();
+              },
+              // ⚠️ **그려졌으면 다음 만료를 메울 기회를 돌려준다.**
+              //
+              // 다시 받기를 한 번으로 묶는 것은 *연달아 실패하는* 주소를 끝없이
+              // 두드리지 않으려는 것이다. 그런데 성공까지 예산으로 세면, 오래
+              // 켜 둔 앱에서 **두 번째 만료부터는 영영 안 돌아온다** — 배경을
+              // 올린 사람에게 기본 단색이 뜬다.
+              //
+              // ⚠️ **조회 성공으로 돌려주면 안 된다.** 서버가 매번 새 주소를
+              // 주므로 그리기에 실패하는 한 조회 → 성공 → 다시 받기가
+              // 무한히 돈다. **그림이 실제로 나온 것**만 신호로 쓴다.
+              frameBuilder: (context, child, frame, wasSynchronous) {
+                if (frame != null) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!context.mounted) return;
+                    ref
+                        .read(backgroundImageControllerProvider.notifier)
+                        .markRendered();
+                  });
+                }
+                return child;
               },
             ),
           Align(
@@ -73,11 +97,11 @@ class ProfileCover extends ConsumerWidget {
             child: Container(
               key: scrimKey,
               height: scrimHeight,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Color(0x66000000), Color(0x00000000)],
+                  colors: [colors.coverScrim, colors.coverScrim.withAlpha(0)],
                 ),
               ),
             ),

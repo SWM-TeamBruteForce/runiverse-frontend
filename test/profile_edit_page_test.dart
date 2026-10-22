@@ -245,6 +245,23 @@ void main() {
       expect(background.removed, isTrue);
     });
 
+    testWidgets('⚠️ 올릴 수 없는 사진을 고르면 무엇이 문제인지 말해 준다', (tester) async {
+      // 10MB를 넘거나 허용 외 형식이면 `PickedImage`가 서버에 가기 전에
+      // 막는다. 조용히 삼키면 **미리보기도 안 바뀌고 문구도 안 떠서**,
+      // 사용자는 같은 사진을 다시 고른다. 프로필 사진은 이미 말해 준다.
+      await pumpEdit(
+        tester,
+        picker: _FakePicker(failure: ProfileImageFailure.tooLarge),
+      );
+
+      await tester.tap(find.byType(BackgroundPicker));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.profilePhotoPick));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+    });
+
     testWidgets('⚠️ 배경이 실패하면 프로필 값이 안 나간다', (tester) async {
       // 반만 저장되면 화면이 무엇을 들고 있는지 알 수 없다.
       await pumpEdit(

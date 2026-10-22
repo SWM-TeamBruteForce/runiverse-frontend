@@ -179,6 +179,34 @@ void main() {
       expect(repository.fetchCalls, before + 1);
     });
 
+    test('⚠️ 그림이 나오면 다음 만료를 메울 기회가 돌아온다', () async {
+      // 한 번으로 묶는 것은 **연달아 실패하는** 주소를 끝없이 두드리지 않으려는
+      // 것이다. 성공까지 예산으로 세면 오래 켜 둔 앱에서 **두 번째 만료부터는
+      // 영영 안 돌아온다** — 배경을 올린 사람에게 기본 단색이 뜬다.
+      final container = makeContainer();
+      await controllerOf(container).load();
+      await controllerOf(container).retryOnce();
+      controllerOf(container).markRendered();
+      final before = repository.fetchCalls;
+
+      await controllerOf(container).retryOnce();
+
+      expect(repository.fetchCalls, before + 1);
+    });
+
+    test('⚠️ 조회가 성공한 것만으로는 기회가 안 돌아온다', () async {
+      // 서버는 매번 **새 주소**를 준다. 조회 성공으로 예산을 풀면 그림이 계속
+      // 깨지는 동안 조회 → 성공 → 다시 받기가 무한히 돈다.
+      final container = makeContainer();
+      await controllerOf(container).load();
+      await controllerOf(container).retryOnce(); // 성공적으로 새 주소를 받았다
+      final before = repository.fetchCalls;
+
+      await controllerOf(container).retryOnce();
+
+      expect(repository.fetchCalls, before);
+    });
+
     test('아직 조회한 적이 없으면 그냥 받는다', () async {
       // 화면이 열리기 전에 이미지가 깨질 일은 없지만, 받은 적이 없는데
       // 막아 버리면 그 세션에서 배경이 영영 안 뜬다.

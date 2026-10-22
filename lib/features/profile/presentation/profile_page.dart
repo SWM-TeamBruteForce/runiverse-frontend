@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
@@ -54,47 +55,58 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final signedIn = auth is AuthSignedIn ? auth : null;
     final summary = ref.watch(profileSummaryControllerProvider).summary;
 
-    return Scaffold(
-      // ⚠️ 위와 같은 이유로 바탕을 직접 깐다. **이 파일은 v2 색을 쓰지 않아
-      // `v2_screen_background_test`가 검사 대상으로 보지도 않았다** —
-      // 에뮬레이터에서 화소를 재고서야 `#0b0e14`인 것을 찾았다.
-      backgroundColor: context.appColorsV2.bgBase,
-      // ⚠️ **커버가 상태바 뒤까지 올라가므로 위 여백을 받지 않는다**(시안
-      // `158:3905` — 커버와 상태바 틀이 같은 자리에서 시작한다). 시계·배터리
-      // 글자는 `ProfileCover`의 그늘막이 지킨다.
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const ProfileCover(),
-              ProfileHeader(
-                nickname: summary?.nickname,
-                introduction: summary?.introduction,
-                photoUrl: summary?.profileImageUrl,
-                // ⚠️ 닉네임이 없는 이유를 헤더가 갈라야 한다. 이 값을 빼면
-                // `/users/me`가 잠깐 실패하는 것만으로 **이미 프로필을 채운
-                // 사람에게 "완성해주세요"가 뜬다.**
-                isOnboarded: signedIn?.isOnboarded ?? true,
-              ),
+    // ⚠️ **이 화면에서만 상태바 글자를 밝게 고정한다.**
+    //
+    // 커버가 상태바 뒤까지 올라가고 그 위에 **검정 그늘막**이 깔린다. 기기가
+    // 아이콘을 어둡게 잡아 둔 상태라면 어두운 아이콘 + 검정 그늘막이 되어
+    // 시계·배터리가 그대로 사라진다 — 그늘막을 깐 목적이 깨진다.
+    //
+    // ⚠️ **앱 전체에 걸지 않는다.** 다른 화면은 지금 바탕에 맞춰 알아서 간다.
+    // `AnnotatedRegion`이라 이 화면을 떠나면 저절로 돌아온다.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        // ⚠️ 위와 같은 이유로 바탕을 직접 깐다. **이 파일은 v2 색을 쓰지 않아
+        // `v2_screen_background_test`가 검사 대상으로 보지도 않았다** —
+        // 에뮬레이터에서 화소를 재고서야 `#0b0e14`인 것을 찾았다.
+        backgroundColor: context.appColorsV2.bgBase,
+        // ⚠️ **커버가 상태바 뒤까지 올라가므로 위 여백을 받지 않는다**(시안
+        // `158:3905` — 커버와 상태바 틀이 같은 자리에서 시작한다). 시계·배터리
+        // 글자는 `ProfileCover`의 그늘막이 지킨다.
+        body: SafeArea(
+          top: false,
+          bottom: false,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const ProfileCover(),
+                ProfileHeader(
+                  nickname: summary?.nickname,
+                  introduction: summary?.introduction,
+                  photoUrl: summary?.profileImageUrl,
+                  // ⚠️ 닉네임이 없는 이유를 헤더가 갈라야 한다. 이 값을 빼면
+                  // `/users/me`가 잠깐 실패하는 것만으로 **이미 프로필을 채운
+                  // 사람에게 "완성해주세요"가 뜬다.**
+                  isOnboarded: signedIn?.isOnboarded ?? true,
+                ),
 
-              // ⚠️ **본문이 비어 있다. 빠뜨린 것이 아니다.**
-              //
-              // 여기 있던 `기본 컬러 도감` · `블렌드` · `피드` 셋을
-              // 걷어냈다. 색 수집 기능은 범위에서 빠졌고(2026-10-15), 대표 기록
-              // 대시보드와 피드는 받을 API가 없다. 시안 `158:3905`가 이 자리를
-              // 도감으로 채우므로 **시안을 보고 작업하다 되살리기 쉽다.**
-              //
-              // ⚠️ **바닥 여백에 탭 바 높이를 더한다.** 위의
-              // `SafeArea(bottom: false)`가 시스템 여백을 일부러 안 받기 때문에,
-              // 그냥 두면 맨 아래가 떠 있는 탭 바 뒤로 들어간다.
-              SizedBox(
-                height:
-                    AppSpacing.space8 + MediaQuery.paddingOf(context).bottom,
-              ),
-            ],
+                // ⚠️ **본문이 비어 있다. 빠뜨린 것이 아니다.**
+                //
+                // 여기 있던 `기본 컬러 도감` · `블렌드` · `피드` 셋을
+                // 걷어냈다. 색 수집 기능은 범위에서 빠졌고(2026-10-15), 대표 기록
+                // 대시보드와 피드는 받을 API가 없다. 시안 `158:3905`가 이 자리를
+                // 도감으로 채우므로 **시안을 보고 작업하다 되살리기 쉽다.**
+                //
+                // ⚠️ **바닥 여백에 탭 바 높이를 더한다.** 위의
+                // `SafeArea(bottom: false)`가 시스템 여백을 일부러 안 받기 때문에,
+                // 그냥 두면 맨 아래가 떠 있는 탭 바 뒤로 들어간다.
+                SizedBox(
+                  height:
+                      AppSpacing.space8 + MediaQuery.paddingOf(context).bottom,
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/features/profile/data/fake_profile_image_repository.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
@@ -116,6 +117,20 @@ void main() {
 
     expect(find.byKey(ProfileCover.scrimKey), findsOneWidget);
     await settleRetry(tester);
+  });
+
+  testWidgets('⚠️ 그늘막 색이 토큰에서 온다', (tester) async {
+    // 하드코딩하면 **라이트 테마에서도 같은 검정**이 깔리고, 기기에서 진하기를
+    // 조정할 때 위젯 파일을 고쳐야 한다. 그 값은 아직 확정이 아니다(설계 10절).
+    await pumpCover(tester, url: null);
+
+    final scrim = tester.widget<Container>(find.byKey(ProfileCover.scrimKey));
+    final gradient =
+        (scrim.decoration! as BoxDecoration).gradient! as LinearGradient;
+    final colors = AppTheme.dark().extension<AppColorsV2>()!;
+
+    expect(gradient.colors.first, colors.coverScrim);
+    expect(gradient.colors.last.a, 0, reason: '아래로 가며 사라진다');
   });
 
   testWidgets('⚠️ 위 여백을 받지 않는다 — 상태바 뒤까지 올라간다', (tester) async {
