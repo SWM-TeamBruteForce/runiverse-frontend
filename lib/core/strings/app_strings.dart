@@ -851,6 +851,15 @@ abstract final class AppStrings {
   /// 지우기. **"삭제"라 쓰지 않는다** — 돌아가는 자리가 있다는 것을 말해준다.
   static const profilePhotoReset = '기본 이미지로';
 
+  /// 배경 이미지 시트의 제목.
+  ///
+  /// ⚠️ **두 항목(`앨범에서 선택` · `기본 이미지로`)은 사진 것을 그대로 쓴다.**
+  /// 하는 일이 같은데 문구만 갈라 두면 한쪽만 고쳐지는 날이 온다.
+  static const profileBackgroundSheetTitle = '배경 이미지';
+
+  /// 편집 화면에서 배경 미리보기 위에 서는 라벨.
+  static const profileBackgroundLabel = '배경 이미지';
+
   /// 아바타의 접근성 라벨. 눌러서 무엇을 하는지 화면 낭독기에 알린다.
   static const profilePhotoChangeLabel = '프로필 사진 바꾸기';
 
