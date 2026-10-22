@@ -15,6 +15,11 @@ import 'package:runiverse/features/profile/presentation/profile_image_state.dart
 /// 이 위젯은 여전히 **위 여백을 스스로 받지 않는다** — 화면이 이미 주므로
 /// 여기서 또 받으면 두 번 밀린다.
 ///
+/// ## ⚠️ 사진을 베어내지 않는다
+///
+/// 커버는 412:200이지만 사람들이 올리는 사진은 아니다. `BoxFit.cover`는
+/// 넣으려고 **남는 쪽을 베어낸다** — 세로 사진을 올린 사람은 가운데 띠만 본다.
+///
 /// ## ⚠️ 세 상태가 모두 기본 단색이다
 ///
 /// 조회 중 · 안 올린 사람 · 조회 실패. 회전 표시를 넣지 않는다 — 커버는 화면 폭
@@ -41,7 +46,9 @@ class ProfileCover extends ConsumerWidget {
           if (url != null)
             Image.network(
               url,
-              fit: BoxFit.cover,
+              // ⚠️ **`cover`가 아니다.** 바탕에 밀 단색(`bgElevated`)이 이미
+              // 깔려 있어, 남는 자리는 빈 칸이 아니라 그 단색으로 남는다.
+              fit: BoxFit.contain,
               // ⚠️ **깨지면 한 번 더 받는다.** 조회 주소는 1시간이면 만료되고,
               // 커버가 비면 "배경을 안 올린 사람"과 구분되지 않는다.
               // 다시 받는 횟수는 컨트롤러가 센다.

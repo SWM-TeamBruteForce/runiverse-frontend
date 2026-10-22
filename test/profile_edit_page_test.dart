@@ -242,6 +242,25 @@ void main() {
         expect(avatar.bottom, greaterThan(cover.bottom), reason: '아래는 커버 밖');
       });
 
+      testWidgets('⚠️ 미리보기도 사진을 잘라내지 않는다', (tester) async {
+        // 프로필 화면이 `BoxFit.contain`으로 **전체**를 보여주는데 여기서만
+        // 베어내면, 고르는 자리와 보이는 자리가 다른 그림을 준다 —
+        // 미리보기가 거짓말을 한다.
+        await pumpEdit(tester, backgroundUrl: 'https://cdn.test/cover.jpg');
+        await tester.pump();
+
+        final image = tester.widget<Image>(
+          find
+              .descendant(
+                of: find.byType(BackgroundPicker),
+                matching: find.byType(Image),
+              )
+              .first,
+        );
+
+        expect(image.fit, BoxFit.contain);
+      });
+
       testWidgets('아바타가 왼쪽에 선다', (tester) async {
         await pumpEdit(tester, picker: picked);
 

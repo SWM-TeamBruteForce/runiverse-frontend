@@ -124,6 +124,17 @@ void main() {
     );
   });
 
+  testWidgets('⚠️ 사진을 잘라내지 않는다', (tester) async {
+    // `BoxFit.cover`는 커버 비율(412:200)에 맞춰 **남는 쪽을 베어낸다.** 세로
+    // 사진을 올린 사람은 가운데 띠만 보게 된다 — 기기에서 "일부분이 잘린 것처럼
+    // 보인다"로 드러났다(2026-10-23). 비율은 지키고 **전체**를 넣는다.
+    await pumpCover(tester, url: 'https://cdn.test/cover.jpg');
+
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(image.fit, BoxFit.contain);
+    await settleRetry(tester);
+  });
+
   testWidgets('⚠️ 위 여백을 스스로 받지 않는다', (tester) async {
     // 여백을 주는 것은 화면(`ProfilePage`)의 `SafeArea`다. 커버가 또 받으면
     // 상태바 높이만큼 두 번 밀려 내려간다.

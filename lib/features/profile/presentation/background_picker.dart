@@ -77,13 +77,15 @@ class BackgroundPicker extends ConsumerWidget {
               fit: StackFit.expand,
               children: [
                 ColoredBox(color: colors.bgElevated),
+                // ⚠️ **`contain`이다 — 커버와 같아야 한다.** 여기서 베어내면
+                // 고르는 자리와 보이는 자리가 다른 그림을 준다(`ProfileCover`).
                 if (picked != null)
                   // 막 고른 사진. 아직 올라가지 않았으니 주소가 없다.
-                  Image.file(File(picked.image.path), fit: BoxFit.cover)
+                  Image.file(File(picked.image.path), fit: BoxFit.contain)
                 else if (url != null)
                   Image.network(
                     url,
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain,
                     // ⚠️ 여기서는 다시 받지 않는다. 커버가 이미 그 일을 하고,
                     // 두 군데서 부르면 "한 번만"이 두 번이 된다.
                     errorBuilder: (context, error, stack) =>
