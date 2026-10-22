@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/profile/presentation/profile_cover.dart';
+import 'package:runiverse/features/profile/presentation/profile_cover_action.dart';
 import 'package:runiverse/features/profile/presentation/profile_header.dart';
 import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
@@ -57,9 +62,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
     // ⚠️ **이 화면에서만 상태바 글자를 밝게 고정한다.**
     //
-    // 커버가 상태바 뒤까지 올라가고 그 위에 **검정 그늘막**이 깔린다. 기기가
-    // 아이콘을 어둡게 잡아 둔 상태라면 어두운 아이콘 + 검정 그늘막이 되어
-    // 시계·배터리가 그대로 사라진다 — 그늘막을 깐 목적이 깨진다.
+    // 상태바 자리에는 어두운 바탕(`bgBase`)이 선다. 기기가 아이콘을 어둡게
+    // 잡아 둔 상태라면 어두운 아이콘 + 어두운 바탕이 되어 시계·배터리가
+    // 그대로 사라진다.
     //
     // ⚠️ **앱 전체에 걸지 않는다.** 다른 화면은 지금 바탕에 맞춰 알아서 간다.
     // `AnnotatedRegion`이라 이 화면을 떠나면 저절로 돌아온다.
@@ -70,17 +75,43 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         // `v2_screen_background_test`가 검사 대상으로 보지도 않았다** —
         // 에뮬레이터에서 화소를 재고서야 `#0b0e14`인 것을 찾았다.
         backgroundColor: context.appColorsV2.bgBase,
-        // ⚠️ **커버가 상태바 뒤까지 올라가므로 위 여백을 받지 않는다**(시안
-        // `158:3905` — 커버와 상태바 틀이 같은 자리에서 시작한다). 시계·배터리
-        // 글자는 `ProfileCover`의 그늘막이 지킨다.
+        // ⚠️ **위 여백을 받는다 — 커버를 상태바 뒤로 올리지 않는다.**
+        //
+        // 시안(`158:3905`)은 커버와 상태바 틀을 같은 자리에서 시작하고, 그렇게
+        // 두려면 흰 시계·배터리를 지킬 **그늘막**이 사진 위에 필요했다. 그
+        // 그늘막이 기기에서 **사진 윗부분을 가리는 회색 막대**로 보였다
+        // (2026-10-23). 커버를 상태바 아래로 내리면 둘 다 없어도 된다.
         body: SafeArea(
-          top: false,
           bottom: false,
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const ProfileCover(),
+                // ⚠️ **설정 버튼이 커버 위에 선다**(시안 `158:3938`, y=54).
+                // 2026-10-22에는 "밝은 사진에서 흰 아이콘이 안 보인다"며 커버
+                // 아래로 내렸는데, 시안이 쓰던 **어두운 원**을 함께 가져오면서
+                // 그 이유가 사라졌다(`ProfileCoverAction`).
+                //
+                // 커버와 겹쳐야 하므로 `Stack`이다. 커버는 그대로 두고 화면이
+                // 얹는다 — 커버가 라우팅을 알 이유가 없다.
+                Stack(
+                  children: [
+                    const ProfileCover(),
+                    Positioned(
+                      // 상태바를 피할 여백은 위의 `SafeArea`가 이미 받았다.
+                      // 여기 값은 **커버 안쪽 간격**이다.
+                      top: AppSpacing.space2,
+                      right: AppSpacing.space4,
+                      child: ProfileCoverAction(
+                        icon: AppIcons.settings,
+                        label: AppStrings.settingsTitle,
+                        // 편집과 달리 **돌아와서 다시 받아오지 않는다.** 설정은
+                        // 프로필 요약(닉네임·사진·소개글)을 건드리지 않는다.
+                        onTap: () => context.push(AppRoutes.settings),
+                      ),
+                    ),
+                  ],
+                ),
                 ProfileHeader(
                   nickname: summary?.nickname,
                   introduction: summary?.introduction,

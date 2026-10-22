@@ -1,22 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
-import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_state.dart';
 
 /// 프로필 맨 위의 커버 사진. 시안 `158:3910` (412×200).
 ///
-/// ## ⚠️ 상태바 뒤까지 올라간다
+/// ## ⚠️ 상태바 아래에서 시작하고, 그늘막을 깔지 않는다
 ///
-/// 시안은 커버와 상태바 틀이 **같은 자리에서 시작한다.** 그래서 이 위젯은
-/// `SafeArea` 밖에 놓이고, 위 여백을 받지 않는다.
+/// 2026-10-23에 되돌렸다. 상태바 뒤까지 올리면 시계·배터리 **흰 글자**를 사진이
+/// 지우므로 그늘막이 필요했고, 그 그늘막은 기기에서 **사진 상단을 가리는 회색
+/// 막대**로 보인다. 화면(`ProfilePage`)이 위 여백을 받으면 둘 다 사라진다.
 ///
-/// ## ⚠️ 그늘막은 상태에 관계없이 깔린다
+/// 이 위젯은 여전히 **위 여백을 스스로 받지 않는다** — 화면이 이미 주므로
+/// 여기서 또 받으면 두 번 밀린다.
 ///
-/// 시계·배터리 글자는 **흰색 한 가지**다. 밝은 사진을 올린 사람은 그 글자를
-/// 잃는다. 사진이 있을 때만 깔도록 가르면 그 분기가 틀렸을 때 **시계가 사라지는
-/// 쪽으로** 틀린다 — 어두운 바탕에 깔린 그늘막은 눈에 띄지 않으므로 늘 깐다.
+/// ## ⚠️ 사진을 베어내지 않는다
+///
+/// 커버는 412:200이지만 사람들이 올리는 사진은 아니다. `BoxFit.cover`는
+/// 넣으려고 **남는 쪽을 베어낸다** — 세로 사진을 올린 사람은 가운데 띠만 본다.
 ///
 /// ## ⚠️ 세 상태가 모두 기본 단색이다
 ///
@@ -29,33 +31,11 @@ class ProfileCover extends ConsumerWidget {
   static const _designWidth = 412.0;
   static const _designHeight = 200.0;
 
-  /// 그늘막을 찾는 열쇠. **테스트가 읽는다** — 그늘막은 색만 있어서 위젯
-  /// 종류로는 다른 것과 구분되지 않는다.
-  static const scrimKey = ValueKey('profile-cover-scrim');
-
-  /// 그늘막이 **옅어지기 시작하는 지점**(띠 전체에 대한 비율).
-  ///
-  /// 띠는 `상태바 + [fadeLength]`라, 상태바가 끝나는 자리가 곧 여기다.
-  /// 상태바가 없는 기기(또는 테스트)면 0이 되어 예전처럼 꼭대기부터 옅어진다 —
-  /// 가릴 글자가 없으니 그래도 된다.
-  static double _holdUntil(double scrimHeight) =>
-      (scrimHeight - fadeLength) / scrimHeight;
-
-  /// 버티던 그늘막이 **사라지는 데 쓰는 길이.**
-  ///
-  /// ⚠️ 짧으면 띠가 사진 위에 얹힌 **회색 막대로 보인다.** 16으로 뒀을 때
-  /// 기기에서 경계가 그대로 보였다. 대비는 버티는 구간이 책임지므로, 이 값은
-  /// 길게 줘도 시계가 읽히는 데는 영향이 없다.
-  static const fadeLength = AppSpacing.space7;
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColorsV2;
     final state = ref.watch(backgroundImageControllerProvider);
     final url = state is ProfileImageReady ? state.url : null;
-
-    // 상태바 높이 + 여유. 글자가 그늘 안에 들어와야 한다.
-    final scrimHeight = MediaQuery.paddingOf(context).top + fadeLength;
 
     return AspectRatio(
       aspectRatio: _designWidth / _designHeight,
@@ -66,7 +46,9 @@ class ProfileCover extends ConsumerWidget {
           if (url != null)
             Image.network(
               url,
-              fit: BoxFit.cover,
+              // ⚠️ **`cover`가 아니다.** 바탕에 밀 단색(`bgElevated`)이 이미
+              // 깔려 있어, 남는 자리는 빈 칸이 아니라 그 단색으로 남는다.
+              fit: BoxFit.contain,
               // ⚠️ **깨지면 한 번 더 받는다.** 조회 주소는 1시간이면 만료되고,
               // 커버가 비면 "배경을 안 올린 사람"과 구분되지 않는다.
               // 다시 받는 횟수는 컨트롤러가 센다.
@@ -107,30 +89,6 @@ class ProfileCover extends ConsumerWidget {
                 return child;
               },
             ),
-          Align(
-            alignment: Alignment.topCenter,
-            child: Container(
-              key: scrimKey,
-              height: scrimHeight,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  // ⚠️ **상태바 띠 안에서는 버티고, 그 아래 여유에서만 옅어진다.**
-                  // 꼭대기에서 바로 옅어지게 두면 시계가 서 있는 높이에서 이미
-                  // 절반 넘게 사라져, 밝은 사진 위 흰 글자가 2.3:1까지 떨어진다.
-                  // 진하기를 올려도 구조가 같으면 같은 자리를 맴돈다 —
-                  // 기기에서 재 보고 고친 값이다(설계 10절).
-                  stops: [0, _holdUntil(scrimHeight), 1],
-                  colors: [
-                    colors.coverScrim,
-                    colors.coverScrim,
-                    colors.coverScrim.withAlpha(0),
-                  ],
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );

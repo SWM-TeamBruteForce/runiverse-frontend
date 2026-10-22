@@ -5,11 +5,9 @@ import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
-import 'package:runiverse/core/theme/v2/app_sizes.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
-import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 
@@ -99,12 +97,20 @@ class ProfileHeader extends ConsumerWidget {
               // ⚠️ **커버에 걸친다**(시안: 아바타 y=157, 커버 끝 y=200).
               // 걸치지 않으면 커버와 프로필이 두 덩어리로 보인다.
               //
-              // `Transform`이라 **자리는 그대로 차지한다** — 아래 닉네임이
-              // 따라 올라오지 않는다.
-              Transform.translate(
-                offset: const Offset(0, -ProfileHeader.coverOverlap),
-                // 이 화면에서는 눌리지 않는다. 사진을 바꾸는 자리도 편집 화면이다.
-                child: ProfileAvatar(url: photoUrl),
+              // ⚠️ **`Transform`을 쓰지 않는다.** 그쪽은 자리를 그대로 차지해
+              // 아바타 아래에 `coverOverlap`만큼 **빈 구멍**이 남고, 닉네임이
+              // 커버에서 120px이나 떨어졌다. `OverflowBox`는 **보이는 높이만
+              // 자리로 잡고** 나머지를 위로 넘긴다.
+              SizedBox(
+                width: ProfileAvatar.size,
+                height: ProfileAvatar.size - ProfileHeader.coverOverlap,
+                child: OverflowBox(
+                  maxHeight: ProfileAvatar.size,
+                  alignment: Alignment.bottomCenter,
+                  // 이 화면에서는 눌리지 않는다. 사진을 바꾸는 자리도 편집
+                  // 화면이다.
+                  child: ProfileAvatar(url: photoUrl),
+                ),
               ),
               const Spacer(),
 
@@ -118,42 +124,29 @@ class ProfileHeader extends ConsumerWidget {
               // ⚠️ **편집에서 돌아올 때 받는 자리는 여기 하나다.** 편집 화면은
               // 스스로 받지 않는다 — 양쪽에서 부르면 돌아올 때마다 같은 조회가
               // 두 번 나간다. (화면이 처음 열릴 때 받는 것은 `ProfilePage`다.)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  // ⚠️ **커버 위에 얹지 않는다**(2026-10-22 결정). 시안은
-                  // `158:3938`을 커버 위 y=54에 두지만, 사진 위 흰 아이콘은
-                  // **밝은 사진에서 안 보인다.** 가리려면 그늘막이나 테두리가
-                  // 필요한데 그것은 이 기능이 아니라 디자인 결정이다.
-                  //
-                  // 벨(`158:3935`)은 위 ⚠️ 참조 — 만들지 않는다.
-                  _RoundAction(
-                    icon: AppIcons.settings,
-                    label: AppStrings.settingsTitle,
-                    // 편집과 달리 **돌아와서 다시 받아오지 않는다.** 설정은
-                    // 프로필 요약(닉네임·사진·소개글)을 건드리지 않는다.
-                    onTap: () => context.push(AppRoutes.settings),
-                  ),
-                  const SizedBox(height: AppSpacing.space2),
-                  AppButtonV2(
-                    label: AppStrings.profileEditOpen,
-                    // ⚠️ **아바타 옆에 서는 인라인 액션이다.** 기본 크기(56)로 두면
-                    // 아바타(96)와 덩치가 맞먹고, 화면에서 유일하게 색이 있는
-                    // 요소라 더 튄다. 측정값이 121×54 였다(시안 99×41).
-                    size: AppButtonV2Size.compact,
-                    expand: false,
-                    onPressed: () async {
-                      await context.push(AppRoutes.profileEdit);
-                      await ref
-                          .read(profileSummaryControllerProvider.notifier)
-                          .load();
-                    },
-                  ),
-                ],
+              // ⚠️ **설정 버튼은 여기 없다.** 시안대로 커버 위 우상단으로
+              // 올라갔다(`ProfilePage` · `ProfileCoverAction`). 이 기둥이 한
+              // 칸 짧아지면서 **아래 닉네임·소개글도 함께 올라온다** — 그게
+              // 옮긴 이유다.
+              //
+              // 벨(`158:3935`)은 위 ⚠️ 참조 — 만들지 않는다.
+              AppButtonV2(
+                label: AppStrings.profileEditOpen,
+                // ⚠️ **아바타 옆에 서는 인라인 액션이다.** 기본 크기(56)로 두면
+                // 아바타(96)와 덩치가 맞먹고, 화면에서 유일하게 색이 있는
+                // 요소라 더 튄다. 측정값이 121×54 였다(시안 99×41).
+                size: AppButtonV2Size.compact,
+                expand: false,
+                onPressed: () async {
+                  await context.push(AppRoutes.profileEdit);
+                  await ref
+                      .read(profileSummaryControllerProvider.notifier)
+                      .load();
+                },
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.space4),
+          const SizedBox(height: AppSpacing.space3),
 
           if (nickname != null)
             Text(
@@ -210,57 +203,6 @@ class _NicknamePlaceholder extends StatelessWidget {
           decoration: BoxDecoration(
             color: context.appColorsV2.bgElevated,
             borderRadius: AppRadius.sm,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 헤더 우상단 원형 버튼 — 시안 `158:3938`.
-///
-/// ⚠️ **시안은 41이지만 44로 그린다.** 44 미만은 손가락이 빗나간다
-/// (`AppSizes` 주석). 글리프만 시안 크기에 맞춰 줄인다.
-///
-/// ⚠️ **글자가 없으므로 [Semantics]를 반드시 붙인다.** 안 붙이면 스크린리더가
-/// 읽을 것이 없다 — 탭 바에서 같은 실수를 한 적이 있다.
-class _RoundAction extends StatelessWidget {
-  const _RoundAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final String icon;
-  final String label;
-  final VoidCallback onTap;
-
-  /// 시안은 21. 24는 이 원 안에서 꽉 차 보인다.
-  static const _glyph = AppSpacing.space5;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColorsV2;
-
-    return MergeSemantics(
-      child: Semantics(
-        label: label,
-        button: true,
-        child: Material(
-          // 시안은 흰색 20%에 블러를 먹인 유리다(`backdrop-blur-[10px]`).
-          // **커버 사진이 없으니 블러할 것이 없다** — 같은 결을 내는 토큰을 쓴다.
-          color: colors.bgGlass,
-          shape: const CircleBorder(),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            child: SizedBox(
-              width: AppSizes.touchDefault,
-              height: AppSizes.touchDefault,
-              child: Center(
-                child: AppIcon(icon, size: _glyph, color: colors.textPrimary),
-              ),
-            ),
           ),
         ),
       ),

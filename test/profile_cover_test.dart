@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
-import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/features/profile/data/fake_profile_image_repository.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
@@ -104,61 +103,41 @@ void main() {
     });
   });
 
-  testWidgets('⚠️ 기본 배경일 때도 그늘막이 깔린다', (tester) async {
-    // 상태에 따라 켜고 끄면 틀렸을 때 **시계가 사라지는 쪽으로** 틀린다.
-    await pumpCover(tester, url: null);
+  testWidgets('⚠️ 그늘막을 깔지 않는다', (tester) async {
+    // 커버가 상태바 **아래에서** 시작하도록 바뀌면서(화면이 위 여백을 받는다)
+    // 사진 위에 지킬 글자가 없어졌다.
+    //
+    // 그늘막을 남겨 두면 사진 위쪽에 **회색 막대**만 얹힌다 — 실제로 기기에서
+    // "배경 사진 윗부분이 너무 가린다"로 드러났다(2026-10-23).
+    //
+    // ⚠️ **열쇠로 찾지 않는다.** 그늘막과 함께 열쇠도 지웠으므로, 열쇠를 보는
+    // 그물은 다시 깔아도 통과한다. 그라데이션 자체를 찾는다.
+    await pumpCover(tester, url: null, topInset: 40);
     await tester.pump();
 
-    expect(find.byKey(ProfileCover.scrimKey), findsOneWidget);
-  });
-
-  testWidgets('사진이 있을 때도 그늘막이 깔린다', (tester) async {
-    await pumpCover(tester, url: 'https://cdn.test/cover.jpg');
-
-    expect(find.byKey(ProfileCover.scrimKey), findsOneWidget);
-    await settleRetry(tester);
-  });
-
-  testWidgets('⚠️ 그늘막 색이 토큰에서 온다', (tester) async {
-    // 하드코딩하면 **라이트 테마에서도 같은 검정**이 깔리고, 기기에서 진하기를
-    // 조정할 때 위젯 파일을 고쳐야 한다. 그 값은 아직 확정이 아니다(설계 10절).
-    await pumpCover(tester, url: null);
-
-    final scrim = tester.widget<Container>(find.byKey(ProfileCover.scrimKey));
-    final gradient =
-        (scrim.decoration! as BoxDecoration).gradient! as LinearGradient;
-    final colors = AppTheme.dark().extension<AppColorsV2>()!;
-
-    expect(gradient.colors.first, colors.coverScrim);
-    expect(gradient.colors.last.a, 0, reason: '아래로 가며 사라진다');
-  });
-
-  testWidgets('⚠️ 시계가 선 높이까지는 그늘막이 옅어지지 않는다', (tester) async {
-    // 기기에서 드러난 것이다. 꼭대기에서 바로 옅어지게 두면 **시계가 서 있는
-    // 높이에서는 이미 절반 넘게 사라져** 있다. 밝은 사진 위 흰 글자 대비가
-    // 2.3:1까지 떨어졌다(기준 4.5:1). 진하기를 올려도 구조가 같으면 같은 자리를
-    // 맴돈다 — 상태바 띠 안에서는 **같은 진하기로 버티고**, 그 아래 여유에서만
-    // 옅어져야 한다.
-    const topInset = 40.0;
-    await pumpCover(tester, url: null, topInset: topInset);
-    await tester.pump();
-
-    final scrim = tester.widget<Container>(find.byKey(ProfileCover.scrimKey));
-    final gradient =
-        (scrim.decoration! as BoxDecoration).gradient! as LinearGradient;
-
-    expect(gradient.colors.length, 3, reason: '버티는 구간 + 옅어지는 구간');
-    expect(gradient.colors[1], gradient.colors.first, reason: '둘째 점까지 같은 색');
     expect(
-      gradient.stops![1],
-      closeTo(topInset / (topInset + ProfileCover.fadeLength), 0.001),
-      reason: '상태바 끝에서부터 옅어지기 시작한다',
+      find.byWidgetPredicate((w) {
+        final decoration = w is DecoratedBox ? w.decoration : null;
+        return decoration is BoxDecoration && decoration.gradient != null;
+      }),
+      findsNothing,
     );
   });
 
-  testWidgets('⚠️ 위 여백을 받지 않는다 — 상태바 뒤까지 올라간다', (tester) async {
-    // SafeArea 안에 있으면 커버 위에 바탕색 띠가 생기고, 시안의 "사진이 시계
-    // 뒤까지"가 성립하지 않는다.
+  testWidgets('⚠️ 사진을 잘라내지 않는다', (tester) async {
+    // `BoxFit.cover`는 커버 비율(412:200)에 맞춰 **남는 쪽을 베어낸다.** 세로
+    // 사진을 올린 사람은 가운데 띠만 보게 된다 — 기기에서 "일부분이 잘린 것처럼
+    // 보인다"로 드러났다(2026-10-23). 비율은 지키고 **전체**를 넣는다.
+    await pumpCover(tester, url: 'https://cdn.test/cover.jpg');
+
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(image.fit, BoxFit.contain);
+    await settleRetry(tester);
+  });
+
+  testWidgets('⚠️ 위 여백을 스스로 받지 않는다', (tester) async {
+    // 여백을 주는 것은 화면(`ProfilePage`)의 `SafeArea`다. 커버가 또 받으면
+    // 상태바 높이만큼 두 번 밀려 내려간다.
     await pumpCover(tester, url: null, topInset: 40);
     await tester.pump();
 
