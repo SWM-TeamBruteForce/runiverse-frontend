@@ -666,17 +666,38 @@ abstract final class AppStrings {
     return '$hh:$mm';
   }
 
-  /// 매칭 등록 화면으로 가기 전에 한 번 보여주는 운영 안내.
+  /// 매칭 등록으로 가기 전에 한 번 보여주는 운영 안내.
   ///
-  /// ⚠️ **시각 범위를 적지 않는다.** 18:00~22:00은 서버 설정값이라, 문구에
-  /// 박아 두면 설정이 바뀌는 날 화면만 거짓말을 한다. 마감이 "시작 10분 전"인
-  /// 것도 같은 이유로 숫자 없이 적는다.
-  static const matchPolicyTitle = '매칭은 이렇게 진행돼요';
-  static const matchPolicyBody =
-      '· 같은 시간대 러너 2~4명이 각자의 자리에서 함께 달려요\n'
-      '· 페이스는 프로필 기록으로 자동으로 맞춰져요\n'
-      '· 모집은 시작 직전에 마감돼요\n'
-      '· 확정된 뒤에 나가면 20분 동안 다시 신청할 수 없어요';
+  /// ## ⚠️ 묻는 말과 답으로 묶는다
+  ///
+  /// 불릿 다섯 줄을 늘어놓으면 처음 쓰는 사람은 **무엇을 알아야 하는지**를
+  /// 모른 채 글자만 훑는다. '언제 뛰나요'처럼 질문을 세워 두면 자기가 궁금한
+  /// 줄부터 읽는다.
+  ///
+  /// ## ⚠️ 숫자가 서버 설정값이다
+  ///
+  /// `18:00~22:00` · `30분` · `10분 전`은 전부 운영에서 바뀔 수 있는 값이다.
+  /// **바뀌면 이 문구도 같이 고쳐야 한다** — 안 고치면 화면만 거짓말을 한다.
+  /// 그래도 적는 이유는, "시작 직전에 마감돼요"로는 **언제까지 누르면 되는지**
+  /// 알 수 없기 때문이다(2026-10-22 결정).
+  static const matchPolicyTitle = '매칭 전에 알아두세요';
+
+  static const matchPolicyWhenAsk = '언제 뛰나요?';
+  static const matchPolicyWhenTell = '저녁 18:00부터 22:00까지, 30분 간격으로 고를 수 있어요';
+
+  static const matchPolicyDeadlineAsk = '언제까지 신청하나요?';
+
+  /// ⚠️ **예시를 함께 적는다.** "10분 전"만 적으면 머릿속에서 빼야 한다.
+  static const matchPolicyDeadlineTell =
+      '시작 10분 전까지예요. 19:00에 뛰려면 18:50까지 신청하면 돼요';
+
+  static const matchPolicyWithAsk = '누구와 뛰나요?';
+  static const matchPolicyWithTell =
+      '비슷한 페이스의 러너 2~4명과 같은 시간에, 각자의 자리에서 달려요. 페이스는 프로필 기록으로 자동으로 맞춰드려요';
+
+  static const matchPolicyCareAsk = '이것만 조심해요';
+  static const matchPolicyCareTell = '매칭이 확정된 뒤에 나가면 20분 동안 다시 신청할 수 없어요';
+
   static const matchPolicyCancel = '다음에';
   static const matchPolicyConfirm = '매칭 등록하러 가기';
 

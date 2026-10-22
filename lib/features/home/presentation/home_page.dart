@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -219,7 +219,32 @@ class _HomePageState extends ConsumerState<HomePage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text(AppStrings.matchPolicyTitle),
-        content: const Text(AppStrings.matchPolicyBody),
+        // ⚠️ **작은 화면에서 넘칠 수 있다.** 네 묶음이라 세로가 길다.
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _PolicyLine(
+                ask: AppStrings.matchPolicyWhenAsk,
+                tell: AppStrings.matchPolicyWhenTell,
+              ),
+              _PolicyLine(
+                ask: AppStrings.matchPolicyDeadlineAsk,
+                tell: AppStrings.matchPolicyDeadlineTell,
+              ),
+              _PolicyLine(
+                ask: AppStrings.matchPolicyWithAsk,
+                tell: AppStrings.matchPolicyWithTell,
+              ),
+              _PolicyLine(
+                ask: AppStrings.matchPolicyCareAsk,
+                tell: AppStrings.matchPolicyCareTell,
+                last: true,
+              ),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -428,6 +453,44 @@ class _ProfilePromptCard extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 운영 안내 한 묶음. **묻는 말을 세우고 답을 붙인다.**
+///
+/// 질문이 있어야 자기가 궁금한 줄부터 읽는다 — 불릿만 늘어놓으면 무엇을
+/// 알아야 하는지 모른 채 글자만 훑는다.
+class _PolicyLine extends StatelessWidget {
+  const _PolicyLine({required this.ask, required this.tell, this.last = false});
+
+  final String ask;
+  final String tell;
+
+  /// 마지막 묶음은 아래 여백을 두지 않는다 — 버튼과 사이가 벌어진다.
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: last ? 0 : AppSpacing.space4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            ask,
+            style: AppTypographyV2.body07.copyWith(color: colors.textPrimary),
+          ),
+          const SizedBox(height: AppSpacing.space1),
+          Text(
+            tell,
+            style: AppTypographyV2.body12.copyWith(color: colors.textSecondary),
           ),
         ],
       ),

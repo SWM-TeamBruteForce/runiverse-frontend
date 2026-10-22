@@ -346,16 +346,33 @@ void main() {
       expect(find.text(AppStrings.homeMatchCta), findsOneWidget);
     });
 
-    testWidgets('⚠️ 시각 범위를 적지 않는다', (tester) async {
-      // 18:00~22:00은 서버 설정값이다. 문구에 박아 두면 설정이 바뀌는 날
-      // 화면만 거짓말을 한다.
+    testWidgets('⚠️ 시간 정책을 숫자로 적는다', (tester) async {
+      // 2026-10-22 요청. "시작 직전에 마감돼요"로는 **언제까지 누르면 되는지**
+      // 알 수 없다 — 운영 규칙을 알리는 것이 이 팝업의 목적이다.
+      //
+      // ⚠️ **이 숫자들은 서버 설정값이다.** 운영에서 바뀌면 이 문구도 같이
+      // 고쳐야 한다. 이 테스트가 그 짝을 묶어 둔다 — 설정이 바뀌어 문구만
+      // 남으면 여기서 깨진다.
       await pumpHome(tester);
 
       await tester.tap(find.text(AppStrings.homeMatchCta));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('18:00'), findsNothing);
-      expect(find.textContaining('22:00'), findsNothing);
+      expect(find.textContaining('18:00'), findsOneWidget);
+      expect(find.textContaining('22:00'), findsOneWidget);
+      expect(find.textContaining('30분'), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 마감을 예시로 짚어 준다', (tester) async {
+      // "10분 전"만 적으면 머릿속에서 빼야 한다. 한 줄 예시가 그 계산을
+      // 대신한다.
+      await pumpHome(tester);
+
+      await tester.tap(find.text(AppStrings.homeMatchCta));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('19:00'), findsOneWidget);
+      expect(find.textContaining('18:50'), findsOneWidget);
     });
   });
 
