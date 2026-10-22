@@ -1,22 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
-import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_sizes.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
-import 'package:runiverse/core/utils/age_rule.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/core/widgets/v2/app_input.dart';
-import 'package:runiverse/core/widgets/wheel_picker_sheet.dart';
 import 'package:runiverse/features/profile/domain/pending_photo.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
+import 'package:runiverse/features/profile/domain/nickname_change_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
-import 'package:runiverse/features/profile/presentation/nickname_sheet.dart';
+import 'package:runiverse/features/profile/presentation/nickname_field.dart';
 import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/background_picker.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
@@ -77,9 +74,13 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
   /// 화면에 들어올 때의 소개글. **바뀐 게 있는지**를 이것과 비교해 판단한다.
   late final String _initialIntroduction;
 
-  DateTime? _birthday;
-  int? _heightCm;
-  int? _weightKg;
+  /// 보낼 수 있는 새 닉네임. `null`이면 안 바꿨거나 **아직 못 보낸다**(형식이
+  /// 틀렸거나 중복확인이 안 끝났거나 겹친다). 화면 입장에서는 둘 다 *닉네임은
+  /// 보내지 않는다*라서 가르지 않는다 — [NicknameField.onReady] 참조.
+  String? _nickname;
+
+  /// 저장하다 닉네임이 겹쳤다. 묻고 누르는 사이에 남이 가져갈 수 있다.
+  NicknameChangeFailure? _nicknameFailure;
 
   /// 고르거나 지우기로 했지만 **아직 안 보낸** 사진. `null`이면 안 건드렸다.
   PendingPhoto? _photo;
@@ -90,53 +91,12 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
   bool _saving = false;
   ProfileEditFailure? _failure;
 
-  /// 51번을 아직 기다리는가. 그동안 세 칸은 잠긴다.
-  bool _bodyLoading = true;
-
-  /// 51번이 실패했는가. **빈 응답과 다르다** — 빈 응답은 온보딩 전이라
-  /// 덮어쓸 값이 없고, 실패는 서버 값을 모르는 것이라 덮으면 안 된다.
-  bool _bodyFailed = false;
-
-  /// 생년월일·키·몸무게를 만질 수 있는가.
-  bool get _bodyEditable => !_bodyLoading && !_bodyFailed;
-
   @override
   void initState() {
     super.initState();
     _initialIntroduction =
         ref.read(profileSummaryControllerProvider).summary?.introduction ?? '';
     _introduction = TextEditingController(text: _initialIntroduction);
-
-    // 기기에 남은 값으로 먼저 그린다. 서버를 기다리는 동안 칸이 비지 않는다.
-    _seedBody();
-
-    // ⚠️ `initState`에서 provider를 고치면 빌드 도중 상태가 바뀌어 죽는다.
-    // 첫 프레임 뒤로 미룬다(`implementation-notes.md` §10-1).
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBody());
-  }
-
-  /// `bodyProfileProvider`가 아는 값을 세 칸에 옮긴다.
-  void _seedBody() {
-    final body = ref.read(bodyProfileProvider);
-    _birthday = body.birthday;
-    _heightCm = body.heightCm;
-    _weightKg = body.weightKg;
-  }
-
-  /// 서버가 가진 신체 정보를 받아 칸을 채운다(51번).
-  ///
-  /// ⚠️ **`_initialIntroduction`처럼 기준값을 따로 두지 않는다.** 바뀐 것을
-  /// 가리는 기준은 `bodyProfileProvider`이고, 이 호출이 그것을 서버 값으로
-  /// 맞춘다 — 그래서 시트를 열어 키만 고치면 몸무게는 "안 바뀐 것"이 되어
-  /// 요청에 실리지 않는다.
-  Future<void> _loadBody() async {
-    final loaded = await ref.read(bodyProfileProvider.notifier).refresh();
-    if (!mounted) return;
-    setState(() {
-      _bodyLoading = false;
-      _bodyFailed = !loaded;
-      if (loaded) _seedBody();
-    });
   }
 
   @override
@@ -149,98 +109,25 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
 
   /// 저장 버튼이 다루는 값 중 **하나라도 바뀌었나.**
   ///
-  /// 닉네임은 세지 않는다 — 시트에서 이미 저장돼 저장 버튼이 할 일이 없다.
-  bool get _dirty => _photo != null || _background != null || _dirtyProfile;
+  /// ⚠️ **닉네임도 여기 든다**(2026-10-22). 전에는 시트에서 즉시 저장돼
+  /// 저장 버튼이 할 일이 없었다.
+  bool get _dirty =>
+      _photo != null ||
+      _background != null ||
+      _nickname != null ||
+      _dirtyProfile;
 
   /// `PATCH /users/me/profile` 이 다루는 값 중 하나라도 바뀌었나.
   ///
-  /// **사진은 세지 않는다.** 사진은 제 갈 길(3단계 업로드)이 따로 있어서,
-  /// 사진만 바꿨을 때 이 `PATCH` 까지 보내면 **전부 `null` 인 요청**이 된다.
-  bool get _dirtyProfile {
-    final body = ref.read(bodyProfileProvider);
-    return _introduction.text.trim() != _initialIntroduction ||
-        _birthday != body.birthday ||
-        _heightCm != body.heightCm ||
-        _weightKg != body.weightKg;
-  }
+  /// **사진도 닉네임도 세지 않는다.** 둘 다 제 갈 길이 따로 있어서, 그것만
+  /// 바꿨을 때 이 `PATCH` 까지 보내면 **전부 `null` 인 요청**이 된다.
+  ///
+  /// ⚠️ 신체 정보는 설정으로 갔다. 여기 남은 값은 소개글 하나다.
+  bool get _dirtyProfile => _introduction.text.trim() != _initialIntroduction;
 
   bool get _introductionTooLong => _introduction.text.trim().length > 100;
 
-  /// 만 14세 미만인가. 서버도 `PATCH /users/me/profile`에서 400으로 막지만
-  /// 그 메시지는 화면에 닿지 않아, 저장 버튼을 여기서 잠근다.
-  bool get _birthdayTooYoung {
-    final birthday = _birthday;
-    if (birthday == null) return false;
-    return !AgeRule.isAllowed(birthday, now: DateTime.now());
-  }
-
-  bool get _canSave =>
-      _dirty && !_saving && !_introductionTooLong && !_birthdayTooYoung;
-
-  // ── 고르기 ────────────────────────────────────────────────
-
-  Future<void> _pickBirthday() async {
-    final now = DateTime.now();
-    final current = _birthday ?? DateTime(now.year - 27, 4, 12);
-
-    final picked = await showWheelPickerSheet(
-      context,
-      title: AppStrings.profileBirthLabel,
-      columns: [
-        WheelColumn(
-          unit: AppStrings.profileUnitYear,
-          // ⚠️ 상한은 `AgeRule`이 정한다. 온보딩 화면과 같은 값을 써야 한다.
-          values: [
-            for (var y = now.year - 80; y <= AgeRule.latestYear(now); y++) y,
-          ],
-          initial: current.year,
-        ),
-        WheelColumn(
-          unit: AppStrings.profileUnitMonth,
-          values: [for (var m = 1; m <= 12; m++) m],
-          initial: current.month,
-        ),
-        WheelColumn(
-          unit: AppStrings.profileUnitDay,
-          values: [for (var d = 1; d <= 31; d++) d],
-          initial: current.day,
-          // 일 목록은 년·월에 달렸다. 다음 달 0일 = 이번 달 마지막 날.
-          valuesFor: (picked) => [
-            for (var d = 1; d <= DateTime(picked[0], picked[1] + 1, 0).day; d++)
-              d,
-          ],
-        ),
-      ],
-    );
-    if (picked == null) return;
-
-    setState(() => _birthday = DateTime(picked[0], picked[1], picked[2]));
-  }
-
-  Future<void> _pickBody() async {
-    final picked = await showWheelPickerSheet(
-      context,
-      title: AppStrings.profileBodyLabel,
-      columns: [
-        WheelColumn(
-          unit: AppStrings.profileUnitHeight,
-          values: [for (var h = 130; h <= 210; h++) h],
-          initial: _heightCm ?? 172,
-        ),
-        WheelColumn(
-          unit: AppStrings.profileUnitWeight,
-          values: [for (var w = 30; w <= 140; w++) w],
-          initial: _weightKg ?? 63,
-        ),
-      ],
-    );
-    if (picked == null) return;
-
-    setState(() {
-      _heightCm = picked[0];
-      _weightKg = picked[1];
-    });
-  }
+  bool get _canSave => _dirty && !_saving && !_introductionTooLong;
 
   // ── 저장·이탈 ─────────────────────────────────────────────
 
@@ -262,27 +149,19 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
     // 프로필 값까지 보내면, 화면이 무엇을 들고 있는지 알 수 없다.
     if (!await _saveBackground()) return;
 
-    // 사진·배경만 바꿨다. 보낼 프로필 값이 없다.
+    // ⚠️ **닉네임도 같은 규칙으로 멈춘다.** 묻고 누르는 사이에 남이 가져갈
+    // 수 있어서, 여기서 다시 겹칠 수 있다.
+    if (!await _saveNickname()) return;
+
+    // 사진·배경·닉네임만 바꿨다. 보낼 프로필 값이 없다.
     if (!_dirtyProfile) {
       if (mounted) context.pop();
       return;
     }
 
-    final body = ref.read(bodyProfileProvider);
-    final introduction = _introduction.text.trim();
-
     final failure = await ref
         .read(profileSummaryControllerProvider.notifier)
-        .saveProfile(
-          // ⚠️ **바뀐 것만 보낸다.** 안 바뀐 값을 실어 보내면 서버가 같은 값을
-          // 다시 쓰는데, 다른 기기에서 방금 바꾼 값이 있으면 그것을 덮는다.
-          introduction: introduction == _initialIntroduction
-              ? null
-              : introduction,
-          birthday: _birthday == body.birthday ? null : _birthday,
-          heightCm: _heightCm == body.heightCm ? null : _heightCm,
-          weightKg: _weightKg == body.weightKg ? null : _weightKg,
-        );
+        .saveProfile(introduction: _introduction.text.trim());
 
     if (!mounted) return;
     if (failure == null) {
@@ -349,6 +228,33 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(_photoMessageOf(failure))));
+    return false;
+  }
+
+  /// 들고 있던 닉네임을 보낸다(52번). 보낼 것이 없으면 그냥 참이다.
+  ///
+  /// ⚠️ **겹친 것만 칸 자리에 돌려준다.** 다른 실패(세션 만료·네트워크)도
+  /// 같은 칸 아래에 서지만, 겹침은 helper 줄이 맡고 나머지는 그 아래 문구가
+  /// 맡는다 — [NicknameField] 참조.
+  Future<bool> _saveNickname() async {
+    final nickname = _nickname;
+    if (nickname == null) return true;
+
+    final failure = await ref
+        .read(profileSummaryControllerProvider.notifier)
+        .changeNickname(nickname);
+
+    if (!mounted) return false;
+    if (failure == null) {
+      // 보냈다. 다시 누를 때 또 보내지 않는다.
+      setState(() => _nickname = null);
+      return true;
+    }
+
+    setState(() {
+      _saving = false;
+      _nicknameFailure = failure;
+    });
     return false;
   }
 
@@ -497,14 +403,26 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                             // 여백을 또 주면 다음 구획과의 간격이 다른 곳의
                             // 세 배가 된다.
 
-                            // 닉네임도 시트에서 즉시 저장된다.
+                            // ⚠️ **그 자리에서 고친다**(2026-10-22 요청).
+                            // 전에는 시트였고 거기서 즉시 저장됐다. 지금은 아래
+                            // 소개글과 같은 규칙이다 — **저장 버튼이 보낸다.**
+                            // 중복확인만 치는 동안 계속 돈다.
                             _Label(AppStrings.profileNicknameLabel),
-                            _ValueRow(
-                              value: summary?.nickname,
-                              onTap: () => showNicknameSheet(
-                                context,
-                                current: summary?.nickname,
-                              ),
+                            const SizedBox(height: AppSpacing.space2),
+                            NicknameField(
+                              current: summary?.nickname,
+                              submitFailure: _nicknameFailure,
+                              // ⚠️ **빌드 중에 들어올 수 있다.** 칸이 처음
+                              // 그려질 때도 불리므로 그 프레임에서 `setState`를
+                              // 하면 Flutter가 막는다. 값이 실제로 달라질
+                              // 때만 고친다.
+                              onReady: (value) {
+                                if (value == _nickname) return;
+                                setState(() {
+                                  _nickname = value;
+                                  _nicknameFailure = null;
+                                });
+                              },
                             ),
                             const SizedBox(height: AppSpacing.space6),
 
@@ -531,54 +449,10 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                               ],
                               onChanged: (_) => setState(() {}),
                             ),
-                            const SizedBox(height: AppSpacing.space7),
-
-                            _Label(AppStrings.profileBodySection),
-                            _ValueRow(
-                              label: AppStrings.profileBirthLabel,
-                              value: _birthday == null
-                                  ? null
-                                  : _dateText(_birthday!),
-                              // 서버 값을 모르는 동안은 잠긴다. 선택기 기본값이
-                              // 저장돼 버리는 것을 막는 유일한 자리다.
-                              onTap: _bodyEditable ? _pickBirthday : null,
-                            ),
-                            // 저장 버튼만 잠그면 왜 안 눌리는지 알 수 없다.
-                            if (_birthdayTooYoung)
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: AppSpacing.space2,
-                                ),
-                                child: Text(
-                                  AppStrings.profileBirthTooYoung,
-                                  style: AppTypographyV2.body15.copyWith(
-                                    color: colors.error,
-                                  ),
-                                ),
-                              ),
-                            _ValueRow(
-                              label: AppStrings.profileBodyLabel,
-                              value: _heightCm == null || _weightKg == null
-                                  ? null
-                                  : '$_heightCm${AppStrings.profileUnitHeight}'
-                                        ' · $_weightKg${AppStrings.profileUnitWeight}',
-                              onTap: _bodyEditable ? _pickBody : null,
-                            ),
-                            // 잠긴 이유를 적는다. 안 적으면 눌러도 아무 일이
-                            // 없는 줄로 보인다.
-                            if (_bodyFailed)
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  top: AppSpacing.space2,
-                                ),
-                                child: Text(
-                                  AppStrings.profileBodyLoadFailed,
-                                  style: AppTypographyV2.body15.copyWith(
-                                    color: colors.error,
-                                  ),
-                                ),
-                              ),
-
+                            // ⚠️ **신체 정보는 설정으로 갔다**(2026-10-22 요청).
+                            // 생년월일·키·몸무게는 자주 고치는 값이 아니고,
+                            // 여기 있으면 홈과 닮은 위쪽이 긴 폼에 묻힌다.
+                            //
                             if (_failure != null) ...[
                               const SizedBox(height: AppSpacing.space4),
                               Text(
@@ -601,10 +475,6 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
       ),
     );
   }
-
-  static String _dateText(DateTime date) =>
-      '${date.year}.${date.month.toString().padLeft(2, '0')}'
-      '.${date.day.toString().padLeft(2, '0')}';
 
   /// 사진 실패 이유를 화면 문구로 옮긴다.
   ///
@@ -713,66 +583,4 @@ class _Label extends StatelessWidget {
       ),
     ),
   );
-}
-
-/// 눌러서 시트를 여는 한 줄. **값이 없으면 `—`를 그린다.**
-class _ValueRow extends StatelessWidget {
-  const _ValueRow({required this.value, required this.onTap, this.label});
-
-  /// 줄 왼쪽에 붙는 이름. 없으면 값만 그린다(닉네임처럼 위에 라벨이 있을 때).
-  final String? label;
-
-  final String? value;
-
-  /// `null`이면 잠긴다 — 신체 정보를 서버에서 못 읽었을 때다.
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColorsV2;
-    final text = value;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: AppRadius.md,
-      child: Container(
-        constraints: const BoxConstraints(minHeight: AppSizes.touchDefault),
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.space2),
-        child: Row(
-          children: [
-            if (label != null) ...[
-              Text(
-                label!,
-                style: AppTypographyV2.body07.copyWith(
-                  color: colors.textSecondary,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.space4),
-            ],
-            Expanded(
-              child: Text(
-                text ?? AppStrings.profileEditUnknown,
-                textAlign: label == null ? TextAlign.start : TextAlign.end,
-                style: AppTypographyV2.body07.copyWith(
-                  // 값이 없다는 것과 있는 것을 **무게로** 가른다.
-                  // 잠긴 줄은 둘과 또 다르게 흐려진다.
-                  color: onTap == null
-                      ? colors.textDisabled
-                      : text == null
-                      ? colors.textTertiary
-                      : colors.textPrimary,
-                ),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.space2),
-            AppIcon(
-              AppIcons.right,
-              size: AppSpacing.space5,
-              color: onTap == null ? colors.textDisabled : colors.textTertiary,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

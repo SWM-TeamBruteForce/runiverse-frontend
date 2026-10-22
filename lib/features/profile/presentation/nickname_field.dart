@@ -5,53 +5,54 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
-import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
-import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/app_input.dart';
 import 'package:runiverse/features/onboarding/domain/nickname_rule.dart';
 import 'package:runiverse/features/profile/domain/nickname_change_failure.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 
-/// 닉네임 변경 시트를 띄운다. **바꿨으면 `true`.** 취소하면 `null`.
+/// 닉네임을 **그 자리에서** 고치는 칸.
 ///
-/// ## 왜 시트인가
+/// ## ⚠️ 여기서 보내지 않는다
 ///
-/// 다이얼로그는 키보드가 올라오면 화면 가운데에서 밀려 자리를 잃는다.
-/// 입력이 하나뿐인 화면은 아래에서 올라오는 편이 맞고, 프로필 사진 시트와
-/// 같은 뼈대를 쓰면 **같은 자리에서 하는 같은 종류의 일**로 읽힌다.
+/// 전에는 시트였고 **누르는 자리에서 즉시 저장**됐다. 인라인으로 내려오면서
+/// (2026-10-22 요청) 보내는 일은 편집 화면의 저장 버튼이 맡는다. 이 위젯은
+/// **보낼 수 있는 값인지**만 판정해 [onReady]로 넘긴다.
 ///
-/// [current]는 지금 쓰는 이름이다. 미리 채워 두면 고칠 사람이 지우고 다시
-/// 치지 않아도 되고, **바뀐 게 없을 때 묻지 않기 위해서도** 필요하다.
-Future<bool?> showNicknameSheet(BuildContext context, {String? current}) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    barrierColor: context.appColorsV2.bgScrim,
-    // ⚠️ 없으면 키보드가 시트를 덮는다. 입력이 있는 시트는 항상 켠다.
-    isScrollControlled: true,
-    builder: (context) => _NicknameSheet(current: current),
-  );
-}
+/// ## 중복확인은 여기 남는다
+///
+/// 치는 동안 0.5초 쉬면 서버에 묻는다. 저장 버튼까지 미루면 사용자는 이름을
+/// 다 짓고 나서야 "이미 있어요"를 듣는다.
+///
+/// ⚠️ 그래도 **저장할 때 또 겹칠 수 있다.** 묻고 누르는 사이에 남이 가져갈 수
+/// 있어서다. 그때는 화면이 [submitFailure]로 알려 주고, 이 칸이 같은 자리에
+/// 같은 문구를 띄운다 — 고칠 곳이 여기라는 뜻이다.
+class NicknameField extends ConsumerStatefulWidget {
+  const NicknameField({
+    required this.current,
+    required this.onReady,
+    this.submitFailure,
+    super.key,
+  });
 
-class _NicknameSheet extends ConsumerStatefulWidget {
-  const _NicknameSheet({this.current});
-
+  /// 지금 쓰는 이름. **서버가 준 값이다** — 이것과 같으면 보낼 것이 없다.
   final String? current;
 
+  /// 보낼 수 있는 값이면 그 값, 아니면 `null`.
+  ///
+  /// ⚠️ **`null`이 두 가지 뜻을 겸한다** — "안 바꿨다"와 "아직 못 보낸다".
+  /// 화면 입장에서는 둘 다 *닉네임은 보내지 않는다*라서 가를 이유가 없다.
+  final ValueChanged<String?> onReady;
+
+  /// 저장하다 겹쳤다. 들어오면 칸 아래 문구가 그것으로 바뀐다.
+  final NicknameChangeFailure? submitFailure;
+
   @override
-  ConsumerState<_NicknameSheet> createState() => _NicknameSheetState();
+  ConsumerState<NicknameField> createState() => _NicknameFieldState();
 }
 
-/// 온보딩(`profile_setup_page.dart`)의 검증 흐름을 **다시 쓰지 않고 여기에
-/// 다시 적었다.**
-///
-/// 그쪽 로직은 단계 넘김(`_advance`)과 흔들림 애니메이션에 얽혀 있어 그대로
-/// 뽑히지 않는다. 뽑으려면 지금 잘 도는 온보딩 화면을 크게 건드려야 한다.
-/// 대신 **[NicknameRule]을 함께 본다** — 두 화면이 어긋날 수 있는 지점은
-/// 길이·문자 규칙 하나뿐이고, 그것은 공유하고 있다.
-class _NicknameSheetState extends ConsumerState<_NicknameSheet> {
+class _NicknameFieldState extends ConsumerState<NicknameField> {
   late final _nickname = TextEditingController(text: widget.current ?? '');
 
   /// 서버에 묻는 중.
@@ -69,11 +70,17 @@ class _NicknameSheetState extends ConsumerState<_NicknameSheet> {
   Timer? _checkTimer;
   static const _checkDebounce = Duration(milliseconds: 500);
 
-  /// 바꾸는 중. 버튼이 두 번 눌리는 것을 막는다.
-  bool _submitting = false;
-
-  /// 바꾸다 실패한 이유.
-  NicknameChangeFailure? _submitFailure;
+  @override
+  void didUpdateWidget(NicknameField old) {
+    super.didUpdateWidget(old);
+    // ⚠️ **서버 값이 뒤늦게 왔다.** 요약 조회가 끝나기 전에 이 칸이 먼저
+    // 그려지면 빈 칸으로 열리는데, 그대로 두면 사용자가 손대지 않았는데도
+    // "이름을 지웠다"가 된다. 손대지 않은 칸만 따라간다.
+    if (old.current != widget.current &&
+        _nickname.text == (old.current ?? '')) {
+      _nickname.text = widget.current ?? '';
+    }
+  }
 
   @override
   void dispose() {
@@ -103,14 +110,19 @@ class _NicknameSheetState extends ConsumerState<_NicknameSheet> {
   bool get _hasFreshAnswer =>
       _checkedAvailable != null && _checkedNickname == _nickname.text.trim();
 
-  bool get _canSubmit =>
+  /// 보낼 수 있는가. 시트의 `_canSubmit`과 같은 판정이다.
+  bool get _ready =>
       _status.isValid &&
       !_isUnchanged &&
       !_checking &&
-      !_submitting &&
-      // 겹친다는 답을 이미 들었으면 잠근다 — 눌러봐야 같은 답을 받으러
-      // 한 번 더 나갈 뿐이다.
-      !(_hasFreshAnswer && _checkedAvailable == false);
+      _hasFreshAnswer &&
+      _checkedAvailable == true;
+
+  /// 지금 판정을 화면에 알린다. **빌드 중에 부르지 않는다** — 부모가
+  /// `setState`를 하게 되어 Flutter가 막는다.
+  void _report() {
+    widget.onReady(_ready ? _nickname.text.trim() : null);
+  }
 
   // ── 중복확인 ──────────────────────────────────────────────
 
@@ -121,8 +133,8 @@ class _NicknameSheetState extends ConsumerState<_NicknameSheet> {
       _checkedNickname = null;
       _checkedAvailable = null;
       _checkFailed = false;
-      _submitFailure = null;
     });
+    _report();
 
     // 형식이 틀렸거나 바뀐 게 없으면 묻지 않는다.
     if (!_status.isValid || _isUnchanged) return;
@@ -152,7 +164,7 @@ class _NicknameSheetState extends ConsumerState<_NicknameSheet> {
     });
 
     // 못 물었으면 `null`이 온다. 사유는 가르지 않는다 — 사용자가 할 일은
-    // 다시 눌러보는 것 하나다.
+    // 다시 쳐보는 것 하나다.
     final available = await ref
         .read(profileRepositoryProvider)
         .isNicknameAvailable(nickname);
@@ -170,45 +182,7 @@ class _NicknameSheetState extends ConsumerState<_NicknameSheet> {
       _checkedAvailable = available;
       _checkFailed = available == null;
     });
-  }
-
-  // ── 변경 ──────────────────────────────────────────────────
-
-  Future<void> _submit() async {
-    if (!_canSubmit) return;
-
-    // 디바운스를 기다리는 중이었다면 지금 묻는다 — 기다릴 이유가 없다.
-    if (!_hasFreshAnswer) {
-      _checkTimer?.cancel();
-      await _check();
-      if (!mounted) return;
-    }
-    if (!(_hasFreshAnswer && _checkedAvailable == true)) return;
-
-    setState(() {
-      _submitting = true;
-      _submitFailure = null;
-    });
-
-    final failure = await ref
-        .read(profileSummaryControllerProvider.notifier)
-        .changeNickname(_nickname.text.trim());
-
-    if (!mounted) return;
-    if (failure == null) {
-      Navigator.of(context).pop(true);
-      return;
-    }
-
-    setState(() {
-      _submitting = false;
-      _submitFailure = failure;
-    });
-
-    // 온보딩을 안 마친 사람은 이 시트에서 할 수 있는 일이 없다. 닫는다.
-    if (failure == NicknameChangeFailure.notOnboarded) {
-      Navigator.of(context).pop();
-    }
+    _report();
   }
 
   // ── 화면 ──────────────────────────────────────────────────
@@ -218,83 +192,31 @@ class _NicknameSheetState extends ConsumerState<_NicknameSheet> {
     final colors = context.appColorsV2;
     final (helper, tone) = _helper();
 
-    return SafeArea(
-      top: false,
-      child: Padding(
-        // 키보드가 올라온 만큼 시트를 밀어 올린다.
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.viewInsetsOf(context).bottom,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppInputV2(
+          controller: _nickname,
+          hint: AppStrings.profileNicknameHint,
+          helper: helper,
+          counter: '$_length/${NicknameRule.max}',
+          tone: tone,
+          textInputAction: TextInputAction.done,
+          inputFormatters: [LengthLimitingTextInputFormatter(NicknameRule.max)],
+          onChanged: (_) => _onChanged(),
         ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: colors.bgElevated,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+
+        // 입력과 무관한 실패다. helper 자리에 두면 **고칠 곳이 입력칸인
+        // 것처럼** 읽힌다.
+        if (widget.submitFailure != null &&
+            widget.submitFailure != NicknameChangeFailure.taken) ...[
+          const SizedBox(height: AppSpacing.space2),
+          Text(
+            _messageOf(widget.submitFailure!),
+            style: AppTypographyV2.body15.copyWith(color: colors.error),
           ),
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.space5,
-            AppSpacing.space3,
-            AppSpacing.space5,
-            AppSpacing.space5,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: colors.borderStrong,
-                    borderRadius: AppRadius.full,
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.space4),
-
-              Text(
-                AppStrings.profileNicknameChangeTitle,
-                style: AppTypographyV2.heading06.copyWith(
-                  color: colors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.space4),
-
-              AppInputV2(
-                controller: _nickname,
-                autofocus: true,
-                hint: AppStrings.profileNicknameHint,
-                helper: helper,
-                counter: '$_length/${NicknameRule.max}',
-                tone: tone,
-                textInputAction: TextInputAction.done,
-                inputFormatters: [
-                  LengthLimitingTextInputFormatter(NicknameRule.max),
-                ],
-                onChanged: (_) => _onChanged(),
-                onSubmitted: (_) => _submit(),
-              ),
-
-              // 입력과 무관한 실패다. helper 자리에 두면 **고칠 곳이
-              // 입력칸인 것처럼** 읽힌다.
-              if (_submitFailure != null &&
-                  _submitFailure != NicknameChangeFailure.taken) ...[
-                const SizedBox(height: AppSpacing.space2),
-                Text(
-                  _messageOf(_submitFailure!),
-                  style: AppTypographyV2.body15.copyWith(color: colors.error),
-                ),
-              ],
-              const SizedBox(height: AppSpacing.space4),
-
-              AppButtonV2(
-                label: AppStrings.profileNicknameChangeSubmit,
-                onPressed: _canSubmit ? _submit : null,
-              ),
-            ],
-          ),
-        ),
-      ),
+        ],
+      ],
     );
   }
 
@@ -303,7 +225,7 @@ class _NicknameSheetState extends ConsumerState<_NicknameSheet> {
   /// **순서가 규칙이다.** 뒤로 갈수록 일반적인 말이라, 앞의 구체적인 사정이
   /// 있으면 그것이 이긴다.
   (String, AppInputToneV2) _helper() {
-    if (_submitFailure == NicknameChangeFailure.taken ||
+    if (widget.submitFailure == NicknameChangeFailure.taken ||
         (_hasFreshAnswer && _checkedAvailable == false)) {
       return (AppStrings.profileNicknameTaken, AppInputToneV2.error);
     }

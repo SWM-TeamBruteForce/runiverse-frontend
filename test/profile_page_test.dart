@@ -29,6 +29,7 @@ import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/profile/domain/profile_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
+import 'package:runiverse/features/profile/presentation/nickname_field.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
 import 'package:runiverse/features/profile/presentation/profile_cover.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
@@ -433,7 +434,9 @@ void main() {
     expect(appIcon(AppIcons.camera), findsNWidgets(2));
   });
 
-  testWidgets('편집 화면에서 닉네임을 누르면 변경 시트가 열린다', (tester) async {
+  testWidgets('⚠️ 편집 화면에서 닉네임을 그 자리에서 고친다', (tester) async {
+    // 2026-10-22까지는 눌러서 시트를 여는 줄이었다. 지금은 **인라인 칸**이라
+    // 누를 것 없이 바로 쳐진다 — 시트가 다시 생기면 이 테스트가 깨진다.
     await pumpProfile(
       tester,
       onboarded: true,
@@ -441,14 +444,9 @@ void main() {
     );
 
     await openEditPage(tester);
-    // ⚠️ **먼저 보이게 스크롤한다.** 배경 미리보기(2:1)가 들어오면서 폼이
-    // 길어져, 800×600 테스트 화면에서는 닉네임 줄이 접힌 아래에 있다.
-    await tester.ensureVisible(find.text('별밤러너'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('별밤러너'));
-    await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.profileNicknameChangeTitle), findsWidgets);
+    expect(find.byType(NicknameField), findsOneWidget);
+    expect(find.text('별밤러너'), findsOneWidget);
   });
 
   testWidgets('사진이 없으면 시트에 지우는 항목이 없다', (tester) async {

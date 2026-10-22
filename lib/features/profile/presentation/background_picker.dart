@@ -6,7 +6,6 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
-import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/profile/domain/pending_photo.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
@@ -92,38 +91,27 @@ class BackgroundPicker extends ConsumerWidget {
                   ),
 
                 // ⚠️ **누를 수 있다고 말하는 자리다.** 없으면 그냥 사각형이라
-                // 아무도 누르지 않는다 — 아바타가 카메라 배지와 글자로 같은
-                // 일을 한다. 사진 위에 얹히므로 **어두운 알약**에 담는다.
+                // 아무도 누르지 않는다 — 아바타가 카메라 배지로 같은 일을 한다.
+                // 사진 위에 얹히므로 **어두운 동그라미**에 담는다.
+                //
+                // ⚠️ **글자가 없다**(2026-10-22 요청). 그래서 낭독기가 읽을 것은
+                // 바깥 [Semantics] 라벨뿐이다 — 그것을 지우면 눈으로만 쓸 수
+                // 있는 버튼이 된다.
                 Align(
                   alignment: Alignment.bottomRight,
                   child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.space2),
+                    padding: const EdgeInsets.all(AppSpacing.space3),
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         color: colors.coverScrim,
                         borderRadius: AppRadius.full,
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.space3,
-                          vertical: AppSpacing.space2,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            AppIcon(
-                              AppIcons.camera,
-                              size: AppSpacing.space4,
-                              color: colors.textPrimary,
-                            ),
-                            const SizedBox(width: AppSpacing.space1),
-                            Text(
-                              AppStrings.profileEditBackground,
-                              style: AppTypographyV2.body15.copyWith(
-                                color: colors.textPrimary,
-                              ),
-                            ),
-                          ],
+                        padding: const EdgeInsets.all(AppSpacing.space2),
+                        child: AppIcon(
+                          AppIcons.camera,
+                          size: AppSpacing.space5,
+                          color: colors.textPrimary,
                         ),
                       ),
                     ),
