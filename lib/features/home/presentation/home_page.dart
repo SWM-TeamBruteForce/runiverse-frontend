@@ -234,10 +234,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                 tell: AppStrings.matchPolicyDeadlineTell,
               ),
               _PolicyLine(
-                ask: AppStrings.matchPolicyWithAsk,
-                tell: AppStrings.matchPolicyWithTell,
-              ),
-              _PolicyLine(
                 ask: AppStrings.matchPolicyCareAsk,
                 tell: AppStrings.matchPolicyCareTell,
                 last: true,
