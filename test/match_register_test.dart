@@ -11,6 +11,7 @@ import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/data/fake_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
+import 'package:runiverse/features/matching/domain/slot_load_failure.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 import 'package:runiverse/features/matching/presentation/match_register_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
@@ -23,18 +24,9 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 /// 시각을 앱이 조립하면 엉뚱한 날짜로 신청되고 사용자는 알아챌 방법이 없다.
 /// 그래서 "서버가 준 문자열이 그대로 나가는가"가 여기서 가장 중요한 확인이다.
 void main() {
-  /// 시각을 고정한다. 목록을 앱이 벽시계로 만들기 때문에, 고정하지 않으면
-  /// 밤 10시 이후에 돌릴 때 고를 수 있는 슬롯이 없어 테스트가 시각에 따라
-  /// 달라진다.
-  const nineteen = '2026-09-15T19:00:00';
-
-  /// 18:30 — 18:00은 이미 지났고 19:00부터는 고를 수 있다.
-  DateTime clockAt1830() => DateTime(2026, 9, 15, 18, 30);
-
   Future<FakeMatchRepository> pumpRegister(
     WidgetTester tester, {
     FakeMatchRepository? repository,
-    DateTime Function()? clock,
   }) async {
     final matches = repository ?? FakeMatchRepository();
 
@@ -47,7 +39,6 @@ void main() {
             FakeAppVersionRepository(),
           ),
           matchRepositoryProvider.overrideWithValue(matches),
-          matchClockProvider.overrideWithValue(clock ?? clockAt1830),
           // 신청이 방 번호를 남긴다. 진짜는 플랫폼 채널을 탄다.
           matchRoomStoreProvider.overrideWithValue(InMemoryMatchRoomStore()),
           // 신청에 성공하면 곧바로 스트림에 붙는다. 진짜를 두면 dio가
@@ -118,85 +109,240 @@ void main() {
       expect(find.text(AppStrings.matchTimePlaceholder), findsOneWidget);
     });
 
+    testWidgets('⚠️ 거리가 시간보다 위에 있다', (tester) async {
+      // 목록을 받으려면 거리가 먼저 있어야 한다 — 화면 순서가 데이터가
+      // 흐르는 순서와 같아진다.
+      await pumpRegister(tester);
+
+      expect(
+        tester.getTopLeft(find.text(AppStrings.matchDistanceLabel)).dy,
+        lessThan(tester.getTopLeft(find.text(AppStrings.matchTimeLabel)).dy),
+      );
+    });
+
+    testWidgets('⚠️ 거리를 고르기 전에는 시간을 못 고른다', (tester) async {
+      await pumpRegister(tester);
+
+      await tester.tap(find.text(AppStrings.matchTimePlaceholder));
+      await tester.pumpAndSettle();
+
+      // 시트 위젯은 비공개다. **제목으로** 찾는다.
+      expect(find.text(AppStrings.matchSlotSheetTitle), findsNothing);
+      expect(find.text(AppStrings.matchSlotsLockedByDistance), findsOneWidget);
+    });
+
+    testWidgets('거리를 고르면 시간을 고를 수 있다', (tester) async {
+      await pumpRegister(tester);
+
+      await pickDistance(tester, TargetDistance.km5);
+      await tester.tap(find.text(AppStrings.matchTimePlaceholder));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.matchSlotSheetTitle), findsOneWidget);
+    });
+
     testWidgets('⚠️ 둘 다 골라야 CTA가 열린다', (tester) async {
       // 하나만으로 열면 서버가 400으로 거절하고, 사용자는 왜인지 모른다.
       final matches = await pumpRegister(tester);
       expect(await ctaOpens(tester, matches), isFalse);
 
-      await pickSlot(tester, '19:00');
+      await pickDistance(tester, TargetDistance.km5);
       expect(await ctaOpens(tester, matches), isFalse);
 
-      await pickDistance(tester, TargetDistance.km5);
+      await pickSlot(tester, '10:00');
       expect(await ctaOpens(tester, matches), isTrue);
     });
 
     testWidgets('고른 시간이 보인다', (tester) async {
       await pumpRegister(tester);
 
-      await pickSlot(tester, '19:00');
+      await pickDistance(tester, TargetDistance.km5);
+      await pickSlot(tester, '10:00');
 
-      expect(find.text('19:00'), findsOneWidget);
+      expect(find.text('10:00'), findsOneWidget);
     });
 
     testWidgets('⚠️ 마감된 시간대는 목록에 남되 눌리지 않는다', (tester) async {
-      // 빼면 "18:00이 왜 없지"가 되고, 목록이 줄어드는 것도 이상하게 읽힌다.
-      await pumpRegister(tester);
+      // 빼면 "10:00이 왜 없지"가 되고, 목록이 줄어드는 것도 이상하게 읽힌다.
+      final matches = FakeMatchRepository(
+        slotList: [
+          FakeMatchRepository.slotAt('10:00', selectable: false),
+          FakeMatchRepository.slotAt('10:30', waiting: 2),
+        ],
+      );
+      await pumpRegister(tester, repository: matches);
+      await pickDistance(tester, TargetDistance.km5);
 
       await tester.tap(find.text(AppStrings.matchTimePlaceholder));
       await tester.pumpAndSettle();
 
-      expect(find.text('18:00'), findsOneWidget);
-      // 18:30 기준이라 18:00·18:30 둘 다 지났다.
-      expect(find.text(AppStrings.matchSlotClosed), findsNWidgets(2));
+      expect(find.text('10:00'), findsOneWidget);
+      expect(find.text(AppStrings.matchSlotClosed), findsOneWidget);
 
-      await tester.tap(find.text('18:00'));
+      await tester.tap(find.text('10:00'));
       await tester.pumpAndSettle();
 
       // 시트가 그대로다 — 눌려서 닫혔다면 마감된 슬롯이 골라진 것이다.
       expect(find.text(AppStrings.matchSlotSheetTitle), findsOneWidget);
     });
 
-    testWidgets('⚠️ 모르는 대기 인원은 적지 않는다', (tester) async {
-      // 조회 API가 없어 목록은 앱이 만들고, 대기 인원은 전부 `null`이다.
-      // 0명으로 그리면 아무도 없다고 잘못 알린다.
+    testWidgets('⚠️ 전부 마감이면 비었음과 같은 화면이다', (tester) async {
+      // 목록은 차 있는데 고를 것이 없다. 선택기를 열어 두면 시트에 `마감`만
+      // 늘어서고 등록 버튼은 영영 잠긴 채라 고장난 화면으로 읽힌다.
+      final matches = FakeMatchRepository(
+        slotList: [FakeMatchRepository.slotAt('10:00', selectable: false)],
+      );
+      await pumpRegister(tester, repository: matches);
+
+      await pickDistance(tester, TargetDistance.km5);
+
+      expect(find.text(AppStrings.matchSlotsEmpty), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 0명인 시각에는 숫자를 적지 않는다', (tester) async {
+      // `0명 대기`는 비어 있다고 알리는 꼴이라 오히려 사람을 민다.
       await pumpRegister(tester);
+      await pickDistance(tester, TargetDistance.km5);
 
       await tester.tap(find.text(AppStrings.matchTimePlaceholder));
       await tester.pumpAndSettle();
 
+      // 가짜의 기본 목록은 3 · 0 · 4다.
+      expect(find.text(AppStrings.matchWaitingCount(3)), findsOneWidget);
       expect(find.text(AppStrings.matchWaitingCount(0)), findsNothing);
     });
 
-    testWidgets('앱이 만든 목록은 18:00부터 22:00까지다', (tester) async {
+    testWidgets('시트는 시각마다 그 거리의 수를 그린다', (tester) async {
       await pumpRegister(tester);
+      await pickDistance(tester, TargetDistance.km5);
 
       await tester.tap(find.text(AppStrings.matchTimePlaceholder));
       await tester.pumpAndSettle();
 
-      expect(find.text('18:00'), findsOneWidget);
+      expect(find.text(AppStrings.matchWaitingCount(3)), findsOneWidget);
+      expect(find.text(AppStrings.matchWaitingCount(4)), findsOneWidget);
+    });
+  });
 
-      // 시트가 화면 절반이라 마지막 칸은 굴려야 나온다. 화면에 목록이 둘
-      // (등록 화면·시트)이라 시트 쪽을 짚어 굴린다.
-      final sheetList = find.ancestor(
-        of: find.text('18:00'),
-        matching: find.byType(ListView),
+  group('대기 인원 줄', () {
+    testWidgets('⚠️ 거리만 골랐을 때 합계가 등록 버튼 위에 선다', (tester) async {
+      // 가짜의 기본 목록 3 + 0 + 4 = 7
+      await pumpRegister(tester);
+      await pickDistance(tester, TargetDistance.km3);
+
+      final banner = find.text(AppStrings.matchWaitingTotal(3, 7));
+      expect(banner, findsOneWidget);
+      expect(
+        tester.getTopLeft(banner).dy,
+        lessThan(tester.getTopLeft(find.text(AppStrings.matchRegisterCta)).dy),
       );
-      await tester.drag(sheetList, const Offset(0, -400));
+    });
+
+    testWidgets('⚠️ 시간까지 고르면 그 줄이 사라진다', (tester) async {
+      // 시트에서 이미 그 시각의 수를 보고 고른 사람에게 같은 말을 한 번 더
+      // 적는 셈이다.
+      await pumpRegister(tester);
+      await pickDistance(tester, TargetDistance.km3);
+      await pickSlot(tester, '10:00');
+
+      expect(find.textContaining('대기중이에요'), findsNothing);
+    });
+
+    testWidgets('⚠️ 합계가 0이면 그 줄이 아예 없다', (tester) async {
+      final matches = FakeMatchRepository(
+        slotList: [
+          FakeMatchRepository.slotAt('10:00'),
+          FakeMatchRepository.slotAt('10:30'),
+        ],
+      );
+      await pumpRegister(tester, repository: matches);
+
+      await pickDistance(tester, TargetDistance.km3);
+
+      expect(find.textContaining('대기중이에요'), findsNothing);
+    });
+
+    testWidgets('⚠️ 합계 숫자가 자릿수대로 선다', (tester) async {
+      // 거리를 바꾸면 자릿수가 흔들린다. 고정폭이 아니면 줄이 튄다.
+      await pumpRegister(tester);
+      await pickDistance(tester, TargetDistance.km3);
+
+      final text = tester.widget<Text>(
+        find.text(AppStrings.matchWaitingTotal(3, 7)),
+      );
+      expect(
+        text.style?.fontFeatures,
+        contains(const FontFeature.tabularFigures()),
+      );
+    });
+
+    testWidgets('거리를 바꾸면 합계도 바뀐다', (tester) async {
+      final matches = FakeMatchRepository();
+      await pumpRegister(tester, repository: matches);
+      await pickDistance(tester, TargetDistance.km3);
+
+      matches.slotList = [FakeMatchRepository.slotAt('10:00', waiting: 12)];
+      await pickDistance(tester, TargetDistance.km10);
+
+      expect(find.text(AppStrings.matchWaitingTotal(10, 12)), findsOneWidget);
+    });
+  });
+
+  group('목록 조회 실패', () {
+    testWidgets('⚠️ 이유가 머문다 — 스낵바로 사라지지 않는다', (tester) async {
+      // 신청용 실패와 같은 자리에 담으면 화면이 스낵바를 띄우고 곧바로 지워서,
+      // 잠긴 이유가 한 프레임 만에 사라진다.
+      final matches = FakeMatchRepository()
+        ..slotsFailure = SlotLoadFailure.network;
+      await pumpRegister(tester, repository: matches);
+
+      await pickDistance(tester, TargetDistance.km3);
+      await tester.pump(const Duration(seconds: 5));
+
+      expect(find.text(AppStrings.matchSlotsLoadFailed), findsOneWidget);
+      expect(find.text(AppStrings.matchSlotsRetry), findsOneWidget);
+    });
+
+    testWidgets('다시 시도를 누르면 또 부른다', (tester) async {
+      final matches = FakeMatchRepository()
+        ..slotsFailure = SlotLoadFailure.network;
+      await pumpRegister(tester, repository: matches);
+      await pickDistance(tester, TargetDistance.km3);
+
+      matches.slotsFailure = null;
+      await tester.tap(find.text(AppStrings.matchSlotsRetry));
       await tester.pumpAndSettle();
-      expect(find.text('22:00'), findsOneWidget);
+
+      expect(matches.slotsCalls, 2);
+      expect(find.text(AppStrings.matchSlotsLoadFailed), findsNothing);
+    });
+
+    testWidgets('⚠️ 실패해도 거리 칩은 잠기지 않는다', (tester) async {
+      // 거리를 다시 고르는 것이 곧 다시 시도하는 길이다.
+      final matches = FakeMatchRepository()
+        ..slotsFailure = SlotLoadFailure.network;
+      await pumpRegister(tester, repository: matches);
+      await pickDistance(tester, TargetDistance.km3);
+
+      matches.slotsFailure = null;
+      await pickDistance(tester, TargetDistance.km10);
+
+      expect(matches.slotsCalls, 2);
+      expect(find.text(AppStrings.matchSlotsLoadFailed), findsNothing);
     });
   });
 
   group('신청', () {
     testWidgets('⚠️ 서버가 준 문자열을 그대로 보낸다', (tester) async {
-      // 앱이 "오늘 + 19:00"을 조립하면 자정 근처에서 엉뚱한 날짜가 나간다.
+      // 앱이 "오늘 + 10:00"을 조립하면 자정 근처에서 엉뚱한 날짜가 나간다.
       final matches = await pumpRegister(tester);
+      final expected = matches.slotList.first.raw;
 
-      await pickSlot(tester, '19:00');
       await pickDistance(tester, TargetDistance.km5);
+      await pickSlot(tester, '10:00');
       await tapCta(tester);
 
-      expect(matches.appliedSlotRaw, nineteen);
+      expect(matches.appliedSlotRaw, expected);
       expect(matches.appliedDistance, TargetDistance.km5);
     });
 
@@ -204,8 +350,8 @@ void main() {
       // 모집 중에는 갈 화면이 따로 없다. 홈 히어로가 그 상태를 보여준다.
       await pumpRegister(tester);
 
-      await pickSlot(tester, '19:00');
       await pickDistance(tester, TargetDistance.km5);
+      await pickSlot(tester, '10:00');
       await tapCta(tester);
 
       expect(find.byType(HomePage), findsOneWidget);
@@ -219,8 +365,8 @@ void main() {
       );
       await pumpRegister(tester, repository: matches);
 
-      await pickSlot(tester, '19:00');
       await pickDistance(tester, TargetDistance.km5);
+      await pickSlot(tester, '10:00');
       await tester.tap(find.text(AppStrings.matchRegisterCta));
       await tester.pumpAndSettle();
 
@@ -237,8 +383,8 @@ void main() {
       );
       await pumpRegister(tester, repository: matches);
 
-      await pickSlot(tester, '19:00');
       await pickDistance(tester, TargetDistance.km5);
+      await pickSlot(tester, '10:00');
       await tester.tap(find.text(AppStrings.matchRegisterCta));
       await tester.pumpAndSettle();
 
@@ -252,8 +398,8 @@ void main() {
       );
       await pumpRegister(tester, repository: matches);
 
-      await pickSlot(tester, '19:00');
       await pickDistance(tester, TargetDistance.km5);
+      await pickSlot(tester, '10:00');
 
       // 이 사이에 마감됐다 — 서버가 409로 알려주고, 화면이 그 슬롯만 잠근다.
       await tester.tap(find.text(AppStrings.matchRegisterCta));
@@ -269,8 +415,8 @@ void main() {
       final matches = FakeMatchRepository(applyFailure: MatchFailure.network);
       await pumpRegister(tester, repository: matches);
 
-      await pickSlot(tester, '19:00');
       await pickDistance(tester, TargetDistance.km5);
+      await pickSlot(tester, '10:00');
       await tester.tap(find.text(AppStrings.matchRegisterCta));
       await tester.pumpAndSettle();
 

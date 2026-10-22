@@ -666,6 +666,33 @@ abstract final class AppStrings {
     return '$hh:$mm';
   }
 
+  /// 거리를 고르기 전에 시간 선택기가 잠긴 이유.
+  ///
+  /// ⚠️ 목록을 받으려면 거리가 먼저 있어야 한다 — 조회가 거리를 필수로 받는다.
+  static const matchSlotsLockedByDistance = '거리를 먼저 골라주세요';
+
+  /// 고를 수 있는 시간이 하나도 없다. 22시가 지났거나 전부 마감이다.
+  ///
+  /// ⚠️ **목록이 비지 않아도 여기 온다.** 전부 `selectable: false`면 시트를
+  /// 열어 봐야 `마감`만 늘어서고 등록 버튼은 영영 잠긴 채다.
+  static const matchSlotsEmpty = '오늘은 신청할 수 있는 시간이 없어요';
+
+  static const matchSlotsLoadFailed = '시간대를 불러오지 못했어요';
+  static const matchSlotsRetry = '다시 시도';
+  static const matchSlotsLoading = '시간대를 불러오는 중이에요';
+
+  /// `현재 3km에 7명의 러너가 대기중이에요` — **거리만 골랐을 때** 등록 버튼
+  /// 위에 서는 줄(시안 `158:3186`).
+  ///
+  /// ⚠️ 시안 원문은 `현재 18:00에 3명의…`로 **시각**을 적는다. 거리를 먼저
+  /// 고르게 되면서 그 자리가 거리로 바뀌었다 — 시각은 아직 안 골랐고, 이 줄이
+  /// 답하는 질문은 "이 거리에 사람이 있는가"다. 어느 시각인지는 시트가 답한다.
+  ///
+  /// ⚠️ **시간까지 고르면 그리지 않는다.** 시트에서 이미 그 시각의 수를 보고
+  /// 고른 사람에게 같은 말을 한 번 더 적는 셈이다.
+  static String matchWaitingTotal(int km, int count) =>
+      '현재 ${km}km에 $count명의 러너가 대기중이에요';
+
   /// `3명 대기` — 사회적 증거다. 0명이면 붙이지 않는다.
   static String matchWaitingCount(int count) => '$count명 대기';
 

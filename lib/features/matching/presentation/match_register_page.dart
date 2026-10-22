@@ -38,15 +38,9 @@ class MatchRegisterPage extends ConsumerStatefulWidget {
 }
 
 class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
-  @override
-  void initState() {
-    super.initState();
-    // 화면이 서기 전에 provider를 만지면 안 된다.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ref.read(matchRegisterProvider.notifier).loadSlots();
-    });
-  }
+  // ⚠️ **진입에 목록을 받지 않는다.** 조회가 거리를 반드시 받는데 거리는
+  // `null`로 시작하므로, 부를 수 있는 가장 이른 시점이 **거리를 고른 순간**이다
+  // (`selectDistance`).
 
   @override
   Widget build(BuildContext context) {
@@ -73,9 +67,7 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
     });
 
     final selected = state.selected;
-    // 슬롯을 아직 안 골랐거나 서버가 안 알려주면 0으로 본다. `int?`라 그대로
-    // 넘기면 배너가 "null명 대기"를 그린다.
-    final waiting = selected?.waitingCount ?? 0;
+    final distance = state.distance;
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -100,33 +92,9 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                   AppSpacing.space6,
                 ),
                 children: [
-                  _Label(AppStrings.matchTimeLabel),
-                  const SizedBox(height: AppSpacing.space3),
-
-                  _SlotTrigger(
-                    label: selected == null
-                        ? AppStrings.matchTimePlaceholder
-                        : AppStrings.matchSlotTime(selected.startAt),
-                    onTap: _pickSlot,
-                  ),
-
-                  // ⚠️ 대기 인원을 **시각 카드에서 떼어냈다.** 시안(`158:3186`)이
-                  // 별도 줄로 둔다 — 시각은 내가 고르는 것이고 대기 인원은
-                  // 그 결과라, 한 줄에 섞으면 무엇이 입력인지 흐려진다.
-                  if (waiting > 0) ...[
-                    const SizedBox(height: AppSpacing.space3),
-                    _WaitingBanner(count: waiting),
-                  ],
-                  const SizedBox(height: AppSpacing.space3),
-
-                  Text(
-                    AppStrings.matchTimeHint,
-                    style: AppTypographyV2.body12.copyWith(
-                      color: colors.textTertiary,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.space6),
-
+                  // ⚠️ **거리가 시간보다 위에 선다.** 슬롯 목록을 받으려면
+                  // 거리가 먼저 있어야 한다(조회가 필수로 받는다) — 화면
+                  // 순서가 데이터가 흐르는 순서와 같아진다.
                   _Label(AppStrings.matchDistanceLabel),
                   const SizedBox(height: AppSpacing.space3),
 
@@ -137,15 +105,57 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                           child: PresetChipV2(
                             label: AppStrings.matchDistanceText(distance.km),
                             selected: state.distance == distance,
-                            onTap: () => ref
-                                .read(matchRegisterProvider.notifier)
-                                .selectDistance(distance),
+                            // ⚠️ **어떤 상태에서도 잠그지 않는다.** 거리를
+                            // 다시 고르는 것이 곧 다시 시도하는 길이다.
+                            onTap: () => unawaited(
+                              ref
+                                  .read(matchRegisterProvider.notifier)
+                                  .selectDistance(distance),
+                            ),
                           ),
                         ),
                         if (distance != TargetDistance.values.last)
                           const SizedBox(width: AppSpacing.space2),
                       ],
                     ],
+                  ),
+                  const SizedBox(height: AppSpacing.space6),
+
+                  _Label(AppStrings.matchTimeLabel),
+                  const SizedBox(height: AppSpacing.space3),
+
+                  _SlotTrigger(
+                    label: selected == null
+                        ? AppStrings.matchTimePlaceholder
+                        : AppStrings.matchSlotTime(selected.startAt),
+                    // 고를 것이 없으면 열지 않는다. 아래 줄이 이유를 말한다.
+                    onTap: state.slotsReady ? _pickSlot : null,
+                  ),
+
+                  // ⚠️ **잠긴 이유를 반드시 적는다.** 눌러도 아무 일이 없고
+                  // 까닭도 없으면 고장난 화면으로 읽힌다.
+                  if (!state.slotsReady) ...[
+                    const SizedBox(height: AppSpacing.space2),
+                    _SlotsLockedNote(
+                      message: _lockedMessage(state),
+                      // 실패했을 때만 다시 시도를 붙인다. 거리를 안 고른
+                      // 사람에게는 누를 것이 거리 칩이다.
+                      onRetry: state.loadFailure != null && distance != null
+                          ? () => unawaited(
+                              ref
+                                  .read(matchRegisterProvider.notifier)
+                                  .selectDistance(distance),
+                            )
+                          : null,
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.space3),
+
+                  Text(
+                    AppStrings.matchTimeHint,
+                    style: AppTypographyV2.body12.copyWith(
+                      color: colors.textTertiary,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.space6),
 
@@ -181,6 +191,25 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                 ),
               ),
 
+            // ⚠️ **거리만 골랐을 때만 선다.** 시간까지 고른 사람은 시트에서
+            // 이미 그 시각의 수를 보고 골랐다 — 같은 말을 한 번 더 적는 셈이다.
+            //
+            // ⚠️ 자리를 미리 잡지 않는다. 늘 비워 두면 0명일 때 화면에 구멍이
+            // 남는다. 나타날 때 CTA가 한 번 밀리는 쪽을 골랐다.
+            if (distance != null && selected == null && state.waitingTotal > 0)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.space4,
+                  0,
+                  AppSpacing.space4,
+                  AppSpacing.space3,
+                ),
+                child: _WaitingBanner(
+                  km: distance.km,
+                  count: state.waitingTotal,
+                ),
+              ),
+
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.space4,
@@ -199,6 +228,17 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
         ),
       ),
     );
+  }
+
+  /// 시간 선택기가 왜 잠겼는지.
+  ///
+  /// **순서가 규칙이다.** 거리를 안 고른 것이 가장 구체적인 사정이고, 실패가
+  /// 그다음, 비었음이 마지막이다 — 뒤로 갈수록 "그래서 고를 수 없다"에 가깝다.
+  static String _lockedMessage(MatchRegisterState state) {
+    if (state.distance == null) return AppStrings.matchSlotsLockedByDistance;
+    if (state.loadingSlots) return AppStrings.matchSlotsLoading;
+    if (state.loadFailure != null) return AppStrings.matchSlotsLoadFailed;
+    return AppStrings.matchSlotsEmpty;
   }
 
   Future<void> _pickSlot() async {
@@ -323,9 +363,45 @@ class _SlotTrigger extends StatelessWidget {
 }
 
 /// 고른 시각에 몇 명이 기다리는지. 시안 `158:3186`.
-class _WaitingBanner extends StatelessWidget {
-  const _WaitingBanner({required this.count});
+/// 시간 선택기가 잠긴 이유 한 줄. 실패했을 때만 다시 시도가 붙는다.
+class _SlotsLockedNote extends StatelessWidget {
+  const _SlotsLockedNote({required this.message, this.onRetry});
 
+  final String message;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            message,
+            style: AppTypographyV2.body12.copyWith(color: colors.textTertiary),
+          ),
+        ),
+        if (onRetry != null)
+          TextButton(
+            onPressed: onRetry,
+            child: Text(
+              AppStrings.matchSlotsRetry,
+              style: AppTypographyV2.body12.copyWith(color: colors.primary),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _WaitingBanner extends StatelessWidget {
+  const _WaitingBanner({required this.km, required this.count});
+
+  /// 고른 거리. 문구가 "현재 3km에"로 시작한다.
+  final int km;
+
+  /// **그 거리의 모든 시각을 더한 값**이다. 한 시각의 수가 아니다.
   final int count;
 
   @override
@@ -350,9 +426,15 @@ class _WaitingBanner extends StatelessWidget {
               color: colors.matchWaiting,
             ),
             const SizedBox(width: AppSpacing.space3),
-            Text(
-              AppStrings.matchWaitingCount(count),
-              style: AppTypographyV2.body11.copyWith(color: colors.textPrimary),
+            Expanded(
+              child: Text(
+                AppStrings.matchWaitingTotal(km, count),
+                style: AppTypographyV2.body11.copyWith(
+                  color: colors.textPrimary,
+                  // 거리를 바꾸면 자릿수가 흔들린다. 고정폭이라야 줄이 안 튄다.
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
             ),
           ],
         ),

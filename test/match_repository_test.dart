@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/data/http_match_repository.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
@@ -161,110 +160,35 @@ void main() {
     });
   });
 
-  group('앱이 만드는 시간대', () {
-    // ⚠️ 대기 인원 조회(14번)가 MVP 범위 밖이다. 목록을 못 받아도 신청은
-    // 돼야 하므로, 명세가 고정한 규칙으로 앱이 만든다.
-    final noon = DateTime(2026, 9, 16, 12);
-
-    test('18:00~22:00을 30분 간격으로 채운다', () {
-      final slots = MatchSlot.todayRange(nowWall: noon);
-
-      expect(slots, hasLength(9));
-      // ⚠️ **순간(UTC)으로 비교한다.** `startAt`은 기기 시각이라 로컬 벽시계로
-      // 비교하면 CI 시간대에 따라 답이 달라진다. 18:00 KST = 09:00 UTC.
-      expect(slots.first.startAt.toUtc(), DateTime.utc(2026, 9, 16, 9));
-      expect(slots.last.startAt.toUtc(), DateTime.utc(2026, 9, 16, 13));
-    });
-
-    test('⚠️ 화면에는 항상 한국 시각이 뜬다', () {
-      // 기기가 GMT여도 `18:00 슬롯`이다. 슬롯은 고정된 한국 시각이라
-      // 기기 시간대로 옮겨 그리면 있지도 않은 시각이 화면에 뜬다.
-      final slots = MatchSlot.todayRange(nowWall: noon);
-
-      expect(AppStrings.matchSlotTime(slots.first.startAt), '18:00');
-      expect(AppStrings.matchSlotTime(slots.last.startAt), '22:00');
-    });
-
-    test('서버 표기를 그대로 만든다', () {
-      // 밀리초가 붙으면 서버 형식과 어긋난다.
-      expect(
-        MatchSlot.todayRange(nowWall: noon).first.raw,
-        '2026-09-16T18:00:00',
-      );
-    });
-
-    test('⚠️ 한국 시간대 기기에서도 지난 시간대만 잠긴다', () {
-      // **운영에서 터진 버그.** `KstTime.nowWall()` 은 UTC 플래그를 달고 오는데
-      // `todayRange` 가 로컬 플래그로 슬롯을 만들었다. `isBefore` 는 플래그를 보고
-      // '순간'을 비교하므로 **시차의 두 배(18시간)** 만큼 어긋났고, 한국에 있는
-      // 사용자에게는 하루 종일 아홉 칸이 전부 마감이었다.
-      //
-      // 기존 테스트가 못 잡은 이유는 `nowWall` 을 `DateTime(...)`(로컬)으로
-      // 넘겨서다 — 양쪽이 같은 플래그라 어긋날 일이 없었다. 에뮬레이터도
-      // 시간대가 UTC 라 로컬 == UTC 였다.
-      final slots = MatchSlot.todayRange(
-        nowWall: DateTime.utc(2026, 10, 7, 19, 10),
-      );
-
-      expect(slots.map((slot) => slot.selectable).toList(), [
-        false,
-        false,
-        false,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-      ]);
-    });
-
-    test('⚠️ nowWall 의 isUtc 플래그가 결과를 바꾸지 않는다', () {
-      // 벽시계 값은 플래그가 무엇이든 같은 뜻이다. 비교가 플래그에 기대면
-      // 부르는 쪽이 어떻게 만들었느냐로 답이 갈린다 — 그것이 이 버그였다.
-      List<bool> openOf(DateTime nowWall) => MatchSlot.todayRange(
-        nowWall: nowWall,
-      ).map((slot) => slot.selectable).toList();
-
-      expect(
-        openOf(DateTime.utc(2026, 10, 7, 19, 10)),
-        openOf(DateTime(2026, 10, 7, 19, 10)),
-      );
-    });
-
-    test('지난 시간대는 잠긴 채로 온다', () {
-      final slots = MatchSlot.todayRange(
-        nowWall: DateTime(2026, 9, 16, 19, 10),
-      );
-
-      expect(slots.first.selectable, isFalse);
-      expect(slots.last.selectable, isTrue);
-    });
-
-    test('⚠️ 마감 오프셋을 앱이 갖지 않는다', () {
-      // 진짜 마감은 시작 10분 전이지만 그것은 운영값이다. 시작 직전까지
-      // 열어 두고, 마감된 슬롯은 서버가 409로 거절한다.
-      final slots = MatchSlot.todayRange(
-        nowWall: DateTime(2026, 9, 16, 17, 55),
-      );
-
-      expect(slots.first.selectable, isTrue);
-    });
+  group('슬롯 하나', () {
+    // ⚠️ 목록은 더 이상 앱이 만들지 않는다. **서버가 준다**(명세 No 16,
+    // `slot_dto.dart`). 벽시계로 마감을 계산하던 테스트 여덟은 지킬 대상이
+    // 없어져 함께 갔다 — 운영에서 아홉 칸이 하루 종일 마감으로 떴던 그 계산이다.
+    //
+    // 여기 남은 것은 **그 계산과 무관한** 규칙이다.
 
     test('잠근 사본은 나머지를 그대로 둔다', () {
-      final slot = MatchSlot.todayRange(nowWall: noon).first.closed();
+      final slot = MatchSlot(
+        raw: '2026-09-16T18:00:00',
+        startAt: DateTime(2026, 9, 16, 18),
+        waitingCount: 3,
+        selectable: true,
+      );
 
-      expect(slot.selectable, isFalse);
-      expect(slot.raw, '2026-09-16T18:00:00');
+      final closed = slot.closed();
+
+      expect(closed.selectable, isFalse);
+      expect(closed.raw, '2026-09-16T18:00:00');
+      expect(closed.waitingCount, 3, reason: '대기 인원은 그대로다');
     });
   });
 
   group('가짜 저장소', () {
     test('⚠️ 신청은 받은 문자열을 손대지 않고 되돌려 보낸다', () {
+      // **서버가 준 문자열이 그대로 나가야 한다.** 다시 조립하면 화면에 그린
+      // 시각과 서버로 가는 시각이 갈린다.
       final repository = FakeMatchRepository();
-      final slot = MatchSlot.todayRange(
-        nowWall: DateTime(2026, 9, 15, 12),
-      ).firstWhere((slot) => slot.selectable);
+      final slot = repository.slotList.first;
 
       return repository
           .apply(slotRaw: slot.raw, distance: TargetDistance.km5)
