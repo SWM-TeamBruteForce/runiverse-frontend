@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/profile/presentation/profile_cover.dart';
+import 'package:runiverse/features/profile/presentation/profile_cover_action.dart';
 import 'package:runiverse/features/profile/presentation/profile_header.dart';
 import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
@@ -80,7 +85,32 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const ProfileCover(),
+                // ⚠️ **설정 버튼이 커버 위에 선다**(시안 `158:3938`, y=54).
+                // 2026-10-22에는 "밝은 사진에서 흰 아이콘이 안 보인다"며 커버
+                // 아래로 내렸는데, 시안이 쓰던 **어두운 원**을 함께 가져오면서
+                // 그 이유가 사라졌다(`ProfileCoverAction`).
+                //
+                // 커버와 겹쳐야 하므로 `Stack`이다. 커버는 그대로 두고 화면이
+                // 얹는다 — 커버가 라우팅을 알 이유가 없다.
+                Stack(
+                  children: [
+                    const ProfileCover(),
+                    Positioned(
+                      // ⚠️ **상태바를 피한다.** 커버가 그 뒤까지 올라가므로
+                      // 위 여백을 안 주면 시계와 겹친다.
+                      top:
+                          MediaQuery.paddingOf(context).top + AppSpacing.space2,
+                      right: AppSpacing.space4,
+                      child: ProfileCoverAction(
+                        icon: AppIcons.settings,
+                        label: AppStrings.settingsTitle,
+                        // 편집과 달리 **돌아와서 다시 받아오지 않는다.** 설정은
+                        // 프로필 요약(닉네임·사진·소개글)을 건드리지 않는다.
+                        onTap: () => context.push(AppRoutes.settings),
+                      ),
+                    ),
+                  ],
+                ),
                 ProfileHeader(
                   nickname: summary?.nickname,
                   introduction: summary?.introduction,

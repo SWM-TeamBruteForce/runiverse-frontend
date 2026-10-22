@@ -9,6 +9,8 @@ import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
@@ -593,15 +595,61 @@ void main() {
       expect(background.fetchCalls, 2);
     });
 
-    testWidgets('⚠️ 설정 버튼이 커버 위에 있지 않다', (tester) async {
-      // 사진 위 흰 아이콘은 밝은 사진에서 안 보인다(2026-10-22 결정).
+    testWidgets('⚠️ 설정 버튼이 커버 위 우상단에 선다', (tester) async {
+      // 시안 `158:3938`이 커버 위 y=54에 둔다. 2026-10-22에는 "밝은 사진에서
+      // 흰 아이콘이 안 보인다"는 이유로 아래로 내렸는데, **시안이 쓰는 어두운
+      // 원**(`coverScrim`)을 함께 옮기면서 그 이유가 사라졌다.
       await pumpProfile(tester, onboarded: true);
 
       final cover = tester.getRect(find.byType(ProfileCover));
       final settings = tester.getRect(
         find.bySemanticsLabel(AppStrings.settingsTitle),
       );
-      expect(settings.top, greaterThanOrEqualTo(cover.bottom));
+
+      expect(settings.bottom, lessThan(cover.bottom), reason: '커버 안에 있다');
+      expect(settings.center.dx, greaterThan(cover.center.dx), reason: '오른쪽');
+      // ⚠️ **상태바를 피한다.** 커버가 상태바 뒤까지 올라가므로, 위 여백을
+      // 안 주면 시계와 겹친다.
+      expect(settings.top, greaterThan(cover.top));
+    });
+
+    testWidgets('⚠️ 설정 버튼 뒤에 어두운 원이 깔린다', (tester) async {
+      // 없으면 밝은 사진에서 흰 아이콘이 그대로 묻힌다 — 커버 위로 올리면서
+      // 같이 와야 하는 장치다.
+      await pumpProfile(tester, onboarded: true);
+
+      final circle = tester.widget<DecoratedBox>(
+        find
+            .descendant(
+              of: find.bySemanticsLabel(AppStrings.settingsTitle),
+              matching: find.byType(DecoratedBox),
+            )
+            .first,
+      );
+      final decoration = circle.decoration as BoxDecoration;
+
+      expect(
+        decoration.color,
+        AppTheme.dark().extension<AppColorsV2>()!.coverScrim,
+      );
+      expect(decoration.shape, BoxShape.circle);
+    });
+
+    testWidgets('⚠️ 닉네임이 커버에 가깝다', (tester) async {
+      // 설정 버튼이 오른쪽 기둥에서 빠지면서 그 아래 줄이 전부 올라온다.
+      // 멀어지면 사진과 이름이 두 덩어리로 보인다.
+      await pumpProfile(
+        tester,
+        onboarded: true,
+        summary: FakeProfileRepository(nickname: '별밤러너'),
+      );
+
+      final cover = tester.getRect(find.byType(ProfileCover));
+      final nickname = tester.getRect(find.text('별밤러너'));
+
+      // 시안(`158:3905`)은 커버 끝 y=200, 닉네임 윗변 y≈265 — **약 65px**이다.
+      // 설정 버튼을 내려 두던 동안에는 120px이었다.
+      expect(nickname.top - cover.bottom, lessThan(80));
     });
 
     testWidgets('⚠️ 아바타가 커버에 걸친다', (tester) async {
