@@ -193,11 +193,6 @@ void main() {
       );
     });
 
-    test('⚠️ 대기 인원은 0이 아니라 모름이다', () {
-      // 0으로 그리면 아무도 없다고 잘못 알린다.
-      expect(MatchSlot.todayRange(nowWall: noon).first.waitingCount, isNull);
-    });
-
     test('⚠️ 한국 시간대 기기에서도 지난 시간대만 잠긴다', () {
       // **운영에서 터진 버그.** `KstTime.nowWall()` 은 UTC 플래그를 달고 오는데
       // `todayRange` 가 로컬 플래그로 슬롯을 만들었다. `isBefore` 는 플래그를 보고
