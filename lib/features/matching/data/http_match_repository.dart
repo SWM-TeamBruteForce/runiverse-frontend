@@ -4,8 +4,11 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
+import 'package:runiverse/features/matching/data/slot_dto.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/match_repository.dart';
+import 'package:runiverse/features/matching/domain/match_slot.dart';
+import 'package:runiverse/features/matching/domain/slot_load_failure.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 
 /// 진짜 서버를 부르는 [MatchRepository]. **여기가 응답 형식을 아는 유일한 곳이다.**
@@ -19,6 +22,49 @@ class HttpMatchRepository implements MatchRepository {
   final AuthRepository _auth;
 
   static const _path = '/api/v1/running-matches';
+
+  @override
+  Future<List<MatchSlot>> slots({required TargetDistance distance}) async {
+    // ⚠️ **`_authorized`를 쓰지 않는다.** 그쪽은 `MatchException`을 던지는데,
+    // 조회는 자기 갈래를 갖는다(아래 [_loadExceptionOf]). 401 한 번 갱신은
+    // 여기서 직접 한다.
+    final stored = await _store.read();
+    var token = stored.accessToken;
+    if (token == null) {
+      throw const SlotLoadException(SlotLoadFailure.sessionExpired);
+    }
+
+    Future<Response<Map<String, dynamic>>> call(String accessToken) =>
+        _dio.get<Map<String, dynamic>>(
+          '$_path/slots',
+          // ⚠️ `date`는 보내지 않는다 — 오늘뿐이고, 보내면 형식이 틀렸을 때
+          // 400을 자초한다. 생략하면 서버가 오늘로 읽는다.
+          queryParameters: {'targetDistanceMeters': distance.meters},
+          options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+        );
+
+    try {
+      Response<Map<String, dynamic>> response;
+      try {
+        response = await call(token);
+      } on DioException catch (error) {
+        if (error.response?.statusCode != 401) rethrow;
+        token = await _refreshed(stored.refreshToken);
+        response = await call(token);
+      }
+      return matchSlotsFromJson(response.data);
+    } on DioException catch (error) {
+      throw SlotLoadException(_loadExceptionOf(error));
+    } on MatchException catch (error) {
+      // ⚠️ `_refreshed`가 신청용 갈래로 던진다. 그대로 새어 나가면 화면이
+      // 조회 실패를 **신청 실패로 읽어** 스낵바를 띄우고 바로 지운다.
+      throw SlotLoadException(
+        error.failure == MatchFailure.sessionExpired
+            ? SlotLoadFailure.sessionExpired
+            : SlotLoadFailure.network,
+      );
+    }
+  }
 
   @override
   Future<int> apply({
@@ -87,6 +133,29 @@ class HttpMatchRepository implements MatchRepository {
       'INVALID_REQUEST' => const MatchException(MatchFailure.invalidRequest),
       _ => const MatchException(MatchFailure.unknown),
     };
+  }
+
+  /// 조회 실패를 읽는다. **[exceptionOf]를 쓰지 않는다** — 저쪽은 404를
+  /// `nothingToCancel`로 묶어서, 그대로 쓰면 목록을 못 받은 사람에게
+  /// "취소할 활성 신청이 없어요"가 뜬다.
+  static SlotLoadFailure _loadExceptionOf(DioException error) {
+    if (error.type != DioExceptionType.badResponse) {
+      return SlotLoadFailure.network;
+    }
+
+    final status = error.response?.statusCode ?? 0;
+    if (status == 401) return SlotLoadFailure.sessionExpired;
+    // 5xx는 사용자가 할 일이 네트워크 실패와 같다 — 다시 눌러보는 것뿐이다.
+    if (status >= 500) return SlotLoadFailure.network;
+
+    final body = error.response?.data;
+    if (body is Map && body['code'] == 'INVALID_REQUEST') {
+      // 앱은 거리 셋만 보내고 날짜는 안 보낸다. 여기 오면 **앱 규칙이 서버와
+      // 어긋났다는 신호**라 남긴다. 화면에는 일반 실패로만 보인다.
+      debugPrint('[match] 슬롯 조회를 서버가 거절했다 · ${body['message']}');
+      return SlotLoadFailure.invalidRequest;
+    }
+    return SlotLoadFailure.unknown;
   }
 
   /// 서버는 시간대 없는 한국 시각을 준다. [KstTime]이 그것을 기기 시각으로

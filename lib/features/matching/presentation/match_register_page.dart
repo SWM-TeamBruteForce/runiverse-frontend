@@ -15,6 +15,7 @@ import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/core/widgets/v2/preset_chip.dart';
 import 'package:runiverse/core/widgets/v2/surface_card.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
+import 'package:runiverse/features/matching/domain/slot_load_failure.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
@@ -41,10 +42,13 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
   @override
   void initState() {
     super.initState();
+    // ⚠️ **들어오자마자 오늘이 끝났는지 본다.** 거리를 고를 때까지 기다리면,
+    // 마감된 뒤에 들어온 사람이 거리를 눌러 봐야 그 사실을 안다.
+    //
     // 화면이 서기 전에 provider를 만지면 안 된다.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(matchRegisterProvider.notifier).loadSlots();
+      unawaited(_probe());
     });
   }
 
@@ -68,14 +72,18 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
       failure,
     ) {
       if (failure == null) return;
-      _tell(failure, ref.read(matchRegisterProvider).cooldownUntil);
+      // ⚠️ **마감과 이탈 제재는 여기서 다루지 않는다.** 둘은 팝업이고, 어느
+      // 팝업인지는 재조회가 끝나야 갈린다 — `_submit`이 그 뒤에 띄운다.
+      if (failure == MatchFailure.slotClosed ||
+          failure == MatchFailure.cooldown) {
+        return;
+      }
+      _tellInSnackBar(failure, ref.read(matchRegisterProvider).cooldownUntil);
       ref.read(matchRegisterProvider.notifier).clearFailure();
     });
 
     final selected = state.selected;
-    // 슬롯을 아직 안 골랐거나 서버가 안 알려주면 0으로 본다. `int?`라 그대로
-    // 넘기면 배너가 "null명 대기"를 그린다.
-    final waiting = selected?.waitingCount ?? 0;
+    final distance = state.distance;
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -100,33 +108,9 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                   AppSpacing.space6,
                 ),
                 children: [
-                  _Label(AppStrings.matchTimeLabel),
-                  const SizedBox(height: AppSpacing.space3),
-
-                  _SlotTrigger(
-                    label: selected == null
-                        ? AppStrings.matchTimePlaceholder
-                        : AppStrings.matchSlotTime(selected.startAt),
-                    onTap: _pickSlot,
-                  ),
-
-                  // ⚠️ 대기 인원을 **시각 카드에서 떼어냈다.** 시안(`158:3186`)이
-                  // 별도 줄로 둔다 — 시각은 내가 고르는 것이고 대기 인원은
-                  // 그 결과라, 한 줄에 섞으면 무엇이 입력인지 흐려진다.
-                  if (waiting > 0) ...[
-                    const SizedBox(height: AppSpacing.space3),
-                    _WaitingBanner(count: waiting),
-                  ],
-                  const SizedBox(height: AppSpacing.space3),
-
-                  Text(
-                    AppStrings.matchTimeHint,
-                    style: AppTypographyV2.body12.copyWith(
-                      color: colors.textTertiary,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.space6),
-
+                  // ⚠️ **거리가 시간보다 위에 선다.** 슬롯 목록을 받으려면
+                  // 거리가 먼저 있어야 한다(조회가 필수로 받는다) — 화면
+                  // 순서가 데이터가 흐르는 순서와 같아진다.
                   _Label(AppStrings.matchDistanceLabel),
                   const SizedBox(height: AppSpacing.space3),
 
@@ -137,15 +121,64 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                           child: PresetChipV2(
                             label: AppStrings.matchDistanceText(distance.km),
                             selected: state.distance == distance,
-                            onTap: () => ref
-                                .read(matchRegisterProvider.notifier)
-                                .selectDistance(distance),
+                            // ⚠️ **어떤 상태에서도 잠그지 않는다.** 거리를
+                            // 다시 고르는 것이 곧 다시 시도하는 길이다.
+                            onTap: () => unawaited(
+                              ref
+                                  .read(matchRegisterProvider.notifier)
+                                  .selectDistance(distance),
+                            ),
                           ),
                         ),
                         if (distance != TargetDistance.values.last)
                           const SizedBox(width: AppSpacing.space2),
                       ],
                     ],
+                  ),
+                  const SizedBox(height: AppSpacing.space6),
+
+                  _Label(AppStrings.matchTimeLabel),
+                  const SizedBox(height: AppSpacing.space3),
+
+                  _SlotTrigger(
+                    label: selected == null
+                        ? AppStrings.matchTimePlaceholder
+                        : AppStrings.matchSlotTime(selected.startAt),
+                    // 고를 것이 없으면 열지 않는다. 아래 줄이 이유를 말한다.
+                    onTap: state.slotsReady ? _pickSlot : null,
+                  ),
+
+                  // ⚠️ **잠긴 이유를 반드시 적는다.** 눌러도 아무 일이 없고
+                  // 까닭도 없으면 고장난 화면으로 읽힌다.
+                  if (!state.slotsReady) ...[
+                    const SizedBox(height: AppSpacing.space2),
+                    _SlotsLockedNote(
+                      message: _lockedMessage(state),
+                      // 실패했을 때만 다시 시도를 붙인다. 거리를 안 고른
+                      // 사람에게는 누를 것이 거리 칩이다.
+                      //
+                      // ⚠️ **세션 만료에는 안 붙인다.** 눌러 봐야 같은 답이고,
+                      // 할 일은 다시 로그인하는 것이라 엉뚱한 길을 권하게 된다.
+                      onRetry:
+                          state.loadFailure != null &&
+                              state.loadFailure !=
+                                  SlotLoadFailure.sessionExpired &&
+                              distance != null
+                          ? () => unawaited(
+                              ref
+                                  .read(matchRegisterProvider.notifier)
+                                  .selectDistance(distance),
+                            )
+                          : null,
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.space3),
+
+                  Text(
+                    AppStrings.matchTimeHint,
+                    style: AppTypographyV2.body12.copyWith(
+                      color: colors.textTertiary,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.space6),
 
@@ -181,6 +214,25 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                 ),
               ),
 
+            // ⚠️ **거리만 골랐을 때만 선다.** 시간까지 고른 사람은 시트에서
+            // 이미 그 시각의 수를 보고 골랐다 — 같은 말을 한 번 더 적는 셈이다.
+            //
+            // ⚠️ 자리를 미리 잡지 않는다. 늘 비워 두면 0명일 때 화면에 구멍이
+            // 남는다. 나타날 때 CTA가 한 번 밀리는 쪽을 골랐다.
+            if (distance != null && selected == null && state.waitingTotal > 0)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.space4,
+                  0,
+                  AppSpacing.space4,
+                  AppSpacing.space3,
+                ),
+                child: _WaitingBanner(
+                  km: distance.km,
+                  count: state.waitingTotal,
+                ),
+              ),
+
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.space4,
@@ -201,6 +253,113 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
     );
   }
 
+  /// 시간 선택기가 왜 잠겼는지.
+  ///
+  /// **순서가 규칙이다.** 거리를 안 고른 것이 가장 구체적인 사정이고, 실패가
+  /// 그다음, 비었음이 마지막이다 — 뒤로 갈수록 "그래서 고를 수 없다"에 가깝다.
+  static String _lockedMessage(MatchRegisterState state) {
+    if (state.distance == null) return AppStrings.matchSlotsLockedByDistance;
+    if (state.loadingSlots) return AppStrings.matchSlotsLoading;
+    // ⚠️ **세션 만료를 따로 말한다.** "불러오지 못했어요"로 묶으면 눌러도
+    // 영원히 같은 화면이고, 빠져나오려면 다시 로그인해야 한다는 걸 알 길이
+    // 없다. 신청 경로가 같은 상황에서 이미 이렇게 말한다.
+    if (state.loadFailure == SlotLoadFailure.sessionExpired) {
+      return AppStrings.matchFailedExpired;
+    }
+    if (state.loadFailure != null) return AppStrings.matchSlotsLoadFailed;
+    return AppStrings.matchSlotsEmpty;
+  }
+
+  /// 들어오자마자 오늘 뭐가 남았는지 본다.
+  Future<void> _probe() async {
+    await ref.read(matchRegisterProvider.notifier).probeToday();
+    if (!mounted) return;
+    if (ref.read(matchRegisterProvider).closedForToday) {
+      await _tellClosedToday();
+    }
+  }
+
+  /// 오늘은 더 고를 것이 없다. **홈으로 내보낸다** — 이 화면에서 할 수 있는
+  /// 일이 없다.
+  Future<void> _tellClosedToday() async {
+    await showDialog<void>(
+      context: context,
+      // 닫을 길이 버튼 하나뿐이다. 바깥을 눌러 닫으면 잠긴 화면에 그대로
+      // 남아, 왜 아무것도 못 고르는지 모른 채 서 있게 된다.
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text(AppStrings.matchClosedTitle),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _TimePolicy(),
+              SizedBox(height: AppSpacing.space4),
+              // ⚠️ **빈손으로 돌려보내지 않는다.** 혼자 뛰기는 마감과 무관하다.
+              _PolicyTell(AppStrings.matchClosedSolo),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(AppStrings.matchClosedGoHome),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    context.pop();
+  }
+
+  /// 누르는 사이에 그 시간대가 마감됐다(409).
+  ///
+  /// ⚠️ **화면에 남는다.** 다른 시각이 아직 열려 있으므로 고칠 자리가 이 화면
+  /// 안에 있다 — 홈으로 내보내면 다시 신청할 길까지 끊는다.
+  Future<void> _tellSlotClosed() => showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text(AppStrings.matchSlotClosedTitle),
+      content: const SingleChildScrollView(child: _TimePolicy()),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text(AppStrings.matchPolicyClose),
+        ),
+      ],
+    ),
+  );
+
+  /// 이탈 제재로 막혔다(409).
+  Future<void> _tellCooldown(DateTime? until) {
+    final when = AppStrings.matchCooldownUntil(until);
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(AppStrings.matchCooldownTitle),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const _PolicyTell(AppStrings.matchCooldownRule),
+            // ⚠️ 서버가 해제 시각을 빠뜨릴 수 있다. 없으면 줄을 만들지 않는다.
+            if (when.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.space2),
+              _PolicyAsk(when),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(AppStrings.matchPolicyClose),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _pickSlot() async {
     final state = ref.read(matchRegisterProvider);
     final picked = await showMatchSlotSheet(
@@ -214,7 +373,24 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
 
   Future<void> _submit() async {
     final roomId = await ref.read(matchRegisterProvider.notifier).submit();
-    if (roomId == null || !mounted) return;
+    if (!mounted) return;
+
+    // ⚠️ **팝업 둘은 여기서 띄운다.** `submit`이 409 뒤 재조회까지 마치고
+    // 돌아오므로, 이 자리에서야 "그 시간만 마감"인지 "오늘이 끝났는지"가
+    // 갈린다. 리스너에서 띄우면 재조회 전에 먼저 떠서 둘이 겹친다.
+    if (roomId == null) {
+      final state = ref.read(matchRegisterProvider);
+      switch (state.failure) {
+        case MatchFailure.slotClosed:
+          await (state.closedForToday ? _tellClosedToday() : _tellSlotClosed());
+        case MatchFailure.cooldown:
+          await _tellCooldown(state.cooldownUntil);
+        default:
+          break;
+      }
+      if (mounted) ref.read(matchRegisterProvider.notifier).clearFailure();
+      return;
+    }
 
     // ⚠️ 순서가 정해져 있다 — 신청 응답을 받은 **뒤에** 붙는다. 활성 신청이
     // 없는데 열면 서버가 404로 거절하고, 그 뒤에 신청해도 이벤트가 오지 않는
@@ -231,9 +407,8 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
     context.pop();
   }
 
-  /// 실패를 말로 옮긴다. **서버 문장을 그대로 띄우지 않는다** — 사용자가
-  /// 무엇을 할 수 있는지가 문구에 들어가야 한다.
-  void _tell(MatchFailure failure, DateTime? cooldownUntil) {
+  /// 한 줄로 끝나는 실패.
+  void _tellInSnackBar(MatchFailure failure, DateTime? cooldownUntil) {
     final message = switch (failure) {
       MatchFailure.slotClosed => AppStrings.matchFailedSlotClosed,
       MatchFailure.cooldown => AppStrings.matchFailedCooldown(cooldownUntil),
@@ -323,9 +498,45 @@ class _SlotTrigger extends StatelessWidget {
 }
 
 /// 고른 시각에 몇 명이 기다리는지. 시안 `158:3186`.
-class _WaitingBanner extends StatelessWidget {
-  const _WaitingBanner({required this.count});
+/// 시간 선택기가 잠긴 이유 한 줄. 실패했을 때만 다시 시도가 붙는다.
+class _SlotsLockedNote extends StatelessWidget {
+  const _SlotsLockedNote({required this.message, this.onRetry});
 
+  final String message;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            message,
+            style: AppTypographyV2.body12.copyWith(color: colors.textTertiary),
+          ),
+        ),
+        if (onRetry != null)
+          TextButton(
+            onPressed: onRetry,
+            child: Text(
+              AppStrings.matchSlotsRetry,
+              style: AppTypographyV2.body12.copyWith(color: colors.primary),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _WaitingBanner extends StatelessWidget {
+  const _WaitingBanner({required this.km, required this.count});
+
+  /// 고른 거리. 문구가 "현재 3km에"로 시작한다.
+  final int km;
+
+  /// **그 거리의 모든 시각을 더한 값**이다. 한 시각의 수가 아니다.
   final int count;
 
   @override
@@ -350,9 +561,15 @@ class _WaitingBanner extends StatelessWidget {
               color: colors.matchWaiting,
             ),
             const SizedBox(width: AppSpacing.space3),
-            Text(
-              AppStrings.matchWaitingCount(count),
-              style: AppTypographyV2.body11.copyWith(color: colors.textPrimary),
+            Expanded(
+              child: Text(
+                AppStrings.matchWaitingTotal(km, count),
+                style: AppTypographyV2.body11.copyWith(
+                  color: colors.textPrimary,
+                  // 거리를 바꾸면 자릿수가 흔들린다. 고정폭이라야 줄이 안 튄다.
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
             ),
           ],
         ),
@@ -423,4 +640,59 @@ class _Note extends StatelessWidget {
       ],
     );
   }
+}
+
+/// 팝업 셋이 함께 쓰는 **시간 규칙** 두 묶음.
+///
+/// ⚠️ `18:00~22:00` · `30분` · `10분 전`은 전부 서버 설정값이다. 운영에서
+/// 바뀌면 이 문구도 같이 고쳐야 한다 — 테스트가 그 짝을 묶어 둔다.
+class _TimePolicy extends StatelessWidget {
+  const _TimePolicy();
+
+  @override
+  Widget build(BuildContext context) => const Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      _PolicyAsk(AppStrings.matchPolicyWhenAsk),
+      _PolicyTell(AppStrings.matchPolicyWhenTell),
+      SizedBox(height: AppSpacing.space4),
+      _PolicyAsk(AppStrings.matchPolicyDeadlineAsk),
+      _PolicyTell(AppStrings.matchPolicyDeadlineTell),
+    ],
+  );
+}
+
+/// 묻는 말. **질문을 세워 두면** 자기가 궁금한 줄부터 읽는다 — 줄글만
+/// 늘어놓으면 무엇을 알아야 하는지 모른 채 글자만 훑는다.
+class _PolicyAsk extends StatelessWidget {
+  const _PolicyAsk(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: AppSpacing.space1),
+    child: Text(
+      text,
+      style: AppTypographyV2.body07.copyWith(
+        color: context.appColorsV2.textPrimary,
+      ),
+    ),
+  );
+}
+
+/// 그 답.
+class _PolicyTell extends StatelessWidget {
+  const _PolicyTell(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: AppTypographyV2.body12.copyWith(
+      color: context.appColorsV2.textSecondary,
+    ),
+  );
 }

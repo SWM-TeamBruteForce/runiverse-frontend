@@ -666,6 +666,102 @@ abstract final class AppStrings {
     return '$hh:$mm';
   }
 
+  /// 매칭 등록으로 가기 전에 한 번 보여주는 운영 안내.
+  ///
+  /// ## ⚠️ 묻는 말과 답으로 묶는다
+  ///
+  /// 불릿을 늘어놓으면 처음 쓰는 사람은 **무엇을 알아야 하는지**를 모른 채
+  /// 글자만 훑는다. '언제 뛰나요'처럼 질문을 세워 두면 자기가 궁금한 줄부터
+  /// 읽는다.
+  ///
+  /// ⚠️ **세 묶음만 둔다.** "누구와 뛰나요"(2~4명·페이스 자동)는 뺐다 —
+  /// 등록 화면이 같은 말을 이미 하고 있고, 여기서는 **시간 규칙**이 주인공이다.
+  /// 묶음이 늘수록 정작 읽혀야 할 마감 시각이 묻힌다.
+  ///
+  /// ## ⚠️ 숫자가 서버 설정값이다
+  ///
+  /// `18:00~22:00` · `30분` · `10분 전`은 전부 운영에서 바뀔 수 있는 값이다.
+  /// **바뀌면 이 문구도 같이 고쳐야 한다** — 안 고치면 화면만 거짓말을 한다.
+  /// 그래도 적는 이유는, "시작 직전에 마감돼요"로는 **언제까지 누르면 되는지**
+  /// 알 수 없기 때문이다(2026-10-22 결정).
+  /// 등록을 눌렀는데 그사이 그 시간대가 마감됐다(409 `MATCH_SLOT_CLOSED`).
+  /// **다른 시각이 아직 남아 있으므로 화면에 남는다.**
+  static const matchSlotClosedTitle = '모집이 마감된 시간대입니다';
+
+  /// 이탈 제재 중이다(409 `MATCH_COOLDOWN`).
+  static const matchCooldownTitle = '이탈 패널티로 지금은 신청할 수 없어요';
+
+  /// 두 팝업 모두 **화면에 남는다** — 고칠 자리가 이 화면 안에 있다.
+  static const matchPolicyClose = '확인';
+
+  static const matchPolicyWhenAsk = '언제 뛰나요?';
+  static const matchPolicyWhenTell = '저녁 18:00부터 22:00까지, 30분 간격으로 고를 수 있어요';
+
+  static const matchPolicyDeadlineAsk = '언제까지 신청하나요?';
+
+  /// ⚠️ **예시를 함께 적는다.** "10분 전"만 적으면 머릿속에서 빼야 한다.
+  static const matchPolicyDeadlineTell =
+      '시작 10분 전까지예요. 19:00에 뛰려면 18:50까지 신청하면 돼요';
+
+  /// 이탈 제재 팝업의 본문. **규칙을 먼저 말하고** 해제 시각을 뒤에 붙인다.
+  static const matchCooldownRule = '매칭이 확정된 뒤에 나가면 20분 동안 다시 신청할 수 없어요';
+
+  /// `08:30에 다시 신청할 수 있어요` — 서버가 준 해제 시각.
+  ///
+  /// ⚠️ **모르면 아무것도 적지 않는다.** 서버가 `cooldownUntil`을 빠뜨릴 수
+  /// 있는데, 없는 시각을 지어내면 그때까지 기다린 사람이 또 막힌다.
+  static String matchCooldownUntil(DateTime? until) =>
+      until == null ? '' : '${matchSlotTime(until)}에 다시 신청할 수 있어요';
+
+  static const matchPolicyCancel = '다음에';
+  static const matchPolicyConfirm = '매칭 등록하러 가기';
+
+  /// 오늘 고를 수 있는 시간대가 **하나도 안 남았을 때** 뜨는 팝업.
+  ///
+  /// ⚠️ **빈손으로 돌려보내지 않는다.** "내일 오세요"만 말하면 지금 뛰려고
+  /// 들어온 사람이 할 수 있는 일이 사라진다 — 혼자 뛰기는 마감과 무관하다.
+  static const matchClosedTitle = '오늘 러닝은 마감됐어요';
+
+  /// ⚠️ **빈손으로 돌려보내지 않는다.** 시간 규칙만 적고 끝내면 지금 뛰려고
+  /// 들어온 사람이 할 수 있는 일이 사라진다 — 혼자 뛰기는 마감과 무관하다.
+  static const matchClosedSolo = '지금은 홈에서 혼자 연습하기로 달릴 수 있어요';
+  static const matchClosedGoHome = '홈으로';
+
+  /// 마감이 임박했다. 남은 시간대를 적어 **미리** 알린다.
+  ///
+  /// ⚠️ **앱이 마감 시각을 세지 않는다.** "시작 10분 전"은 운영값이라 앱이
+  /// 그 숫자를 가지면 설정이 바뀌는 날 조용히 어긋난다. 대신 서버가 준
+  /// `selectable`이 몇 개 남았는지로 임박을 가른다.
+  static String matchClosingSoon(String times) =>
+      '오늘 남은 시간대는 $times뿐이에요. 모집은 시작 직전에 마감돼요';
+
+  /// 거리를 고르기 전에 시간 선택기가 잠긴 이유.
+  ///
+  /// ⚠️ 목록을 받으려면 거리가 먼저 있어야 한다 — 조회가 거리를 필수로 받는다.
+  static const matchSlotsLockedByDistance = '거리를 먼저 골라주세요';
+
+  /// 고를 수 있는 시간이 하나도 없다. 22시가 지났거나 전부 마감이다.
+  ///
+  /// ⚠️ **목록이 비지 않아도 여기 온다.** 전부 `selectable: false`면 시트를
+  /// 열어 봐야 `마감`만 늘어서고 등록 버튼은 영영 잠긴 채다.
+  static const matchSlotsEmpty = '오늘은 신청할 수 있는 시간이 없어요';
+
+  static const matchSlotsLoadFailed = '시간대를 불러오지 못했어요';
+  static const matchSlotsRetry = '다시 시도';
+  static const matchSlotsLoading = '시간대를 불러오는 중이에요';
+
+  /// `현재 3km에 7명의 러너가 대기중이에요` — **거리만 골랐을 때** 등록 버튼
+  /// 위에 서는 줄(시안 `158:3186`).
+  ///
+  /// ⚠️ 시안 원문은 `현재 18:00에 3명의…`로 **시각**을 적는다. 거리를 먼저
+  /// 고르게 되면서 그 자리가 거리로 바뀌었다 — 시각은 아직 안 골랐고, 이 줄이
+  /// 답하는 질문은 "이 거리에 사람이 있는가"다. 어느 시각인지는 시트가 답한다.
+  ///
+  /// ⚠️ **시간까지 고르면 그리지 않는다.** 시트에서 이미 그 시각의 수를 보고
+  /// 고른 사람에게 같은 말을 한 번 더 적는 셈이다.
+  static String matchWaitingTotal(int km, int count) =>
+      '현재 ${km}km에 $count명의 러너가 대기중이에요';
+
   /// `3명 대기` — 사회적 증거다. 0명이면 붙이지 않는다.
   static String matchWaitingCount(int count) => '$count명 대기';
 
