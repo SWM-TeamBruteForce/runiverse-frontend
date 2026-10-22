@@ -8,6 +8,7 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/profile/data/http_profile_image_repository.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
+import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_image_kind.dart';
 
 /// 프로필 사진 — **어느 경로로 나가는가.**
@@ -27,7 +28,7 @@ void main() {
   late _RecordingAdapter s3;
   late InMemoryTokenStore store;
 
-  Future<HttpProfileImageRepository> repository() async {
+  Future<HttpProfileImageRepository> repository({Dio? uploadDio}) async {
     api = _RecordingAdapter();
     s3 = _RecordingAdapter();
     store = InMemoryTokenStore();
@@ -41,7 +42,7 @@ void main() {
       Dio(BaseOptions(baseUrl: 'http://test.invalid'))..httpClientAdapter = api,
       store,
       FakeAuthRepository(latency: Duration.zero),
-      uploadDio: Dio()..httpClientAdapter = s3,
+      uploadDio: uploadDio ?? (Dio()..httpClientAdapter = s3),
     );
   }
 
@@ -186,6 +187,86 @@ void main() {
       await repo.remove();
 
       expect(api.pathOf('DELETE'), '/api/v1/users/me/background-image');
+    });
+  });
+
+  /// ⚠️ **S3 전용 [Dio]가 영영 기다리지 않는가.**
+  ///
+  /// `dio`의 기본값은 **무제한 대기**다. 이 [Dio]는 `baseUrl`도 인터셉터도
+  /// 일부러 비워서 만드는데(`Authorization`을 얹으면 S3가 403을 준다), 그걸
+  /// 비우면서 타임아웃까지 같이 빠졌다. 망이 죽으면 2단계 `PUT`이 끝나지
+  /// 않고 **편집 화면의 저장 회전 표시도 멈추지 않는다** — 기기에서 겪었다.
+  group('⚠️ 업로드가 영영 기다리지 않는다', () {
+    test('기본 설정에 타임아웃 셋이 다 있다', () {
+      final options = HttpProfileImageRepository.uploadOptions;
+
+      expect(options.connectTimeout, isNotNull, reason: '붙는 데까지');
+      expect(options.sendTimeout, isNotNull, reason: '사진을 올리는 동안');
+      expect(options.receiveTimeout, isNotNull, reason: '답을 기다리는 동안');
+    });
+
+    test('⚠️ 기본으로 만든 Dio에 그 설정이 실제로 걸린다', () async {
+      // 설정 객체만 검사하면 **"값은 맞는데 아무 데도 안 쓰는"** 상태를 못
+      // 잡는다 — 생성자에서 `Dio()`로 만들던 것이 정확히 그 상태였다.
+      final repo = HttpProfileImageRepository(
+        Dio(),
+        InMemoryTokenStore(),
+        FakeAuthRepository(latency: Duration.zero),
+      );
+
+      expect(repo.uploadDio.options.connectTimeout, isNotNull);
+      expect(repo.uploadDio.options.sendTimeout, isNotNull);
+      expect(repo.uploadDio.options.receiveTimeout, isNotNull);
+    });
+
+    test('⚠️ 보내는 시간만 더 길게 잡는다', () {
+      // 사진 본문이 올라가는 구간이다. 나머지와 같은 값으로 묶으면 느린
+      // 망에서 **멀쩡한 업로드가 잘린다.**
+      final options = HttpProfileImageRepository.uploadOptions;
+
+      expect(options.sendTimeout!, greaterThan(options.receiveTimeout!));
+      expect(options.sendTimeout!, greaterThan(options.connectTimeout!));
+    });
+
+    test('⚠️ 시간이 다하면 올리기 실패로 나온다', () async {
+      // ⚠️ **진짜 소켓을 띄운다.** 타임아웃을 거는 것은 dio가 아니라 그 아래
+      // HTTP 어댑터라, 가짜 어댑터를 끼우면 **시간이 영영 안 간다** — 처음에
+      // 그렇게 썼다가 테스트가 30초를 통째로 기다렸다.
+      //
+      // 받아만 주고 한 글자도 돌려주지 않는 서버다. 망이 죽은 것이 아니라
+      // **S3가 조용한** 상황을 흉내 낸다.
+      final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => socket.close());
+      final held = <Socket>[];
+      socket.listen(held.add);
+      addTearDown(() {
+        for (final s in held) {
+          s.destroy();
+        }
+      });
+
+      final repo = await repository(
+        // 진짜 값(60초)을 쓰면 테스트가 그만큼 선다. **길이가 아니라 걸려
+        // 있다는 것**을 본다 — 진짜 값은 위 두 테스트가 지킨다.
+        uploadDio: Dio(
+          BaseOptions(receiveTimeout: const Duration(milliseconds: 100)),
+        ),
+      );
+      api.jsonFor['/api/v1/users/me/profile-image/presigned-url'] = {
+        'profileImageKey': 'k-1',
+        'uploadUrl': 'http://127.0.0.1:${socket.port}/put',
+      };
+
+      await expectLater(
+        repo.upload(await tempPng()),
+        throwsA(
+          isA<ProfileImageException>().having(
+            (e) => e.failure,
+            'failure',
+            ProfileImageFailure.upload,
+          ),
+        ),
+      );
     });
   });
 }

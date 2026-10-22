@@ -33,7 +33,26 @@ class HttpProfileImageRepository implements ProfileImageRepository {
     this._auth, {
     Dio? uploadDio,
     this.kind = ProfileImageKind.profile,
-  }) : _uploadDio = uploadDio ?? Dio();
+  }) : _uploadDio = uploadDio ?? Dio(uploadOptions);
+
+  /// S3 전용 [Dio]의 설정.
+  ///
+  /// ## ⚠️ 타임아웃을 여기서 꼭 준다
+  ///
+  /// `dio`의 기본값은 **무제한 대기**다. 이 [Dio]는 `baseUrl`도 인터셉터도
+  /// 일부러 비우는데(아래 ⚠️ 참조), 그러면서 `dio_client`가 쥐고 있던
+  /// 타임아웃까지 같이 빠진다. 망이 죽으면 2단계 `PUT`이 끝나지 않고
+  /// **편집 화면의 저장 회전 표시도 멈추지 않는다.**
+  ///
+  /// ## ⚠️ 보내는 시간만 길다
+  ///
+  /// 사진 본문이 올라가는 구간이라 나머지와 같은 값으로 묶으면 **느린 망에서
+  /// 멀쩡한 업로드가 잘린다.** 올리는 사진은 압축 뒤에도 몇 MB다.
+  static BaseOptions get uploadOptions => BaseOptions(
+    connectTimeout: const Duration(seconds: 10),
+    sendTimeout: const Duration(seconds: 60),
+    receiveTimeout: const Duration(seconds: 10),
+  );
 
   /// 프로필 사진인가 배경인가. **생성자에서 한 번 정하고 바뀌지 않는다** —
   /// [ProfileImageKind] 주석 참조.
@@ -43,6 +62,13 @@ class HttpProfileImageRepository implements ProfileImageRepository {
 
   /// S3 전용. `baseUrl`도 인터셉터도 없다. 위 ⚠️ 참조.
   final Dio _uploadDio;
+
+  /// ⚠️ **[uploadOptions]가 실제로 걸렸는지 보려고 연다.**
+  ///
+  /// 설정 객체만 검사하면 "값은 맞는데 아무 데도 안 쓰는" 상태를 못 잡는다 —
+  /// 그것이 바로 고치려던 버그다(생성자에서 `Dio()`로 만들던 것).
+  @visibleForTesting
+  Dio get uploadDio => _uploadDio;
 
   final TokenStore _store;
   final AuthRepository _auth;
