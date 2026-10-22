@@ -81,8 +81,10 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
   /// ⚠️ [bgScrim]과 다르다 — 저쪽은 모달 뒤를 통째로 덮고, 이쪽은 **시계·
   /// 배터리 글자가 사진에 묻히지 않을 만큼만** 덮는다. 더 진하면 사진이 상한다.
   ///
-  /// ⚠️ **진하기는 아직 확정이 아니다.** 밝은 사진에서 시계가 읽히는지 기기에서
-  /// 보고 정한다(`docs/specs/2026-10-22-profile-background-image-design.md` 10절).
+  /// ⚠️ **55%는 기기에서 정한 값이다.** 40%로 시작했더니 밝은 사진에서 흰 시계
+  /// 글자가 가장자리부터 녹았다. 눈대중이 아니라 사진 한 장을 띄워 놓고 올린
+  /// 값이니, 줄일 때도 같은 자리에서 확인한다
+  /// (`docs/specs/2026-10-22-profile-background-image-design.md` 10절).
   final Color coverScrim;
 
   /// **램프를 뒤집은 면.** 어두운 테마에서 밝고, 밝은 테마에서 어둡다.
@@ -154,7 +156,7 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     bgSurface: AppPaletteV2.neutral900,
     bgElevated: AppPaletteV2.neutral800,
     bgScrim: Color(0x99000000),
-    coverScrim: Color(0x66000000),
+    coverScrim: Color(0x8C000000),
     bgInverse: AppPaletteV2.neutral50,
     bgGlass: Color(0x1AFFFFFF),
     borderDefault: AppPaletteV2.neutral800,
@@ -183,7 +185,7 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     bgSurface: AppPaletteV2.neutral50,
     bgElevated: AppPaletteV2.neutral100,
     bgScrim: Color(0x66171719),
-    coverScrim: Color(0x66000000),
+    coverScrim: Color(0x8C000000),
     bgInverse: AppPaletteV2.neutral900,
     bgGlass: Color(0x14171719),
     borderDefault: AppPaletteV2.neutral200,

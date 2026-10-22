@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
@@ -143,7 +143,7 @@ class HttpProfileImageRepository implements ProfileImageRepository {
           responseType: ResponseType.plain,
         ),
       );
-    } on DioException {
+    } on DioException catch (_) {
       // 여기서 오는 403은 서명 불일치다. 사용자에게는 구분해줄 것이 없고,
       // 우리 서버 실패와 섞이지만 않으면 된다.
       throw const ProfileImageException(ProfileImageFailure.upload);
