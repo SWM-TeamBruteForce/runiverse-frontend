@@ -130,8 +130,9 @@ void main() {
 
       expect(parsed.runningRoomId, 125);
       expect(parsed.status, RoomStatus.matched);
-      expect(parsed.scheduledStartAt, DateTime(2026, 9, 15, 19));
-      expect(parsed.closeAt, DateTime(2026, 9, 15, 18, 50));
+      // 기대값은 순간으로 적는다 — 기기 시간대와 무관
+      expect(parsed.scheduledStartAt, DateTime.utc(2026, 9, 15, 10).toLocal());
+      expect(parsed.closeAt, DateTime.utc(2026, 9, 15, 9, 50).toLocal());
       expect(parsed.targetDistanceMeters, 5000);
       expect(parsed.players, hasLength(2));
       expect(parsed.players.first.nickname, '동완러너');
@@ -224,7 +225,7 @@ void main() {
 
     test('서버 시각을 되짚을 수 있다', () {
       // 기기 시계가 어긋나 있어도 이 값으로 보정한다.
-      expect(ready(10000).serverNow, DateTime(2026, 9, 15, 18, 59, 50));
+      expect(ready(10000).serverNow, DateTime.utc(2026, 9, 15, 9, 59, 50).toLocal());
     });
 
     test('값이 빠지면 읽지 않는다', () {

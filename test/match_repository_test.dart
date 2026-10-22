@@ -66,7 +66,8 @@ void main() {
       );
 
       expect(error.failure, MatchFailure.cooldown);
-      expect(error.cooldownUntil, DateTime(2026, 9, 15, 19, 30));
+      // 기대값은 순간으로 적는다 — 기기 시간대와 무관
+      expect(error.cooldownUntil, DateTime.utc(2026, 9, 15, 10, 30).toLocal());
     });
 
     test('쿨다운에 시각이 없어도 갈래는 유지한다', () {
