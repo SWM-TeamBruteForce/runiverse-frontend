@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/storage/match_room_store.dart';
 import 'package:runiverse/core/analytics/analytics.dart';
@@ -77,32 +78,53 @@ class MatchRegisterState {
   ///
   /// 등록 버튼 위 줄이 쓴다 — "이 거리에 사람이 이만큼 있다"를 먼저 알리고,
   /// 어느 시각인지는 시트가 답한다.
-  int get waitingTotal => slots.fold(0, (sum, slot) => sum + slot.waitingCount);
+  /// ⚠️ **마감된 시각은 세지 않는다.** 세면 전부 마감인 날 "7명이 기다려요"와
+  /// "신청할 수 있는 시간이 없어요"가 같은 화면에 서고 버튼은 잠긴 채다 —
+  /// 고장난 화면으로 읽힌다. 들어갈 수 없는 자리의 사람은 권유가 될 수 없다.
+  int get waitingTotal => slots.fold(
+    0,
+    (sum, slot) => slot.selectable ? sum + slot.waitingCount : sum,
+  );
 
   /// 등록할 수 있는가. **둘 다 골라야 열린다.**
   bool get canSubmit => selected != null && distance != null && !submitting;
 
+  /// "안 바꾼다"를 뜻하는 표식.
+  ///
+  /// ## ⚠️ 이게 없으면 상태를 생성자로 직접 세우게 된다
+  ///
+  /// `null`을 "안 바꾼다"로 읽으면 **비울 수가 없다.** 그래서 선택을 푸는
+  /// 자리마다 생성자를 직접 썼고, 그때마다 **옮기는 것을 빠뜨린 필드가 조용히
+  /// 초기화됐다** — 신청 중에 거리를 바꾸면 `submitting`이 풀려 같은 신청이
+  /// 두 번 나가던 것이 그 결과다.
+  static const _keep = Object();
+
   MatchRegisterState copyWith({
     List<MatchSlot>? slots,
-    MatchSlot? selected,
+    Object? selected = _keep,
     TargetDistance? distance,
     bool? submitting,
-    MatchFailure? failure,
-    DateTime? cooldownUntil,
+    Object? failure = _keep,
+    Object? cooldownUntil = _keep,
     bool? loadingSlots,
-    SlotLoadFailure? loadFailure,
+    Object? loadFailure = _keep,
   }) => MatchRegisterState(
     slots: slots ?? this.slots,
-    selected: selected ?? this.selected,
+    selected: identical(selected, _keep)
+        ? this.selected
+        : selected as MatchSlot?,
     distance: distance ?? this.distance,
     submitting: submitting ?? this.submitting,
     loadingSlots: loadingSlots ?? this.loadingSlots,
-    // ⚠️ [failure]와 같은 이유로 `??`를 쓰지 않는다 — 지울 수 있어야 한다.
-    loadFailure: loadFailure,
-    // ⚠️ `??`를 쓰지 않는다. 실패를 **지울** 수 있어야 한다 — 그러지 않으면
-    // 한 번 실패한 뒤로 스낵바가 영영 다시 뜬다.
-    failure: failure,
-    cooldownUntil: cooldownUntil,
+    loadFailure: identical(loadFailure, _keep)
+        ? this.loadFailure
+        : loadFailure as SlotLoadFailure?,
+    failure: identical(failure, _keep)
+        ? this.failure
+        : failure as MatchFailure?,
+    cooldownUntil: identical(cooldownUntil, _keep)
+        ? this.cooldownUntil
+        : cooldownUntil as DateTime?,
   );
 }
 
@@ -132,33 +154,62 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
   /// 숫자를 보는데, 거리를 다시 고르는 **행동까지** 캐시로 묶으면 고의로
   /// 확인하려는 사람에게도 낡은 숫자를 준다.
   Future<void> selectDistance(TargetDistance distance) async {
+    // ⚠️ **옛 목록을 버리고 시작한다.** 들고 있으면 왕복 한 번 내내 새 거리
+    // 이름에 **옛 거리 숫자**가 붙는다 — "현재 10km에 7명"인데 7은 3km의
+    // 합계다. 설계가 "가장 나쁜 실패"로 꼽은 것이 그것이다.
+    // ⚠️ **고른 시간은 남긴다.** `_applySlots`가 새 목록의 같은 `raw`로 갈아
+    // 끼운다(설계 6절). 여기서 비우면 거리만 바꿔도 시간을 다시 골라야 한다.
     state = state.copyWith(
+      slots: const [],
       distance: distance,
       failure: null,
+      loadFailure: null,
       loadingSlots: true,
     );
-    await _loadSlots(distance);
+    await _loadSlots(++_loadToken, distance);
   }
 
-  /// 거리 하나의 슬롯을 받아 상태에 심는다.
-  Future<void> _loadSlots(TargetDistance distance) async {
+  /// 보낸 조회에 매기는 번호.
+  ///
+  /// ## ⚠️ 거리만으로는 경합을 못 가른다
+  ///
+  /// 처음에는 `state.distance != distance`로 걸렀는데, **같은 거리를 다시
+  /// 누르는 것이 정식 동작**(실패 복구)이라 그 경우 둘이 같아 통과한다.
+  /// 늦게 온 실패가 먼저 성공한 목록을 지워서, 목록이 제대로 왔는데도
+  /// "불러오지 못했어요"로 잠겼다. `다시 시도`는 연타하기 가장 쉬운 버튼이다.
+  var _loadToken = 0;
+
+  /// 거리 하나의 슬롯을 받아 상태에 심는다. **마지막으로 보낸 조회만 쓴다.**
+  Future<void> _loadSlots(int token, TargetDistance distance) async {
     try {
       final slots = await ref
           .read(matchRepositoryProvider)
           .slots(distance: distance);
-      // ⚠️ **늦게 온 답이 나중 거리를 덮지 않게 한다.** 칩을 연타하면 요청이
-      // 겹치는데, 먼저 보낸 것이 늦게 오면 칩은 10km인데 숫자는 3km가 된다.
-      if (!ref.mounted || state.distance != distance) return;
+      if (!ref.mounted || token != _loadToken) return;
       _applySlots(slots);
     } on SlotLoadException catch (error) {
-      if (!ref.mounted || state.distance != distance) return;
-      // 고를 것이 없으니 목록도 비운다 — 남겨두면 잠긴 선택기 뒤에 옛 거리의
-      // 숫자가 그대로 서 있다.
-      state = MatchRegisterState(
-        distance: distance,
-        loadFailure: error.failure,
-      );
+      if (!ref.mounted || token != _loadToken) return;
+      _failSlots(distance, error.failure);
+    } on Object catch (error) {
+      // ⚠️ **예상 밖의 예외도 받는다.** 플랫폼 채널 실패 같은 것을 흘려보내면
+      // 화면이 "불러오는 중"에 영영 갇히고 `다시 시도` 버튼조차 안 붙는다.
+      // 매칭 신청이 통째로 불가능해지면서 빠져나올 길이 없다.
+      debugPrint('[match] 슬롯 조회가 예상 밖으로 죽었다 · $error');
+      if (!ref.mounted || token != _loadToken) return;
+      _failSlots(distance, SlotLoadFailure.network);
     }
+  }
+
+  /// 조회가 실패했다. **목록도 비운다** — 남겨두면 잠긴 선택기 뒤에 옛 거리의
+  /// 숫자가 그대로 서 있다.
+  void _failSlots(TargetDistance distance, SlotLoadFailure failure) {
+    state = state.copyWith(
+      slots: const [],
+      selected: null,
+      distance: distance,
+      loadingSlots: false,
+      loadFailure: failure,
+    );
   }
 
   /// 받은 목록을 심고 고른 시간을 맞춘다.
@@ -179,12 +230,14 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
       }
     }
 
-    // `copyWith`는 선택을 비울 수 없어 직접 세운다.
-    state = MatchRegisterState(
+    // ⚠️ **`copyWith`를 쓴다.** 생성자로 세우면 여기 안 적은 필드가 조용히
+    // 초기화된다 — `submitting`이 그렇게 풀려서, 신청이 날아가는 중에 거리를
+    // 바꾸면 CTA가 다시 열리고 같은 신청이 두 번 나갔다.
+    state = state.copyWith(
       slots: slots,
       selected: fresh,
-      distance: state.distance,
-      cooldownUntil: state.cooldownUntil,
+      loadingSlots: false,
+      loadFailure: null,
     );
   }
 
@@ -235,26 +288,25 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
         // 시각들도 함께** 잠긴 채로 온다.
         //
         // 기다리지 않는다 — 실패를 이미 화면에 알렸고, 목록은 늦게 와도 된다.
-        unawaited(_reloadAfterClosed(distance, error.failure));
+        unawaited(_reloadAfterClosed(distance));
       }
       return null;
     }
   }
 
-  /// 409 뒤에 목록을 다시 받는다. **실패 문구는 지우지 않는다** — 화면이
-  /// 아직 그것을 띄우기 전일 수 있다.
-  Future<void> _reloadAfterClosed(
-    TargetDistance distance,
-    MatchFailure failure,
-  ) async {
+  /// 409 뒤에 목록을 다시 받는다.
+  ///
+  /// ⚠️ **실패 문구를 다시 세우지 않는다.** 화면은 `failure`가 차는 것을 보고
+  /// 스낵바를 띄운 뒤 곧바로 지운다. 여기서 되살리면 **사라졌던 스낵바가 다시
+  /// 나타나고** 4초 타이머가 처음부터 돈다. 알릴 일은 이미 끝났다.
+  Future<void> _reloadAfterClosed(TargetDistance distance) async {
     try {
       final slots = await ref
           .read(matchRepositoryProvider)
           .slots(distance: distance);
       if (!ref.mounted || state.distance != distance) return;
       _applySlots(slots);
-      state = state.copyWith(failure: failure);
-    } on SlotLoadException {
+    } on Object {
       // 다시 받지 못했다. **지금 화면을 건드리지 않는다** — 잠근 슬롯과
       // 409 문구가 이미 서 있고, 그것을 조회 실패로 덮으면 왜 신청이
       // 거절됐는지 알 수 없어진다.

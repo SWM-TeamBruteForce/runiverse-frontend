@@ -15,6 +15,7 @@ import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/core/widgets/v2/preset_chip.dart';
 import 'package:runiverse/core/widgets/v2/surface_card.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
+import 'package:runiverse/features/matching/domain/slot_load_failure.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
@@ -140,7 +141,14 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                       message: _lockedMessage(state),
                       // 실패했을 때만 다시 시도를 붙인다. 거리를 안 고른
                       // 사람에게는 누를 것이 거리 칩이다.
-                      onRetry: state.loadFailure != null && distance != null
+                      //
+                      // ⚠️ **세션 만료에는 안 붙인다.** 눌러 봐야 같은 답이고,
+                      // 할 일은 다시 로그인하는 것이라 엉뚱한 길을 권하게 된다.
+                      onRetry:
+                          state.loadFailure != null &&
+                              state.loadFailure !=
+                                  SlotLoadFailure.sessionExpired &&
+                              distance != null
                           ? () => unawaited(
                               ref
                                   .read(matchRegisterProvider.notifier)
@@ -237,6 +245,12 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
   static String _lockedMessage(MatchRegisterState state) {
     if (state.distance == null) return AppStrings.matchSlotsLockedByDistance;
     if (state.loadingSlots) return AppStrings.matchSlotsLoading;
+    // ⚠️ **세션 만료를 따로 말한다.** "불러오지 못했어요"로 묶으면 눌러도
+    // 영원히 같은 화면이고, 빠져나오려면 다시 로그인해야 한다는 걸 알 길이
+    // 없다. 신청 경로가 같은 상황에서 이미 이렇게 말한다.
+    if (state.loadFailure == SlotLoadFailure.sessionExpired) {
+      return AppStrings.matchFailedExpired;
+    }
     if (state.loadFailure != null) return AppStrings.matchSlotsLoadFailed;
     return AppStrings.matchSlotsEmpty;
   }

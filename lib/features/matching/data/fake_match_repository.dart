@@ -57,7 +57,9 @@ class FakeMatchRepository implements MatchRepository {
     );
   }
 
-  final Duration latency;
+  /// ⚠️ **중간에 바꿀 수 있다.** 경합을 꾸미려면 요청마다 다른 지연이
+  /// 필요하다 — 같은 값으로는 "늦게 온 앞 요청"이 만들어지지 않는다.
+  Duration latency;
 
   /// 신청이 성공했을 때 돌려줄 방 번호.
   int roomId;
@@ -83,6 +85,10 @@ class FakeMatchRepository implements MatchRepository {
 
   var slotsCalls = 0;
 
+  /// 조회가 던질 **예상 밖의 예외.** 플랫폼 채널 실패 같은 것을 흉내 낸다 —
+  /// `SlotLoadException`만 잡는 코드가 어떻게 되는지 보는 데 쓴다.
+  Object? slotsThrow;
+
   /// 마지막으로 조회한 거리. **거리별로 다시 받는지** 확인하는 데 쓴다.
   TargetDistance? slotsDistance;
 
@@ -90,10 +96,19 @@ class FakeMatchRepository implements MatchRepository {
   Future<List<MatchSlot>> slots({required TargetDistance distance}) async {
     slotsCalls++;
     slotsDistance = distance;
-    await Future<void>.delayed(latency);
+    // ⚠️ **부를 때의 값을 집어 둔다.** 지연이 끝난 뒤에 읽으면 그사이 테스트가
+    // 바꿔 놓은 값을 보게 되어, **경합을 꾸밀 수가 없다** — 늦게 깬 요청이
+    // 최신 설정으로 답해 버린다. 진짜 서버는 요청을 받은 시점으로 답한다.
+    final waited = latency;
+    final thrown = slotsThrow;
     final failure = slotsFailure;
+    final answer = slotList;
+
+    await Future<void>.delayed(waited);
+
+    if (thrown != null) throw thrown;
     if (failure != null) throw SlotLoadException(failure);
-    return slotList;
+    return answer;
   }
 
   @override

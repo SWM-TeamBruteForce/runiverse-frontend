@@ -317,6 +317,22 @@ void main() {
       expect(find.text(AppStrings.matchSlotsLoadFailed), findsNothing);
     });
 
+    testWidgets('⚠️ 세션이 만료되면 다시 로그인하라고 말한다', (tester) async {
+      // "불러오지 못했어요 + 다시 시도"만 뜨면 눌러도 영원히 같은 화면이다.
+      // 빠져나오려면 다시 로그인해야 한다는 걸 알 길이 없다. 신청 경로는 같은
+      // 상황에서 이미 그렇게 말한다 — 한 화면 안에서 두 경로가 달라선 안 된다.
+      final matches = FakeMatchRepository()
+        ..slotsFailure = SlotLoadFailure.sessionExpired;
+      await pumpRegister(tester, repository: matches);
+
+      await pickDistance(tester, TargetDistance.km3);
+
+      expect(find.text(AppStrings.matchFailedExpired), findsOneWidget);
+      expect(find.text(AppStrings.matchSlotsLoadFailed), findsNothing);
+      // 다시 시도해 봐야 같은 답이다. 권하지 않는다.
+      expect(find.text(AppStrings.matchSlotsRetry), findsNothing);
+    });
+
     testWidgets('⚠️ 실패해도 거리 칩은 잠기지 않는다', (tester) async {
       // 거리를 다시 고르는 것이 곧 다시 시도하는 길이다.
       final matches = FakeMatchRepository()
@@ -408,6 +424,44 @@ void main() {
       expect(find.text(AppStrings.matchFailedSlotClosed), findsOneWidget);
       expect(find.text(AppStrings.matchTimePlaceholder), findsOneWidget);
       expect(await ctaOpens(tester, matches), isFalse);
+    });
+
+    testWidgets('⚠️ 마감 경합 뒤에는 목록을 다시 받는다', (tester) async {
+      // 서버가 준 `selectable`은 받은 시점의 사진이다. 그사이 **다른 시각들도**
+      // 마감됐을 수 있는데, 안 받으면 화면이 그것을 모른 채로 남는다.
+      final matches = FakeMatchRepository(
+        applyFailure: MatchFailure.slotClosed,
+      );
+      await pumpRegister(tester, repository: matches);
+
+      await pickDistance(tester, TargetDistance.km5);
+      await pickSlot(tester, '10:00');
+      expect(matches.slotsCalls, 1);
+
+      await tester.tap(find.text(AppStrings.matchRegisterCta));
+      await tester.pumpAndSettle();
+
+      expect(matches.slotsCalls, 2);
+    });
+
+    testWidgets('⚠️ 마감 경합 문구가 두 번 뜨지 않는다', (tester) async {
+      // 재조회가 실패 문구를 다시 세우면 **사라졌던 스낵바가 다시 나타나고**
+      // 4초 타이머가 처음부터 돈다.
+      final matches = FakeMatchRepository(
+        applyFailure: MatchFailure.slotClosed,
+      );
+      await pumpRegister(tester, repository: matches);
+
+      await pickDistance(tester, TargetDistance.km5);
+      await pickSlot(tester, '10:00');
+      await tester.tap(find.text(AppStrings.matchRegisterCta));
+      await tester.pumpAndSettle();
+
+      // 스낵바가 스스로 사라질 때까지 둔다.
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.matchFailedSlotClosed), findsNothing);
     });
 
     testWidgets('⚠️ 네트워크 실패에 재시도를 권하지 않는다', (tester) async {
