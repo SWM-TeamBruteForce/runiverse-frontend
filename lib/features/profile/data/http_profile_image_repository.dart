@@ -6,6 +6,7 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
+import 'package:runiverse/features/profile/domain/profile_image_kind.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_image_repository.dart';
 
@@ -31,7 +32,13 @@ class HttpProfileImageRepository implements ProfileImageRepository {
     this._store,
     this._auth, {
     Dio? uploadDio,
-  }) : _uploadDio = uploadDio ?? Dio();
+    ProfileImageKind kind = ProfileImageKind.profile,
+  }) : _uploadDio = uploadDio ?? Dio(),
+       _kind = kind;
+
+  /// 프로필 사진인가 배경인가. **생성자에서 한 번 정하고 바뀌지 않는다** —
+  /// [ProfileImageKind] 주석 참조.
+  final ProfileImageKind _kind;
 
   final Dio _dio;
 
@@ -55,7 +62,7 @@ class HttpProfileImageRepository implements ProfileImageRepository {
     try {
       final response = await _dio.get<Map<String, dynamic>>(_userPath(userId));
       // 사진을 올린 적이 없으면 서버가 `null`을 담아 200을 준다. 실패가 아니다.
-      final url = response.data?['profileImageUrl'];
+      final url = response.data?[_kind.urlField];
       return url is String ? url : null;
     } on DioException catch (error) {
       throw ProfileImageException(_failureOf(error));
@@ -108,7 +115,7 @@ class HttpProfileImageRepository implements ProfileImageRepository {
         data: {'mimeType': image.mimeType, 'fileSizeBytes': image.sizeBytes},
         options: Options(headers: _bearer(token)),
       );
-      final key = response.data?['profileImageKey'];
+      final key = response.data?[_kind.keyField];
       final uploadUrl = response.data?['uploadUrl'];
       if (key is! String || uploadUrl is! String) {
         // 200인데 몸통이 다르다. 이대로 2단계로 가면 빈 주소에 올리게 된다.
@@ -152,18 +159,20 @@ class HttpProfileImageRepository implements ProfileImageRepository {
   Future<void> _confirm(String key) => _authed((userId, token) async {
     await _dio.patch<Object?>(
       _mePath,
-      data: {'profileImageKey': key},
+      data: {_kind.keyField: key},
       options: Options(headers: _bearer(token)),
     );
   });
 
   /// 인증이 필요한 셋(47·48·50)이 쓰는 경로. **토큰 주체가 곧 대상**이라
   /// 식별자를 받지 않는다 — 명세의 "본인만 접근하면 `/users/me/...`" 규칙이다.
-  static const _mePath = '/api/v1/users/me/profile-image';
+  ///
+  /// ⚠️ **경로를 여기서 정하지 않는다.** [ProfileImageKind]가 들고 있다. 하드코딩하면
+  /// 배경이 프로필 경로로 나가고, 서버는 그것을 400으로만 알려 준다.
+  String get _mePath => _kind.mePath;
 
   /// 조회(49)만 다르다. **타인의 사진도 볼 수 있어야 해서** 식별자를 받는다.
-  static String _userPath(String userId) =>
-      '/api/v1/users/$userId/profile-image';
+  String _userPath(String userId) => _kind.userPath(userId);
 
   static Map<String, String> _bearer(String token) => {
     'Authorization': 'Bearer $token',

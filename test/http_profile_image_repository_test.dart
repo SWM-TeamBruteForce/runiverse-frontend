@@ -8,6 +8,7 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/profile/data/http_profile_image_repository.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
+import 'package:runiverse/features/profile/domain/profile_image_kind.dart';
 
 /// 프로필 사진 — **어느 경로로 나가는가.**
 ///
@@ -100,6 +101,93 @@ void main() {
 
     expect(api.pathOf('DELETE'), '/api/v1/users/me/profile-image');
   });
+
+  /// 배경 이미지 — **같은 길, 다른 이름** (1.1.1 배경 가이드).
+  ///
+  /// ## ⚠️ 두 Key는 서로 못 바꾼다
+  ///
+  /// 프로필 Key로 배경을 등록하면 서버가 `INVALID_BACKGROUND_IMAGE`를 준다.
+  /// 경로든 필드든 하나라도 프로필 쪽이 새어 나가면 그 러닝이 아니라 **그
+  /// 사용자의 배경이 영영 안 올라간다** — 화면에는 "실패"만 뜬다.
+  group('배경 이미지', () {
+    Future<HttpProfileImageRepository> background() async {
+      // 같은 어댑터·저장소를 세우고 종류만 배경으로 바꾼다.
+      await repository();
+      return HttpProfileImageRepository(
+        Dio(BaseOptions(baseUrl: 'http://test.invalid'))
+          ..httpClientAdapter = api,
+        store,
+        FakeAuthRepository(latency: Duration.zero),
+        uploadDio: Dio()..httpClientAdapter = s3,
+        kind: ProfileImageKind.background,
+      );
+    }
+
+    test('조회는 배경 경로로 나간다', () async {
+      final repo = await background();
+      api.jsonFor['/api/v1/users/u-1/background-image'] = {
+        'backgroundImageUrl': 'https://cdn.test/cover.jpg',
+      };
+
+      expect(await repo.fetchUrl(), 'https://cdn.test/cover.jpg');
+      expect(api.pathOf('GET'), '/api/v1/users/u-1/background-image');
+    });
+
+    test('⚠️ 배경 조회에도 토큰을 붙이지 않는다', () async {
+      // 공개 API라도 헤더가 있으면 토큰을 검사한다 — 만료된 것이 붙으면 401이다.
+      final repo = await background();
+      api.jsonFor['/api/v1/users/u-1/background-image'] = {
+        'backgroundImageUrl': null,
+      };
+
+      await repo.fetchUrl();
+
+      expect(api.headerOf('GET', 'Authorization'), isNull);
+    });
+
+    test('⚠️ 올리기는 배경 경로와 배경 필드로만 나간다', () async {
+      final repo = await background();
+      api.jsonFor['/api/v1/users/me/background-image/presigned-url'] = {
+        'backgroundImageKey': 'backgrounds/u-1/a.png',
+        'uploadUrl': 'https://s3.test/put',
+      };
+
+      await repo.upload(await tempPng());
+
+      expect(
+        api.pathOf('POST'),
+        '/api/v1/users/me/background-image/presigned-url',
+      );
+      expect(api.pathOf('PATCH'), '/api/v1/users/me/background-image');
+      expect(api.bodyOf('PATCH'), {
+        'backgroundImageKey': 'backgrounds/u-1/a.png',
+      });
+    });
+
+    test('⚠️ 발급 요청의 크기·형식이 고른 파일과 같다', () async {
+      // 서명이 이 두 값으로 만들어진다. 하나라도 다르면 S3가 403을 준다.
+      final repo = await background();
+      api.jsonFor['/api/v1/users/me/background-image/presigned-url'] = {
+        'backgroundImageKey': 'backgrounds/u-1/a.png',
+        'uploadUrl': 'https://s3.test/put',
+      };
+
+      await repo.upload(await tempPng());
+
+      expect(api.bodyOf('POST'), {'mimeType': 'image/png', 'fileSizeBytes': 4});
+      expect(s3.headerOf('PUT', 'Content-Type'), 'image/png');
+    });
+
+    test('삭제는 배경 경로로 나간다', () async {
+      final repo = await background();
+      api.jsonFor['/api/v1/users/me/background-image'] =
+          const <String, dynamic>{};
+
+      await repo.remove();
+
+      expect(api.pathOf('DELETE'), '/api/v1/users/me/background-image');
+    });
+  });
 }
 
 /// 나간 요청을 기록하고, 경로별로 정해둔 몸통을 200으로 돌려준다.
@@ -108,6 +196,9 @@ class _RecordingAdapter implements HttpClientAdapter {
   final jsonFor = <String, Map<String, dynamic>?>{};
 
   String? pathOf(String method) => _find(method)?.path;
+
+  /// 나간 몸통. **필드 이름이 종류마다 다르므로** 키까지 본다.
+  Object? bodyOf(String method) => _find(method)?.data;
 
   Object? headerOf(String method, String name) {
     final headers = _find(method)?.headers;
