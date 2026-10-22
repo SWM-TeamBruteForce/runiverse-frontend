@@ -9,6 +9,7 @@ import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
@@ -197,6 +198,24 @@ void main() {
 
       expect(find.byType(BackgroundPicker), findsOneWidget);
       expect(find.text(AppStrings.profileBackgroundLabel), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 누를 수 있다는 표시가 있다', (tester) async {
+      // 누르면 열리기는 하는데 **그냥 사각형**이면 아무도 누를 줄 모른다.
+      // 아바타는 카메라 배지와 `사진 바꾸기` 글자로 그것을 말한다 — 같은
+      // 화면에서 한쪽만 말하지 않으면 그 자리는 없는 것과 같다.
+      await pumpEdit(tester, picker: picked);
+
+      expect(find.text(AppStrings.profileEditBackground), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(BackgroundPicker),
+          matching: find.byWidgetPredicate(
+            (w) => w is AppIcon && w.name == AppIcons.camera,
+          ),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('⚠️ 고른 것은 저장 전까지 올라가지 않는다', (tester) async {

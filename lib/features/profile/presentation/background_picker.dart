@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/profile/domain/pending_photo.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
@@ -53,7 +56,7 @@ class BackgroundPicker extends ConsumerWidget {
 
     return Semantics(
       button: true,
-      label: AppStrings.profileBackgroundLabel,
+      label: AppStrings.profileEditBackground,
       child: GestureDetector(
         // 도는 동안 또 누르면 요청이 겹친다.
         onTap: (ready?.busy ?? false)
@@ -83,6 +86,45 @@ class BackgroundPicker extends ConsumerWidget {
                     errorBuilder: (context, error, stack) =>
                         const SizedBox.shrink(),
                   ),
+
+                // ⚠️ **누를 수 있다고 말하는 자리다.** 없으면 그냥 사각형이라
+                // 아무도 누르지 않는다 — 아바타가 카메라 배지와 글자로 같은
+                // 일을 한다. 사진 위에 얹히므로 **어두운 알약**에 담는다.
+                Align(
+                  alignment: Alignment.bottomRight,
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.space2),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: colors.coverScrim,
+                        borderRadius: AppRadius.full,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.space3,
+                          vertical: AppSpacing.space2,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AppIcon(
+                              AppIcons.camera,
+                              size: AppSpacing.space4,
+                              color: colors.textPrimary,
+                            ),
+                            const SizedBox(width: AppSpacing.space1),
+                            Text(
+                              AppStrings.profileEditBackground,
+                              style: AppTypographyV2.body15.copyWith(
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

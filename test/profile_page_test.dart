@@ -428,8 +428,9 @@ void main() {
     await openEditPage(tester);
 
     expect(find.text(AppStrings.profileEditTitle), findsOneWidget);
-    // 거기서는 사진을 바꿀 수 있다.
-    expect(appIcon(AppIcons.camera), findsOneWidget);
+    // 거기서는 사진을 바꿀 수 있다 — **둘 다**. 아바타 배지와 배경 알약이
+    // 각각 카메라를 단다. 하나로 줄어들면 어느 쪽인가 누를 자리를 잃은 것이다.
+    expect(appIcon(AppIcons.camera), findsNWidgets(2));
   });
 
   testWidgets('편집 화면에서 닉네임을 누르면 변경 시트가 열린다', (tester) async {

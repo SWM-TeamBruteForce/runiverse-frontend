@@ -860,6 +860,13 @@ abstract final class AppStrings {
   /// 편집 화면에서 배경 미리보기 위에 서는 라벨.
   static const profileBackgroundLabel = '배경 이미지';
 
+  /// 미리보기 아래에서 **누를 수 있다고 말하는** 글자.
+  ///
+  /// ⚠️ 라벨(`배경 이미지`)과 다른 말이어야 한다. 같은 말을 두 번 쓰면 낭독기가
+  /// "배경 이미지, 배경 이미지, 버튼"으로 읽고, 눈으로 봐도 **무엇이 눌리는지**
+  /// 알려 주지 않는다. 아바타가 `사진 바꾸기`로 같은 일을 한다.
+  static const profileEditBackground = '배경 바꾸기';
+
   /// 아바타의 접근성 라벨. 눌러서 무엇을 하는지 화면 낭독기에 알린다.
   static const profilePhotoChangeLabel = '프로필 사진 바꾸기';
 
