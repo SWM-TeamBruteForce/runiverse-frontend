@@ -18,6 +18,13 @@ import 'package:runiverse/features/auth/domain/login_type.dart';
 import 'package:runiverse/features/auth/domain/private_relay_email.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
+import 'package:runiverse/core/utils/age_rule.dart';
+import 'package:runiverse/core/widgets/wheel_picker_sheet.dart';
+import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
+// ⚠️ **설정이 프로필의 provider를 읽는다.** feature를 가로지르지만 provider는
+// 예외이고, 방향은 `settings → profile` 한쪽뿐이다(`CLAUDE.md`).
+import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 import 'package:runiverse/features/settings/domain/profile_visibility.dart';
 import 'package:runiverse/features/settings/domain/settings_failure.dart';
 import 'package:runiverse/features/settings/presentation/settings_provider.dart';
@@ -49,12 +56,39 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
+  /// 51번(`GET /users/me/profile`)을 아직 기다리는가. 그동안 신체 정보 두 줄은
+  /// 잠긴다.
+  bool _bodyLoading = true;
+
+  /// 51번이 실패했는가. **빈 응답과 다르다** — 빈 응답은 온보딩 전이라
+  /// 덮어쓸 값이 없고, 실패는 서버 값을 모르는 것이라 덮으면 안 된다.
+  bool _bodyFailed = false;
+
+  /// 생년월일·키·몸무게를 만질 수 있는가.
+  bool get _bodyEditable => !_bodyLoading && !_bodyFailed;
+
   @override
   void initState() {
     super.initState();
     // 빌드 중에 provider를 고치면 죽는다 (`docs/implementation-notes.md` §10-1).
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) ref.read(settingsControllerProvider.notifier).load();
+      if (!mounted) return;
+      ref.read(settingsControllerProvider.notifier).load();
+      _loadBody();
+    });
+  }
+
+  /// 서버가 가진 신체 정보를 받아 두 줄을 채운다(51번).
+  ///
+  /// ⚠️ **기준값을 따로 두지 않는다.** 바뀐 것을 가리는 기준은
+  /// `bodyProfileProvider`이고, 이 호출이 그것을 서버 값으로 맞춘다 — 그래서
+  /// 시트를 열어 키만 고치면 몸무게는 "안 바뀐 것"이 되어 요청에 실리지 않는다.
+  Future<void> _loadBody() async {
+    final loaded = await ref.read(bodyProfileProvider.notifier).refresh();
+    if (!mounted) return;
+    setState(() {
+      _bodyLoading = false;
+      _bodyFailed = !loaded;
     });
   }
 
@@ -65,6 +99,147 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         .read(settingsControllerProvider.notifier)
         .setAlertConsent(value);
     _reportIfFailed(failure);
+  }
+
+  // ── 신체 정보 ─────────────────────────────────────────────
+
+  /// 생년월일을 고른다. **고르는 즉시 보낸다** — 설정에는 저장 버튼이 없다.
+  Future<void> _pickBirthday() async {
+    final now = DateTime.now();
+    final body = ref.read(bodyProfileProvider);
+    final current = body.birthday ?? DateTime(now.year - 27, 4, 12);
+
+    final picked = await showWheelPickerSheet(
+      context,
+      title: AppStrings.profileBirthLabel,
+      columns: [
+        WheelColumn(
+          unit: AppStrings.profileUnitYear,
+          // ⚠️ 상한은 `AgeRule`이 정한다. 온보딩 화면과 같은 값을 써야 한다.
+          values: [
+            for (var y = now.year - 80; y <= AgeRule.latestYear(now); y++) y,
+          ],
+          initial: current.year,
+        ),
+        WheelColumn(
+          unit: AppStrings.profileUnitMonth,
+          values: [for (var m = 1; m <= 12; m++) m],
+          initial: current.month,
+        ),
+        WheelColumn(
+          unit: AppStrings.profileUnitDay,
+          values: [for (var d = 1; d <= 31; d++) d],
+          initial: current.day,
+          // 일 목록은 년·월에 달렸다. 다음 달 0일 = 이번 달 마지막 날.
+          valuesFor: (picked) => [
+            for (var d = 1; d <= DateTime(picked[0], picked[1] + 1, 0).day; d++)
+              d,
+          ],
+        ),
+      ],
+    );
+    if (picked == null) return;
+
+    final birthday = DateTime(picked[0], picked[1], picked[2]);
+    // 안 바뀌었다. 보내면 서버가 같은 값을 다시 쓰는데, 다른 기기에서 방금
+    // 바꾼 값이 있으면 그것을 덮는다.
+    if (birthday == body.birthday) return;
+
+    // ⚠️ **휠이 막아주던 값이 아니다.** 상한은 `AgeRule`이 정하지만 윤년·일수
+    // 조합으로 경계를 넘을 수 있다. 서버도 400으로 막는데 그 메시지는 화면에
+    // 닿지 않아, 여기서 말해 준다.
+    if (!AgeRule.isAllowed(birthday, now: DateTime.now())) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(AppStrings.profileBirthTooYoung)),
+      );
+      return;
+    }
+
+    await _saveBody(birthday: birthday);
+  }
+
+  /// 키·몸무게를 고른다. **한 시트가 두 값을 함께 돌려준다.**
+  Future<void> _pickBody() async {
+    final body = ref.read(bodyProfileProvider);
+
+    final picked = await showWheelPickerSheet(
+      context,
+      title: AppStrings.profileBodyLabel,
+      columns: [
+        WheelColumn(
+          unit: AppStrings.profileUnitHeight,
+          values: [for (var h = 130; h <= 210; h++) h],
+          initial: body.heightCm ?? 172,
+        ),
+        WheelColumn(
+          unit: AppStrings.profileUnitWeight,
+          values: [for (var w = 30; w <= 140; w++) w],
+          initial: body.weightKg ?? 63,
+        ),
+      ],
+    );
+    if (picked == null) return;
+
+    // ⚠️ **바뀐 것만 보낸다.** 시트가 두 값을 함께 돌려주므로, 키만 고쳤는데
+    // 몸무게까지 실으면 **다른 기기에서 방금 바꾼 몸무게를 덮는다.**
+    await _saveBody(
+      heightCm: picked[0] == body.heightCm ? null : picked[0],
+      weightKg: picked[1] == body.weightKg ? null : picked[1],
+    );
+  }
+
+  /// 신체 정보를 보낸다. **보낼 것이 없으면 아무것도 하지 않는다.**
+  ///
+  /// ⚠️ 실패를 삼키지 않는다. 설정에는 저장 버튼이 없어 **다시 누를 자리도
+  /// 없으므로**, 조용히 실패하면 사용자는 바뀐 줄 알고 화면을 떠난다.
+  Future<void> _saveBody({
+    DateTime? birthday,
+    int? heightCm,
+    int? weightKg,
+  }) async {
+    if (birthday == null && heightCm == null && weightKg == null) return;
+
+    final failure = await ref
+        .read(profileSummaryControllerProvider.notifier)
+        .saveProfile(
+          birthday: birthday,
+          heightCm: heightCm,
+          weightKg: weightKg,
+        );
+
+    if (!mounted || failure == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          failure == ProfileEditFailure.sessionExpired
+              ? AppStrings.settingsSessionExpired
+              : AppStrings.settingsUpdateFailed,
+        ),
+      ),
+    );
+  }
+
+  /// 생년월일 한 줄. **아직 못 읽었으면 `null`** — `_ValueRow`가 자리를
+  /// 비워 두고 높이를 유지한다.
+  String? get _birthdayText {
+    if (_bodyLoading) return null;
+    final birthday = ref.watch(bodyProfileProvider).birthday;
+    if (birthday == null) return AppStrings.profileEditUnknown;
+    return '${birthday.year}.${birthday.month.toString().padLeft(2, '0')}'
+        '.${birthday.day.toString().padLeft(2, '0')}';
+  }
+
+  /// `180cm · 85kg` 한 줄. **한쪽만 있으면 비운다** — 시트가 두 값을 함께
+  /// 돌려주므로 반쪽만 있는 상태는 없다.
+  String? get _bodyText {
+    if (_bodyLoading) return null;
+    final body = ref.watch(bodyProfileProvider);
+    final height = body.heightCm;
+    final weight = body.weightKg;
+    if (height == null || weight == null) return AppStrings.profileEditUnknown;
+    return '$height${AppStrings.profileUnitHeight}'
+        ' · $weight${AppStrings.profileUnitWeight}';
   }
 
   Future<void> _setVisibility(ProfileVisibility value) async {
@@ -232,6 +407,40 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 onChanged: settings == null ? null : _setVisibility,
               ),
             ],
+            const SizedBox(height: AppSpacing.space6),
+
+            // ⚠️ **편집 화면에서 옮겨 왔다**(2026-10-22 요청). 자주 고치는
+            // 값이 아니고, 거기 있으면 홈과 닮은 위쪽이 긴 폼에 묻힌다.
+            const _SectionLabel(AppStrings.profileBodySection),
+            _Card(
+              children: [
+                _ValueRow(
+                  label: AppStrings.profileBirthLabel,
+                  value: _birthdayText,
+                  // 서버 값을 모르는 동안은 잠긴다. 선택기 기본값이 저장돼
+                  // 버리는 것을 막는 유일한 자리다.
+                  onTap: _bodyEditable ? _pickBirthday : null,
+                ),
+                _ValueRow(
+                  label: AppStrings.profileBodyLabel,
+                  value: _bodyText,
+                  onTap: _bodyEditable ? _pickBody : null,
+                ),
+              ],
+            ),
+            // 잠긴 이유를 적는다. 안 적으면 눌러도 아무 일이 없는 줄로 보인다.
+            if (_bodyFailed)
+              Padding(
+                padding: const EdgeInsets.only(
+                  top: AppSpacing.space2,
+                  left: AppSpacing.space4,
+                ),
+                child: Text(
+                  AppStrings.profileBodyLoadFailed,
+                  style: AppTypographyV2.body15.copyWith(color: colors.error),
+                ),
+              ),
+
             const SizedBox(height: AppSpacing.space6),
             const _SectionLabel(AppStrings.settingsAccountSection),
             _Card(
@@ -415,9 +624,13 @@ class _SwitchRow extends StatelessWidget {
 
 /// 읽기만 하는 행. 바꾸는 API가 없다.
 class _ValueRow extends StatelessWidget {
-  const _ValueRow({required this.label, required this.value});
+  const _ValueRow({required this.label, required this.value, this.onTap});
 
   final String label;
+
+  /// 누르면 고르는 자리가 열린다. `null`이면 **읽기 전용 행**이고, 화살표도
+  /// 그리지 않는다 — 그려 두면 눌러도 아무 일이 없는 줄로 보인다.
+  final VoidCallback? onTap;
 
   /// `null`이면 아직 못 읽었다. 자리를 비워 두고 높이는 유지한다 —
   /// 값이 들어올 때 행이 튀어 오르면 누르려던 것을 놓친다.
@@ -428,7 +641,7 @@ class _ValueRow extends StatelessWidget {
     final colors = context.appColorsV2;
     final text = value;
 
-    return Container(
+    final row = Container(
       constraints: const BoxConstraints(minHeight: AppSizes.touchDefault),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.space4,
@@ -466,8 +679,18 @@ class _ValueRow extends StatelessWidget {
             const Spacer(),
             _Skeleton(color: colors.borderDefault),
           ],
+          if (onTap != null) ...[
+            const SizedBox(width: AppSpacing.space2),
+            AppIcon(AppIcons.right, size: 18, color: colors.textTertiary),
+          ],
         ],
       ),
+    );
+
+    if (onTap == null) return row;
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(onTap: onTap, child: row),
     );
   }
 }

@@ -9,6 +9,7 @@ import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
@@ -18,8 +19,11 @@ import 'package:runiverse/features/profile/data/fake_profile_repository.dart';
 import 'package:runiverse/features/profile/domain/photo_picker.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
+import 'package:runiverse/features/profile/domain/nickname_change_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
+import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
+import 'package:runiverse/features/profile/presentation/background_picker.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
 import 'package:runiverse/features/profile/presentation/profile_edit_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
@@ -36,6 +40,10 @@ void main() {
   late FakeProfileRepository repo;
   late FakeProfileImageRepository photos;
 
+  /// 커버가 읽는 저장소. 테스트는 배경을 다루지 않지만 **끼우지 않으면**
+  /// 진짜 저장소가 만들어져 서버 주소를 찾다 죽는다.
+  late FakeProfileImageRepository background;
+
   Future<void> pumpEdit(
     WidgetTester tester, {
     String? nickname = '별밤러너',
@@ -43,10 +51,15 @@ void main() {
     ProfileEditFailure? editFails,
     String? photoUrl,
     ProfileImageFailure? photoFails,
+    String? backgroundUrl,
+    ProfileImageFailure? backgroundFails,
     PhotoPicker? picker,
     // 서버가 가지고 있다고 할 신체 정보(51번). 기본은 **온보딩 전**이다.
     StoredBody body = StoredBody.empty,
     ProfileFailure? bodyFails,
+    // 중복확인이 돌려줄 답. `null`이면 **못 물어본 것**이다.
+    bool? nicknameAvailable = true,
+    NicknameChangeFailure? nicknameFails,
   }) async {
     repo = FakeProfileRepository(
       nickname: nickname,
@@ -55,11 +68,17 @@ void main() {
       editFailure: editFails,
       body: body,
       bodyFailure: bodyFails,
-    );
+      nicknameFailure: nicknameFails,
+    )..available = nicknameAvailable;
     photos = FakeProfileImageRepository(
       latency: Duration.zero,
       url: photoUrl,
       failWith: photoFails,
+    );
+    background = FakeProfileImageRepository(
+      latency: Duration.zero,
+      url: backgroundUrl,
+      failWith: backgroundFails,
     );
 
     final auth = FakeAuthRepository(latency: Duration.zero);
@@ -95,6 +114,9 @@ void main() {
           authRepositoryProvider.overrideWithValue(auth),
           // ⚠️ 없으면 아바타가 진짜 저장소를 만들고 `API_BASE_URL`이 없어 죽는다.
           profileImageRepositoryProvider.overrideWithValue(photos),
+          // ⚠️ 배경도 끼운다. 커버가 이 provider를 읽는데, 안 끼우면 진짜
+          // 저장소가 만들어져 테스트에 없는 서버 주소를 찾다 죽는다.
+          backgroundImageRepositoryProvider.overrideWithValue(background),
           // ⚠️ 앨범을 여는 것은 플랫폼 채널이라 테스트에 없다.
           photoPickerProvider.overrideWithValue(picker ?? _FakePicker()),
           profileRepositoryProvider.overrideWithValue(repo),
@@ -142,7 +164,10 @@ void main() {
   Future<bool> saveOpens(WidgetTester tester) async {
     await tester.tap(saveButton());
     await tester.pumpAndSettle();
-    return repo.updated != null || photos.uploaded != null || photos.removed;
+    return repo.updated != null ||
+        repo.changedTo != null ||
+        photos.uploaded != null ||
+        photos.removed;
   }
 
   /// 아바타를 눌러 사진 시트를 연다.
@@ -157,6 +182,292 @@ void main() {
     await tester.tap(find.text(AppStrings.profilePhotoPick));
     await tester.pumpAndSettle();
   }
+
+  /// 배경 이미지 — **사진과 같은 규칙, 다른 자리** (1.1.1 배경 가이드).
+  ///
+  /// ⚠️ 고른 것은 화면에만 남고 **저장 버튼이 보낸다.** 배경만 즉시 올리면 한
+  /// 화면에 규칙이 둘이 되고, 사용자는 무엇이 이미 갔는지 알 수 없다.
+  group('배경 이미지', () {
+    /// 고른 사진. **기본 picker는 (취소)이라** 심어 줘야 한다.
+    final picked = _FakePicker(
+      image: PickedImage.validated(path: '/a/cover.png', sizeBytes: 2048),
+    );
+
+    /// 미리보기를 눌러 **앨범에서 선택**까지 고른다.
+    Future<void> pickBackground(WidgetTester tester) async {
+      await tester.tap(find.byType(BackgroundPicker));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.profilePhotoPick));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('편집 화면에 배경 자리가 있다', (tester) async {
+      await pumpEdit(tester, picker: picked);
+
+      expect(find.byType(BackgroundPicker), findsOneWidget);
+    });
+
+    /// ⚠️ **프로필 화면과 같은 배치다.** 커버가 맨 위에서 폭을 다 쓰고, 아바타가
+    /// 그 아래변에 걸친다. 편집 화면만 다른 모양이면 같은 것을 두 가지로
+    /// 기억해야 한다 — 바꾸는 자리와 보이는 자리가 닮아야 무엇을 바꾸는지 안다.
+    group('⚠️ 프로필 화면과 같은 배치다', () {
+      testWidgets('커버가 맨 위에서 폭을 다 쓴다', (tester) async {
+        await pumpEdit(tester, picker: picked);
+
+        final screen = tester.getSize(find.byType(Scaffold)).width;
+        final cover = tester.getRect(find.byType(BackgroundPicker));
+
+        expect(cover.left, 0, reason: '좌우 여백 없이 가장자리까지 간다');
+        expect(cover.width, screen);
+      });
+
+      testWidgets('커버가 아바타보다 위에 있다', (tester) async {
+        await pumpEdit(tester, picker: picked);
+
+        final cover = tester.getRect(find.byType(BackgroundPicker));
+        final avatar = tester.getRect(find.byType(ProfileAvatar));
+
+        expect(cover.top, lessThan(avatar.top));
+      });
+
+      testWidgets('⚠️ 아바타가 커버에 걸친다', (tester) async {
+        // 걸치지 않으면 커버와 프로필이 **두 덩어리**로 보인다. 프로필 화면이
+        // 같은 이유로 같은 일을 한다(`ProfileHeader.coverOverlap`).
+        await pumpEdit(tester, picker: picked);
+
+        final cover = tester.getRect(find.byType(BackgroundPicker));
+        final avatar = tester.getRect(find.byType(ProfileAvatar));
+
+        expect(avatar.top, lessThan(cover.bottom), reason: '윗변이 커버 안에 든다');
+        expect(avatar.bottom, greaterThan(cover.bottom), reason: '아래는 커버 밖');
+      });
+
+      testWidgets('아바타가 왼쪽에 선다', (tester) async {
+        await pumpEdit(tester, picker: picked);
+
+        final screen = tester.getSize(find.byType(Scaffold)).width;
+        final avatar = tester.getRect(find.byType(ProfileAvatar));
+
+        expect(avatar.center.dx, lessThan(screen / 2));
+      });
+    });
+
+    testWidgets('⚠️ 누를 수 있다는 표시가 있다', (tester) async {
+      // 누르면 열리기는 하는데 **그냥 사각형**이면 아무도 누를 줄 모른다.
+      // 아바타가 카메라 배지로 같은 일을 한다 — 같은 화면에서 한쪽만 말하지
+      // 않으면 그 자리는 없는 것과 같다.
+      //
+      // ⚠️ **글자는 없다**(2026-10-22 요청). 그래서 낭독기가 읽을 것은
+      // `Semantics` 라벨뿐이고, 그것이 빠지면 **눈으로만 쓸 수 있는 버튼**이
+      // 된다. 아이콘과 라벨을 함께 본다.
+      await pumpEdit(tester, picker: picked);
+
+      expect(
+        find.descendant(
+          of: find.byType(BackgroundPicker),
+          matching: find.byWidgetPredicate(
+            (w) => w is AppIcon && w.name == AppIcons.camera,
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(BackgroundPicker),
+          matching: find.bySemanticsLabel(AppStrings.profileEditBackground),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('⚠️ 아바타에도 글자가 없다 — 라벨만 남는다', (tester) async {
+      // 커버 버튼과 같은 규칙이다(2026-10-22 요청). `사진 바꾸기` 글자를 뺀
+      // 만큼 **낭독기가 읽을 것은 `Semantics` 라벨뿐**이고, 그것이 빠지면
+      // 눈으로만 쓸 수 있는 버튼이 된다.
+      await pumpEdit(tester, picker: picked);
+
+      expect(find.text('사진 바꾸기'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(ProfileAvatar),
+          matching: find.bySemanticsLabel(AppStrings.profilePhotoChangeLabel),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('⚠️ 버튼에 글자를 넣지 않는다', (tester) async {
+      // 홈과 같은 그림으로 두기 위한 결정이다(2026-10-22 요청). 글자가 돌아오면
+      // 커버 위에 말풍선 같은 덩어리가 생겨 홈과 다시 달라진다.
+      await pumpEdit(tester, picker: picked);
+
+      expect(find.text(AppStrings.profileEditBackground), findsNothing);
+    });
+
+    testWidgets('⚠️ 고른 것은 저장 전까지 올라가지 않는다', (tester) async {
+      await pumpEdit(tester, picker: picked);
+
+      await pickBackground(tester);
+
+      expect(background.uploaded, isNull);
+    });
+
+    testWidgets('저장을 누르면 올라간다', (tester) async {
+      await pumpEdit(tester, picker: picked);
+      await pickBackground(tester);
+
+      await tester.tap(saveButton());
+      await tester.pumpAndSettle();
+
+      expect(background.uploaded, isNotNull);
+    });
+
+    testWidgets('⚠️ 배경만 바꿔도 저장이 열린다', (tester) async {
+      // 사진·소개글은 그대로인데 저장이 잠기면 **고른 배경이 버려진다.**
+      await pumpEdit(tester, picker: picked);
+
+      await pickBackground(tester);
+      await tester.tap(saveButton());
+      await tester.pumpAndSettle();
+
+      expect(background.uploaded, isNotNull);
+    });
+
+    testWidgets('기본 이미지로를 고르면 지운다', (tester) async {
+      await pumpEdit(
+        tester,
+        picker: picked,
+        backgroundUrl: 'https://cdn.test/cover.jpg',
+      );
+
+      await tester.tap(find.byType(BackgroundPicker));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.profilePhotoReset));
+      await tester.pumpAndSettle();
+      await tester.tap(saveButton());
+      await tester.pumpAndSettle();
+
+      expect(background.removed, isTrue);
+    });
+
+    testWidgets('⚠️ 올릴 수 없는 사진을 고르면 무엇이 문제인지 말해 준다', (tester) async {
+      // 10MB를 넘거나 허용 외 형식이면 `PickedImage`가 서버에 가기 전에
+      // 막는다. 조용히 삼키면 **미리보기도 안 바뀌고 문구도 안 떠서**,
+      // 사용자는 같은 사진을 다시 고른다. 프로필 사진은 이미 말해 준다.
+      await pumpEdit(
+        tester,
+        picker: _FakePicker(failure: ProfileImageFailure.tooLarge),
+      );
+
+      await tester.tap(find.byType(BackgroundPicker));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.profilePhotoPick));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 배경이 실패하면 프로필 값이 안 나간다', (tester) async {
+      // 반만 저장되면 화면이 무엇을 들고 있는지 알 수 없다.
+      await pumpEdit(
+        tester,
+        picker: picked,
+        backgroundFails: ProfileImageFailure.upload,
+      );
+      await pickBackground(tester);
+      await tester.enterText(introductionField, '바뀐 소개');
+      await tester.pumpAndSettle();
+
+      await tester.tap(saveButton());
+      await tester.pumpAndSettle();
+
+      expect(repo.updated, isNull, reason: '프로필 값은 나가지 않는다');
+      expect(find.byType(ProfileEditPage), findsOneWidget, reason: '화면에 남는다');
+    });
+  });
+
+  /// 닉네임 — **시트에서 내려왔다**(2026-10-22 요청).
+  ///
+  /// ## ⚠️ 저장 시점이 바뀌었다
+  ///
+  /// 전에는 시트에서 **누르는 자리에서 즉시** 저장됐다. 지금은 사진·배경·
+  /// 소개글과 같이 **저장 버튼이 보낸다.** 중복확인이 치는 동안 도는 것은
+  /// 그대로다 — 그 규칙은 `nickname_field_test.dart`가 지킨다.
+  group('닉네임', () {
+    /// 이름을 고치고 **디바운스가 끝날 때까지** 기다린다.
+    Future<void> typeNickname(WidgetTester tester, String name) async {
+      await tester.enterText(find.byType(TextField).first, name);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('⚠️ 고친 것만으로는 아직 안 간다', (tester) async {
+      // 즉시 저장이던 시절의 습관이 남으면, 저장을 안 누르고 나간 사람의
+      // 이름이 바뀌어 있다.
+      await pumpEdit(tester);
+
+      await typeNickname(tester, '완두콩');
+
+      expect(repo.changedTo, isNull);
+    });
+
+    testWidgets('저장을 누르면 그때 간다', (tester) async {
+      await pumpEdit(tester);
+
+      await typeNickname(tester, '완두콩');
+      await tester.tap(saveButton());
+      await tester.pumpAndSettle();
+
+      expect(repo.changedTo, '완두콩');
+    });
+
+    testWidgets('⚠️ 닉네임만 바꿔도 저장이 열린다', (tester) async {
+      // 저장 버튼이 세는 값에 닉네임을 안 넣으면, 이름만 고친 사람은
+      // **잠긴 버튼을 보며 왜 안 눌리는지 모른다.**
+      await pumpEdit(tester);
+
+      await typeNickname(tester, '완두콩');
+
+      expect(await saveOpens(tester), isTrue);
+    });
+
+    testWidgets('⚠️ 보낼 수 없는 이름이면 저장이 열리지 않는다', (tester) async {
+      // 형식이 틀렸거나 겹치는 이름이다. 열어 두면 눌러봐야 서버가 거절한다.
+      await pumpEdit(tester, nicknameAvailable: false);
+
+      await typeNickname(tester, '완두콩');
+
+      expect(await saveOpens(tester), isFalse);
+    });
+
+    testWidgets('⚠️ 보내다 겹치면 화면에 남고 칸이 말해 준다', (tester) async {
+      // 묻고 누르는 사이에 남이 가져갈 수 있다. 닫아 버리면 다시 들어와
+      // 처음부터 쳐야 한다.
+      await pumpEdit(tester, nicknameFails: NicknameChangeFailure.taken);
+
+      await typeNickname(tester, '완두콩');
+      await tester.tap(saveButton());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProfileEditPage), findsOneWidget);
+      expect(find.text(AppStrings.profileNicknameTaken), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 닉네임이 실패하면 소개글도 안 나간다', (tester) async {
+      // 반만 저장되면 화면이 무엇을 들고 있는지 알 수 없다 — 사진·배경과
+      // 같은 규칙이다.
+      await pumpEdit(tester, nicknameFails: NicknameChangeFailure.taken);
+
+      await tester.enterText(introductionField, '즐겁게 달려요');
+      await tester.pumpAndSettle();
+      await typeNickname(tester, '완두콩');
+      await tester.tap(saveButton());
+      await tester.pumpAndSettle();
+
+      expect(repo.updated, isNull);
+    });
+  });
 
   testWidgets('⚠️ 바꾼 게 없으면 저장이 잠긴다', (tester) async {
     await pumpEdit(tester);
@@ -351,107 +662,9 @@ void main() {
     expect(find.text(AppStrings.profileGenderFemale), findsNothing);
   });
 
-  testWidgets('⚠️ 서버에 값이 없으면 채우라고 하지 않고 —로 둔다', (tester) async {
-    // 51번이 `null`을 주는 경우 = **온보딩 전**이다. "설정하기"로 부추기지
-    // 않는다 — 온보딩을 먼저 마쳐야 서버가 `PATCH`를 받는다(409).
-    await pumpEdit(tester);
-
-    expect(find.text(AppStrings.profileEditUnknown), findsWidgets);
-  });
-
-  /// 신체 정보 — **모르는 값 위에 기본값을 쓰지 않는가.**
-  ///
-  /// 전에는 기기에 남은 값으로만 선택기를 열었다. 다른 기기에서 로그인한
-  /// 사람은 그 값이 없어 172cm·63kg으로 열렸고, **키만 고쳐 저장해도 몸무게가
-  /// 63kg으로 덮였다** — 시트가 두 값을 함께 돌려주기 때문이다.
-  group('신체 정보', () {
-    const stored = StoredBody(heightCm: 175, weightKg: 71);
-
-    /// `키 · 몸무게` 줄을 눌러 시트를 연다.
-    Future<void> openBodySheet(WidgetTester tester) async {
-      await tester.tap(find.text(AppStrings.profileBodyLabel));
-      await tester.pumpAndSettle();
-    }
-
-    /// 시트가 열려 있는가. 잠긴 줄은 눌러도 열리지 않는다.
-    bool sheetOpen() =>
-        find.text(AppStrings.wheelPickerConfirm).evaluate().isNotEmpty;
-
-    testWidgets('서버 값으로 칸이 채워진다', (tester) async {
-      await pumpEdit(tester, body: stored);
-
-      expect(find.textContaining('175cm'), findsOneWidget);
-      expect(find.textContaining('71kg'), findsOneWidget);
-    });
-
-    testWidgets('⚠️ 서버 값을 그대로 확인해도 아무것도 보내지 않는다', (tester) async {
-      // 기본값으로 열렸다면 `172 · 63`을 확인한 셈이 되어 저장이 열린다.
-      await pumpEdit(tester, body: stored);
-
-      await openBodySheet(tester);
-      await tester.tap(find.text(AppStrings.wheelPickerConfirm));
-      await tester.pumpAndSettle();
-
-      expect(await saveOpens(tester), isFalse);
-    });
-
-    testWidgets('⚠️ 키만 고치면 몸무게는 보내지 않는다', (tester) async {
-      // **이 테스트가 이 작업의 이유다.** 시트는 두 값을 함께 돌려주므로,
-      // 바뀐 것을 가리는 기준이 서버 값이어야 몸무게가 빠진다.
-      await pumpEdit(tester, body: stored);
-
-      await openBodySheet(tester);
-      // 첫 휠(키)만 한 칸 굴린다. 44px = 항목 하나.
-      await tester.drag(
-        find.byType(ListWheelScrollView).first,
-        const Offset(0, -44),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(AppStrings.wheelPickerConfirm));
-      await tester.pumpAndSettle();
-      await tester.tap(saveButton());
-      await tester.pumpAndSettle();
-
-      expect(repo.updated, isNotNull);
-      expect(repo.updated!['heightCm'], 176.0);
-      // 몸무게가 실리면 **서버의 71kg이 덮인다.**
-      expect(repo.updated!.containsKey('weightKg'), isFalse);
-    });
-
-    testWidgets('⚠️ 못 불러왔으면 칸이 잠기고 이유가 보인다', (tester) async {
-      // 서버 값을 모르는 채로 선택기를 열면 기본값이 저장된다.
-      // **못 고치는 편이 틀린 값을 쓰는 것보다 낫다.**
-      await pumpEdit(tester, bodyFails: ProfileFailure.network);
-
-      expect(find.text(AppStrings.profileBodyLoadFailed), findsOneWidget);
-
-      await openBodySheet(tester);
-      expect(sheetOpen(), isFalse);
-
-      await tester.tap(find.text(AppStrings.profileBirthLabel));
-      await tester.pumpAndSettle();
-      expect(sheetOpen(), isFalse);
-    });
-
-    testWidgets('온보딩 전이면 잠그지 않는다 — 덮을 값이 없다', (tester) async {
-      // 51번이 성공했고 값만 비었다. 이때는 선택기 기본값을 써도 **아무것도
-      // 덮지 않는다** — 실패와 빈 응답을 가르는 이유가 이것이다.
-      await pumpEdit(tester);
-
-      expect(find.text(AppStrings.profileBodyLoadFailed), findsNothing);
-
-      await openBodySheet(tester);
-      expect(sheetOpen(), isTrue);
-    });
-
-    testWidgets('들어올 때 서버에 한 번 묻는다', (tester) async {
-      // 화면이 안 물으면 기기에 남은 값으로 선택기가 열린다 — 그것이
-      // 172cm·63kg이 서버에 쓰이던 경로다.
-      await pumpEdit(tester, body: stored);
-
-      expect(repo.bodyCalls, 1);
-    });
-  });
+  // ⚠️ **신체 정보는 설정으로 갔다**(2026-10-22 요청). 모르는 값 위에
+  // 기본값을 쓰지 않는 규칙은 그대로이고, 그것을 지키는 테스트는
+  // `settings_page_test.dart`의 같은 이름 묶음에 있다.
 
   testWidgets('⚠️ 화면 위의 뒤로가기 버튼으로 나갈 수 있다', (tester) async {
     // 다른 테스트는 전부 시스템 뒤로가기(`handlePopRoute`)를 쓴다.

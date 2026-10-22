@@ -40,6 +40,7 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     required this.bgSurface,
     required this.bgElevated,
     required this.bgScrim,
+    required this.coverScrim,
     required this.bgInverse,
     required this.bgGlass,
     required this.borderDefault,
@@ -73,6 +74,19 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
 
   /// 모달 뒤 딤.
   final Color bgScrim;
+
+  /// **사진 위 상태바를 지키는 그늘막.** 위에서 아래로 사라지는 그라데이션의
+  /// 시작 색이다.
+  ///
+  /// ⚠️ [bgScrim]과 다르다 — 저쪽은 모달 뒤를 통째로 덮고, 이쪽은 **시계·
+  /// 배터리 글자가 사진에 묻히지 않을 만큼만** 덮는다. 더 진하면 사진이 상한다.
+  ///
+  /// ⚠️ **55%는 기기에서 픽셀을 재서 정한 값이다.** 밝은 사진에 40%를 깔면 흰
+  /// 시계 글자 대비가 1.8:1까지 떨어진다. 값만 55%로 올려도 2.3:1이라 모자라서,
+  /// `ProfileCover`가 **상태바 높이까지는 옅어지지 않게** 그라데이션을 나눈다.
+  /// 둘이 같이 있어야 4.7:1이 된다 — 한쪽만 되돌리면 글자가 다시 묻힌다
+  /// (`docs/specs/2026-10-22-profile-background-image-design.md` 10절).
+  final Color coverScrim;
 
   /// **램프를 뒤집은 면.** 어두운 테마에서 밝고, 밝은 테마에서 어둡다.
   ///
@@ -143,6 +157,7 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     bgSurface: AppPaletteV2.neutral900,
     bgElevated: AppPaletteV2.neutral800,
     bgScrim: Color(0x99000000),
+    coverScrim: Color(0x8C000000),
     bgInverse: AppPaletteV2.neutral50,
     bgGlass: Color(0x1AFFFFFF),
     borderDefault: AppPaletteV2.neutral800,
@@ -171,6 +186,7 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     bgSurface: AppPaletteV2.neutral50,
     bgElevated: AppPaletteV2.neutral100,
     bgScrim: Color(0x66171719),
+    coverScrim: Color(0x8C000000),
     bgInverse: AppPaletteV2.neutral900,
     bgGlass: Color(0x14171719),
     borderDefault: AppPaletteV2.neutral200,
@@ -199,6 +215,7 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     Color? bgSurface,
     Color? bgElevated,
     Color? bgScrim,
+    Color? coverScrim,
     Color? bgInverse,
     Color? bgGlass,
     Color? borderDefault,
@@ -224,6 +241,7 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
     bgSurface: bgSurface ?? this.bgSurface,
     bgElevated: bgElevated ?? this.bgElevated,
     bgScrim: bgScrim ?? this.bgScrim,
+    coverScrim: coverScrim ?? this.coverScrim,
     bgInverse: bgInverse ?? this.bgInverse,
     bgGlass: bgGlass ?? this.bgGlass,
     borderDefault: borderDefault ?? this.borderDefault,
@@ -255,6 +273,7 @@ class AppColorsV2 extends ThemeExtension<AppColorsV2> {
       bgSurface: c(bgSurface, other.bgSurface),
       bgElevated: c(bgElevated, other.bgElevated),
       bgScrim: c(bgScrim, other.bgScrim),
+      coverScrim: c(coverScrim, other.coverScrim),
       bgInverse: c(bgInverse, other.bgInverse),
       bgGlass: c(bgGlass, other.bgGlass),
       borderDefault: c(borderDefault, other.borderDefault),

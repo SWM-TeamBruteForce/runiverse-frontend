@@ -851,6 +851,19 @@ abstract final class AppStrings {
   /// 지우기. **"삭제"라 쓰지 않는다** — 돌아가는 자리가 있다는 것을 말해준다.
   static const profilePhotoReset = '기본 이미지로';
 
+  /// 배경 이미지 시트의 제목.
+  ///
+  /// ⚠️ **두 항목(`앨범에서 선택` · `기본 이미지로`)은 사진 것을 그대로 쓴다.**
+  /// 하는 일이 같은데 문구만 갈라 두면 한쪽만 고쳐지는 날이 온다.
+  static const profileBackgroundSheetTitle = '배경 이미지';
+
+  /// 커버 위에서 **누를 수 있다고 말하는** 글자.
+  ///
+  /// ⚠️ 시트 제목(`배경 이미지`)과 다른 말이어야 한다. 같은 말을 두 번 쓰면
+  /// 눌러도 제자리인 것처럼 읽힌다 — 이쪽은 **무엇이 눌리는지**, 저쪽은
+  /// **무엇을 고르는 중인지**를 말한다. 아바타가 `사진 바꾸기`로 같은 일을 한다.
+  static const profileEditBackground = '배경 바꾸기';
+
   /// 아바타의 접근성 라벨. 눌러서 무엇을 하는지 화면 낭독기에 알린다.
   static const profilePhotoChangeLabel = '프로필 사진 바꾸기';
 
@@ -888,9 +901,6 @@ abstract final class AppStrings {
 
   static const profileEditTitle = '프로필 편집';
   static const profileEditSave = '저장';
-
-  /// 아바타 아래 문구. 정본 S22.1의 `프로필 사진 변경`을 줄였다.
-  static const profileEditPhoto = '사진 바꾸기';
 
   static const profileIntroductionLabel = '한 줄 소개';
   static const profileIntroductionHint = '오늘도 달립니다';

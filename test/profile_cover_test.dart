@@ -1,0 +1,175 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/features/profile/data/fake_profile_image_repository.dart';
+import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
+import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
+import 'package:runiverse/features/profile/presentation/profile_cover.dart';
+
+/// 프로필 커버 — **사진이 없을 때 무엇을 그리는가.**
+///
+/// ## ⚠️ 세 상태가 같은 그림이다
+///
+/// 조회 중 · 안 올린 사람 · 조회 실패. 셋 다 기본 단색이고 회전 표시가 없다.
+/// 커버는 화면 폭 전체라, 로딩 표시를 넣으면 **프로필을 열 때마다 큰 사각형이
+/// 번쩍인다.** 아바타가 이미 같은 규칙으로 간다.
+void main() {
+  /// ⚠️ **커버는 스스로 조회하지 않는다.** 화면(`ProfilePage`)이 부른다. 그래서
+  /// 조회한 뒤의 그림을 보려면 여기서 대신 불러 줘야 한다 — [loaded]가 거짓이면
+  /// **조회 중** 상태 그대로다.
+  Future<void> pumpCover(
+    WidgetTester tester, {
+    String? url,
+    ProfileImageFailure? failWith,
+    double topInset = 0,
+    bool loaded = true,
+  }) async {
+    final repository = FakeProfileImageRepository(
+      latency: Duration.zero,
+      url: url,
+      failWith: failWith,
+    );
+    final container = ProviderContainer.test(
+      overrides: [
+        backgroundImageRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    // ⚠️ **기다리지 않고 시작만 한다.** `pumpWidget` 전에 `await`하면 가짜
+    // 시간을 진행시킬 `pump`가 아직 없어 **테스트가 멈춘다**(가짜 저장소 주석).
+    if (loaded) {
+      unawaited(
+        container.read(backgroundImageControllerProvider.notifier).load(),
+      );
+    }
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: AppTheme.dark(),
+          home: MediaQuery(
+            data: MediaQueryData(padding: EdgeInsets.only(top: topInset)),
+            child: const Scaffold(body: Column(children: [ProfileCover()])),
+          ),
+        ),
+      ),
+    );
+    // ⚠️ **간격을 줘야 한다.** 인자 없는 `pump()`는 가짜 시간을 흘리지 않아
+    // 조회 타이머가 영영 안 깨고, 테스트는 "남은 타이머"로 거부된다.
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+  }
+
+  /// ⚠️ **테스트에서 `Image.network`는 늘 실패한다**(flutter_test가 HTTP를
+  /// 막는다). 그래서 주소를 넣은 테스트는 **깨짐 → 한 번 다시 받기**가 실제로
+  /// 돌고, 그 조회 타이머를 재워 주지 않으면 "남은 타이머"로 거부된다.
+  Future<void> settleRetry(WidgetTester tester) async {
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+  }
+
+  testWidgets('주소가 있으면 사진을 그린다', (tester) async {
+    await pumpCover(tester, url: 'https://cdn.test/cover.jpg');
+
+    expect(find.byType(Image), findsOneWidget);
+    await settleRetry(tester);
+  });
+
+  group('⚠️ 세 상태가 모두 기본 단색이다', () {
+    testWidgets('조회 중', (tester) async {
+      await pumpCover(tester, loaded: false);
+
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(Image), findsNothing);
+    });
+
+    testWidgets('안 올린 사람', (tester) async {
+      await pumpCover(tester, url: null);
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(Image), findsNothing);
+    });
+
+    testWidgets('조회 실패', (tester) async {
+      // 할 수 있는 일이 없다. 오류 표시를 띄우면 기본 배경 자리에 경고가 선다.
+      await pumpCover(tester, failWith: ProfileImageFailure.network);
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(Image), findsNothing);
+    });
+  });
+
+  testWidgets('⚠️ 기본 배경일 때도 그늘막이 깔린다', (tester) async {
+    // 상태에 따라 켜고 끄면 틀렸을 때 **시계가 사라지는 쪽으로** 틀린다.
+    await pumpCover(tester, url: null);
+    await tester.pump();
+
+    expect(find.byKey(ProfileCover.scrimKey), findsOneWidget);
+  });
+
+  testWidgets('사진이 있을 때도 그늘막이 깔린다', (tester) async {
+    await pumpCover(tester, url: 'https://cdn.test/cover.jpg');
+
+    expect(find.byKey(ProfileCover.scrimKey), findsOneWidget);
+    await settleRetry(tester);
+  });
+
+  testWidgets('⚠️ 그늘막 색이 토큰에서 온다', (tester) async {
+    // 하드코딩하면 **라이트 테마에서도 같은 검정**이 깔리고, 기기에서 진하기를
+    // 조정할 때 위젯 파일을 고쳐야 한다. 그 값은 아직 확정이 아니다(설계 10절).
+    await pumpCover(tester, url: null);
+
+    final scrim = tester.widget<Container>(find.byKey(ProfileCover.scrimKey));
+    final gradient =
+        (scrim.decoration! as BoxDecoration).gradient! as LinearGradient;
+    final colors = AppTheme.dark().extension<AppColorsV2>()!;
+
+    expect(gradient.colors.first, colors.coverScrim);
+    expect(gradient.colors.last.a, 0, reason: '아래로 가며 사라진다');
+  });
+
+  testWidgets('⚠️ 시계가 선 높이까지는 그늘막이 옅어지지 않는다', (tester) async {
+    // 기기에서 드러난 것이다. 꼭대기에서 바로 옅어지게 두면 **시계가 서 있는
+    // 높이에서는 이미 절반 넘게 사라져** 있다. 밝은 사진 위 흰 글자 대비가
+    // 2.3:1까지 떨어졌다(기준 4.5:1). 진하기를 올려도 구조가 같으면 같은 자리를
+    // 맴돈다 — 상태바 띠 안에서는 **같은 진하기로 버티고**, 그 아래 여유에서만
+    // 옅어져야 한다.
+    const topInset = 40.0;
+    await pumpCover(tester, url: null, topInset: topInset);
+    await tester.pump();
+
+    final scrim = tester.widget<Container>(find.byKey(ProfileCover.scrimKey));
+    final gradient =
+        (scrim.decoration! as BoxDecoration).gradient! as LinearGradient;
+
+    expect(gradient.colors.length, 3, reason: '버티는 구간 + 옅어지는 구간');
+    expect(gradient.colors[1], gradient.colors.first, reason: '둘째 점까지 같은 색');
+    expect(
+      gradient.stops![1],
+      closeTo(topInset / (topInset + ProfileCover.fadeLength), 0.001),
+      reason: '상태바 끝에서부터 옅어지기 시작한다',
+    );
+  });
+
+  testWidgets('⚠️ 위 여백을 받지 않는다 — 상태바 뒤까지 올라간다', (tester) async {
+    // SafeArea 안에 있으면 커버 위에 바탕색 띠가 생기고, 시안의 "사진이 시계
+    // 뒤까지"가 성립하지 않는다.
+    await pumpCover(tester, url: null, topInset: 40);
+    await tester.pump();
+
+    expect(tester.getTopLeft(find.byType(ProfileCover)).dy, 0);
+  });
+
+  testWidgets('비율이 시안과 같다 — 412:200', (tester) async {
+    await pumpCover(tester, url: null);
+    await tester.pump();
+
+    final size = tester.getSize(find.byType(ProfileCover));
+    expect(size.height, closeTo(size.width * 200 / 412, 0.5));
+  });
+}

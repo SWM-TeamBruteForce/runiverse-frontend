@@ -63,7 +63,10 @@ class ProfileAvatar extends ConsumerStatefulWidget {
   /// 무엇을 고르기로 했는지만 전한다.
   final ValueChanged<PendingPhoto>? onPending;
 
-  static const size = 88.0;
+  /// 원 지름. 시안은 88인데 **96으로 올렸다**(2026-10-22 요청). 커버에 걸치는
+  /// 깊이([ProfileHeader.coverOverlap])는 그대로 43이다 — 걸침은 윗변이
+  /// 어디서 시작하는지로 정해져서, 원이 커져도 아래로만 자란다.
+  static const size = 96.0;
 
   /// 편집 배지 지름. ⚠️ 정확한 값은 디자인 확인이 필요하다.
   static const badgeSize = AppSpacing.space6;
@@ -134,7 +137,7 @@ class _ProfileAvatarState extends ConsumerState<ProfileAvatar> {
                   )
                 else
                   Image(
-                    // 원본이 8160×6120까지 온다. 88px 원에 띄우려고 통째로
+                    // 원본이 8160×6120까지 온다. 작은 원에 띄우려고 통째로
                     // 풀지 않는다. 서명이 바뀌어도 캐시가 살아 있다.
                     image: profilePhoto(context, url, ProfileAvatar.size),
                     fit: BoxFit.cover,

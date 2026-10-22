@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -27,7 +28,10 @@ import 'package:runiverse/features/profile/domain/photo_picker.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/profile/domain/profile_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
+import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
+import 'package:runiverse/features/profile/presentation/nickname_field.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
+import 'package:runiverse/features/profile/presentation/profile_cover.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
@@ -52,6 +56,7 @@ void main() {
     required bool onboarded,
     bool meFails = false,
     FakeProfileImageRepository? photos,
+    FakeProfileImageRepository? background,
     PhotoPicker? picker,
     FakeProfileRepository? summary,
     String? cachedNickname,
@@ -105,6 +110,11 @@ void main() {
           ),
           profileRepositoryProvider.overrideWithValue(
             summary ?? FakeProfileRepository(),
+          ),
+          // ⚠️ 배경도 끼워야 한다. 안 끼우면 커버가 진짜 저장소를 만들고,
+          // 그것이 테스트에 없는 서버 주소를 찾다 죽는다.
+          backgroundImageRepositoryProvider.overrideWithValue(
+            background ?? FakeProfileImageRepository(latency: Duration.zero),
           ),
           if (picker != null) photoPickerProvider.overrideWithValue(picker),
         ],
@@ -419,11 +429,14 @@ void main() {
     await openEditPage(tester);
 
     expect(find.text(AppStrings.profileEditTitle), findsOneWidget);
-    // 거기서는 사진을 바꿀 수 있다.
-    expect(appIcon(AppIcons.camera), findsOneWidget);
+    // 거기서는 사진을 바꿀 수 있다 — **둘 다**. 아바타 배지와 배경 알약이
+    // 각각 카메라를 단다. 하나로 줄어들면 어느 쪽인가 누를 자리를 잃은 것이다.
+    expect(appIcon(AppIcons.camera), findsNWidgets(2));
   });
 
-  testWidgets('편집 화면에서 닉네임을 누르면 변경 시트가 열린다', (tester) async {
+  testWidgets('⚠️ 편집 화면에서 닉네임을 그 자리에서 고친다', (tester) async {
+    // 2026-10-22까지는 눌러서 시트를 여는 줄이었다. 지금은 **인라인 칸**이라
+    // 누를 것 없이 바로 쳐진다 — 시트가 다시 생기면 이 테스트가 깨진다.
     await pumpProfile(
       tester,
       onboarded: true,
@@ -431,10 +444,9 @@ void main() {
     );
 
     await openEditPage(tester);
-    await tester.tap(find.text('별밤러너'));
-    await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.profileNicknameChangeTitle), findsWidgets);
+    expect(find.byType(NicknameField), findsOneWidget);
+    expect(find.text('별밤러너'), findsOneWidget);
   });
 
   testWidgets('사진이 없으면 시트에 지우는 항목이 없다', (tester) async {
@@ -536,6 +548,102 @@ void main() {
     // 조회부터 실패하므로 시트에는 지우는 항목이 없다. 그래도 화면은 선다.
     await openSheet(tester);
     expect(find.text(AppStrings.profilePhotoPick), findsOneWidget);
+  });
+
+  /// 커버 — **배경만 스스로 주소를 챙긴다** (1.1.1 배경 가이드).
+  ///
+  /// 프로필 사진 주소는 요약(`GET /users/me`)에 얹혀 오지만 배경은 요약에 없다.
+  /// 조회 주소는 1시간이면 만료되고, 만료된 주소는 깨진 이미지가 된다 — 그런데
+  /// 커버가 비면 **"배경을 안 올린 사람"과 구분되지 않는다.**
+  group('커버', () {
+    testWidgets('화면에 들어오면 배경을 한 번 받는다', (tester) async {
+      final background = FakeProfileImageRepository(latency: Duration.zero);
+      await pumpProfile(tester, onboarded: true, background: background);
+
+      expect(background.fetchCalls, 1);
+    });
+
+    testWidgets('⚠️ 커버가 깨지면 한 번 더 받는다', (tester) async {
+      // 테스트에서 `Image.network`는 늘 실패한다 — 만료된 주소와 같은 길이다.
+      final background = FakeProfileImageRepository(
+        latency: Duration.zero,
+        url: 'https://cdn.test/cover.jpg',
+      );
+      await pumpProfile(tester, onboarded: true, background: background);
+
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+
+      expect(background.fetchCalls, 2);
+    });
+
+    testWidgets('⚠️ 다시 받고도 깨지면 또 받지 않는다', (tester) async {
+      // 만료가 되풀이되면 끝없이 두드린다.
+      final background = FakeProfileImageRepository(
+        latency: Duration.zero,
+        url: 'https://cdn.test/cover.jpg',
+      );
+      await pumpProfile(tester, onboarded: true, background: background);
+
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 1));
+        await tester.pump();
+      }
+
+      expect(background.fetchCalls, 2);
+    });
+
+    testWidgets('⚠️ 설정 버튼이 커버 위에 있지 않다', (tester) async {
+      // 사진 위 흰 아이콘은 밝은 사진에서 안 보인다(2026-10-22 결정).
+      await pumpProfile(tester, onboarded: true);
+
+      final cover = tester.getRect(find.byType(ProfileCover));
+      final settings = tester.getRect(
+        find.bySemanticsLabel(AppStrings.settingsTitle),
+      );
+      expect(settings.top, greaterThanOrEqualTo(cover.bottom));
+    });
+
+    testWidgets('⚠️ 아바타가 커버에 걸친다', (tester) async {
+      // 시안 좌표(아바타 y=157, 커버 끝 y=200)다. 걸치지 않으면 커버와
+      // 프로필이 두 덩어리로 보인다.
+      await pumpProfile(tester, onboarded: true);
+
+      final cover = tester.getRect(find.byType(ProfileCover));
+      final avatar = tester.getRect(find.byType(ProfileAvatar));
+      expect(avatar.top, lessThan(cover.bottom));
+      expect(avatar.bottom, greaterThan(cover.bottom));
+    });
+
+    testWidgets('⚠️ 상태바 글자를 밝게 고정한다', (tester) async {
+      // 그늘막은 **검정**이다. 기기가 상태바 아이콘을 어둡게 잡아 둔 상태라면
+      // 어두운 아이콘 + 검정 그늘막이 되어 **시계가 그대로 사라진다** —
+      // 그늘막을 깐 목적이 깨진다.
+      await pumpProfile(tester, onboarded: true);
+
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is AnnotatedRegion<SystemUiOverlayStyle> &&
+              w.value.statusBarIconBrightness == Brightness.light,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('⚠️ 커버가 상태바 뒤까지 올라간다', (tester) async {
+      // SafeArea 안에 있으면 커버 위에 바탕색 띠가 생긴다.
+      //
+      // ⚠️ **여백을 직접 줘야 한다.** 테스트 화면의 기본 여백은 0이라, 그냥
+      // 두면 `SafeArea`가 있든 없든 커버가 `y=0`에서 시작해 **이 그물이 아무것도
+      // 막지 못한다.**
+      tester.view.padding = const FakeViewPadding(top: 120); // 3배 화면의 40
+      addTearDown(tester.view.resetPadding);
+
+      await pumpProfile(tester, onboarded: true);
+
+      expect(tester.getTopLeft(find.byType(ProfileCover)).dy, 0);
+    });
   });
 }
 
