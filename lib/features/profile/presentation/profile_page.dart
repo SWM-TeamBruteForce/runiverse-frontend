@@ -4,7 +4,9 @@ import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/profile/presentation/profile_cover.dart';
 import 'package:runiverse/features/profile/presentation/profile_header.dart';
+import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 
 /// 프로필 탭 (S22, 본인).
@@ -37,7 +39,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     // 화면이 열릴 때 묻는다. `initState`에서 provider를 바로 고치면 빌드 중
     // 상태를 바꾸게 되어 죽는다(`docs/implementation-notes.md` §10-1).
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) ref.read(profileSummaryControllerProvider.notifier).load();
+      if (!mounted) return;
+      ref.read(profileSummaryControllerProvider.notifier).load();
+      // ⚠️ **배경은 요약에 없다.** 프로필 사진 주소는 `GET /users/me`에 얹혀
+      // 오지만 배경 조회는 API가 따로다(1.1.1 가이드 4절) — 여기서 안 부르면
+      // 커버가 영영 기본 배경으로 남는다.
+      ref.read(backgroundImageControllerProvider.notifier).load();
     });
   }
 
@@ -52,12 +59,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       // `v2_screen_background_test`가 검사 대상으로 보지도 않았다** —
       // 에뮬레이터에서 화소를 재고서야 `#0b0e14`인 것을 찾았다.
       backgroundColor: context.appColorsV2.bgBase,
+      // ⚠️ **커버가 상태바 뒤까지 올라가므로 위 여백을 받지 않는다**(시안
+      // `158:3905` — 커버와 상태바 틀이 같은 자리에서 시작한다). 시계·배터리
+      // 글자는 `ProfileCover`의 그늘막이 지킨다.
       body: SafeArea(
+        top: false,
         bottom: false,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const ProfileCover(),
               ProfileHeader(
                 nickname: summary?.nickname,
                 introduction: summary?.introduction,

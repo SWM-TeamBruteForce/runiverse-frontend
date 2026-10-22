@@ -40,6 +40,10 @@ import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 /// | 편집 버튼 높이 41 | 44 | **41은 44 미만이라 못 쓴다.** 가장 가까운 값이다 |
 /// | 설정 버튼 41 | 44 | 같은 이유. 글리프만 줄인다(`AppSizes` 주석) |
 class ProfileHeader extends ConsumerWidget {
+  /// 아바타가 커버 아래변에 걸치는 깊이. 시안 좌표에서 나온다 —
+  /// 커버가 `y=200`에서 끝나고 아바타가 `y=157`에서 시작한다.
+  static const coverOverlap = 43.0;
+
   const ProfileHeader({
     this.nickname,
     this.introduction,
@@ -87,27 +91,21 @@ class ProfileHeader extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 시안 `158:3938` 자리. 벨(`158:3935`)은 위 ⚠️ 참조.
-          Align(
-            alignment: Alignment.centerRight,
-            child: _RoundAction(
-              icon: AppIcons.settings,
-              label: AppStrings.settingsTitle,
-              // 편집과 달리 **돌아와서 다시 받아오지 않는다.** 설정은 프로필
-              // 요약(닉네임·사진·소개글)을 건드리지 않는다.
-              onTap: () => context.push(AppRoutes.settings),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.space2),
-
           Row(
-            // ⚠️ **아래 맞춤에서 가운데 맞춤으로 바꿨다.** 아래로 맞추면 88 짜리
-            // 아바타와 44 짜리 버튼의 **윗변이 44 어긋나** 두 덩어리가 서로
-            // 다른 줄에 선 것처럼 보인다. 가운데로 맞추면 한 축에 선다.
-            crossAxisAlignment: CrossAxisAlignment.center,
+            // ⚠️ **위 맞춤이다.** 아바타는 커버 쪽으로 끌어올려져 있고, 오른쪽은
+            // 버튼 둘이 쌓인다 — 가운데로 맞추면 두 덩어리의 윗변이 어긋난다.
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 이 화면에서는 눌리지 않는다. 사진을 바꾸는 자리도 편집 화면이다.
-              ProfileAvatar(url: photoUrl),
+              // ⚠️ **커버에 걸친다**(시안: 아바타 y=157, 커버 끝 y=200).
+              // 걸치지 않으면 커버와 프로필이 두 덩어리로 보인다.
+              //
+              // `Transform`이라 **자리는 그대로 차지한다** — 아래 닉네임이
+              // 따라 올라오지 않는다.
+              Transform.translate(
+                offset: const Offset(0, -ProfileHeader.coverOverlap),
+                // 이 화면에서는 눌리지 않는다. 사진을 바꾸는 자리도 편집 화면이다.
+                child: ProfileAvatar(url: photoUrl),
+              ),
               const Spacer(),
 
               // ⚠️ 시안에서 **아이콘이 아니라 글자 버튼**이다(`158:3933`).
@@ -120,19 +118,38 @@ class ProfileHeader extends ConsumerWidget {
               // ⚠️ **편집에서 돌아올 때 받는 자리는 여기 하나다.** 편집 화면은
               // 스스로 받지 않는다 — 양쪽에서 부르면 돌아올 때마다 같은 조회가
               // 두 번 나간다. (화면이 처음 열릴 때 받는 것은 `ProfilePage`다.)
-              AppButtonV2(
-                label: AppStrings.profileEditOpen,
-                // ⚠️ **아바타 옆에 서는 인라인 액션이다.** 기본 크기(56)로 두면
-                // 아바타(88)와 덩치가 맞먹고, 화면에서 유일하게 색이 있는
-                // 요소라 더 튄다. 측정값이 121×54 였다(시안 99×41).
-                size: AppButtonV2Size.compact,
-                expand: false,
-                onPressed: () async {
-                  await context.push(AppRoutes.profileEdit);
-                  await ref
-                      .read(profileSummaryControllerProvider.notifier)
-                      .load();
-                },
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // ⚠️ **커버 위에 얹지 않는다**(2026-10-22 결정). 시안은
+                  // `158:3938`을 커버 위 y=54에 두지만, 사진 위 흰 아이콘은
+                  // **밝은 사진에서 안 보인다.** 가리려면 그늘막이나 테두리가
+                  // 필요한데 그것은 이 기능이 아니라 디자인 결정이다.
+                  //
+                  // 벨(`158:3935`)은 위 ⚠️ 참조 — 만들지 않는다.
+                  _RoundAction(
+                    icon: AppIcons.settings,
+                    label: AppStrings.settingsTitle,
+                    // 편집과 달리 **돌아와서 다시 받아오지 않는다.** 설정은
+                    // 프로필 요약(닉네임·사진·소개글)을 건드리지 않는다.
+                    onTap: () => context.push(AppRoutes.settings),
+                  ),
+                  const SizedBox(height: AppSpacing.space2),
+                  AppButtonV2(
+                    label: AppStrings.profileEditOpen,
+                    // ⚠️ **아바타 옆에 서는 인라인 액션이다.** 기본 크기(56)로 두면
+                    // 아바타(88)와 덩치가 맞먹고, 화면에서 유일하게 색이 있는
+                    // 요소라 더 튄다. 측정값이 121×54 였다(시안 99×41).
+                    size: AppButtonV2Size.compact,
+                    expand: false,
+                    onPressed: () async {
+                      await context.push(AppRoutes.profileEdit);
+                      await ref
+                          .read(profileSummaryControllerProvider.notifier)
+                          .load();
+                    },
+                  ),
+                ],
               ),
             ],
           ),

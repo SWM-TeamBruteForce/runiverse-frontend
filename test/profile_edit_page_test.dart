@@ -20,6 +20,7 @@ import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
+import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
 import 'package:runiverse/features/profile/presentation/profile_edit_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
@@ -35,6 +36,10 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 void main() {
   late FakeProfileRepository repo;
   late FakeProfileImageRepository photos;
+
+  /// 커버가 읽는 저장소. 테스트는 배경을 다루지 않지만 **끼우지 않으면**
+  /// 진짜 저장소가 만들어져 서버 주소를 찾다 죽는다.
+  late FakeProfileImageRepository background;
 
   Future<void> pumpEdit(
     WidgetTester tester, {
@@ -61,6 +66,7 @@ void main() {
       url: photoUrl,
       failWith: photoFails,
     );
+    background = FakeProfileImageRepository(latency: Duration.zero);
 
     final auth = FakeAuthRepository(latency: Duration.zero);
     const email = 'runner@example.com';
@@ -95,6 +101,9 @@ void main() {
           authRepositoryProvider.overrideWithValue(auth),
           // ⚠️ 없으면 아바타가 진짜 저장소를 만들고 `API_BASE_URL`이 없어 죽는다.
           profileImageRepositoryProvider.overrideWithValue(photos),
+          // ⚠️ 배경도 끼운다. 커버가 이 provider를 읽는데, 안 끼우면 진짜
+          // 저장소가 만들어져 테스트에 없는 서버 주소를 찾다 죽는다.
+          backgroundImageRepositoryProvider.overrideWithValue(background),
           // ⚠️ 앨범을 여는 것은 플랫폼 채널이라 테스트에 없다.
           photoPickerProvider.overrideWithValue(picker ?? _FakePicker()),
           profileRepositoryProvider.overrideWithValue(repo),
