@@ -684,7 +684,15 @@ abstract final class AppStrings {
   /// **바뀌면 이 문구도 같이 고쳐야 한다** — 안 고치면 화면만 거짓말을 한다.
   /// 그래도 적는 이유는, "시작 직전에 마감돼요"로는 **언제까지 누르면 되는지**
   /// 알 수 없기 때문이다(2026-10-22 결정).
-  static const matchPolicyTitle = '매칭 전에 알아두세요';
+  /// 등록을 눌렀는데 그사이 그 시간대가 마감됐다(409 `MATCH_SLOT_CLOSED`).
+  /// **다른 시각이 아직 남아 있으므로 화면에 남는다.**
+  static const matchSlotClosedTitle = '모집이 마감된 시간대입니다';
+
+  /// 이탈 제재 중이다(409 `MATCH_COOLDOWN`).
+  static const matchCooldownTitle = '이탈 패널티로 지금은 신청할 수 없어요';
+
+  /// 두 팝업 모두 **화면에 남는다** — 고칠 자리가 이 화면 안에 있다.
+  static const matchPolicyClose = '확인';
 
   static const matchPolicyWhenAsk = '언제 뛰나요?';
   static const matchPolicyWhenTell = '저녁 18:00부터 22:00까지, 30분 간격으로 고를 수 있어요';
@@ -695,8 +703,15 @@ abstract final class AppStrings {
   static const matchPolicyDeadlineTell =
       '시작 10분 전까지예요. 19:00에 뛰려면 18:50까지 신청하면 돼요';
 
-  static const matchPolicyCareAsk = '이것만 조심해요';
-  static const matchPolicyCareTell = '매칭이 확정된 뒤에 나가면 20분 동안 다시 신청할 수 없어요';
+  /// 이탈 제재 팝업의 본문. **규칙을 먼저 말하고** 해제 시각을 뒤에 붙인다.
+  static const matchCooldownRule = '매칭이 확정된 뒤에 나가면 20분 동안 다시 신청할 수 없어요';
+
+  /// `08:30에 다시 신청할 수 있어요` — 서버가 준 해제 시각.
+  ///
+  /// ⚠️ **모르면 아무것도 적지 않는다.** 서버가 `cooldownUntil`을 빠뜨릴 수
+  /// 있는데, 없는 시각을 지어내면 그때까지 기다린 사람이 또 막힌다.
+  static String matchCooldownUntil(DateTime? until) =>
+      until == null ? '' : '${matchSlotTime(until)}에 다시 신청할 수 있어요';
 
   static const matchPolicyCancel = '다음에';
   static const matchPolicyConfirm = '매칭 등록하러 가기';
@@ -705,8 +720,11 @@ abstract final class AppStrings {
   ///
   /// ⚠️ **빈손으로 돌려보내지 않는다.** "내일 오세요"만 말하면 지금 뛰려고
   /// 들어온 사람이 할 수 있는 일이 사라진다 — 혼자 뛰기는 마감과 무관하다.
-  static const matchClosedTitle = '오늘 매칭이 마감됐어요';
-  static const matchClosedBody = '매칭 신청은 내일 다시 열려요. 지금은 홈에서 혼자 연습하기로 달릴 수 있어요.';
+  static const matchClosedTitle = '오늘 러닝은 마감됐어요';
+
+  /// ⚠️ **빈손으로 돌려보내지 않는다.** 시간 규칙만 적고 끝내면 지금 뛰려고
+  /// 들어온 사람이 할 수 있는 일이 사라진다 — 혼자 뛰기는 마감과 무관하다.
+  static const matchClosedSolo = '지금은 홈에서 혼자 연습하기로 달릴 수 있어요';
   static const matchClosedGoHome = '홈으로';
 
   /// 마감이 임박했다. 남은 시간대를 적어 **미리** 알린다.

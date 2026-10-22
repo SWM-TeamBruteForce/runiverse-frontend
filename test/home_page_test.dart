@@ -69,21 +69,11 @@ void main() {
       expect(find.text(AppStrings.homeWithFriendCta), findsOneWidget);
     });
 
-    testWidgets('⚠️ 매칭을 누르면 운영 안내를 거쳐 등록 화면으로 간다', (tester) async {
+    testWidgets('매칭을 누르면 등록 화면으로 간다', (tester) async {
       // 홈에서 바로 신청하면 시간대도 거리도 정할 수 없다. S08을 거친다.
-      //
-      // ⚠️ **그 앞에 운영 안내가 하나 더 있다.** 등록 화면에도 같은 내용이
-      // 작은 글씨로 흩어져 있지만, 처음 쓰는 사람은 조건을 고르느라 그것을
-      // 읽지 않는다. 20분 제재처럼 되돌릴 수 없는 규칙은 먼저 짚는다.
       await pumpHome(tester);
 
       await tester.tap(find.text(AppStrings.homeMatchCta));
-      await tester.pumpAndSettle();
-
-      expect(find.text(AppStrings.matchPolicyTitle), findsOneWidget);
-      expect(find.byType(MatchRegisterPage), findsNothing);
-
-      await tester.tap(find.text(AppStrings.matchPolicyConfirm));
       await tester.pumpAndSettle();
 
       expect(find.byType(MatchRegisterPage), findsOneWidget);

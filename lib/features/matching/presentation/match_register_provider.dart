@@ -69,7 +69,11 @@ class MatchRegisterState {
   /// ⚠️ **"목록이 비지 않았다"로는 부족하다.** 전부 마감인 응답(22시 이후)이
   /// 오면 목록은 차 있는데 고를 것이 없다. 그때 선택기를 열어 두면 시트에
   /// `마감`만 늘어서고 등록 버튼은 영영 잠긴 채라 고장난 화면으로 읽힌다.
+  /// ⚠️ **거리를 고른 뒤라야 참이다.** 진입 조회(`probeToday`)는 아무 거리로
+  /// 물어 마감 여부만 보는 것이라, 그 숫자를 시트에 그리면 3km 대기자를
+  /// 10km 고를 사람에게 보여주게 된다.
   bool get slotsReady =>
+      distance != null &&
       !loadingSlots &&
       loadFailure == null &&
       slots.any((slot) => slot.selectable);
@@ -175,6 +179,25 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
     state = const MatchRegisterState();
     // 날아오던 답이 빈 화면에 내려앉지 않게 번호를 올린다.
     _loadToken++;
+  }
+
+  /// 들어올 때 **오늘 뭐가 남았는지**를 본다.
+  ///
+  /// ## ⚠️ 거리를 안 골랐는데 어떻게 묻나
+  ///
+  /// 조회는 거리를 필수로 받는다. 그런데 **시각 목록과 `selectable`은 거리와
+  /// 무관하다** — 명세가 `slots`를 "그날의 신청 가능 시각"이라 적고, 거리별로
+  /// 달라지는 것은 `waitingCount` 하나다. 그래서 아무 거리로 한 번 묻는다.
+  ///
+  /// ⚠️ **받은 숫자는 쓰지 않는다.** 어느 거리의 수인지 말할 수 없어서다.
+  /// 쓰는 것은 [MatchRegisterState.closedForToday] 하나뿐이고, 거리를 고르면
+  /// 그 거리로 다시 받는다.
+  ///
+  /// ⚠️ 서버가 거리별로 다른 시각 목록을 주기 시작하면 이 전제가 깨진다.
+  /// 그때도 틀리는 것은 마감 판정뿐이고, 거리를 고르는 순간 바로잡힌다.
+  Future<void> probeToday() {
+    reset();
+    return _loadSlots(_loadToken, TargetDistance.values.first);
   }
 
   /// 거리를 고르고 **그 거리의 슬롯을 받는다**(명세 No 16).
@@ -309,20 +332,24 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
       // 화면을 열어 둔 사이 마감(시작 10분 전)이 지날 수 있다.
       if (error.failure == MatchFailure.slotClosed) {
         // ⚠️ 고른 것도 함께 푼다. 잠근 슬롯을 고른 채로 두면 CTA가 열려 있어
-        // 같은 409를 다시 맞는다. `copyWith`는 선택을 비울 수 없어 직접 세운다.
-        state = MatchRegisterState(
+        // 같은 409를 다시 맞는다.
+        //
+        // ⚠️ **실패를 다시 세우지 않는다.** 위에서 이미 세웠고, 화면이 그것을
+        // 보고 팝업을 띄운 뒤 지운다. 여기서 또 쓰면 **팝업이 두 번 열린다.**
+        state = state.copyWith(
           slots: [
             for (final s in state.slots) s.raw == slot.raw ? s.closed() : s,
           ],
-          distance: state.distance,
-          failure: error.failure,
+          selected: null,
         );
         // ⚠️ **목록을 다시 받는다.** 앱이 만들던 시절에는 같은 값이 돌아와
         // 부를 이유가 없었지만, 이제 서버가 주므로 **그사이 마감된 다른
         // 시각들도 함께** 잠긴 채로 온다.
         //
-        // 기다리지 않는다 — 실패를 이미 화면에 알렸고, 목록은 늦게 와도 된다.
-        unawaited(_reloadAfterClosed(distance));
+        // ⚠️ **기다린다.** 화면이 "오늘이 끝났나"로 팝업을 가르는데, 그 판정은
+        // 이 답이 와야 선다. 안 기다리면 "그 시간만 마감" 팝업이 먼저 뜨고
+        // 뒤이어 "오늘 마감" 팝업이 그 위에 겹친다.
+        await _reloadAfterClosed(distance);
       }
       return null;
     }

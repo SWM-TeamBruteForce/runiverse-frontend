@@ -150,7 +150,7 @@ class _HomePageState extends ConsumerState<HomePage> {
               cooldownUntil: cooldownUntil,
               // 조건을 고르는 화면(S08)을 거친다. 홈에서 바로 신청하면
               // 시간대도 거리도 정할 수 없다.
-              onMatch: _openMatchRegister,
+              onMatch: () => context.push(AppRoutes.matchRegister),
               onCancel: _confirmCancel,
               // ⚠️ **이미 시작한 방은 대기실이 아니라 러닝 화면이다.**
               // 대기실로 보내면 카운트다운이 0인 화면에서 한 번 더 눌러야 한다.
@@ -206,57 +206,6 @@ class _HomePageState extends ConsumerState<HomePage> {
   ///
   /// **마감 전이라 제재가 없다.** 확정 뒤의 나가기(로비)와 달리 겁줄 것이
   /// 없으므로 묻기만 하고 짧게 끝낸다.
-  /// 매칭 등록으로 간다. **운영 안내를 한 번 거친다.**
-  ///
-  /// ⚠️ 등록 화면에도 같은 내용이 작은 글씨로 흩어져 있지만, 처음 쓰는 사람은
-  /// 조건을 고르느라 그것을 읽지 않는다. 20분 제재처럼 **되돌릴 수 없는
-  /// 규칙**은 고르기 전에 한 번 짚어 준다.
-  ///
-  /// ⚠️ **외길로 만들지 않는다.** 읽고 마음이 바뀔 수 있다 — 그러면 안내가
-  /// 아니라 관문이다.
-  Future<void> _openMatchRegister() async {
-    final go = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(AppStrings.matchPolicyTitle),
-        // ⚠️ **작은 화면에서 넘칠 수 있다.** 네 묶음이라 세로가 길다.
-        content: const SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _PolicyLine(
-                ask: AppStrings.matchPolicyWhenAsk,
-                tell: AppStrings.matchPolicyWhenTell,
-              ),
-              _PolicyLine(
-                ask: AppStrings.matchPolicyDeadlineAsk,
-                tell: AppStrings.matchPolicyDeadlineTell,
-              ),
-              _PolicyLine(
-                ask: AppStrings.matchPolicyCareAsk,
-                tell: AppStrings.matchPolicyCareTell,
-                last: true,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(AppStrings.matchPolicyCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(AppStrings.matchPolicyConfirm),
-          ),
-        ],
-      ),
-    );
-    if (go != true || !mounted) return;
-    await context.push(AppRoutes.matchRegister);
-  }
-
   Future<void> _confirmCancel() async {
     if (_leaving) return;
 
@@ -449,44 +398,6 @@ class _ProfilePromptCard extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 운영 안내 한 묶음. **묻는 말을 세우고 답을 붙인다.**
-///
-/// 질문이 있어야 자기가 궁금한 줄부터 읽는다 — 불릿만 늘어놓으면 무엇을
-/// 알아야 하는지 모른 채 글자만 훑는다.
-class _PolicyLine extends StatelessWidget {
-  const _PolicyLine({required this.ask, required this.tell, this.last = false});
-
-  final String ask;
-  final String tell;
-
-  /// 마지막 묶음은 아래 여백을 두지 않는다 — 버튼과 사이가 벌어진다.
-  final bool last;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColorsV2;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: last ? 0 : AppSpacing.space4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            ask,
-            style: AppTypographyV2.body07.copyWith(color: colors.textPrimary),
-          ),
-          const SizedBox(height: AppSpacing.space1),
-          Text(
-            tell,
-            style: AppTypographyV2.body12.copyWith(color: colors.textSecondary),
           ),
         ],
       ),

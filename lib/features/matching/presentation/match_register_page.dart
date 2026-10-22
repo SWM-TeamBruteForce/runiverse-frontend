@@ -42,13 +42,13 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
   @override
   void initState() {
     super.initState();
-    // ⚠️ **지난번 흔적을 지운다.** 이 상태는 화면을 나가도 죽지 않아서,
-    // 안 지우면 지난번에 누른 거리가 기본값처럼 선택돼 있다.
+    // ⚠️ **들어오자마자 오늘이 끝났는지 본다.** 거리를 고를 때까지 기다리면,
+    // 마감된 뒤에 들어온 사람이 거리를 눌러 봐야 그 사실을 안다.
     //
     // 화면이 서기 전에 provider를 만지면 안 된다.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(matchRegisterProvider.notifier).reset();
+      unawaited(_probe());
     });
   }
 
@@ -72,7 +72,13 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
       failure,
     ) {
       if (failure == null) return;
-      _tell(failure, ref.read(matchRegisterProvider).cooldownUntil);
+      // ⚠️ **마감과 이탈 제재는 여기서 다루지 않는다.** 둘은 팝업이고, 어느
+      // 팝업인지는 재조회가 끝나야 갈린다 — `_submit`이 그 뒤에 띄운다.
+      if (failure == MatchFailure.slotClosed ||
+          failure == MatchFailure.cooldown) {
+        return;
+      }
+      _tellInSnackBar(failure, ref.read(matchRegisterProvider).cooldownUntil);
       ref.read(matchRegisterProvider.notifier).clearFailure();
     });
 
@@ -264,9 +270,18 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
     return AppStrings.matchSlotsEmpty;
   }
 
-  /// 오늘은 더 고를 것이 없다. **빈손으로 돌려보내지 않는다** — 혼자 뛰기는
-  /// 마감과 무관하므로 그 길을 알려 주고 홈으로 보낸다.
-  Future<void> _tellClosed() async {
+  /// 들어오자마자 오늘 뭐가 남았는지 본다.
+  Future<void> _probe() async {
+    await ref.read(matchRegisterProvider.notifier).probeToday();
+    if (!mounted) return;
+    if (ref.read(matchRegisterProvider).closedForToday) {
+      await _tellClosedToday();
+    }
+  }
+
+  /// 오늘은 더 고를 것이 없다. **홈으로 내보낸다** — 이 화면에서 할 수 있는
+  /// 일이 없다.
+  Future<void> _tellClosedToday() async {
     await showDialog<void>(
       context: context,
       // 닫을 길이 버튼 하나뿐이다. 바깥을 눌러 닫으면 잠긴 화면에 그대로
@@ -274,7 +289,18 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text(AppStrings.matchClosedTitle),
-        content: const Text(AppStrings.matchClosedBody),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _TimePolicy(),
+              SizedBox(height: AppSpacing.space4),
+              // ⚠️ **빈손으로 돌려보내지 않는다.** 혼자 뛰기는 마감과 무관하다.
+              _PolicyTell(AppStrings.matchClosedSolo),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -285,6 +311,53 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
     );
     if (!mounted) return;
     context.pop();
+  }
+
+  /// 누르는 사이에 그 시간대가 마감됐다(409).
+  ///
+  /// ⚠️ **화면에 남는다.** 다른 시각이 아직 열려 있으므로 고칠 자리가 이 화면
+  /// 안에 있다 — 홈으로 내보내면 다시 신청할 길까지 끊는다.
+  Future<void> _tellSlotClosed() => showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text(AppStrings.matchSlotClosedTitle),
+      content: const SingleChildScrollView(child: _TimePolicy()),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text(AppStrings.matchPolicyClose),
+        ),
+      ],
+    ),
+  );
+
+  /// 이탈 제재로 막혔다(409).
+  Future<void> _tellCooldown(DateTime? until) {
+    final when = AppStrings.matchCooldownUntil(until);
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(AppStrings.matchCooldownTitle),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const _PolicyTell(AppStrings.matchCooldownRule),
+            // ⚠️ 서버가 해제 시각을 빠뜨릴 수 있다. 없으면 줄을 만들지 않는다.
+            if (when.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.space2),
+              _PolicyAsk(when),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(AppStrings.matchPolicyClose),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _pickSlot() async {
@@ -302,13 +375,20 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
     final roomId = await ref.read(matchRegisterProvider.notifier).submit();
     if (!mounted) return;
 
-    // ⚠️ **마감 경합 뒤에 남은 자리가 없을 수 있다.** 그 슬롯만 잠그고
-    // 스낵바를 띄우면, 다시 고를 것이 없는 화면에 사람을 세워 둔 채
-    // "마감됐어요"만 말하는 셈이다. 그때는 오늘이 끝났다고 알리고 내보낸다.
-    //
-    // `submit`이 409 뒤에 목록을 다시 받으므로, 그 답이 온 뒤라야 안다.
+    // ⚠️ **팝업 둘은 여기서 띄운다.** `submit`이 409 뒤 재조회까지 마치고
+    // 돌아오므로, 이 자리에서야 "그 시간만 마감"인지 "오늘이 끝났는지"가
+    // 갈린다. 리스너에서 띄우면 재조회 전에 먼저 떠서 둘이 겹친다.
     if (roomId == null) {
-      if (ref.read(matchRegisterProvider).closedForToday) await _tellClosed();
+      final state = ref.read(matchRegisterProvider);
+      switch (state.failure) {
+        case MatchFailure.slotClosed:
+          await (state.closedForToday ? _tellClosedToday() : _tellSlotClosed());
+        case MatchFailure.cooldown:
+          await _tellCooldown(state.cooldownUntil);
+        default:
+          break;
+      }
+      if (mounted) ref.read(matchRegisterProvider.notifier).clearFailure();
       return;
     }
 
@@ -327,9 +407,8 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
     context.pop();
   }
 
-  /// 실패를 말로 옮긴다. **서버 문장을 그대로 띄우지 않는다** — 사용자가
-  /// 무엇을 할 수 있는지가 문구에 들어가야 한다.
-  void _tell(MatchFailure failure, DateTime? cooldownUntil) {
+  /// 한 줄로 끝나는 실패.
+  void _tellInSnackBar(MatchFailure failure, DateTime? cooldownUntil) {
     final message = switch (failure) {
       MatchFailure.slotClosed => AppStrings.matchFailedSlotClosed,
       MatchFailure.cooldown => AppStrings.matchFailedCooldown(cooldownUntil),
@@ -561,4 +640,59 @@ class _Note extends StatelessWidget {
       ],
     );
   }
+}
+
+/// 팝업 셋이 함께 쓰는 **시간 규칙** 두 묶음.
+///
+/// ⚠️ `18:00~22:00` · `30분` · `10분 전`은 전부 서버 설정값이다. 운영에서
+/// 바뀌면 이 문구도 같이 고쳐야 한다 — 테스트가 그 짝을 묶어 둔다.
+class _TimePolicy extends StatelessWidget {
+  const _TimePolicy();
+
+  @override
+  Widget build(BuildContext context) => const Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      _PolicyAsk(AppStrings.matchPolicyWhenAsk),
+      _PolicyTell(AppStrings.matchPolicyWhenTell),
+      SizedBox(height: AppSpacing.space4),
+      _PolicyAsk(AppStrings.matchPolicyDeadlineAsk),
+      _PolicyTell(AppStrings.matchPolicyDeadlineTell),
+    ],
+  );
+}
+
+/// 묻는 말. **질문을 세워 두면** 자기가 궁금한 줄부터 읽는다 — 줄글만
+/// 늘어놓으면 무엇을 알아야 하는지 모른 채 글자만 훑는다.
+class _PolicyAsk extends StatelessWidget {
+  const _PolicyAsk(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: AppSpacing.space1),
+    child: Text(
+      text,
+      style: AppTypographyV2.body07.copyWith(
+        color: context.appColorsV2.textPrimary,
+      ),
+    ),
+  );
+}
+
+/// 그 답.
+class _PolicyTell extends StatelessWidget {
+  const _PolicyTell(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: AppTypographyV2.body12.copyWith(
+      color: context.appColorsV2.textSecondary,
+    ),
+  );
 }
