@@ -69,11 +69,7 @@ class MatchRegisterState {
   /// ⚠️ **"목록이 비지 않았다"로는 부족하다.** 전부 마감인 응답(22시 이후)이
   /// 오면 목록은 차 있는데 고를 것이 없다. 그때 선택기를 열어 두면 시트에
   /// `마감`만 늘어서고 등록 버튼은 영영 잠긴 채라 고장난 화면으로 읽힌다.
-  /// ⚠️ **거리를 고른 뒤라야 참이다.** 진입 조회(`probeToday`)는 아무 거리로
-  /// 물어 "오늘 뭐가 남았나"만 보는 것이라, 그 숫자를 시트에 그리면 3km
-  /// 대기자를 10km 고를 사람에게 보여주게 된다.
   bool get slotsReady =>
-      distance != null &&
       !loadingSlots &&
       loadFailure == null &&
       slots.any((slot) => slot.selectable);
@@ -107,22 +103,8 @@ class MatchRegisterState {
       slots.isNotEmpty &&
       openSlots.isEmpty;
 
-  /// 마감이 **임박했다.** 남은 시간대를 미리 알린다.
-  ///
-  /// ## ⚠️ 시계로 재지 않는다
-  ///
-  /// 마감이 "시작 10분 전"이라는 건 운영값이다. 앱이 그 숫자를 가지면 설정이
-  /// 바뀌는 날 조용히 어긋난다 — 운영에서 아홉 칸이 하루 종일 마감으로 떴던
-  /// 사고가 그 계산 때문이었다. 대신 **서버가 준 `selectable`이 몇 개
-  /// 남았는지**로 가른다. 판정 주체가 계속 서버다.
-  ///
-  /// ⚠️ 전부 마감이면 거짓이다 — 그때는 [closedForToday]가 팝업으로 맡는다.
-  /// 둘을 겹쳐 띄우면 "곧 마감"과 "이미 마감"이 같은 화면에 선다.
-  bool get closingSoon =>
-      openSlots.isNotEmpty && openSlots.length <= closingSoonThreshold;
-
-  /// 임박으로 보는 경계. 운영값(18:00~22:00 · 30분)에서 마지막 한 시간쯤이다.
-  static const closingSoonThreshold = 2;
+  // ⚠️ **마감 임박 안내는 아직 없다.** 남은 슬롯 개수로 가늠하던 것을 뺐다 —
+  // 서버 시각을 받는 API가 생기면 "지금 몇 시인가"로 제대로 판단한다.
 
   /// 등록할 수 있는가. **둘 다 골라야 열린다.**
   bool get canSubmit => selected != null && distance != null && !submitting;
@@ -180,31 +162,19 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
     state = state.copyWith(selected: slot, failure: null);
   }
 
-  /// 화면에 들어올 때 **오늘 뭐가 남았는지**만 본다.
+  /// 화면에 들어올 때 **지난번 흔적을 지운다.**
   ///
-  /// ## ⚠️ 거리를 안 골랐는데 어떻게 묻나
+  /// ## ⚠️ 이 상태는 화면을 나가도 죽지 않는다
   ///
-  /// 조회는 거리를 필수로 받는다. 그런데 **시각 목록과 `selectable`은 거리와
-  /// 무관하다** — 명세가 `slots`를 "그날의 신청 가능 시각"이라 적고, 거리별로
-  /// 달라지는 것은 `waitingCount` 하나다. 그래서 아무 거리로 한 번 묻는다.
+  /// 남겨두면 지난번에 누른 거리가 **기본값처럼** 선택돼 있고, 그 거리의 낡은
+  /// 숫자가 그대로 선다. 몇 시간 전에 받은 대기 인원이 지금 것인 양 보인다.
   ///
-  /// ⚠️ **받은 숫자는 쓰지 않는다.** 어느 거리의 수인지 말할 수 없어서다.
-  /// [MatchRegisterState.slotsReady]가 거리를 요구하므로 시트도 안 열리고,
-  /// 등록 버튼 위 줄도 거리가 있어야 선다. 쓰는 것은 **마감 여부뿐**이다.
-  ///
-  /// ⚠️ 서버가 거리별로 다른 시각 목록을 주기 시작하면 이 전제가 깨진다.
-  /// 그때는 마감 판정만 틀리고(거리를 고르면 곧 바로잡힌다) 숫자는 여전히
-  /// 안전하다 — 애초에 안 쓰기 때문이다.
-  /// ## ⚠️ 들어올 때마다 상태를 비우고 시작한다
-  ///
-  /// 이 상태는 화면을 나가도 죽지 않는다. 남겨두면 **지난번에 누른 거리가
-  /// 기본값처럼** 선택돼 있고, 그 거리의 낡은 숫자가 그대로 선다. 더 나쁜 것은
-  /// 마감 팝업이다 — 화면은 [MatchRegisterState.closedForToday]가 **바뀔 때**
-  /// 여는데, 지난번 판정이 남아 있으면 바뀌는 것이 없어 **영영 안 뜬다.**
-  /// 한 번 보고 홈에 갔다 돌아온 사람이 잠긴 화면 앞에 이유도 모르고 선다.
-  Future<void> probeToday() {
+  /// ⚠️ **여기서 서버를 부르지 않는다.** 조회가 거리를 필수로 받는데 거리는
+  /// 아직 없다. 부를 수 있는 가장 이른 시점은 거리를 고른 순간이다.
+  void reset() {
     state = const MatchRegisterState();
-    return _loadSlots(++_loadToken, TargetDistance.values.first);
+    // 날아오던 답이 빈 화면에 내려앉지 않게 번호를 올린다.
+    _loadToken++;
   }
 
   /// 거리를 고르고 **그 거리의 슬롯을 받는다**(명세 No 16).

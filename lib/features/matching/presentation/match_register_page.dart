@@ -42,13 +42,13 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
   @override
   void initState() {
     super.initState();
-    // ⚠️ **들어오자마자 오늘이 끝났는지 본다.** 거리를 고를 때까지 기다리면,
-    // 마감된 뒤에 들어온 사람이 **거리를 눌러 봐야** 그 사실을 안다.
+    // ⚠️ **지난번 흔적을 지운다.** 이 상태는 화면을 나가도 죽지 않아서,
+    // 안 지우면 지난번에 누른 거리가 기본값처럼 선택돼 있다.
     //
     // 화면이 서기 전에 provider를 만지면 안 된다.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      unawaited(ref.read(matchRegisterProvider.notifier).probeToday());
+      ref.read(matchRegisterProvider.notifier).reset();
     });
   }
 
@@ -74,16 +74,6 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
       if (failure == null) return;
       _tell(failure, ref.read(matchRegisterProvider).cooldownUntil);
       ref.read(matchRegisterProvider.notifier).clearFailure();
-    });
-
-    // ⚠️ **오늘이 끝났다고 서버가 말했을 때만 연다.** 목록이 비어 있는 것
-    // (거리 전)이나 못 받은 것(조회 실패)을 섞으면, 화면에 들어오자마자 또는
-    // 서버가 흔들릴 때마다 사람을 홈으로 쫓아낸다.
-    ref.listen(matchRegisterProvider.select((s) => s.closedForToday), (
-      _,
-      closed,
-    ) {
-      if (closed) unawaited(_tellClosed());
     });
 
     final selected = state.selected;
@@ -185,21 +175,6 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.space6),
-
-                  // ⚠️ **마감을 미리 알린다.** 앱은 목록을 거리 고를 때만
-                  // 받아서, 화면을 켜 둔 채 마감이 지나가는 것을 못 본다.
-                  // 그래서 들어온 김에 "얼마 안 남았다"를 말해 둔다.
-                  if (state.closingSoon) ...[
-                    _NoticeCard(
-                      message: AppStrings.matchClosingSoon(
-                        [
-                          for (final slot in state.openSlots)
-                            AppStrings.matchSlotTime(slot.startAt),
-                        ].join(', '),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.space4),
-                  ],
 
                   // ⚠️ 시안에는 이 셋의 자리가 없다. **그래도 남긴다** —
                   // 사용자가 고르지 않는 조건(페이스·인원)과 20분 제재를
@@ -325,7 +300,17 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
 
   Future<void> _submit() async {
     final roomId = await ref.read(matchRegisterProvider.notifier).submit();
-    if (roomId == null || !mounted) return;
+    if (!mounted) return;
+
+    // ⚠️ **마감 경합 뒤에 남은 자리가 없을 수 있다.** 그 슬롯만 잠그고
+    // 스낵바를 띄우면, 다시 고를 것이 없는 화면에 사람을 세워 둔 채
+    // "마감됐어요"만 말하는 셈이다. 그때는 오늘이 끝났다고 알리고 내보낸다.
+    //
+    // `submit`이 409 뒤에 목록을 다시 받으므로, 그 답이 온 뒤라야 안다.
+    if (roomId == null) {
+      if (ref.read(matchRegisterProvider).closedForToday) await _tellClosed();
+      return;
+    }
 
     // ⚠️ 순서가 정해져 있다 — 신청 응답을 받은 **뒤에** 붙는다. 활성 신청이
     // 없는데 열면 서버가 404로 거절하고, 그 뒤에 신청해도 이벤트가 오지 않는

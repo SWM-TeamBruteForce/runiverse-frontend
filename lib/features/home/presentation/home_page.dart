@@ -150,7 +150,7 @@ class _HomePageState extends ConsumerState<HomePage> {
               cooldownUntil: cooldownUntil,
               // 조건을 고르는 화면(S08)을 거친다. 홈에서 바로 신청하면
               // 시간대도 거리도 정할 수 없다.
-              onMatch: () => context.push(AppRoutes.matchRegister),
+              onMatch: _openMatchRegister,
               onCancel: _confirmCancel,
               // ⚠️ **이미 시작한 방은 대기실이 아니라 러닝 화면이다.**
               // 대기실로 보내면 카운트다운이 0인 화면에서 한 번 더 눌러야 한다.
@@ -206,6 +206,36 @@ class _HomePageState extends ConsumerState<HomePage> {
   ///
   /// **마감 전이라 제재가 없다.** 확정 뒤의 나가기(로비)와 달리 겁줄 것이
   /// 없으므로 묻기만 하고 짧게 끝낸다.
+  /// 매칭 등록으로 간다. **운영 안내를 한 번 거친다.**
+  ///
+  /// ⚠️ 등록 화면에도 같은 내용이 작은 글씨로 흩어져 있지만, 처음 쓰는 사람은
+  /// 조건을 고르느라 그것을 읽지 않는다. 20분 제재처럼 **되돌릴 수 없는
+  /// 규칙**은 고르기 전에 한 번 짚어 준다.
+  ///
+  /// ⚠️ **외길로 만들지 않는다.** 읽고 마음이 바뀔 수 있다 — 그러면 안내가
+  /// 아니라 관문이다.
+  Future<void> _openMatchRegister() async {
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(AppStrings.matchPolicyTitle),
+        content: const Text(AppStrings.matchPolicyBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(AppStrings.matchPolicyCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(AppStrings.matchPolicyConfirm),
+          ),
+        ],
+      ),
+    );
+    if (go != true || !mounted) return;
+    await context.push(AppRoutes.matchRegister);
+  }
+
   Future<void> _confirmCancel() async {
     if (_leaving) return;
 
