@@ -886,7 +886,6 @@ abstract final class AppStrings {
   static const matchRoomDisconnected = '실시간 연결이 끊겼어요. 인원이 바뀌어도 바로 보이지 않아요';
 
   static const matchRoomStarted = '러닝이 시작됐어요';
-  static const matchRoomStartedHint = '러닝 화면은 준비 중이에요';
 
   // ── 출발 대기실 (S11) ────────────────────────────────────────
 

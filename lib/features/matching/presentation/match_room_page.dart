@@ -312,12 +312,7 @@ class _Headline extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.space3),
 
-        if (started)
-          Text(
-            AppStrings.matchRoomStartedHint,
-            style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
-          )
-        else ...[
+        if (!started) ...[
           Text(
             remaining == null
                 ? '--:--'
