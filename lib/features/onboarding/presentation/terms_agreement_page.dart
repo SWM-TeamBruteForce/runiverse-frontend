@@ -20,6 +20,11 @@ import 'package:runiverse/core/widgets/v2/step_progress.dart';
 // `tokenStoreProvider`를 가져다 쓰는 것과 같은 규칙이다 — 화면이 아니라 인프라다.
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 
+// TODO(되살리기): 마케팅 동의를 저장할 API와 방침 조항이 생기면 true로.
+// 빌드 때 고정하는 숨김이다(원격 설정 아님). 되살릴 때 테스트 skip 4개와
+// 약관 화살표 개수(3→4)도 되돌린다.
+const _showMarketing = false;
+
 /// 가입 1 · 약관 동의 (S03). 시안 `158:2804`.
 ///
 /// **가입 흐름의 첫 화면이다.** 이메일·비밀번호를 받기 전에 동의를 먼저 받는다 —
@@ -79,7 +84,8 @@ class _TermsAgreementPageState extends ConsumerState<TermsAgreementPage> {
     _Term(AppStrings.termsService, document: LegalLinks.terms),
     _Term(AppStrings.termsPrivacy, document: LegalLinks.privacy),
     _Term(AppStrings.termsHealth, document: LegalLinks.privacy),
-    _Term(AppStrings.termsMarketing, isRequired: false, document: _pending),
+    if (_showMarketing)
+      _Term(AppStrings.termsMarketing, isRequired: false, document: _pending),
   ];
 
   /// 아직 없는 문서. 화살표는 두고 누르면 "준비 중"이 뜬다.

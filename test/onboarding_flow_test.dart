@@ -196,11 +196,12 @@ void main() {
     await tester.tap(find.text(AppStrings.termsAge));
     await tester.pumpAndSettle();
 
-    // 문서가 없는 연령 확인을 뺀 나머지 넷.
+    // 문서가 없는 연령 확인을 뺀 나머지 셋.
+    // TODO(되살리기): 마케팅 동의를 되살리면 넷(4)으로 되돌린다.
     final chevrons = find.byTooltip(AppStrings.termsViewDocument);
-    expect(chevrons, findsNWidgets(4));
+    expect(chevrons, findsNWidgets(3));
 
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < 3; i++) {
       await tester.tap(chevrons.at(i));
       await tester.pumpAndSettle();
     }
@@ -211,6 +212,7 @@ void main() {
     expect(cta.onPressed, isNull);
   });
 
+  // TODO(되살리기): 마케팅 동의를 되살리면 skip을 지운다.
   testWidgets('문서가 없는 항목은 준비 중이라고 알린다', (tester) async {
     // 눌러도 조용하면 고장으로 읽힌다. 마케팅 조항은 아직 방침에 없다.
     await pumpApp(tester);
@@ -230,7 +232,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(AppStrings.legalDocumentPending), findsOneWidget);
-  });
+  }, skip: true);
 
   testWidgets('약관에 동의하면 정보 입력으로 넘어간다', (tester) async {
     await pumpApp(tester);
