@@ -22,6 +22,11 @@ import 'package:runiverse/features/session/presentation/run_session_provider.dar
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
+// TODO(되살리기): `친구랑 뛰기`가 갈 화면(친구 목록)이 생기면 true로.
+// 빌드 때 고정하는 숨김이다(원격 설정 아님). 되살릴 때 home_page_test의
+// 칸 개수(1→2)도 되돌린다.
+const _showWithFriend = false;
+
 /// 홈 (S05).
 ///
 /// 상단 히어로 + 하단 카드 스택 구조다. **히어로가 매칭 상태를 전담한다** —
@@ -183,17 +188,19 @@ class _HomePageState extends ConsumerState<HomePage> {
                     onTap: () => context.push(AppRoutes.runPrepare),
                   ),
                 ),
-                const SizedBox(width: AppSpacing.space4),
-                Expanded(
-                  child: ActionTileV2(
-                    icon: AppIcons.people2,
-                    label: AppStrings.homeWithFriendCta,
-                    emphasized: false,
-                    // ⚠️ 아직 갈 곳이 없다. 시안의 `친구 목록`(`158:3230`)이
-                    // 이 묶음 밖이라, 문구 결정이 나면 함께 잇는다.
-                    onTap: _comingSoon,
+                if (_showWithFriend) ...[
+                  const SizedBox(width: AppSpacing.space4),
+                  Expanded(
+                    child: ActionTileV2(
+                      icon: AppIcons.people2,
+                      label: AppStrings.homeWithFriendCta,
+                      emphasized: false,
+                      // ⚠️ 아직 갈 곳이 없다. 시안의 `친구 목록`(`158:3230`)이
+                      // 이 묶음 밖이라, 문구 결정이 나면 함께 잇는다.
+                      onTap: _comingSoon,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ],
