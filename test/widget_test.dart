@@ -79,6 +79,7 @@ void main() {
     handle.dispose();
   });
 
+  // TODO(되살리기): 기록카드 탭을 되살리면 skip을 지운다.
   testWidgets('기록카드 탭은 숨겨지지 않고 준비 중 화면을 연다', (tester) async {
     final handle = tester.ensureSemantics();
     await pumpApp(tester);
@@ -87,9 +88,11 @@ void main() {
     expect(find.byType(ComingSoonPage), findsOneWidget);
     expect(find.text(AppStrings.comingSoonTitle), findsOneWidget);
     handle.dispose();
-  });
+  }, skip: true);
 
-  testWidgets('⚠️ 탭은 넷이고, 뺀 둘은 없다', (tester) async {
+  // TODO(되살리기): 기록카드 탭을 되살리면 넷으로 — 목록에 tabRecordCard를
+  // 다시 넣고 아래 findsNothing 줄을 지운다.
+  testWidgets('⚠️ 탭은 셋이고, 뺀 셋은 없다', (tester) async {
     // 피드·대회일정을 뺀 결정(CLAUDE.md Scope)이 코드에 남아 있는지 본다.
     // branch 를 지우고 탭만 지우면 라우터에 닿을 수 없는 화면이 남는다.
     final handle = tester.ensureSemantics();
@@ -99,11 +102,11 @@ void main() {
     for (final name in [
       AppStrings.tabHome,
       AppStrings.tabRecord,
-      AppStrings.tabRecordCard,
       AppStrings.tabProfile,
     ]) {
       expect(tabLabel(name), findsOneWidget, reason: '$name 탭이 없다');
     }
+    expect(tabLabel(AppStrings.tabRecordCard), findsNothing);
     expect(tabLabel('피드'), findsNothing);
     expect(tabLabel('대회일정'), findsNothing);
     handle.dispose();

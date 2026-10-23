@@ -199,16 +199,19 @@ GoRouter createAppRouter({String? initialLocation}) {
           ),
 
           // 2 · 기록카드 — 화면이 생기면 여기만 갈아끼운다.
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoutes.recordCard,
-                name: 'record_card',
-                builder: (context, state) =>
-                    const ComingSoonPage(featureName: AppStrings.tabRecordCard),
-              ),
-            ],
-          ),
+          // 지금은 `showRecordCardTab`으로 숨겨 프로필이 2번이 된다.
+          if (showRecordCardTab)
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: AppRoutes.recordCard,
+                  name: 'record_card',
+                  builder: (context, state) => const ComingSoonPage(
+                    featureName: AppStrings.tabRecordCard,
+                  ),
+                ),
+              ],
+            ),
 
           // 3 · 프로필 (S22 — 본인)
           //

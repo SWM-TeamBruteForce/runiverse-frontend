@@ -14,6 +14,11 @@ import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
+// TODO(되살리기): 기록카드 화면이 생기면 true로.
+// 빌드 때 고정하는 숨김이다(원격 설정 아님). 탭과 branch가 같이 따라야 해서
+// 라우터도 이 값을 본다. 되살릴 때 widget_test의 skip 1개와 탭 개수(3→4)도 되돌린다.
+const showRecordCardTab = false;
+
 /// 하단 탭 셸 — 4개 탭의 공통 껍데기.
 ///
 /// [StatefulNavigationShell]이 탭별 [Navigator]를 들고 있고, 이 위젯은
@@ -140,7 +145,8 @@ class _AppShellState extends ConsumerState<AppShell> {
   static const _tabs = <AppTabSpec>[
     AppTabSpec(icon: AppIcons.home, label: AppStrings.tabHome),
     AppTabSpec(icon: AppIcons.book, label: AppStrings.tabRecord),
-    AppTabSpec(icon: AppIcons.photo, label: AppStrings.tabRecordCard),
+    if (showRecordCardTab)
+      AppTabSpec(icon: AppIcons.photo, label: AppStrings.tabRecordCard),
     AppTabSpec(icon: AppIcons.profile, label: AppStrings.tabProfile),
   ];
 
