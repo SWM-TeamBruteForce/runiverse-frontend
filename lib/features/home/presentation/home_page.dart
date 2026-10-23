@@ -22,6 +22,21 @@ import 'package:runiverse/features/session/presentation/run_session_provider.dar
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
+/// `친구랑 뛰기` 칸을 화면에 세울지.
+///
+/// ⚠️ **TODO(되살리기): 동행 러닝을 이을 곳이 생기면 `true`로 되돌린다.**
+/// 되돌릴 때 `home_page_test`의 `두 칸이 다 있다`에서 `skip`을 떼고, 그 아래
+/// `한 칸만 선다`를 지운다.
+///
+/// 지금 이 칸은 눌러도 **"준비 중이에요" 안내만 뜬다** — 갈 곳이 아직 없다.
+/// App Store 심사(가이드라인 2.1)가 동작하지 않는 임시 콘텐츠를 막으므로
+/// 화면에서만 뺀다. 코드는 그대로 두고 플래그로 가린다 — 시안에 있는 자리라
+/// 지우면 문구가 정해진 뒤 다시 만들어야 한다.
+///
+/// 안드로이드에서도 함께 숨긴다. 두 스토어에 다른 화면을 내면 어느 쪽을 보고
+/// 이야기하는지가 매번 갈린다.
+const _showWithFriend = false;
+
 /// 홈 (S05).
 ///
 /// 상단 히어로 + 하단 카드 스택 구조다. **히어로가 매칭 상태를 전담한다** —
@@ -183,17 +198,19 @@ class _HomePageState extends ConsumerState<HomePage> {
                     onTap: () => context.push(AppRoutes.runPrepare),
                   ),
                 ),
-                const SizedBox(width: AppSpacing.space4),
-                Expanded(
-                  child: ActionTileV2(
-                    icon: AppIcons.people2,
-                    label: AppStrings.homeWithFriendCta,
-                    emphasized: false,
-                    // ⚠️ 아직 갈 곳이 없다. 시안의 `친구 목록`(`158:3230`)이
-                    // 이 묶음 밖이라, 문구 결정이 나면 함께 잇는다.
-                    onTap: _comingSoon,
+                if (_showWithFriend) ...[
+                  const SizedBox(width: AppSpacing.space4),
+                  Expanded(
+                    child: ActionTileV2(
+                      icon: AppIcons.people2,
+                      label: AppStrings.homeWithFriendCta,
+                      emphasized: false,
+                      // ⚠️ 아직 갈 곳이 없다. 시안의 `친구 목록`(`158:3230`)이
+                      // 이 묶음 밖이라, 문구 결정이 나면 함께 잇는다.
+                      onTap: _comingSoon,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ],

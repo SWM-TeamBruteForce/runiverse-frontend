@@ -61,12 +61,28 @@ void main() {
   group('아래 두 칸', () {
     // 시안이 솔로·동행을 히어로 밖 칸 둘로 옮겼다(`158:2875` `158:2881`).
 
-    testWidgets('두 칸이 다 있다', (tester) async {
+    testWidgets(
+      '두 칸이 다 있다',
+      (tester) async {
+        await pumpHome(tester);
+
+        expect(find.byType(ActionTileV2), findsNWidgets(2));
+        expect(find.text(AppStrings.homeSoloCta), findsOneWidget);
+        expect(find.text(AppStrings.homeWithFriendCta), findsOneWidget);
+      },
+      // `_showWithFriend`를 `true`로 되돌릴 때 이 `skip`을 떼고 아래
+      // `한 칸만 선다`를 지운다.
+      skip: true,
+    );
+
+    testWidgets('⚠️ 한 칸만 선다 — 동행 칸을 심사용으로 숨겼다', (tester) async {
+      // 누르면 "준비 중이에요"만 뜨는 칸이었다. App Store 심사(가이드라인
+      // 2.1)가 동작하지 않는 임시 콘텐츠를 막는다.
       await pumpHome(tester);
 
-      expect(find.byType(ActionTileV2), findsNWidgets(2));
+      expect(find.byType(ActionTileV2), findsOneWidget);
       expect(find.text(AppStrings.homeSoloCta), findsOneWidget);
-      expect(find.text(AppStrings.homeWithFriendCta), findsOneWidget);
+      expect(find.text(AppStrings.homeWithFriendCta), findsNothing);
     });
 
     testWidgets('매칭을 누르면 등록 화면으로 간다', (tester) async {
