@@ -1,0 +1,402 @@
+import 'dart:async';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/network/ws_client.dart';
+import 'package:runiverse/core/network/ws_message.dart';
+import 'package:runiverse/features/session/data/fake_track_repository.dart';
+import 'package:runiverse/features/session/domain/run_numbers.dart';
+import 'package:runiverse/features/session/domain/run_progress.dart';
+import 'package:runiverse/features/session/domain/run_snapshot.dart';
+import 'package:runiverse/features/session/domain/running_channel.dart';
+import 'package:runiverse/features/session/domain/track_point.dart';
+import 'package:runiverse/features/session/domain/track_sender.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
+
+/// 좌표 전송 — **커서가 틀리면 좌표가 조용히 사라진다.**
+///
+/// 이 기능의 위험은 실패가 눈에 안 보인다는 것이다. `RUNNING_LOCATION_UPDATE`에
+/// ack가 없어서, 못 보낸 구간이 생겨도 앱은 아무 말도 하지 않는다. 서버는 그
+/// 자리를 직선으로 이어 **거리를 짧게 계산하고**, 사용자는 뛴 만큼 기록이
+/// 안 나온 것만 본다.
+///
+/// 그래서 여기서 보는 것은 "보냈는가"가 아니라 **"빠뜨리지 않는가"**다.
+void main() {
+  const roomId = 77;
+
+  late FakeTrackRepository repository;
+  late _RecordingChannel channel;
+  late TrackSender sender;
+
+  setUp(() {
+    repository = FakeTrackRepository();
+    channel = _RecordingChannel();
+    sender = TrackSender(repository, channel);
+  });
+
+  tearDown(() => sender.stop());
+
+  TrackPoint point(int sequence) => TrackPoint(
+    sequence: sequence,
+    pauseSegment: 0,
+    latitude: 37.5 + sequence * 0.0001,
+    longitude: 127.0,
+    accuracyMeters: 5,
+    speedMetersPerSecond: 2.8,
+    recordedAt: DateTime(
+      2026,
+      8,
+      27,
+      19,
+      10,
+      0,
+    ).add(Duration(seconds: sequence)),
+  );
+
+  Future<void> store(int from, int to) async {
+    for (var i = from; i <= to; i++) {
+      await repository.add(roomId, point(i));
+    }
+  }
+
+  /// 보낸 묶음들의 순번만 펼친다.
+  List<int> sentSequences() => [
+    for (final batch in channel.batches) ...batch.map((p) => p.sequence),
+  ];
+
+  group('보내기', () {
+    test('쌓인 것을 보낸다', () async {
+      await store(1, 5);
+      sender.start(roomId);
+
+      await sender.flush();
+
+      expect(channel.batches, hasLength(1));
+      expect(sentSequences(), [1, 2, 3, 4, 5]);
+    });
+
+    test('보낼 것이 없으면 아무것도 보내지 않는다', () async {
+      sender.start(roomId);
+
+      await sender.flush();
+
+      expect(channel.batches, isEmpty);
+    });
+
+    test('⚠️ 같은 좌표를 두 번 보내지 않는다', () async {
+      // 매번 처음부터 보내면 30분 러닝의 마지막에는 1,800점을 10초마다 보낸다.
+      await store(1, 5);
+      sender.start(roomId);
+      await sender.flush();
+
+      await store(6, 8);
+      await sender.flush();
+
+      expect(channel.batches, hasLength(2));
+      expect(channel.batches.last.map((p) => p.sequence), [6, 7, 8]);
+    });
+
+    test('시작하지 않았으면 보내지 않는다', () async {
+      await store(1, 5);
+
+      await sender.flush();
+
+      expect(channel.batches, isEmpty);
+    });
+  });
+
+  group('못 보냈을 때', () {
+    test('⚠️ 소켓에 못 넘기면 커서를 옮기지 않는다', () async {
+      // 여기서 커서를 옮기면 그 구간이 영영 안 간다.
+      channel.connected = false;
+      await store(1, 5);
+      sender.start(roomId);
+
+      await sender.flush();
+
+      expect(sender.lastSent, 0);
+      expect(channel.batches, isEmpty);
+    });
+
+    test('⚠️ 다시 붙으면 못 보낸 것부터 이어서 보낸다', () async {
+      channel.connected = false;
+      await store(1, 5);
+      sender.start(roomId);
+      await sender.flush();
+
+      channel.connected = true;
+      await sender.flush();
+
+      expect(sentSequences(), [1, 2, 3, 4, 5], reason: '빠뜨린 것이 있다');
+    });
+
+    test('저장소가 실패해도 죽지 않는다', () async {
+      repository.failure = StateError('디스크가 죽었다');
+      sender.start(roomId);
+
+      await sender.flush();
+
+      expect(channel.batches, isEmpty);
+    });
+  });
+
+  group('재연결', () {
+    test('⚠️ 끊기면 처음부터 다시 보낸다', () async {
+      // ack가 없어 서버가 어디까지 받았는지 모른다. 소켓에 넘긴 것도 근거가
+      // 못 된다 — 끊기던 순간 날아가던 배치는 사라진다(가이드 2.2).
+      await store(1, 100);
+      sender.start(roomId);
+      await sender.flush();
+      expect(sender.lastSent, 100);
+
+      channel.emitState(WsConnectionState.reconnecting);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sender.lastSent, 0);
+    });
+
+    test('⚠️ 첫 좌표부터 실제로 다시 보낸다', () async {
+      // 커서만 되돌리고 안 보내면 아무 일도 안 일어난 것과 같다.
+      await store(1, 100);
+      sender.start(roomId);
+      await sender.flush();
+
+      channel.emitState(WsConnectionState.reconnecting);
+      await Future<void>.delayed(Duration.zero);
+      await sender.flush();
+
+      expect(channel.batches.last.first.sequence, 1);
+      expect(channel.batches.last.last.sequence, 100);
+    });
+
+    test('⚠️ 밀린 것이 한 배치를 넘어도 끝까지 다시 보낸다', () async {
+      // 30분을 달린 뒤 끊기면 1,800점이다. `flush` 한 번으로는 150점만 가고,
+      // **나머지가 서버에 없는 채로 기록이 확정된다.**
+      await store(1, 400);
+      sender.start(roomId);
+      await sender.drain();
+      channel.batches.clear();
+
+      channel.emitState(WsConnectionState.reconnecting);
+      await Future<void>.delayed(Duration.zero);
+      await sender.drain();
+
+      expect(channel.batches.first.first.sequence, 1);
+      expect(channel.batches.last.last.sequence, 400);
+      expect(sentSequences(), List.generate(400, (i) => i + 1));
+    });
+
+    test('아직 보낸 게 없으면 되돌릴 것도 없다', () async {
+      sender.start(roomId);
+
+      channel.emitState(WsConnectionState.reconnecting);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sender.lastSent, 0);
+    });
+
+    test('⚠️ 보낸 것이 적어도 처음으로 돌아간다', () async {
+      await store(1, 10);
+      sender.start(roomId);
+      await sender.flush();
+
+      channel.emitState(WsConnectionState.reconnecting);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sender.lastSent, 0);
+    });
+  });
+
+  /// 서버가 **저장에 실패했다**고 답한 배치 다시 보내기 — 1.1.1 3절.
+  ///
+  /// ## ⚠️ 끊기지 않으면 아무도 다시 보내지 않았다
+  ///
+  /// 커서는 소켓에 넘긴 순간 앞으로 간다. 그래서 연결이 멀쩡한 채로 저장만
+  /// 실패하면 **그 구간은 영영 올라가지 않는다** — 재연결이 커서를 되돌리는
+  /// 길뿐이었고, 한 시간을 안 끊기고 달리면 그 길을 타지 않는다.
+  group('저장 실패로 거부된 배치', () {
+    test('직전 배치를 다시 보낸다', () async {
+      await store(1, 10);
+      sender.start(roomId);
+      await sender.flush();
+
+      await store(11, 20);
+      await sender.flush();
+      expect(sender.lastSent, 20);
+
+      sender.rewindLast();
+
+      expect(sender.lastSent, 10);
+    });
+
+    test('⚠️ 처음부터가 아니라 그 배치만 다시 간다', () async {
+      // 전체를 다시 보내면, 저장 실패가 10초마다 되풀이되는 동안 트랙 전체가
+      // 매번 나가 **앱이 서버 장애를 키운다**(전체 재전송이 1009로 끊긴 적이
+      // 있다).
+      await store(1, 10);
+      sender.start(roomId);
+      await sender.flush();
+      await store(11, 20);
+      await sender.flush();
+      channel.batches.clear();
+
+      sender.rewindLast();
+      await sender.drain();
+
+      expect(sentSequences(), List.generate(10, (i) => i + 11));
+    });
+
+    test('⚠️ 두 번 불러도 한 배치만 물린다', () async {
+      // 오류는 배치마다 온다. 부를 때마다 한 칸씩 뒤로 가면 결국 처음까지
+      // 거슬러 올라간다.
+      await store(1, 20);
+      sender.start(roomId);
+      await sender.flush();
+      await store(21, 30);
+      await sender.flush();
+
+      sender.rewindLast();
+      sender.rewindLast();
+
+      expect(sender.lastSent, 20);
+    });
+
+    test('아직 보낸 것이 없으면 아무 일도 없다', () async {
+      sender.start(roomId);
+
+      sender.rewindLast();
+
+      expect(sender.lastSent, 0);
+      expect(channel.batches, isEmpty);
+    });
+
+    test('⚠️ 끊겨서 처음으로 돌아간 뒤에는 커서를 앞으로 밀지 않는다', () async {
+      // 되돌림이 **앞으로** 작동하면 아직 보내지 않은 좌표를 건너뛴다 —
+      // 고치려던 것보다 나쁜 결과다.
+      await store(1, 300);
+      sender.start(roomId);
+      await sender.drain();
+
+      channel.emitState(WsConnectionState.reconnecting);
+      await Future<void>.delayed(Duration.zero);
+      expect(sender.lastSent, 0);
+
+      sender.rewindLast();
+
+      expect(sender.lastSent, 0);
+    });
+  });
+
+  group('많이 밀렸을 때', () {
+    test('⚠️ 한 번에 다 싣지 않고 나눠 보낸다', () async {
+      // 몇 분 끊겼다 붙으면 수백 점이다. 한 프레임에 다 실으면 서버가 거절할 수 있다.
+      await store(1, 500);
+      sender.start(roomId);
+
+      await sender.flush();
+
+      // 상한을 하드코딩하지 않는다. 서버 메시지 한도에서 역산한 값이라
+      // 바뀔 수 있고, 그때 이 테스트가 함께 흔들리면 안 된다.
+      expect(channel.batches.single, hasLength(TrackSender.batchLimit));
+      expect(sender.lastSent, TrackSender.batchLimit);
+    });
+
+    test('⚠️ 나눠 보내도 결국 다 간다', () async {
+      // 쌓이는 속도(10점/틱)보다 보내는 속도(batchLimit/틱)가 빨라야 따라잡는다.
+      await store(1, 500);
+      sender.start(roomId);
+
+      // 500점을 다 보낼 만큼 반복한다. `drain`이 실제로 하는 일이다.
+      await sender.drain();
+
+      expect(sentSequences(), List.generate(500, (i) => i + 1));
+    });
+  });
+
+  group('멈추기', () {
+    test('멈추면 더 보내지 않는다', () async {
+      await store(1, 5);
+      sender.start(roomId);
+
+      sender.stop();
+      await sender.flush();
+
+      expect(channel.batches, isEmpty);
+    });
+
+    test('⚠️ 멈추면 커서가 처음으로 돌아간다', () async {
+      // 다음 러닝은 다른 방이고 순번도 1부터 다시 시작한다. 커서가 남으면
+      // 새 러닝의 초반 좌표가 통째로 건너뛰어진다.
+      await store(1, 5);
+      sender.start(roomId);
+      await sender.flush();
+
+      sender.stop();
+
+      expect(sender.lastSent, 0);
+    });
+  });
+}
+
+/// 보낸 것을 기록하는 채널.
+class _RecordingChannel implements RunningChannel {
+  final batches = <List<TrackPoint>>[];
+
+  /// `false`면 소켓에 못 넘긴 척한다.
+  var connected = true;
+
+  final _states = StreamController<WsConnectionState>.broadcast();
+
+  void emitState(WsConnectionState next) => _states.add(next);
+
+  @override
+  Stream<WsConnectionState> get states => _states.stream;
+
+  @override
+  WsConnectionState get state =>
+      connected ? WsConnectionState.connected : WsConnectionState.reconnecting;
+
+  @override
+  Stream<WsErrorCode> get errors => const Stream.empty();
+
+  // 파티원 진행·콤보는 매칭 러닝에서만 온다. 이 테스트들은 솔로 흐름이라
+  // 비워 둔다.
+  @override
+  Stream<RunProgress> get progress => const Stream.empty();
+
+  @override
+  Stream<RunCombo> get combos => const Stream.empty();
+
+  @override
+  Stream<void> get finished => const Stream.empty();
+
+  @override
+  Stream<RunSnapshot> get snapshots => const Stream.empty();
+
+  @override
+  Stream<RunNumbers> get serverNumbers => const Stream.empty();
+
+  @override
+  Future<void> start(int runningRoomId) async {}
+
+  @override
+  bool pause() => true;
+
+  @override
+  bool resume() => true;
+
+  @override
+  Future<FinishOutcome> finish({bool forced = false}) async =>
+      const FinishConfirmed();
+
+  @override
+  bool sendLocations(List<TrackPoint> points) {
+    if (!connected) return false;
+    batches.add(points);
+    return true;
+  }
+
+  @override
+  Future<void> close() async {
+    await _states.close();
+  }
+}

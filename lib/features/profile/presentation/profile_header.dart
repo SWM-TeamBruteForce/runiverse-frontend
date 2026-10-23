@@ -1,0 +1,211 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
+import 'package:runiverse/features/profile/presentation/profile_provider.dart';
+
+/// 프로필 헤더 — 아바타 · 닉네임 · 한 줄 소개. 시안 `158:3905`.
+///
+/// ## ⚠️ 시안에 있는데 여기 없는 것
+///
+/// 2026-10-05에 **컬러 · 뱃지 · 팔로워/팔로잉을 일단 뺐다**(요청). 시안은
+/// 닉네임 아래에 `팔로워 · 24` `팔로우 · 32` `컬러 · 1/30` `뱃지 · 1/10`
+/// 네 줄을 세우고, 그 아래를 도감이 채운다.
+///
+/// 빼고 보면 남는 것이 아바타 · 닉네임 · 소개뿐이다. **화면이 비는 것은
+/// 알고 둔 것이다** — 그 자리에 도감이 들어온다.
+///
+/// 데이터가 없어 못 넣은 것도 셋이다.
+///
+/// - **커버 사진**(`158:3910`, 412×200) — `ProfileSummary`에 필드가 없다
+/// - **알림 벨**(`158:3935`) — 알림을 보낼 채널이 아직 없다. 눌러도 가는 곳이
+///   없는 버튼은 고장으로 읽힌다
+/// - **닉네임 옆 인증 배지**(`158:3915`) — `AppIcons.verified` 글리프는 있지만
+///   인증이라는 **개념**이 앱에도 서버에도 없다
+///
+/// ## 시안 치수를 그대로 못 쓴 곳
+///
+/// | 시안 | 여기 | 왜 |
+/// |---|---|---|
+/// | 좌우 여백 14 | `space4`(16) | 14는 토큰이 아니다. 가장 가까운 토큰이다 |
+/// | 편집 버튼 높이 41 | 44 | **41은 44 미만이라 못 쓴다.** 가장 가까운 값이다 |
+/// | 설정 버튼 41 | 44 | 같은 이유. 글리프만 줄인다(`AppSizes` 주석) |
+class ProfileHeader extends ConsumerWidget {
+  /// 아바타가 커버 아래변에 걸치는 깊이. 시안 좌표에서 나온다 —
+  /// 커버가 `y=200`에서 끝나고 아바타가 `y=157`에서 시작한다.
+  static const coverOverlap = 43.0;
+
+  const ProfileHeader({
+    this.nickname,
+    this.introduction,
+    this.isOnboarded = true,
+    this.photoUrl,
+    super.key,
+  });
+
+  /// `null`인 이유가 **둘**이고, 화면은 그것을 갈라야 한다.
+  ///
+  /// ⚠️ 둘을 같이 다루면 **이미 프로필을 채운 사람에게 "프로필을 완성해주세요"가
+  /// 뜬다** — `/users/me`가 잠깐 실패하기만 해도 그렇게 된다. 실제로 겪었다.
+  final String? nickname;
+
+  /// 프로필을 채운 사람인가. `nickname`이 없는 이유를 여기서 가른다.
+  ///
+  /// | `isOnboarded` | `nickname` | 그리는 것 |
+  /// |---|---|---|
+  /// | `false` | `null` | 채우라는 문구 |
+  /// | `true` | `null` | **자리표시자** — 아직 못 불러왔을 뿐이다 |
+  /// | `true` | 값 | 닉네임 |
+  final bool isOnboarded;
+
+  /// 한 줄 소개. 정본의 인사말("78일째…") 자리를 대신 쓴다 —
+  /// 가입일을 서버가 주지 않아 날수를 셀 수 없다.
+  final String? introduction;
+
+  /// 프로필 사진 열람 주소. 아바타에 그대로 내려보낸다 — [ProfileAvatar.url] 참조.
+  final String? photoUrl;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.appColorsV2;
+    // 지역 변수로 받는다 — public 필드는 `!= null` 검사로 승격되지 않는다.
+    final nickname = this.nickname;
+    final introduction = this.introduction;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.space4,
+        AppSpacing.space2,
+        AppSpacing.space4,
+        AppSpacing.space5,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            // ⚠️ **위 맞춤이다.** 아바타는 커버 쪽으로 끌어올려져 있고, 오른쪽은
+            // 버튼 둘이 쌓인다 — 가운데로 맞추면 두 덩어리의 윗변이 어긋난다.
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ⚠️ **커버에 걸친다**(시안: 아바타 y=157, 커버 끝 y=200).
+              // 걸치지 않으면 커버와 프로필이 두 덩어리로 보인다.
+              //
+              // ⚠️ **`Transform`을 쓰지 않는다.** 그쪽은 자리를 그대로 차지해
+              // 아바타 아래에 `coverOverlap`만큼 **빈 구멍**이 남고, 닉네임이
+              // 커버에서 120px이나 떨어졌다. `OverflowBox`는 **보이는 높이만
+              // 자리로 잡고** 나머지를 위로 넘긴다.
+              SizedBox(
+                width: ProfileAvatar.size,
+                height: ProfileAvatar.size - ProfileHeader.coverOverlap,
+                child: OverflowBox(
+                  maxHeight: ProfileAvatar.size,
+                  alignment: Alignment.bottomCenter,
+                  // 이 화면에서는 눌리지 않는다. 사진을 바꾸는 자리도 편집
+                  // 화면이다.
+                  child: ProfileAvatar(url: photoUrl),
+                ),
+              ),
+              const Spacer(),
+
+              // ⚠️ 시안에서 **아이콘이 아니라 글자 버튼**이다(`158:3933`).
+              // 연필 하나로는 무엇을 고치는지 알 수 없다.
+              //
+              // ⚠️ **돌아오면 다시 받아온다.** 편집 화면에서 닉네임은 시트에서,
+              // 나머지(사진·소개글·신체 정보)는 저장 버튼으로 이미 갔다.
+              // 다시 받지 않으면 이 화면이 편집 전 값을 그린다.
+              //
+              // ⚠️ **편집에서 돌아올 때 받는 자리는 여기 하나다.** 편집 화면은
+              // 스스로 받지 않는다 — 양쪽에서 부르면 돌아올 때마다 같은 조회가
+              // 두 번 나간다. (화면이 처음 열릴 때 받는 것은 `ProfilePage`다.)
+              // ⚠️ **설정 버튼은 여기 없다.** 시안대로 커버 위 우상단으로
+              // 올라갔다(`ProfilePage` · `ProfileCoverAction`). 이 기둥이 한
+              // 칸 짧아지면서 **아래 닉네임·소개글도 함께 올라온다** — 그게
+              // 옮긴 이유다.
+              //
+              // 벨(`158:3935`)은 위 ⚠️ 참조 — 만들지 않는다.
+              AppButtonV2(
+                label: AppStrings.profileEditOpen,
+                // ⚠️ **아바타 옆에 서는 인라인 액션이다.** 기본 크기(56)로 두면
+                // 아바타(96)와 덩치가 맞먹고, 화면에서 유일하게 색이 있는
+                // 요소라 더 튄다. 측정값이 121×54 였다(시안 99×41).
+                size: AppButtonV2Size.compact,
+                expand: false,
+                onPressed: () async {
+                  await context.push(AppRoutes.profileEdit);
+                  await ref
+                      .read(profileSummaryControllerProvider.notifier)
+                      .load();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.space3),
+
+          if (nickname != null)
+            Text(
+              nickname,
+              style: AppTypographyV2.body01.copyWith(color: colors.textStrong),
+            )
+          else if (!isOnboarded)
+            Text(
+              AppStrings.profileNicknameEmpty,
+              // 아직 이름이 아니라 **할 일**이므로 무게를 낮춘다.
+              style: AppTypographyV2.body01.copyWith(
+                color: colors.textSecondary,
+              ),
+            )
+          else
+            // 채운 사람인데 값이 아직 안 왔다. 문구를 넣지 않는다 —
+            // 무슨 말을 넣든 곧 사라질 말이고, 그 사이 잘못된 안내가 된다.
+            const _NicknamePlaceholder(),
+
+          if (introduction != null) ...[
+            const SizedBox(height: AppSpacing.space2),
+            Text(
+              introduction,
+              // ⚠️ **시안보다 밝다.** 시안은 40% 흰색인데 `#0a0a0a` 위에서
+              // 3.45:1 이라 본문 기준(4.5:1)에 못 미친다. 본인이 쓴 글이라
+              // 읽히는 쪽을 골랐다 — 디자인 확인이 필요하다.
+              style: AppTypographyV2.body11.copyWith(
+                color: colors.textSecondary,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 닉네임이 오기 전 자리. **높이를 미리 잡아 둔다** —
+/// 값이 도착할 때 아래 줄들이 밀려 내려가면 화면이 한 번 튄다.
+class _NicknamePlaceholder extends StatelessWidget {
+  const _NicknamePlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    final style = AppTypographyV2.body01;
+
+    return SizedBox(
+      height: style.height! * style.fontSize!,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          width: AppSpacing.space10 * 2,
+          height: AppSpacing.space3,
+          decoration: BoxDecoration(
+            color: context.appColorsV2.bgElevated,
+            borderRadius: AppRadius.sm,
+          ),
+        ),
+      ),
+    );
+  }
+}

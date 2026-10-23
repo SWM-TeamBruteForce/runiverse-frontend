@@ -1,0 +1,143 @@
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
+import 'package:runiverse/core/network/ws_client.dart';
+import 'package:runiverse/core/network/ws_message.dart';
+import 'package:runiverse/features/session/domain/run_numbers.dart';
+import 'package:runiverse/features/session/domain/run_progress.dart';
+import 'package:runiverse/features/session/domain/run_snapshot.dart';
+import 'package:runiverse/features/session/domain/track_point.dart';
+
+/// 러닝 중 서버와 주고받는 것.
+///
+/// 화면은 이 타입에만 기대고 WebSocket을 모른다.
+///
+abstract interface class RunningChannel {
+  /// 지금 연결 상태.
+  Stream<WsConnectionState> get states;
+
+  WsConnectionState get state;
+
+  /// 서버가 거절했을 때. **연결은 유지된다.**
+  Stream<WsErrorCode> get errors;
+
+  /// 러닝의 현재 상태 전부. `RUNNING_START`를 보낼 때마다 **한 번씩 오지만,
+  /// 올라오지 않을 수 있다.**
+  ///
+  /// 이름·사진은 여기에만 있다. 진행·콤보 통지는 사람을 `userId`로만 가리킨다.
+  ///
+  /// ## ⚠️ "시작됐다"의 근거로 쓰지 않는다
+  ///
+  /// `runningRoomId`를 못 읽으면 **통째로 버려진다**(`RunSnapshot.of`). 명세의
+  /// 재연결 payload가 확정되지 않아 몸통이 비어 올 수 있고, 그러면 이 스트림은
+  /// 아무 말도 하지 않는다 — 여기에 재전송·상태 재조회를 매달아 두면 **그때
+  /// 통째로 안 돈다.** 시작 확인은 [serverNumbers]가 받는다.
+  ///
+  /// 명단만 이쪽이 맡는다. 사람 목록은 못 읽으면 쓸 것이 없고, 비어 있다고
+  /// 덮으면 멀쩡한 화면이 지워진다.
+  Stream<RunSnapshot> get snapshots;
+
+  /// **시작 확인(`RUNNING_STARTED`) 그 자체.** 싣고 온 번호 둘을 함께 준다 —
+  /// 1.1.1 2절.
+  ///
+  /// [snapshots]와 **같은 메시지**에서 온다. 그런데 따로 흘린다 — 스냅샷은
+  /// `runningRoomId`를 못 읽으면 통째로 버려지는데(`RunSnapshot.of`),
+  /// **번호는 버리면 안 된다.** 러닝 도중 앱을 다시 설치했다면 이 값이 서버가
+  /// 어디까지 받았는지를 아는 유일한 근거고, 모르는 채로 1번부터 매기면 그
+  /// 좌표가 전부 버려지거나 배치째 거부된다.
+  ///
+  /// 받는 쪽은 다음에 쓸 순번과 구간 번호를 **로컬 값과 이 값 중 큰 쪽으로**
+  /// 맞춘다. 이미 저장된 좌표의 번호는 바꾸지 않는다.
+  ///
+  /// ## ⚠️ 몸통을 못 읽어도 올라온다 — 그래서 시작 확인을 이것으로 받는다
+  ///
+  /// 재연결 뒤 **로컬 트랙 전체 재전송**(가이드 2.2)과 서버 상태 재조회가 이
+  /// 신호에 달려 있다. 스냅샷에 매달아 두면 몸통이 빈 ack 하나에 둘 다 조용히
+  /// 멈춘다 — 그때 안 올라간 좌표는 서버가 직선으로 이어 **거리가 짧게
+  /// 확정된다.**
+  ///
+  /// 구현은 번호를 못 읽어도 [RunNumbers.serverZero]를 실어 **반드시**
+  /// 흘린다. 0은 로컬 번호를 바꾸지 않으므로 해롭지 않다.
+  Stream<RunNumbers> get serverNumbers;
+
+  /// 파티원 한 명의 진행이 바뀔 때마다.
+  ///
+  /// ⚠️ **갱신된 사람만 온다.** 전원 스냅샷이 아니라서 받는 쪽이 참가자별
+  /// 최신값을 들고 이것으로 덮어야 한다. 솔로 러닝에는 오지 않는다.
+  Stream<RunProgress> get progress;
+
+  /// 콤보가 바뀔 때마다. **받을 때마다 통째로 갈아끼운다** — 끊긴 상대는
+  /// 목록에서 빠지고, 끊김을 알리는 별도 이벤트가 없다.
+  Stream<RunCombo> get combos;
+
+  /// **서버가 러닝을 끝냈다.**
+  ///
+  /// ⚠️ **요청 없이 오는 `RUNNING_FINISHED` 만 흘린다.** 1.1.0 서버가 확정
+  /// 거리로 목표 도달을 판단해 스스로 끝낸다(가이드 3.1) — 앱은 로컬 거리가
+  /// 목표를 넘어도 보내지 않고 이 통지를 기다린다.
+  ///
+  /// [finish] 를 부른 뒤 오는 것은 **그 요청의 답**이라 여기로 오지 않는다.
+  /// 둘을 섞으면 한 번의 종료가 두 길로 처리된다.
+  Stream<void> get finished;
+
+  /// 붙고 `RUNNING_START`를 보낸다.
+  ///
+  /// **최초 진입과 재연결을 구분하지 않는다** — 서버가 같은 메시지로 둘 다
+  /// 받고 멱등하게 처리한다. 그래서 재연결 후에도 이걸 다시 보내면 된다.
+  ///
+  /// 솔로 방은 이 첫 요청이 방을 `MATCHED → STARTED`로 바꾼다.
+  Future<void> start(int runningRoomId);
+
+  /// 좌표 묶음을 보낸다. **소켓에 넘겼으면 `true`.**
+  ///
+  /// ## ⚠️ ack가 없다
+  ///
+  /// `true`는 "서버가 받았다"가 아니라 **"소켓에 넘겼다"**는 뜻이다. 명세가
+  /// 이 메시지에 ack를 두지 않았다. 그래서 재연결하면 겹쳐서 다시 보낸다.
+  ///
+  /// `false`를 무시하고 커서를 앞으로 옮기면 그 구간이 영영 안 간다.
+  bool sendLocations(List<TrackPoint> points);
+
+  /// 멈췄다고 알린다. **소켓에 넘겼으면 `true`.**
+  ///
+  /// ## ⚠️ 답이 오지 않는 것이 정상이다
+  ///
+  /// ack가 없고 **멱등**이다(가이드 2.4). 이미 멈춘 사람이 또 보내면 서버가
+  /// 아무 통지도 하지 않는다 — **조용하다고 실패로 치면 안 된다.**
+  ///
+  /// `RUNNING_START` 전에 보내면 `RUNNING_NOT_STARTED` 가 온다. 그 코드는
+  /// [WsErrorCode.needsRestart] 라 시작을 다시 보내는 길로 이어진다.
+  ///
+  /// ⚠️ **보내기 전에 남은 좌표를 먼저 흘려야 한다.** 이 메시지 뒤에
+  /// 밀린 좌표가 닿으면 서버가 일시정지를 푼다(가이드 2.1).
+  bool pause();
+
+  /// 다시 달린다고 알린다. **소켓에 넘겼으면 `true`.**
+  ///
+  /// [pause] 와 같은 규칙이다 — ack 없고 멱등이다.
+  ///
+  /// 좌표를 다시 보내기만 해도 서버는 `RUNNING` 으로 돌아온다. 그래도 이것을
+  /// 보내는 이유는 **배치까지 최대 10초**가 걸려서다. 그동안 상대 화면에는
+  /// 내가 멈춰 있는 것으로 보인다(가이드 2.1).
+  bool resume();
+
+  /// 러닝을 끝낸다. **`RUNNING_FINISHED` ack를 받으면 `true`.**
+  ///
+  /// ## ack가 이 메시지에만 있다
+  ///
+  /// 좌표에는 ack가 없어 "서버가 받았다"를 알 수 없지만, 종료는 확인이 온다.
+  /// **그 확인이 로컬 트랙을 지워도 되는지의 유일한 근거다** — 못 받았는데
+  /// 지우면 서버에 없는 구간을 다시 보낼 방법이 사라진다.
+  ///
+  /// [forced]는 **조기 종료 의사**다. 목표를 채우기 전에 그만두는 경우인데,
+  /// 솔로 러닝은 목표가 없어 항상 `false`다. 매칭 러닝이 붙을 때 쓴다.
+  ///
+  /// 멱등이다. 이미 확정된 러닝에 다시 보내도 서버가 기록을 덮어쓰지 않고
+  /// ack만 다시 준다.
+  /// 답은 셋이다([FinishOutcome]) — 확정 · 목표 모자람 · 못 받음.
+  ///
+  /// ⚠️ **모자람([FinishGoalPending])은 종료가 아니다.** 좌표 수집·전송과
+  /// 로컬 트랙을 그대로 두고 러닝을 이어 간다(1.1.0 가이드 3.2).
+  Future<FinishOutcome> finish({bool forced = false});
+
+  /// 스스로 끊는다. 재연결하지 않는다.
+  Future<void> close();
+}

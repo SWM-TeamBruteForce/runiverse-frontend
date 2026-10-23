@@ -1,0 +1,368 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/app/app.dart';
+import 'package:runiverse/core/storage/consent_store.dart';
+import 'package:runiverse/core/storage/sign_in_memory_store.dart';
+import 'package:runiverse/core/storage/token_store.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
+import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
+import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/sign_in_page.dart';
+import 'package:runiverse/features/auth/presentation/sign_up_page.dart';
+import 'package:runiverse/features/home/presentation/home_page.dart';
+import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page.dart';
+import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
+import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
+import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
+
+/// 온보딩 흐름의 상태 전이 — 스플래시에서 소개를 거쳐 앱 본체로 들어가는가.
+///
+/// 화면의 생김새는 보지 않는다. 여기서 보는 건 **어디로 가느냐**다.
+void main() {
+  /// [repository]를 받는 것이 중요하다. `FakeAuthRepository`는 **자기가 발급한**
+  /// 리프레시 토큰만 갱신해 준다. 저장소를 채운 인스턴스와 앱이 쓰는 인스턴스가
+  /// 다르면 갱신이 만료로 답해서 엉뚱한 화면을 보게 된다.
+  Future<void> pumpApp(
+    WidgetTester tester, {
+    TokenStore? store,
+    FakeAuthRepository? repository,
+  }) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
+          // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
+          appVersionRepositoryProvider.overrideWithValue(
+            FakeAppVersionRepository(),
+          ),
+          // 앱은 SecureTokenStore를 쓰는데 그것은 플랫폼 채널을 부른다.
+          // 테스트에는 채널이 없어 스플래시가 갈림길을 정하지 못하고 멈춘다.
+          tokenStoreProvider.overrideWithValue(store ?? InMemoryTokenStore()),
+          signInMemoryStoreProvider.overrideWithValue(
+            InMemorySignInMemoryStore(),
+          ),
+          // 약관 CTA가 동의를 기록한다. 이것을 빼면 **동의 화면을 지나는
+          // 테스트만** MissingPluginException으로 죽는다 — 다른 경로는 저장소를
+          // 건드리지 않아 멀쩡해 보인다.
+          consentStoreProvider.overrideWithValue(InMemoryConsentStore()),
+          // 스플래시가 서버 상태를 읽는다. 진짜를 두면 dio가 서버 주소를 찾다
+          // 죽는다 — 테스트에는 주소가 없다.
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
+          ),
+          authRepositoryProvider.overrideWithValue(
+            repository ?? FakeAuthRepository(latency: Duration.zero),
+          ),
+        ],
+        child: const RuniverseApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('앱의 첫 화면은 스플래시다', (tester) async {
+    await pumpApp(tester);
+
+    expect(find.byType(SplashPage), findsOneWidget);
+    expect(find.text(AppStrings.brandName), findsOneWidget);
+  });
+
+  testWidgets('스플래시는 1.6초 뒤 저절로 온보딩으로 넘어간다', (tester) async {
+    await pumpApp(tester);
+
+    await tester.pump(const Duration(milliseconds: 1600));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(OnboardingIntroPage), findsOneWidget);
+  });
+
+  testWidgets('스플래시를 누르면 기다리지 않고 넘어간다', (tester) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.byType(SplashPage));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(OnboardingIntroPage), findsOneWidget);
+  });
+
+  testWidgets('마지막 카드에서 버튼 라벨이 시작하기로 바뀐다', (tester) async {
+    await pumpApp(tester);
+    await tester.tap(find.byType(SplashPage));
+    await tester.pumpAndSettle();
+
+    // 1장 → 2장 → 3장
+    expect(find.text(AppStrings.onboardingNext), findsOneWidget);
+    await tester.tap(find.text(AppStrings.onboardingNext));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.onboardingNext));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.onboardingNext), findsNothing);
+    expect(find.text(AppStrings.onboardingStart), findsOneWidget);
+  });
+
+  testWidgets('건너뛰기는 카드를 다 보지 않고 로그인으로 넘어간다', (tester) async {
+    await pumpApp(tester);
+    await tester.tap(find.byType(SplashPage));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.onboardingSkip));
+    await tester.pumpAndSettle();
+
+    // 소개는 건너뛸 수 있어도 로그인은 건너뛸 수 없다.
+    // 약관(S03)은 **가입하는 사람만** 지나가므로 여기서 뜨지 않는다.
+    expect(find.byType(SignInPage), findsOneWidget);
+  });
+
+  testWidgets('가입은 약관 동의부터 시작한다', (tester) async {
+    await pumpApp(tester);
+    await tester.tap(find.byType(SplashPage));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.onboardingSkip));
+    await tester.pumpAndSettle();
+
+    // 아이디 저장이 붙어 화면이 길어졌다. 스크롤해서 눌러야 닿는다.
+    await tester.ensureVisible(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+
+    // 이메일·비밀번호를 받기 **전에** 동의를 받는다.
+    // 순서가 반대면 동의를 묻기도 전에 개인정보가 서버에 저장된다.
+    expect(find.byType(TermsAgreementPage), findsOneWidget);
+    expect(find.byType(SignUpPage), findsNothing);
+  });
+
+  testWidgets('⚠️ 연령 확인 없이는 가입으로 넘어갈 수 없다', (tester) async {
+    // 생년월일은 프로필 설정에서야 받는다. 이 항목이 없으면 이메일·비밀번호를
+    // 다 받은 뒤에야 나이를 알게 된다 — 개인정보를 이미 수집한 뒤다.
+    await pumpApp(tester);
+    await tester.tap(find.byType(SplashPage));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.onboardingSkip));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.termsAge), findsOneWidget);
+
+    // 연령 확인만 빼고 나머지 필수를 전부 켠다.
+    for (final label in [
+      AppStrings.termsService,
+      AppStrings.termsPrivacy,
+      AppStrings.termsHealth,
+    ]) {
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    final locked = tester.widget<AppButtonV2>(
+      find.widgetWithText(AppButtonV2, AppStrings.termsCta),
+    );
+    expect(locked.onPressed, isNull);
+
+    await tester.tap(find.text(AppStrings.termsAge));
+    await tester.pumpAndSettle();
+
+    final unlocked = tester.widget<AppButtonV2>(
+      find.widgetWithText(AppButtonV2, AppStrings.termsCta),
+    );
+    expect(unlocked.onPressed, isNotNull);
+  });
+
+  testWidgets('⚠️ 전문 보기를 눌러도 동의가 켜지지 않는다', (tester) async {
+    // 한 행에 누르는 곳이 둘이다 — 행은 동의 토글, 화살표는 문서 열기.
+    // 화살표가 행의 터치 영역 안에 있으면 **문서를 보려다 동의가 켜진다.**
+    // 필수 셋을 모두 눌러 보고 CTA가 여전히 잠겨 있는지로 가른다.
+    await pumpApp(tester);
+    await tester.tap(find.byType(SplashPage));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.onboardingSkip));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+
+    // ⚠️ **연령 확인은 먼저 정상적으로 체크한다.** 그 행에는 화살표가 없어서,
+    // 안 켜두면 화살표가 동의를 토글하더라도 CTA가 잠긴 채라 판별이 안 된다.
+    await tester.tap(find.text(AppStrings.termsAge));
+    await tester.pumpAndSettle();
+
+    // 문서가 없는 연령 확인을 뺀 나머지 셋.
+    // TODO(되살리기): 마케팅 동의를 되살리면 넷(4)으로 되돌린다.
+    final chevrons = find.byTooltip(AppStrings.termsViewDocument);
+    expect(chevrons, findsNWidgets(3));
+
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(chevrons.at(i));
+      await tester.pumpAndSettle();
+    }
+
+    final cta = tester.widget<AppButtonV2>(
+      find.widgetWithText(AppButtonV2, AppStrings.termsCta),
+    );
+    expect(cta.onPressed, isNull);
+  });
+
+  // TODO(되살리기): 마케팅 동의를 되살리면 skip을 지운다.
+  testWidgets('문서가 없는 항목은 준비 중이라고 알린다', (tester) async {
+    // 눌러도 조용하면 고장으로 읽힌다. 마케팅 조항은 아직 방침에 없다.
+    await pumpApp(tester);
+    await tester.tap(find.byType(SplashPage));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.onboardingSkip));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+
+    final marketing = find.byTooltip(AppStrings.termsViewDocument).last;
+    await tester.ensureVisible(marketing);
+    await tester.pumpAndSettle();
+    await tester.tap(marketing);
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.legalDocumentPending), findsOneWidget);
+  }, skip: true);
+
+  testWidgets('약관에 동의하면 정보 입력으로 넘어간다', (tester) async {
+    await pumpApp(tester);
+    await tester.tap(find.byType(SplashPage));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.onboardingSkip));
+    await tester.pumpAndSettle();
+    // 아이디 저장이 붙어 화면이 길어졌다. 스크롤해서 눌러야 닿는다.
+    await tester.ensureVisible(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.termsAgreeAll));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.termsCta));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SignUpPage), findsOneWidget);
+  });
+
+  testWidgets('정보 입력에서 뒤로 가면 동의한 것이 남아 있다', (tester) async {
+    await pumpApp(tester);
+    await tester.tap(find.byType(SplashPage));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.onboardingSkip));
+    await tester.pumpAndSettle();
+    // 아이디 저장이 붙어 화면이 길어졌다. 스크롤해서 눌러야 닿는다.
+    await tester.ensureVisible(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.authToSignUp));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.termsAgreeAll));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.termsCta));
+    await tester.pumpAndSettle();
+
+    // `pageBack()`은 AppBar의 기본 뒤로가기를 찾는다. 이 화면들은 직접 만든
+    // IconButton을 쓰므로 그것을 누른다. 화면을 특정하지 않으면 아래에 깔린
+    // 약관 화면의 뒤로가기까지 함께 잡힌다 — push로 쌓인 화면은 트리에 남아 있다.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(SignUpPage),
+        matching: find.byTooltip(AppStrings.authBack),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 정보 입력이 사라진 것이 **되돌아왔다는 증거**다.
+    // 약관 화면이 보이는 것만으로는 부족하다 — 쌓여 있는 동안에도 트리에 있다.
+    expect(find.byType(SignUpPage), findsNothing);
+    expect(find.byType(TermsAgreementPage), findsOneWidget);
+
+    // 동의가 남아 있어야 한다. `go`로 넘어갔다면 약관 화면이 새로 만들어져
+    // 체크가 풀리고, 사용자는 같은 일을 두 번 하게 된다.
+    final cta = tester.widget<AppButtonV2>(
+      find.widgetWithText(AppButtonV2, AppStrings.termsCta),
+    );
+    expect(cta.onPressed, isNotNull);
+  });
+
+  group('스플래시 갈림길', () {
+    /// 이미 로그인해 둔 상태를 만든다.
+    ///
+    /// **저장소와 저장소 구현을 짝으로 돌려준다.** `FakeAuthRepository`는 자기가
+    /// 발급한 토큰만 갱신해 주므로 같은 인스턴스를 앱에 넣어야 한다.
+    /// ⚠️ `signIn()`을 쓰면 안 된다. `testWidgets`는 가짜 시간 위에서 도는데
+    /// `pumpWidget` 전에 `Future.delayed`를 기다리면 시간을 진행시킬 `pump`가
+    /// 없어 **테스트가 영원히 멈춘다.** `issueSession()`은 기다리지 않는다.
+    Future<(TokenStore, FakeAuthRepository)> signedIn({
+      required bool isOnboarded,
+    }) async {
+      final store = InMemoryTokenStore();
+      final repository = FakeAuthRepository(latency: Duration.zero);
+      // 씨앗 계정은 온보딩을 마친 것으로, 그 밖의 계정은 안 마친 것으로 발급된다.
+      final session = repository.issueSession(
+        email: isOnboarded ? FakeAuthRepository.seedEmail : 'new@example.com',
+      );
+      await store.saveSession(
+        userId: session.userId,
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        // 가짜 저장소는 값을 준다. 진짜 서버는 이제 주지 않아 `null`이 오는데,
+        // 그 경우를 다루는 것은 `AuthController._onboardedOf`의 몫이다.
+        isOnboarded: session.isOnboarded ?? false,
+      );
+      return (store, repository);
+    }
+
+    testWidgets('토큰이 살아 있고 온보딩을 마쳤으면 홈으로 간다', (tester) async {
+      final (store, repository) = await signedIn(isOnboarded: true);
+
+      await pumpApp(tester, store: store, repository: repository);
+      await tester.tap(find.byType(SplashPage));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(HomePage), findsOneWidget);
+    });
+
+    testWidgets('온보딩을 안 마쳤어도 자동 로그인은 홈으로 간다', (tester) async {
+      final (store, repository) = await signedIn(isOnboarded: false);
+
+      await pumpApp(tester, store: store, repository: repository);
+      await tester.tap(find.byType(SplashPage));
+      await tester.pumpAndSettle();
+
+      // 앱을 열자마자 폼이 뜨는 것이 당황스럽다. 폼으로 보내는 것은
+      // **인증 직후**(가입 · 이메일 로그인 · 카카오)뿐이고, 여기서는
+      // 홈의 유도 카드가 맡는다.
+      expect(find.byType(HomePage), findsOneWidget);
+      expect(find.byType(ProfileSetupPage), findsNothing);
+    });
+
+    testWidgets('토큰이 만료됐으면 소개를 건너뛰고 로그인으로 간다', (tester) async {
+      final store = InMemoryTokenStore();
+      // 가짜 저장소가 발급한 적 없는 토큰이다. 갱신이 만료로 답한다.
+      await store.saveSession(
+        userId: 'u-1',
+        accessToken: 'stale',
+        refreshToken: 'stale',
+        isOnboarded: true,
+      );
+
+      await pumpApp(tester, store: store);
+      await tester.tap(find.byType(SplashPage));
+      await tester.pumpAndSettle();
+
+      // 이 사람은 처음 온 것이 아니다. 소개를 다시 보여주지 않는다.
+      expect(find.byType(SignInPage), findsOneWidget);
+      expect(find.byType(OnboardingIntroPage), findsNothing);
+    });
+  });
+}

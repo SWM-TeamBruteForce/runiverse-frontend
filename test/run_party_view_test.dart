@@ -1,0 +1,368 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/theme/tokens/app_spacing.dart';
+import 'package:runiverse/features/session/domain/party_board.dart';
+import 'package:runiverse/features/session/domain/run_progress.dart';
+import 'package:runiverse/features/session/domain/runner_status.dart';
+import 'package:runiverse/features/session/presentation/run_party_view.dart';
+
+/// 파티원 상태 화면 — **보드가 정한 것을 그대로 그리는가.**
+///
+/// 순서·격차·색 자리는 보드 테스트가 지킨다. 여기서는 그 결과가 카드에 빠짐없이
+/// 나오는지, 그리고 목표를 모를 때 막대를 채우지 않는지만 본다.
+void main() {
+  const everyone = [
+    PartyMember(userId: 'me-1', nickname: '러너42'),
+    PartyMember(userId: 'u-1', nickname: '김도윤'),
+    PartyMember(userId: 'u-2', nickname: '이서연'),
+    PartyMember(userId: 'u-3', nickname: '박지훈'),
+  ];
+
+  RunProgress progress(
+    String userId,
+    int meters, {
+    int? pace,
+    RunnerStatus status = RunnerStatus.running,
+  }) => RunProgress(
+    userId: userId,
+    distanceMeters: meters,
+    targetDistanceMeters: 5000,
+    currentPaceSecondsPerKm: pace,
+    status: status,
+  );
+
+  Future<void> pump(
+    WidgetTester tester,
+    PartyBoard board, {
+    int? target = 5000,
+    DateTime? now,
+    bool paused = false,
+  }) => tester.pumpWidget(
+    MaterialApp(
+      theme: AppTheme.dark(),
+      home: Scaffold(
+        body: RunPartyView(
+          board: board,
+          myPace: const Duration(minutes: 5, seconds: 38),
+          targetDistanceMeters: target,
+          now: now,
+          paused: paused,
+        ),
+      ),
+    ),
+  );
+
+  testWidgets('넷이 카드 하나씩으로 나온다', (tester) async {
+    final board = const PartyBoard()
+        .withRoster(everyone, myUserId: 'me-1')
+        .withMyDistance(3200)
+        .withProgress(progress('u-1', 3360, pace: 321))
+        .withProgress(progress('u-2', 3240, pace: 333))
+        .withProgress(progress('u-3', 3080, pace: 352))
+        .withCombos(
+          const RunCombo([
+            ComboPeer(
+              userId: 'u-1',
+              gapMeters: 160,
+              comboCount: 12,
+              maxComboCount: 12,
+            ),
+            ComboPeer(
+              userId: 'u-3',
+              gapMeters: -120,
+              comboCount: 0,
+              maxComboCount: 3,
+            ),
+          ]),
+        );
+    await pump(tester, board);
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.text('김도윤'), findsOneWidget);
+    expect(find.text('러너42'), findsOneWidget);
+    expect(find.text(AppStrings.runPartyMe), findsOneWidget);
+    expect(find.text('3.4'), findsOneWidget);
+    expect(find.text('/ 5 km'), findsNWidgets(3));
+    expect(find.text("5'21\""), findsOneWidget);
+    expect(find.text("5'38\""), findsOneWidget);
+    // 격차는 말로. 내 카드는 누구 곁인지와 콤보 수.
+    expect(find.text(AppStrings.runPartyGapLine(160)), findsOneWidget);
+    expect(find.text(AppStrings.runPartyBeside('김도윤')), findsOneWidget);
+    expect(find.text(AppStrings.runPartyCombo(12)), findsNWidgets(2));
+    // 넷째 카드는 테스트 화면 아래라 내려가서 본다.
+    await tester.scrollUntilVisible(
+      find.text(AppStrings.runPartyGapLine(-120)),
+      AppSpacing.space10,
+      scrollable: find.byType(Scrollable),
+    );
+    expect(find.text(AppStrings.runPartyGapLine(-120)), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('페이스를 모르면 자리만 비운다', (tester) async {
+    final board = const PartyBoard()
+        .withRoster(everyone.take(2).toList(), myUserId: 'me-1')
+        .withProgress(progress('u-1', 1200));
+    await pump(tester, board);
+
+    expect(find.text("--'--\""), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 파티원 사진이 원을 꽉 채운다', (tester) async {
+    final board = const PartyBoard()
+        .withRoster(const [
+          PartyMember(userId: 'me-1', nickname: '러너42'),
+          PartyMember(
+            userId: 'u-1',
+            nickname: '김도윤',
+            profileImageUrl: 'https://example.test/p.jpg?X-Amz-Signature=a',
+          ),
+        ], myUserId: 'me-1')
+        .withProgress(progress('u-1', 1200));
+    await pump(tester, board);
+
+    // 원이 자식에게 느슨한 제약을 주면 사진이 **원래 비율대로** 놓인다 —
+    // 가로 사진은 32×16이 되고 남은 자리에 레인 색이 비친다. 꽉 조여야
+    // `BoxFit.cover`가 잘라서 채운다.
+    //
+    // ⚠️ 사진이 아직 안 온 첫 프레임을 본다. 느슨하면 `0×0`, 조이면 틀 크기다.
+    final photo = find.byType(Image);
+    expect(photo, findsOneWidget);
+    expect(
+      tester.getSize(photo),
+      const Size(AppSpacing.space7, AppSpacing.space7),
+    );
+  });
+
+  testWidgets('이름을 모르는 사람도 그린다', (tester) async {
+    // 러닝 중 재시작하면 명단이 비어 있다.
+    final board = const PartyBoard().withProgress(progress('u-9', 800));
+    await pump(tester, board);
+
+    expect(find.text(AppStrings.runPartyUnknown), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('⚠️ 목표를 모르면 막대를 채우지 않는다', (tester) async {
+    final board = const PartyBoard()
+        .withRoster(everyone.take(2).toList(), myUserId: 'me-1')
+        .withProgress(progress('u-1', 1200));
+    await pump(tester, board, target: null);
+
+    // 거리 숫자는 그대로다. `/ 목표`만 없다.
+    expect(find.text('1.2'), findsOneWidget);
+    expect(find.text(AppStrings.runPartyUnitKm), findsNWidgets(2));
+    expect(find.textContaining('/ '), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('⚠️ 통지가 끊긴 사람의 카드는 흐려진다', (tester) async {
+    // 서버는 끊김을 알리지 않는다. 서버가 콤보 판정에서 빼는 것과 같은
+    // 시간(19초)이 지나면 흐리게만 그린다 — 문구로 단정하지 않는다.
+    final now = DateTime(2026, 9, 17, 19, 10);
+    final board = const PartyBoard()
+        .withRoster(everyone.take(3).toList(), myUserId: 'me-1')
+        .withProgress(
+          progress(
+            'u-1',
+            1200,
+          ).stamped(now.subtract(const Duration(seconds: 30))),
+        )
+        .withProgress(
+          progress(
+            'u-2',
+            1100,
+          ).stamped(now.subtract(const Duration(seconds: 5))),
+        );
+    await pump(tester, board, now: now);
+
+    final faded = find.byWidgetPredicate((w) => w is Opacity && w.opacity < 1);
+    expect(faded, findsOneWidget);
+    expect(
+      find.descendant(of: faded, matching: find.text('김도윤')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('콤보가 오르면 두 카드에 임팩트가 떴다가 배지로 앉는다', (tester) async {
+    ComboPeer peer(int count) => ComboPeer(
+      userId: 'u-1',
+      gapMeters: 12,
+      comboCount: count,
+      maxComboCount: count,
+    );
+    final base = const PartyBoard()
+        .withRoster(everyone.take(2).toList(), myUserId: 'me-1')
+        .withProgress(progress('u-1', 1200));
+    await pump(tester, base.withCombos(RunCombo([peer(11)])));
+    expect(find.text(AppStrings.runPartyImpactCombo), findsNothing);
+
+    // 12로 오른다 → 내 카드와 상대 카드 모두 `12 COMBO`.
+    await pump(tester, base.withCombos(RunCombo([peer(12)])));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text(AppStrings.runPartyImpactCombo), findsNWidgets(2));
+    expect(find.text('12'), findsNWidgets(2));
+
+    // 끝나면 덮개는 사라지고 배지에 12콤보가 남는다.
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.runPartyImpactCombo), findsNothing);
+    expect(find.text(AppStrings.runPartyCombo(12)), findsNWidgets(2));
+
+    // 같은 값이 다시 와도 튀지 않는다.
+    await pump(tester, base.withCombos(RunCombo([peer(12)])));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text(AppStrings.runPartyImpactCombo), findsNothing);
+  });
+
+  testWidgets('콤보가 끊기면 배지에 최고 기록만 남는다', (tester) async {
+    final board = const PartyBoard()
+        .withRoster(everyone.take(2).toList(), myUserId: 'me-1')
+        .withProgress(progress('u-1', 1200))
+        .withCombos(
+          const RunCombo([
+            ComboPeer(
+              userId: 'u-1',
+              gapMeters: 12,
+              comboCount: 5,
+              maxComboCount: 7,
+            ),
+          ]),
+        )
+        .withCombos(const RunCombo([]));
+    await pump(tester, board);
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.runPartyBestCombo(7)), findsNWidgets(2));
+    expect(find.text(AppStrings.runPartyComboHint), findsOneWidget);
+  });
+
+  /// 멈춰 있는 동안 내 카드가 **무엇이라고 말하는가.**
+  ///
+  /// ## ⚠️ 여기가 거짓말을 하던 자리다
+  ///
+  /// 콤보는 두 사람이 30m 안에서 **함께 달리는** 동안 이어진다. 멈추면 서버가
+  /// 콤보 판정에서 나를 빼는데, 통지는 10초마다 오고 판정에는 그보다 더
+  /// 걸린다 — 그 사이 서 있는 사람에게 카드가 **"곁에서 달리는 중"이라고
+  /// 말했다.**
+  group('⚠️ 멈춰 있으면 콤보가 끊긴다고 말한다', () {
+    ComboPeer peer(int count) => ComboPeer(
+      userId: 'u-1',
+      gapMeters: 12,
+      comboCount: count,
+      maxComboCount: count,
+    );
+
+    PartyBoard boardWith({required bool combo}) {
+      final base = const PartyBoard()
+          .withRoster(everyone.take(2).toList(), myUserId: 'me-1')
+          .withProgress(progress('u-1', 1200));
+      return combo ? base.withCombos(RunCombo([peer(12)])) : base;
+    }
+
+    testWidgets('콤보 중에 멈추면 곁에서 달린다고 하지 않는다', (tester) async {
+      await pump(tester, boardWith(combo: true), paused: true);
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runPartyComboPaused), findsOneWidget);
+      expect(find.text(AppStrings.runPartyBeside('김도윤')), findsNothing);
+    });
+
+    testWidgets('⚠️ 콤보가 없을 때도 같은 말을 한다', (tester) async {
+      // 서 있는 동안에는 "30m 안으로 붙으면 콤보가 시작돼요"도 지금 할 수
+      // 있는 이야기가 아니다.
+      await pump(tester, boardWith(combo: false), paused: true);
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runPartyComboPaused), findsOneWidget);
+      expect(find.text(AppStrings.runPartyComboHint), findsNothing);
+    });
+
+    testWidgets('⚠️ 배지의 콤보 수는 그대로 둔다', (tester) async {
+      // 앱이 끊겼다고 단정하면 **아직 살아 있는 콤보를 지워 보인다** —
+      // 몇 초 멈췄다 다시 달리면 그대로 이어진다. 끊겼다는 판정은 서버 몫이다.
+      await pump(tester, boardWith(combo: true), paused: true);
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runPartyCombo(12)), findsNWidgets(2));
+    });
+
+    testWidgets('달리는 중에는 뜨지 않는다', (tester) async {
+      await pump(tester, boardWith(combo: true), paused: false);
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runPartyComboPaused), findsNothing);
+      expect(find.text(AppStrings.runPartyBeside('김도윤')), findsOneWidget);
+    });
+  });
+
+  testWidgets('⚠️ 아무도 없어도 내 카드는 남고 빈 문구가 붙는다', (tester) async {
+    // 상대가 취소했거나 재시작 뒤 첫 통지가 오기 전. 내 기록은 계속 보인다.
+    await pump(
+      tester,
+      const PartyBoard()
+          .withRoster(const [], myUserId: 'me-1')
+          .withMyDistance(1500),
+    );
+
+    // 이름을 모르니 제목도 아바타 이니셜도 `나`다.
+    expect(find.text(AppStrings.runPartyMe), findsNWidgets(2));
+    expect(find.text('1.5'), findsOneWidget);
+    expect(find.text(AppStrings.runPartyEmpty), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  group('⚠️ 네 상태를 가려 보인다 — 1.1.0', () {
+    // ⚠️ **예전에는 `paused`(bool) 하나였고 그마저 화면에 닿지 않았다.**
+    //
+    // 멈춘 사람·끊긴 사람·끝낸 사람이 전부 "격차가 벌어지는 사람"으로 보였다.
+    // 화면이 아는 것은 통지가 오래됐는지(`stale`)뿐이라 **추측**이었다.
+    PartyBoard boardWith(RunnerStatus status) => const PartyBoard()
+        .withRoster(everyone, myUserId: 'me-1')
+        .withMyDistance(3200)
+        .withProgress(progress('u-1', 3360, status: status));
+
+    testWidgets('뛰는 중이면 격차를 그대로 보인다', (tester) async {
+      await pump(tester, boardWith(RunnerStatus.running));
+
+      expect(find.text(AppStrings.runPartyGapLine(160)), findsOneWidget);
+    });
+
+    for (final (status, text) in [
+      (RunnerStatus.paused, AppStrings.runPartyPaused),
+      (RunnerStatus.disconnected, AppStrings.runPartyDisconnected),
+      (RunnerStatus.finished, AppStrings.runPartyFinished),
+    ]) {
+      testWidgets('$status 이면 그렇게 말한다', (tester) async {
+        await pump(tester, boardWith(status));
+
+        expect(find.text(text), findsOneWidget);
+      });
+
+      testWidgets('⚠️ $status 이면 격차를 말하지 않는다', (tester) async {
+        // 멈춘 사람과의 격차는 **벌어지기만 한다.** 그것을 계속 보이면
+        // 따라잡히는 중이라고 읽힌다.
+        await pump(tester, boardWith(status));
+
+        expect(find.text(AppStrings.runPartyGapLine(160)), findsNothing);
+      });
+    }
+
+    testWidgets('⚠️ 끝낸 사람을 흐리게 하지 않는다', (tester) async {
+      // 흐림은 **통지가 끊겼다**는 뜻이다(`stale`). 정상 완주를 같은 모습으로
+      // 그리면 끝낸 사람이 사라진 사람처럼 보인다.
+      final now = DateTime(2026, 10, 12, 20, 0);
+      final board = const PartyBoard()
+          .withRoster(everyone, myUserId: 'me-1')
+          .withMyDistance(3200)
+          .withProgress(
+            progress('u-1', 3360, status: RunnerStatus.finished).stamped(now),
+          );
+
+      await pump(tester, board, now: now);
+
+      expect(find.text(AppStrings.runPartyFinished), findsOneWidget);
+    });
+  });
+}

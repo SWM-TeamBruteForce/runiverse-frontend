@@ -1,0 +1,371 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:runiverse/features/auth/domain/auth_failure.dart';
+import 'package:runiverse/features/auth/domain/auth_repository.dart';
+import 'package:runiverse/features/auth/domain/auth_session.dart';
+import 'package:runiverse/features/auth/domain/auth_tokens.dart';
+import 'package:runiverse/features/auth/domain/current_user.dart';
+import 'package:runiverse/features/auth/domain/login_type.dart';
+import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
+import 'package:runiverse/features/auth/domain/oauth_provider.dart';
+
+/// 진짜 서버를 부르는 [AuthRepository].
+///
+/// `FakeAuthRepository`와 같은 인터페이스를 구현한다. 어느 쪽이 답하는지는
+/// `auth_provider.dart`가 정하고, 화면은 둘을 구분하지 못한다.
+///
+/// ## dio를 밖으로 흘리지 않는다
+///
+/// 이 클래스 밖으로 나가는 실패는 전부 [AuthException]이다. [DioException]이
+/// 새어 나가면 화면이 dio를 알아야 하고, 나중에 클라이언트를 바꿀 때
+/// 화면까지 따라 고쳐야 한다.
+class HttpAuthRepository implements AuthRepository {
+  HttpAuthRepository(this._dio);
+
+  final Dio _dio;
+
+  static const _loginPath = '/api/v1/auth/login';
+  static const _signUpPath = '/api/v1/auth/signup';
+  static const _refreshPath = '/api/v1/auth/refresh';
+  static const _logoutPath = '/api/v1/auth/logout';
+
+  /// provider가 뒤에 붙는다 — `/auth/oauth/kakao`.
+  static const _oauthPath = '/api/v1/auth/oauth';
+  static const _sendCodePath = '/api/v1/auth/email/verifications';
+  static const _verifyCodePath = '/api/v1/auth/email/verifications/confirm';
+
+  /// 내 기본 정보. **`isOnboarded`의 유일한 출처다.**
+  static const _mePath = '/api/v1/users/me';
+
+  /// 갱신에만 짧은 시간 제한을 건다.
+  ///
+  /// 이 호출은 **스플래시가 기다리는 유일한 요청**이다. dio 기본값(10초)을 그대로
+  /// 쓰면 연결이 나쁜 곳에서 앱이 10초 멈춘 것처럼 보인다.
+  static const _refreshTimeout = Duration(seconds: 5);
+
+  /// 로그아웃이 기다리는 시간. 갱신과 같은 이유로 짧다.
+  static const _logoutTimeout = Duration(seconds: 5);
+
+  @override
+  Future<AuthSession> signIn({
+    required String email,
+    required String password,
+  }) => _login(email: email, password: password);
+
+  /// 가입 응답이 **토큰까지 준다.** 이어서 로그인할 필요가 없다.
+  ///
+  /// 몸통의 필드 이름이 로그인 응답과 같아 [_sessionOf]를 그대로 쓴다.
+  /// `isOnboarded`는 방금 만든 계정이라 서버가 항상 `false`를 준다.
+  @override
+  Future<AuthSession> signUp({
+    required String verificationTicket,
+    required String password,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _signUpPath,
+        data: {'verificationTicket': verificationTicket, 'password': password},
+      );
+      return _sessionOf(response.data);
+    } on DioException catch (error) {
+      throw AuthException(_failureOf(error));
+    }
+  }
+
+  /// 응답 몸통이 로그인과 같아 [_sessionOf]를 그대로 쓴다.
+  ///
+  /// **계정이 없으면 서버가 만들고**, 그때 `isOnboarded`는 `false`로 온다.
+  @override
+  Future<AuthSession> signInWithOauth({
+    required OauthProvider provider,
+    required OauthAuthorization authorization,
+  }) async {
+    try {
+      // ⚠️ **제공자마다 본문이 다르다.** 카카오는 인가 코드 + 검증값,
+      // 구글은 ID 토큰 하나, 애플은 ID 토큰 + nonce 원본이다. `sealed` 라
+      // 제공자가 늘면 **여기서 컴파일이 깨진다** — 빈 본문을 보내고 서버에서
+      // 원인을 찾는 일이 없다.
+      final body = switch (authorization) {
+        OauthCode(:final authorizationCode, :final codeVerifier) => {
+          'authorizationCode': authorizationCode,
+          'codeVerifier': codeVerifier,
+        },
+        OauthIdToken(:final idToken) => {'idToken': idToken},
+        // ⚠️ `nonce` 는 **해시하지 않은 원본**이다. 서버가 이것을 해시해 ID
+        // 토큰 안의 값과 대조한다 — 해시를 보내면 401이 돌아온다.
+        OauthIdTokenWithNonce(:final idToken, :final nonce) => {
+          'idToken': idToken,
+          'nonce': nonce,
+        },
+      };
+
+      final response = await _dio.post<Map<String, dynamic>>(
+        '$_oauthPath/${provider.path}',
+        data: body,
+      );
+      return _sessionOf(response.data);
+    } on DioException catch (error) {
+      throw AuthException(_failureOf(error));
+    }
+  }
+
+  @override
+  Future<void> sendVerificationCode(String email) async {
+    try {
+      // 204라 몸통이 없다. 읽을 것이 없으니 타입을 세우지 않는다.
+      await _dio.post<void>(_sendCodePath, data: {'email': email});
+    } on DioException catch (error) {
+      throw AuthException(_failureOf(error));
+    }
+  }
+
+  @override
+  Future<String> verifyCode({
+    required String email,
+    required String code,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _verifyCodePath,
+        data: {'email': email, 'code': code},
+      );
+      final ticket = response.data?['verificationTicket'];
+      // 200을 받아도 티켓이 없으면 가입을 시작할 수 없다. 빈 문자열로 넘기면
+      // 가입 단계에서 403이 나고, 원인에서 한참 떨어진 곳에 증상이 남는다.
+      if (ticket is! String || ticket.isEmpty) {
+        throw const AuthException(AuthFailure.unknown);
+      }
+      return ticket;
+    } on DioException catch (error) {
+      throw AuthException(_failureOf(error));
+    }
+  }
+
+  /// 서버 세션을 끊는다. 성공은 **204라 몸통이 없다.**
+  ///
+  /// ⚠️ **기다리는 시간을 짧게 잡는다.** 설정 화면은 이 호출이 끝나야 로그인
+  /// 화면으로 나가는데 그동안 아무 표시도 하지 않는다. 기본 10초를 그대로 쓰면
+  /// 서버가 죽었을 때 **로그아웃이 10초 동안 먹통인 것처럼 보인다.** 갱신
+  /// 호출과 같은 판단이다([_refreshTimeout]).
+  @override
+  Future<void> signOut(String accessToken) async {
+    try {
+      await _dio.post<void>(
+        _logoutPath,
+        options: Options(
+          headers: {'Authorization': 'Bearer $accessToken'},
+          sendTimeout: _logoutTimeout,
+          receiveTimeout: _logoutTimeout,
+        ),
+      );
+    } on DioException catch (error) {
+      // 401은 토큰이 죽은 것이다. 부르는 쪽이 갱신하고 한 번 더 온다.
+      if (error.response?.statusCode == 401) {
+        throw const AuthException(AuthFailure.sessionExpired);
+      }
+      throw AuthException(_failureOf(error));
+    }
+  }
+
+  @override
+  Future<AuthTokens> refresh(String refreshToken) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _refreshPath,
+        data: {'refreshToken': refreshToken},
+        options: Options(
+          sendTimeout: _refreshTimeout,
+          receiveTimeout: _refreshTimeout,
+        ),
+      );
+      return _tokensOf(response.data);
+    } on DioException catch (error) {
+      throw AuthException(_failureOf(error));
+    }
+  }
+
+  /// 200을 받아도 몸통이 기대와 다를 수 있다. 못 읽으면 만들지 않는다.
+  AuthTokens _tokensOf(Map<String, dynamic>? body) {
+    final accessToken = body?['accessToken'];
+    final refreshToken = body?['refreshToken'];
+
+    if (accessToken is! String || refreshToken is! String) {
+      throw const AuthException(AuthFailure.unknown);
+    }
+    return AuthTokens(accessToken: accessToken, refreshToken: refreshToken);
+  }
+
+  @override
+  Future<CurrentUser> fetchCurrentUser(String accessToken) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        _mePath,
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      return _currentUserOf(response.data);
+    } on DioException catch (error) {
+      // 401은 토큰이 죽은 것이다. 부르는 쪽이 갱신하고 다시 온다.
+      if (error.response?.statusCode == 401) {
+        throw const AuthException(AuthFailure.sessionExpired);
+      }
+      throw AuthException(_failureOf(error));
+    }
+  }
+
+  /// 몸통에서 사람을 꺼낸다.
+  ///
+  /// ⚠️ **닉네임·이미지·소개글은 없을 수 있다.** 온보딩 전에는 서버가 채우지
+  /// 못한다. `userId`만 반드시 있어야 하고, 그것이 없으면 답이 계약과 다른
+  /// 것이므로 세션을 믿지 않는다.
+  CurrentUser _currentUserOf(Map<String, dynamic>? body) {
+    final userId = body?['userId'];
+
+    // ⚠️ **`userId` 말고는 아무것도 요구하지 않는다.** 하나라도 더 요구하면
+    // 200을 받고도 여기서 던지고, `_loadCurrentUser`가 그 예외를 삼켜
+    // **닉네임도 `isOnboarded`도 영영 반영되지 않는다.** 실제로 그랬다.
+    if (userId is! String) {
+      throw const AuthException(AuthFailure.unknown);
+    }
+
+    final onboarded = body?['isOnboarded'];
+
+    return CurrentUser(
+      userId: userId,
+      // ⚠️ **없거나 타입이 다르면 `null`이다. `false`가 아니다.**
+      // `false`로 읽으면 서버가 이 필드를 빠뜨린 날 저장된 `true`가 덮여
+      // 프로필을 이미 채운 사람이 폼으로 끌려간다. 실제로 그랬다.
+      isOnboarded: onboarded is bool ? onboarded : null,
+      // 설정 화면의 계정 섹션이 쓰는 두 값. **없어도 던지지 않는다** —
+      // 계정 섹션이 비는 것과 세션이 통째로 죽는 것은 무게가 다르다.
+      email: _stringOrNull(body?['email']),
+      loginType: LoginType.fromWire(_stringOrNull(body?['loginType'])),
+      nickname: _stringOrNull(body?['nickname']),
+      profileImageUrl: _stringOrNull(body?['profileImageUrl']),
+      introduction: _stringOrNull(body?['introduction']),
+    );
+  }
+
+  /// 빈 문자열도 `null`로 본다. 서버가 `""`를 주는 것과 아예 안 주는 것을
+  /// 화면이 다르게 그릴 이유가 없다.
+  static String? _stringOrNull(Object? value) =>
+      (value is String && value.isNotEmpty) ? value : null;
+
+  Future<AuthSession> _login({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _loginPath,
+        data: {'email': email, 'password': password},
+      );
+      return _sessionOf(response.data);
+    } on DioException catch (error) {
+      throw AuthException(_failureOf(error));
+    }
+  }
+
+  /// 서버가 200을 줬어도 몸통이 기대와 다를 수 있다.
+  ///
+  /// 필드를 하나라도 못 읽으면 세션을 만들지 않는다. 빈 문자열로 채워두면
+  /// 로그인은 성공한 것처럼 보이고 **그다음 API 호출부터 인증이 깨진다** —
+  /// 원인에서 한참 떨어진 곳에서 증상이 나온다.
+  AuthSession _sessionOf(Map<String, dynamic>? body) {
+    final userId = body?['userId'];
+    final accessToken = body?['accessToken'];
+    final refreshToken = body?['refreshToken'];
+
+    if (userId is! String ||
+        accessToken is! String ||
+        refreshToken is! String) {
+      throw const AuthException(AuthFailure.unknown);
+    }
+
+    return AuthSession(
+      userId: userId,
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      // ⚠️ **없으면 `null`이다. `false`가 아니다.**
+      //
+      // 서버가 2026-08-17 이 필드를 응답에서 뺐다. `false`로 떨어뜨리면
+      // 이미 프로필을 채운 사람이 로그인할 때마다 폼으로 끌려간다.
+      // 모르는 것은 모르는 채로 넘기고, 판단은 `AuthController`가 한다.
+      isOnboarded: body?['isOnboarded'] is bool
+          ? body!['isOnboarded'] as bool
+          : null,
+    );
+  }
+
+  /// 서버가 준 `code`를 앱의 실패 이유로 옮긴다.
+  ///
+  /// **`message`는 쓰지 않는다.** 서버 문구는 습니다체고 앱은 해요체다.
+  /// 그대로 화면에 얹으면 톤이 깨지고, 서버가 문구를 고치면 앱 화면이 같이 바뀐다.
+  ///
+  /// ## ⚠️ `code`를 상태 코드보다 먼저 본다
+  ///
+  /// `EMAIL_SEND_FAILED`가 **503**이다. 5xx를 먼저 [AuthFailure.server]로
+  /// 잘라내면 그 사유가 영영 나오지 않는다. 상태 코드는 **아는 `code`가 없을 때만**
+  /// 쓰는 마지막 수단이다.
+  AuthFailure _failureOf(DioException error) {
+    // 응답이 없는 경우를 **두 갈래로 나눈다.** "안 갔다"와 "갔는지 모른다"는
+    // 다음 수가 다르다 — 앞은 다시 보내도 되고, 뒤는 다시 보내면 안 된다.
+    if (error.type != DioExceptionType.badResponse) {
+      return switch (error.type) {
+        // 연결을 못 맺었다. 서버는 아무것도 받지 않았다.
+        DioExceptionType.connectionTimeout ||
+        DioExceptionType.connectionError ||
+        DioExceptionType.badCertificate => AuthFailure.network,
+        // ⚠️ 나머지는 **이미 처리됐을 수 있다.** 보내던 중 끊겼거나(sendTimeout),
+        // 다 보내고 응답을 기다리다 끊겼다(receiveTimeout). `unknown`은 소켓
+        // 오류가 섞여 들어와 판별이 안 되므로 안전한 쪽으로 둔다.
+        _ => AuthFailure.deliveryUnknown,
+      };
+    }
+
+    final response = error.response;
+    final body = response?.data;
+    final code = body is Map ? body['code'] : null;
+
+    final known = switch (code) {
+      'INVALID_CREDENTIALS' => AuthFailure.invalidCredentials,
+      'EMAIL_ALREADY_EXISTS' => AuthFailure.emailAlreadyExists,
+      'INVALID_REFRESH_TOKEN' => AuthFailure.sessionExpired,
+      'INVALID_VERIFICATION_CODE' => AuthFailure.invalidCode,
+      'EMAIL_VERIFICATION_NOT_FOUND' => AuthFailure.codeExpired,
+      'TOO_MANY_VERIFICATION_ATTEMPTS' => AuthFailure.tooManyCodeAttempts,
+      'EMAIL_VERIFICATION_COOLDOWN' => AuthFailure.sendCooldown,
+      'EMAIL_VERIFICATION_DAILY_LIMIT_EXCEEDED' => AuthFailure.sendDailyLimit,
+      'EMAIL_SEND_FAILED' => AuthFailure.sendFailed,
+      'EMAIL_NOT_VERIFIED' => AuthFailure.emailNotVerified,
+      // ⚠️ 서버가 2026-09-29(BE PR #69)에 이름을 바꿨다 —
+      // `OAUTH_CODE_EXCHANGE_FAILED` → `OAUTH_LOGIN_FAILED`. 옛 이름을 그대로
+      // 두는 동안 **401 이 `unknown` 으로 떨어져** 엉뚱한 문구가 떴다.
+      // 카카오·구글 공통이다.
+      'OAUTH_LOGIN_FAILED' => AuthFailure.oauthFailed,
+      'OAUTH_EMAIL_NOT_PROVIDED' => AuthFailure.oauthEmailMissing,
+      // 서버가 모르는 provider다. 앱이 enum으로 보내므로 정상 경로에서는
+      // 나오지 않는다 — 나온다면 서버에 그 구현이 아직 없는 것이다.
+      'UNSUPPORTED_PROVIDER' => AuthFailure.oauthFailed,
+      _ => null,
+    };
+    if (known != null) return known;
+
+    // 형식 거절은 **코드가 두 가지**다. 로그인·가입은 `VALIDATION_FAILED`인데
+    // 이메일 인증 두 경로는 `INVALID_REQUEST`를 준다 — 같은 `/auth` 아래인데도
+    // 다르다(2026-08-10 서버 응답으로 확인). 하나만 보면 나머지가 `unknown`으로
+    // 떨어져 "로그인하지 못했어요"라는 엉뚱한 문구가 뜬다.
+    if (code == 'VALIDATION_FAILED' || code == 'INVALID_REQUEST') {
+      // 앱이 먼저 막았어야 할 값이 서버까지 갔다. 사유는 `message`에만 있는데
+      // 그것을 갈라 읽으면 서버가 문구를 고칠 때 조용히 깨진다.
+      // 화면에는 앱 문구를 쓰고, 여기서는 구멍을 찾을 단서만 남긴다.
+      if (kDebugMode) {
+        debugPrint('[api] 검증 거절: ${body is Map ? body['message'] : ''}');
+      }
+      return AuthFailure.validation;
+    }
+
+    // 아는 `code`가 없을 때만 상태 코드로 판단한다.
+    if ((response?.statusCode ?? 0) >= 500) return AuthFailure.server;
+    return AuthFailure.unknown;
+  }
+}

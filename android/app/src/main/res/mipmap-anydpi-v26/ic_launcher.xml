@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  적응형 런처 아이콘 (Android 8 이상).
+
+  런처가 기기마다 다른 마스크(원·둥근 사각·물방울)를 씌운다. 레거시
+  `ic_launcher.png` 만 두면 그 런처들이 **아이콘을 흰 판에 얹어** 보여준다.
+
+  배경색은 원본 아이콘의 바탕과 같은 값이다. 그래서 전경의 네모 가장자리가
+  배경에 그대로 녹아 경계가 보이지 않는다.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

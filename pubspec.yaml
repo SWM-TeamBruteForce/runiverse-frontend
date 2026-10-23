@@ -1,0 +1,209 @@
+name: runiverse
+description: "A new Flutter project."
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+# The following defines the version and build number for your application.
+# A version number is three numbers separated by dots, like 1.2.43
+# followed by an optional build number separated by a +.
+# Both the version and the builder number may be overridden in flutter
+# build by specifying --build-name and --build-number, respectively.
+# In Android, build-name is used as versionName while build-number used as versionCode.
+# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+# Read more about iOS versioning at
+# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+# In Windows, build-name is used as the major, minor, and patch parts
+# of the product and file versions while build-number is used as the build suffix.
+version: 1.1.0 # 버전 코드는 빌드할 때 --build-number로 넘긴다
+
+environment:
+  sdk: ^3.12.2
+
+# Dependencies specify other packages that your package needs in order to work.
+# To automatically upgrade your package dependencies to the latest versions
+# consider running `flutter pub upgrade --major-versions`. Alternatively,
+# dependencies can be manually updated by changing the version numbers below to
+# the latest version available on pub.dev. To see which dependencies have newer
+# versions available, run `flutter pub outdated`.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.8
+  flutter_riverpod: ^3.4.2
+  go_router: ^17.3.0
+  lucide_icons_flutter: ^3.1.15
+  geolocator: ^14.0.3
+  dio: ^5.11.0
+  # 11.x로 올리지 않는다. 11.0.0은 compileSdk 37을 요구하는데 AGP가 찾는
+  # `android-37`이 SDK에 없다 (설치된 것은 `android-37.0`뿐이라 인식되지 않는다).
+  # 안드로이드 SDK나 AGP를 손대는 일은 이 변경의 범위를 넘는다.
+  flutter_secure_storage: ^10.3.1
+  kakao_flutter_sdk: ^2.0.0+1
+  # 프로필 사진을 앨범에서 고른다. 안드로이드 13+에서는 시스템 사진 선택기를 쓰므로
+  # **저장소 권한을 요구하지 않는다** — 매니페스트에 추가할 것이 없다.
+  # 크기를 줄이지는 못한다. 10MB 제한은 앱이 검사해서 막는다.
+  image_picker: ^1.2.3
+  flutter_naver_map: ^1.4.4
+  wakelock_plus: ^1.7.0
+  web_socket_channel: ^3.0.3
+  sqflite: ^2.4.3
+  # 케이던스(분당 걸음 수)를 낸다. 안드로이드 `TYPE_STEP_COUNTER`, iOS
+  # `CMPedometer`를 노출한다.
+  #
+  # ⚠️ **이 패키지는 권한을 요청하지 않는다.** 매니페스트가 비어 있고 요청
+  # 코드도 없다 — README도 "설정에서 직접 허용해야 할 수 있다"고 적어 두었다.
+  # 권한 선언(안드로이드 `ACTIVITY_RECOGNITION`, iOS
+  # `NSMotionUsageDescription`)과 런타임 요청은 앱이 한다.
+  #
+  # ⚠️ 에뮬레이터에는 걸음 센서가 없어 **실기기로만 검증된다.**
+  pedometer: ^4.2.0
+  # 런타임 권한을 요청한다. 위치는 geolocator가 자체 처리하지만 나머지는
+  # 요청할 수단이 없었다.
+  #
+  # 지금 쓰는 곳은 케이던스 하나다. 안드로이드는 `ACTIVITY_RECOGNITION`,
+  # iOS는 `sensors`를 요청한다.
+  # 포그라운드 서비스 알림의 `POST_NOTIFICATIONS`도 이걸로 요청하게 된다.
+  #
+  # ⚠️ **13.x로 올리지 않는다. 버전을 고정한다.** 13.0.0이 compileSdk 37을
+  # 요구해 `checkDebugAarMetadata`에서 빌드가 깨진다 — flutter_secure_storage와
+  # 같은 함정이다(위 참고). 캐럿(`^`)을 쓰면 다음 사람이 `pub upgrade`만 해도
+  # 13.x가 올라와 깨지므로 정확한 버전으로 박는다.
+  permission_handler: 12.0.0
+  # 개인정보처리방침·계정삭제 안내를 외부 문서로 연다. 문서는 앱 밖(GitHub
+  # Pages)에 있고, 구글 플레이 심사가 두 링크를 요구한다.
+  #
+  # ⚠️ **안드로이드는 `<queries>`에 VIEW+https 인텐트가 있어야 열린다.**
+  # 없으면 `canLaunchUrl`이 조용히 false를 돌려주고 링크가 안 열린다 —
+  # 에러도 로그도 없다. 매니페스트를 함께 본다.
+  url_launcher: ^6.3.2
+  flutter_svg: ^2.3.0
+  google_sign_in: ^7.2.0
+  firebase_core: ^4.15.0
+  firebase_analytics: ^12.6.0
+  firebase_crashlytics: ^5.4.0
+  flutter_image_compress: ^2.5.1
+  # 애플 로그인. **iOS 에서만 부른다** — 안드로이드·웹에서는 애플 웹 흐름을
+  # 열어야 해서 `serviceIdentifier` 와 `redirectUri` 가 필요한데, 서버는 iOS
+  # 번들 ID 로 발급된 ID 토큰만 받는다(연동 가이드 3·6절).
+  sign_in_with_apple: ^8.2.0
+  # nonce 를 SHA-256 으로 해시한다(`AppleNonce`). 애플에는 해시를, 서버에는
+  # 원본을 보낸다.
+  #
+  # ⚠️ **간접 의존성이어서 import 는 이미 되지만 직접 적는다.** 남의 의존성에
+  # 얹혀 있으면 그쪽이 버전을 올리거나 떼는 날 조용히 깨진다.
+  crypto: ^3.0.6
+  # 설치된 앱의 **버전 이름**을 읽는다(`1.0.0`, 빌드 번호 제외).
+  #
+  # ⚠️ **`pubspec`의 값을 상수로 박지 않는다.** 서버가 이 값으로 구버전을
+  # 막으므로(`X-App-Version`), 실제 설치본과 어긋나면 **업데이트를 했는데도
+  # 업데이트하라는 화면**이 뜬다. 사람이 넣는 값은 어긋나도 아무도 모른다.
+  package_info_plus: ^10.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^6.0.0
+  sqflite_common_ffi: ^2.4.2+1
+
+  # 기기에서 도는 테스트. `flutter test`는 Dart VM에서만 돌아 플랫폼 채널
+  # (GPS·SQLite)을 부를 수 없다. 그것들이 진짜로 이어져 있는지는 기기에서만
+  # 확인된다. Flutter SDK와 함께 오므로 버전을 따로 고르지 않는다.
+  integration_test:
+    sdk: flutter
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+  default-flavor: dev # 운영 빌드만 --flavor prod를 붙인다
+
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+
+  fonts:
+    - family: Pretendard
+      fonts:
+        - asset: assets/fonts/Pretendard-Regular.otf
+          weight: 400
+        - asset: assets/fonts/Pretendard-Medium.otf
+          weight: 500
+        - asset: assets/fonts/Pretendard-SemiBold.otf
+          weight: 600
+        - asset: assets/fonts/Pretendard-Bold.otf
+          weight: 700
+        - asset: assets/fonts/Pretendard-ExtraBold.otf
+          weight: 800
+
+    # 새 디자인의 글꼴. 화면을 하나씩 옮기는 동안 Pretendard 와 함께 실린다 —
+    # 옮긴 화면만 이쪽을 쓴다. 마지막 화면을 옮기면 Pretendard 를 뺀다.
+    # 라이선스: SIL OFL 1.1 (assets/fonts/SUIT-OFL.txt)
+    - family: SUIT
+      fonts:
+        - asset: assets/fonts/SUIT-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/SUIT-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/SUIT-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/SUIT-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/SUIT-ExtraBold.ttf
+          weight: 800
+
+  assets:
+    # 새 디자인의 아이콘. 시안이 자체 SVG 33개를 쓴다 — Lucide 로는 모양이
+    # 미세하게 달라진다. 옮긴 화면만 이쪽을 쓴다.
+    - assets/icons/
+
+    # 시안이 쓰는 사진. 지금은 로그인 히어로 한 장뿐이다.
+    - assets/images/
+
+    # 남의 로고. ⚠️ assets/icons/ 에 두지 않는다 — 그쪽은 AppIcons 목록과
+    # 파일이 1:1 이어야 하고(test/v2_app_icon_test.dart), 단색 틴트를 입힌다.
+    # 브랜드 로고는 제 색을 지켜야 한다.
+    - assets/brand/
+
+  # To add assets to your application, add an assets section, like this:
+  # assets:
+  #   - images/a_dot_burr.jpeg
+  #   - images/a_dot_ham.jpeg
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/to/asset-from-package
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package

@@ -1,0 +1,117 @@
+import 'package:flutter/material.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/features/auth/domain/login_type.dart';
+
+/// 탈퇴를 한 번 더 묻는다. 확인하면 `true`.
+///
+/// [loginType]이 애플이면 **애플 쪽 연결을 직접 끊어야 한다는 안내**를 덧붙인다
+/// (`AppStrings.withdrawAppleNotice`). 계정 성질을 모르거나(`null`) 다른
+/// 제공자면 붙이지 않는다 — 이메일로 가입한 사람에게 애플 설정을 열라고 하면
+/// 쓸모없는 줄이 하나 늘 뿐이다.
+///
+/// ## 왜 다이얼로그가 아닌가
+///
+/// 로그아웃은 다이얼로그로 묻는다 — 되돌릴 수 있어서다. 탈퇴는 **되돌릴 수 없다.**
+/// 무게가 다른 두 동작을 같은 모양으로 물으면, 다이얼로그를 습관적으로 넘기던
+/// 손이 탈퇴도 넘긴다.
+///
+/// ## 사유를 받지 않는다
+///
+/// 기능정의서 `USR-ACCOUNT-001`의 제목은 *"탈퇴 사유 입력 후 계정 삭제"*지만
+/// 본문의 입력 항목은 **Access Token과 탈퇴 확인 여부(boolean)뿐**이다.
+/// 서버에 보낼 자리가 없다.
+Future<bool> showWithdrawSheet(
+  BuildContext context, {
+  LoginType? loginType,
+}) async {
+  final confirmed = await showModalBottomSheet<bool>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    // 잘못 눌러 열렸으면 밖을 눌러 닫을 수 있어야 한다. 막아 세우는 관문이 아니다.
+    isScrollControlled: true,
+    builder: (context) => _WithdrawSheet(loginType: loginType),
+  );
+  return confirmed ?? false;
+}
+
+class _WithdrawSheet extends StatelessWidget {
+  const _WithdrawSheet({this.loginType});
+
+  final LoginType? loginType;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: colors.bgElevated,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.space5,
+        AppSpacing.space4,
+        AppSpacing.space5,
+        // 제스처 바에 버튼이 걸리지 않게 띄운다.
+        AppSpacing.space5 + MediaQuery.of(context).padding.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 손잡이. 아래로 쓸어 닫을 수 있다는 표시다.
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.borderStrong,
+                borderRadius: AppRadius.full,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.space5),
+          Text(
+            AppStrings.withdrawTitle,
+            style: AppTypographyV2.heading05.copyWith(
+              color: colors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.space3),
+          Text(
+            AppStrings.withdrawBody,
+            style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
+          ),
+          // 애플 쪽에 남는 연결. ⚠️ **본문과 섞지 않는다** — 본문은 "사라지는
+          // 것"을 말하고 이 줄은 "남는 것, 직접 끊어야 하는 것"을 말한다.
+          if (loginType == LoginType.apple) ...[
+            const SizedBox(height: AppSpacing.space3),
+            Text(
+              AppStrings.withdrawAppleNotice,
+              style: AppTypographyV2.body07.copyWith(color: colors.textPrimary),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.space6),
+          // ⚠️ **취소가 먼저다.** 되돌릴 수 없는 쪽을 엄지 자리에 두지 않는다.
+          AppButtonV2(
+            label: AppStrings.settingsCancel,
+            variant: AppButtonV2Variant.secondary,
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          const SizedBox(height: AppSpacing.space2),
+          AppButtonV2(
+            label: AppStrings.withdrawConfirm,
+            variant: AppButtonV2Variant.danger,
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+  }
+}

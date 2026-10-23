@@ -1,0 +1,1066 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
+import 'package:runiverse/core/config/app_config.dart';
+import 'package:runiverse/core/network/ws_client.dart';
+import 'package:runiverse/features/app_update/presentation/app_update_provider.dart';
+import 'package:runiverse/core/network/ws_message.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/session/data/http_running_room_repository.dart';
+import 'package:runiverse/features/session/data/ws_running_channel.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
+import 'package:runiverse/features/session/domain/running_channel.dart';
+import 'package:runiverse/features/session/domain/running_room.dart';
+import 'package:runiverse/features/session/domain/running_room_repository.dart';
+import 'package:runiverse/features/session/domain/track_sender.dart';
+import 'package:runiverse/features/session/domain/user_status.dart';
+import 'package:runiverse/features/session/presentation/run_session_provider.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
+
+final runningRoomRepositoryProvider = Provider<RunningRoomRepository>(
+  (ref) => HttpRunningRoomRepository(
+    ref.watch(dioProvider),
+    ref.watch(tokenStoreProvider),
+    ref.watch(tokenRefresherProvider),
+  ),
+);
+
+/// 연결 하나를 만드는 법.
+///
+/// **provider로 뺀 이유는 테스트 때문이다.** 컨트롤러가 `WsClient`를 직접
+/// 만들면 위젯 테스트가 진짜 소켓을 열려 하고, 주소가 없어 죽는다.
+/// 토큰을 **문자열이 아니라 함수로** 넘긴다.
+///
+/// 핸드셰이크가 401로 거절되면 `WsClient`가 갱신해서 다시 붙어야 하는데,
+/// 문자열을 한 번 건네면 그 자리에서 값이 굳어 죽은 토큰으로 계속 두드리게 된다.
+typedef RunningChannelFactory = RunningChannel Function(WsAccessToken token);
+
+final runningChannelFactoryProvider = Provider<RunningChannelFactory>(
+  (ref) =>
+      (token) => WsRunningChannel(
+        WsClient(
+          url: '${AppConfig.wsBaseUrl}/api/v1/ws/running',
+          token: token,
+          // ⚠️ **핸드셰이크 403에는 읽을 몸통이 없다.** 버전 API로 다시 물어
+          // 앱이 낡은 것인지 가린다 — 방 권한 같은 다른 403까지 멈추면
+          // 멀쩡한 러닝이 연결을 잃는다(작업 가이드).
+          onForbidden: () =>
+              ref.read(appUpdateProvider.notifier).blockedByVersion(),
+        ),
+      ),
+);
+
+/// `RUNNING_START`가 거절됐을 때 다시 보내기까지의 간격.
+///
+/// 길이가 곧 **재시도 횟수 상한**이다. 서버 장애가 풀릴 시간을 주되, 무한히
+/// 두드려 장애를 키우지는 않는다.
+///
+/// **테스트가 갈아 끼운다.** 2·5·15초를 실제로 기다리게 할 수 없다.
+final runningRestartBackoffProvider = Provider<List<Duration>>(
+  (ref) => const [
+    Duration(seconds: 2),
+    Duration(seconds: 5),
+    Duration(seconds: 15),
+  ],
+);
+
+/// 서버와 이어진 상태.
+///
+/// 방과 연결이 **따로** 있는 이유는 실패 지점이 둘이기 때문이다 —
+/// 방은 만들었는데 WS가 안 붙을 수 있고, 그때 화면이 하는 말이 달라야 한다.
+class RunningConnectionState {
+  const RunningConnectionState({
+    this.room,
+    this.connection = WsConnectionState.disconnected,
+    this.failure,
+    this.opening = false,
+    this.settling = false,
+    this.trackUnavailable = false,
+    this.trackRejected = false,
+    this.finishedRoomId,
+  });
+
+  /// **방금 끝낸 방.** 종료 확인(`RUNNING_FINISHED`)을 받은 방 번호다.
+  ///
+  /// ## ⚠️ 서버 상태가 이걸 따라오는 데 시간이 걸린다
+  ///
+  /// 종료 ack를 받은 뒤에도 `GET /users/me/status`가 잠시 `RUNNING`을 돌려준다.
+  /// 그 값만 믿으면 홈이 **방금 끝낸 러닝으로 돌아가는 문**을 띄우고, 눌러도
+  /// `NOT_ROOM_PLAYER`만 받는다(2026-09-19 01:40 실주행).
+  ///
+  /// 그 구간에서는 **앱이 서버보다 잘 안다.** 끝낸 방을 기억해 두고 그 방은
+  /// 다시 들어갈 곳으로 내놓지 않는다.
+  final int? finishedRoomId;
+
+  /// 서버가 좌표를 저장하지 못하고 있다(`RUNNING_TRACK_UNAVAILABLE`).
+  ///
+  /// **러닝은 계속된다.** 좌표는 앱에 남아 있고 나중에 다시 올라간다. 배치마다
+  /// 같은 오류가 오므로 **알림은 한 장**으로 접는다(연동 가이드) — 잠시 뒤
+  /// 저절로 내려가고, 또 오면 다시 올라온다.
+  final bool trackUnavailable;
+
+  /// 서버가 **구간 번호를 이유로** 배치를 거부했다(`PAUSE_SEGMENT_DECREASED`).
+  ///
+  /// ## ⚠️ [trackUnavailable]과 달리 저절로 풀리지 않는다
+  ///
+  /// 저쪽은 서버가 잠시 저장을 못 한 것이라 다시 보내면 들어간다. 이쪽은
+  /// 서버가 기억하는 구간 번호가 앱이 보낸 것보다 크다는 뜻이라, **다음
+  /// 배치도 같은 이유로 거부된다** — 더 달려도 아무것도 안 남는다.
+  ///
+  /// 그래서 이 값이 서면 러닝을 끝내는 길로 간다. 화면은 이 값을 보고
+  /// **왜 끝났는지** 알린다 — 말해 주지 않으면 러닝이 저절로 끝난 것처럼
+  /// 보인다.
+  final bool trackRejected;
+
+  /// 서버가 준 방. `null`이면 아직 못 열었다.
+  final RunningRoom? room;
+
+  final WsConnectionState connection;
+
+  /// 방을 못 연 이유. 연결 실패는 [connection]이 나타낸다.
+  final RunningRoomFailure? failure;
+
+  final bool opening;
+
+  /// 종료를 알리고 **서버가 기록을 확정하기를 기다리는 중**인가.
+  ///
+  /// ## ⚠️ 이걸 안 보면 빈 기록을 보여준다
+  ///
+  /// 상세(17·18번)는 서버가 `RUNNING_FINISH`를 처리한 뒤에야 값이 찬다. 그
+  /// 전에 부르면 **200에 빈 기록**이 와서 화면이 `0.00km · 구간 0개`가 된다 —
+  /// 실제로 44분 6.38km 러닝에서 그렇게 됐다. 좌표가 유실된 것이 아니라
+  /// 너무 일찍 물어본 것이다.
+  ///
+  /// 러닝이 길수록 서버가 처리할 좌표가 많아 이 창이 넓어진다.
+  final bool settling;
+
+  /// 달릴 준비가 됐는가. **방과 연결이 둘 다 있어야 한다.**
+  bool get isReady => room != null && connection == WsConnectionState.connected;
+
+  RunningConnectionState copyWith({
+    RunningRoom? room,
+    WsConnectionState? connection,
+    RunningRoomFailure? failure,
+    bool? opening,
+    bool? settling,
+    bool? trackUnavailable,
+    bool? trackRejected,
+    int? finishedRoomId,
+  }) => RunningConnectionState(
+    finishedRoomId: finishedRoomId ?? this.finishedRoomId,
+    room: room ?? this.room,
+    connection: connection ?? this.connection,
+    // ⚠️ `??`를 쓰지 않는다. 다시 시도해서 성공하면 실패를 **지워야** 한다.
+    failure: failure,
+    opening: opening ?? this.opening,
+    settling: settling ?? this.settling,
+    trackUnavailable: trackUnavailable ?? this.trackUnavailable,
+    trackRejected: trackRejected ?? this.trackRejected,
+  );
+}
+
+final runningConnectionProvider =
+    NotifierProvider<RunningConnectionController, RunningConnectionState>(
+      RunningConnectionController.new,
+    );
+
+/// 방을 열고 WebSocket에 붙인다.
+///
+/// ## 순서가 정해져 있다
+///
+/// `POST /running-rooms/solo` → `runningRoomId` → WS 연결 → `RUNNING_START`
+///
+/// 방 번호가 WS 모든 메시지의 payload에 들어가므로 **뒤바뀔 수 없다.**
+///
+/// ## 좌표는 [TrackSender]가 올린다
+///
+/// 방이 생기고 `RUNNING_START`가 나간 **뒤에** 띄운다. 서버가 방을 알기 전에
+/// 좌표를 받으면 버린다. 닫을 때는 소켓보다 **먼저** 멈춘다.
+class RunningConnectionController extends Notifier<RunningConnectionState> {
+  RunningChannel? _channel;
+
+  /// 지금 붙어 있는 채널. 아직 안 붙었으면 `null`이다.
+  ///
+  /// 파티원 통지를 듣는 쪽이 필요로 한다. **소유권은 그대로 여기 있다** —
+  /// 빌려주기만 하고 닫는 것은 이 컨트롤러가 한다.
+  RunningChannel? get channel => _channel;
+  Timer? _retry;
+
+  /// 쌓인 좌표를 10초마다 올리는 것. 방이 생긴 뒤에만 있다.
+  TrackSender? _sender;
+
+  /// 버튼으로 멈춰 있는가.
+  ///
+  /// ⚠️ **다시 붙을 때 한 번 더 알리려고 들고 있는다.** 재연결은
+  /// `RUNNING_START` 를 다시 보내고, 서버는 그것으로 참가자를 `RUNNING` 으로
+  /// 되돌린다(가이드 1.1의 상태표) — 알리지 않으면 **멈춰 있는데 상대
+  /// 화면에서는 내가 다시 달린다.**
+  ///
+  /// `RUNNING_NOT_STARTED` 로 거절당한 `PAUSE` 도 같은 길로 되살아난다.
+  /// 그 코드가 시작을 다시 보내게 하고([WsErrorCode.needsRestart]), 그
+  /// 확인을 받는 자리에서 이 값을 본다.
+  var _paused = false;
+
+  /// 연속 실패 횟수. backoff 간격을 정한다.
+  var _attempt = 0;
+
+  /// 저장 실패 배너를 내리는 시계. 새 오류가 오면 다시 감는다.
+  Timer? _trackNotice;
+
+  /// 저장 실패 배너가 저절로 내려가기까지. 배치 세 번 분량이다 — 그 안에 또
+  /// 오면 계속 떠 있고, 안 오면 풀린 것이다.
+  static const _trackNoticeFor = Duration(seconds: 30);
+
+  /// 거부된 배치를 다시 보낸 시각. 너무 자주 보내지 않게 재는 것.
+  DateTime? _lastTrackResend;
+
+  /// 지금 다시 보내는 중인가.
+  var _resendingTrack = false;
+
+  /// 다시 보내기 사이의 최소 간격.
+  ///
+  /// ## ⚠️ 오류는 배치마다 온다
+  ///
+  /// 서버 저장이 망가져 있으면 10초마다 같은 답이 온다. 그때마다 다시 보내면
+  /// **앱이 서버 장애를 키운다.** 배치 간격과 같은 10초를 두면 늘어나는 양이
+  /// 최대 두 배로 묶인다 — 그 이상은 서버가 숨 쉴 틈을 빼앗는다.
+  static const _trackResendGap = Duration(seconds: 10);
+
+  void _onServerError(WsErrorCode code) {
+    if (code == WsErrorCode.notRoomPlayer) {
+      // 재시도해도 같은 답이다. 보내던 것을 멈추고 소켓을 닫는다 — 화면이
+      // 이 실패를 보고 러닝을 접는다.
+      debugPrint('[running] 이 방의 참가자가 아니다. 러닝을 접는다');
+      _retry?.cancel();
+      _sender?.stop();
+      _sender = null;
+      _channel?.close();
+      _channel = null;
+      state = RunningConnectionState(
+        room: state.room,
+        connection: WsConnectionState.closed,
+        failure: RunningRoomFailure.notRoomPlayer,
+      );
+      return;
+    }
+    if (code == WsErrorCode.pauseSegmentDecreased) {
+      unawaited(_finishOnRejectedTrack());
+      return;
+    }
+    if (code.needsDelayedRestart) {
+      unawaited(_restartLater(code));
+      return;
+    }
+    if (code != WsErrorCode.runningTrackUnavailable) return;
+    // ⚠️ **거부된 배치를 다시 보낸다** — 1.1.1 3절.
+    //
+    // 알리기만 하던 자리다. 그런데 전송기는 소켓에 넘긴 것을 보낸 것으로 보고
+    // 커서를 이미 옮겼으므로, **연결이 멀쩡한 채로 저장만 실패하면 그 구간은
+    // 영영 올라가지 않는다.** 끊겼다 붙을 때만 처음부터 다시 보내던 길이라
+    // 한 시간을 안 끊기고 달리면 빠진 채로 기록이 확정된다.
+    unawaited(_resendRejectedBatch());
+    _trackNotice?.cancel();
+    _trackNotice = Timer(_trackNoticeFor, () {
+      state = state.copyWith(trackUnavailable: false);
+    });
+    if (!state.trackUnavailable) {
+      state = state.copyWith(trackUnavailable: true);
+    }
+  }
+
+  /// 서버가 저장하지 못한 배치를 **한 번 더 보낸다** — 1.1.1 3절.
+  ///
+  /// ⚠️ **간격을 둔다.** 저장 실패는 배치마다 오므로 그때마다 보내면 장애
+  /// 중인 서버에 두 배로 쏟는다([_trackResendGap]).
+  ///
+  /// ⚠️ **실패해도 러닝은 계속된다.** 못 올라간 좌표는 로컬에 남아 있고,
+  /// 다음 재연결이 처음부터 다시 보내는 길을 또 탄다.
+  Future<void> _resendRejectedBatch() async {
+    if (_resendingTrack) return;
+    final sender = _sender;
+    if (sender == null) return;
+
+    final since = _lastTrackResend;
+    final now = DateTime.now();
+    if (since != null && now.difference(since) < _trackResendGap) return;
+    _lastTrackResend = now;
+
+    _resendingTrack = true;
+    try {
+      sender.rewindLast();
+      await sender.drain();
+    } on Object catch (error) {
+      debugPrint('[track] 거부된 배치를 다시 보내지 못했다 · $error');
+    } finally {
+      _resendingTrack = false;
+    }
+  }
+
+  /// 서버가 **구간 번호를 이유로** 배치를 거부했다. 알리고 끝낸다 — 1.1.1 3절.
+  ///
+  /// ## ⚠️ 왜 끝내는가
+  ///
+  /// 앱이 매기는 번호는 줄지 않으므로, 이 답은 서버가 기억하는 번호가 더
+  /// 크다는 뜻이다. 그러면 **다음 배치도 같은 이유로 거부된다** — 더 달려도
+  /// 아무것도 안 남는다. 모르는 채로 뛰게 두는 것이 가장 나쁜 결과라,
+  /// 받은 데까지로 기록을 확정하고 사용자에게 알린다.
+  ///
+  /// `forced=true`다. 목표를 채우기 전에 끝내는 것이라 조기 종료가 맞다.
+  ///
+  /// ⚠️ **한 번만 돈다.** 오류는 배치마다 오는데 그때마다 끝내려 들면 종료가
+  /// 겹쳐 나간다.
+  Future<void> _finishOnRejectedTrack() async {
+    if (state.trackRejected) return;
+    debugPrint('[running] 구간 번호가 거부됐다. 더 기록되지 않아 끝낸다');
+    state = state.copyWith(trackRejected: true);
+
+    // ⚠️ **보내기를 먼저 해체한다.** [finish]는 남은 좌표를 흘리는 것으로
+    // 시작하는데, 여기서는 그 좌표가 전부 같은 이유로 거부된다 — 트랙
+    // 전체가 공짜로 한 번 더 나가고 종료만 늦어진다.
+    _sender?.stop();
+    await finish(forced: true);
+  }
+
+  @override
+  RunningConnectionState build() {
+    // ⚠️ **서버가 `IDLE`이라고 하면 러닝은 이미 끝난 것이다.**
+    //
+    // 예전에는 매칭 스트림만 이 값을 봤다. 그래서 서버가 러닝을 강제 종료해도
+    // 소켓·좌표 전송 타이머·헬스체크가 그대로 살아, 앱이 **이미 끝난 방에
+    // 10초마다 좌표를 계속 올렸다.**
+    //
+    // 복구 가이드 1절이 정한 정리다. 화면이 아니라 여기서 듣는 이유는 소켓을
+    // 가진 쪽이 여기이기 때문이다 — 화면에 맡기면 홈·기록 탭에 있을 때 안 돈다.
+    ref.listen(userStatusProvider, (_, status) {
+      if (status is UserStatusIdle) unawaited(_closeOnIdle());
+    });
+
+    // provider가 버려지면 소켓도 닫는다. 안 닫으면 러닝이 끝나도 연결이 남는다.
+    ref.onDispose(() {
+      _retry?.cancel();
+      _trackNotice?.cancel();
+      // ⚠️ 전송기를 먼저 멈춘다. 소켓이 닫힌 뒤에도 타이머가 돌면 매 10초
+      // "못 보냈다"만 찍힌다.
+      _sender?.stop();
+      _channel?.close();
+    });
+    return const RunningConnectionState();
+  }
+
+  /// `RUNNING_START`가 거절됐다. **상태를 확인하고 간격을 두고 다시 보낸다.**
+  ///
+  /// ## ⚠️ 이것이 없으면 그 러닝은 영영 시작되지 않는다
+  ///
+  /// 서버가 세션을 못 만들었거나(`RUNNING_SESSION_UNAVAILABLE`) 방이 아직
+  /// `RUNNING`이 아니면(`INVALID_ROOM_STATE`) 시작 메시지가 거절된다. 예전에는
+  /// 로그만 찍고 끝나서, 한 번 거절되면 앱은 **좌표를 계속 올리는데 서버는
+  /// 전부 버리는** 상태로 러닝이 끝났다.
+  ///
+  /// ## 보내기 전에 서버가 아는 상태를 다시 읽는다
+  ///
+  /// 방이 이미 끝났으면 몇 번을 보내도 같은 답이다. 상태가 `IDLE`이면
+  /// [_closeOnIdle]이 알아서 정리하므로 여기서는 물러나기만 하면 된다.
+  ///
+  /// 간격은 [_restartBackoff]를 따라 벌어지고 [_restartLimit]번에서 멈춘다.
+  /// 무한히 두드리면 서버 장애를 앱이 키운다.
+  Future<void> _restartLater(WsErrorCode code) async {
+    if (_restarts >= _restartLimit) return;
+    // 한 번에 하나만 돈다. 오류는 좌표를 보낼 때마다 오므로 그대로 두면
+    // 예약이 겹쳐 쌓인다.
+    if (_restarting) return;
+    _restarting = true;
+
+    try {
+      final backoff = ref.read(runningRestartBackoffProvider);
+      final wait = backoff[_restarts.clamp(0, backoff.length - 1)];
+      _restarts++;
+      debugPrint('[running] 시작이 거절됐다 · $code · $wait 뒤 다시');
+      await Future<void>.delayed(wait);
+
+      final room = state.room;
+      if (room == null || _channel == null) return;
+
+      // 서버가 아는 상태를 먼저 본다. 끝난 방이면 다시 보낼 이유가 없다.
+      final status = await ref.read(userStatusProvider.notifier).refresh();
+      if (status is! UserStatusRunning || status.runningRoomId != room.id) {
+        debugPrint('[running] 서버가 이 방을 달리는 중으로 보지 않는다. 그만둔다');
+        return;
+      }
+
+      await _channel?.start(room.id);
+    } finally {
+      _restarting = false;
+    }
+  }
+
+  /// 몇 번까지 다시 보내나. 넘으면 그만둔다 — 앱이 서버 장애를 키우지 않는다.
+  int get _restartLimit => ref.read(runningRestartBackoffProvider).length;
+
+  var _restarts = 0;
+  var _restarting = false;
+
+  /// 방금 끝낸 방. [RunningConnectionState.finishedRoomId] 참조.
+  int? _finishedRoomId;
+
+  /// `run_start` 를 남긴 방. 재연결로 ack 가 또 와도 다시 세지 않는다.
+  int? _startLogged;
+
+  /// GA 가 받는 러닝 종류. 매칭 방이면 `match`, 솔로면 `solo` 다.
+  static String _runType(bool? isMatched) =>
+      (isMatched ?? false) ? 'match' : 'solo';
+
+  /// 아직 시작하지 않은 방을 **서버에서 없애고** 앱에서도 내려놓는다.
+  ///
+  /// 준비 화면을 떠날 때 부른다. 복구로 들어온 솔로 준비는 서버에 이미
+  /// `READY` 방이 있어서, 그냥 나가면 그 방이 남아 **이후 매칭 신청이 전부
+  /// 409로 막힌다.**
+  ///
+  /// ⚠️ **실패해도 화면은 나간다.** 사용자를 준비 화면에 가둘 이유가 없다 —
+  /// 남은 방은 다음 시작의 409 정리 경로가 다시 맡는다. 돌려주는 값은 서버가
+  /// 받아들였는가이고, 부른 쪽이 상태를 다시 읽을지 정하는 데 쓴다.
+  Future<bool> cancelPending() async {
+    await close();
+    try {
+      await ref.read(runningRoomRepositoryProvider).cancelPending();
+      return true;
+    } on RunningRoomException catch (error) {
+      debugPrint('[running] 준비 중인 방을 없애지 못했다 · ${error.failure.name}');
+      return false;
+    }
+  }
+
+  /// 서버가 끝낸 러닝을 내려놓는다. [close]가 소켓·전송기·재시도를 전부 멈추고,
+  /// 방이 사라지면 파티 보드도 스스로 비운다.
+  ///
+  /// ## ⚠️ 붙어 있지 않으면 아무것도 하지 않는다
+  ///
+  /// 러닝을 막 끝낸 직후가 그렇다. [finish]가 소켓을 닫고 **방 번호만 남겨**
+  /// 요약 화면이 상세를 부를 수 있게 해 두는데, 그 뒤 상태를 다시 읽으면
+  /// 당연히 `IDLE`이다. 여기서 비우면 `자세한 기록 보기`가 영영 잠긴다.
+  ///
+  /// ⚠️ 시작 직전에 떠난 상태 조회가 연결된 뒤에 도착하면 방금 연 러닝을 닫는
+  /// 좁은 경합이 남는다. 상태 조회는 포그라운드 복귀에서만 도는데 그 순간
+  /// 사용자가 시작을 누르는 경우라, 한 번의 왕복만큼이다.
+  Future<void> _closeOnIdle() async {
+    if (_channel == null) {
+      // ⚠️ **소켓은 없는데 막아 둔 이유만 남은 자리가 있다.**
+      //
+      // 매칭 중에 솔로를 시작하면 409로 막히고 [RunningRoomFailure.alreadyRunning]
+      // 만 남는다(방도 소켓도 못 열었다). 그 뒤 매칭을 취소해도 이 이유가 그대로
+      // 살아 있어서, **준비 화면이 들어가자마자 다시 충돌 화면을 그린다** —
+      // 서버는 이미 풀어 줬는데 앱만 막고 있다(2026-10-19 에뮬레이터에서 재현).
+      //
+      // 서버가 쉬는 중이라고 하면 그 이유는 더는 참이 아니다.
+      if (state.failure == RunningRoomFailure.alreadyRunning) {
+        debugPrint('[running] 진행 중인 것이 없다. 막아 둔 이유를 푼다');
+        state = const RunningConnectionState();
+      }
+      return;
+    }
+    debugPrint('[running] 서버가 진행 중인 것이 없다고 한다. 연결을 내려놓는다');
+    await close();
+    // ⚠️ [close]가 상태를 통째로 비우므로 이유를 뒤에 세운다. 화면이 이것을
+    // 보고 러닝을 접는다.
+    state = const RunningConnectionState(
+      failure: RunningRoomFailure.endedByServer,
+    );
+  }
+
+  /// 방을 열고 연결한다. 이미 준비됐으면 아무것도 하지 않는다.
+  ///
+  /// ## ⚠️ 실패해도 포기하지 않는다
+  ///
+  /// 지하철·엘리베이터·터널에서는 몇 초 뒤면 대개 성공한다. 한 번 실패했다고
+  /// 러닝을 막으면 **신호가 잠깐 없는 곳에서 아예 못 뛰게 된다.**
+  /// 뒤에서 계속 시도하고, 방이 늦게라도 생기면 그때부터 좌표가 올라간다.
+  ///
+  /// **딱 하나 [RunningRoomFailure.alreadyRunning](409)만 멈춘다.** 재시도해도
+  /// 계속 실패하고, 원인이 "이전 러닝이 안 끝났다"라서 사용자가 조치해야 한다.
+  Future<void> open() async {
+    if (state.opening || state.isReady) return;
+    _retry?.cancel();
+    state = state.copyWith(opening: true, failure: null);
+
+    final room = await _openRoom();
+    if (room == null) return;
+    await _connect(room);
+  }
+
+  /// **서버가 이미 만들어 둔 매칭 방**에 붙는다.
+  ///
+  /// 솔로와 갈리는 곳은 방을 만드는 한 줄뿐이다. 매칭 방은 신청할 때 서버가
+  /// 만들었고 번호는 `RoomInfo`가 실어 왔다 — 여기서 또 만들면 **엉뚱한 솔로
+  /// 방이 하나 더 생기고**, 정작 매칭 방은 아무도 시작하지 않는다.
+  ///
+  /// [targetDistanceMeters]는 방 정보가 실어 온 목표다. 파티원 통지에도 같은
+  /// 값이 오지만 그것은 첫 통지까지 최대 10초가 빈다.
+  /// ⚠️ **복구가 아니다.** 매칭 방은 신청할 때 만들어졌고 이 호출이 그 방의
+  /// **첫 진입**이라, 서버가 받은 좌표가 없다 — 그래서 [recovered]가 거짓이다.
+  Future<void> openMatched(int runningRoomId, {int? targetDistanceMeters}) =>
+      reopen(
+        runningRoomId,
+        targetDistanceMeters: targetDistanceMeters,
+        recovered: false,
+      );
+
+  /// 이미 서버에 열려 있는 방에 **다시 붙는다.**
+  ///
+  /// 매칭 방에 처음 들어갈 때와 앱을 껐다 켜서 이어 붙을 때가 같은 길이다 —
+  /// `RUNNING_START`가 최초 진입과 재연결을 구분하지 않기 때문이다.
+  ///
+  /// [matched]가 거짓이면 솔로 방이다. 화면이 이 값으로 파티원 장을 띄울지
+  /// 정하므로, 솔로에 참을 넘기면 빈 파티원 장이 생긴다.
+  ///
+  /// ## ⚠️ [recovered] 는 기본값이 참이다
+  ///
+  /// 이 함수의 이름이 곧 그 뜻이다 — **이미 열려 있는 방에 다시 붙는다.**
+  /// 그 길로 들어왔다면 서버가 이 러닝의 좌표를 **이미 받았을 수 있고**, 러닝
+  /// 중에 앱을 다시 설치했다면 로컬에는 흔적이 없다. 그때 1번부터 매기면 그
+  /// 좌표가 전부 버려지거나 배치째 거부된다 — [TrackRecorder.bind]가 이 값을
+  /// 보고 첫 시작 확인을 기다린다(1.1.1 2절).
+  ///
+  /// 첫 진입이 확실한 경로만 거짓을 넘긴다([openMatched]).
+  Future<void> reopen(
+    int runningRoomId, {
+    int? targetDistanceMeters,
+    bool matched = true,
+    bool recovered = true,
+  }) async {
+    if (state.opening || state.isReady) return;
+    _retry?.cancel();
+    state = state.copyWith(opening: true, failure: null);
+
+    final room = RunningRoom(
+      runningRoomId,
+      targetDistanceMeters: targetDistanceMeters,
+      isMatched: matched,
+    );
+    // 솔로와 같은 이유로 번호를 남긴다. 러닝 중 앱이 죽어도 이 번호로
+    // 다시 붙어 끝낼 수 있다.
+    await ref.read(trackRepositoryProvider).markActiveRoom(room.id);
+    await _connect(room, recovered: recovered);
+  }
+
+  /// 소켓을 붙이고 `RUNNING_START`를 보낸다. 솔로와 매칭이 여기서 합쳐진다.
+  Future<void> _connect(RunningRoom room, {bool recovered = false}) async {
+    final accessToken = (await ref.read(tokenStoreProvider).read()).accessToken;
+    if (accessToken == null) {
+      state = const RunningConnectionState(
+        failure: RunningRoomFailure.sessionExpired,
+      );
+      return;
+    }
+
+    final channel = ref.read(runningChannelFactoryProvider)(_accessToken);
+    _channel = channel;
+    channel.states.listen((connection) {
+      state = state.copyWith(connection: connection);
+    });
+    channel.errors.listen(_onServerError);
+
+    // ⚠️ **서버가 스스로 끝낸 경우다**(목표 도달 자동 종료 · 강제 종료).
+    //
+    // 1.1.0부터 앱은 로컬 거리가 목표를 넘어도 `RUNNING_FINISH` 를 보내지
+    // 않는다(가이드 3.1) — 서버가 **오염 좌표를 뺀 확정 거리**로 판단해
+    // 끝낸다. 이 통지를 안 받으면 러닝이 끝났는데 화면이 영영 남는다.
+    channel.finished.listen((_) => unawaited(_onServerFinished()));
+
+    // ⚠️ **시작 확인(`RUNNING_STARTED`)을 받은 자리다** — 연결마다 한 번.
+    //
+    // ## ⚠️ 스냅샷이 아니라 번호에 매달아 둔다
+    //
+    // 예전에는 이 넷이 전부 [RunningChannel.snapshots] 에 달려 있었다. 그런데
+    // 스냅샷은 `runningRoomId` 를 못 읽으면 **통째로 버려진다**
+    // (`RunSnapshot.of`) — 명세의 재연결 payload 가 확정되지 않아 몸통이 비어
+    // 올 수 있고, 그러면 **재전송도 상태 재조회도 통째로 안 돈다.** 끊겼다
+    // 붙었는데 로컬 트랙이 안 올라가는 것이 가장 비싼 결과다(가이드 2.2).
+    //
+    // [RunningChannel.serverNumbers] 는 몸통을 못 읽어도 올라온다. 그래서
+    // **시작 확인 자체**를 여기서 받는다. 명단은 그대로 스냅샷이 맡는다 —
+    // 사람 목록은 못 읽으면 쓸 것이 없고, 비어 있다고 덮으면 화면이 지워진다.
+    channel.serverNumbers.listen((numbers) {
+      debugPrint('[running] 시작이 확인됐다');
+
+      // ⚠️ **서버가 아는 번호를 좌표 기록기에 맞춘다** — 1.1.1 2절. 러닝 중에
+      // 앱을 다시 설치했으면 로컬 번호가 1번부터인데 서버는 이미 받은 데가
+      // 있다. 반영하지 않으면 그 뒤 좌표가 **중복으로 버려지거나
+      // `PAUSE_SEGMENT_DECREASED`로 배치째 거부된다.**
+      //
+      // ⚠️ **실패해도 러닝은 계속된다.** 여기서 던지면 아무도 받지 않는
+      // 비동기 오류가 되어 달리는 중에 앱이 죽는다. 못 맞추면 다음 연결의
+      // ack가 같은 값을 다시 실어 온다.
+      unawaited(
+        ref.read(trackRecorderProvider).applyServerNumbers(numbers).catchError((
+          Object error,
+        ) {
+          debugPrint('[track] 서버 번호를 반영하지 못했다 · $error');
+        }),
+      );
+
+      // ⚠️ **로컬 트랙을 통째로 다시 보낸다**(가이드 2.2). `RUNNING_STARTED`
+      // 를 받은 자리라 서버가 시작을 이미 처리한 뒤다 — 순서가 지켜진다.
+      unawaited(_resendTrack(channel));
+
+      // ⚠️ **방마다 한 번만 남긴다.** 이 ack 는 재연결 때도 오므로, 끊겼다
+      // 붙을 때마다 남기면 한 번의 러닝이 여러 번 시작한 것으로 세어진다.
+      final startedId = state.room?.id;
+      if (startedId != null && startedId != _startLogged) {
+        _startLogged = startedId;
+        unawaited(
+          ref
+              .read(analyticsProvider)
+              .runStart(runType: _runType(state.room?.isMatched)),
+        );
+      }
+
+      // ⚠️ **서버가 아는 상태를 다시 읽는다.** 매칭 SSE는 상태가 `RUNNING`이
+      // 되면 닫히는데(`MatchRoomController._syncWith`), 그것을 알려 줄 사람이
+      // 없었다 — 러닝 내내 열린 채 남아 있다가 **30초 무음 감시 → 재연결 →
+      // 상태 조회**라는 먼 길로 겨우 닫혔다.
+      //
+      // ⚠️ **실패해도 러닝은 계속된다.** 곁다리 정리라 여기서 던지면 아무도
+      // 받지 않는 비동기 오류가 된다. 못 읽으면 SSE가 조금 늦게 닫힐 뿐이다.
+      unawaited(
+        ref.read(userStatusProvider.notifier).refresh().catchError((
+          Object error,
+        ) {
+          debugPrint('[running] 시작 뒤 상태를 읽지 못했다 · $error');
+          return null;
+        }),
+      );
+    });
+
+    _attempt = 0;
+    // 새 러닝이다. 지난 러닝에서 쌓인 시작 재시도 횟수를 들고 오지 않는다.
+    _restarts = 0;
+    // 끝냈다는 표식도 지운다 — 이제 다시 달린다.
+    _finishedRoomId = null;
+    state = state.copyWith(room: room, opening: false, failure: null);
+
+    // ⚠️ **방을 알게 된 순간 좌표 기록기에 알린다.** 방이 늦게 생기는 동안
+    // 쌓아 둔 좌표가 여기서 한꺼번에 저장된다 — 안 알리면 러닝 초반 좌표가
+    // 메모리에만 남아 앱이 죽으면 사라진다.
+    await ref
+        .read(trackRecorderProvider)
+        .bind(room.id, serverMayHaveTrack: recovered);
+
+    await channel.start(room.id);
+
+    // 이제부터 10초마다 쌓인 좌표가 올라간다. **`start()` 뒤여야 한다** —
+    // 서버가 `RUNNING_START`로 방을 알기 전에 좌표를 받으면 버린다.
+    _sender = TrackSender(ref.read(trackRepositoryProvider), channel)
+      ..start(room.id);
+
+    // ⚠️ **구독만으로는 부족하다.** `states`가 broadcast 스트림이라 구독 전에
+    // 지나간 상태는 다시 오지 않는다. `start()` 안에서 `connected`로 바뀌면
+    // 그 이벤트를 놓치고, 소켓은 붙었는데 화면은 "연결하는 중"이라고 말한다.
+    // 시작 직후 현재값을 한 번 읽어 맞춘다.
+    state = state.copyWith(connection: channel.state);
+  }
+
+  /// 다시 붙었으니 **로컬 트랙 전체**를 처음 `sequence`부터 다시 보낸다 —
+  /// 가이드 2.2.
+  ///
+  /// ## ⚠️ 순서가 `START` → 좌표 → `PAUSE` 다
+  ///
+  /// 이 함수는 `RUNNING_STARTED` ack 자리에서 불린다. 그래서 `START`는 이미
+  /// 끝났고, 여기서 좌표를 **다 보낸 뒤에** `PAUSE`를 보낸다. 반대로 하면
+  /// 뒤늦게 닿은 좌표가 **일시정지를 풀어 버린다** — 서버가 "처음 보는 좌표가
+  /// 담긴 배치는 상태를 되돌린다"고 적은 자리다(재전송분만 담긴 배치는
+  /// 안 바꾼다고도 적혀 있지만, 끊긴 사이에 쌓인 좌표는 처음 보는 것이다).
+  ///
+  /// 멈춰 있는 동안에도 보낸다. [TrackSender.pauseTimer]는 10초 타이머만
+  /// 세우고 [TrackSender.drain]은 타이머와 무관하다 — 멈춘 채로 재연결해도
+  /// 밀린 좌표는 서버에 닿아야 한다.
+  Future<void> _resendTrack(RunningChannel channel) async {
+    await _sender?.drain();
+    if (_paused) {
+      debugPrint('[running] 멈춰 있던 것을 다시 알린다');
+      channel.pause();
+    }
+  }
+
+  /// 방을 연다. 못 열면 `null`이고 상태에 이유가 담긴다.
+  ///
+  /// ## ⚠️ 409면 남은 방을 끝내고 다시 시도한다
+  ///
+  /// 러닝 중 앱이 죽으면 서버에 `STARTED` 방이 남고, 그 뒤로는 방을 만들 때마다
+  /// 409가 온다. **되찾을 API가 없어** 예전에는 그 계정이 영영 막혔다 —
+  /// 409 응답에는 방 번호가 없고 `GET /users/me/running-match`는 매칭 조회다.
+  ///
+  /// 그래서 방을 연 순간 번호를 기기에 남겨 둔다. 그 번호로 `RUNNING_START`를
+  /// 보내면 서버가 **재연결로 받아 주고**(명세: 이미 `RUNNING`인 참가자의
+  /// 재연결을 허용한다), 이어서 `RUNNING_FINISH`로 끝낼 수 있다.
+  Future<RunningRoom?> _openRoom() async {
+    try {
+      return await _createRoom();
+    } on RunningRoomException catch (error) {
+      if (error.failure != RunningRoomFailure.alreadyRunning) {
+        state = RunningConnectionState(failure: error.failure);
+        _scheduleRetry();
+        return null;
+      }
+    }
+
+    // 409다. 남겨 둔 번호가 있으면 그 방을 끝내고 한 번만 다시 시도한다.
+    if (!await _finishStaleRoom()) {
+      // 번호를 모른다. 앱이 할 수 있는 것이 없다.
+      state = const RunningConnectionState(
+        failure: RunningRoomFailure.alreadyRunning,
+      );
+      return null;
+    }
+
+    try {
+      return await _createRoom();
+    } on RunningRoomException catch (error) {
+      state = RunningConnectionState(failure: error.failure);
+      if (error.failure != RunningRoomFailure.alreadyRunning) _scheduleRetry();
+      return null;
+    }
+  }
+
+  /// 방을 만들고 **번호를 곧바로 남긴다.**
+  ///
+  /// ⚠️ 남기기 전에 앱이 죽으면 그 방은 못 끝낸다. 두 줄 사이가 그 틈이고,
+  /// 더 줄일 방법은 서버가 409에 번호를 실어 주는 것뿐이다.
+  Future<RunningRoom> _createRoom() async {
+    final room = await ref.read(runningRoomRepositoryProvider).openSolo();
+    await ref.read(trackRepositoryProvider).markActiveRoom(room.id);
+    return room;
+  }
+
+  /// 끝내지 못한 방을 정리한다. 정리했으면 `true`.
+  ///
+  /// **남은 좌표를 먼저 보낸다.** 그 러닝의 트랙이 로컬에 남아 있는데 그냥
+  /// 끝내면 서버는 받은 데까지로 기록을 확정한다 — 뛴 만큼이 안 남는다.
+  ///
+  /// ## ⚠️ ack를 못 받으면 번호를 지우지 않는다
+  ///
+  /// 예전에는 못 받아도 지웠다. "서버는 멱등이라 다시 끝내도 해롭지 않다"는
+  /// 근거였는데, 그것은 **`RUNNING_FINISH`가 서버에 닿았을 때** 이야기다.
+  /// 소켓이 안 붙었으면 `send`가 실패하고 [RunningChannel.finish]는 기다리지도
+  /// 않고 `false`를 준다 — 서버는 아무것도 못 받았는데 번호만 사라졌다.
+  ///
+  /// 그 번호가 **유일한 사본이다.** 409 응답에 번호가 없어 다시 얻을 데가
+  /// 없으므로, 지우는 순간 그 계정은 영영 러닝을 시작하지 못한다. 이 함수가
+  /// 막으려던 바로 그 상태다.
+  ///
+  /// 남겨 두면 이번 시도는 똑같이 막히지만 **다음 실행에서 다시 해볼 수 있다.**
+  /// ack 타임아웃(닿았을 수도 있다)이든 소켓 실패(확실히 안 닿았다)든 남기는
+  /// 쪽이 맞다 — 서버가 멱등이라 두 번 끝내도 해롭지 않다.
+  ///
+  /// ⚠️ **다만 서버가 재연결을 거부하면 이 경로는 영영 성공하지 못한다.**
+  /// 명세가 `RUNNING_START`의 참가자 판정을 `status='JOINED'`로 적어 두었는데
+  /// 정리 대상은 `RUNNING`이다(명세에도 "확인 필요"로 달려 있다). 그때는
+  /// `ERROR` 코드를 보고 포기해야 하지만, 아직 확인되지 않아 짐작으로 짜지
+  /// 않았다.
+  Future<bool> _finishStaleRoom() async {
+    final repository = ref.read(trackRepositoryProvider);
+    final stale = await repository.activeRoom();
+    if (stale == null) return false;
+
+    debugPrint('[running] 끝내지 못한 방 $stale을 정리한다');
+    final channel = ref.read(runningChannelFactoryProvider)(_accessToken);
+    try {
+      await channel.start(stale);
+
+      // ⚠️ **`start`를 빠뜨리면 `drain`이 아무것도 보내지 않는다.** 전송기는
+      // 방 번호를 모르면 조용히 돌아간다 — 남은 좌표가 통째로 버려진다.
+      // 다 보내면 곧바로 멈춘다. 여기서는 10초 타이머가 돌 이유가 없다.
+      final sender = TrackSender(repository, channel)..start(stale);
+      await sender.drain();
+      sender.stop();
+
+      // ⚠️ **ack를 받아야만 정리된 것이다.** 아래 주석 참조.
+      //
+      // ⚠️ 목표가 모자라다는 답(`GOAL_PENDING`)도 **안 끝난 것**으로 본다.
+      // 지난 러닝을 치우는 자리라 더 뛸 사람이 없는데, 여기서 `forced=true`
+      // 로 밀어붙이면 **사용자가 모르는 사이에 조기 종료로 기록된다.**
+      final outcome = await channel.finish();
+      if (outcome is! FinishConfirmed) {
+        debugPrint('[running] 종료 확인을 못 받았다($outcome). 방 번호를 남긴다');
+        return false;
+      }
+    } on Object catch (error) {
+      debugPrint('[running] 남은 방을 정리하지 못했다 · $error');
+      return false;
+    } finally {
+      // ⚠️ **반드시 닫는다.** 안 닫으면 새 연결이 중복으로 보여 서버가
+      // 둘 중 하나를 4001로 끊는다.
+      await channel.close();
+    }
+
+    await repository.clear(stale);
+    await repository.clearActiveRoom();
+    return true;
+  }
+
+  /// 멈췄다고 서버에 알린다 — 가이드 2.1.
+  ///
+  /// ## 순서가 정해져 있다
+  ///
+  /// ```
+  /// (좌표 수집 중단) → 남은 좌표 전송 → 전송기 정지 → RUNNING_PAUSE
+  /// ```
+  ///
+  /// ⚠️ **좌표를 먼저 흘려야 한다.** `PAUSE` 뒤에 밀린 좌표가 닿으면
+  /// 서버가 **일시정지를 푼다** — 새 좌표는 그 자체로 `RUNNING` 의 근거다.
+  /// 그래서 다 보낸 다음에야 알리고, 그 뒤로는 전송기를 세워 둔다.
+  ///
+  /// 수집을 멈추는 것은 세션의 몫이다 — [RunSessionController.pause] 뒤로는
+  /// 들어온 좌표를 버리므로 쌓일 것이 없다.
+  ///
+  /// ⚠️ **`HEALTH_CHECK` 는 계속 나간다.** 그 시계는 `WsClient` 가
+  /// 따로 들고 있어 전송기를 세워도 영향이 없다(가이드 2.1).
+  Future<void> pause() async {
+    _paused = true;
+    await _sender?.drain();
+    // ⚠️ `stop` 이 아니라 [TrackSender.pauseTimer] 다. `stop` 은 방과
+    // 커서를 지우는 **해체**라, 그 뒤에 [resume] 이 타이머를 다시 세우지
+    // 못한다 — 다시 달리는데 좌표가 조용히 안 나간다.
+    _sender?.pauseTimer();
+    _channel?.pause();
+  }
+
+  /// 다시 달린다고 알린다 — 가이드 2.1.
+  ///
+  /// ⚠️ **알리는 것이 먼저다.** 좌표만 다시 보내도 서버는 `RUNNING` 으로
+  /// 돌아오지만 배치까지 최대 10초가 걸린다 — 그동안 상대 화면에는 내가
+  /// 멈춰 있는 것으로 보인다.
+  ///
+  /// ⚠️ `TrackSender.start` 가 아니라 [TrackSender.resumeTimer] 다.
+  /// `start` 는 커서를 되감아 **이미 보낸 것을 통째로 다시 보낸다** — 연결이
+  /// 멀쩡한데 그럴 이유가 없고, 큰 배치가 연달아 나가면 1009로 끊긴다.
+  void resume() {
+    _paused = false;
+    _channel?.resume();
+    _sender?.resumeTimer();
+  }
+
+  /// 러닝을 끝낸다. 남은 좌표를 마저 보내고, 확인을 받으면 트랙을 지운다.
+  ///
+  /// ## 순서가 정해져 있다
+  ///
+  /// ```
+  /// 남은 좌표 전송 → RUNNING_FINISH → RUNNING_FINISHED → 로컬 트랙 삭제 → 닫기
+  /// ```
+  ///
+  /// **좌표를 먼저 보내야 한다.** 서버가 마지막으로 받은 트랙으로 기록을
+  /// 확정하므로, 남겨둔 채 끝내면 **그 구간이 빠진 기록이 만들어지고 되돌릴
+  /// 수 없다.**
+  ///
+  /// ## ⚠️ 확인을 못 받으면 트랙을 지우지 않는다
+  ///
+  /// 명세가 "ack를 받은 뒤 삭제한다"고 정했다. 못 받았는데 지우면 서버에 없는
+  /// 구간을 다시 보낼 방법이 사라진다. 남겨두면 자리를 차지하지만 그뿐이다.
+  ///
+  /// ## 요약은 기다리지 않지만, 상세는 기다린다
+  ///
+  /// 요약에 뜨는 값은 러닝 중 계산한 것이라 서버 확정과 무관하다. 기다리게
+  /// 하면 신호가 나쁜 곳에서 사용자가 요약을 못 본다.
+  ///
+  /// ⚠️ **상세는 다르다.** 서버가 확정한 값을 읽으므로 ack 전에 부르면 빈
+  /// 기록이 온다. 그래서 이 구간 동안 [RunningConnectionState.settling]을
+  /// 세워 요약 화면이 문을 잠그게 한다.
+  /// 돌려주는 값이 셋이다([FinishOutcome]).
+  ///
+  /// ⚠️ **[FinishGoalPending] 이면 아무것도 정리하지 않는다.** 소켓도 트랙도
+  /// 그대로 두고 러닝을 이어 간다 — 서버가 확정한 거리가 목표에 모자라다는
+  /// 뜻이지 종료가 아니다(1.1.0 가이드 3.2).
+  Future<FinishOutcome> finish({bool forced = false}) async {
+    final channel = _channel;
+    if (channel == null) {
+      await close();
+      return const FinishUnconfirmed();
+    }
+
+    // 여기부터 ack까지가 **서버가 기록을 확정하는 구간**이다. 요약 화면이
+    // 이 표시를 보고 상세로 가는 문을 잠근다 — [RunningConnectionState.settling].
+    state = state.copyWith(settling: true);
+
+    // ⚠️ `finally` 가 돌고 난 뒤에 돌려준다. 던져서 빠져나가면 못 받은 것이다.
+    FinishOutcome result = const FinishUnconfirmed();
+
+    /// 종료가 보류됐는가. 참이면 `finally` 의 정리를 건너뛴다.
+    var pending = false;
+
+    try {
+      // ⚠️ **들고 있던 좌표를 먼저 저장소에 내려놓는다** — 1.1.1 2절.
+      //
+      // 서버 번호를 기다리는 중이면(`TrackRecorder`) 그 구간이 메모리에만
+      // 있다. 그대로 끝내면 **저장소에도 서버에도 없다** — 아래 `drain`은
+      // 저장소를 읽으므로 볼 수 없고, 종료가 확정되면 함께 버려진다.
+      await ref.read(trackRecorderProvider).stopWaiting();
+      await _sender?.drain();
+      // 다 보냈으면 타이머를 세운다. ack를 기다리는 동안 또 돌 이유가 없다.
+      //
+      // ⚠️ **`stop` 이 아니다.** 답이 `GOAL_PENDING` 이면 아래에서 다시
+      // 세우는데, `stop` 은 방과 커서를 지워 [TrackSender.resumeTimer] 가
+      // 첫 줄에서 돌아선다 — 러닝은 이어지는데 좌표가 안 나갔다.
+      // 확정이면 `_cleanUpAfterFinish` → `close` 가 제대로 해체한다.
+      _sender?.pauseTimer();
+
+      final finishedId = state.room?.id;
+      final outcome = await channel.finish(forced: forced);
+
+      // ⚠️ **정리를 통째로 건너뛴다.** 아래 `finally` 가 소켓을 닫고 상태를
+      // 비우는데, 보류는 러닝이 이어지는 것이라 그 정리를 밟으면 안 된다.
+      //
+      // ⚠️ `return` 으로는 못 빠져나간다 — `finally` 는 그때도 돈다. 플래그를
+      // 세워 그 안에서 가른다.
+      if (outcome is FinishGoalPending) {
+        debugPrint('[running] 목표 보류 · ${outcome.remainingMeters}m 남음');
+        // 멈춰 둔 전송기를 다시 돌린다. 계속 뛰므로 좌표가 또 쌓인다.
+        //
+        // ⚠️ `start` 가 아니라 [TrackSender.resumeTimer] 다. `start` 는 커서를
+        // 되감아 **이미 보낸 것을 통째로 다시 보낸다** — 연결이 멀쩡한데
+        // 그럴 이유가 없고, 큰 배치가 연달아 나가면 1009로 끊긴다.
+        _sender?.resumeTimer();
+        state = state.copyWith(settling: false);
+        pending = true;
+        result = outcome;
+        return result;
+      }
+
+      if (outcome is FinishConfirmed) {
+        // ⚠️ **끝냈다는 사실을 남긴다.** 서버 상태가 따라오기 전까지 홈이
+        // 이 방으로 돌아가는 문을 띄우지 않게 한다.
+        _finishedRoomId = finishedId;
+        unawaited(
+          ref
+              .read(analyticsProvider)
+              .runFinish(
+                runType: _runType(state.room?.isMatched),
+                early: forced,
+              ),
+        );
+        await ref.read(trackRecorderProvider).discard();
+        // ⚠️ 좌표와 **같은 순간에** 지운다. 번호만 남으면 다음 러닝이 이미 끝난
+        // 방을 정리하려 들고, 좌표만 남으면 지울 사람이 없어진다.
+        await ref.read(trackRepositoryProvider).clearActiveRoom();
+      } else {
+        debugPrint('[running] 종료 확인을 못 받아 로컬 트랙을 남긴다');
+      }
+      result = outcome;
+    } finally {
+      // ⚠️ **보류는 정리하지 않는다.** 소켓도 상태도 그대로 두고 러닝을
+      // 이어 간다 — 닫으면 그 뒤 좌표가 어디로도 못 간다.
+      //
+      // ⚠️ 여기서 `return` 하지 않는다. `finally` 의 `return` 은 `try` 의
+      // 것을 **조용히 이긴다** — 실제로 보류 값이 그렇게 버려졌다.
+      if (!pending) await _cleanUpAfterFinish();
+      //
+    }
+
+    return result;
+  }
+
+  /// 종료가 **확정되거나 포기된 뒤** 소켓을 닫고 상태를 추린다.
+  ///
+  /// ⚠️ **어떻게 끝나든 [RunningConnectionState.settling]을 내린다.** 중간에
+  /// 던지면 `자세한 기록 보기`가 영영 잠긴 채로 남는다.
+  ///
+  /// ⚠️ **방 번호는 남겨야 한다.** 요약 화면(S15)이 이 번호로 상세 결과
+  /// 17·18번을 부른다. [close]가 상태를 통째로 비우므로, 닫은 뒤 번호만
+  /// 되돌려 놓는다 — 없으면 `자세한 기록 보기`가 계속 잠겨 있다.
+  ///
+  /// 다음 러닝의 409 판정은 상태가 아니라 **저장소**(`activeRoom()`)를 보므로
+  /// 여기 남은 번호가 다음 러닝을 방해하지 않는다.
+  Future<void> _cleanUpAfterFinish() async {
+    final room = state.room;
+    // ⚠️ **끝난 이유도 들고 넘어간다.** [close]가 상태를 통째로 비우는데,
+    // 화면은 종료를 알아챈 **그 순간** 이 값을 읽어 왜 끝났는지 알린다
+    // ([RunningConnectionState.trackRejected]) — 여기서 지우면 러닝이 저절로
+    // 끝난 것처럼 보인다.
+    final rejected = state.trackRejected;
+    await close();
+    if (room != null) {
+      state = RunningConnectionState(
+        room: room,
+        finishedRoomId: _finishedRoomId,
+        trackRejected: rejected,
+      );
+    }
+  }
+
+  /// 서버가 끝냈다. **보내지 않은 좌표를 먼저 올리고** 정리한다.
+  ///
+  /// ⚠️ 내가 요청해서 끝난 경우는 여기로 오지 않는다([finish] 가 맡는다).
+  /// 둘을 섞으면 한 번의 종료가 두 길로 처리돼 트랙을 두 번 지운다.
+  Future<void> _onServerFinished() async {
+    final finishedId = state.room?.id;
+    if (finishedId == null || _finishedRoomId == finishedId) return;
+
+    state = state.copyWith(settling: true);
+    try {
+      // ⚠️ **남은 좌표를 먼저 보낸다.** 서버가 이미 확정했어도 늦게 도착한
+      // 배치는 저장되지 않을 뿐 해롭지 않고, 못 보낸 채 지우면 되돌릴 수 없다.
+      await _sender?.drain();
+      _sender?.stop();
+
+      _finishedRoomId = finishedId;
+      unawaited(
+        ref
+            .read(analyticsProvider)
+            .runFinish(runType: _runType(state.room?.isMatched), early: false),
+      );
+      await ref.read(trackRecorderProvider).discard();
+      await ref.read(trackRepositoryProvider).clearActiveRoom();
+    } on Object catch (error) {
+      debugPrint('[running] 서버 종료 정리가 어긋났다 · $error');
+    }
+    await _cleanUpAfterFinish();
+  }
+
+  /// 연결을 닫고 처음 상태로 돌아간다. **종료를 알리지는 않는다** — 화면을
+  /// 벗어나기만 할 때 쓴다. 러닝을 끝낼 때는 [finish]를 부른다.
+  Future<void> close() async {
+    _retry?.cancel();
+    _retry = null;
+    // ⚠️ **배너 시계도 끈다.** 안 끄면 화면을 떠난 뒤에도 30초를 더 살아
+    // 남는다 — 상태가 이미 비워진 자리에 저장 실패를 지우는 일이라 해롭지는
+    // 않지만, 러닝이 끝났는데 도는 타이머다(테스트가 그것으로 거부한다).
+    _trackNotice?.cancel();
+    _trackNotice = null;
+    // 다시 보내기 간격도 되돌린다. 다음 러닝이 지난 러닝의 시계를 물려받으면
+    // 첫 저장 실패를 조용히 흘린다.
+    _lastTrackResend = null;
+    _attempt = 0;
+    _restarts = 0;
+    // ⚠️ 멈춤 표식도 되돌린다. 남겨 두면 **다음 러닝이 붙자마자
+    // `PAUSE` 를 보낸다** — 재연결 때 다시 알리는 길을 타고서다.
+    _paused = false;
+    _sender?.stop();
+    _sender = null;
+    await _channel?.close();
+    _channel = null;
+    state = const RunningConnectionState();
+  }
+
+  /// 붙을 때마다 `WsClient`가 부른다.
+  ///
+  /// [refresh]가 `true`면 핸드셰이크가 401로 거절된 뒤다. 그때만 갱신한다 —
+  /// 매번 갱신하면 멀쩡한 토큰까지 회전시켜 다른 요청을 죽인다.
+  ///
+  /// ⚠️ **갱신은 [tokenRefresherProvider]를 거친다.** 직접 부르면 러닝 시작
+  /// 순간에 `POST /running-rooms/solo`의 갱신과 겹쳐, 서버가 그것을 탈취로 보고
+  /// 사용자를 로그아웃시킨다(`docs/implementation-notes.md` 9-6).
+  Future<String?> _accessToken({bool refresh = false}) async {
+    if (refresh) return ref.read(tokenRefresherProvider).refresh();
+    return (await ref.read(tokenStoreProvider).read()).accessToken;
+  }
+
+  /// 잠시 뒤 다시 시도한다.
+  ///
+  /// 1 · 2 · 4 · 8 … 최대 30초. `WsClient`의 재연결과 같은 규칙이다 —
+  /// 서버가 죽었을 때 초당 두드리지 않는다.
+  void _scheduleRetry() {
+    _retry?.cancel();
+    final seconds = _attempt >= 5 ? 30 : 1 << _attempt;
+    _attempt++;
+    _retry = Timer(Duration(seconds: seconds), open);
+  }
+}

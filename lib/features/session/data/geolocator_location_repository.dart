@@ -1,0 +1,232 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/features/session/domain/altitude_rule.dart';
+import 'package:runiverse/features/session/domain/geo_point.dart';
+import 'package:runiverse/features/session/data/permission_access_mapper.dart';
+import 'package:runiverse/features/session/domain/location_repository.dart';
+import 'package:runiverse/features/session/domain/permission_access.dart';
+
+/// 실제 GPS를 읽는 구현.
+///
+/// **이 파일이 geolocator를 아는 유일한 곳이다.** 패키지 타입(`Position`,
+/// `LocationPermission`)이 밖으로 새지 않게 여기서 전부 도메인 타입으로 옮긴다.
+class GeolocatorLocationRepository implements LocationRepository {
+  const GeolocatorLocationRepository();
+
+  /// `distanceFilter: 0` — 걸러내지 않고 오는 대로 받는다.
+  ///
+  /// 패키지가 거리로 미리 걸러줄 수도 있지만, 그러면 보정 규칙이 패키지 설정과
+  /// 우리 코드 두 곳으로 나뉜다. 받는 것은 다 받고 판단은 한곳에서 한다
+  /// (`docs/specs/2026-08-05-solo-run-design.md` 3절).
+  ///
+  /// ## 플랫폼마다 설정을 갈라 쓴다
+  ///
+  /// **Android는 `FusedLocationProviderClient`를 쓴다.** geolocator의 기본값이라
+  /// 공통 [LocationSettings]로도 그렇게 동작하지만, 그러면 그 사실이 코드
+  /// 어디에도 드러나지 않고 누가 `forceLocationManager`를 켜도 막을 것이 없다.
+  /// 명시해 둔다 — LocationManager로 떨어지면 정확도가 눈에 띄게 나빠진다.
+  /// 좌표를 얼마나 자주 받나. 서버 명세는 `1~2초 간격`을 요구한다.
+  ///
+  /// **1초를 쓴다.** Strava·Nike Run Club·Garmin 모두 초당 1회가 기본이다.
+  ///
+  /// 2초로 늘려봤다가 되돌렸다. 이유는 둘이다.
+  ///
+  /// **곡선에서 거리가 깎인다.** 점 사이를 직선으로 이으므로 간격이 길수록
+  /// 굽은 길에서 실제보다 짧게 나온다. 트랙 곡선이나 공원 산책로에서 두드러진다.
+  /// GPS 노이즈는 반대로 거리를 부풀리지만 **그쪽은 칼만 필터가 잡고, 곡선
+  /// 손실은 보정할 방법이 없다.**
+  ///
+  /// **칼만 `Q`가 간격을 모른다.** 간격이 두 배면 그사이 실제로 움직인 거리도
+  /// 두 배인데 `Q`는 그대로라, 필터가 자기 예측을 과신해 경로가 안쪽으로
+  /// 깎인다 — 거리가 짧아지는 방향으로 오차가 겹친다.
+  ///
+  /// 저장량은 30분에 약 300KB로 어느 쪽이든 문제가 되지 않고, 배터리는
+  /// GPS 칩이 켜져 있는 것 자체가 주 소모원이라 샘플 수의 영향이 작다.
+  static const _interval = Duration(seconds: 1);
+
+  /// [fused]가 `false`면 Play 서비스를 건너뛰고 플랫폼 `LocationManager`를
+  /// 직접 쓴다. [watchPosition]의 폴백이 그렇게 부른다.
+  static LocationSettings _settingsFor({required bool fused}) {
+    if (Platform.isAndroid) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 0,
+        // ⚠️ `true`면 FusedLocationProviderClient를 쓰지 않는다.
+        forceLocationManager: !fused,
+        // ⚠️ **이것이 `null`이 아니어야 화면을 꺼도 좌표가 들어온다.**
+        //
+        // geolocator가 이 설정을 보고 위치 수집을 포그라운드 서비스로 띄운다.
+        // 없으면 화면이 꺼지거나 앱이 뒤로 가는 순간 Android가 갱신을 시간당
+        // 몇 번으로 제한하고, 그 구간이 좌표 공백이 된다 — 서버는 빈 자리를
+        // 직선으로 이어 **거리를 실제보다 짧게 계산한다.**
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: AppStrings.runNotificationTitle,
+          notificationText: AppStrings.runNotificationText,
+          notificationChannelName: AppStrings.runNotificationChannel,
+          // 단색 실루엣이어야 한다. 컬러 앱 아이콘은 동그라미로 뭉개진다.
+          notificationIcon: AndroidResource(
+            name: 'ic_stat_running',
+            defType: 'drawable',
+          ),
+          // 화면이 꺼진 동안 CPU를 깨워 둔다. 화면을 켜 두는 wakelock_plus와
+          // 다른 것이다 — 그쪽은 화면, 이쪽은 CPU다.
+          enableWakeLock: true,
+          // 사용자가 쓸어서 지우지 못하게 한다. 지워도 서비스는 살아 있어
+          // "껐는데 계속 도는" 것처럼 보이는 편이 더 나쁘다.
+          setOngoing: true,
+        ),
+        // 서버 명세가 정한 "1~2초 간격" 중 빠른 쪽이다. 10초 배치에 10점씩 든다.
+        intervalDuration: _interval,
+      );
+    }
+    if (Platform.isIOS) {
+      return AppleSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 0,
+        // 러닝 중임을 알리면 iOS가 그에 맞게 필터링을 조정한다.
+        activityType: ActivityType.fitness,
+      );
+    }
+    return const LocationSettings(
+      accuracy: LocationAccuracy.best,
+      distanceFilter: 0,
+    );
+  }
+
+  @override
+  Future<LocationAccess> ensureAccess() async {
+    // 권한보다 먼저 본다. 기기의 위치 기능이 꺼져 있으면 권한을 줘도 좌표가 안 나온다.
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      return LocationAccess.serviceDisabled;
+    }
+
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    // 값을 빠짐없이 적는다. 패키지가 값을 추가하면 여기서 컴파일이 깨지고,
+    // 그때 무엇으로 볼지 결정하게 된다. 조용히 넘어가는 것보다 낫다.
+    return switch (permission) {
+      LocationPermission.always ||
+      LocationPermission.whileInUse => LocationAccess.granted,
+      LocationPermission.deniedForever => LocationAccess.deniedForever,
+      LocationPermission.denied ||
+      LocationPermission.unableToDetermine => LocationAccess.denied,
+    };
+  }
+
+  @override
+  Future<PermissionAccess?> ensureRunNotification() async {
+    if (!Platform.isAndroid) return null;
+    return toPermissionAccess(await Permission.notification.request());
+  }
+
+  /// ⚠️ **[ensureAccess]가 통과시켜도 이 스트림은 실패할 수 있다.**
+  ///
+  /// `isLocationServiceEnabled()`가 `true`라고 답한 직후에도
+  /// `LocationServiceDisabledException`이 뜬다 — 안드로이드에서 실제 판정은
+  /// `FusedLocationProviderClient`의 설정 검사가 하고, 그 검사는 GPS 말고
+  /// network provider까지 본다. 두 답이 어긋나는 순간이 있다.
+  ///
+  /// ## 그때 플랫폼 `LocationManager`로 한 번 더 시도한다
+  ///
+  /// 2026-09-29 확인: Android 17 · Play 서비스 26.32.34 에뮬레이터 두 대에서
+  /// **프로바이더가 전부 켜져 있는데도** Fused가 "위치 꺼짐"으로 답했다.
+  /// GPS만 쓰는 경로로 바꾸면 곧바로 좌표가 들어왔다.
+  ///
+  /// ⚠️ **플랫폼도 꺼졌다고 하면 폴백하지 않는다.** 진짜로 위치가 꺼진 경우를
+  /// 가려 버리면, 사용자는 설정을 켜라는 안내 대신 영영 안 오는 좌표를
+  /// 기다리게 된다.
+  ///
+  /// ⚠️ **한 번만 내려간다.** 폴백까지 실패하면 그대로 올린다 — 두 경로를
+  /// 오가며 재시도하면 실패를 알리지 못한 채 배터리만 쓴다.
+  ///
+  /// 패키지 예외를 그대로 흘리지 않고 [LocationUnavailable]로 바꾼다.
+  @override
+  Stream<GeoPoint> watchPosition() {
+    final out = StreamController<GeoPoint>();
+    StreamSubscription<Position>? source;
+    var fellBack = false;
+
+    Future<void> fail(Object error) async {
+      out.addError(
+        LocationUnavailable(
+          error is LocationServiceDisabledException
+              ? LocationAccess.serviceDisabled
+              : LocationAccess.denied,
+        ),
+      );
+    }
+
+    void listen({required bool fused}) {
+      source =
+          Geolocator.getPositionStream(
+            locationSettings: _settingsFor(fused: fused),
+          ).listen(
+            (position) => out.add(_toPoint(position)),
+            onError: (Object error) async {
+              final worthRetry =
+                  fused &&
+                  !fellBack &&
+                  error is LocationServiceDisabledException &&
+                  // 플랫폼이 켜졌다고 하는데 Fused만 아니라고 할 때가 폴백할 자리다.
+                  await Geolocator.isLocationServiceEnabled();
+
+              if (!worthRetry) {
+                await fail(error);
+                return;
+              }
+
+              fellBack = true;
+              await source?.cancel();
+              if (out.isClosed) return;
+              listen(fused: false);
+            },
+            onDone: out.close,
+          );
+    }
+
+    out.onListen = () => listen(fused: true);
+    out.onCancel = () async {
+      await source?.cancel();
+    };
+
+    return out.stream;
+  }
+
+  @override
+  Future<void> openSettings() async {
+    await Geolocator.openLocationSettings();
+  }
+
+  static GeoPoint _toPoint(Position position) => GeoPoint(
+    latitude: position.latitude,
+    longitude: position.longitude,
+    // ⚠️ **UTC로 온다.** 서버는 오프셋 없는 KST를 받으므로 보내는 쪽에서
+    // `.toLocal()`을 반드시 거쳐야 한다. 빠뜨리면 9시간 어긋난 기록이 쌓이는데
+    // 에러가 나지 않아 한참 뒤에 발견된다.
+    recordedAt: position.timestamp,
+    accuracy: position.accuracy,
+    // 칼만 필터의 프로세스 노이즈를 정하는 값이다. 센서가 못 구하면 음수가 온다.
+    speed: position.speed,
+    // ⚠️ **서버가 이 값으로 누적 상승 고도를 계산한다.** 참고용이 아니다 —
+    // 예전 주석이 그렇게 적혀 있었는데, 기록 목록 API 가 누적 경사를 싣게
+    // 되면서 바뀌었다(📅 기록 탭 연동 가이드 3-2).
+    //
+    // 안드로이드는 못 구하면 `0.0`을 주므로 거르지 않으면 **못 재는 기기는
+    // 누적 경사가 0 m 가 되고, 간헐적으로 섞이면 부풀려진다.** 기록은 저장한
+    // 뒤에 고치지 않는다.
+    altitude: AltitudeRule.trusted(
+      altitude: position.altitude,
+      accuracy: position.altitudeAccuracy,
+    ),
+    // ⚠️ 방향을 못 구하면 음수나 0이 온다. 음수는 "모른다"로 옮긴다 —
+    // 0을 그대로 두면 "정북"이라는 뜻이 되어 거짓이 된다.
+    heading: position.heading < 0 ? null : position.heading,
+  );
+}

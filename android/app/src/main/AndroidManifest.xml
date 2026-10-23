@@ -1,0 +1,185 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!--
+      ⚠️ 광고 식별자를 **쓰지 않는다.**
+
+      Play 데이터 안전 섹션에 광고 ID를 수집하지 않는다고 신고해 두었는데,
+      Firebase Analytics 가 아래 세 권한을 **자동으로 끼워 넣는다.** 남아 있으면
+      신고 내용과 어긋나 출시가 막힐 수 있다(노션 GA 도입 문서 ⚠️ 절).
+
+      `tools:node="remove"` 는 병합된 매니페스트에서 그 줄을 빼라는 지시다 —
+      여기에 선언하지 않는 것만으로는 라이브러리 것이 그대로 들어온다.
+    -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID"
+        tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID"
+        tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_ATTRIBUTION"
+        tools:node="remove" />
+    <!--
+      위치 권한 — 1인 러닝의 거리·페이스가 GPS에서 나온다.
+
+      FINE은 정밀 위치(GPS), COARSE는 대략 위치(기지국·와이파이)다.
+      Android 12부터 사용자가 둘 중 하나를 고를 수 있어 **양쪽 다 선언한다.**
+      COARSE만 허용받으면 좌표가 수백 미터씩 튀어 러닝 기록으로 못 쓴다.
+
+      ACCESS_BACKGROUND_LOCATION은 넣지 않는다. 화면을 꺼도 좌표는 들어오지만,
+      그것은 이 권한이 아니라 아래의 포그라운드 서비스가 하는 일이다.
+
+      Android가 보는 것은 "화면이 켜져 있나"가 아니라 서비스를 시작하는 순간
+      앱이 포그라운드였나다. 사용자가 화면을 보며 시작을 누르므로 해당이 없다.
+      (developer.android.com/develop/background-work/services/fgs/service-types)
+
+      넣으면 Android 11+에서 사용자가 설정 화면에 직접 들어가 "항상 허용"을
+      골라야 하고, Play 심사에 백그라운드 위치 선언서와 영상이 더 붙는다.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!--
+      포그라운드 서비스 — 화면을 꺼도 좌표를 계속 받는다.
+
+      이것이 없으면 화면이 꺼지거나 앱이 뒤로 가는 순간 Android가 위치 갱신을
+      시간당 몇 번으로 제한한다. 그 구간이 좌표 공백이 되고, 서버는 빈 자리를
+      직선으로 이어 거리를 실제보다 짧게 계산한다.
+
+      FOREGROUND_SERVICE_LOCATION은 targetSdk 34부터 필수다. 우리는 36이라
+      없으면 서비스 시작에서 예외가 난다.
+
+      서비스 자체는 geolocator 패키지 매니페스트가 이미 선언해 뒀다
+      (GeolocatorLocationService, foregroundServiceType="location").
+      여기에 다시 쓰면 매니페스트 병합이 깨진다.
+
+      WAKE_LOCK은 화면이 꺼진 동안 CPU를 깨워 둔다. 화면을 켜 두는
+      wakelock_plus와는 다른 것이고, 둘 다 필요하다.
+
+      POST_NOTIFICATIONS는 Android 13+에서 알림을 보이게 하는 데 쓴다.
+      ⚠️ 선언만으로는 부족하고 런타임 요청이 있어야 한다. 위치 권한 직후에
+      앱이 직접 묻는다(`GeolocatorLocationRepository.ensureAccess`). 거절하면
+      알림이 서랍에 안 보이지만 서비스는 정상적으로 돌고 좌표도 들어온다.
+    -->
+    <!--
+      걸음 센서 — 케이던스(분당 걸음 수)를 낸다.
+
+      ⚠️ Android 10부터 **런타임 권한**이다. 선언만 해두면 센서가 조용히
+      아무것도 주지 않는다 — 에러도 나지 않아 원인을 찾기 어렵다.
+      `pedometer` 패키지는 요청하지 않으므로 앱이 직접 묻는다
+      (`PedometerStepRepository.ensureAccess`).
+
+      ⚠️ 에뮬레이터에는 걸음 센서가 없어 실기기로만 검증된다.
+    -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!--
+      백업을 끈다 — 토큰이 클라우드로 나가지 않게 한다.
+
+      Keystore 키는 백업되지 않아 복호화는 어차피 안 되지만, 암호문을 올릴
+      이유가 없다. 지금 저장하는 로컬 데이터가 로그인 토큰뿐이라 통째로 끄는
+      편이 단순하다. 백업할 것이 생기면 dataExtractionRules로 토큰만 제외하도록
+      나눈다.
+    -->
+    <application
+        android:label="${appLabel}"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false">
+        <!--
+          권한을 빼는 것만으로는 모자라다. Analytics 가 광고 ID 를 **읽으려
+          시도하는 것** 자체를 끈다. 위 `tools:node="remove"` 와 짝이다.
+        -->
+        <meta-data
+            android:name="google_analytics_adid_collection_enabled"
+            android:value="false" />
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <!-- Specifies an Android theme to apply to this Activity as soon as
+                 the Android process has started. This theme is visible to the user
+                 while the Flutter UI initializes. After that, this theme continues
+                 to determine the Window background behind the Flutter UI. -->
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <!--
+          카카오 로그인이 끝나고 돌아오는 문.
+
+          액티비티 자체는 SDK가 자기 매니페스트에 선언해 뒀다(kakao_flutter_sdk_auth).
+          여기서 더하는 것은 **어떤 주소로 돌아올지**뿐이고, 매니페스트 병합으로
+          같은 액티비티에 이 intent-filter가 붙는다.
+
+          ⚠️ scheme의 앱 키는 Gradle이 채운다. 매니페스트는 dart-define을 읽지
+          못해서다 — build.gradle.kts의 manifestPlaceholders를 함께 본다.
+
+          (XML 주석 안에는 붙임표 둘을 나란히 쓸 수 없다. 파서가 주석의 끝으로
+          읽어 빌드가 깨진다.)
+
+          ⚠️ 이 주소는 **카카오 콘솔의 Redirect URI, 서버 `oauth.kakao.redirect-uri`와
+          문자 하나까지 같아야 한다.** 다르면 서버의 토큰 교환이 카카오에 거부당하는데,
+          증상이 앱이 아니라 서버에서 나므로 원인을 찾기 어렵다.
+        -->
+        <activity
+            android:name="com.kakao.sdk.flutter.auth.AuthCodeHandlerActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="kakao${KAKAO_NATIVE_APP_KEY}"
+                    android:host="oauth" />
+            </intent-filter>
+        </activity>
+
+        <!-- Don't delete the meta-data below.
+             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+        <!-- 화면은 라우터 리스너가 이름을 붙여 남긴다. 자동 기록은 이름 없는 screen_view만 더한다. -->
+        <meta-data
+            android:name="google_analytics_automatic_screen_reporting_enabled"
+            android:value="false" />
+        <!-- Crashlytics는 꺼진 채로 뜨고, 릴리스 빌드에서만 main.dart가 켠다. 디버그 오류가 대시보드에 섞이지 않게. -->
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
+    </application>
+    <!-- Required to query activities that can process text, see:
+         https://developer.android.com/training/package-visibility and
+         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+
+         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+
+        <!-- 개인정보처리방침·계정삭제 문서를 브라우저로 연다(`url_launcher`).
+
+             ⚠️ API 30부터 다른 앱은 기본적으로 보이지 않는다. 이 선언이 없으면
+             `canLaunchUrl`이 **조용히 false**를 돌려주고 링크가 열리지 않는다 —
+             예외도 로그도 없어서 원인을 찾기 어렵다. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+    </queries>
+</manifest>

@@ -1,0 +1,762 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:runiverse/app/app.dart';
+import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/storage/consent_store.dart';
+import 'package:runiverse/core/storage/sign_in_memory_store.dart';
+import 'package:runiverse/core/storage/token_store.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
+import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
+import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
+import 'package:runiverse/features/auth/domain/auth_failure.dart';
+import 'package:runiverse/features/auth/domain/auth_repository.dart';
+import 'package:runiverse/features/auth/domain/auth_session.dart';
+import 'package:runiverse/features/auth/domain/auth_tokens.dart';
+import 'package:runiverse/features/auth/domain/current_user.dart';
+import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
+import 'package:runiverse/features/auth/domain/oauth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
+import 'package:runiverse/features/profile/data/fake_profile_image_repository.dart';
+import 'package:runiverse/features/profile/data/fake_profile_repository.dart';
+import 'package:runiverse/features/profile/domain/photo_picker.dart';
+import 'package:runiverse/features/profile/domain/picked_image.dart';
+import 'package:runiverse/features/profile/domain/profile_failure.dart';
+import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
+import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
+import 'package:runiverse/features/profile/presentation/nickname_field.dart';
+import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
+import 'package:runiverse/features/profile/presentation/profile_cover.dart';
+import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
+import 'package:runiverse/features/profile/presentation/profile_page.dart';
+import 'package:runiverse/features/profile/presentation/profile_provider.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
+
+/// 프로필 탭(S22) — 서버 값이 화면에 닿는가, 없을 때 무엇을 하는가.
+///
+/// 라우터를 태워서 띄운다. 유도 시트의 CTA가 **첫 로그인 때와 같은 화면**을 여는지가
+/// 이 화면의 계약이라, 화면만 떼어놓으면 그 절반을 볼 수 없다.
+void main() {
+  /// 프로필 탭을 띄운다.
+  ///
+  /// [onboarded]가 프로필을 채운 사람인지다. 값은 `GET /users/me`에서 오고,
+  /// 가짜 저장소가 그 답을 흉내 낸다.
+  ///
+  /// ⚠️ [photos]를 반드시 끼운다. 안 끼우면 아바타가 `HttpProfileImageRepository`를
+  /// 만들고, 그것이 `createDio()`를 부르는데 테스트에는 `API_BASE_URL`이 없어
+  /// `StateError`로 죽는다 — **화면과 상관없는 테스트까지 전부 무너진다.**
+  Future<void> pumpProfile(
+    WidgetTester tester, {
+    required bool onboarded,
+    bool meFails = false,
+    FakeProfileImageRepository? photos,
+    FakeProfileImageRepository? background,
+    PhotoPicker? picker,
+    FakeProfileRepository? summary,
+    String? cachedNickname,
+  }) async {
+    final repository = FakeAuthRepository(latency: Duration.zero);
+    const email = 'runner@example.com';
+    repository.seedAccount(
+      email: email,
+      password: 'runi123!',
+      isOnboarded: onboarded,
+    );
+    final session = repository.issueSession(email: email);
+    final store = InMemoryTokenStore();
+    await store.saveSession(
+      userId: session.userId,
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+      isOnboarded: onboarded,
+    );
+    if (cachedNickname != null) {
+      await store.saveCurrentUser(
+        userId: session.userId,
+        isOnboarded: onboarded,
+        nickname: cachedNickname,
+      );
+    }
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
+          // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
+          appVersionRepositoryProvider.overrideWithValue(
+            FakeAppVersionRepository(),
+          ),
+          tokenStoreProvider.overrideWithValue(store),
+          signInMemoryStoreProvider.overrideWithValue(
+            InMemorySignInMemoryStore(),
+          ),
+          consentStoreProvider.overrideWithValue(InMemoryConsentStore()),
+          // 스플래시가 서버 상태를 읽는다. 진짜를 두면 dio가 서버 주소를 찾다
+          // 죽는다 — 테스트에는 주소가 없다.
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
+          ),
+          authRepositoryProvider.overrideWithValue(
+            meFails ? _MeFailsRepository(repository) : repository,
+          ),
+          profileImageRepositoryProvider.overrideWithValue(
+            photos ?? FakeProfileImageRepository(latency: Duration.zero),
+          ),
+          profileRepositoryProvider.overrideWithValue(
+            summary ?? FakeProfileRepository(),
+          ),
+          // ⚠️ 배경도 끼워야 한다. 안 끼우면 커버가 진짜 저장소를 만들고,
+          // 그것이 테스트에 없는 서버 주소를 찾다 죽는다.
+          backgroundImageRepositoryProvider.overrideWithValue(
+            background ?? FakeProfileImageRepository(latency: Duration.zero),
+          ),
+          if (picker != null) photoPickerProvider.overrideWithValue(picker),
+        ],
+        child: const RuniverseApp(initialLocation: AppRoutes.profile),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // ⚠️ 스플래시를 건너뛰고 탭으로 바로 들어왔다. 그래서 아무도 `restore()`를
+    // 부르지 않았고 상태가 `AuthUnknown`에 머문다 — 실제 앱에서는 스플래시가
+    // 부른다. 여기서 대신 부른다.
+    ProviderScope.containerOf(
+      tester.element(find.byType(ProfilePage)),
+    ).read(authControllerProvider.notifier).restore();
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('프로필을 채운 사람은 서버가 준 닉네임이 보인다', (tester) async {
+    // 닉네임은 이제 `GET /users/{userId}`에서 온다. 본인과 타인이 같은 화면을
+    // 쓰기 때문에 출처도 하나여야 한다 — `/users/me`는 저장해 두는 쪽이다.
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      summary: FakeProfileRepository(nickname: '러너42'),
+    );
+
+    expect(find.text('러너42'), findsOneWidget);
+    expect(find.text(AppStrings.profileNicknameEmpty), findsNothing);
+  });
+
+  testWidgets('프로필을 안 채운 사람은 빈 상태 문구가 보인다', (tester) async {
+    await pumpProfile(tester, onboarded: false);
+
+    // 빈 문자열이나 "알 수 없음"을 그리지 않는다. 값을 못 불러온 것으로 읽힌다.
+    expect(find.text(AppStrings.profileNicknameEmpty), findsWidgets);
+  });
+
+  testWidgets('⚠️ 채운 사람은 /me가 실패해도 완성하라는 말을 듣지 않는다', (tester) async {
+    // 에뮬레이터에서 실제로 겪은 것이다. `/users/me`가 404로 실패하자
+    // **이미 프로필을 채운 계정에** "프로필을 완성해주세요"가 떴다.
+    //
+    // 닉네임이 없는 이유가 둘("안 채웠다" · "못 불러왔다")인데 화면이
+    // 그것을 가르지 않으면 이렇게 된다.
+    await pumpProfile(tester, onboarded: true, meFails: true);
+
+    expect(find.text(AppStrings.profileNicknameEmpty), findsNothing);
+    expect(find.text(AppStrings.profileSheetCta), findsNothing);
+  });
+
+  testWidgets('⚠️ 프로필이 없으면 유도 시트가 뜬다', (tester) async {
+    await pumpProfile(tester, onboarded: false);
+
+    expect(find.text(AppStrings.profileSheetCta), findsOneWidget);
+  });
+
+  testWidgets('프로필을 채웠으면 시트가 뜨지 않는다', (tester) async {
+    await pumpProfile(tester, onboarded: true);
+
+    // 이미 채운 사람을 막아서면 안내가 아니라 방해다.
+    expect(find.text(AppStrings.profileSheetCta), findsNothing);
+  });
+
+  testWidgets('⚠️ 시트의 CTA는 첫 로그인 때와 같은 화면을 연다', (tester) async {
+    await pumpProfile(tester, onboarded: false);
+
+    await tester.tap(find.text(AppStrings.profileSheetCta));
+    await tester.pumpAndSettle();
+
+    // 프로필을 받는 곳이 둘이면 규칙도 둘이 되고, 한쪽만 고치는 사고가 난다.
+    expect(find.byType(ProfileSetupPage), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 시트에서 연 프로필 등록은 프로필 탭 위에 쌓인다', (tester) async {
+    await pumpProfile(tester, onboarded: false);
+
+    await tester.tap(find.text(AppStrings.profileSheetCta));
+    await tester.pumpAndSettle();
+
+    // **`push`라 프로필 탭이 아래에 남아 있다.** `go`였다면 사라진다 —
+    // 그러면 다 채우고 나서 돌아올 자리가 없어 홈으로 던져진다.
+    // 마쳤을 때 `pop`으로 이 자리에 돌아오는 것이 그 위에 선다.
+    expect(find.byType(ProfileSetupPage), findsOneWidget);
+    expect(find.byType(ProfilePage, skipOffstage: false), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 폼에서 채우지 않고 돌아오면 관문이 다시 선다', (tester) async {
+    await pumpProfile(tester, onboarded: false);
+    await tester.tap(find.text(AppStrings.profileSheetCta));
+    await tester.pumpAndSettle();
+    expect(find.byType(ProfileSetupPage), findsOneWidget);
+
+    // 안드로이드 뒤로가기로 폼에서 나온다.
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // 여기가 깨지면 **뒤로가기 한 번으로 관문이 뚫린다.**
+    expect(find.byType(ProfileSetupPage), findsNothing);
+    expect(find.text(AppStrings.profileSheetCta), findsOneWidget);
+  });
+
+  // ── 프로필 요약 ─────────────────────────────────────────────
+  //
+  // 닉네임·소개·사진은 이제 `/users/{userId}` 한 곳에서 온다.
+  // 본인과 타인이 같은 화면을 쓰기 때문에 출처도 하나여야 한다.
+
+  testWidgets('서버가 준 닉네임과 소개를 그린다', (tester) async {
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      summary: FakeProfileRepository(
+        nickname: '서버이름',
+        introduction: '아침에 달려요',
+        friendCount: 3,
+      ),
+    );
+
+    expect(find.text('서버이름'), findsOneWidget);
+    expect(find.text('아침에 달려요'), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 서버가 실패해도 저장해 둔 닉네임이 남는다', (tester) async {
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      cachedNickname: '캐시된이름',
+      summary: FakeProfileRepository(failure: ProfileFailure.server),
+    );
+
+    // `/users/{userId}`가 아직 배포되지 않았을 때가 이 상황이다.
+    expect(find.text('캐시된이름'), findsOneWidget);
+  });
+
+  // ── 프로필 사진 ─────────────────────────────────────────────
+  //
+  // 바꾸는 자리는 **편집 화면(S22.1) 하나**다. 홈의 아바타는 눌리지 않는다.
+  //
+  // ⚠️ 사진은 고르는 것만으로 올라가지 않는다 — 소개글·신체 정보와 똑같이
+  // **저장 버튼을 기다린다**. 자세한 것은 `profile_edit_page_test`.
+
+  /// 우측 상단 ✎. 눌러 **편집 화면(S22.1)으로 간다.**
+  Future<void> openEditPage(WidgetTester tester) async {
+    // ⚠️ 연필 아이콘이 아니라 **글자 버튼**이다(시안 `158:3933`).
+    await tester.tap(find.text(AppStrings.profileEditOpen));
+    await tester.pumpAndSettle();
+  }
+
+  /// `AppIcon`을 이름으로 찾는다.
+  ///
+  /// ⚠️ **`find.byIcon`으로는 못 찾는다.** `AppIcon`은 `Icon`이 아니라 SVG를
+  /// 그리는 우리 위젯이다.
+  ///
+  /// ⚠️ **위험한 쪽은 `findsNothing`이다.** 아이콘을 v2로 옮긴 뒤에도 옛
+  /// `find.byIcon`을 그대로 두면, `findsOneWidget`은 소리 내며 실패하지만
+  /// `findsNothing`은 **아무것도 못 찾아서 그냥 통과한다.** 없다는 것을 거는
+  /// 그물이 조용히 죽는다.
+  Finder appIcon(String name) => find.byWidgetPredicate(
+    (widget) => widget is AppIcon && widget.name == name,
+  );
+
+  /// 편집 화면으로 가서 아바타를 눌러 사진 시트를 연다.
+  ///
+  /// **홈에서는 아바타가 눌리지 않는다.** 바꾸는 자리는 편집 화면 하나다.
+  Future<void> openSheet(WidgetTester tester) async {
+    await openEditPage(tester);
+    await tester.tap(find.byType(ProfileAvatar));
+    await tester.pumpAndSettle();
+  }
+
+  /// 편집 화면의 저장 버튼을 누른다.
+  ///
+  /// ⚠️ **사진은 고르는 것만으로 올라가지 않는다.** 고르기·지우기 둘 다
+  /// 화면에만 반영되고, 서버로 가는 것은 이 버튼을 눌렀을 때다.
+  Future<void> tapSave(WidgetTester tester) async {
+    await tester.tap(find.text(AppStrings.profileEditSave));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('⚠️ 아바타는 사진 주소를 스스로 받아오지 않는다', (tester) async {
+    final photos = FakeProfileImageRepository(latency: Duration.zero);
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      photos: photos,
+      summary: FakeProfileRepository(
+        nickname: '서버이름',
+        profileImageUrl: 'https://cdn.test/a.png',
+      ),
+    );
+
+    // 주소는 프로필 요약이 준다. 아바타가 따로 물으면 **같은 값을 두 번**
+    // 받고, 타인 프로필에서는 `fetchUrl()`이 늘 내 사진을 가져와 틀린다.
+    expect(photos.fetchCalls, 0);
+  });
+
+  testWidgets('사진을 바꿔 저장하면 프로필 요약을 다시 받는다', (tester) async {
+    final summary = FakeProfileRepository(nickname: '서버이름');
+    final picker = _FakePicker(
+      image: PickedImage.validated(path: '/a/b.png', sizeBytes: 1024),
+    );
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      picker: picker,
+      summary: summary,
+    );
+    final before = summary.calls;
+
+    await openSheet(tester);
+    await tester.tap(find.text(AppStrings.profilePhotoPick));
+    await tester.pumpAndSettle();
+    await tapSave(tester);
+
+    // 새 주소는 서버만 안다. 다시 받지 않으면 아바타가 옛 사진을 문다.
+    //
+    // ⚠️ **다시 받는 것은 편집 화면이 아니라 여기(`ProfileHeader`)다** —
+    // 편집 화면을 연 자리에서 돌아오기를 기다렸다 부른다.
+    expect(summary.calls, greaterThan(before));
+  });
+
+  // ── 편집 화면으로 가는 문 ────────────────────────────────────
+  //
+  // 홈에서는 아무것도 고치지 않는다. **바꾸는 자리는 편집 화면 하나**다
+  // (정본 S22.1) — 홈에도 두면 같은 일을 하는 문이 둘이 되고, 사진·닉네임은
+  // 즉시 저장되는데 나머지는 저장 버튼을 기다린다는 것을 설명할 길이 없다.
+
+  testWidgets('⚠️ 홈에서는 아바타를 눌러도 시트가 열리지 않는다', (tester) async {
+    await pumpProfile(tester, onboarded: true);
+
+    await tester.tap(find.byType(ProfileAvatar));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.profilePhotoPick), findsNothing);
+  });
+
+  testWidgets('⚠️ 홈에는 편집 표시가 없다', (tester) async {
+    // 표시가 있으면 눌러서 바꿀 수 있는 것처럼 읽힌다.
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      summary: FakeProfileRepository(nickname: '별밤러너'),
+    );
+
+    expect(appIcon(AppIcons.camera), findsNothing);
+    expect(find.byIcon(LucideIcons.type), findsNothing);
+  });
+
+  group('⚠️ 토큰 충돌 — 테두리가 면에 묻히면 안 된다', () {
+    testWidgets('아바타 테두리가 보인다', (tester) async {
+      // 다크에서 `bgElevated`와 `borderDefault`가 둘 다 `neutral800`이다.
+      // 면을 깐 원에 `borderDefault`를 두르면 **있는데 안 보인다** —
+      // 눈으로만 보면 못 찾는 종류의 결함이다. 기록 탭에서도 겪었다(#126).
+      await pumpProfile(tester, onboarded: true);
+
+      final box = tester.widget<Container>(
+        find
+            .descendant(
+              of: find.byType(ProfileAvatar),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      final decoration = box.decoration! as BoxDecoration;
+      expect(
+        decoration.border!.top.color,
+        isNot(decoration.color),
+        reason: '테두리 색이 면 색과 같으면 테두리가 없는 것과 같다',
+      );
+    });
+  });
+
+  group('⚠️ 시안대로 바꾼 것', () {
+    testWidgets('편집은 아이콘이 아니라 글자 버튼이다', (tester) async {
+      // 연필 하나로는 **무엇을** 고치는지 알 수 없다. 시안 `158:3933`.
+      await pumpProfile(tester, onboarded: true);
+
+      expect(find.text(AppStrings.profileEditOpen), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 설정 버튼은 글자가 없다 — 읽을 이름을 붙인다', (tester) async {
+      // 글리프뿐이라 이름을 안 붙이면 스크린리더가 읽을 것이 없다.
+      await pumpProfile(tester, onboarded: true);
+
+      expect(find.bySemanticsLabel(AppStrings.settingsTitle), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 설정 버튼이 손가락에 닿는다', (tester) async {
+      // 시안은 41이다. 44 미만은 빗나간다.
+      await pumpProfile(tester, onboarded: true);
+
+      // ⚠️ `bySemanticsLabel`은 의미 노드를 잡는다. 누르는 `InkWell`은
+      // 그 **자손**이지 조상이 아니다.
+      final settings = find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.label == AppStrings.settingsTitle,
+      );
+      final size = tester.getSize(
+        find.descendant(of: settings, matching: find.byType(InkWell)).first,
+      );
+      expect(size.width, greaterThanOrEqualTo(44));
+      expect(size.height, greaterThanOrEqualTo(44));
+    });
+  });
+
+  testWidgets('프로필 편집 버튼을 누르면 편집 화면이 열린다', (tester) async {
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      summary: FakeProfileRepository(nickname: '별밤러너'),
+    );
+
+    await openEditPage(tester);
+
+    expect(find.text(AppStrings.profileEditTitle), findsOneWidget);
+    // 거기서는 사진을 바꿀 수 있다 — **둘 다**. 아바타 배지와 배경 알약이
+    // 각각 카메라를 단다. 하나로 줄어들면 어느 쪽인가 누를 자리를 잃은 것이다.
+    expect(appIcon(AppIcons.camera), findsNWidgets(2));
+  });
+
+  testWidgets('⚠️ 편집 화면에서 닉네임을 그 자리에서 고친다', (tester) async {
+    // 2026-10-22까지는 눌러서 시트를 여는 줄이었다. 지금은 **인라인 칸**이라
+    // 누를 것 없이 바로 쳐진다 — 시트가 다시 생기면 이 테스트가 깨진다.
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      summary: FakeProfileRepository(nickname: '별밤러너'),
+    );
+
+    await openEditPage(tester);
+
+    expect(find.byType(NicknameField), findsOneWidget);
+    expect(find.text('별밤러너'), findsOneWidget);
+  });
+
+  testWidgets('사진이 없으면 시트에 지우는 항목이 없다', (tester) async {
+    await pumpProfile(tester, onboarded: true);
+    await openSheet(tester);
+
+    expect(find.text(AppStrings.profilePhotoPick), findsOneWidget);
+    // 이미 기본 이미지인 사람에게 `기본 이미지로`를 보이면 눌러도 아무 일이 없다.
+    expect(find.text(AppStrings.profilePhotoReset), findsNothing);
+  });
+
+  testWidgets('사진이 있으면 지울 수 있다 — 저장을 눌러야 간다', (tester) async {
+    final photos = FakeProfileImageRepository(
+      latency: Duration.zero,
+      url: 'https://example.invalid/a.png',
+    );
+    // 사진이 있는지는 **프로필 요약이 말한다.** 아바타는 주소를 받아 그릴 뿐이라
+    // 이미지 저장소에만 심어두면 시트가 지우는 항목을 보여주지 않는다.
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      photos: photos,
+      summary: FakeProfileRepository(
+        profileImageUrl: 'https://example.invalid/a.png',
+      ),
+    );
+    await openSheet(tester);
+
+    await tester.tap(find.text(AppStrings.profilePhotoReset));
+    await tester.pumpAndSettle();
+    expect(photos.removed, isFalse, reason: '아직 저장을 누르지 않았다');
+
+    await tapSave(tester);
+
+    expect(photos.removed, isTrue);
+  });
+
+  testWidgets('앨범에서 고르고 저장하면 올라간다', (tester) async {
+    final photos = FakeProfileImageRepository(latency: Duration.zero);
+    final picker = _FakePicker(
+      image: PickedImage.validated(path: '/a/b.png', sizeBytes: 1024),
+    );
+    await pumpProfile(tester, onboarded: true, photos: photos, picker: picker);
+    await openSheet(tester);
+
+    await tester.tap(find.text(AppStrings.profilePhotoPick));
+    await tester.pumpAndSettle();
+    expect(photos.uploaded, isNull, reason: '아직 저장을 누르지 않았다');
+
+    await tapSave(tester);
+
+    expect(photos.uploaded?.mimeType, 'image/png');
+    expect(photos.uploaded?.sizeBytes, 1024);
+  });
+
+  testWidgets('⚠️ 앨범에서 취소하면 아무 일도 일어나지 않는다', (tester) async {
+    // 취소를 실패로 다루면 "사진을 바꾸지 못했어요"가 뜬다. 그 사람은
+    // 올릴 생각을 접었을 뿐이다.
+    final photos = FakeProfileImageRepository(latency: Duration.zero);
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      photos: photos,
+      picker: _FakePicker(),
+    );
+    await openSheet(tester);
+
+    await tester.tap(find.text(AppStrings.profilePhotoPick));
+    await tester.pumpAndSettle();
+
+    expect(photos.uploaded, isNull);
+    expect(find.text(AppStrings.profilePhotoFailed), findsNothing);
+  });
+
+  testWidgets('⚠️ 올릴 수 없는 형식은 무엇이 문제인지 말해준다', (tester) async {
+    // 서버까지 보내면 400 하나로 뭉뚱그려져 형식인지 크기인지 알 수 없다.
+    await pumpProfile(
+      tester,
+      onboarded: true,
+      picker: _FakePicker(failure: ProfileImageFailure.unsupportedFormat),
+    );
+    await openSheet(tester);
+
+    await tester.tap(find.text(AppStrings.profilePhotoPick));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.profilePhotoUnsupported), findsOneWidget);
+  });
+
+  testWidgets('올리다 실패해도 원래 사진이 남는다', (tester) async {
+    // 잠깐 끊긴 것 때문에 멀쩡한 사진이 사라지면 사용자는 지워진 줄 안다.
+    final photos = FakeProfileImageRepository(
+      latency: Duration.zero,
+      url: 'https://example.invalid/a.png',
+      failWith: ProfileImageFailure.network,
+    );
+    await pumpProfile(tester, onboarded: true, photos: photos);
+
+    // 조회부터 실패하므로 시트에는 지우는 항목이 없다. 그래도 화면은 선다.
+    await openSheet(tester);
+    expect(find.text(AppStrings.profilePhotoPick), findsOneWidget);
+  });
+
+  /// 커버 — **배경만 스스로 주소를 챙긴다** (1.1.1 배경 가이드).
+  ///
+  /// 프로필 사진 주소는 요약(`GET /users/me`)에 얹혀 오지만 배경은 요약에 없다.
+  /// 조회 주소는 1시간이면 만료되고, 만료된 주소는 깨진 이미지가 된다 — 그런데
+  /// 커버가 비면 **"배경을 안 올린 사람"과 구분되지 않는다.**
+  group('커버', () {
+    testWidgets('화면에 들어오면 배경을 한 번 받는다', (tester) async {
+      final background = FakeProfileImageRepository(latency: Duration.zero);
+      await pumpProfile(tester, onboarded: true, background: background);
+
+      expect(background.fetchCalls, 1);
+    });
+
+    testWidgets('⚠️ 커버가 깨지면 한 번 더 받는다', (tester) async {
+      // 테스트에서 `Image.network`는 늘 실패한다 — 만료된 주소와 같은 길이다.
+      final background = FakeProfileImageRepository(
+        latency: Duration.zero,
+        url: 'https://cdn.test/cover.jpg',
+      );
+      await pumpProfile(tester, onboarded: true, background: background);
+
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+
+      expect(background.fetchCalls, 2);
+    });
+
+    testWidgets('⚠️ 다시 받고도 깨지면 또 받지 않는다', (tester) async {
+      // 만료가 되풀이되면 끝없이 두드린다.
+      final background = FakeProfileImageRepository(
+        latency: Duration.zero,
+        url: 'https://cdn.test/cover.jpg',
+      );
+      await pumpProfile(tester, onboarded: true, background: background);
+
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 1));
+        await tester.pump();
+      }
+
+      expect(background.fetchCalls, 2);
+    });
+
+    testWidgets('⚠️ 설정 버튼이 커버 위 우상단에 선다', (tester) async {
+      // 시안 `158:3938`이 커버 위 y=54에 둔다. 2026-10-22에는 "밝은 사진에서
+      // 흰 아이콘이 안 보인다"는 이유로 아래로 내렸는데, **시안이 쓰는 어두운
+      // 원**(`coverScrim`)을 함께 옮기면서 그 이유가 사라졌다.
+      await pumpProfile(tester, onboarded: true);
+
+      final cover = tester.getRect(find.byType(ProfileCover));
+      final settings = tester.getRect(
+        find.bySemanticsLabel(AppStrings.settingsTitle),
+      );
+
+      expect(settings.bottom, lessThan(cover.bottom), reason: '커버 안에 있다');
+      expect(settings.center.dx, greaterThan(cover.center.dx), reason: '오른쪽');
+      // 커버가 상태바 아래에서 시작하므로 상태바를 피할 여백은 화면이 이미
+      // 받았다. 여기서 주는 것은 **시안 간격**뿐이다.
+      expect(settings.top, greaterThan(cover.top));
+    });
+
+    testWidgets('⚠️ 설정 버튼 뒤에 어두운 원이 깔린다', (tester) async {
+      // 없으면 밝은 사진에서 흰 아이콘이 그대로 묻힌다 — 커버 위로 올리면서
+      // 같이 와야 하는 장치다.
+      await pumpProfile(tester, onboarded: true);
+
+      final circle = tester.widget<DecoratedBox>(
+        find
+            .descendant(
+              of: find.bySemanticsLabel(AppStrings.settingsTitle),
+              matching: find.byType(DecoratedBox),
+            )
+            .first,
+      );
+      final decoration = circle.decoration as BoxDecoration;
+
+      expect(
+        decoration.color,
+        AppTheme.dark().extension<AppColorsV2>()!.coverScrim,
+      );
+      expect(decoration.shape, BoxShape.circle);
+    });
+
+    testWidgets('⚠️ 닉네임이 커버에 가깝다', (tester) async {
+      // 설정 버튼이 오른쪽 기둥에서 빠지면서 그 아래 줄이 전부 올라온다.
+      // 멀어지면 사진과 이름이 두 덩어리로 보인다.
+      await pumpProfile(
+        tester,
+        onboarded: true,
+        summary: FakeProfileRepository(nickname: '별밤러너'),
+      );
+
+      final cover = tester.getRect(find.byType(ProfileCover));
+      final nickname = tester.getRect(find.text('별밤러너'));
+
+      // 시안(`158:3905`)은 커버 끝 y=200, 닉네임 윗변 y≈265 — **약 65px**이다.
+      // 설정 버튼을 내려 두던 동안에는 120px이었다.
+      expect(nickname.top - cover.bottom, lessThan(80));
+    });
+
+    testWidgets('⚠️ 아바타가 커버에 걸친다', (tester) async {
+      // 시안 좌표(아바타 y=157, 커버 끝 y=200)다. 걸치지 않으면 커버와
+      // 프로필이 두 덩어리로 보인다.
+      await pumpProfile(tester, onboarded: true);
+
+      final cover = tester.getRect(find.byType(ProfileCover));
+      final avatar = tester.getRect(find.byType(ProfileAvatar));
+      expect(avatar.top, lessThan(cover.bottom));
+      expect(avatar.bottom, greaterThan(cover.bottom));
+    });
+
+    testWidgets('⚠️ 상태바 글자를 밝게 고정한다', (tester) async {
+      // 상태바 자리에는 이제 사진이 아니라 **어두운 바탕**(`bgBase`)이 선다.
+      // 기기가 아이콘을 어둡게 잡아 둔 상태라면 어두운 아이콘 + 어두운 바탕이
+      // 되어 **시계가 그대로 사라진다.**
+      await pumpProfile(tester, onboarded: true);
+
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is AnnotatedRegion<SystemUiOverlayStyle> &&
+              w.value.statusBarIconBrightness == Brightness.light,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('⚠️ 커버가 상태바 아래에서 시작한다', (tester) async {
+      // 상태바 뒤까지 올리면 사진 윗부분이 시계·배터리에 가린다. 그것을 막던
+      // 그늘막은 **사진을 가리는 회색 막대**로 보였다(2026-10-23).
+      //
+      // ⚠️ **여백을 직접 줘야 한다.** 테스트 화면의 기본 여백은 0이라, 그냥
+      // 두면 `SafeArea`가 있든 없든 커버가 `y=0`에서 시작해 **이 그물이 아무것도
+      // 막지 못한다.**
+      tester.view.padding = const FakeViewPadding(top: 120); // 3배 화면의 40
+      addTearDown(tester.view.resetPadding);
+
+      await pumpProfile(tester, onboarded: true);
+
+      expect(tester.getTopLeft(find.byType(ProfileCover)).dy, 40);
+    });
+  });
+}
+
+/// 앨범을 여는 척한다. 실제 구현은 플랫폼 채널이라 테스트에서 부를 수 없다.
+class _FakePicker implements PhotoPicker {
+  _FakePicker({this.image, this.failure});
+
+  /// `null`이면 사용자가 취소한 것이다.
+  final PickedImage? image;
+
+  /// 형식·크기가 조건에 맞지 않은 경우.
+  final ProfileImageFailure? failure;
+
+  @override
+  Future<PickedImage?> pick() async {
+    final failure = this.failure;
+    if (failure != null) throw ProfileImageException(failure);
+    return image;
+  }
+}
+
+/// `/users/me`만 실패하는 저장소. 나머지는 [inner]에 맡긴다.
+///
+/// 서버에 엔드포인트가 아직 없어 실제로 404가 나는 상황을 그대로 만든다.
+class _MeFailsRepository implements AuthRepository {
+  _MeFailsRepository(this.inner);
+
+  final AuthRepository inner;
+
+  @override
+  Future<CurrentUser> fetchCurrentUser(String accessToken) =>
+      throw const AuthException(AuthFailure.server);
+
+  @override
+  Future<AuthTokens> refresh(String refreshToken) =>
+      inner.refresh(refreshToken);
+
+  @override
+  Future<AuthSession> signIn({
+    required String email,
+    required String password,
+  }) => inner.signIn(email: email, password: password);
+
+  @override
+  Future<AuthSession> signUp({
+    required String verificationTicket,
+    required String password,
+  }) =>
+      inner.signUp(verificationTicket: verificationTicket, password: password);
+
+  @override
+  Future<AuthSession> signInWithOauth({
+    required OauthProvider provider,
+    required OauthAuthorization authorization,
+  }) => inner.signInWithOauth(provider: provider, authorization: authorization);
+
+  @override
+  Future<void> sendVerificationCode(String email) =>
+      inner.sendVerificationCode(email);
+
+  @override
+  Future<String> verifyCode({required String email, required String code}) =>
+      inner.verifyCode(email: email, code: code);
+
+  @override
+  Future<void> signOut(String accessToken) => inner.signOut(accessToken);
+}

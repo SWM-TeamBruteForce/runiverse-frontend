@@ -1,0 +1,60 @@
+import 'dart:async';
+
+import 'package:runiverse/features/session/domain/geo_point.dart';
+import 'package:runiverse/features/session/domain/location_repository.dart';
+import 'package:runiverse/features/session/domain/permission_access.dart';
+
+/// 좌표를 손으로 먹이는 구현 — 테스트와 에뮬레이터용.
+///
+/// 인증에서 서버 없이 `FakeAuthRepository`로 흐름을 완성한 것과 같은 방식이다.
+/// 실기기 없이 거리·페이스·상태 전이를 전부 확인할 수 있다.
+///
+/// ⚠️ **프로덕션에 끼우지 않는다.** 갈아 끼우는 자리는 `run_session_provider.dart` 한 줄이다.
+class FakeLocationRepository implements LocationRepository {
+  FakeLocationRepository({
+    this.access = LocationAccess.granted,
+    this.notification = PermissionAccess.granted,
+  });
+
+  /// [ensureAccess]가 돌려줄 값. 거절 흐름을 확인할 때 바꾼다.
+  ///
+  /// ⚠️ **도중에 바꿀 수 있어야 한다.** 설정 앱에서 권한을 켜고 돌아오는
+  /// 상황은 "같은 저장소가 **다른 답**을 주는 것"이라, 값이 고정이면 그
+  /// 흐름을 세울 수 없다.
+  LocationAccess access;
+
+  /// 권한을 몇 번 물었나. **다시 읽었는지를 테스트가 이것으로 본다.**
+  int ensureAccessCount = 0;
+
+  /// [ensureRunNotification]이 돌려줄 값. `null` 이면 묻지 않는 플랫폼이다.
+  final PermissionAccess? notification;
+
+  final _controller = StreamController<GeoPoint>.broadcast();
+
+  /// 설정 화면을 열라고 요청받은 횟수. 테스트가 확인한다.
+  int openSettingsCount = 0;
+
+  @override
+  Future<LocationAccess> ensureAccess() async {
+    ensureAccessCount++;
+    return access;
+  }
+
+  @override
+  Future<PermissionAccess?> ensureRunNotification() async => notification;
+
+  @override
+  Stream<GeoPoint> watchPosition() => _controller.stream;
+
+  @override
+  Future<void> openSettings() async => openSettingsCount++;
+
+  /// 좌표 하나를 흘려보낸다.
+  void emit(GeoPoint point) => _controller.add(point);
+
+  /// 좌표 여러 개를 순서대로 흘려보낸다.
+  void emitAll(Iterable<GeoPoint> points) => points.forEach(emit);
+
+  /// 더 이상 좌표를 보내지 않는다.
+  Future<void> dispose() => _controller.close();
+}

@@ -1,0 +1,160 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/features/record/domain/run_detail.dart';
+import 'package:runiverse/features/record/domain/run_record_repository.dart';
+import 'package:runiverse/features/record/presentation/record_provider.dart';
+import 'package:runiverse/features/record/presentation/run_result_view.dart';
+
+/// 기록 탭에서 지난 기록 하나를 연다. **S16과 같은 화면**이다.
+///
+/// 종료 직후(S15 → S16)는 이미 손에 든 [RunDetail]을 그대로 넘기지만,
+/// 여기서는 번호밖에 없으므로 먼저 읽어 와야 한다. 그 차이만 이 페이지가
+/// 흡수하고, 그림은 [RunResultView] 하나가 그린다.
+///
+/// 17번(`results`)과 18번(`split-results`)을 합쳐 받는다. 둘 다 방 번호로
+/// 찾으므로, 기록 번호를 모르는 종료 직후에도 같은 화면을 열 수 있다.
+///
+/// ## ⚠️ 나갈 때 캐시를 버린다
+///
+/// 서버가 종료를 처리하기 전에 부르면 **200에 빈 기록**이 온다. 그 값이 캐시에
+/// 남으면 화면을 닫았다 다시 열어도 `0.00km · 구간 0개`가 그대로라, 사용자가
+/// 앱 안에서 복구할 방법이 없다. 그래서 [dispose]에서 버린다 — 다시 열면
+/// 반드시 서버에 다시 묻는다.
+class RecordDetailPage extends ConsumerStatefulWidget {
+  const RecordDetailPage({required this.runningRoomId, super.key});
+
+  final int runningRoomId;
+
+  @override
+  ConsumerState<RecordDetailPage> createState() => _RecordDetailPageState();
+}
+
+class _RecordDetailPageState extends ConsumerState<RecordDetailPage> {
+  /// ⚠️ **[dispose]에서 `context`를 뒤지면 안 된다.** 그때는 트리에서 이미
+  /// 떨어져 있다. 살아 있는 동안 잡아 둔다.
+  ProviderContainer? _container;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _container = ProviderScope.containerOf(context, listen: false);
+  }
+
+  @override
+  void dispose() {
+    _container?.invalidate(runDetailProvider(widget.runningRoomId));
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final detail = ref.watch(runDetailProvider(widget.runningRoomId));
+
+    return detail.when(
+      data: (value) => RunResultView(detail: value),
+      loading: () => const _Frame(child: CircularProgressIndicator()),
+      // ⚠️ 오류 종류를 본다. 404·403은 **다시 시도해도 같은 답**이라 재시도를
+      // 권하면 몇 번을 눌러도 같은 화면만 돌아온다.
+      error: (error, _) => _Frame(
+        child: _Failed(
+          error: error,
+          onRetry: () {
+            ref.invalidate(runDetailProvider(widget.runningRoomId));
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// 불러오는 동안에도 나가는 길이 있어야 한다.
+class _Frame extends StatelessWidget {
+  const _Frame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Scaffold(
+      backgroundColor: colors.bgBase,
+      appBar: AppBar(
+        backgroundColor: colors.bgBase,
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          tooltip: AppStrings.runResultBack,
+          icon: AppIcon(AppIcons.left, color: colors.textPrimary),
+        ),
+        title: Text(
+          AppStrings.runResultTitle,
+          style: AppTypographyV2.heading06.copyWith(color: colors.textPrimary),
+        ),
+      ),
+      body: Center(child: child),
+    );
+  }
+}
+
+class _Failed extends StatelessWidget {
+  const _Failed({required this.error, required this.onRetry});
+
+  final Object error;
+  final VoidCallback onRetry;
+
+  /// 다시 눌러 볼 만한 실패인가.
+  bool get _retryable =>
+      error is! RunRecordException ||
+      switch ((error as RunRecordException).failure) {
+        RunRecordFailure.notFound || RunRecordFailure.forbidden => false,
+        _ => true,
+      };
+
+  String get _message => switch (error) {
+    RunRecordException(failure: RunRecordFailure.notFound) =>
+      AppStrings.recordDetailMissing,
+    RunRecordException(failure: RunRecordFailure.forbidden) =>
+      AppStrings.recordDetailForbidden,
+    _ => AppStrings.recordError,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.space6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppIcon(
+            AppIcons.alert,
+            size: AppSpacing.space7,
+            color: colors.textTertiary,
+          ),
+          const SizedBox(height: AppSpacing.space3),
+          Text(
+            _message,
+            textAlign: TextAlign.center,
+            style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
+          ),
+          if (_retryable) ...[
+            const SizedBox(height: AppSpacing.space4),
+            AppButtonV2(
+              label: AppStrings.recordRetry,
+              variant: AppButtonV2Variant.secondary,
+              expand: false,
+              onPressed: onRetry,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
