@@ -80,6 +80,7 @@ void main() {
     expect(ctaEnabled(tester), isTrue);
   });
 
+  // TODO(되살리기): 마케팅 동의를 되살리면 skip을 지운다.
   testWidgets('선택 항목은 CTA를 막지 않는다', (tester) async {
     await pumpPage(tester);
     await tap(tester, AppStrings.termsAge);
@@ -93,16 +94,18 @@ void main() {
 
     await tap(tester, AppStrings.termsMarketing);
     expect(ctaEnabled(tester), isTrue);
-  });
+  }, skip: true);
 
+  // TODO(되살리기): 마케팅 동의를 되살리면 skip을 지운다.
   testWidgets('선택 항목만 동의하면 계속할 수 없다', (tester) async {
     await pumpPage(tester);
 
     await tap(tester, AppStrings.termsMarketing);
 
     expect(ctaEnabled(tester), isFalse);
-  });
+  }, skip: true);
 
+  // TODO(되살리기): 마케팅 동의를 되살리면 skip을 지운다.
   testWidgets('필수만 켜면 전체 동의는 켜지지 않는다', (tester) async {
     await pumpPage(tester);
     await tap(tester, AppStrings.termsAge);
@@ -115,7 +118,7 @@ void main() {
     await tap(tester, AppStrings.termsAgreeAll);
 
     expect(ctaEnabled(tester), isTrue);
-  });
+  }, skip: true);
 
   testWidgets('하나라도 해제하면 다시 계속할 수 없다', (tester) async {
     await pumpPage(tester);
