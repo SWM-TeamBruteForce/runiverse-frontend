@@ -61,12 +61,13 @@ void main() {
   group('아래 두 칸', () {
     // 시안이 솔로·동행을 히어로 밖 칸 둘로 옮겼다(`158:2875` `158:2881`).
 
-    testWidgets('두 칸이 다 있다', (tester) async {
+    // TODO(되살리기): `친구랑 뛰기`를 되살리면 두 칸(2)·findsOneWidget으로 되돌린다.
+    testWidgets('혼자 칸만 있고 친구 칸은 숨겨져 있다', (tester) async {
       await pumpHome(tester);
 
-      expect(find.byType(ActionTileV2), findsNWidgets(2));
+      expect(find.byType(ActionTileV2), findsNWidgets(1));
       expect(find.text(AppStrings.homeSoloCta), findsOneWidget);
-      expect(find.text(AppStrings.homeWithFriendCta), findsOneWidget);
+      expect(find.text(AppStrings.homeWithFriendCta), findsNothing);
     });
 
     testWidgets('매칭을 누르면 등록 화면으로 간다', (tester) async {
