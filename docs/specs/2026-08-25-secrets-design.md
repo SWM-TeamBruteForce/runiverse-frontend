@@ -22,12 +22,13 @@ APK를 뜯으면 `--dart-define`이든 `.env`든 난독화를 했든 **꺼낼 �
 |---|---|---|
 | 네이버 지도 Client ID | **넣는다** | `config/*.json` → `--dart-define-from-file` |
 | 카카오 네이티브 앱 키 | **넣는다** | 위와 같음 + Gradle 프로퍼티(2-3) |
+| Meta 앱 ID·클라이언트 토큰 | **넣는다** | 위와 같음 + Gradle 프로퍼티(2-3) |
 | Access·Refresh Token | 실행 중 저장 | `flutter_secure_storage` (이미 그렇게 함) |
 | OAuth Client Secret | **금지** | 백엔드 환경변수 |
 | NCP·AWS Secret Key | **금지** | 서버 또는 CI Secret |
 | DB 비밀번호 · JWT 서명키 | **금지** | 백엔드에서만 |
 
-앞의 둘은 SDK가 앱에서 직접 쓰므로 넣을 수밖에 없다. 대신 **콘솔에서 패키지명으로
+앞의 셋은 SDK가 앱에서 직접 쓰므로 넣을 수밖에 없다. 지도·카카오는 **콘솔에서 패키지명으로
 묶어** 다른 앱이 훔쳐 써도 인증이 통과하지 않게 한다.
 
 > ⚠️ `ncp_iam_...`로 시작하는 IAM Access Key는 지도 Client ID와 **다른 값**이다.
@@ -68,6 +69,8 @@ void _requireInRelease(bool present, String name) {
 }
 ```
 
+Meta 키는 예외다. 없으면 릴리스에서도 Meta만 건너뛰고, 운영 빌드에 빠지는 것은 배포 CI가 막는다.
+
 ### 2-3. 카카오 키는 두 경로로 들어간다
 
 `--dart-define`은 Dart 코드만 본다. **매니페스트의 리다이렉트 스킴은 읽지 못한다** —
@@ -78,8 +81,9 @@ fvm flutter build apk --flavor prod --dart-define-from-file=config/prod.json \
                       -PKAKAO_NATIVE_APP_KEY=...
 ```
 
-⚠️ **`--dart-define-from-file` 하나로 끝나지 않는 유일한 키다.** 두 값이 어긋나면
-로그인 창은 뜨는데 돌아오지 못한다.
+⚠️ **`--dart-define-from-file` 하나로 끝나지 않는다.** 두 값이 어긋나면
+로그인 창은 뜨는데 돌아오지 못한다. Meta 앱 ID·클라이언트 토큰도 같은 이유로
+`-PMETA_APP_ID`·`-PMETA_CLIENT_TOKEN`을 따로 넘긴다(`../release.md`).
 
 ### 2-4. AI가 키 파일을 읽지 못하게 막는다
 

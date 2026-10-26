@@ -1,21 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <!--
-      ⚠️ 광고 식별자를 **쓰지 않는다.**
+      ⚠️ 광고 식별자는 **Meta만 읽는다.**
 
-      Play 데이터 안전 섹션에 광고 ID를 수집하지 않는다고 신고해 두었는데,
-      Firebase Analytics 가 아래 세 권한을 **자동으로 끼워 넣는다.** 남아 있으면
-      신고 내용과 어긋나 출시가 막힐 수 있다(노션 GA 도입 문서 ⚠️ 절).
+      Meta SDK가 광고 ID 권한(AD_ID·ACCESS_ADSERVICES_*)을 자기 매니페스트로
+      끼워 넣는다. Meta가 광고로 들어온 설치를 기기 단위로 잇는 데 쓴다.
+      예전에는 `tools:node="remove"`로 이 권한들을 뺐는데, 빼면 Meta가 설치를
+      잇지 못한다.
 
-      `tools:node="remove"` 는 병합된 매니페스트에서 그 줄을 빼라는 지시다 —
-      여기에 선언하지 않는 것만으로는 라이브러리 것이 그대로 들어온다.
+      ⚠️ **Play 데이터 안전 섹션의 광고 ID 신고가 이것과 맞아야 한다.** "수집하지
+      않음"으로 남아 있으면 출시가 막힐 수 있다.
+
+      Firebase Analytics는 여전히 광고 ID를 읽지 않는다 — 아래
+      `google_analytics_adid_collection_enabled`가 그것을 끈다.
     -->
-    <uses-permission android:name="com.google.android.gms.permission.AD_ID"
-        tools:node="remove" />
-    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID"
-        tools:node="remove" />
-    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_ATTRIBUTION"
-        tools:node="remove" />
     <!--
       위치 권한 — 1인 러닝의 거리·페이스가 GPS에서 나온다.
 
@@ -89,11 +87,35 @@
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false">
         <!--
-          권한을 빼는 것만으로는 모자라다. Analytics 가 광고 ID 를 **읽으려
-          시도하는 것** 자체를 끈다. 위 `tools:node="remove"` 와 짝이다.
+          Firebase Analytics 가 광고 ID 를 **읽으려 시도하는 것** 자체를 끈다.
+          권한은 Meta 때문에 들어와 있지만, 광고 ID 는 Meta만 쓴다.
         -->
         <meta-data
             android:name="google_analytics_adid_collection_enabled"
+            android:value="false" />
+        <!--
+          Meta SDK 설정. 값은 Gradle이 채운다(build.gradle.kts의 manifestPlaceholders).
+
+          ⚠️ 앱 ID 앞의 `fb`를 지우지 않는다. 숫자만 넣으면 안드로이드가 정수로
+          읽고, SDK가 "App Ids cannot be directly placed in the manifest"로 거부한다.
+          SDK가 `fb`를 떼고 읽는다.
+
+          ⚠️ **자동 시작·자동 기록을 끈다.** iOS는 추적 허용 창의 답을 받은 뒤에
+          시작해야 하고(설치 신호는 설치당 한 번, 그 순간의 허용 상태로 나간다),
+          키가 없는 개발 빌드는 아예 시작하지 않는다. 시작과 실행 기록은
+          main.dart가 직접 한다.
+        -->
+        <meta-data
+            android:name="com.facebook.sdk.ApplicationId"
+            android:value="fb${META_APP_ID}" />
+        <meta-data
+            android:name="com.facebook.sdk.ClientToken"
+            android:value="${META_CLIENT_TOKEN}" />
+        <meta-data
+            android:name="com.facebook.sdk.AutoInitEnabled"
+            android:value="false" />
+        <meta-data
+            android:name="com.facebook.sdk.AutoLogAppEventsEnabled"
             android:value="false" />
         <activity
             android:name=".MainActivity"
@@ -181,5 +203,12 @@
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="https"/>
         </intent>
+
+        <!-- Meta 설치 리퍼러 — 페이스북·인스타그램 앱에서 광고를 누른 기록을 읽어
+             설치를 그 광고에 잇는다. 위와 같은 이유로 선언하지 않으면 앱이
+             보이지 않는다. -->
+        <package android:name="com.facebook.katana"/>
+        <package android:name="com.instagram.android"/>
+        <package android:name="com.facebook.lite"/>
     </queries>
 </manifest>
