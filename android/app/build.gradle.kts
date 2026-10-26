@@ -57,6 +57,17 @@ android {
         // 초기화하지 않으므로(main.dart) 버튼이 그 상태로 눌리지는 않는다.
         manifestPlaceholders["KAKAO_NATIVE_APP_KEY"] =
             (project.findProperty("KAKAO_NATIVE_APP_KEY") as String?) ?: ""
+
+        // Meta 앱 ID·클라이언트 토큰. 카카오와 같은 이유로 Gradle 프로퍼티로 넘긴다.
+        //   flutter run -P META_APP_ID=... -P META_CLIENT_TOKEN=... --dart-define-from-file=...
+        //
+        // 없으면 빈 문자열이라 SDK가 앱을 알아보지 못한다. 앱은 계속 돌고 Meta만
+        // 빠진다 — config/*.json에 키를 넣고 이것을 빼먹으면 콘솔에
+        // `[meta] 시작 실패`가 찍힌다(main.dart).
+        manifestPlaceholders["META_APP_ID"] =
+            (project.findProperty("META_APP_ID") as String?) ?: ""
+        manifestPlaceholders["META_CLIENT_TOKEN"] =
+            (project.findProperty("META_CLIENT_TOKEN") as String?) ?: ""
     }
 
     signingConfigs {

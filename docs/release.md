@@ -49,6 +49,9 @@ android/app/src/prod/google-services.json    ios/Runner/Firebase/prod/GoogleServ
   파일이 없으면 빌드가 그 자리에서 멈춘다.
 - iOS 카카오·구글 로그인 복귀 스킴은 `Add URL Schemes` 빌드 단계가 `config/*.json`의 `KAKAO_NATIVE_APP_KEY`·`GOOGLE_IOS_CLIENT_ID`로
   `Info.plist`에 넣는다. 값이 없으면 경고만 남기고 빌드는 된다(그 로그인만 안 된다).
+- Meta 앱 ID·클라이언트 토큰도 같은 단계가 `META_APP_ID`·`META_CLIENT_TOKEN`으로 `Info.plist`에 넣는다. Android는
+  `-PMETA_APP_ID`·`-PMETA_CLIENT_TOKEN`으로 넘긴다(`flutter run`도 `-P`를 받는다). 키가 없으면 앱이 Meta를 시작하지 않는다.
+  로컬에는 dev Meta 앱 값을 넣는다 — 운영 값을 넣으면 개발 중 신호가 광고 수치에 섞인다.
 - iOS 릴리스 빌드는 마지막 `Upload Crashlytics Symbols` 빌드 단계가 dSYM을 Crashlytics에 올린다. 앱에 복사된
   `GoogleService-Info.plist`를 읽으므로 flavor를 따라간다. 스크립트를 못 찾으면 경고만 남기고 빌드는 된다(오류 위치만 못 읽는다).
   Android는 Crashlytics Gradle 플러그인이 릴리스 빌드의 매핑 파일을 올린다.
@@ -68,8 +71,8 @@ iOS는 TestFlight에 올린다. 두 job은 따로 돌아 한쪽이 실패해도 
   이미 올라간 쪽까지 다시 돌리면 번호가 겹쳐 거절된다. 업로드 단계에서 실패했으면 먼저 Play 내부 테스트·TestFlight에
   그 번호가 들어왔는지 보고, 없을 때만 다시 돌린다. 둘 다 새로 올리려면 Run workflow로 새로 돌린다.
 - 빌드 전에 `flutter analyze`·`flutter test`를 돌린다. 실패하면 두 플랫폼 다 빌드하지 않는다.
-- 업로드 전에 검사하고, 하나라도 틀리면 멈춘다. Android는 패키지·debuggable·서명 지문·서버 주소,
-  iOS는 번들 ID·빌드 번호·배포 서명·애플 로그인 권한·카카오·구글 복귀 스킴·Firebase 설정·서버 주소.
+- 업로드 전에 검사하고, 하나라도 틀리면 멈춘다. Android는 패키지·debuggable·Meta 앱 ID·클라이언트 토큰·서명 지문·서버 주소,
+  iOS는 번들 ID·빌드 번호·배포 서명·애플 로그인 권한·카카오·구글 복귀 스킴·Firebase 설정·Meta 앱 ID·클라이언트 토큰·추적 허용 문구·서버 주소.
 - iOS는 프로젝트의 자동 서명 대신 배포 인증서·프로파일로 서명한다(CI 머신은 매번 새로 떠서, 자동 서명이면 실행마다 개발 인증서가 새로 생긴다).
   **인증서와 프로파일은 1년마다 만료된다.** 만료되면 개발자 포털에서 새로 만들어 아래 Secret을 바꾼다.
 
@@ -83,6 +86,7 @@ CI에 필요한 값은 저장소 Settings → Environments → **`dev`** 에 있
 | Secret | `KAKAO_NATIVE_APP_KEY` · `NAVER_MAP_CLIENT_ID` · `GOOGLE_SERVER_CLIENT_ID` · `GOOGLE_IOS_CLIENT_ID` | `config/dev.json`과 같은 값 |
 | Secret | `GOOGLE_SERVICES_JSON` | Firebase `runiverse-dev`의 `google-services.json`. CI가 `android/app/src/dev/`에 둔다 |
 | Secret | `GOOGLE_SERVICE_INFO_PLIST` | Firebase `runiverse-dev`의 `GoogleService-Info.plist`. CI가 `ios/Runner/Firebase/dev/`에 둔다 |
+| Secret | `META_APP_ID` · `META_CLIENT_TOKEN` | dev용 Meta 개발자 앱의 앱 ID와 클라이언트 토큰(앱 설정 → 고급) |
 | Secret | `PLAY_SERVICE_ACCOUNT_JSON` | `Runiverse-dev` 앱에만 출시 권한이 있는 서비스 계정 |
 | Secret | `IOS_DIST_CERT_BASE64` · `IOS_DIST_CERT_PASSWORD` | Apple Distribution 인증서(개인 키 포함 p12) |
 | Secret | `IOS_PROFILE_BASE64` | `com.runiverse.app.dev`의 App Store 배포 프로파일 |
@@ -135,6 +139,7 @@ dev와 값이 같은 건 `ASC_ISSUER_ID`(팀 공통)뿐이고, 나머지는 운�
 | `UPLOAD_KEYSTORE_BASE64` · `UPLOAD_KEYSTORE_PASSWORD` · `UPLOAD_CERT_SHA1` | 운영 업로드 키(별칭 `upload`)와 그 지문 |
 | `KAKAO_NATIVE_APP_KEY` · `NAVER_MAP_CLIENT_ID` · `GOOGLE_SERVER_CLIENT_ID` · `GOOGLE_IOS_CLIENT_ID` | `config/prod.json`과 같은 값 |
 | `GOOGLE_SERVICES_JSON` · `GOOGLE_SERVICE_INFO_PLIST` | Firebase `runiverse` 프로젝트의 구성 파일 |
+| `META_APP_ID` · `META_CLIENT_TOKEN` | 운영 Meta 개발자 앱 `runiverse`의 앱 ID와 클라이언트 토큰 |
 | `PLAY_SERVICE_ACCOUNT_JSON` | 운영 앱에만 테스트 트랙 출시 권한이 있는 서비스 계정. 프로덕션 출시 권한은 없다 |
 | `IOS_DIST_CERT_BASE64` · `IOS_DIST_CERT_PASSWORD` | 운영용 Apple Distribution 인증서(개인 키 포함 p12) |
 | `IOS_PROFILE_BASE64` | `com.runiverse.app`의 App Store 배포 프로파일. 위 운영 인증서로 만든다 |
@@ -161,6 +166,8 @@ fvm flutter build appbundle --release --flavor prod --build-number=<N> \
 ```
 
 산출물은 `build/app/outputs/bundle/<flavor>Release/app-<flavor>-release.aab`다.
+위 명령은 Meta 키를 `-P`로 넘기지 않아 Android에서 Meta가 시작하지 못한다(앱은 돈다). Meta까지 확인하려면
+`-PMETA_APP_ID`·`-PMETA_CLIENT_TOKEN`을 같이 넘긴다.
 
 ## 버전
 

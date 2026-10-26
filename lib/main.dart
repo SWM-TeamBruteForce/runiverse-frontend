@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:facebook_app_events/facebook_app_events.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/analytics/firebase_analytics_service.dart';
@@ -130,6 +132,48 @@ void main() async {
       child: const RuniverseApp(),
     ),
   );
+
+  // Meta는 **첫 화면이 그려진 뒤에** 시작한다. iOS 추적 허용 창은 앱이 화면에
+  // 떠 있을 때만 뜨므로 `runApp` 전에 물으면 창 없이 답이 돌아온다.
+  // 기다리지 않는다 — 창이 떠 있는 동안에도 스플래시는 제 할 일을 한다.
+  WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_startMeta()));
+}
+
+/// Meta 광고로 들어온 설치를 Meta가 셀 수 있게 설치·실행 신호를 보낸다.
+///
+/// ## ⚠️ iOS는 추적 허용 창이 먼저다
+///
+/// 설치 신호는 **설치당 한 번**, 처음 [FacebookAppEvents.activateApp]을 부를
+/// 때 그 순간의 허용 상태를 싣고 나간다(Meta iOS SDK `publishInstall`). 창을
+/// 나중에 띄우면 사용자가 허용해도 설치 신호는 이미 "허용 안 함"으로 나간
+/// 뒤다. 두 번째 실행부터는 iOS가 창을 다시 띄우지 않고 저장된 답을 돌려준다.
+///
+/// 거절해도 Meta 시작과 실행 기록은 그대로 한다.
+///
+/// ## 키가 없으면 아무것도 하지 않는다
+///
+/// 창도 띄우지 않고 앱은 그대로 돈다([AppConfig.hasMetaAppId]).
+///
+/// ## 실패해도 앱은 멈추지 않는다
+///
+/// 광고 측정이 안 되는 것은 앱을 못 쓸 이유가 아니다. 오류는 버리지 않고
+/// Crashlytics에 남긴다.
+///
+/// ⚠️ 안드로이드에서 `config/*.json`에만 키를 넣고 `-P META_APP_ID`를
+/// 빼먹으면 여기서 실패한다. 매니페스트는 json을 읽지 못한다(build.gradle.kts).
+Future<void> _startMeta() async {
+  if (!AppConfig.hasMetaAppId) return;
+  try {
+    if (Platform.isIOS) {
+      await Permission.appTrackingTransparency.request();
+    }
+    final meta = FacebookAppEvents();
+    await meta.initializeSdk();
+    await meta.activateApp();
+  } catch (error, stack) {
+    debugPrint('[meta] 시작 실패: $error');
+    await FirebaseCrashlytics.instance.recordError(error, stack);
+  }
 }
 
 /// 릴리스 빌드에 [name]이 빠졌으면 멈춘다. 개발 빌드는 그냥 지나간다.

@@ -65,9 +65,9 @@ dependencies:
   # 런타임 권한을 요청한다. 위치는 geolocator가 자체 처리하지만 나머지는
   # 요청할 수단이 없었다.
   #
-  # 지금 쓰는 곳은 케이던스 하나다. 안드로이드는 `ACTIVITY_RECOGNITION`,
-  # iOS는 `sensors`를 요청한다.
+  # 케이던스는 안드로이드 `ACTIVITY_RECOGNITION`, iOS `sensors`를 요청한다.
   # 포그라운드 서비스 알림의 `POST_NOTIFICATIONS`도 이걸로 요청하게 된다.
+  # iOS 추적 허용(ATT)도 이걸로 묻는다 — Meta를 시작하기 전에(main.dart).
   #
   # ⚠️ **13.x로 올리지 않는다. 버전을 고정한다.** 13.0.0이 compileSdk 37을
   # 요구해 `checkDebugAarMetadata`에서 빌드가 깨진다 — flutter_secure_storage와
@@ -103,6 +103,14 @@ dependencies:
   # 막으므로(`X-App-Version`), 실제 설치본과 어긋나면 **업데이트를 했는데도
   # 업데이트하라는 화면**이 뜬다. 사람이 넣는 값은 어긋나도 아무도 모른다.
   package_info_plus: ^10.2.2
+  # Meta 광고로 들어온 설치를 Meta가 셀 수 있게 설치·실행 신호를 보낸다.
+  # 이것이 없으면 Meta는 설치를 모르고, 앱 광고가 설치 대신 링크 클릭에
+  # 최적화된다(Meta 비즈니스 도움말 444614902378217).
+  #
+  # ⚠️ **안드로이드는 Meta SDK 전체(로그인·공유 포함)를 끌어온다.** 플러그인이
+  # `facebook-android-sdk:[18.0,19.0)`를 범위로 잡아서, 빌드마다 18.x 안에서
+  # 버전이 달라질 수 있다.
+  facebook_app_events: ^0.31.0
 
 dev_dependencies:
   flutter_test:

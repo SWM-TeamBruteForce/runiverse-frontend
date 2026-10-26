@@ -110,10 +110,12 @@ jobs:
           NAVER_MAP_CLIENT_ID: ${{ secrets.NAVER_MAP_CLIENT_ID }}
           GOOGLE_SERVER_CLIENT_ID: ${{ secrets.GOOGLE_SERVER_CLIENT_ID }}
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_CLIENT_TOKEN: ${{ secrets.META_CLIENT_TOKEN }}
           API_BASE_URL: ${{ vars.API_BASE_URL }}
         run: |
           set -euo pipefail
-          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KAKAO_NATIVE_APP_KEY NAVER_MAP_CLIENT_ID GOOGLE_SERVER_CLIENT_ID GOOGLE_SERVICES_JSON API_BASE_URL; do
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KAKAO_NATIVE_APP_KEY NAVER_MAP_CLIENT_ID GOOGLE_SERVER_CLIENT_ID GOOGLE_SERVICES_JSON META_APP_ID META_CLIENT_TOKEN API_BASE_URL; do
             if [ -z "${!name}" ]; then echo "::error::$name이 비어 있다"; exit 1; fi
           done
 
@@ -131,7 +133,8 @@ jobs:
             --arg naver "$NAVER_MAP_CLIENT_ID" \
             --arg kakao "$KAKAO_NATIVE_APP_KEY" \
             --arg google "$GOOGLE_SERVER_CLIENT_ID" \
-            '{API_BASE_URL: $api, NAVER_MAP_CLIENT_ID: $naver, KAKAO_NATIVE_APP_KEY: $kakao, GOOGLE_SERVER_CLIENT_ID: $google}' \
+            --arg meta "$META_APP_ID" \
+            '{API_BASE_URL: $api, NAVER_MAP_CLIENT_ID: $naver, KAKAO_NATIVE_APP_KEY: $kakao, GOOGLE_SERVER_CLIENT_ID: $google, META_APP_ID: $meta}' \
             > config/dev.json
 
           # Firebase(runiverse-dev) 설정. dev flavor만 읽는 자리에 둔다
@@ -141,16 +144,22 @@ jobs:
       - name: Build app bundle
         env:
           KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_CLIENT_TOKEN: ${{ secrets.META_CLIENT_TOKEN }}
         run: |
           flutter build appbundle --release --flavor dev \
             --build-number=${{ needs.prepare.outputs.code }} \
             --dart-define-from-file=config/dev.json \
-            -PKAKAO_NATIVE_APP_KEY="$KAKAO_NATIVE_APP_KEY"
+            -PKAKAO_NATIVE_APP_KEY="$KAKAO_NATIVE_APP_KEY" \
+            -PMETA_APP_ID="$META_APP_ID" \
+            -PMETA_CLIENT_TOKEN="$META_CLIENT_TOKEN"
 
       - name: 산출물 검증
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
           UPLOAD_CERT_SHA1: ${{ vars.UPLOAD_CERT_SHA1 }} # dev 업로드 키의 공개 지문. 다른 키로 서명됐으면 멈춘다
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_CLIENT_TOKEN: ${{ secrets.META_CLIENT_TOKEN }}
         run: |
           set -euo pipefail
           [ -n "$UPLOAD_CERT_SHA1" ] || { echo "::error::UPLOAD_CERT_SHA1이 비어 있다"; exit 1; }
@@ -159,6 +168,9 @@ jobs:
 
           grep -q "package=\"$PACKAGE_NAME\"" "$MANIFEST" || { echo "::error::패키지가 $PACKAGE_NAME이 아니다"; exit 1; }
           if grep -q 'android:debuggable="true"' "$MANIFEST"; then echo "::error::debuggable 빌드다"; exit 1; fi
+          # Meta 값은 -P로 따로 들어간다. 빠지면 앱은 조용히 Meta 없이 돌아 광고 설치 측정이 꺼진다
+          grep -qF "android:value=\"fb$META_APP_ID\"" "$MANIFEST" || { echo "::error::Meta 앱 ID가 매니페스트에 없다"; exit 1; }
+          grep -qF "android:value=\"$META_CLIENT_TOKEN\"" "$MANIFEST" || { echo "::error::Meta 클라이언트 토큰이 매니페스트에 없다"; exit 1; }
 
           SHA1=$(keytool -printcert -jarfile "$AAB" | awk '/SHA1:/ && !found {print $2; found=1}')
           [ "$SHA1" = "$UPLOAD_CERT_SHA1" ] || { echo "::error::dev 업로드 키로 서명되지 않았다 ($SHA1)"; exit 1; }
@@ -228,20 +240,25 @@ jobs:
           GOOGLE_SERVER_CLIENT_ID: ${{ secrets.GOOGLE_SERVER_CLIENT_ID }}
           GOOGLE_IOS_CLIENT_ID: ${{ secrets.GOOGLE_IOS_CLIENT_ID }}
           GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_CLIENT_TOKEN: ${{ secrets.META_CLIENT_TOKEN }}
           API_BASE_URL: ${{ vars.API_BASE_URL }}
         run: |
           set -euo pipefail
-          for name in DIST_CERT_BASE64 DIST_CERT_PASSWORD PROFILE_BASE64 ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 KAKAO_NATIVE_APP_KEY NAVER_MAP_CLIENT_ID GOOGLE_SERVER_CLIENT_ID GOOGLE_IOS_CLIENT_ID GOOGLE_SERVICE_INFO_PLIST API_BASE_URL; do
+          for name in DIST_CERT_BASE64 DIST_CERT_PASSWORD PROFILE_BASE64 ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 KAKAO_NATIVE_APP_KEY NAVER_MAP_CLIENT_ID GOOGLE_SERVER_CLIENT_ID GOOGLE_IOS_CLIENT_ID GOOGLE_SERVICE_INFO_PLIST META_APP_ID META_CLIENT_TOKEN API_BASE_URL; do
             if [ -z "${!name}" ]; then echo "::error::$name이 비어 있다"; exit 1; fi
           done
 
+          # iOS는 Meta 토큰도 여기로 넘긴다. 빌드 단계 스크립트가 DART_DEFINES에서 읽어 Info.plist에 넣는다
           jq -n \
             --arg api "$API_BASE_URL" \
             --arg naver "$NAVER_MAP_CLIENT_ID" \
             --arg kakao "$KAKAO_NATIVE_APP_KEY" \
             --arg google "$GOOGLE_SERVER_CLIENT_ID" \
             --arg googleIos "$GOOGLE_IOS_CLIENT_ID" \
-            '{API_BASE_URL: $api, NAVER_MAP_CLIENT_ID: $naver, KAKAO_NATIVE_APP_KEY: $kakao, GOOGLE_SERVER_CLIENT_ID: $google, GOOGLE_IOS_CLIENT_ID: $googleIos}' \
+            --arg meta "$META_APP_ID" \
+            --arg metaToken "$META_CLIENT_TOKEN" \
+            '{API_BASE_URL: $api, NAVER_MAP_CLIENT_ID: $naver, KAKAO_NATIVE_APP_KEY: $kakao, GOOGLE_SERVER_CLIENT_ID: $google, GOOGLE_IOS_CLIENT_ID: $googleIos, META_APP_ID: $meta, META_CLIENT_TOKEN: $metaToken}' \
             > config/dev.json
 
           # Firebase(runiverse-dev) 설정. Copy Firebase Config 빌드 단계가 여기서 집는다
@@ -314,6 +331,8 @@ jobs:
       - name: 산출물 검증
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_CLIENT_TOKEN: ${{ secrets.META_CLIENT_TOKEN }}
         run: |
           set -euo pipefail
           APP="$ARCHIVE/Products/Applications/Runner.app"
@@ -334,6 +353,10 @@ jobs:
           echo "$SCHEMES" | grep -q 'kakao' || { echo "::error::카카오 복귀 스킴이 없다"; exit 1; }
           echo "$SCHEMES" | grep -q 'com.googleusercontent.apps.' || { echo "::error::구글 복귀 스킴이 없다"; exit 1; }
           [ -f "$APP/GoogleService-Info.plist" ] || { echo "::error::Firebase 설정이 앱에 없다"; exit 1; }
+          # Meta 설정이 빠지면 앱은 조용히 Meta 없이 돈다. 광고 설치 측정이 꺼지니 여기서 멈춘다
+          [ "$($PB -c 'Print :FacebookAppID' "$INFO")" = "$META_APP_ID" ] || { echo "::error::Meta 앱 ID가 환경 설정과 다르다"; exit 1; }
+          [ "$($PB -c 'Print :FacebookClientToken' "$INFO")" = "$META_CLIENT_TOKEN" ] || { echo "::error::Meta 클라이언트 토큰이 환경 설정과 다르다"; exit 1; }
+          $PB -c 'Print :NSUserTrackingUsageDescription' "$INFO" > /dev/null || { echo "::error::추적 허용 문구가 없다"; exit 1; }
 
           # 파일로 받아 검사한다. pipefail에서 `strings | grep -q`는 grep이 먼저 끝나 SIGPIPE(141)로 실패한다
           STRINGS="$RUNNER_TEMP/app-strings.txt"
