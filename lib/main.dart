@@ -133,9 +133,8 @@ void main() async {
     ),
   );
 
-  // Meta는 **첫 화면이 그려진 뒤에** 시작한다. iOS 추적 허용 창은 앱이 화면에
-  // 떠 있을 때만 뜨므로 `runApp` 전에 물으면 창 없이 답이 돌아온다.
-  // 기다리지 않는다 — 창이 떠 있는 동안에도 스플래시는 제 할 일을 한다.
+  // Meta는 **첫 화면이 그려진 뒤에** 시작한다. 기다리지 않는다 — 창이 떠 있는
+  // 동안에도 스플래시는 제 할 일을 한다.
   WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_startMeta()));
 }
 
@@ -165,7 +164,7 @@ Future<void> _startMeta() async {
   if (!AppConfig.hasMetaAppId) return;
   try {
     if (Platform.isIOS) {
-      await Permission.appTrackingTransparency.request();
+      await _askTracking();
     }
     final meta = FacebookAppEvents();
     await meta.initializeSdk();
@@ -174,6 +173,21 @@ Future<void> _startMeta() async {
     debugPrint('[meta] 시작 실패: $error');
     await FirebaseCrashlytics.instance.recordError(error, stack);
   }
+}
+
+/// iOS 추적 허용 창을 띄운다.
+///
+/// ⚠️ 이 창은 앱이 활성일 때만 뜬다. 첫 화면이 그려진 직후는 활성이 보장되지
+/// 않아서, 실기기에서 창이 뜰 때도 있고 안 뜰 때도 있었다. 활성
+/// ([AppLifecycleState.resumed])이 될 때까지 기다렸다가 묻는다.
+Future<void> _askTracking() async {
+  if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+    final resumed = Completer<void>();
+    final listener = AppLifecycleListener(onResume: resumed.complete);
+    await resumed.future;
+    listener.dispose();
+  }
+  await Permission.appTrackingTransparency.request();
 }
 
 /// 릴리스 빌드에 [name]이 빠졌으면 멈춘다. 개발 빌드는 그냥 지나간다.
