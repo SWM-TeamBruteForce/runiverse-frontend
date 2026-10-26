@@ -164,8 +164,7 @@ Future<void> _startMeta() async {
   if (!AppConfig.hasMetaAppId) return;
   try {
     if (Platform.isIOS) {
-      await _waitUntilResumed();
-      await Permission.appTrackingTransparency.request();
+      await _askTracking();
     }
     final meta = FacebookAppEvents();
     await meta.initializeSdk();
@@ -176,18 +175,19 @@ Future<void> _startMeta() async {
   }
 }
 
-/// 앱이 활성 상태([AppLifecycleState.resumed])가 될 때까지 기다린다.
+/// iOS 추적 허용 창을 띄운다.
 ///
-/// ⚠️ iOS 추적 허용 창은 앱이 활성일 때만 뜬다. 첫 화면이 그려진 직후는 활성이
-/// 보장되지 않아서, 실기기에서 창이 뜰 때도 있고 안 뜰 때도 있었다.
-Future<void> _waitUntilResumed() async {
-  if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
-    return;
+/// ⚠️ 이 창은 앱이 활성일 때만 뜬다. 첫 화면이 그려진 직후는 활성이 보장되지
+/// 않아서, 실기기에서 창이 뜰 때도 있고 안 뜰 때도 있었다. 활성
+/// ([AppLifecycleState.resumed])이 될 때까지 기다렸다가 묻는다.
+Future<void> _askTracking() async {
+  if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+    final resumed = Completer<void>();
+    final listener = AppLifecycleListener(onResume: resumed.complete);
+    await resumed.future;
+    listener.dispose();
   }
-  final resumed = Completer<void>();
-  final listener = AppLifecycleListener(onResume: resumed.complete);
-  await resumed.future;
-  listener.dispose();
+  await Permission.appTrackingTransparency.request();
 }
 
 /// 릴리스 빌드에 [name]이 빠졌으면 멈춘다. 개발 빌드는 그냥 지나간다.
