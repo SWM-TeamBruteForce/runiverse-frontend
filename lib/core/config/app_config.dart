@@ -94,6 +94,24 @@ class AppConfig {
   /// 카카오에서 겪은 것과 같은 함정이다.
   static bool get hasNaverMapClientId => naverMapClientId.isNotEmpty;
 
+  /// Meta 앱 ID. Meta 광고로 들어온 설치를 셀 때 쓴다.
+  ///
+  /// dev·prod 값이 다르다(Meta 앱이 환경마다 따로 있다). 로컬 개발 빌드는
+  /// dev 값을 넣는다. ⚠️ 운영 값을 넣지 않는다 — 개발 중 실행 신호가 광고
+  /// 수치에 섞인다.
+  ///
+  /// ⚠️ **안드로이드 매니페스트와 iOS Info.plist에도 같은 값이 필요하다.**
+  /// 둘 다 `--dart-define`을 읽지 못해서다. 안드로이드는 Gradle 프로퍼티
+  /// (`-PMETA_APP_ID=...`)로, iOS는 빌드 단계 스크립트가 넣는다. 클라이언트
+  /// 토큰(`META_CLIENT_TOKEN`)도 같은 길로 가고, Dart는 읽지 않는다.
+  static const metaAppId = String.fromEnvironment('META_APP_ID');
+
+  /// Meta를 시작해도 되는가.
+  ///
+  /// 카카오·지도와 달리 **릴리스에서도 없으면 멈추지 않는다.** 광고 측정이
+  /// 빠진 것은 앱을 못 쓸 이유가 아니다. 운영 빌드에 빠지는 것은 CI가 막는다.
+  static bool get hasMetaAppId => metaAppId.isNotEmpty;
+
   /// WebSocket 주소. [apiBaseUrl]에서 파생한다.
   ///
   /// 주소를 따로 주입하지 않는 이유는 **둘이 어긋날 자리를 만들지 않기
