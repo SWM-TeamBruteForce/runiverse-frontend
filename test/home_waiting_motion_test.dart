@@ -50,6 +50,13 @@ void main() {
   /// 첫 글자만 그리고, 부제는 머릿수만 말한다.
   Finder celebrates(String nickname) => find.text(nickname);
 
+  /// 아직 사람이 안 들어온 빈 자리.
+  Finder emptySlots() => find.byWidgetPredicate(
+    (w) =>
+        w.key is ValueKey<String> &&
+        (w.key! as ValueKey<String>).value.startsWith('home-waiting-empty'),
+  );
+
   group('합류 축하', () {
     testWidgets('파티원이 늘면 닉네임과 함께 뜬다', (tester) async {
       await tester.pumpWidget(appOf(meAlone));
@@ -133,18 +140,65 @@ void main() {
     });
   });
 
+  group('찾는 중인 빈 자리', () {
+    testWidgets('⚠️ 혼자 기다리는 동안에도 빈 원이 돈다', (tester) async {
+      // 아무도 없을 때 둘레가 텅 비면 **찾고 있는 것인지 멈춘 것인지** 알 수
+      // 없다. 신청 직후가 가장 오래 보는 화면인데 거기가 정지 화면이었다.
+      await tester.pumpWidget(appOf(meAlone));
+      expect(emptySlots(), findsNWidgets(3));
+
+      final before = tester.getCenter(emptySlots().first);
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(
+        (tester.getCenter(emptySlots().first) - before).distance,
+        greaterThan(8),
+        reason: '빈 원도 사람 원과 같이 움직인다',
+      );
+    });
+
+    testWidgets('사람이 들어온 자리는 빈 원이 비켜준다', (tester) async {
+      // 빈 원이 그대로 남으면 들어온 사람 위에 겹친다.
+      await tester.pumpWidget(appOf(withMinsu));
+
+      expect(emptySlots(), findsNWidgets(2));
+    });
+  });
+
   group('맴도는 원', () {
     testWidgets('⚠️ 시간이 지나면 자리를 옮긴다', (tester) async {
       await tester.pumpWidget(appOf(withMinsu));
       final before = tester.getCenter(find.text('민'));
 
-      await tester.pump(const Duration(seconds: 3));
+      await tester.pump(const Duration(seconds: 1));
       final after = tester.getCenter(find.text('민'));
 
       expect(
         (after - before).distance,
         greaterThan(8),
-        reason: '3초면 눈에 띄게 움직인다',
+        reason: '1초만 봐도 움직이는 것이 보여야 한다',
+      );
+    });
+
+    testWidgets('⚠️ 원마다 따로 움직인다', (tester) async {
+      // 같은 위상으로 흔들면 셋이 한 몸처럼 기울어진다 — 움직임이 아니라
+      // 화면이 흔들리는 것으로 보인다.
+      await tester.pumpWidget(
+        appOf(
+          roomOf([player('me', '지환'), player('u2', '민수'), player('u3', '하늘')]),
+        ),
+      );
+      final minsu = tester.getCenter(find.text('민'));
+      final haneul = tester.getCenter(find.text('하'));
+
+      await tester.pump(const Duration(milliseconds: 900));
+
+      final movedMinsu = (tester.getCenter(find.text('민')) - minsu).distance;
+      final movedHaneul = (tester.getCenter(find.text('하')) - haneul).distance;
+      expect(
+        (movedMinsu - movedHaneul).abs(),
+        greaterThan(4),
+        reason: '위상이 같으면 둘이 똑같이 움직인다',
       );
     });
 

@@ -29,13 +29,16 @@ import 'package:runiverse/features/matching/domain/room_info.dart';
 /// CLAUDE.md 가 파티원에 순위를 붙이지 말라고 못 박는다 — 동행이지 경쟁이
 /// 아니다. 디자인 확인이 필요하다.
 ///
-/// ## ⚠️ 움직이는 것은 프로필 사진 원뿐이다
+/// ## ⚠️ 움직이는 것은 둘레의 원뿐이다
 ///
 /// 동심원 배경·글자·버튼은 시안 그대로 가만히 있는다. 움직임을 더한 것은
-/// 셋뿐이다.
+/// 넷뿐이다.
 ///
-/// - **둘레 원이 맴돈다** — 18초에 한 바퀴. 보고 있으면 움직이는 게 보이고,
-///   곁눈으로는 가만한 속도다. 대기를 초조하게 만들 자리가 아니다.
+/// - **둘레 원이 저마다 맴돈다** — 자리마다 위상·폭이 달라 한 몸처럼 기울지
+///   않는다. 각도(6.2초)와 반지름(4.1초)이 따로 도는 탓에 같은 길을 되밟는
+///   것으로 보이지 않는다.
+/// - **빈 자리도 돈다** — 아직 아무도 없을 때 둘레가 텅 비면 **찾고 있는
+///   것인지 멈춘 것인지** 알 수 없다. 신청 직후가 가장 오래 보는 화면이다.
 /// - **가운데 내 원이 숨 쉰다** — 테두리 빛이 들고 난다. 원 자체는 손대지
 ///   않는다. 사진이 커졌다 작아지면 출렁이는 것으로 보인다.
 /// - **파티원이 늘면 한가운데 축하가 뜬다** — 1.92초. 그동안에도 궤도는
@@ -82,32 +85,64 @@ class HomeWaiting extends StatefulWidget {
   static const _otherSize = 80.0;
   static const _orbit = 165.0;
 
+  /// 아직 아무도 안 들어온 자리의 크기.
+  ///
+  /// 사람 원보다 작다 — **비어 있다는 말을 크기로 한다.** 같은 크기로 두면
+  /// 테두리만 보고 사람인지 빈자리인지 가려야 한다. 작게 두면 글자·버튼과
+  /// 부딪칠 일도 그만큼 준다.
+  static const _emptySize = 56.0;
+
   /// 시안이 쓴 세 각도(도). 넷째부터는 고르게 나눈다.
   static const _angles = [-22.9, 121.8, 202.8];
 
-  /// 둘레가 한 번 왕복하는 데 걸리는 시간.
+  /// 각도가 한 번 왕복하는 데 걸리는 시간.
   ///
   /// ⚠️ **모션 토큰에 없는 값이다.** `AppMotion`의 가장 긴 것이 1.2초라
-  /// 여기 쓸 눈금이 없다. 보고 있으면 움직이는 게 보이고 곁눈으로는 가만해
-  /// 보이는 속도로 골랐다.
-  static const _orbitPeriod = Duration(seconds: 18);
-
-  /// 자리에서 흔들리는 폭(도).
+  /// 여기 쓸 눈금이 없다.
   ///
-  /// ## ⚠️ 한 바퀴를 다 돌지 않는다
+  /// ⚠️ **18초는 너무 느렸다.** 1초에 6px이라 보고 있어도 움직이는지
+  /// 아리송했다(기기에서 확인). 기다리는 화면이라 서두를 자리는 아니지만,
+  /// 멈춘 것처럼 보이면 움직임을 넣은 뜻이 없다.
+  static const _orbitPeriod = Duration(milliseconds: 6200);
+
+  /// 반지름이 드나드는 주기.
+  ///
+  /// ⚠️ **[_orbitPeriod]의 배수가 아니다.** 배수로 두면 둘이 맞물려 같은
+  /// 길을 되밟고, 그러면 원이 정해진 궤도를 도는 것으로 보인다.
+  static const _driftPeriod = Duration(milliseconds: 4100);
+
+  /// 자리마다 흔들 폭(도). 사인을 이 범위로 편다.
+  ///
+  /// ## ⚠️ 폭이 자리마다 다르고, 가운데가 시안 자리가 아니다
   ///
   /// 돌려 보니 **흰 원이 제목·부제 위를 지나갔다.** 글자도 흰색이라 지나가는
   /// 동안 읽을 수 없다. 시안이 세 사람을 좌우 바깥([_angles])에 둔 것은
-  /// 가운데 위 글자를 피하려는 배치인데, 한 바퀴를 돌면 그 자리를 통과한다.
+  /// 가운데 위 글자를 피하려는 배치다.
   ///
-  /// 그래서 **시안이 정한 자리 근처에서 흔든다.**
+  /// 처음엔 시안 자리를 가운데 두고 ±6°로 좁혔는데, 좁히니 움직임이 안 보이고
+  /// 넓히면 글자를 가렸다. **폭이 문제가 아니라 방향이 문제였다** — 위로 가는
+  /// 쪽만 글자와 부딪친다.
   ///
-  /// ⚠️ **±10°는 넓었다.** 오른쪽 사람이 위로 갈 때 부제의 끝 두 글자를
-  /// 가렸다(기기에서 확인). 시안은 세 사람을 글자와 버튼 사이 빈 자리에
-  /// 끼워 넣은 배치라, 어느 쪽으로 움직여도 한쪽 여백이 줄어든다 — 위로는
-  /// 글자, 아래로는 버튼이다. ±6°(호를 따라 약 17px)가 둘 다 건드리지 않는
-  /// 선이다.
-  static const _swayDegrees = 6.0;
+  /// 그래서 **시안 자리를 흔들림의 한쪽 끝으로 삼고, 반대쪽으로만 편다.**
+  /// 1번 자리(오른쪽 위)는 시계방향이 아래로 내려가는 쪽, 3번(왼쪽 위)은
+  /// 반대다. 2번(왼쪽 아래)만 아래가 CTA라 위로 편다.
+  static const _sways = [(0.0, 16.0), (0.0, 18.0), (-16.0, 0.0)];
+
+  /// 자리가 넷 이상일 때(고르게 나눌 때) 쓸 폭. 어느 자리가 글자를 지나는지
+  /// 알 수 없으니 좁게 둔다.
+  static const _swayFallback = (-8.0, 8.0);
+
+  /// 반지름이 드나드는 폭(px).
+  ///
+  /// ⚠️ **안쪽이 넓다.** 바깥으로 밀면 위쪽 두 자리가 카드 모서리와 글자 끝
+  /// 쪽으로 간다. 안쪽은 가운데 내 원(지름 135)까지 아직 여유가 있다.
+  static const _driftIn = -16.0;
+  static const _driftOut = 5.0;
+
+  /// 자리마다 어긋나게 둘 위상(바퀴 수). 황금비라 몇 자리를 늘어놓아도
+  /// 겹치지 않는다.
+  static const _spinPhase = 0.618;
+  static const _driftPhase = 0.382;
 
   /// 가운데 원이 숨 쉬는 주기. 궤도와 배수 관계가 아니라 둘이 맞물려
   /// 반복하는 것처럼 보이지 않는다.
@@ -129,6 +164,15 @@ class _HomeWaitingState extends State<HomeWaiting>
     vsync: this,
     duration: HomeWaiting._orbitPeriod,
   )..repeat();
+
+  /// 반지름을 드나들게 하는 쪽. [_spin]과 따로 돌아야 궤도가 닫히지 않는다.
+  late final AnimationController _drift = AnimationController(
+    vsync: this,
+    duration: HomeWaiting._driftPeriod,
+  )..repeat();
+
+  /// 둘레 원이 지켜볼 것 — 각도와 반지름 둘 다다.
+  late final Listenable _wander = Listenable.merge([_spin, _drift]);
 
   late final AnimationController _pulse = AnimationController(
     vsync: this,
@@ -184,17 +228,53 @@ class _HomeWaitingState extends State<HomeWaiting>
   void dispose() {
     _celebrateTimer?.cancel();
     _spin.dispose();
+    _drift.dispose();
     _pulse.dispose();
     super.dispose();
   }
 
-  /// 지금 흔들린 각도(라디안). 사인이라 끝에서 느려졌다 돌아온다 —
-  /// 등속으로 왕복하면 양 끝에서 멈칫하는 것이 눈에 띈다.
-  double get _sway =>
-      math.sin(_spin.value * 2 * math.pi) *
-      HomeWaiting._swayDegrees *
-      math.pi /
-      180;
+  /// 자리 [index]가 지금 있는 곳 — 가운데에서 밀어낼 거리.
+  ///
+  /// 각도와 반지름이 주기가 다른 사인 둘이라, 원은 호를 따라 왕복하면서 동시에
+  /// 들락거린다 — 눈에는 정해진 길 없이 떠도는 것으로 보인다.
+  Offset _wanderOf(int index, int total) {
+    final (lo, hi) = _swayOf(index, total);
+    final angle =
+        _angleOf(index, total) +
+        _sinBetween(_spin, index * HomeWaiting._spinPhase, lo, hi) *
+            math.pi /
+            180;
+    final radius =
+        HomeWaiting._orbit +
+        _sinBetween(
+          _drift,
+          index * HomeWaiting._driftPhase,
+          HomeWaiting._driftIn,
+          HomeWaiting._driftOut,
+        );
+    return Offset(radius * math.cos(angle), radius * math.sin(angle));
+  }
+
+  /// 아직 안 찬 자리의 테두리가 지금 얼마나 짙은가.
+  ///
+  /// 들고 나는 것이 "찾는 중"이라는 말이다. 반지름과 다른 위상을 줘서 크기와
+  /// 짙기가 같이 커졌다 작아지지 않는다.
+  double _breathOf(int index) =>
+      _sinBetween(_drift, index * HomeWaiting._driftPhase + .25, .16, .34);
+
+  /// [c]의 사인을 [lo]~[hi] 범위로 편다. [phase]만큼 어긋나게 돈다.
+  ///
+  /// 사인이라 끝에서 느려졌다 돌아온다 — 등속으로 왕복하면 양 끝에서 멈칫하는
+  /// 것이 눈에 띈다.
+  static double _sinBetween(
+    AnimationController c,
+    double phase,
+    double lo,
+    double hi,
+  ) {
+    final s = math.sin((c.value + phase) * 2 * math.pi);
+    return lo + (hi - lo) * (s + 1) / 2;
+  }
 
   /// 나를 뺀 둘레 사람들.
   ///
@@ -220,6 +300,14 @@ class _HomeWaitingState extends State<HomeWaiting>
         others.add(player);
       }
     }
+    // 둘레에 깔 자리 수. 사람이 덜 찼으면 **빈 자리로 채운다** — 시안이 놓은
+    // 셋이 기본이고, 그보다 많이 오면 사람 수만큼만 둔다.
+    //
+    // ⚠️ **방 정원을 모른다.** 서버가 2~4명으로 편성한다는 것만 알고 응답에
+    // 정원 필드가 없다. 그래서 빈 원 셋은 "자리가 셋 남았다"는 약속이 아니라
+    // 찾고 있다는 그림이다 — 둘짜리 방으로 확정돼도 틀린 말이 되지 않게.
+    // 디자인 확인이 필요하다.
+    final slots = math.max(others.length, HomeWaiting._angles.length);
 
     return ClipRRect(
       borderRadius: AppRadius.card,
@@ -243,7 +331,7 @@ class _HomeWaitingState extends State<HomeWaiting>
             // 돈다 — 거꾸로 돌려 세울 레이어가 필요 없다.
             for (final (index, player) in others.indexed)
               AnimatedBuilder(
-                animation: _spin,
+                animation: _wander,
                 // ⚠️ **아바타는 `child`로 넘긴다.** builder 안에서 만들면
                 // 프레임마다 사진 위젯이 새로 서고, 네트워크 이미지가 매번
                 // 다시 붙는다.
@@ -252,9 +340,25 @@ class _HomeWaitingState extends State<HomeWaiting>
                   imageUrl: player.profileImageUrl,
                   size: HomeWaiting._otherSize,
                 ),
-                builder: (context, child) => _Orbiting(
-                  angle: _angleOf(index, others.length) + _sway,
-                  child: child!,
+                builder: (context, child) =>
+                    _Orbiting(offset: _wanderOf(index, slots), child: child!),
+              ),
+
+            // 아직 안 찬 자리. **사람 뒤에 그린다** — 자리가 겹칠 일은 없지만
+            // 순서를 사람 먼저로 둬야 들어오는 쪽이 위가 된다.
+            //
+            // ⚠️ **이 원은 `child`로 넘기지 못한다.** 테두리 짙기가 프레임마다
+            // 바뀐다. 사진도 네트워크 이미지도 없는 테두리 하나라 매 프레임
+            // 세워도 값이 싸다.
+            for (var index = others.length; index < slots; index++)
+              AnimatedBuilder(
+                animation: _wander,
+                builder: (context, _) => _Orbiting(
+                  offset: _wanderOf(index, slots),
+                  child: _SearchingSlot(
+                    key: ValueKey('home-waiting-empty-$index'),
+                    alpha: _breathOf(index),
+                  ),
                 ),
               ),
 
@@ -369,6 +473,15 @@ class _HomeWaitingState extends State<HomeWaiting>
     );
   }
 
+  /// 자리 [index]가 흔들릴 폭(도).
+  ///
+  /// 시안이 쓴 셋은 자리마다 다르고([HomeWaiting._sways]), 그보다 많아지면
+  /// 어느 자리가 글자를 지나는지 알 수 없어 좁게 둔다.
+  static (double, double) _swayOf(int index, int total) =>
+      total <= HomeWaiting._angles.length
+      ? HomeWaiting._sways[index]
+      : HomeWaiting._swayFallback;
+
   /// 둘레 자리의 각도(라디안).
   ///
   /// 시안이 쓴 셋까지는 그대로 쓰고, 그보다 많아지면 고르게 나눈다.
@@ -477,24 +590,48 @@ class _Celebration extends StatelessWidget {
   static const _avatarSize = 44.0;
 }
 
-/// 가운데에서 [angle] 방향으로 궤도 반지름만큼 밀어낸다.
+/// 가운데에서 [offset]만큼 밀어낸다.
 ///
 /// ⚠️ **카드 밖으로 걸쳐도 둔다.** 시안도 왼쪽 사람을 카드 밖까지 내보낸다 —
 /// 둘레가 화면보다 넓다는 느낌이 거기서 나온다. 바깥은 `ClipRRect`가 자른다.
 class _Orbiting extends StatelessWidget {
-  const _Orbiting({required this.angle, required this.child});
+  const _Orbiting({required this.offset, required this.child});
 
-  final double angle;
+  final Offset offset;
   final Widget child;
 
   @override
+  Widget build(BuildContext context) =>
+      Transform.translate(offset: offset, child: child);
+}
+
+/// 아직 아무도 안 들어온 자리 — 테두리만 있는 원.
+///
+/// ## ⚠️ 속을 비워 둔다
+///
+/// 채워 그리면 사진이 안 뜬 사람으로 읽힌다. 테두리뿐인 원은 **자리는 있는데
+/// 아직 비었다**는 말을 글자 없이 한다. [alpha]가 들고 나는 것이 "찾는
+/// 중"이라는 말이다.
+class _SearchingSlot extends StatelessWidget {
+  const _SearchingSlot({required this.alpha, super.key});
+
+  /// 테두리 짙기. 프레임마다 바뀐다.
+  final double alpha;
+
+  @override
   Widget build(BuildContext context) {
-    return Transform.translate(
-      offset: Offset(
-        HomeWaiting._orbit * math.cos(angle),
-        HomeWaiting._orbit * math.sin(angle),
+    final colors = context.appColorsV2;
+
+    return Container(
+      width: HomeWaiting._emptySize,
+      height: HomeWaiting._emptySize,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: colors.textStrong.withValues(alpha: alpha),
+          width: 2,
+        ),
       ),
-      child: child,
     );
   }
 }
