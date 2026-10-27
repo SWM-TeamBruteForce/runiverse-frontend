@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/session/domain/combo_milestone.dart';
 import 'package:runiverse/features/session/domain/party_board.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
@@ -133,15 +134,41 @@ class PartyController extends Notifier<PartyBoard> {
     });
     _combos = channel.combos.listen((update) {
       final before = state.combos.keys.toSet();
+      final beforeCombo = state.currentCombo;
       state = state.withCombos(update);
-      // 콤보가 새로 이어지거나 끊긴 순간에만 한 번 울린다. 통지는 10초마다
-      // 오는데 그때마다 울리면 달리는 내내 진동한다. 소리는 범위 밖이다.
-      if (!before.containsAll(state.combos.keys) ||
-          !state.combos.keys.toSet().containsAll(before)) {
+
+      // ⚠️ **끊김이 먼저다.** 둘이 한 통지에 겹치면(누가 빠지고 남은 상대가
+      // 눈금을 넘는 경우) 연달아 두 번 떨려 무슨 뜻인지 알 수 없다. 풀린 것은
+      // 달리는 사람이 할 일이 있다는 신호고, 눈금은 칭찬이다.
+      if (!state.combos.keys.toSet().containsAll(before)) {
         unawaited(HapticFeedback.mediumImpact());
+        return;
+      }
+
+      // 통지는 10초마다 오는데 그때마다 울리면 달리는 내내 진동한다. 눈금을
+      // 넘을 때만 울린다 — 1·3·5·10, 그다음은 10마다. 소리는 범위 밖이다.
+      //
+      // ⚠️ **눈금은 가장 높은 콤보 하나로 센다.** 상대마다 세면 4명 방에서
+      // 30초에 세 번 떨리고, 어느 상대 것인지도 구분되지 않는다.
+      if (comboMilestonePassed(
+        before: beforeCombo,
+        after: state.currentCombo,
+      )) {
+        unawaited(_comboHaptic(state.comboHeadcount));
       }
     });
   }
+
+  /// 콤보 눈금을 알리는 진동. **함께 이어진 사람이 많을수록 세다.**
+  ///
+  /// ⚠️ **세기만으로 구분된다.** 달리는 동안 폰은 암밴드나 주머니에 있어서,
+  /// 기기에 따라 light 와 medium 의 차이가 거의 안 느껴질 수 있다. 기기에서
+  /// 구분이 안 되면 세기 대신 **울리는 횟수**로 바꾸는 편이 확실하다.
+  Future<void> _comboHaptic(int headcount) => switch (headcount) {
+    <= 2 => HapticFeedback.lightImpact(),
+    3 => HapticFeedback.mediumImpact(),
+    _ => HapticFeedback.heavyImpact(),
+  };
 
   /// 로그인할 때 받아 둔 내 번호. **서버가 알려주기를 기다리지 않는다.**
   ///
