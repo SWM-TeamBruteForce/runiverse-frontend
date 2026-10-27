@@ -549,6 +549,20 @@ abstract final class AppStrings {
   /// 그때 `0명의 러너가 준비를 하고 있어요`라고 적으면 말이 안 된다.
   static const homeMatchWaitingAlone = '아직 함께 달릴 러너를 찾고 있어요';
 
+  /// `민수님과 매칭성공!` — 파티원이 **늘어난 순간** 히어로 한가운데 뜬다.
+  ///
+  /// ⚠️ **머릿수의 문구가 아니라 사건의 문구다.** 화면에 들어올 때마다
+  /// 띄우면 축하가 아니라 머릿수 안내가 된다.
+  ///
+  /// ⚠️ **긴 닉네임은 이 문자열로 자르지 않는다.** 16자까지 받으므로
+  /// 문장을 통째로 줄이면 정작 알려야 할 `매칭성공!`이 먼저 잘린다. 화면이
+  /// 닉네임과 [homeMatchSuccessSuffix]를 따로 세우고 **닉네임만** 줄인다.
+  static String homeMatchSuccess(String nickname) =>
+      '$nickname$homeMatchSuccessSuffix';
+
+  /// 닉네임 뒤에 붙는 고정 부분. **잘리지 않는 쪽**이다.
+  static const homeMatchSuccessSuffix = '님과 매칭성공!';
+
   /// 잠긴 CTA. 누를 수 없고, 지금 무엇을 하는 중인지만 말한다.
   static const homeMatchWaitingCta = '매칭 대기중';
 
