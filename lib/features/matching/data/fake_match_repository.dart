@@ -2,8 +2,8 @@ import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/match_repository.dart';
 import 'package:runiverse/features/matching/domain/match_slot.dart';
+import 'package:runiverse/features/matching/domain/slot_board.dart';
 import 'package:runiverse/features/matching/domain/slot_load_failure.dart';
-import 'package:runiverse/features/matching/domain/target_distance.dart';
 
 /// 서버 없이 매칭 등록을 돌려보기 위한 가짜.
 ///
@@ -15,10 +15,10 @@ class FakeMatchRepository implements MatchRepository {
     this.applyFailure,
     this.cancelFailure,
     this.cooldownUntil,
-    List<MatchSlot>? slotList,
-  }) : slotList = slotList ?? defaultSlots();
+    SlotBoard? board,
+  }) : board = board ?? defaultBoard();
 
-  /// 기본 시간대 셋.
+  /// 기본 판. **거리 셋 × 시각 셋**이다.
   ///
   /// ## ⚠️ 18:00~22:00을 쓰지 않는다
   ///
@@ -26,13 +26,42 @@ class FakeMatchRepository implements MatchRepository {
   /// **일부러 다른 시각**을 써서, 앱 어딘가가 운영값을 전제하면 테스트가
   /// 깨지게 한다.
   ///
-  /// 대기 인원에 **0이 하나 섞여 있다** — "0이면 안 그린다"를 따로 꾸미지 않고
-  /// 바로 확인할 수 있다. 합계는 7이다.
-  static List<MatchSlot> defaultSlots() => [
-    slotAt('10:00', waiting: 3),
-    slotAt('10:30', waiting: 0),
-    slotAt('11:00', waiting: 4),
-  ];
+  /// 대기 인원에 **0이 두 층으로 섞여 있다** — 한 칸이 0인 자리(10:00 × 10km)와
+  /// 시각 합계가 0인 자리(10:30)다. "0이면 안 그린다"를 시트와 버튼 양쪽에서
+  /// 따로 꾸미지 않고 바로 확인할 수 있다.
+  ///
+  /// | | 10:00 | 10:30 | 11:00 |
+  /// |---|---|---|---|
+  /// | 3km | 3 | 0 | 4 |
+  /// | 5km | 2 | 0 | 1 |
+  /// | 10km | 0 | 0 | 1 |
+  /// | **합계** | **5** | **0** | **6** |
+  static SlotBoard defaultBoard() => SlotBoard([
+    DistanceSlots(
+      meters: 3000,
+      slots: [
+        slotAt('10:00', waiting: 3),
+        slotAt('10:30', waiting: 0),
+        slotAt('11:00', waiting: 4),
+      ],
+    ),
+    DistanceSlots(
+      meters: 5000,
+      slots: [
+        slotAt('10:00', waiting: 2),
+        slotAt('10:30', waiting: 0),
+        slotAt('11:00', waiting: 1),
+      ],
+    ),
+    DistanceSlots(
+      meters: 10000,
+      slots: [
+        slotAt('10:00', waiting: 0),
+        slotAt('10:30', waiting: 0),
+        slotAt('11:00', waiting: 1),
+      ],
+    ),
+  ]);
 
   /// `10:00` 같은 벽시계 시각으로 슬롯 하나를 만든다. **오늘 날짜**를 쓴다.
   static MatchSlot slotAt(
@@ -73,12 +102,14 @@ class FakeMatchRepository implements MatchRepository {
   /// 마지막으로 신청한 값. **앱이 서버가 준 문자열을 그대로 돌려보내는지**
   /// 확인하는 데 쓴다 — 이 흐름에서 가장 틀리기 쉬운 자리다.
   String? appliedSlotRaw;
-  TargetDistance? appliedDistance;
+
+  /// 마지막으로 신청한 거리(m). **응답이 준 값이 그대로 나가는지** 본다.
+  int? appliedMeters;
 
   var cancelCalls = 0;
 
-  /// 조회가 돌려줄 목록. 테스트가 갈아끼운다.
-  List<MatchSlot> slotList;
+  /// 조회가 돌려줄 판. 테스트가 갈아끼운다.
+  SlotBoard board;
 
   /// 조회를 실패시킨다.
   SlotLoadFailure? slotsFailure;
@@ -89,20 +120,16 @@ class FakeMatchRepository implements MatchRepository {
   /// `SlotLoadException`만 잡는 코드가 어떻게 되는지 보는 데 쓴다.
   Object? slotsThrow;
 
-  /// 마지막으로 조회한 거리. **거리별로 다시 받는지** 확인하는 데 쓴다.
-  TargetDistance? slotsDistance;
-
   @override
-  Future<List<MatchSlot>> slots({required TargetDistance distance}) async {
+  Future<SlotBoard> slots() async {
     slotsCalls++;
-    slotsDistance = distance;
     // ⚠️ **부를 때의 값을 집어 둔다.** 지연이 끝난 뒤에 읽으면 그사이 테스트가
     // 바꿔 놓은 값을 보게 되어, **경합을 꾸밀 수가 없다** — 늦게 깬 요청이
     // 최신 설정으로 답해 버린다. 진짜 서버는 요청을 받은 시점으로 답한다.
     final waited = latency;
     final thrown = slotsThrow;
     final failure = slotsFailure;
-    final answer = slotList;
+    final answer = board;
 
     await Future<void>.delayed(waited);
 
@@ -112,14 +139,11 @@ class FakeMatchRepository implements MatchRepository {
   }
 
   @override
-  Future<int> apply({
-    required String slotRaw,
-    required TargetDistance distance,
-  }) async {
+  Future<int> apply({required String slotRaw, required int meters}) async {
     await Future<void>.delayed(latency);
     // 실패해도 무엇을 보냈는지는 남긴다 — 실패 경로에서도 값을 확인한다.
     appliedSlotRaw = slotRaw;
-    appliedDistance = distance;
+    appliedMeters = meters;
     _throwIfSet(applyFailure);
     return roomId;
   }

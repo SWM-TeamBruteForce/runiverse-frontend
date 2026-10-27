@@ -4,12 +4,11 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
-import 'package:runiverse/features/matching/data/slot_dto.dart';
+import 'package:runiverse/features/matching/data/slot_board_dto.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/match_repository.dart';
-import 'package:runiverse/features/matching/domain/match_slot.dart';
+import 'package:runiverse/features/matching/domain/slot_board.dart';
 import 'package:runiverse/features/matching/domain/slot_load_failure.dart';
-import 'package:runiverse/features/matching/domain/target_distance.dart';
 
 /// 진짜 서버를 부르는 [MatchRepository]. **여기가 응답 형식을 아는 유일한 곳이다.**
 ///
@@ -24,7 +23,7 @@ class HttpMatchRepository implements MatchRepository {
   static const _path = '/api/v1/running-matches';
 
   @override
-  Future<List<MatchSlot>> slots({required TargetDistance distance}) async {
+  Future<SlotBoard> slots() async {
     // ⚠️ **`_authorized`를 쓰지 않는다.** 그쪽은 `MatchException`을 던지는데,
     // 조회는 자기 갈래를 갖는다(아래 [_loadExceptionOf]). 401 한 번 갱신은
     // 여기서 직접 한다.
@@ -37,9 +36,9 @@ class HttpMatchRepository implements MatchRepository {
     Future<Response<Map<String, dynamic>>> call(String accessToken) =>
         _dio.get<Map<String, dynamic>>(
           '$_path/slots',
-          // ⚠️ `date`는 보내지 않는다 — 오늘뿐이고, 보내면 형식이 틀렸을 때
-          // 400을 자초한다. 생략하면 서버가 오늘로 읽는다.
-          queryParameters: {'targetDistanceMeters': distance.meters},
+          // ⚠️ **쿼리를 하나도 보내지 않는다.** 거리는 명세가 받지 않고(판
+          // 전체가 온다), `date`는 오늘뿐이라 보내면 형식이 틀렸을 때 400을
+          // 자초한다. 생략하면 서버가 오늘로 읽는다.
           options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
         );
 
@@ -52,7 +51,7 @@ class HttpMatchRepository implements MatchRepository {
         token = await _refreshed(stored.refreshToken);
         response = await call(token);
       }
-      return matchSlotsFromJson(response.data);
+      return slotBoardFromJson(response.data);
     } on DioException catch (error) {
       throw SlotLoadException(_loadExceptionOf(error));
     } on MatchException catch (error) {
@@ -67,29 +66,25 @@ class HttpMatchRepository implements MatchRepository {
   }
 
   @override
-  Future<int> apply({
-    required String slotRaw,
-    required TargetDistance distance,
-  }) => _authorized((token) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-      _path,
-      // ⚠️ 서버가 준 문자열을 그대로 돌려보낸다. 다시 조립하지 않는다.
-      data: {
-        'scheduledStartAt': slotRaw,
-        'targetDistanceMeters': distance.meters,
-      },
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
-    );
-    final roomId = response.data?['runningRoomId'];
-    // 방 번호가 없으면 신청은 됐는데 스트림에 붙을 수 없다. 조용히 넘기면
-    // 신청해 놓고 아무 소식도 못 받는 상태가 된다.
-    if (roomId is! int) throw const MatchException(MatchFailure.unknown);
-    // 이 번호가 신청·러닝·결과 조회를 잇는 유일한 고리다. 남겨두면 "어느 방에
-    // 배정됐나"를 로그만으로 따라갈 수 있다 — 같은 조건으로 신청한 두 사람이
-    // 한 방에 묶였는지도 이 한 줄로 갈린다.
-    debugPrint('[match] 방에 배정됐다 · $roomId');
-    return roomId;
-  });
+  Future<int> apply({required String slotRaw, required int meters}) =>
+      _authorized((token) async {
+        final response = await _dio.post<Map<String, dynamic>>(
+          _path,
+          // ⚠️ 서버가 준 문자열·미터값을 그대로 돌려보낸다. 다시 조립하지도,
+          // `TargetDistance`를 거치지도 않는다.
+          data: {'scheduledStartAt': slotRaw, 'targetDistanceMeters': meters},
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        );
+        final roomId = response.data?['runningRoomId'];
+        // 방 번호가 없으면 신청은 됐는데 스트림에 붙을 수 없다. 조용히 넘기면
+        // 신청해 놓고 아무 소식도 못 받는 상태가 된다.
+        if (roomId is! int) throw const MatchException(MatchFailure.unknown);
+        // 이 번호가 신청·러닝·결과 조회를 잇는 유일한 고리다. 남겨두면 "어느 방에
+        // 배정됐나"를 로그만으로 따라갈 수 있다 — 같은 조건으로 신청한 두 사람이
+        // 한 방에 묶였는지도 이 한 줄로 갈린다.
+        debugPrint('[match] 방에 배정됐다 · $roomId');
+        return roomId;
+      });
 
   @override
   Future<void> cancel() => _authorized((token) async {
