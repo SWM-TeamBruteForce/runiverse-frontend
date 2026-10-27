@@ -24,14 +24,14 @@ void main() {
       // ⚠️ 2와 4에서 다시 울리면 10초마다 울리는 것과 같아진다.
       expect(comboMilestoneOf(2), 1);
       expect(comboMilestoneOf(4), 3);
-      expect(comboMilestoneOf(9), 5);
     });
 
-    test('10부터는 10마다다', () {
+    test('5부터는 5마다다', () {
+      expect(comboMilestoneOf(9), 5);
       expect(comboMilestoneOf(10), 10);
-      expect(comboMilestoneOf(19), 10);
-      expect(comboMilestoneOf(20), 20);
-      expect(comboMilestoneOf(37), 30);
+      expect(comboMilestoneOf(14), 10);
+      expect(comboMilestoneOf(15), 15);
+      expect(comboMilestoneOf(37), 35);
       // 실주행에서 24까지 나왔다. 그보다 길게 이어져도 규칙은 같다.
       expect(comboMilestoneOf(100), 100);
     });
@@ -46,6 +46,7 @@ void main() {
     test('눈금 사이를 오르면 울리지 않는다', () {
       expect(comboMilestonePassed(before: 1, after: 2), isFalse);
       expect(comboMilestonePassed(before: 5, after: 9), isFalse);
+      expect(comboMilestonePassed(before: 10, after: 14), isFalse);
     });
 
     test('⚠️ 건너뛰어도 한 번만 울린다', () {

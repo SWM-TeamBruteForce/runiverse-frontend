@@ -146,7 +146,7 @@ class PartyController extends Notifier<PartyBoard> {
       }
 
       // 통지는 10초마다 오는데 그때마다 울리면 달리는 내내 진동한다. 눈금을
-      // 넘을 때만 울린다 — 1·3·5·10, 그다음은 10마다. 소리는 범위 밖이다.
+      // 넘을 때만 울린다 — 1·3·5, 그다음은 5마다. 소리는 범위 밖이다.
       //
       // ⚠️ **눈금은 가장 높은 콤보 하나로 센다.** 상대마다 세면 4명 방에서
       // 30초에 세 번 떨리고, 어느 상대 것인지도 구분되지 않는다.
@@ -159,16 +159,32 @@ class PartyController extends Notifier<PartyBoard> {
     });
   }
 
-  /// 콤보 눈금을 알리는 진동. **함께 이어진 사람이 많을수록 세다.**
+  /// 콤보 눈금을 알리는 진동. **함께 이어진 사람이 많을수록 세고 여러 번이다.**
   ///
-  /// ⚠️ **세기만으로 구분된다.** 달리는 동안 폰은 암밴드나 주머니에 있어서,
-  /// 기기에 따라 light 와 medium 의 차이가 거의 안 느껴질 수 있다. 기기에서
-  /// 구분이 안 되면 세기 대신 **울리는 횟수**로 바꾸는 편이 확실하다.
-  Future<void> _comboHaptic(int headcount) => switch (headcount) {
-    <= 2 => HapticFeedback.lightImpact(),
-    3 => HapticFeedback.mediumImpact(),
-    _ => HapticFeedback.heavyImpact(),
-  };
+  /// 둘이면 약하게 한 번, 셋이면 중간으로 두 번, 넷이면 세게 세 번 — 상대
+  /// 수만큼이다.
+  ///
+  /// ⚠️ **세기만으로는 못 가른다.** 달리는 동안 폰은 암밴드나 주머니에 있어서
+  /// 기기에 따라 light 와 medium 의 차이가 거의 안 느껴진다. 횟수가 그보다
+  /// 확실해서 둘을 같이 쓴다.
+  Future<void> _comboHaptic(int headcount) async {
+    final feel = switch (headcount) {
+      <= 2 => HapticFeedback.lightImpact,
+      3 => HapticFeedback.mediumImpact,
+      _ => HapticFeedback.heavyImpact,
+    };
+    // 상대 수만큼. 머릿수에는 내가 들어 있다.
+    final times = headcount <= 2 ? 1 : headcount - 1;
+    for (var turn = 0; turn < times; turn++) {
+      // ⚠️ **틈이 없으면 한 번으로 뭉친다.** 연달아 부르면 기기가 이어 붙여
+      // 길게 한 번 떤 것처럼 느껴져, 횟수로 세는 뜻이 없어진다.
+      if (turn > 0) await Future<void>.delayed(_comboHapticGap);
+      await feel();
+    }
+  }
+
+  /// 연달아 울릴 때 사이의 틈.
+  static const _comboHapticGap = Duration(milliseconds: 90);
 
   /// 로그인할 때 받아 둔 내 번호. **서버가 알려주기를 기다리지 않는다.**
   ///

@@ -106,9 +106,12 @@ void main() {
   }
 
   /// 콤보 통지 한 번.
+  ///
+  /// ⚠️ **진동이 끝나기를 기다린다.** 머릿수만큼 연달아 울리므로 사이에 틈이
+  /// 있다. `Duration.zero`만 흘리면 첫 번만 세고 나머지를 놓친다.
   Future<void> push(List<ComboPeer> peers) async {
     channel.combos_.add(RunCombo(peers));
-    await settle();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
   }
 
   group('눈금에서만 울린다', () {
@@ -147,15 +150,21 @@ void main() {
       expect(felt.length, 1, reason: '10 한 번이다');
     });
 
-    test('⚠️ 10을 넘기면 10마다다', () async {
+    test('⚠️ 5를 넘기면 5마다다', () async {
+      // 10마다는 100초라 그 사이 이어지는지 끊겼는지 알 수 없었다.
       await running();
       await push([peer('u-2', 10)]);
       felt.clear();
 
-      for (final count in [11, 15, 19, 20, 21]) {
+      for (final count in [11, 12, 13, 14, 15]) {
         await push([peer('u-2', count)]);
       }
+      expect(felt.length, 1, reason: '15 한 번이다');
 
+      felt.clear();
+      for (final count in [16, 17, 18, 19, 20]) {
+        await push([peer('u-2', count)]);
+      }
       expect(felt.length, 1, reason: '20 한 번이다');
     });
 
@@ -182,33 +191,44 @@ void main() {
     });
   });
 
-  group('⚠️ 함께 이어진 사람이 늘면 세게 울린다', () {
-    test('둘이면 약하게', () async {
+  group('⚠️ 함께 이어진 사람이 늘면 세게, 여러 번 울린다', () {
+    // 세기만으로는 구분이 어렵다 — 암밴드·주머니에 넣고 뛰면 기기에 따라
+    // light 와 medium 이 거의 같게 느껴진다. **횟수가 확실한 쪽**이다.
+    test('둘이면 약하게 한 번', () async {
       await running();
       await push([peer('u-2', 1)]);
       expect(felt, ['HapticFeedbackType.lightImpact']);
     });
 
-    test('셋이면 중간', () async {
+    test('셋이면 중간으로 두 번', () async {
       await running();
       await push([peer('u-2', 1), peer('u-3', 1)]);
-      expect(felt, ['HapticFeedbackType.mediumImpact']);
+      expect(felt, [
+        'HapticFeedbackType.mediumImpact',
+        'HapticFeedbackType.mediumImpact',
+      ]);
     });
 
-    test('넷이면 세게', () async {
+    test('넷이면 세게 세 번', () async {
       await running();
       await push([peer('u-2', 1), peer('u-3', 1), peer('u-4', 1)]);
-      expect(felt, ['HapticFeedbackType.heavyImpact']);
+      expect(felt, [
+        'HapticFeedbackType.heavyImpact',
+        'HapticFeedbackType.heavyImpact',
+        'HapticFeedbackType.heavyImpact',
+      ]);
     });
 
     test('⚠️ 눈금은 가장 높은 콤보 하나로 센다', () async {
       // 상대마다 세면 4명 방에서 30초에 세 번 떨리고, 어느 상대 것인지도
-      // 알 수 없다.
+      // 알 수 없다. 한 눈금에 한 번(머릿수만큼)이다.
       await running();
       await push([peer('u-2', 3), peer('u-3', 1)]);
 
-      expect(felt.length, 1);
-      expect(felt.single, 'HapticFeedbackType.mediumImpact', reason: '셋이 이어졌다');
+      expect(felt, [
+        'HapticFeedbackType.mediumImpact',
+        'HapticFeedbackType.mediumImpact',
+      ], reason: '셋이 이어졌으니 중간으로 두 번');
     });
   });
 
