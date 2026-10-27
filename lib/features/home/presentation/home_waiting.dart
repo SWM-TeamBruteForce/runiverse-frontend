@@ -85,12 +85,29 @@ class HomeWaiting extends StatefulWidget {
   /// 시안이 쓴 세 각도(도). 넷째부터는 고르게 나눈다.
   static const _angles = [-22.9, 121.8, 202.8];
 
-  /// 둘레가 한 바퀴 도는 데 걸리는 시간.
+  /// 둘레가 한 번 왕복하는 데 걸리는 시간.
   ///
   /// ⚠️ **모션 토큰에 없는 값이다.** `AppMotion`의 가장 긴 것이 1.2초라
   /// 여기 쓸 눈금이 없다. 보고 있으면 움직이는 게 보이고 곁눈으로는 가만해
-  /// 보이는 속도로 골랐다 — 반지름 165에서 초당 약 58px이다.
+  /// 보이는 속도로 골랐다.
   static const _orbitPeriod = Duration(seconds: 18);
+
+  /// 자리에서 흔들리는 폭(도).
+  ///
+  /// ## ⚠️ 한 바퀴를 다 돌지 않는다
+  ///
+  /// 돌려 보니 **흰 원이 제목·부제 위를 지나갔다.** 글자도 흰색이라 지나가는
+  /// 동안 읽을 수 없다. 시안이 세 사람을 좌우 바깥([_angles])에 둔 것은
+  /// 가운데 위 글자를 피하려는 배치인데, 한 바퀴를 돌면 그 자리를 통과한다.
+  ///
+  /// 그래서 **시안이 정한 자리 근처에서 흔든다.**
+  ///
+  /// ⚠️ **±10°는 넓었다.** 오른쪽 사람이 위로 갈 때 부제의 끝 두 글자를
+  /// 가렸다(기기에서 확인). 시안은 세 사람을 글자와 버튼 사이 빈 자리에
+  /// 끼워 넣은 배치라, 어느 쪽으로 움직여도 한쪽 여백이 줄어든다 — 위로는
+  /// 글자, 아래로는 버튼이다. ±6°(호를 따라 약 17px)가 둘 다 건드리지 않는
+  /// 선이다.
+  static const _swayDegrees = 6.0;
 
   /// 가운데 원이 숨 쉬는 주기. 궤도와 배수 관계가 아니라 둘이 맞물려
   /// 반복하는 것처럼 보이지 않는다.
@@ -171,6 +188,14 @@ class _HomeWaitingState extends State<HomeWaiting>
     super.dispose();
   }
 
+  /// 지금 흔들린 각도(라디안). 사인이라 끝에서 느려졌다 돌아온다 —
+  /// 등속으로 왕복하면 양 끝에서 멈칫하는 것이 눈에 띈다.
+  double get _sway =>
+      math.sin(_spin.value * 2 * math.pi) *
+      HomeWaiting._swayDegrees *
+      math.pi /
+      180;
+
   /// 나를 뺀 둘레 사람들.
   ///
   /// ⚠️ **나를 빼고 센다.** 서버가 나를 명단에 넣으므로, 안 빼면 신청한
@@ -228,9 +253,7 @@ class _HomeWaitingState extends State<HomeWaiting>
                   size: HomeWaiting._otherSize,
                 ),
                 builder: (context, child) => _Orbiting(
-                  angle:
-                      _angleOf(index, others.length) +
-                      _spin.value * 2 * math.pi,
+                  angle: _angleOf(index, others.length) + _sway,
                   child: child!,
                 ),
               ),
@@ -403,10 +426,19 @@ class _Celebration extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    RunnerAvatarV2(
-                      nickname: player.nickname,
-                      imageUrl: player.profileImageUrl,
-                      size: _avatarSize,
+                    // ⚠️ **테두리가 없으면 원이 묻힌다.** 아바타의 바탕이
+                    // `primaryMuted`인데(`runner_avatar.dart`) 이 카드도 같은
+                    // 색이라, 사진이 없는 사람은 동그라미가 아예 안 보인다.
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: colors.textStrong, width: 2),
+                      ),
+                      child: RunnerAvatarV2(
+                        nickname: player.nickname,
+                        imageUrl: player.profileImageUrl,
+                        size: _avatarSize,
+                      ),
                     ),
                     const SizedBox(width: AppSpacing.space3),
                     // ⚠️ **닉네임만 줄인다.** 문장을 통째로 줄이면 정작

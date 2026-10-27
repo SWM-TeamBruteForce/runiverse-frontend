@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/widgets/v2/runner_avatar.dart';
 import 'package:runiverse/features/home/presentation/home_waiting.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 
@@ -59,6 +60,9 @@ void main() {
 
       expect(celebrates('민수'), findsOneWidget);
       expect(find.text(AppStrings.homeMatchSuccessSuffix), findsOneWidget);
+      // ⚠️ **사진도 함께 선다.** 닉네임만 띄우면 누가 왔는지 얼굴로는 알 수
+      // 없다. 가운데 나 · 궤도의 민수 · 축하의 민수, 셋이다.
+      expect(find.byType(RunnerAvatarV2), findsNWidgets(3));
     });
 
     testWidgets('⚠️ 들어오자마자는 뜨지 않는다', (tester) async {
