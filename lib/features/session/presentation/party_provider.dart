@@ -133,58 +133,82 @@ class PartyController extends Notifier<PartyBoard> {
       state = next.withProgress(update.stamped(DateTime.now()));
     });
     _combos = channel.combos.listen((update) {
-      final before = state.combos.keys.toSet();
-      final beforeCombo = state.currentCombo;
+      final before = state.combos;
       state = state.withCombos(update);
+      final now = state.combos;
 
-      // ⚠️ **끊김이 먼저다.** 둘이 한 통지에 겹치면(누가 빠지고 남은 상대가
-      // 눈금을 넘는 경우) 연달아 두 번 떨려 무슨 뜻인지 알 수 없다. 풀린 것은
-      // 달리는 사람이 할 일이 있다는 신호고, 눈금은 칭찬이다.
-      if (!state.combos.keys.toSet().containsAll(before)) {
+      // ⚠️ **한 통지에 한 번만 울린다.** 끊김 · 눈금 · 틱이 겹칠 수 있는데
+      // 연달아 떨리면 무슨 뜻인지 알 수 없다. 순서는 끊김 → 눈금 → 틱이다.
+      //
+      // 풀린 것은 달리는 사람이 할 일이 있다는 신호고(붙어야 한다), 눈금은
+      // 칭찬이다. 둘 중 하나만 울린다면 끊김이다.
+      //
+      // ⚠️ 빈 배열은 **전원 해제**다(WS No 9). 목록에서 빠지는 것이 곧
+      // 끊김이고 별도의 종료 통지는 없다.
+      if (before.keys.any((userId) => !now.containsKey(userId))) {
         unawaited(HapticFeedback.mediumImpact());
         return;
       }
 
-      // 통지는 10초마다 오는데 그때마다 울리면 달리는 내내 진동한다. 눈금을
-      // 넘을 때만 울린다 — 1·3·5, 그다음은 5마다. 소리는 범위 밖이다.
-      //
-      // ⚠️ **눈금은 가장 높은 콤보 하나로 센다.** 상대마다 세면 4명 방에서
-      // 30초에 세 번 떨리고, 어느 상대 것인지도 구분되지 않는다.
-      if (comboMilestonePassed(
-        before: beforeCombo,
-        after: state.currentCombo,
+      final headcount = state.comboHeadcount;
+
+      // 눈금은 **상대마다 따로** 본다 — "동일한 콤보 건"이 기준이다. 가장
+      // 높은 하나로 묶으면 뒤에 붙은 사람의 눈금이 영영 안 울린다.
+      if (now.entries.any(
+        (entry) => comboMilestonePassed(
+          before: before[entry.key]?.comboCount ?? 0,
+          after: entry.value.comboCount,
+        ),
       )) {
-        unawaited(_comboHaptic(state.comboHeadcount));
+        unawaited(_comboMilestoneHaptic(headcount));
+        return;
+      }
+
+      // ⚠️ **오른 상대가 있을 때만 울린다.** 명세상 같은 관계를 두고 양쪽
+      // 배치가 각각 통지를 만들 수 있다 — 값이 같으면 화면이 안 바뀌므로
+      // 진동도 없어야 한다.
+      //
+      // 처음 붙은 상대는 `before`에 없다. `comboCount`가 0으로 오므로 `-1`과
+      // 견줘야 "올랐다"가 된다.
+      if (now.entries.any(
+        (entry) =>
+            entry.value.comboCount > (before[entry.key]?.comboCount ?? -1),
+      )) {
+        unawaited(_comboTickHaptic(headcount));
       }
     });
   }
 
-  /// 콤보 눈금을 알리는 진동. **함께 이어진 사람이 많을수록 세고 여러 번이다.**
+  /// 콤보가 한 칸 올랐다는 틱. **이어지고 있다는 신호라 가장 약하다.**
   ///
-  /// 둘이면 약하게 한 번, 셋이면 중간으로 두 번, 넷이면 세게 세 번 — 상대
-  /// 수만큼이다.
+  /// 10초마다 울리는 자리다. 여기가 세면 달리는 내내 떨리는 것으로 느껴진다.
+  Future<void> _comboTickHaptic(int headcount) => switch (headcount) {
+    <= 2 => HapticFeedback.selectionClick(),
+    3 => HapticFeedback.lightImpact(),
+    _ => HapticFeedback.mediumImpact(),
+  };
+
+  /// 눈금을 알리는 진동. **크고 길게.**
   ///
-  /// ⚠️ **세기만으로는 못 가른다.** 달리는 동안 폰은 암밴드나 주머니에 있어서
-  /// 기기에 따라 light 와 medium 의 차이가 거의 안 느껴진다. 횟수가 그보다
-  /// 확실해서 둘을 같이 쓴다.
-  Future<void> _comboHaptic(int headcount) async {
-    final feel = switch (headcount) {
-      <= 2 => HapticFeedback.lightImpact,
-      3 => HapticFeedback.mediumImpact,
-      _ => HapticFeedback.heavyImpact,
-    };
-    // 상대 수만큼. 머릿수에는 내가 들어 있다.
-    final times = headcount <= 2 ? 1 : headcount - 1;
+  /// ⚠️ **길이를 지정할 수 없다.** `HapticFeedback`에는 세기 네 단계뿐이라,
+  /// 짧은 틈으로 연달아 쳐서 한 번의 긴 진동처럼 뭉치게 한다. 진짜 길이가
+  /// 필요하면 `vibration` 패키지를 들여야 하는데 아직 승인 전이다.
+  Future<void> _comboMilestoneHaptic(int headcount) async {
+    final feel = headcount <= 2
+        ? HapticFeedback.mediumImpact
+        : HapticFeedback.heavyImpact;
+    final times = headcount <= 3 ? 2 : 3;
     for (var turn = 0; turn < times; turn++) {
-      // ⚠️ **틈이 없으면 한 번으로 뭉친다.** 연달아 부르면 기기가 이어 붙여
-      // 길게 한 번 떤 것처럼 느껴져, 횟수로 세는 뜻이 없어진다.
       if (turn > 0) await Future<void>.delayed(_comboHapticGap);
       await feel();
     }
   }
 
-  /// 연달아 울릴 때 사이의 틈.
-  static const _comboHapticGap = Duration(milliseconds: 90);
+  /// 눈금을 연달아 칠 때 사이의 틈.
+  ///
+  /// ⚠️ **뭉쳐야 한다.** 90ms 로 뒀을 때는 또렷이 끊어져 "여러 번"으로
+  /// 세였는데, 눈금은 **한 번 크고 길게**가 목적이라 짧아야 한다.
+  static const _comboHapticGap = Duration(milliseconds: 50);
 
   /// 로그인할 때 받아 둔 내 번호. **서버가 알려주기를 기다리지 않는다.**
   ///

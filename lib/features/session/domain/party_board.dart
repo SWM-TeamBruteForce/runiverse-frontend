@@ -199,16 +199,6 @@ class PartyBoard {
   int get myBestCombo =>
       bestCombos.values.fold(0, (best, count) => count > best ? count : best);
 
-  /// **지금** 이어지고 있는 콤보 중 가장 높은 것. 하나도 없으면 0이다.
-  ///
-  /// ⚠️ [myBestCombo]와 다르다. 저쪽은 이번 러닝의 최고 기록이라 끊겨도 남고,
-  /// 이쪽은 끊기면 0으로 돌아온다. 진동 눈금은 이쪽을 본다 — 끊긴 뒤에도
-  /// 최고 기록이 남아 있으면 다시 붙어도 영영 눈금을 못 넘는다.
-  int get currentCombo => combos.values.fold(
-    0,
-    (best, peer) => peer.comboCount > best ? peer.comboCount : best,
-  );
-
   /// 지금 콤보에 든 사람 수 — **나를 포함한다.** 콤보가 없으면 0이다.
   ///
   /// 콤보는 쌍 단위라 상대마다 따로 선다. 셋이 서로 붙어 있으면 내 쪽에서는

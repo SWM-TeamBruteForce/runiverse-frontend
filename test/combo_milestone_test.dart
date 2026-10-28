@@ -26,12 +26,14 @@ void main() {
       expect(comboMilestoneOf(4), 3);
     });
 
-    test('5부터는 5마다다', () {
+    test('10부터는 10마다다', () {
       expect(comboMilestoneOf(9), 5);
       expect(comboMilestoneOf(10), 10);
       expect(comboMilestoneOf(14), 10);
-      expect(comboMilestoneOf(15), 15);
-      expect(comboMilestoneOf(37), 35);
+      // ⚠️ 15는 눈금이 아니다. 눈금 사이에도 틱이 울리므로 공백이 생기지
+      // 않는다 — 눈금은 성겨야 한 번의 무게가 산다.
+      expect(comboMilestoneOf(15), 10);
+      expect(comboMilestoneOf(37), 30);
       // 실주행에서 24까지 나왔다. 그보다 길게 이어져도 규칙은 같다.
       expect(comboMilestoneOf(100), 100);
     });
