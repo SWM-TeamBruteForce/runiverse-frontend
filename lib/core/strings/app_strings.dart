@@ -1771,4 +1771,64 @@ abstract final class AppStrings {
 
   /// 스토어를 열지 못했다. 눌러도 조용하면 고장으로 읽힌다.
   static const updateStoreFailed = '스토어를 열지 못했어요';
+
+  // ── 친구 ────────────────────────────────────────────────────────────
+  //
+  // ⚠️ **"친구"라고 쓴다.** 2026-10-28에 어휘를 통일했다. 그 전에는 팔로우
+  // 모델을 따라 "팔로워"였다 — `docs/specs/2026-10-28-friend-design.md` §1.
+
+  static const friendSearchHint = '닉네임으로 찾기';
+
+  static const friendTabFriends = '친구';
+  static const friendTabRecommendations = '추천';
+
+  /// 묶음 머리글. 서버가 주는 순서가 곧 이 순서다.
+  static const friendSectionReceived = '받은 요청';
+  static const friendSectionSent = '보낸 요청';
+  static const friendSectionFriends = '친구';
+
+  /// 검색 결과에서 아직 아무 사이도 아닌 사람들.
+  static const friendSectionOthers = '그 밖의 러너';
+
+  static const friendAccept = '수락';
+  static const friendReject = '거절';
+  static const friendCancel = '요청 취소';
+  static const friendRequest = '친구 요청';
+
+  /// ⚠️ **누른 직후에만 보인다.** 추천 목록은 요청이 오간 사람을 빼고 오므로,
+  /// 다음에 열면 그 줄이 아예 없다.
+  static const friendRequested = '요청됨';
+
+  static const friendRemove = '친구 삭제';
+
+  /// 되돌릴 수 없어서 한 번 묻는다.
+  static const friendRemoveConfirmTitle = '친구를 끊을까요?';
+  static String friendRemoveConfirmBody(String nickname) =>
+      '$nickname님과 친구가 아니게 돼요. 다시 맺으려면 요청해야 해요.';
+  static const friendRemoveConfirmYes = '끊기';
+  static const friendRemoveConfirmNo = '그대로 두기';
+
+  /// 추천 이유. 서버가 주는 것은 둘뿐이다.
+  static const friendReasonRanTogether = '최근에 함께 뛴 러너';
+  static const friendReasonSimilarPace = '나와 페이스가 비슷한 러너';
+
+  static const friendEmptyFriends = '아직 친구가 없어요';
+  static const friendEmptyFriendsWhy = '추천에서 함께 뛴 러너를 찾아보세요';
+
+  static const friendEmptyRecommendations = '추천할 러너를 아직 못 찾았어요';
+  static const friendEmptyRecommendationsWhy = '매칭 러닝을 한 번 뛰고 오면 생겨요';
+
+  static String friendEmptySearch(String query) => '‘$query’으로 찾은 러너가 없어요';
+
+  /// 프로필의 진입점. 시안 `85:2882`의 팔로워 자리다.
+  static String friendProfileEntry(int count) => '친구 · $count';
+
+  /// ⚠️ **첫 페이지만 세기 때문이다.** 받은 요청이 20개를 넘기면 정확한 수에
+  /// 뜻이 없다.
+  static const friendBadgeOverflow = '20+';
+
+  /// 아직 만들지 않은 것. 다음 업데이트 몫이다.
+  static const friendAchievement = '업적';
+  static const friendAchievementSoon = '준비중';
+  static const friendAchievementTitle = '러닝 업적 준비중';
 }
