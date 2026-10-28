@@ -152,8 +152,14 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
-    await tick(tester);
+    // ⚠️ **여기서는 `tick`을 쓰지 못한다.** 그쪽이 `pumpAndSettle`을 부르는데,
+    // 모집 중 히어로는 둘레 원이 **영원히 맴돌아** 화면이 잠잠해지지
+    // 않는다(`home_waiting.dart`). 로비로 넘어가는 다른 테스트는 그 화면을
+    // 떠나므로 `tick` 그대로 쓴다.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 350));
 
     expect(find.byType(HomePage), findsOneWidget);
     expect(find.text(AppStrings.matchLaunchNoticeTitle), findsNothing);

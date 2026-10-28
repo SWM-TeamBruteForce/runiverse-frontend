@@ -56,24 +56,35 @@ void main() {
       MaterialApp(
         theme: AppTheme.dark(),
         home: Scaffold(
-          body: SingleChildScrollView(
-            child: HomeHero(
-              name: name,
-              photoUrl: photoUrl,
-              myUserId: myUserId,
-              room: withRoom,
-              pending: pending,
-              cooldownUntil: cooldownUntil,
-              now: now ?? DateTime(2026, 9, 16, 18, 30),
-              onMatch: onMatch ?? () => match++,
-              onCancel: () => cancel++,
-              onLobby: onLobby ?? () => lobby++,
+          // ⚠️ **폭을 못 박는다.** `Scaffold` 본문은 폭을 느슨하게 주는데,
+          // 모집 중 카드는 `Stack`이라 폭을 자식에게서 받는다 — 그대로 두면
+          // 가장 큰 자식(가운데 아바타 135px)만큼으로 쪼그라든다. 운영은
+          // `ListView` 자식이라 폭이 꽉 찬다(`home_page.dart`).
+          body: SizedBox(
+            width: 412,
+            child: SingleChildScrollView(
+              child: HomeHero(
+                name: name,
+                photoUrl: photoUrl,
+                myUserId: myUserId,
+                room: withRoom,
+                pending: pending,
+                cooldownUntil: cooldownUntil,
+                now: now ?? DateTime(2026, 9, 16, 18, 30),
+                onMatch: onMatch ?? () => match++,
+                onCancel: () => cancel++,
+                onLobby: onLobby ?? () => lobby++,
+              ),
             ),
           ),
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    // ⚠️ **`pumpAndSettle`을 쓰지 못한다.** 모집 중 히어로는 둘레 원이
+    // **영원히 맴돌아** 화면이 잠잠해지지 않는다(`home_waiting.dart`).
+    // 등장 전환(320ms)이 끝날 만큼만 돌린다.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
     return (match: match, cancel: cancel, lobby: lobby);
   }
 
