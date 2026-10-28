@@ -113,9 +113,13 @@ void main() {
       };
 
   /// 목표가 있는 매칭 방에서 달리는 화면을 세운다.
+  ///
+  /// [since]를 주면 **앱을 껐다 켜서 이어 붙은 러닝**이다. 그때 로컬 누적은
+  /// 0부터 다시 시작하고, 서버가 아는 거리는 스냅샷이 와야 채워진다.
   Future<ProviderContainer> pumpRunning(
     WidgetTester tester, {
     int? targetMeters = target,
+    DateTime? since,
   }) async {
     final container = await makeContainer();
     addTearDown(container.dispose);
@@ -135,7 +139,7 @@ void main() {
     final session = container.read(runSessionControllerProvider.notifier);
     await session.prepare();
     await emit(tester, north(0));
-    session.start();
+    session.start(since: since);
     await tester.pump();
 
     return container;
@@ -412,6 +416,42 @@ void main() {
       await holdFinish(tester);
 
       expect(find.byType(RunSessionPage, skipOffstage: false), findsNothing);
+      await unmount(tester, container);
+    });
+  });
+
+  group('⚠️ 복구 중이라 거리를 모를 때', () {
+    // ⚠️ **`forced` 를 로컬 거리로 판정한다**(가이드 3.2). 그런데 앱을 껐다
+    // 켜면 로컬 누적은 0부터 다시 시작하고, 서버가 아는 거리는 스냅샷이
+    // 와야 채워진다 — 그 사이에 종료를 누르면 **3.8km 를 뛴 사람이 `forced=true`
+    // 로 나간다.** 서버는 이 값과 자기 확정 거리를 함께 보고 제재를 정한다.
+    //
+    // 모를 때는 모자라다고 단정하지 않는다. 정말 모자라면 서버가 보류로
+    // 되돌려 보내고(가이드 3.3), 그때 사용자가 고른다 — 되돌릴 수 있는 쪽이다.
+
+    /// 복구 직후, 아직 스냅샷이 오지 않은 화면.
+    Future<ProviderContainer> pumpResumed(WidgetTester tester) =>
+        pumpRunning(tester, since: DateTime(2026, 9, 19, 6, 30));
+
+    testWidgets('⚠️ 스냅샷을 못 받았으면 조기 종료로 보내지 않는다', (tester) async {
+      final container = await pumpResumed(tester);
+      expect(distanceOf(container), lessThan(target), reason: '복구 직후라 로컬은 0이다');
+
+      await holdFinish(tester);
+
+      expect(channel.finishes, [false]);
+      await unmount(tester, container);
+    });
+
+    testWidgets('스냅샷을 받은 뒤에는 그 거리로 판정한다', (tester) async {
+      // 모를 때만 봐준다. 서버가 아는 거리도 모자라면 조기 종료가 맞다.
+      final container = await pumpResumed(tester);
+      container.read(runSessionControllerProvider.notifier).seedDistance(10);
+      await tester.pump();
+
+      await holdFinish(tester);
+
+      expect(channel.finishes, [true]);
       await unmount(tester, container);
     });
   });
