@@ -6,6 +6,7 @@ import 'package:runiverse/core/widgets/coming_soon_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_in_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_up_page.dart';
 import 'package:runiverse/features/friend/presentation/friend_page.dart';
+import 'package:runiverse/features/profile/presentation/user_profile_page.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/matching/presentation/match_countdown_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_page.dart';
@@ -105,6 +106,12 @@ GoRouter createAppRouter({String? initialLocation}) {
         path: AppRoutes.friends,
         name: 'friends',
         builder: (context, state) => const FriendPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.userProfile,
+        name: 'user_profile',
+        builder: (context, state) =>
+            UserProfilePage(userId: state.pathParameters['userId'] ?? ''),
       ),
       // 설정도 셸 밖이다. 이유는 편집과 같다.
       GoRoute(

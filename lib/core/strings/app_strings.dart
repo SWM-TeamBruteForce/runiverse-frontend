@@ -1827,6 +1827,9 @@ abstract final class AppStrings {
   /// 뜻이 없다.
   static const friendBadgeOverflow = '20+';
 
+  /// 남의 프로필을 못 받았다. 404(탈퇴·없는 사람)도 여기로 온다.
+  static const friendProfileLoadFailed = '프로필을 불러오지 못했어요';
+
   /// 아직 만들지 않은 것. 다음 업데이트 몫이다.
   static const friendAchievement = '업적';
   static const friendAchievementSoon = '준비중';

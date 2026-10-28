@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:runiverse/features/friend/domain/friend_relation.dart';
 import 'package:runiverse/core/storage/body_profile_remote.dart';
 import 'package:runiverse/core/storage/body_profile_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
@@ -304,12 +305,14 @@ class HttpProfileRepository implements ProfileRepository {
       _path(userId),
       options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
     );
-    return _summaryOf(response.data);
+    return summaryOf(response.data);
   }
 
   /// 200인데 몸통이 기대와 다를 수 있다. `userId` 하나만 필수로 본다 —
   /// 나머지는 온보딩 전이면 정말로 `null`이다.
-  ProfileSummary _summaryOf(Map<String, dynamic>? body) {
+  ///
+  /// **테스트가 직접 부른다.**
+  static ProfileSummary summaryOf(Map<String, dynamic>? body) {
     final userId = body?['userId'];
     if (userId is! String) {
       throw const ProfileException(ProfileFailure.unknown);
@@ -323,6 +326,12 @@ class HttpProfileRepository implements ProfileRepository {
       // 없으면 0으로 둔다. 셀 수 없다는 것과 아무도 없다는 것은 화면에서
       // 같은 그림이고, `null`을 흘려보내면 그릴 때마다 물어야 한다.
       friendCount: friendCount is int ? friendCount : 0,
+      // ⚠️ **없으면 거짓이다.** 못 읽었다고 내 것으로 읽으면 남의 화면에
+      // "프로필 편집"이 뜬다.
+      isMe: body?['isMe'] == true,
+      // ⚠️ **이름도 값도 친구 API와 다르다**(`friendStatus`, `ACCEPTED`).
+      // `friendRelationOf`가 두 어휘를 모두 받는다.
+      relation: friendRelationOf(body?['friendStatus']),
     );
   }
 

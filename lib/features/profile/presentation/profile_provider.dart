@@ -17,6 +17,19 @@ final profileRepositoryProvider = Provider<ProfileRepository>(
   ),
 );
 
+/// 남의 프로필 요약.
+///
+/// ## ⚠️ [profileSummaryControllerProvider]를 쓰지 않는다
+///
+/// 그쪽 `load()`는 **토큰에서 내 `userId`를 읽고, 받아온 값을 기기에
+/// 남긴다.** 남의 프로필을 거기에 태우면 내 캐시가 남의 것으로 덮여, 앱을
+/// 껐다 켰을 때 **내 프로필에 남의 닉네임이 뜬다.**
+///
+/// 여기는 받아서 그리고 끝이다. 캐시도 저장도 없다.
+final userProfileProvider = FutureProvider.family<ProfileSummary, String>(
+  (ref, userId) => ref.watch(profileRepositoryProvider).fetch(userId),
+);
+
 /// 화면이 보는 상태.
 ///
 /// `loading`을 따로 두지 않는다. **저장해 둔 값이 그 자리를 대신하기** 때문이다 —

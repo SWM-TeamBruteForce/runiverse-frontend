@@ -117,6 +117,14 @@ abstract final class AppRoutes {
   /// 화면이 위아래로 눌린다. 인앱 알림이 생기면 이 경로가 딥링크가 된다.
   static const friends = '/profile/friends';
 
+  /// 남의 프로필. `userId`가 누구를 보는지 정한다.
+  ///
+  /// 인앱 알림의 "누가 친구 요청을 보냈어요"가 이 경로로 떨어진다.
+  static const userProfile = '/profile/user/:userId';
+
+  /// [userProfile]의 자리를 채운다.
+  static String userProfileOf(String userId) => '/profile/user/$userId';
+
   /// 설정 (S22.2)
   ///
   /// **탭 셸 밖에 둔다.** [profileEdit]과 같은 이유다 — 하단 탭이 함께 보이면

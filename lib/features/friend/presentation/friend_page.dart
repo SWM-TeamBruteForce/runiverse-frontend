@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:go_router/go_router.dart';
+import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
@@ -147,6 +149,7 @@ class _FriendPageState extends ConsumerState<FriendPage> {
             key: ValueKey(entry.userId),
             entry: entry,
             busy: state.pending.contains(entry.userId),
+            onTap: () => context.push(AppRoutes.userProfileOf(entry.userId)),
             onAccept: () =>
                 ref.read(friendProvider.notifier).accept(entry.userId),
             onReject: () =>
@@ -169,6 +172,7 @@ class _FriendPageState extends ConsumerState<FriendPage> {
           key: ValueKey(item.entry.userId),
           entry: item.entry,
           busy: state.pending.contains(item.entry.userId),
+          onTap: () => context.push(AppRoutes.userProfileOf(item.entry.userId)),
           meta: _Reason(reason: item.reason),
           // 추천은 전부 `none` 이라 버튼이 하나다. 눌러서 `requestSent` 가
           // 되면 행이 "요청 취소"로 바뀌는 대신 잠긴 "요청됨" 이 된다.
