@@ -187,7 +187,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 Expanded(
                   child: ActionTileV2(
                     icon: AppIcons.people2,
-                    label: AppStrings.homeWithFriendCta,
+                    label: AppStrings.homeInviteRunCta,
                     emphasized: false,
                     // ⚠️ 아직 갈 곳이 없다. 시안의 `친구 목록`(`158:3230`)이
                     // 이 묶음 밖이라, 문구 결정이 나면 함께 잇는다.

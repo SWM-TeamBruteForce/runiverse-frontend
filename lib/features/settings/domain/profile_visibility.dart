@@ -1,34 +1,35 @@
 /// 내 프로필을 누가 볼 수 있는가. `GET·PATCH /api/v1/users/me/settings`.
 ///
-/// ## "친구"라고 쓰지 않는다
+/// ## "친구"라고 쓴다
 ///
-/// 서버 enum은 `FRIENDS`지만 화면에는 **"팔로워에게만"**으로 적는다.
-/// `CLAUDE.md`가 "친구"라는 말을 쓰지 않기로 정했다 — 이 서비스는 요청→수락
-/// 모델이고, 정본 S18도 "팔로워/팔로잉 목록"이다.
+/// 2026-10-28에 앱 어휘를 **친구**로 통일했다. 그 전에는 팔로우 모델을 따라
+/// [friends]가 `followers`였고 화면에도 "팔로워에게만"으로 적었다. 백엔드가
+/// 양방향 친구(요청→수락)로 가면서 서버·앱·시안이 한 말을 쓰게 됐다.
 ///
-/// 그래서 이름이 [followers]다. **전송값만 서버 말을 따른다.**
+/// 자세한 경위는 `docs/specs/2026-10-28-friend-design.md` §1.
 ///
 /// ## ⚠️ 정본은 3단이지만 둘뿐이다
 ///
-/// 정본 와이어프레임 S22.2는 전체공개·팔로워공개·나만보기 셋인데
+/// 정본 와이어프레임 S22.2는 전체공개·친구공개·나만보기 셋인데
 /// 서버 enum에 "나만보기"가 없다. 칸을 만들어 두면 저장할 데가 없다.
 enum ProfileVisibility {
   public,
-  followers;
+  friends;
 
   /// 서버가 받는 값.
   ///
-  /// enum 이름에서 뽑지 않는다. `followers`를 대문자로 바꾸면 `FOLLOWERS`가
-  /// 되는데 서버는 `FRIENDS`를 기다린다 — 이름과 약속은 서로 다른 것이다.
+  /// ⚠️ **enum 이름에서 뽑지 않는다.** 지금은 [friends]와 `FRIENDS`가 우연히
+  /// 겹치지만, 이름은 앱 사정이고 전송값은 서버와의 약속이라 따로 둔다.
+  /// 이름을 또 바꾸는 날 전송값이 따라 바뀌면 설정이 저장되지 않는다.
   String get wireValue => switch (this) {
     ProfileVisibility.public => 'PUBLIC',
-    ProfileVisibility.followers => 'FRIENDS',
+    ProfileVisibility.friends => 'FRIENDS',
   };
 
   /// 모르는 값이면 `null`. 서버가 단계를 늘려도 앱이 죽지 않아야 한다.
   static ProfileVisibility? fromWire(String? value) => switch (value) {
     'PUBLIC' => ProfileVisibility.public,
-    'FRIENDS' => ProfileVisibility.followers,
+    'FRIENDS' => ProfileVisibility.friends,
     _ => null,
   };
 }

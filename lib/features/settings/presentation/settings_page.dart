@@ -796,12 +796,12 @@ class _VisibilityChips extends StatelessWidget {
 
   static String _label(ProfileVisibility value) => switch (value) {
     ProfileVisibility.public => AppStrings.settingsVisibilityPublic,
-    ProfileVisibility.followers => AppStrings.settingsVisibilityFollowers,
+    ProfileVisibility.friends => AppStrings.settingsVisibilityFriends,
   };
 
   static String _description(ProfileVisibility value) => switch (value) {
     ProfileVisibility.public => AppStrings.settingsVisibilityPublicWhy,
-    ProfileVisibility.followers => AppStrings.settingsVisibilityFollowersWhy,
+    ProfileVisibility.friends => AppStrings.settingsVisibilityFriendsWhy,
   };
 }
 

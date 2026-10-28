@@ -65,7 +65,7 @@ void main() {
       final notifier = container.read(settingsControllerProvider.notifier);
       await notifier.load();
 
-      await notifier.setVisibility(ProfileVisibility.followers);
+      await notifier.setVisibility(ProfileVisibility.friends);
 
       expect(
         container.read(settingsControllerProvider).settings?.visibility,
@@ -88,10 +88,10 @@ void main() {
       final notifier = container.read(settingsControllerProvider.notifier);
       await notifier.load();
 
-      await notifier.setVisibility(ProfileVisibility.followers);
+      await notifier.setVisibility(ProfileVisibility.friends);
 
       final settings = container.read(settingsControllerProvider).settings;
-      expect(settings?.visibility, ProfileVisibility.followers);
+      expect(settings?.visibility, ProfileVisibility.friends);
       expect(settings?.alertConsent, isFalse);
     });
 
