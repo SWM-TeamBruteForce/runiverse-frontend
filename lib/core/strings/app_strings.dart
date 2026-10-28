@@ -517,10 +517,10 @@ abstract final class AppStrings {
   static const homeMatchCta = '매칭 시작';
   static const homeSoloCta = '혼자 연습하기';
 
-  /// ⚠️ **CLAUDE.md는 "친구"를 금지한다**(요청→수락 모델). 시안이 이 말을
-  /// 쓰고, 프로필 시안의 `팔로워/팔로우`와 **한 덩어리 결정**이라 일단
-  /// 시안대로 뒀다. 기획 확인이 필요하다.
-  static const homeWithFriendCta = '친구랑 뛰기';
+  /// ⚠️ **아직 갈 곳이 없다.** 누르면 준비 중이라고 말한다
+  /// (`home_page.dart`). 2026-10-28에 `친구랑 뛰기`에서 이름을 바꿨다 —
+  /// 친구를 불러 같이 뛰는 것이 아니라 **방에 초대하는** 기능이라서다.
+  static const homeInviteRunCta = '초대 러닝';
 
   /// 히어로 부제. 줄바꿈 위치를 고정해 두 줄로 읽히게 한다.
   static const homeHeroSubtitle = '나와 비슷한 러너를 만나\n같은 시간, 각자의 자리에서 함께 달려보세요.';
@@ -1586,8 +1586,8 @@ abstract final class AppStrings {
   //
   // - 알림이 3종(매칭·러닝·소셜)이 아니라 **하나**다 (`alertConsent`)
   // - 공개 범위가 3단이 아니라 **둘**이다 (`PUBLIC` / `FRIENDS`)
-  // - `FRIENDS`를 **"친구"라고 부르지 않는다** — 이 파일 맨 위의 톤 규칙과
-  //   `CLAUDE.md`가 정한 것이다. 요청→수락 모델이라 "팔로워"로 쓴다
+  // - `FRIENDS`를 **"친구"라고 부른다** — 2026-10-28에 앱 어휘를 통일했다
+  //   (`docs/specs/2026-10-28-friend-design.md` §1). 그 전에는 "팔로워"였다
 
   static const settingsTitle = '설정';
 
@@ -1604,11 +1604,11 @@ abstract final class AppStrings {
   static const settingsVisibilityPublic = '전체 공개';
 
   /// 서버 `FRIENDS`. 정본의 "팔로워공개"와 같은 것이다.
-  static const settingsVisibilityFollowers = '팔로워에게만';
+  static const settingsVisibilityFriends = '친구에게만';
 
   static const settingsVisibilityPublicWhy = '누구나 프로필을 볼 수 있어요';
 
-  static const settingsVisibilityFollowersWhy = '팔로워만 프로필을 볼 수 있어요';
+  static const settingsVisibilityFriendsWhy = '친구만 프로필을 볼 수 있어요';
 
   static const settingsAccountSection = '계정';
 

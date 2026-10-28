@@ -29,7 +29,8 @@ import 'package:runiverse/core/widgets/v2/app_icon.dart';
 /// ## Figma에 있는데 여기 없는 것
 ///
 /// - **획득 컬러 카드** — 색 생성 규칙이 아직 없다
-/// - **팔로우 버튼** — API가 아직 없다
+/// - **친구 요청 버튼** — 친구 API는 생겼다(2026-10-28). 이 화면에 붙이는
+///   것은 범위 밖이라 아직 없다
 ///
 /// ## 파티원 비교
 ///
@@ -502,8 +503,8 @@ class _Metric extends StatelessWidget {
 
 /// 파티원 비교 카드(S16). 색 점 · 이름 · 시간 · 평균 페이스.
 ///
-/// 정본의 `[팔로우]`는 API가 없어 뺐다. 순위 숫자는 두지 않는다 — 순서도
-/// 서버가 준 순서 그대로다.
+/// 정본의 `[팔로우]`는 뺐다. 지금은 친구 API가 있지만 여기에 붙이는 것은
+/// 범위 밖이다. 순위 숫자는 두지 않는다 — 순서도 서버가 준 순서 그대로다.
 class _PartyCard extends StatelessWidget {
   const _PartyCard({required this.detail, required this.colorOf});
 

@@ -27,7 +27,7 @@ void main() {
       latency: Duration.zero,
       settings: const AppSettings(
         alertConsent: false,
-        visibility: ProfileVisibility.followers,
+        visibility: ProfileVisibility.friends,
       ),
     );
     fake = FakeSettingsRepository(latency: Duration.zero);

@@ -66,7 +66,16 @@ void main() {
 
       expect(find.byType(ActionTileV2), findsNWidgets(2));
       expect(find.text(AppStrings.homeSoloCta), findsOneWidget);
-      expect(find.text(AppStrings.homeWithFriendCta), findsOneWidget);
+      expect(find.text(AppStrings.homeInviteRunCta), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 둘째 칸은 초대 러닝이다', (tester) async {
+      // 2026-10-28에 `친구랑 뛰기`에서 바꿨다. 하는 일은 그대로고 문구만
+      // 바뀐다 — 아직 갈 곳이 없어 준비 중이라고 말한다.
+      await pumpHome(tester);
+
+      expect(find.text('초대 러닝'), findsOneWidget);
+      expect(find.text('친구랑 뛰기'), findsNothing);
     });
 
     testWidgets('매칭을 누르면 등록 화면으로 간다', (tester) async {
