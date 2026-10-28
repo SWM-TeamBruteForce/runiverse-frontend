@@ -275,7 +275,14 @@ void main() {
       await container.read(friendProvider.notifier).accept('r1');
 
       expect(container.read(friendProvider).groups, isEmpty);
-      expect(container.read(friendProvider).failure, FriendFailure.notFound);
+      // ⚠️ **조회 실패와 가른 자리다.** 404로 그 줄이 빠지면 묶음이 비는데,
+      // 하나로 두면 "불러오지 못했어요" 화면이 떠서 멀쩡히 받아 둔 목록을
+      // 못 받은 것처럼 보이게 된다.
+      expect(
+        container.read(friendProvider).actionFailure,
+        FriendFailure.notFound,
+      );
+      expect(container.read(friendProvider).failure, isNull);
     });
 
     test('⚠️ 같은 줄을 연달아 눌러도 요청은 한 번만 나간다', () async {
@@ -352,6 +359,104 @@ void main() {
       await container.read(friendProvider.notifier).load();
 
       expect(container.read(friendProvider).receivedCount, 2);
+    });
+  });
+
+  group('⚠️ 친구 목록 이어 읽기', () {
+    test('커서가 있으면 더 읽어 뒤에 붙인다', () async {
+      // 21번째 친구부터 영영 못 보면 목록이 아니다.
+      final fake = FakeFriendRepository(
+        friendEntries: [e('f1', FriendRelation.friend)],
+        nextCursor: 'c1',
+      );
+      final container = await containerOf(fake);
+      await container.read(friendProvider.notifier).load();
+
+      await container.read(friendProvider.notifier).loadMoreFriends();
+
+      expect(fake.friendsCalls, 2);
+      expect(fake.cursors, [null, 'c1']);
+      expect(container.read(friendProvider).friends, hasLength(2));
+    });
+
+    test('⚠️ 커서가 없으면 더 읽지 않는다', () async {
+      // 마지막 장이다. 또 부르면 같은 요청이 계속 나간다.
+      final fake = FakeFriendRepository(
+        friendEntries: [e('f1', FriendRelation.friend)],
+      );
+      final container = await containerOf(fake);
+      await container.read(friendProvider.notifier).load();
+
+      await container.read(friendProvider.notifier).loadMoreFriends();
+
+      expect(fake.friendsCalls, 1);
+    });
+
+    test('⚠️ 다녀오는 중이면 또 부르지 않는다', () async {
+      // 스크롤 알림마다 불리는 자리다. 막지 않으면 같은 요청이 수십 개 나간다.
+      final fake = FakeFriendRepository(
+        friendEntries: [e('f1', FriendRelation.friend)],
+        nextCursor: 'c1',
+      );
+      final container = await containerOf(fake);
+      await container.read(friendProvider.notifier).load();
+
+      await Future.wait([
+        container.read(friendProvider.notifier).loadMoreFriends(),
+        container.read(friendProvider.notifier).loadMoreFriends(),
+      ]);
+
+      expect(fake.friendsCalls, 2, reason: '첫 조회 + 더 읽기 한 번');
+    });
+
+    test('⚠️ 검색 중에는 친구 목록을 더 읽지 않는다', () async {
+      final fake = FakeFriendRepository(
+        friendEntries: [e('f1', FriendRelation.friend)],
+        nextCursor: 'c1',
+      );
+      final container = await containerOf(fake);
+      await container.read(friendProvider.notifier).load();
+      container.read(friendProvider.notifier).onQuery('김');
+
+      await container.read(friendProvider.notifier).loadMoreFriends();
+
+      expect(fake.friendsCalls, 1);
+    });
+
+    test('⚠️ 검색 더 읽기도 다녀오는 중이면 막는다', () async {
+      final fake = FakeFriendRepository(
+        searchResults: [
+          for (var i = 0; i < 60; i++) e('u$i', FriendRelation.none),
+        ],
+      );
+      final container = await containerOf(fake);
+      await container.read(friendProvider.notifier).load();
+      container.read(friendProvider.notifier).onQuery('동완');
+      await settleSearch();
+
+      await Future.wait([
+        container.read(friendProvider.notifier).loadMoreSearch(),
+        container.read(friendProvider.notifier).loadMoreSearch(),
+      ]);
+
+      expect(fake.searchLimits, [20, 50]);
+    });
+  });
+
+  group('⚠️ 다녀온 뒤', () {
+    test('프로필이 읽고 나면 changed 를 지운다', () async {
+      // 안 지우면 한 번 바꾼 뒤로는 들여다보기만 해도 매번 다시 읽는다.
+      final fake = FakeFriendRepository(
+        friendEntries: [e('r1', FriendRelation.requestReceived)],
+      );
+      final container = await containerOf(fake);
+      await container.read(friendProvider.notifier).load();
+      await container.read(friendProvider.notifier).accept('r1');
+      expect(container.read(friendProvider).changed, isTrue);
+
+      container.read(friendProvider.notifier).clearChanged();
+
+      expect(container.read(friendProvider).changed, isFalse);
     });
   });
 }

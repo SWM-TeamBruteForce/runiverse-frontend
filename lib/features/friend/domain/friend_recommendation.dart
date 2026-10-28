@@ -16,8 +16,14 @@ enum FriendReason {
 /// ⚠️ **[entry]의 관계는 늘 `none`이다.** 서버가 친구·요청이 오간 사람·나
 /// 자신·온보딩 전인 사람을 빼고 준다. 그래서 추천 화면의 버튼은 하나다.
 class FriendRecommendation {
-  const FriendRecommendation({required this.entry, required this.reason});
+  const FriendRecommendation({required this.entry, this.reason});
 
   final FriendEntry entry;
-  final FriendReason reason;
+
+  /// 왜 권하는가. **모르는 값이면 `null`이다.**
+  ///
+  /// ⚠️ **그 사람을 빼지 않는다.** 운영 설정이 바뀌어 기준이 하나 늘면, 빼는
+  /// 쪽은 추천 화면을 통째로 비워 "추천할 러너를 아직 못 찾았어요"라고
+  /// 거짓말을 하게 된다. 줄은 세우고 이유 한 줄만 비운다.
+  final FriendReason? reason;
 }

@@ -111,6 +111,25 @@ abstract final class AppRoutes {
   /// 하단 탭이 함께 보이면 저장하지 않고 다른 탭으로 샐 수 있다.
   static const profileEdit = '/profile/edit';
 
+  /// 친구 — 목록 · 추천 · 검색이 한 화면이다.
+  ///
+  /// **탭 셸 밖에 둔다.** 검색창이 상단에 고정이라 하단 탭까지 함께 있으면
+  /// 화면이 위아래로 눌린다. 인앱 알림이 생기면 이 경로가 딥링크가 된다.
+  static const friends = '/profile/friends';
+
+  /// 남의 프로필. `userId`가 누구를 보는지 정한다.
+  ///
+  /// 인앱 알림의 "누가 친구 요청을 보냈어요"가 이 경로로 떨어진다.
+  static const userProfile = '/profile/user/:userId';
+
+  /// [userProfile]의 자리를 채운다.
+  static String userProfileOf(String userId) => '/profile/user/$userId';
+
+  /// 남의 친구 목록. 그 사람의 프로필에서 `친구 · N`을 눌러 들어온다.
+  static const userFriends = '/profile/user/:userId/friends';
+
+  static String userFriendsOf(String userId) => '/profile/user/$userId/friends';
+
   /// 설정 (S22.2)
   ///
   /// **탭 셸 밖에 둔다.** [profileEdit]과 같은 이유다 — 하단 탭이 함께 보이면

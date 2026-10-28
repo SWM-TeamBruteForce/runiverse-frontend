@@ -1771,4 +1771,84 @@ abstract final class AppStrings {
 
   /// 스토어를 열지 못했다. 눌러도 조용하면 고장으로 읽힌다.
   static const updateStoreFailed = '스토어를 열지 못했어요';
+
+  // ── 친구 ────────────────────────────────────────────────────────────
+  //
+  // ⚠️ **"친구"라고 쓴다.** 2026-10-28에 어휘를 통일했다. 그 전에는 팔로우
+  // 모델을 따라 "팔로워"였다 — `docs/specs/2026-10-28-friend-design.md` §1.
+
+  static const friendSearchHint = '닉네임으로 찾기';
+
+  static const friendTabFriends = '친구';
+  static const friendTabRecommendations = '추천';
+
+  /// 묶음 머리글. 서버가 주는 순서가 곧 이 순서다.
+  static const friendSectionReceived = '받은 요청';
+  static const friendSectionSent = '보낸 요청';
+  static const friendSectionFriends = '친구';
+
+  /// 검색 결과에서 아직 아무 사이도 아닌 사람들.
+  static const friendSectionOthers = '그 밖의 러너';
+
+  static const friendAccept = '수락';
+  static const friendReject = '거절';
+  static const friendCancel = '요청 취소';
+  static const friendRequest = '친구 요청';
+
+  /// ⚠️ **누른 직후에만 보인다.** 추천 목록은 요청이 오간 사람을 빼고 오므로,
+  /// 다음에 열면 그 줄이 아예 없다.
+  static const friendRequested = '요청됨';
+
+  static const friendRemove = '친구 삭제';
+
+  /// 되돌릴 수 없어서 한 번 묻는다.
+  static const friendRemoveConfirmTitle = '친구를 끊을까요?';
+  static String friendRemoveConfirmBody(String nickname) =>
+      '$nickname님과 친구가 아니게 돼요. 다시 맺으려면 요청해야 해요.';
+  static const friendRemoveConfirmYes = '끊기';
+  static const friendRemoveConfirmNo = '그대로 두기';
+
+  /// 추천 이유. 서버가 주는 것은 둘뿐이다.
+  static const friendReasonRanTogether = '최근에 함께 뛴 러너';
+  static const friendReasonSimilarPace = '나와 페이스가 비슷한 러너';
+
+  static const friendEmptyFriends = '아직 친구가 없어요';
+  static const friendEmptyFriendsWhy = '추천에서 함께 뛴 러너를 찾아보세요';
+
+  static const friendEmptyRecommendations = '추천할 러너를 아직 못 찾았어요';
+  static const friendEmptyRecommendationsWhy = '매칭 러닝을 한 번 뛰고 오면 생겨요';
+
+  static String friendEmptySearch(String query) => '‘$query’으로 찾은 러너가 없어요';
+
+  /// 프로필의 진입점. 시안 `85:2882`의 팔로워 자리다.
+  static String friendProfileEntry(int count) => '친구 · $count';
+
+  /// ⚠️ **첫 페이지만 세기 때문이다.** 받은 요청이 20개를 넘기면 정확한 수에
+  /// 뜻이 없다.
+  static const friendBadgeOverflow = '20+';
+
+  /// ⚠️ **"없다"와 "못 받았다"를 가른다.** 터널이 끊겼을 때 "아직 친구가
+  /// 없어요"가 뜨면, 친구 40명인 사람에게 거짓말을 하는 것이다.
+  static const friendLoadFailed = '목록을 불러오지 못했어요';
+  static const friendRetry = '다시 시도';
+
+  /// 404. 내가 누르는 사이 상대가 취소했거나, 이미 처리된 요청이다.
+  static const friendGone = '이미 처리된 요청이에요';
+
+  /// 409. 화면과 서버가 어긋났다.
+  static const friendAlready = '이미 요청했거나 친구예요';
+
+  static const friendActionFailed = '잠시 후 다시 시도해주세요';
+
+  /// 남의 친구 목록. 친구만 담긴다 — 누구에게 요청했는지는 본인만 안다.
+  static String userFriendsTitle(String nickname) => '$nickname님의 친구';
+  static String userFriendsEmpty(String nickname) => '$nickname님은 아직 친구가 없어요';
+
+  /// 남의 프로필을 못 받았다. 404(탈퇴·없는 사람)도 여기로 온다.
+  static const friendProfileLoadFailed = '프로필을 불러오지 못했어요';
+
+  /// 아직 만들지 않은 것. 다음 업데이트 몫이다.
+  static const friendAchievement = '업적';
+  static const friendAchievementSoon = '준비중';
+  static const friendAchievementTitle = '러닝 업적 준비중';
 }

@@ -5,6 +5,9 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/coming_soon_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_in_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_up_page.dart';
+import 'package:runiverse/features/friend/presentation/friend_page.dart';
+import 'package:runiverse/features/profile/presentation/user_friends_page.dart';
+import 'package:runiverse/features/profile/presentation/user_profile_page.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/matching/presentation/match_countdown_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_page.dart';
@@ -97,6 +100,28 @@ GoRouter createAppRouter({String? initialLocation}) {
         path: AppRoutes.profileEdit,
         name: 'profile_edit',
         builder: (context, state) => const ProfileEditPage(),
+      ),
+      // 친구도 셸 밖이다. 검색창이 상단 고정이라 하단 탭까지 있으면 화면이
+      // 위아래로 눌린다.
+      GoRoute(
+        path: AppRoutes.friends,
+        name: 'friends',
+        builder: (context, state) => const FriendPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.userProfile,
+        name: 'user_profile',
+        builder: (context, state) =>
+            UserProfilePage(userId: state.pathParameters['userId'] ?? ''),
+      ),
+      GoRoute(
+        path: AppRoutes.userFriends,
+        name: 'user_friends',
+        builder: (context, state) => UserFriendsPage(
+          userId: state.pathParameters['userId'] ?? '',
+          // 제목에만 쓴다. 딥링크로 바로 들어오면 비어 있을 수 있다.
+          nickname: state.uri.queryParameters['nickname'] ?? '',
+        ),
       ),
       // 설정도 셸 밖이다. 이유는 편집과 같다.
       GoRoute(

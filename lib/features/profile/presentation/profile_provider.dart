@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/features/friend/domain/friend_list.dart';
+import 'package:runiverse/features/friend/presentation/friend_provider.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
@@ -16,6 +18,32 @@ final profileRepositoryProvider = Provider<ProfileRepository>(
     ref.watch(authRepositoryProvider),
   ),
 );
+
+/// 남의 프로필 요약.
+///
+/// ## ⚠️ [profileSummaryControllerProvider]를 쓰지 않는다
+///
+/// 그쪽 `load()`는 **토큰에서 내 `userId`를 읽고, 받아온 값을 기기에
+/// 남긴다.** 남의 프로필을 거기에 태우면 내 캐시가 남의 것으로 덮여, 앱을
+/// 껐다 켰을 때 **내 프로필에 남의 닉네임이 뜬다.**
+///
+/// 여기는 받아서 그리고 끝이다. 캐시도 저장도 없다.
+/// ⚠️ **`autoDispose`다.** 친구 목록을 훑으며 열어 본 사람이 모두 세션 내내
+/// 남으면, 다시 들어갈 때 **낡은 관계와 낡은 친구 수**를 그대로 본다.
+final userProfileProvider = FutureProvider.autoDispose
+    .family<ProfileSummary, String>(
+      (ref, userId) => ref.watch(profileRepositoryProvider).fetch(userId),
+    );
+
+/// 남의 친구 목록 첫 장.
+///
+/// ⚠️ **커서를 붙이지 않는다**(설계 §7). 타인 목록에는 친구만 담겨 수가 적고,
+/// 여기서 이어 읽기까지 만들면 쓰지도 않을 길이 는다. 필요해지면 붙인다.
+final userFriendsProvider = FutureProvider.autoDispose
+    .family<FriendList, String>(
+      (ref, userId) =>
+          ref.watch(friendRepositoryProvider).friends(userId: userId),
+    );
 
 /// 화면이 보는 상태.
 ///

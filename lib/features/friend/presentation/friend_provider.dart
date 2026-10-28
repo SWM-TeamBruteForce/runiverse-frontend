@@ -32,6 +32,7 @@ class FriendState {
     this.searchLimit = 0,
     this.loading = false,
     this.failure,
+    this.actionFailure,
     this.changed = false,
     this.pending = const {},
   });
@@ -52,7 +53,16 @@ class FriendState {
   final int searchLimit;
 
   final bool loading;
+
+  /// **조회**가 실패했다. 본문이 이 자리를 대신 그린다.
   final FriendFailure? failure;
+
+  /// **버튼**이 실패했다. 본문은 그대로 두고 한 줄로 알린다.
+  ///
+  /// ⚠️ [failure]와 가른 이유 — 404로 그 줄이 목록에서 빠지면 묶음이 빌 수
+  /// 있는데, 하나로 두면 "불러오지 못했어요" 화면이 떠서 **멀쩡히 받아 둔
+  /// 목록을 못 받은 것처럼** 보이게 된다.
+  final FriendFailure? actionFailure;
 
   /// 이 화면에서 관계를 한 번이라도 바꿨는가.
   ///
@@ -88,13 +98,19 @@ class FriendState {
     int? searchLimit,
     bool? loading,
     FriendFailure? failure,
+    FriendFailure? actionFailure,
     bool? changed,
     Set<String>? pending,
+    bool clearFriendCursor = false,
+    bool clearChanged = false,
   }) => FriendState(
     tab: tab ?? this.tab,
     query: query ?? this.query,
     friends: friends ?? this.friends,
-    friendCursor: friendCursor ?? this.friendCursor,
+    // ⚠️ `??`라 넘기지 않으면 남는다. 지우려면 `clearFriendCursor`다.
+    friendCursor: clearFriendCursor
+        ? null
+        : (friendCursor ?? this.friendCursor),
     recommendations: recommendations ?? this.recommendations,
     results: results ?? this.results,
     searchLimit: searchLimit ?? this.searchLimit,
@@ -102,7 +118,8 @@ class FriendState {
     // ⚠️ `failure`는 `??`로 두지 않는다. 다음 동작이 성공했을 때 지울 수
     // 있어야 한다 — 그러려면 넘기지 않은 것과 `null`을 넘긴 것이 같아야 한다.
     failure: failure,
-    changed: changed ?? this.changed,
+    actionFailure: actionFailure,
+    changed: clearChanged ? false : (changed ?? this.changed),
     pending: pending ?? this.pending,
   );
 }
@@ -120,6 +137,12 @@ final friendProvider = NotifierProvider<FriendController, FriendState>(
 /// 항목을 친구 묶음 맨 위로 옮기라"고 권한다.
 class FriendController extends Notifier<FriendState> {
   Timer? _debounce;
+
+  /// 이어 읽기가 다녀오는 중인가.
+  ///
+  /// ⚠️ **상태에 두지 않는다.** 스크롤 알림마다 불리는 자리라, 응답이 오기
+  /// 전에 또 들어온다. `searchLimit`은 응답이 와야 바뀌므로 막지 못한다.
+  var _loadingMore = false;
 
   /// 검색을 미루는 시간. 닉네임 중복 확인(`nickname_field.dart`)과 같은 값이다.
   static const _searchDebounce = Duration(milliseconds: 500);
@@ -190,16 +213,58 @@ class FriendController extends Notifier<FriendState> {
     _debounce = Timer(_searchDebounce, () => _search(_searchFirst));
   }
 
+  /// 바닥까지 읽었다. 친구 목록은 **커서로 이어 읽는다.**
+  ///
+  /// ⚠️ 검색과 달리 50에서 끊을 수 없다 — 내 친구 전부가 대상이다.
+  Future<void> loadMoreFriends() async {
+    if (state.searching || _loadingMore) return;
+    final cursor = state.friendCursor;
+    if (cursor == null) return;
+
+    _loadingMore = true;
+    try {
+      final me = await _myUserId();
+      if (me == null) return;
+      final page = await _repo.friends(userId: me, cursor: cursor);
+      state = state.copyWith(
+        friends: [...state.friends, ...page.items],
+        // ⚠️ 마지막 장이면 `null`로 **지워야** 한다. 남겨 두면 같은 커서로
+        // 영영 다시 읽는다.
+        friendCursor: page.nextCursor,
+        clearFriendCursor: page.nextCursor == null,
+      );
+    } on FriendException catch (error) {
+      state = state.copyWith(actionFailure: error.failure);
+    } finally {
+      _loadingMore = false;
+    }
+  }
+
+  /// 프로필이 친구 수를 다시 읽었다. 표시를 지운다.
+  ///
+  /// ⚠️ **안 지우면** 한 번 바꾼 뒤로는 들여다보기만 해도 매번 다시 읽는다.
+  void clearChanged() => state = state.copyWith(
+    changed: false,
+    clearChanged: true,
+    failure: state.failure,
+    actionFailure: state.actionFailure,
+  );
+
   /// 바닥까지 읽었다. 같은 검색어로 50을 다시 받는다.
   ///
   /// ⚠️ **커서를 쓰지 않는다.** 페이지를 넘기는 사이 닉네임을 바꾼 사람이
   /// 빠지거나 두 번 오는 구간이 아예 없다(설계 §5).
   Future<void> loadMoreSearch() async {
-    if (!state.searching) return;
+    if (!state.searching || _loadingMore) return;
     // 이미 상한까지 받았거나, 첫 장을 다 못 채웠으면 더 볼 것이 없다.
     if (state.searchLimit >= _searchMax) return;
     if (state.results.length < state.searchLimit) return;
-    await _search(_searchMax);
+    _loadingMore = true;
+    try {
+      await _search(_searchMax);
+    } finally {
+      _loadingMore = false;
+    }
   }
 
   Future<void> _search(int limit) async {
@@ -258,7 +323,7 @@ class FriendController extends Notifier<FriendState> {
       if (error.failure == FriendFailure.notFound) {
         _replace(userId, FriendRelation.none);
       }
-      state = state.copyWith(failure: error.failure);
+      state = state.copyWith(actionFailure: error.failure);
     } finally {
       // ⚠️ **실패를 함께 넘긴다.** `copyWith`의 `failure`는 `??`가 아니라
       // 넘기지 않으면 지워진다(성공했을 때 지우려고 그렇게 뒀다). 여기서
@@ -266,6 +331,7 @@ class FriendController extends Notifier<FriendState> {
       state = state.copyWith(
         pending: {...state.pending}..remove(userId),
         failure: state.failure,
+        actionFailure: state.actionFailure,
       );
     }
   }
@@ -300,6 +366,7 @@ class FriendController extends Notifier<FriendState> {
             item,
       ],
       failure: state.failure,
+      actionFailure: state.actionFailure,
     );
   }
 
