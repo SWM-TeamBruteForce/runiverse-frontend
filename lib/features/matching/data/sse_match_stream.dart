@@ -32,7 +32,9 @@ class SseMatchStream implements MatchStream {
   /// 붙을 서버. 테스트만 루프백 서버를 넣는다. 앱은 빌드에 박힌 값을 쓴다.
   final String _baseUrl;
 
-  static const _path = '/api/v1/running-matches/stream';
+  /// ⚠️ **2026-10-28에 `/running-matches/stream`에서 바뀌었다**(BE PR #112).
+  /// 옛 주소는 서버에 없다.
+  static const _path = '/api/v1/match-rooms/stream';
 
   StreamSubscription<MatchEvent>? _subscription;
   StreamController<MatchEvent>? _controller;

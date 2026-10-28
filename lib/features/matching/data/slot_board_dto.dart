@@ -2,7 +2,7 @@ import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/matching/domain/match_slot.dart';
 import 'package:runiverse/features/matching/domain/slot_board.dart';
 
-/// 슬롯 조회 응답(`GET /api/v1/running-matches/slots`, 명세 No 16)을 읽는다.
+/// 슬롯 조회 응답(`GET /api/v1/match-rooms/slots`, 명세 No 16)을 읽는다.
 ///
 /// ```
 /// { distances: [ { targetDistanceMeters, slots: [ { scheduledStartAt,
