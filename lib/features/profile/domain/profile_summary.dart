@@ -49,4 +49,15 @@ class ProfileSummary {
   /// ⚠️ **서버가 이 값을 `friendStatus`로 부르고 값도 다르다**(`ACCEPTED` 대
   /// `FRIEND`). 읽는 일은 `friendRelationOf`가 두 어휘를 모두 받아서 한다.
   final FriendRelation? relation;
+
+  /// 관계만 갈아끼운 사본. 화면이 버튼을 누른 뒤 쓴다.
+  ProfileSummary withRelation(FriendRelation? next) => ProfileSummary(
+    userId: userId,
+    friendCount: friendCount,
+    nickname: nickname,
+    profileImageUrl: profileImageUrl,
+    introduction: introduction,
+    isMe: isMe,
+    relation: next,
+  );
 }

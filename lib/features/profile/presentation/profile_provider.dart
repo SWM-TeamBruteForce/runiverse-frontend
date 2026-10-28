@@ -26,9 +26,12 @@ final profileRepositoryProvider = Provider<ProfileRepository>(
 /// 껐다 켰을 때 **내 프로필에 남의 닉네임이 뜬다.**
 ///
 /// 여기는 받아서 그리고 끝이다. 캐시도 저장도 없다.
-final userProfileProvider = FutureProvider.family<ProfileSummary, String>(
-  (ref, userId) => ref.watch(profileRepositoryProvider).fetch(userId),
-);
+/// ⚠️ **`autoDispose`다.** 친구 목록을 훑으며 열어 본 사람이 모두 세션 내내
+/// 남으면, 다시 들어갈 때 **낡은 관계와 낡은 친구 수**를 그대로 본다.
+final userProfileProvider = FutureProvider.autoDispose
+    .family<ProfileSummary, String>(
+      (ref, userId) => ref.watch(profileRepositoryProvider).fetch(userId),
+    );
 
 /// 화면이 보는 상태.
 ///

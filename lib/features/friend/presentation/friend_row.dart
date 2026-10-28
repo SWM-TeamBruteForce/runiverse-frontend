@@ -31,6 +31,7 @@ class FriendRow extends StatelessWidget {
     this.onCancel,
     this.onRemove,
     this.busy = false,
+    this.requestedLabel = false,
     super.key,
   });
 
@@ -48,6 +49,12 @@ class FriendRow extends StatelessWidget {
 
   /// 서버에 다녀오는 중. 버튼을 잠근다.
   final bool busy;
+
+  /// 보낸 요청을 **되돌릴 수 없는 자리**인가(추천 탭).
+  ///
+  /// 참이면 "요청 취소" 대신 잠긴 "요청됨"을 그린다. 눌리지 않는 버튼이
+  /// 취소를 권하면 고장으로 읽힌다.
+  final bool requestedLabel;
 
   static const _height = 62.0;
   static const _avatar = 48.0;
@@ -114,9 +121,11 @@ class FriendRow extends StatelessWidget {
     ],
     FriendRelation.requestSent => [
       _Pill(
-        label: AppStrings.friendCancel,
+        label: requestedLabel
+            ? AppStrings.friendRequested
+            : AppStrings.friendCancel,
         width: _buttonWidth,
-        onTap: busy ? null : onCancel,
+        onTap: requestedLabel || busy ? null : onCancel,
       ),
     ],
     FriendRelation.friend => [

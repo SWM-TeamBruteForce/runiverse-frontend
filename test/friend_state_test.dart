@@ -275,7 +275,14 @@ void main() {
       await container.read(friendProvider.notifier).accept('r1');
 
       expect(container.read(friendProvider).groups, isEmpty);
-      expect(container.read(friendProvider).failure, FriendFailure.notFound);
+      // ⚠️ **조회 실패와 가른 자리다.** 404로 그 줄이 빠지면 묶음이 비는데,
+      // 하나로 두면 "불러오지 못했어요" 화면이 떠서 멀쩡히 받아 둔 목록을
+      // 못 받은 것처럼 보이게 된다.
+      expect(
+        container.read(friendProvider).actionFailure,
+        FriendFailure.notFound,
+      );
+      expect(container.read(friendProvider).failure, isNull);
     });
 
     test('⚠️ 같은 줄을 연달아 눌러도 요청은 한 번만 나간다', () async {

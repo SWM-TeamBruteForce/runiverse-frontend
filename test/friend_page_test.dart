@@ -10,6 +10,7 @@ import 'package:runiverse/features/friend/data/fake_friend_repository.dart';
 import 'package:runiverse/features/friend/domain/friend_entry.dart';
 import 'package:runiverse/features/friend/domain/friend_recommendation.dart';
 import 'package:runiverse/features/friend/domain/friend_relation.dart';
+import 'package:runiverse/features/friend/domain/friend_repository.dart';
 import 'package:runiverse/features/friend/presentation/friend_page.dart';
 import 'package:runiverse/features/friend/presentation/friend_provider.dart';
 
@@ -193,5 +194,100 @@ void main() {
 
       expect(find.text(AppStrings.friendEmptySearch('없는이름')), findsOneWidget);
     });
+  });
+
+  group('⚠️ 실패를 화면이 말한다', () {
+    testWidgets('못 받았을 때 "친구가 없다"고 하지 않는다', (tester) async {
+      // 터널이 끊기면 load() 가 실패하는데, 그대로 두면 친구 40명인 사람에게
+      // "아직 친구가 없어요"가 뜬다. 없는 것과 못 받은 것은 다른 일이다.
+      await pump(tester, FakeFriendRepository(failure: FriendFailure.network));
+
+      expect(find.text(AppStrings.friendEmptyFriends), findsNothing);
+      expect(find.text(AppStrings.friendLoadFailed), findsOneWidget);
+    });
+
+    testWidgets('다시 받아볼 수 있다', (tester) async {
+      await pump(tester, FakeFriendRepository(failure: FriendFailure.network));
+
+      expect(find.text(AppStrings.friendRetry), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 검색이 실패해도 "없다"고 하지 않는다', (tester) async {
+      await pump(tester, FakeFriendRepository(failure: FriendFailure.network));
+
+      await tester.enterText(find.byType(TextField), '김');
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.friendEmptySearch('김')), findsNothing);
+    });
+
+    testWidgets('⚠️ 이미 처리된 요청이면 그렇다고 말한다', (tester) async {
+      // 404 다. 내가 수락을 누르는 사이 상대가 취소했다. 아무 말도 없으면
+      // 눌러도 안 되는 버튼으로 보인다.
+      await pump(
+        tester,
+        FakeFriendRepository(
+          friendEntries: [e('받은', FriendRelation.requestReceived)],
+          actionFailure: FriendFailure.notFound,
+        ),
+      );
+
+      await tester.tap(find.text(AppStrings.friendAccept));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.friendGone), findsOneWidget);
+    });
+  });
+
+  group('⚠️ 검색창', () {
+    testWidgets('글자를 치면 ✕ 가 나타난다', (tester) async {
+      // 지우는 길이 없으면 백스페이스로 지워야 한다.
+      await pump(tester, FakeFriendRepository());
+      expect(find.byIcon(LucideIcons.x), findsNothing);
+
+      await tester.enterText(find.byType(TextField), '김');
+      await tester.pump();
+
+      expect(find.byIcon(LucideIcons.x), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 다시 들어오면 검색어가 없다', (tester) async {
+      // provider 가 살아 있어 지난 검색어가 남는다. 입력창은 비어 있는데
+      // 목록만 걸러져 있으면 왜 이것만 보이는지 알 수 없다.
+      await pump(tester, FakeFriendRepository());
+      await tester.enterText(find.byType(TextField), '김');
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+
+      // 화면을 다시 세운다. push·pop 처럼 State 가 새로 서야 한다.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await pump(tester, FakeFriendRepository());
+
+      expect(find.text(AppStrings.friendTabRecommendations), findsOneWidget);
+    });
+  });
+
+  testWidgets('⚠️ 추천에서 요청을 보내면 요청됨이 된다', (tester) async {
+    // "요청 취소"가 뜨면 취소하려다 눌리지 않아 고장으로 읽힌다.
+    await pump(
+      tester,
+      FakeFriendRepository(
+        recommended: [
+          FriendRecommendation(
+            entry: e('철수', FriendRelation.none),
+            reason: FriendReason.ranTogether,
+          ),
+        ],
+      ),
+    );
+    await tester.tap(find.text(AppStrings.friendTabRecommendations));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.friendRequest));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.friendRequested), findsOneWidget);
+    expect(find.text(AppStrings.friendCancel), findsNothing);
   });
 }

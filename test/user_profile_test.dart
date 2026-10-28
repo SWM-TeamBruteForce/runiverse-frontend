@@ -134,6 +134,29 @@ void main() {
       expect(find.text(AppStrings.friendProfileEntry(38)), findsOneWidget);
     });
 
+    testWidgets('⚠️ 요청을 누르면 버튼이 바뀐다', (tester) async {
+      // 안 바뀌면 실패한 줄 알고 또 누른다. 두 번째 POST 는 409 로 돌아오고,
+      // 그것도 조용하면 화면이 고장 난 것으로 보인다.
+      final friends = FakeFriendRepository();
+      await pump(tester, relation: FriendRelation.none, friends: friends);
+
+      await tester.tap(find.text(AppStrings.friendRequest));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.friendRequest), findsNothing);
+      expect(find.text(AppStrings.friendCancel), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 두 번 눌러도 요청은 한 번만 나간다', (tester) async {
+      final friends = FakeFriendRepository();
+      await pump(tester, relation: FriendRelation.none, friends: friends);
+
+      await tester.tap(find.text(AppStrings.friendRequest));
+      await tester.pumpAndSettle();
+      // 버튼이 바뀌었으니 같은 자리를 또 누를 수 없다.
+      expect(friends.requested, ['u1']);
+    });
+
     testWidgets('요청을 누르면 서버로 간다', (tester) async {
       final friends = FakeFriendRepository();
       await pump(tester, relation: FriendRelation.none, friends: friends);

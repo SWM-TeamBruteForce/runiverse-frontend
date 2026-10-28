@@ -32,6 +32,7 @@ class FriendState {
     this.searchLimit = 0,
     this.loading = false,
     this.failure,
+    this.actionFailure,
     this.changed = false,
     this.pending = const {},
   });
@@ -52,7 +53,16 @@ class FriendState {
   final int searchLimit;
 
   final bool loading;
+
+  /// **조회**가 실패했다. 본문이 이 자리를 대신 그린다.
   final FriendFailure? failure;
+
+  /// **버튼**이 실패했다. 본문은 그대로 두고 한 줄로 알린다.
+  ///
+  /// ⚠️ [failure]와 가른 이유 — 404로 그 줄이 목록에서 빠지면 묶음이 빌 수
+  /// 있는데, 하나로 두면 "불러오지 못했어요" 화면이 떠서 **멀쩡히 받아 둔
+  /// 목록을 못 받은 것처럼** 보이게 된다.
+  final FriendFailure? actionFailure;
 
   /// 이 화면에서 관계를 한 번이라도 바꿨는가.
   ///
@@ -88,6 +98,7 @@ class FriendState {
     int? searchLimit,
     bool? loading,
     FriendFailure? failure,
+    FriendFailure? actionFailure,
     bool? changed,
     Set<String>? pending,
   }) => FriendState(
@@ -102,6 +113,7 @@ class FriendState {
     // ⚠️ `failure`는 `??`로 두지 않는다. 다음 동작이 성공했을 때 지울 수
     // 있어야 한다 — 그러려면 넘기지 않은 것과 `null`을 넘긴 것이 같아야 한다.
     failure: failure,
+    actionFailure: actionFailure,
     changed: changed ?? this.changed,
     pending: pending ?? this.pending,
   );
@@ -258,7 +270,7 @@ class FriendController extends Notifier<FriendState> {
       if (error.failure == FriendFailure.notFound) {
         _replace(userId, FriendRelation.none);
       }
-      state = state.copyWith(failure: error.failure);
+      state = state.copyWith(actionFailure: error.failure);
     } finally {
       // ⚠️ **실패를 함께 넘긴다.** `copyWith`의 `failure`는 `??`가 아니라
       // 넘기지 않으면 지워진다(성공했을 때 지우려고 그렇게 뒀다). 여기서
@@ -266,6 +278,7 @@ class FriendController extends Notifier<FriendState> {
       state = state.copyWith(
         pending: {...state.pending}..remove(userId),
         failure: state.failure,
+        actionFailure: state.actionFailure,
       );
     }
   }
@@ -300,6 +313,7 @@ class FriendController extends Notifier<FriendState> {
             item,
       ],
       failure: state.failure,
+      actionFailure: state.actionFailure,
     );
   }
 

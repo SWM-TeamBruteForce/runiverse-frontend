@@ -12,6 +12,7 @@ import 'package:runiverse/core/widgets/v2/empty_state.dart';
 import 'package:runiverse/features/friend/domain/friend_entry.dart';
 import 'package:runiverse/features/friend/domain/friend_recommendation.dart';
 import 'package:runiverse/features/friend/domain/friend_relation.dart';
+import 'package:runiverse/features/friend/domain/friend_repository.dart';
 import 'package:runiverse/features/friend/presentation/friend_provider.dart';
 import 'package:runiverse/features/friend/presentation/friend_row.dart';
 
@@ -48,9 +49,14 @@ class _FriendPageState extends ConsumerState<FriendPage> {
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => ref.read(friendProvider.notifier).load(),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // ⚠️ **지난 검색어를 지운다.** provider 가 살아 있어 글자가 남는데,
+      // 입력창은 새로 서서 비어 있다 — 걸러진 목록만 보이고 왜 그런지 알 수
+      // 없는 화면이 된다.
+      ref.read(friendProvider.notifier).onQuery('');
+      ref.read(friendProvider.notifier).load();
+    });
   }
 
   @override
@@ -71,6 +77,25 @@ class _FriendPageState extends ConsumerState<FriendPage> {
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
     final state = ref.watch(friendProvider);
+
+    // ⚠️ **실패를 들고만 있으면 아무 일도 안 일어난 것으로 보인다.** 누른
+    // 버튼이 조용하면 고장으로 읽힌다.
+    ref.listen(friendProvider.select((s) => s.actionFailure), (_, failure) {
+      if (failure == null) return;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              _failureText(failure),
+              style: AppTypographyV2.body11.copyWith(color: colors.textStrong),
+            ),
+            backgroundColor: colors.bgElevated,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    });
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -107,6 +132,21 @@ class _FriendPageState extends ConsumerState<FriendPage> {
   Widget _body(FriendState state) {
     if (state.loading && state.groups.isEmpty && !state.searching) {
       return const Center(child: CircularProgressIndicator());
+    }
+
+    // ⚠️ **"없다"보다 먼저 본다.** 못 받았는데 빈 상태를 그리면 친구가 많은
+    // 사람에게 "아직 친구가 없어요"라고 말하게 된다.
+    if (state.failure != null && state.groups.isEmpty) {
+      return EmptyStateV2(
+        icon: LucideIcons.cloudOff,
+        message: AppStrings.friendLoadFailed,
+        cta: TextButton(
+          onPressed: () => state.searching
+              ? ref.read(friendProvider.notifier).onQuery(state.query)
+              : ref.read(friendProvider.notifier).load(),
+          child: Text(AppStrings.friendRetry),
+        ),
+      );
     }
 
     if (state.searching) {
@@ -174,11 +214,12 @@ class _FriendPageState extends ConsumerState<FriendPage> {
           busy: state.pending.contains(item.entry.userId),
           onTap: () => context.push(AppRoutes.userProfileOf(item.entry.userId)),
           meta: _Reason(reason: item.reason),
-          // 추천은 전부 `none` 이라 버튼이 하나다. 눌러서 `requestSent` 가
-          // 되면 행이 "요청 취소"로 바뀌는 대신 잠긴 "요청됨" 이 된다.
+          // ⚠️ **추천에서는 되돌리지 않는다.** 요청을 보낸 줄은 잠긴
+          // "요청됨"이 된다 — 여기서 "요청 취소"를 그리면 눌리지 않는 버튼이
+          // 취소를 권하는 꼴이 된다. 취소는 친구 탭에서 한다.
+          requestedLabel: true,
           onRequest: () =>
               ref.read(friendProvider.notifier).request(item.entry.userId),
-          onCancel: null,
         ),
     ],
   );
@@ -212,6 +253,13 @@ class _FriendPageState extends ConsumerState<FriendPage> {
     }
   }
 }
+
+String _failureText(FriendFailure failure) => switch (failure) {
+  FriendFailure.notFound => AppStrings.friendGone,
+  FriendFailure.alreadyExists => AppStrings.friendAlready,
+  FriendFailure.network => AppStrings.friendLoadFailed,
+  _ => AppStrings.friendActionFailed,
+};
 
 /// 상단 고정 검색창. 시안 `79:2086`.
 class _SearchField extends ConsumerStatefulWidget {
@@ -258,7 +306,13 @@ class _SearchFieldState extends ConsumerState<_SearchField> {
               ),
               // 상태는 바로 바꾸고 조회만 미룬다 — 탭은 글자를 치는 즉시
               // 접혀야 한다.
-              onChanged: ref.read(friendProvider.notifier).onQuery,
+              // ⚠️ **`setState` 가 필요하다.** 지우기 단추가 글자 유무로
+              // 갈리는데, 이 위젯은 `const` 로 서서 부모가 다시 그려도
+              // 되살아나지 않는다.
+              onChanged: (value) {
+                ref.read(friendProvider.notifier).onQuery(value);
+                setState(() {});
+              },
             ),
           ),
           if (_controller.text.isNotEmpty)
@@ -268,6 +322,7 @@ class _SearchFieldState extends ConsumerState<_SearchField> {
               onPressed: () {
                 _controller.clear();
                 ref.read(friendProvider.notifier).onQuery('');
+                setState(() {});
               },
             ),
         ],

@@ -1827,6 +1827,19 @@ abstract final class AppStrings {
   /// 뜻이 없다.
   static const friendBadgeOverflow = '20+';
 
+  /// ⚠️ **"없다"와 "못 받았다"를 가른다.** 터널이 끊겼을 때 "아직 친구가
+  /// 없어요"가 뜨면, 친구 40명인 사람에게 거짓말을 하는 것이다.
+  static const friendLoadFailed = '목록을 불러오지 못했어요';
+  static const friendRetry = '다시 시도';
+
+  /// 404. 내가 누르는 사이 상대가 취소했거나, 이미 처리된 요청이다.
+  static const friendGone = '이미 처리된 요청이에요';
+
+  /// 409. 화면과 서버가 어긋났다.
+  static const friendAlready = '이미 요청했거나 친구예요';
+
+  static const friendActionFailed = '잠시 후 다시 시도해주세요';
+
   /// 남의 프로필을 못 받았다. 404(탈퇴·없는 사람)도 여기로 온다.
   static const friendProfileLoadFailed = '프로필을 불러오지 못했어요';
 

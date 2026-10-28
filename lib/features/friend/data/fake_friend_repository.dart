@@ -16,6 +16,7 @@ class FakeFriendRepository implements FriendRepository {
     this.searchResults = const [],
     this.nextCursor,
     this.failure,
+    this.actionFailure,
   });
 
   /// 내 친구 목록으로 돌려줄 것.
@@ -24,8 +25,12 @@ class FakeFriendRepository implements FriendRepository {
   final List<FriendEntry> searchResults;
   final String? nextCursor;
 
-  /// 심어 두면 **모든 동작**이 이 갈래로 던진다. 404·409를 재현하는 데 쓴다.
+  /// 심어 두면 **모든 호출**이 이 갈래로 던진다.
   final FriendFailure? failure;
+
+  /// 조회는 되는데 **버튼만** 실패한다. 404·409를 재현하는 데 쓴다 — 목록이
+  /// 떠 있어야 누를 줄이 있다.
+  final FriendFailure? actionFailure;
 
   var friendsCalls = 0;
   var recommendationsCalls = 0;
@@ -38,6 +43,11 @@ class FakeFriendRepository implements FriendRepository {
 
   void _maybeThrow() {
     final f = failure;
+    if (f != null) throw FriendException(f);
+  }
+
+  void _maybeThrowAction() {
+    final f = actionFailure;
     if (f != null) throw FriendException(f);
   }
 
@@ -72,6 +82,7 @@ class FakeFriendRepository implements FriendRepository {
   @override
   Future<FriendRelation> request(String userId) async {
     _maybeThrow();
+    _maybeThrowAction();
     requested.add(userId);
     return FriendRelation.requestSent;
   }
@@ -79,6 +90,7 @@ class FakeFriendRepository implements FriendRepository {
   @override
   Future<FriendRelation> accept(String userId) async {
     _maybeThrow();
+    _maybeThrowAction();
     accepted.add(userId);
     return FriendRelation.friend;
   }
@@ -86,12 +98,14 @@ class FakeFriendRepository implements FriendRepository {
   @override
   Future<void> cancel(String userId) async {
     _maybeThrow();
+    _maybeThrowAction();
     cancelled.add(userId);
   }
 
   @override
   Future<void> remove(String userId) async {
     _maybeThrow();
+    _maybeThrowAction();
     removed.add(userId);
   }
 }
