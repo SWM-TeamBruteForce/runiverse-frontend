@@ -121,10 +121,21 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   /// 80%(`_safeRatio`)로 갈랐는데, 그러면 85% 에서 멈춘 사람이 `forced=false`
   /// 로 나가 **끝낼 뜻이 분명한데 서버가 보류로 되돌려 보낸다.** 80% 는
   /// 제재 선이지 완주 선이 아니다.
+  /// ⚠️ **모를 때는 모자라다고 단정하지 않는다.** 앱을 껐다 켜서 이어 붙은
+  /// 러닝은 로컬 누적이 0부터 다시 시작하고, 서버가 아는 거리는 스냅샷이
+  /// 와야 채워진다([RunSessionController.awaitingDistanceSeed]). 그 사이에
+  /// 종료를 누르면 **목표를 한참 넘긴 사람이 `forced=true` 로 나간다** —
+  /// 서버는 이 값과 자기 확정 거리를 함께 보고 제재를 정한다.
+  ///
+  /// 정말 모자랐다면 서버가 보류로 되돌려 보내고(가이드 3.3) 그때 사용자가
+  /// 고른다. 되돌릴 수 있는 쪽으로 기운다.
   void _finishByHold() {
     final metrics = _metricsOf(ref.read(runSessionControllerProvider));
     final target = _targetDistanceMeters();
-    final short = target != null && metrics.distanceMeters < target;
+    final unknown = ref
+        .read(runSessionControllerProvider.notifier)
+        .awaitingDistanceSeed;
+    final short = target != null && !unknown && metrics.distanceMeters < target;
     unawaited(_finishRun(forced: short));
   }
 

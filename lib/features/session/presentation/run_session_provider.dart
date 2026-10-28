@@ -307,6 +307,18 @@ class RunSessionController extends Notifier<RunSessionState> {
   /// 스냅샷으로 바닥을 한 번 올렸는가. 두 번 올리면 거리가 부풀려진다.
   var _seeded = false;
 
+  /// **이어 달리는 러닝인데 서버가 아는 누적 거리를 아직 못 받았는가.**
+  ///
+  /// 참이면 화면의 거리는 **재시작 뒤에 쌓은 것뿐**이라 실제보다 적다. 그
+  /// 값으로 "목표에 모자라다"를 판정하면 완주한 사람이 조기 종료로 나간다
+  /// (`RunSessionPage._finishByHold`).
+  ///
+  /// ⚠️ [_resumed]만 보면 늦다. 그것은 첫 신호가 와서 [start]가 선 뒤에야
+  /// 참이 되는데, **신호를 기다리는 동안에도** 종료를 누를 수 있다. 복구하기로
+  /// 정한 순간([startWhenReady]가 [_startSince]를 쥔 때)부터 센다.
+  bool get awaitingDistanceSeed =>
+      (_resumed || _startSince != null) && !_seeded;
+
   /// 서버가 아는 **내 누적 거리**로 바닥을 올린다. 한 러닝에 한 번뿐이다.
   ///
   /// 앱을 껐다 켜면 로컬 누적이 0부터 다시 시작한다. 좌표는 서버에 이미 쌓여
@@ -326,8 +338,15 @@ class RunSessionController extends Notifier<RunSessionState> {
   ///
   /// ⚠️ 지도 선은 되살아나지 않는다. 좌표 자체는 서버에만 있고 앱이 받아오는
   /// 길이 없다. 숫자만 이어지고 선은 재시작 지점부터 그려진다.
+  /// ⚠️ **아직 [start]가 서지 않았으면 들고 있는다.** 스냅샷은
+  /// `RUNNING_STARTED` 한 번뿐이라 여기서 버리면 두 번째 기회가 없다 —
+  /// [_pendingDistance]에 두었다가 [start]가 적용한다.
   void seedDistance(int meters) {
-    if (!_resumed || _seeded) return;
+    if (_seeded) return;
+    if (!_resumed) {
+      _pendingDistance = meters;
+      return;
+    }
     _seeded = true;
     if (meters <= _distanceMeters) return;
 
@@ -352,8 +371,13 @@ class RunSessionController extends Notifier<RunSessionState> {
   ///
   /// [seedDistance]와 같은 규칙으로 **이어 달리는 러닝에서만** 맞춘다. 새로
   /// 시작한 러닝은 앱이 잰 시각이 더 정확하다.
+  /// ⚠️ [seedDistance]와 같은 이유로 **들고 있다가** [start]에서 적용한다.
   void seedStartedAt(DateTime at) {
-    if (!_resumed || _timeSeeded) return;
+    if (_timeSeeded) return;
+    if (!_resumed) {
+      _pendingStartedAt = at;
+      return;
+    }
     _timeSeeded = true;
     // 일시정지 중이면 건드리지 않는다. `_resumedAt`을 세우면 멈춘 시계가 다시 간다.
     if (state is! RunRunning) return;
@@ -367,6 +391,14 @@ class RunSessionController extends Notifier<RunSessionState> {
   /// 첫 신호에 출발하기로 했는가. [startWhenReady]가 세우고 [_reset]이 지운다.
   var _startOnFix = false;
   DateTime? _startSince;
+
+  /// 신호보다 먼저 닿은 스냅샷을 담아 두는 자리. [start]가 비운다.
+  ///
+  /// 스플래시는 소켓(`reopen`)과 출발(`startWhenReady`)을 **같은 틱에 나란히**
+  /// 쏜다. 소켓이 이기면 스냅샷이 [start]보다 먼저 오는데, 그때 그냥 돌아서면
+  /// 복구할 값이 영영 사라진다.
+  int? _pendingDistance;
+  DateTime? _pendingStartedAt;
 
   void start({DateTime? since}) {
     if (state case RunPreparing(hasFix: true)) {
@@ -389,6 +421,18 @@ class RunSessionController extends Notifier<RunSessionState> {
 
       state = RunRunning(_metrics());
       _startTicker();
+
+      // ⚠️ **먼저 와서 기다리던 스냅샷을 여기서 푼다.** 시각을 먼저 맞춘 뒤
+      // 거리를 올린다 — 거리를 먼저 올리면 [seedStartedAt]이 다시 그리는
+      // 상태에 그 값이 실리지 않는다.
+      final pendingAt = _pendingStartedAt;
+      final pendingMeters = _pendingDistance;
+      _pendingStartedAt = null;
+      _pendingDistance = null;
+      if (_resumed) {
+        if (pendingAt != null) seedStartedAt(pendingAt);
+        if (pendingMeters != null) seedDistance(pendingMeters);
+      }
     }
   }
 
@@ -634,6 +678,8 @@ class RunSessionController extends Notifier<RunSessionState> {
     _seeded = false;
     _timeSeeded = false;
     _resumed = false;
+    _pendingDistance = null;
+    _pendingStartedAt = null;
     _accumulated = Duration.zero;
     _resumedAt = null;
     _startedAt = null;
