@@ -1,10 +1,13 @@
 import 'package:runiverse/features/friend/domain/friend_entry.dart';
 
 /// 한 번에 받은 목록과, 이어 읽을 자리.
-class FriendPage {
-  const FriendPage({required this.items, this.nextCursor});
+///
+/// ⚠️ **이름이 `FriendPage`가 아니다.** 화면 위젯이 그 이름을 쓴다 — 둘을 같이
+/// import 하는 파일이 생기는 순간 접두사를 달아야 한다.
+class FriendList {
+  const FriendList({required this.items, this.nextCursor});
 
-  const FriendPage.empty() : items = const [], nextCursor = null;
+  const FriendList.empty() : items = const [], nextCursor = null;
 
   final List<FriendEntry> items;
 

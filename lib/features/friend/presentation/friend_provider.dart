@@ -101,11 +101,16 @@ class FriendState {
     FriendFailure? actionFailure,
     bool? changed,
     Set<String>? pending,
+    bool clearFriendCursor = false,
+    bool clearChanged = false,
   }) => FriendState(
     tab: tab ?? this.tab,
     query: query ?? this.query,
     friends: friends ?? this.friends,
-    friendCursor: friendCursor ?? this.friendCursor,
+    // ⚠️ `??`라 넘기지 않으면 남는다. 지우려면 `clearFriendCursor`다.
+    friendCursor: clearFriendCursor
+        ? null
+        : (friendCursor ?? this.friendCursor),
     recommendations: recommendations ?? this.recommendations,
     results: results ?? this.results,
     searchLimit: searchLimit ?? this.searchLimit,
@@ -114,7 +119,7 @@ class FriendState {
     // 있어야 한다 — 그러려면 넘기지 않은 것과 `null`을 넘긴 것이 같아야 한다.
     failure: failure,
     actionFailure: actionFailure,
-    changed: changed ?? this.changed,
+    changed: clearChanged ? false : (changed ?? this.changed),
     pending: pending ?? this.pending,
   );
 }
@@ -132,6 +137,12 @@ final friendProvider = NotifierProvider<FriendController, FriendState>(
 /// 항목을 친구 묶음 맨 위로 옮기라"고 권한다.
 class FriendController extends Notifier<FriendState> {
   Timer? _debounce;
+
+  /// 이어 읽기가 다녀오는 중인가.
+  ///
+  /// ⚠️ **상태에 두지 않는다.** 스크롤 알림마다 불리는 자리라, 응답이 오기
+  /// 전에 또 들어온다. `searchLimit`은 응답이 와야 바뀌므로 막지 못한다.
+  var _loadingMore = false;
 
   /// 검색을 미루는 시간. 닉네임 중복 확인(`nickname_field.dart`)과 같은 값이다.
   static const _searchDebounce = Duration(milliseconds: 500);
@@ -202,16 +213,58 @@ class FriendController extends Notifier<FriendState> {
     _debounce = Timer(_searchDebounce, () => _search(_searchFirst));
   }
 
+  /// 바닥까지 읽었다. 친구 목록은 **커서로 이어 읽는다.**
+  ///
+  /// ⚠️ 검색과 달리 50에서 끊을 수 없다 — 내 친구 전부가 대상이다.
+  Future<void> loadMoreFriends() async {
+    if (state.searching || _loadingMore) return;
+    final cursor = state.friendCursor;
+    if (cursor == null) return;
+
+    _loadingMore = true;
+    try {
+      final me = await _myUserId();
+      if (me == null) return;
+      final page = await _repo.friends(userId: me, cursor: cursor);
+      state = state.copyWith(
+        friends: [...state.friends, ...page.items],
+        // ⚠️ 마지막 장이면 `null`로 **지워야** 한다. 남겨 두면 같은 커서로
+        // 영영 다시 읽는다.
+        friendCursor: page.nextCursor,
+        clearFriendCursor: page.nextCursor == null,
+      );
+    } on FriendException catch (error) {
+      state = state.copyWith(actionFailure: error.failure);
+    } finally {
+      _loadingMore = false;
+    }
+  }
+
+  /// 프로필이 친구 수를 다시 읽었다. 표시를 지운다.
+  ///
+  /// ⚠️ **안 지우면** 한 번 바꾼 뒤로는 들여다보기만 해도 매번 다시 읽는다.
+  void clearChanged() => state = state.copyWith(
+    changed: false,
+    clearChanged: true,
+    failure: state.failure,
+    actionFailure: state.actionFailure,
+  );
+
   /// 바닥까지 읽었다. 같은 검색어로 50을 다시 받는다.
   ///
   /// ⚠️ **커서를 쓰지 않는다.** 페이지를 넘기는 사이 닉네임을 바꾼 사람이
   /// 빠지거나 두 번 오는 구간이 아예 없다(설계 §5).
   Future<void> loadMoreSearch() async {
-    if (!state.searching) return;
+    if (!state.searching || _loadingMore) return;
     // 이미 상한까지 받았거나, 첫 장을 다 못 채웠으면 더 볼 것이 없다.
     if (state.searchLimit >= _searchMax) return;
     if (state.results.length < state.searchLimit) return;
-    await _search(_searchMax);
+    _loadingMore = true;
+    try {
+      await _search(_searchMax);
+    } finally {
+      _loadingMore = false;
+    }
   }
 
   Future<void> _search(int limit) async {

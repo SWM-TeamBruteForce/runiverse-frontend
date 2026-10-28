@@ -99,16 +99,17 @@ void main() {
       expect(list.single.entry.relation, FriendRelation.none);
     });
 
-    test('⚠️ 모르는 reason 은 버린다', () {
-      // 운영 설정이 바뀌어 기준이 늘 수 있다. 이유를 못 읽으면 줄에 쓸 말이
-      // 없어서, 빈 자리를 남기느니 뺀다.
+    test('⚠️ 모르는 reason 이어도 그 사람은 남는다', () {
+      // 운영 설정이 바뀌어 기준이 하나 늘면, 빼는 쪽은 추천 화면을 통째로
+      // 비워 "추천할 러너를 아직 못 찾았어요"라고 거짓말을 하게 된다.
       final list = recommendationsFromJson({
         'recommendations': [
           {'userId': 'u1', 'nickname': '철수', 'reason': 'LIVES_NEARBY'},
         ],
       });
 
-      expect(list, isEmpty);
+      expect(list, hasLength(1));
+      expect(list.single.reason, isNull);
     });
 
     test('후보가 없으면 빈 목록이다', () {

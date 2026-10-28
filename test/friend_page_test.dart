@@ -156,7 +156,7 @@ void main() {
     expect(fake.removed, isEmpty, reason: '아직 안 끊었다');
   });
 
-  testWidgets('수락을 누르면 서버로 간다', (tester) async {
+  testWidgets('수락을 누르면 그 줄이 친구가 된다', (tester) async {
     final fake = FakeFriendRepository(
       friendEntries: [e('받은', FriendRelation.requestReceived)],
     );
@@ -164,6 +164,26 @@ void main() {
 
     await tester.tap(find.text(AppStrings.friendAccept));
     await tester.pumpAndSettle();
+
+    expect(fake.accepted, ['받은']);
+    // ⚠️ **화면으로도 본다.** 호출 기록만 보면 버튼이 안 바뀌어도 통과한다.
+    // `친구` 는 탭 이름과 묶음 머리글이 같은 글자라, 친구 줄에만 있는 `⋯` 로
+    // 가린다.
+    expect(find.text(AppStrings.friendAccept), findsNothing);
+    expect(find.byIcon(LucideIcons.ellipsis), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 같은 줄을 연달아 눌러도 한 번만 나간다', (tester) async {
+    // 사람이 실제로 하는 것은 동시 호출이 아니라 두 번 누르기다. 첫 번째가
+    // 끝나면 그 줄은 이미 다른 버튼이라 누를 수 없어야 한다.
+    final fake = FakeFriendRepository(
+      friendEntries: [e('받은', FriendRelation.requestReceived)],
+    );
+    await pump(tester, fake);
+
+    await tester.tap(find.text(AppStrings.friendAccept));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.friendAccept), findsNothing);
 
     expect(fake.accepted, ['받은']);
   });

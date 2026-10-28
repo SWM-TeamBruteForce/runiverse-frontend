@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/friend/data/friend_dto.dart';
-import 'package:runiverse/features/friend/domain/friend_page.dart';
+import 'package:runiverse/features/friend/domain/friend_list.dart';
 import 'package:runiverse/features/friend/domain/friend_recommendation.dart';
 import 'package:runiverse/features/friend/domain/friend_relation.dart';
 import 'package:runiverse/features/friend/domain/friend_repository.dart';
@@ -26,7 +26,7 @@ class HttpFriendRepository implements FriendRepository {
   static const _searchPath = '/api/v1/users/search';
 
   @override
-  Future<FriendPage> friends({
+  Future<FriendList> friends({
     required String userId,
     String? cursor,
     int limit = 20,
@@ -50,7 +50,7 @@ class HttpFriendRepository implements FriendRepository {
       });
 
   @override
-  Future<FriendPage> search({required String query, int limit = 20}) =>
+  Future<FriendList> search({required String query, int limit = 20}) =>
       _authorized((token) async {
         final response = await _dio.get<Map<String, dynamic>>(
           _searchPath,

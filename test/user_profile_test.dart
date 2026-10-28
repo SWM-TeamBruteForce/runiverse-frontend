@@ -165,6 +165,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(friends.requested, ['u1']);
+      // 호출 기록만 보면 버튼이 안 바뀌어도 통과한다.
+      expect(find.text(AppStrings.friendCancel), findsOneWidget);
     });
   });
 }

@@ -1840,6 +1840,10 @@ abstract final class AppStrings {
 
   static const friendActionFailed = '잠시 후 다시 시도해주세요';
 
+  /// 남의 친구 목록. 친구만 담긴다 — 누구에게 요청했는지는 본인만 안다.
+  static String userFriendsTitle(String nickname) => '$nickname님의 친구';
+  static String userFriendsEmpty(String nickname) => '$nickname님은 아직 친구가 없어요';
+
   /// 남의 프로필을 못 받았다. 404(탈퇴·없는 사람)도 여기로 온다.
   static const friendProfileLoadFailed = '프로필을 불러오지 못했어요';
 

@@ -70,7 +70,11 @@ class _FriendPageState extends ConsumerState<FriendPage> {
     if (!_scroll.hasClients) return;
     final position = _scroll.position;
     if (position.pixels < position.maxScrollExtent - 200) return;
-    ref.read(friendProvider.notifier).loadMoreSearch();
+    final notifier = ref.read(friendProvider.notifier);
+    // 검색이면 같은 검색어로 50을, 아니면 커서로 다음 장을 읽는다.
+    ref.read(friendProvider).searching
+        ? notifier.loadMoreSearch()
+        : notifier.loadMoreFriends();
   }
 
   @override
@@ -114,6 +118,10 @@ class _FriendPageState extends ConsumerState<FriendPage> {
                   IconButton(
                     icon: const Icon(LucideIcons.chevronLeft),
                     color: colors.textPrimary,
+                    // 글자가 없는 단추라 읽을 것을 붙인다.
+                    tooltip: MaterialLocalizations.of(
+                      context,
+                    ).backButtonTooltip,
                     onPressed: () => Navigator.of(context).maybePop(),
                   ),
                   const Expanded(child: _SearchField()),
@@ -213,7 +221,7 @@ class _FriendPageState extends ConsumerState<FriendPage> {
           entry: item.entry,
           busy: state.pending.contains(item.entry.userId),
           onTap: () => context.push(AppRoutes.userProfileOf(item.entry.userId)),
-          meta: _Reason(reason: item.reason),
+          meta: item.reason == null ? null : _Reason(reason: item.reason!),
           // ⚠️ **추천에서는 되돌리지 않는다.** 요청을 보낸 줄은 잠긴
           // "요청됨"이 된다 — 여기서 "요청 취소"를 그리면 눌리지 않는 버튼이
           // 취소를 권하는 꼴이 된다. 취소는 친구 탭에서 한다.
@@ -248,6 +256,8 @@ class _FriendPageState extends ConsumerState<FriendPage> {
         ],
       ),
     );
+    // ⚠️ 다이얼로그를 기다리는 사이 화면이 사라질 수 있다.
+    if (!mounted) return;
     if (yes ?? false) {
       await ref.read(friendProvider.notifier).remove(entry.userId);
     }

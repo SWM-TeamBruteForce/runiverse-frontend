@@ -1,5 +1,5 @@
 import 'package:runiverse/features/friend/domain/friend_entry.dart';
-import 'package:runiverse/features/friend/domain/friend_page.dart';
+import 'package:runiverse/features/friend/domain/friend_list.dart';
 import 'package:runiverse/features/friend/domain/friend_recommendation.dart';
 import 'package:runiverse/features/friend/domain/friend_relation.dart';
 import 'package:runiverse/features/friend/domain/friend_repository.dart';
@@ -33,6 +33,9 @@ class FakeFriendRepository implements FriendRepository {
   final FriendFailure? actionFailure;
 
   var friendsCalls = 0;
+
+  /// 조회마다 받은 커서. 이어 읽기가 서버 값을 그대로 돌려보내는지 본다.
+  final cursors = <String?>[];
   var recommendationsCalls = 0;
   final searchQueries = <String>[];
   final searchLimits = <int>[];
@@ -52,14 +55,29 @@ class FakeFriendRepository implements FriendRepository {
   }
 
   @override
-  Future<FriendPage> friends({
+  Future<FriendList> friends({
     required String userId,
     String? cursor,
     int limit = 20,
   }) async {
     _maybeThrow();
     friendsCalls++;
-    return FriendPage(items: friendEntries, nextCursor: nextCursor);
+    cursors.add(cursor);
+    // 이어 읽기는 다음 장이라 다른 사람이 와야 한다. 마지막 장이면 커서가
+    // 없다.
+    if (cursor != null) {
+      return FriendList(
+        items: [
+          for (final entry in friendEntries)
+            FriendEntry(
+              userId: '${entry.userId}-$cursor',
+              nickname: entry.nickname,
+              relation: entry.relation,
+            ),
+        ],
+      );
+    }
+    return FriendList(items: friendEntries, nextCursor: nextCursor);
   }
 
   @override
@@ -70,13 +88,13 @@ class FakeFriendRepository implements FriendRepository {
   }
 
   @override
-  Future<FriendPage> search({required String query, int limit = 20}) async {
+  Future<FriendList> search({required String query, int limit = 20}) async {
     _maybeThrow();
     searchQueries.add(query);
     searchLimits.add(limit);
     // 요청한 만큼만 돌려준다 — 20을 물었는데 50이 오면 화면이 더 읽을 이유를
     // 잃는다.
-    return FriendPage(items: searchResults.take(limit).toList());
+    return FriendList(items: searchResults.take(limit).toList());
   }
 
   @override

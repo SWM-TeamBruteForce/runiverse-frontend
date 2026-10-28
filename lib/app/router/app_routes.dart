@@ -125,6 +125,11 @@ abstract final class AppRoutes {
   /// [userProfile]의 자리를 채운다.
   static String userProfileOf(String userId) => '/profile/user/$userId';
 
+  /// 남의 친구 목록. 그 사람의 프로필에서 `친구 · N`을 눌러 들어온다.
+  static const userFriends = '/profile/user/:userId/friends';
+
+  static String userFriendsOf(String userId) => '/profile/user/$userId/friends';
+
   /// 설정 (S22.2)
   ///
   /// **탭 셸 밖에 둔다.** [profileEdit]과 같은 이유다 — 하단 탭이 함께 보이면

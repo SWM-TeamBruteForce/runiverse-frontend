@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:go_router/go_router.dart';
+import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
@@ -110,6 +112,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage> {
               IconButton(
                 icon: const Icon(LucideIcons.chevronLeft),
                 color: colors.textPrimary,
+                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
                 onPressed: () => Navigator.of(context).maybePop(),
               ),
               const Spacer(),
@@ -148,7 +151,10 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage> {
             friendCount: summary.friendCount,
             // 남의 화면에는 내가 답할 요청이 없다.
             receivedCount: 0,
-            onTap: () {},
+            onTap: () => context.push(
+              '${AppRoutes.userFriendsOf(summary.userId)}'
+              '?nickname=${Uri.encodeComponent(summary.nickname ?? '')}',
+            ),
           ),
         ],
       ),

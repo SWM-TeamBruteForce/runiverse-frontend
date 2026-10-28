@@ -69,6 +69,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     await context.push(AppRoutes.friends);
     if (!mounted) return;
     if (!ref.read(friendProvider).changed) return;
+    // ⚠️ **읽었으면 지운다.** 안 지우면 한 번 바꾼 뒤로는 들여다보기만 해도
+    // 돌아올 때마다 요약을 다시 받는다.
+    ref.read(friendProvider.notifier).clearChanged();
     await ref.read(profileSummaryControllerProvider.notifier).load();
   }
 

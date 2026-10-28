@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/features/friend/domain/friend_list.dart';
+import 'package:runiverse/features/friend/presentation/friend_provider.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
@@ -31,6 +33,16 @@ final profileRepositoryProvider = Provider<ProfileRepository>(
 final userProfileProvider = FutureProvider.autoDispose
     .family<ProfileSummary, String>(
       (ref, userId) => ref.watch(profileRepositoryProvider).fetch(userId),
+    );
+
+/// 남의 친구 목록 첫 장.
+///
+/// ⚠️ **커서를 붙이지 않는다**(설계 §7). 타인 목록에는 친구만 담겨 수가 적고,
+/// 여기서 이어 읽기까지 만들면 쓰지도 않을 길이 는다. 필요해지면 붙인다.
+final userFriendsProvider = FutureProvider.autoDispose
+    .family<FriendList, String>(
+      (ref, userId) =>
+          ref.watch(friendRepositoryProvider).friends(userId: userId),
     );
 
 /// 화면이 보는 상태.

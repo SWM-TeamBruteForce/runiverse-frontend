@@ -1,4 +1,4 @@
-import 'package:runiverse/features/friend/domain/friend_page.dart';
+import 'package:runiverse/features/friend/domain/friend_list.dart';
 import 'package:runiverse/features/friend/domain/friend_recommendation.dart';
 import 'package:runiverse/features/friend/domain/friend_relation.dart';
 
@@ -7,7 +7,7 @@ abstract class FriendRepository {
   /// [userId]의 친구 목록. 내 목록이면 주고받은 요청도 함께 온다.
   ///
   /// 타인 목록에는 **친구만** 담긴다 — 누구에게 요청했는지는 본인만 안다.
-  Future<FriendPage> friends({
+  Future<FriendList> friends({
     required String userId,
     String? cursor,
     int limit = 20,
@@ -21,7 +21,7 @@ abstract class FriendRepository {
   /// ⚠️ **커서를 받지 않는다.** 처음 20, 더 보면 같은 [query]로 50을 다시
   /// 받는다(설계 §5). 커서로 이어 읽으면 그 사이 닉네임을 바꾼 사람이 빠지거나
   /// 두 번 올 수 있다.
-  Future<FriendPage> search({required String query, int limit = 20});
+  Future<FriendList> search({required String query, int limit = 20});
 
   /// 친구 요청을 보낸다.
   ///

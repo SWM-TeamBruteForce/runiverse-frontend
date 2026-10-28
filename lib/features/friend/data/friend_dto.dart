@@ -8,7 +8,7 @@
 library;
 
 import 'package:runiverse/features/friend/domain/friend_entry.dart';
-import 'package:runiverse/features/friend/domain/friend_page.dart';
+import 'package:runiverse/features/friend/domain/friend_list.dart';
 import 'package:runiverse/features/friend/domain/friend_recommendation.dart';
 import 'package:runiverse/features/friend/domain/friend_relation.dart';
 
@@ -16,12 +16,12 @@ import 'package:runiverse/features/friend/domain/friend_relation.dart';
 ///
 /// ⚠️ **항목 하나가 깨져도 나머지는 살린다.** 한 사람 때문에 목록이 통째로
 /// 비면 쓸 수 없는 화면이 된다.
-FriendPage friendPageFromJson(Object? body) {
-  if (body is! Map) return const FriendPage.empty();
+FriendList friendPageFromJson(Object? body) {
+  if (body is! Map) return const FriendList.empty();
   final items = body['items'];
   final cursor = body['nextCursor'];
 
-  return FriendPage(
+  return FriendList(
     items: items is List
         ? [for (final item in items) ?_entryOf(item)]
         : const [],
@@ -31,9 +31,9 @@ FriendPage friendPageFromJson(Object? body) {
 
 /// 추천 목록을 읽는다.
 ///
-/// ⚠️ **이유를 못 읽은 사람은 뺀다.** 추천 줄은 이유를 함께 보여 주는 것이
-/// 전부라, 이유가 없으면 그 줄에 쓸 말이 없다. 운영 설정이 바뀌어 기준이 늘면
-/// 그 사람들만 조용히 빠진다.
+/// ⚠️ **이유를 못 읽어도 그 사람은 남긴다.** 운영 설정이 바뀌어 기준이 하나
+/// 늘면, 빼는 쪽은 추천 화면을 통째로 비워 "추천할 러너를 아직 못 찾았어요"로
+/// 보이게 한다 — 사실이 아닌 말이다. 줄은 세우고 이유 한 줄만 비운다.
 List<FriendRecommendation> recommendationsFromJson(Object? body) {
   if (body is! Map) return const [];
   final list = body['recommendations'];
@@ -42,12 +42,11 @@ List<FriendRecommendation> recommendationsFromJson(Object? body) {
   return [
     for (final item in list)
       if (_entryOf(item) case final entry?)
-        if (_reasonOf(item) case final reason?)
-          FriendRecommendation(
-            // 추천은 전부 `none` 이다 — 서버가 나머지를 빼고 준다.
-            entry: entry.withRelation(FriendRelation.none),
-            reason: reason,
-          ),
+        FriendRecommendation(
+          // 추천은 전부 `none` 이다 — 서버가 나머지를 빼고 준다.
+          entry: entry.withRelation(FriendRelation.none),
+          reason: _reasonOf(item),
+        ),
   ];
 }
 
