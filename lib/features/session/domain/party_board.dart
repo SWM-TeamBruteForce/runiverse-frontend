@@ -199,6 +199,12 @@ class PartyBoard {
   int get myBestCombo =>
       bestCombos.values.fold(0, (best, count) => count > best ? count : best);
 
+  /// 지금 콤보에 든 사람 수 — **나를 포함한다.** 콤보가 없으면 0이다.
+  ///
+  /// 콤보는 쌍 단위라 상대마다 따로 선다. 셋이 서로 붙어 있으면 내 쪽에서는
+  /// 상대 둘과의 콤보 둘로 보이므로, 머릿수는 거기에 나를 더한 것이다.
+  int get comboHeadcount => combos.isEmpty ? 0 : combos.length + 1;
+
   /// 파티원 줄만. 솔로면 비어 있다.
   List<PartyRow> get rows => [
     for (final lane in lanes)
