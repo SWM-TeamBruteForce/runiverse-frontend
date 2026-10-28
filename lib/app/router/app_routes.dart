@@ -111,6 +111,12 @@ abstract final class AppRoutes {
   /// 하단 탭이 함께 보이면 저장하지 않고 다른 탭으로 샐 수 있다.
   static const profileEdit = '/profile/edit';
 
+  /// 친구 — 목록 · 추천 · 검색이 한 화면이다.
+  ///
+  /// **탭 셸 밖에 둔다.** 검색창이 상단에 고정이라 하단 탭까지 함께 있으면
+  /// 화면이 위아래로 눌린다. 인앱 알림이 생기면 이 경로가 딥링크가 된다.
+  static const friends = '/profile/friends';
+
   /// 설정 (S22.2)
   ///
   /// **탭 셸 밖에 둔다.** [profileEdit]과 같은 이유다 — 하단 탭이 함께 보이면

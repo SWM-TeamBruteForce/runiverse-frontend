@@ -11,7 +11,9 @@ import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/profile/presentation/profile_cover.dart';
 import 'package:runiverse/features/profile/presentation/profile_cover_action.dart';
+import 'package:runiverse/features/friend/presentation/friend_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_header.dart';
+import 'package:runiverse/features/profile/presentation/profile_stat_row.dart';
 import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 
@@ -51,7 +53,23 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       // 오지만 배경 조회는 API가 따로다(1.1.1 가이드 4절) — 여기서 안 부르면
       // 커버가 영영 기본 배경으로 남는다.
       ref.read(backgroundImageControllerProvider.notifier).load();
+      // ⚠️ **받은 요청 수를 주는 API가 따로 없다.** 친구 목록 첫 장을 받아
+      // 센다(`ProfileStatRow.receivedCount`). 그 숫자가 지금은 요청이 왔다는
+      // 것을 아는 **유일한 통로**다 — 인앱 알림은 백엔드가 만들고 있다.
+      ref.read(friendProvider.notifier).load();
     });
+  }
+
+  /// 친구 화면에 다녀온다.
+  ///
+  /// ⚠️ **바꿨을 때만 요약을 다시 읽는다.** push된 라우트라 돌아와도 친구
+  /// 수가 저절로 갱신되지 않는다. 들여다보기만 한 사람에게까지 요청을 보낼
+  /// 이유는 없다.
+  Future<void> _openFriends() async {
+    await context.push(AppRoutes.friends);
+    if (!mounted) return;
+    if (!ref.read(friendProvider).changed) return;
+    await ref.read(profileSummaryControllerProvider.notifier).load();
   }
 
   @override
@@ -122,7 +140,23 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   isOnboarded: signedIn?.isOnboarded ?? true,
                 ),
 
-                // ⚠️ **본문이 비어 있다. 빠뜨린 것이 아니다.**
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.space4,
+                    AppSpacing.space4,
+                    AppSpacing.space4,
+                    0,
+                  ),
+                  child: ProfileStatRow(
+                    friendCount: summary?.friendCount ?? 0,
+                    receivedCount: ref.watch(
+                      friendProvider.select((s) => s.receivedCount),
+                    ),
+                    onTap: _openFriends,
+                  ),
+                ),
+
+                // ⚠️ **아래 본문이 비어 있다. 빠뜨린 것이 아니다.**
                 //
                 // 여기 있던 `기본 컬러 도감` · `블렌드` · `피드` 셋을
                 // 걷어냈다. 색 수집 기능은 범위에서 빠졌고(2026-10-15), 대표 기록
