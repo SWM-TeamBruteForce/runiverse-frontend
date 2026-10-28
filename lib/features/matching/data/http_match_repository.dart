@@ -20,7 +20,13 @@ class HttpMatchRepository implements MatchRepository {
   final TokenStore _store;
   final AuthRepository _auth;
 
-  static const _path = '/api/v1/running-matches';
+  /// ⚠️ **2026-10-28에 `/running-matches`에서 바뀌었다**(BE PR #112). 서버가
+  /// 옛 주소를 남기지 않고 지워서 호환이 없다 — 옛 주소로 보내면 404다.
+  static const _path = '/api/v1/match-rooms';
+
+  /// 나가기. ⚠️ **주소와 방식이 함께 바뀌었다** — `DELETE /running-matches`
+  /// 였다. 주소만 고치고 `DELETE`로 보내면 405다.
+  static const _leavePath = '$_path/leave';
 
   @override
   Future<SlotBoard> slots() async {
@@ -88,8 +94,8 @@ class HttpMatchRepository implements MatchRepository {
 
   @override
   Future<void> cancel() => _authorized((token) async {
-    await _dio.delete<void>(
-      _path,
+    await _dio.post<void>(
+      _leavePath,
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
   });

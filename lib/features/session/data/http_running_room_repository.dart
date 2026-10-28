@@ -25,7 +25,7 @@ class HttpRunningRoomRepository implements RunningRoomRepository {
 
   /// ⚠️ **`HttpMatchRepository`에도 같은 경로가 있다.** 인터페이스의
   /// `cancelPending` 주석 참조 — 바뀌면 둘 다 고친다.
-  static const _cancelPath = '/api/v1/running-matches';
+  static const _cancelPath = '/api/v1/match-rooms/leave';
 
   @override
   Future<RunningRoom> openSolo() async {
@@ -58,21 +58,23 @@ class HttpRunningRoomRepository implements RunningRoomRepository {
     }
 
     try {
-      await _delete(accessToken);
+      await _leave(accessToken);
     } on DioException catch (error) {
       if (error.response?.statusCode != 401) {
         _rethrowCancel(error);
         return;
       }
       try {
-        await _delete(await _refreshed());
+        await _leave(await _refreshed());
       } on DioException catch (retried) {
         _rethrowCancel(retried);
       }
     }
   }
 
-  Future<void> _delete(String accessToken) => _dio.delete<void>(
+  /// ⚠️ **`POST`다.** `DELETE /running-matches`였는데 2026-10-28에 주소와
+  /// 방식이 함께 바뀌었다(BE PR #112). `DELETE`로 보내면 405다.
+  Future<void> _leave(String accessToken) => _dio.post<void>(
     _cancelPath,
     options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
   );

@@ -48,7 +48,7 @@ void main() {
 
     await repo.slots();
 
-    expect(api.request?.path, '/api/v1/running-matches/slots');
+    expect(api.request?.path, '/api/v1/match-rooms/slots');
     expect(api.request?.queryParameters, isEmpty);
   });
 

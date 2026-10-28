@@ -13,7 +13,7 @@ import 'package:runiverse/features/matching/domain/target_distance.dart';
 void main() {
   /// 서버가 준 오류 응답을 흉내 낸다.
   DioException httpError(int status, {Map<String, Object?>? body}) {
-    final request = RequestOptions(path: '/api/v1/running-matches');
+    final request = RequestOptions(path: '/api/v1/match-rooms');
     return DioException(
       requestOptions: request,
       type: DioExceptionType.badResponse,
@@ -142,7 +142,7 @@ void main() {
       // 신청됐는지 알 수 없는 상태라 다시 보내면 중복 신청이 된다.
       final error = HttpMatchRepository.exceptionOf(
         DioException(
-          requestOptions: RequestOptions(path: '/api/v1/running-matches'),
+          requestOptions: RequestOptions(path: '/api/v1/match-rooms'),
           type: DioExceptionType.connectionTimeout,
         ),
       );
