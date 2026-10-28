@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/data/http_match_repository.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
-import 'package:runiverse/features/matching/domain/match_slot.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 
 /// 매칭 신청 — **서버가 준 시각을 그대로 되돌려 보내는가.**
@@ -161,42 +160,29 @@ void main() {
     });
   });
 
-  group('슬롯 하나', () {
-    // ⚠️ 목록은 더 이상 앱이 만들지 않는다. **서버가 준다**(명세 No 16,
-    // `slot_dto.dart`). 벽시계로 마감을 계산하던 테스트 여덟은 지킬 대상이
-    // 없어져 함께 갔다 — 운영에서 아홉 칸이 하루 종일 마감으로 떴던 그 계산이다.
-    //
-    // 여기 남은 것은 **그 계산과 무관한** 규칙이다.
-
-    test('잠근 사본은 나머지를 그대로 둔다', () {
-      final slot = MatchSlot(
-        raw: '2026-09-16T18:00:00',
-        startAt: DateTime(2026, 9, 16, 18),
-        waitingCount: 3,
-        selectable: true,
-      );
-
-      final closed = slot.closed();
-
-      expect(closed.selectable, isFalse);
-      expect(closed.raw, '2026-09-16T18:00:00');
-      expect(closed.waitingCount, 3, reason: '대기 인원은 그대로다');
-    });
-  });
+  // ⚠️ 목록은 더 이상 앱이 만들지 않는다. **서버가 준다**(명세 No 16,
+  // `slot_board_dto.dart`). 벽시계로 마감을 계산하던 테스트 여덟은 지킬 대상이
+  // 없어져 함께 갔다 — 운영에서 아홉 칸이 하루 종일 마감으로 떴던 그 계산이다.
+  //
+  // `MatchSlot.closed()`를 보던 테스트도 2026-10-26에 갔다. 한 줄만 잠그는
+  // 대신 **판을 다시 받는다** — 한 번에 다 오므로 그쪽이 싸고, 그사이 마감된
+  // 다른 시각까지 함께 잠긴 채로 온다(설계 7-2).
 
   group('가짜 저장소', () {
-    test('⚠️ 신청은 받은 문자열을 손대지 않고 되돌려 보낸다', () {
-      // **서버가 준 문자열이 그대로 나가야 한다.** 다시 조립하면 화면에 그린
-      // 시각과 서버로 가는 시각이 갈린다.
+    test('⚠️ 신청은 받은 문자열·미터값을 손대지 않고 되돌려 보낸다', () {
+      // **서버가 준 값이 그대로 나가야 한다.** 다시 조립하면 화면에 그린
+      // 시각과 서버로 가는 시각이 갈린다. 거리도 `TargetDistance`를 거치지
+      // 않는다 — enum에 없는 거리가 오면 신청할 수 없게 된다.
       final repository = FakeMatchRepository();
-      final slot = repository.slotList.first;
+      final distance = repository.board.distances.first;
+      final slot = distance.slots.first;
 
-      return repository
-          .apply(slotRaw: slot.raw, distance: TargetDistance.km5)
-          .then((_) {
-            expect(repository.appliedSlotRaw, slot.raw);
-            expect(repository.appliedDistance, TargetDistance.km5);
-          });
+      return repository.apply(slotRaw: slot.raw, meters: distance.meters).then((
+        _,
+      ) {
+        expect(repository.appliedSlotRaw, slot.raw);
+        expect(repository.appliedMeters, distance.meters);
+      });
     });
   });
 }

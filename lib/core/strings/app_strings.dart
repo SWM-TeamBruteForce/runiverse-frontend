@@ -643,6 +643,17 @@ abstract final class AppStrings {
   static const matchRegisterTitle = '매칭 등록';
   static const matchRegisterCta = '매칭 등록하기';
 
+  /// `매칭 등록하기 · 3명 대기` — **시간·거리를 둘 다 고른 뒤**의 등록 버튼.
+  ///
+  /// ⚠️ **시간 시트의 숫자와 다른 수다.** 시트는 그 시각의 모든 거리를 더한
+  /// 합계를 그리고([matchWaitingCount]), 여기는 고른 거리 하나의 수다. 거리를
+  /// 고르면 숫자가 좁혀지는 것이 정상이다.
+  ///
+  /// ⚠️ **0명이면 붙이지 않는다.** `0명 대기`는 비어 있다고 알리는 꼴이라
+  /// 오히려 사람을 민다 — 그때는 [matchRegisterCta]로 남는다.
+  static String matchRegisterCtaWaiting(int count) =>
+      '$matchRegisterCta · $count명 대기';
+
   static const matchTimeLabel = '오늘 언제 뛸까요?';
   static const matchTimePlaceholder = '시간 고르기';
 
@@ -653,6 +664,12 @@ abstract final class AppStrings {
 
   /// `3km` — 거리 칩과 요약 줄에 함께 쓴다.
   static String matchDistanceText(int km) => '${km}km';
+
+  /// `1500m` — 1000으로 안 나뉘는 거리.
+  ///
+  /// ⚠️ **선택지를 서버가 정하므로** 앱이 km로 이름 붙일 수 없는 값이 올 수
+  /// 있다. 지어낸 `1km`보다 낯선 `1500m`가 낫다.
+  static String matchDistanceMeters(int meters) => '${meters}m';
 
   /// `19:00` — 슬롯 표기. 날짜는 오늘뿐이라 시각만 적는다.
   ///
@@ -735,11 +752,6 @@ abstract final class AppStrings {
   static String matchClosingSoon(String times) =>
       '오늘 남은 시간대는 $times뿐이에요. 모집은 시작 직전에 마감돼요';
 
-  /// 거리를 고르기 전에 시간 선택기가 잠긴 이유.
-  ///
-  /// ⚠️ 목록을 받으려면 거리가 먼저 있어야 한다 — 조회가 거리를 필수로 받는다.
-  static const matchSlotsLockedByDistance = '거리를 먼저 골라주세요';
-
   /// 고를 수 있는 시간이 하나도 없다. 22시가 지났거나 전부 마감이다.
   ///
   /// ⚠️ **목록이 비지 않아도 여기 온다.** 전부 `selectable: false`면 시트를
@@ -750,19 +762,17 @@ abstract final class AppStrings {
   static const matchSlotsRetry = '다시 시도';
   static const matchSlotsLoading = '시간대를 불러오는 중이에요';
 
-  /// `현재 3km에 7명의 러너가 대기중이에요` — **거리만 골랐을 때** 등록 버튼
-  /// 위에 서는 줄(시안 `158:3186`).
+  /// `3명 대기` — 시간 시트의 한 줄에 붙는다. 사회적 증거다.
   ///
-  /// ⚠️ 시안 원문은 `현재 18:00에 3명의…`로 **시각**을 적는다. 거리를 먼저
-  /// 고르게 되면서 그 자리가 거리로 바뀌었다 — 시각은 아직 안 골랐고, 이 줄이
-  /// 답하는 질문은 "이 거리에 사람이 있는가"다. 어느 시각인지는 시트가 답한다.
+  /// ⚠️ **그 시각의 모든 거리를 더한 수다.** 시트는 거리를 고르기 전에도
+  /// 열리므로 거리 하나의 수를 적으면 다른 거리를 고를 사람에게 거짓이 된다.
   ///
-  /// ⚠️ **시간까지 고르면 그리지 않는다.** 시트에서 이미 그 시각의 수를 보고
-  /// 고른 사람에게 같은 말을 한 번 더 적는 셈이다.
-  static String matchWaitingTotal(int km, int count) =>
-      '현재 ${km}km에 $count명의 러너가 대기중이에요';
-
-  /// `3명 대기` — 사회적 증거다. 0명이면 붙이지 않는다.
+  /// ⚠️ **"함께"라는 말을 붙이지 않는다.** 명세가 거리가 다르면 같은 방에
+  /// 매칭되지 않는다고 못 박았다 — `5명`이 3km 3명과 10km 2명일 수 있고 그
+  /// 다섯이 서로 만나지는 않는다. 거리를 고르면 등록 버튼의 숫자가 진짜 그
+  /// 조건의 수로 바뀌면서 저절로 좁혀진다([matchRegisterCtaWaiting]).
+  ///
+  /// 0명이면 붙이지 않는다.
   static String matchWaitingCount(int count) => '$count명 대기';
 
   static const matchSlotSheetTitle = '시간 선택';

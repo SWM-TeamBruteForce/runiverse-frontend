@@ -5,7 +5,7 @@
 /// 2026-10-22까지는 앱이 18:00~22:00 아홉 칸을 직접 만들었다(`todayRange`).
 /// 지금은 **서버가 준다**(`GET /running-matches/slots`, 명세 No 16) — 시각
 /// 범위·간격이 서버 설정값이라, 앱이 적어 두면 설정이 바뀌는 날 어긋난다.
-/// 읽는 자리는 `slot_dto.dart` 하나다.
+/// 읽는 자리는 `slot_board_dto.dart` 하나다.
 ///
 /// ## [raw]를 손대지 않는다
 ///
@@ -34,7 +34,7 @@ class MatchSlot {
   ///
   /// ⚠️ **0은 "안 그린다"는 뜻으로 쓰인다.** `0명 대기`는 비어 있다고 알리는
   /// 꼴이라 오히려 사람을 민다. 읽을 수 없는 값을 0으로 뭉개는 판단은
-  /// `slot_dto.dart`가 하고, 여기서는 받은 값을 그대로 들고 있다.
+  /// `slot_board_dto.dart`가 하고, 여기서는 받은 값을 그대로 들고 있다.
   final int waitingCount;
 
   /// 모집 마감이 지나지 않았는가.
@@ -43,13 +43,9 @@ class MatchSlot {
   /// 시간이 흐르며 목록이 줄어드는 것도 이상하게 읽힌다.
   final bool selectable;
 
-  /// 이 슬롯을 잠근 사본. 서버가 마감됐다고 답했을 때 쓴다.
-  MatchSlot closed() => MatchSlot(
-    raw: raw,
-    startAt: startAt,
-    waitingCount: waitingCount,
-    selectable: false,
-  );
+  // ⚠️ **`closed()`가 죽었다**(2026-10-26). 409를 받으면 이 한 줄을 잠근
+  // 사본으로 갈아 끼웠는데, 이제 **판을 다시 받는다** — 한 번에 다 오므로
+  // 그쪽이 싸고, 그사이 마감된 다른 시각까지 함께 잠긴 채로 온다.
 
   @override
   bool operator ==(Object other) =>
