@@ -12,6 +12,9 @@ import 'package:runiverse/features/app_update/presentation/app_version_provider.
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
+import 'package:runiverse/features/notification/data/fake_app_stream.dart';
+import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
+import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_step_repository.dart';
@@ -68,6 +71,12 @@ void main() {
         ),
         tokenStoreProvider.overrideWithValue(tokens),
         matchRepositoryProvider.overrideWithValue(FakeMatchRepository()),
+        // ⚠️ **셸이 앱 스트림을 연다**(알림). 가짜를 안 끼우면 진짜가 붙으려
+        // 하고, 실패 후 백오프 타이머가 남아 `pumpAndSettle`이 영영 안 끝난다.
+        appStreamProvider.overrideWithValue(FakeAppStream()),
+        notificationRepositoryProvider.overrideWithValue(
+          FakeNotificationRepository(),
+        ),
         userStatusRepositoryProvider.overrideWithValue(status),
         locationRepositoryProvider.overrideWithValue(FakeLocationRepository()),
         trackRepositoryProvider.overrideWithValue(FakeTrackRepository()),
