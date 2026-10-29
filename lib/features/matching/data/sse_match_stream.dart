@@ -13,6 +13,8 @@ import 'package:runiverse/core/network/dio_client.dart';
 import 'package:runiverse/core/version/app_version_headers.dart';
 import 'package:runiverse/features/matching/domain/match_stream.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
+import 'package:runiverse/features/matching/domain/room_invitation.dart';
+import 'package:runiverse/features/session/domain/user_status.dart';
 
 /// 진짜 서버에 붙는 [MatchStream].
 ///
@@ -321,6 +323,19 @@ class SseMatchStream implements MatchStream {
       case 'MATCH_ROOM_UPDATED':
         final room = roomOf(decoded);
         return room == null ? null : MatchRoomUpdated(room);
+      case 'INVITE_ROOM_ENTRANCE':
+        final room = roomOf(decoded);
+        // ⚠️ `startsInMs`가 **방과 같은 깊이에** 온다. 감싸지 않으므로 기존
+        // 파서가 그대로 읽고 한 필드만 더 꺼낸다.
+        return room == null
+            ? null
+            : InviteRoomEntrance(
+                room,
+                startsInMs: _intOrNull(decoded['startsInMs']),
+              );
+      case 'INVITE_ROOM_UPDATED':
+        final room = roomOf(decoded);
+        return room == null ? null : InviteRoomUpdated(room);
       case 'RUNNING_READY':
         return readyOf(decoded);
       default:
@@ -342,9 +357,14 @@ class SseMatchStream implements MatchStream {
     }
 
     final players = body['players'];
+    final invitations = body['invitations'];
     return RoomInfo(
       runningRoomId: roomId,
       status: status,
+      // ⚠️ **모르는 값은 `null`로 둔다.** `match`로 뭉개면 초대 방에 매칭 방
+      // 문구가 뜨고, 오지 않을 `MATCH_STARTED`를 기다린다. 옛 서버는 이 키를
+      // 아예 안 보내므로 `null`이 정상 경로이기도 하다.
+      type: RoomType.of(body['type']),
       scheduledStartAt: startAt,
       closeAt: _dateOrNull(body['closeAt']),
       targetDistanceMeters: _intOrNull(body['targetDistanceMeters']),
@@ -354,6 +374,27 @@ class SseMatchStream implements MatchStream {
       players: players is List
           ? [for (final player in players) ?_playerOf(player)]
           : const [],
+      // 매칭 방에는 키가 없다. 못 읽는 원소만 건너뛴다 — 초대 한 줄이 깨져서
+      // 방 전체를 못 그리면 안 된다.
+      invitations: invitations is List
+          ? [for (final one in invitations) ?_invitationOf(one)]
+          : const [],
+    );
+  }
+
+  /// 초대 하나를 읽는다. **`_playerOf`와 나누는 이유는 페이스가 없어서다** —
+  /// 아직 방에 들어온 사람이 아니라 팀 평균에 들지 않는다.
+  static RoomInvitation? _invitationOf(Object? wire) {
+    if (wire is! Map) return null;
+    final id = wire['userId'];
+    final nickname = wire['nickname'];
+    if (id is! String || nickname is! String) return null;
+
+    return RoomInvitation(
+      userId: id,
+      nickname: nickname,
+      isDeleted: wire['isDeleted'] == true,
+      profileImageUrl: _stringOrNull(wire['profileImageUrl']),
     );
   }
 

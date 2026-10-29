@@ -33,6 +33,18 @@ void main() {
     ],
   );
 
+  /// 같은 모양의 초대 방. `type`만 다르다.
+  RoomInfo inviteRoom(RoomStatus status, {int players = 2}) => RoomInfo(
+    runningRoomId: 125,
+    type: RoomType.invite,
+    status: status,
+    scheduledStartAt: startAt,
+    players: [
+      for (var i = 0; i < players; i++)
+        RoomPlayer(userId: 'u-$i', nickname: '러너$i', isDeleted: false),
+    ],
+  );
+
   /// 컨테이너와 가짜 스트림을 함께 만든다.
   ({
     ProviderContainer container,
@@ -340,6 +352,57 @@ void main() {
       expect(app.container.read(matchRoomProvider).justMatched, isFalse);
       // 방은 그대로 남는다 — 연출만 끝난 것이다.
       expect(app.container.read(matchRoomProvider).room, isNotNull);
+    });
+
+    test('⚠️ 초대 방의 모집 마감에는 확정 연출이 없다', () async {
+      // 초대 방은 `MATCH_STARTED`를 받지 않고, 마감이 `INVITE_ROOM_UPDATED`의
+      // `status: MATCHED`로 온다. 전이만 보고 판정하면 **마감에 축하가 터진다** —
+      // 매칭된 것이 아니라 모집이 닫힌 것뿐이다.
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      app.stream.emit(
+        InviteRoomEntrance(inviteRoom(RoomStatus.matching), startsInMs: 600000),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(app.container.read(matchRoomProvider).justMatched, isFalse);
+
+      app.stream.emit(InviteRoomUpdated(inviteRoom(RoomStatus.matched)));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(app.container.read(matchRoomProvider).justMatched, isFalse);
+      // 방은 들고 있다 — 연출만 없다.
+      expect(
+        app.container.read(matchRoomProvider).room?.status,
+        RoomStatus.matched,
+      );
+    });
+
+    test('⚠️ 초대 방은 매칭 확정으로 집계하지 않는다', () async {
+      // 매칭 퍼널 지표에 초대 방이 섞이면 성사율이 거짓이 된다.
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      app.stream.emit(InviteRoomUpdated(inviteRoom(RoomStatus.matched)));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(app.analytics.countOf('match_confirmed'), 0);
+    });
+
+    test('⚠️ 초대 방에 MATCH_STARTED가 와도 축하하지 않는다', () async {
+      // 서버가 보내지 않기로 했지만, 와도 초대 방에 확정 연출이 터지면 안 된다.
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      app.stream.emit(InviteRoomUpdated(inviteRoom(RoomStatus.matching)));
+      await Future<void>.delayed(Duration.zero);
+      app.stream.emit(MatchStarted(inviteRoom(RoomStatus.matched)));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(app.container.read(matchRoomProvider).justMatched, isFalse);
     });
 
     test('⚠️ 취소된 방은 들고 있지 않는다', () async {

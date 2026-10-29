@@ -1,3 +1,4 @@
+import 'package:runiverse/features/matching/domain/room_invitation.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
 
 /// 방이 어느 단계인가.
@@ -72,26 +73,54 @@ class RoomInfo {
     required this.status,
     required this.scheduledStartAt,
     required this.players,
+    this.type,
     this.closeAt,
     this.targetDistanceMeters,
     this.teamAveragePaceSecondsPerKm,
+    this.invitations = const [],
   });
 
   final int runningRoomId;
   final RoomStatus status;
 
+  /// 매칭 방인가 초대 방인가. **화면을 가르는 값이다.**
+  ///
+  /// ⚠️ **모르면 `null`이다.** [RoomStatus.of]와 같은 판단이다 — `match`로
+  /// 뭉개면 초대 방에 매칭 방 문구가 뜨고, 모집 마감에 오지 않을 확정 연출을
+  /// 기다린다.
+  ///
+  /// ⚠️ **`null`일 수도 있다**는 것이 중요하다. [fromStatus]로 세운 대타 방은
+  /// 상태 조회에서 종류를 알지만, 옛 서버가 `type`을 안 보내던 응답을 읽을 때는
+  /// 비어 있다. 그때 화면은 **매칭 쪽 기본 문구**로 떨어진다 — 초대 방을 매칭
+  /// 방으로 그리는 것이 그 반대보다 덜 나쁘다(매칭이 압도적으로 많다).
+  final RoomType? type;
+
   /// 출발 시각. **카운트다운의 기준이다.**
   final DateTime scheduledStartAt;
 
-  /// 모집 마감 시각. `scheduledStartAt`에서 운영 오프셋(현재 10분)을 뺀 값이다.
+  /// 모집 마감 시각. `scheduledStartAt`에서 운영 오프셋을 뺀 값이다.
   ///
-  /// ⚠️ **앱이 계산하지 않는다.** 오프셋은 운영값이라 언제든 바뀐다.
+  /// ⚠️ **오프셋이 방 종류마다 다르다** — 매칭 방은 현재 10분, **초대 방은
+  /// 1분**이다.
+  ///
+  /// ⚠️ **앱이 계산하지 않는다.** 둘 다 운영값이라 언제든 바뀌고, 방 종류별로
+  /// 따로 바뀐다. 받은 값을 쓴다.
   final DateTime? closeAt;
 
   final int? targetDistanceMeters;
   final int? teamAveragePaceSecondsPerKm;
 
   final List<RoomPlayer> players;
+
+  /// 답을 기다리는 초대들. **매칭 방은 늘 비어 있다.**
+  ///
+  /// ⚠️ **`PENDING`만 온다.** 수락하면 [players]로 옮겨 가고, 거절·이탈하면
+  /// 빠진다. 모집이 마감되면 서버가 **빈 배열**을 보내므로, 화면은 마감 뒤에
+  /// 초대 현황을 아예 그리지 않는다.
+  ///
+  /// ⚠️ **비널이다.** 키가 없으면 빈 목록이다 — `null`로 두면 읽는 자리마다
+  /// 빈 목록과 모름을 가르는 분기가 생기는데, 그 둘이 화면에서 하는 일이 같다.
+  final List<RoomInvitation> invitations;
 
   /// 상태 조회만으로 세운 방. **스냅샷이 없을 때의 대타다.**
   ///
