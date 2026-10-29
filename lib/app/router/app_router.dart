@@ -6,6 +6,7 @@ import 'package:runiverse/core/widgets/coming_soon_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_in_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_up_page.dart';
 import 'package:runiverse/features/friend/presentation/friend_page.dart';
+import 'package:runiverse/features/notification/presentation/notification_page.dart';
 import 'package:runiverse/features/profile/presentation/user_friends_page.dart';
 import 'package:runiverse/features/profile/presentation/user_profile_page.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
@@ -103,6 +104,11 @@ GoRouter createAppRouter({String? initialLocation}) {
       ),
       // 친구도 셸 밖이다. 검색창이 상단 고정이라 하단 탭까지 있으면 화면이
       // 위아래로 눌린다.
+      GoRoute(
+        path: AppRoutes.notifications,
+        name: 'notifications',
+        builder: (context, state) => const NotificationPage(),
+      ),
       GoRoute(
         path: AppRoutes.friends,
         name: 'friends',

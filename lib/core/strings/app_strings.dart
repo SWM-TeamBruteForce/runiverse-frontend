@@ -1851,4 +1851,41 @@ abstract final class AppStrings {
   static const friendAchievement = '업적';
   static const friendAchievementSoon = '준비중';
   static const friendAchievementTitle = '러닝 업적 준비중';
+
+  // ── 알림함 ───────────────────────────────────────────────────────────
+
+  static const notificationTitle = '알림';
+
+  /// ⚠️ **문구는 앱이 만든다.** 서버가 내려주지 않는다 — `type`별로 한 줄씩
+  /// 여기서 정하고, 알림에 실려 온 값으로 빈자리를 채운다.
+  static String notificationFriendRequested(String nickname) =>
+      '$nickname 님이 친구 요청을 보냈어요';
+  static String notificationFriendAccepted(String nickname) =>
+      '$nickname 님과 친구가 되었어요';
+  static String notificationRunningInvited(String nickname) =>
+      '$nickname 님이 러닝에 초대했어요';
+
+  /// 초대 알림의 둘째 줄. 시각과 거리를 함께 적는다.
+  static String notificationInviteDetail(String time, String distance) =>
+      '$time · $distance';
+
+  static const notificationAccept = '수락';
+  static const notificationDecline = '거절';
+
+  /// `invitation.status`별 안내. **버튼이 없는 상태들이다.**
+  static const notificationInviteAccepted = '수락했어요';
+  static const notificationInviteDeclined = '거절했어요';
+  static const notificationInviteLeft = '방에서 나갔어요';
+  static const notificationInviteExpired = '모집이 마감됐어요';
+
+  static const notificationEmpty = '아직 알림이 없어요';
+  static const notificationEmptyWhy = '친구 요청과 러닝 초대가 여기 모여요';
+  static const notificationLoadFailed = '알림을 불러오지 못했어요';
+  static const notificationRetry = '다시 시도';
+
+  /// 방이 꽉 차서 수락하지 못했다. **초대는 PENDING으로 남는다.**
+  static const inviteRoomFull = '방이 꽉 찼어요 · 자리가 생기면 다시 눌러보세요';
+
+  /// 탭 바와 벨이 읽히는 이름. **점을 그림으로만 두면 안 읽힌다.**
+  static const notificationUnreadSemantics = '읽지 않은 알림 있음';
 }
