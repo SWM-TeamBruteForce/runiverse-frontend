@@ -131,7 +131,7 @@ class NotificationRow extends StatelessWidget {
       InvitationStatus.pending ||
       InvitationStatus.accepted => AppStrings.notificationInviteDetail(
         AppStrings.matchSlotTime(invitation.scheduledStartAt),
-        _distance(invitation.targetDistanceMeters),
+        AppStrings.distanceKm(invitation.targetDistanceMeters),
       ),
       InvitationStatus.declined => AppStrings.notificationInviteDeclined,
       InvitationStatus.left => AppStrings.notificationInviteLeft,
@@ -145,15 +145,6 @@ class NotificationRow extends StatelessWidget {
         style: AppTypographyV2.body18.copyWith(color: colors.textSecondary),
       ),
     );
-  }
-
-  /// `1,000m`을 `1.0km`로. 하프·풀은 소수 셋째 자리까지 남는다.
-  static String _distance(int meters) {
-    final km = meters / 1000;
-    final text = km == km.roundToDouble()
-        ? km.toStringAsFixed(1)
-        : km.toString();
-    return '${text}km';
   }
 
   /// 버튼 줄. **그릴 것이 없으면 `null`이다** — 빈 자리를 남기지 않는다.

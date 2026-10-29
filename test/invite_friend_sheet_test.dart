@@ -6,6 +6,12 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/friend/data/fake_friend_repository.dart';
+import 'package:runiverse/features/friend/domain/friend_repository.dart';
+import 'package:runiverse/features/matching/data/fake_match_stream.dart';
+import 'package:runiverse/features/matching/domain/match_event.dart';
+import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/friend/domain/friend_entry.dart';
 import 'package:runiverse/features/friend/domain/friend_relation.dart';
 import 'package:runiverse/features/friend/presentation/friend_provider.dart';
@@ -66,6 +72,31 @@ void main() {
       ),
     ],
   );
+
+  /// 친구 저장소를 직접 넘겨 띄운다. 3분기 검증에 쓴다.
+  Future<void> pumpWith(WidgetTester tester, FakeFriendRepository repo) async {
+    final tokens = InMemoryTokenStore();
+    await tokens.saveSession(
+      userId: 'me',
+      accessToken: 'a-1',
+      refreshToken: 'r-1',
+      isOnboarded: true,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          tokenStoreProvider.overrideWithValue(tokens),
+          friendRepositoryProvider.overrideWithValue(repo),
+          matchRepositoryProvider.overrideWithValue(FakeMatchRepository()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(),
+          home: Scaffold(body: InviteFriendSheet(room: room())),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
 
   Future<FakeMatchRepository> pump(
     WidgetTester tester, {
@@ -259,6 +290,174 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(buttonOf(tester, '철수'), AppStrings.inviteSheetRetry);
+    });
+  });
+
+  group('⚠️ 열어 둔 사이에 방이 바뀐다', () {
+    testWidgets('스트림이 나른 최신 방을 본다', (tester) async {
+      // 초대 방은 **최소 10분**을 기다린다. 열어 둔 사이에 수락·거절·마감이
+      // 오는데, 굳은 스냅샷을 보면 꽉 찬 방에 계속 초대를 보낸다.
+      final stream = FakeMatchStream();
+      final matches = FakeMatchRepository();
+      final tokens = InMemoryTokenStore();
+      await tokens.saveSession(
+        userId: 'me',
+        accessToken: 'a-1',
+        refreshToken: 'r-1',
+        isOnboarded: true,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          tokenStoreProvider.overrideWithValue(tokens),
+          friendRepositoryProvider.overrideWithValue(friends()),
+          matchRepositoryProvider.overrideWithValue(matches),
+          matchStreamProvider.overrideWithValue(stream),
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: Scaffold(body: InviteFriendSheet(room: room())),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.inviteRoomSeatsLeft(2)), findsOneWidget);
+
+      // 방이 꽉 찼다.
+      container.read(matchRoomProvider.notifier).connect();
+      await tester.pump();
+      stream.emit(InviteRoomUpdated(room(players: 4)));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.inviteRoomSeatsLeft(0)), findsOneWidget);
+      // 꽉 찬 방에 더 보내지 않는다.
+      await tester.tap(find.text(AppStrings.inviteSheetInvite).first);
+      await tester.pumpAndSettle();
+      expect(matches.inviteCalls, isEmpty);
+    });
+  });
+
+  /// ⚠️ **거절했는데 `초대 중`으로 남던 자리다**(실측 2026-10-29).
+  group('보낸 뒤 서버 목록을 따른다', () {
+    testWidgets('상대가 거절하면 다시 초대할 수 있다', (tester) async {
+      final stream = FakeMatchStream();
+      final matches = FakeMatchRepository();
+      final tokens = InMemoryTokenStore();
+      await tokens.saveSession(
+        userId: 'me',
+        accessToken: 'a-1',
+        refreshToken: 'r-1',
+        isOnboarded: true,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          tokenStoreProvider.overrideWithValue(tokens),
+          friendRepositoryProvider.overrideWithValue(friends()),
+          matchRepositoryProvider.overrideWithValue(matches),
+          matchStreamProvider.overrideWithValue(stream),
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: Scaffold(body: InviteFriendSheet(room: room())),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      container.read(matchRoomProvider.notifier).connect();
+      await tester.pump();
+
+      // 철수를 초대한다.
+      await tester.tap(
+        find.descendant(
+          of: find
+              .ancestor(of: find.text('철수'), matching: find.byType(Row))
+              .first,
+          matching: find.text(AppStrings.inviteSheetInvite),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(buttonOf(tester, '철수'), AppStrings.inviteSheetInvited);
+
+      // 서버가 초대를 확인해 준다.
+      stream.emit(InviteRoomUpdated(room(invited: ['f-1'])));
+      await tester.pumpAndSettle();
+      expect(buttonOf(tester, '철수'), AppStrings.inviteSheetInvited);
+
+      // 철수가 거절했다 — 목록에서 빠진다.
+      stream.emit(InviteRoomUpdated(room()));
+      await tester.pumpAndSettle();
+
+      // ⚠️ `초대 중`으로 남으면 거짓이고, 다시 보낼 길도 없다.
+      expect(buttonOf(tester, '철수'), AppStrings.inviteSheetInvite);
+    });
+  });
+
+  group('3분기를 처리한다', () {
+    testWidgets('⚠️ 못 받았으면 "없다"가 아니라 실패를 말한다', (tester) async {
+      // 친구가 많은 사람에게 "초대할 러너가 없어요"라고 하면 안 된다.
+      await pumpWith(
+        tester,
+        FakeFriendRepository(failure: FriendFailure.network),
+      );
+
+      expect(find.text(AppStrings.friendLoadFailed), findsOneWidget);
+      expect(find.text(AppStrings.inviteSheetEmpty), findsNothing);
+    });
+
+    testWidgets('정말 없으면 빈 상태를 그린다', (tester) async {
+      await pumpWith(tester, FakeFriendRepository());
+
+      expect(find.text(AppStrings.inviteSheetEmpty), findsOneWidget);
+    });
+  });
+
+  group('⚠️ 초대할 수 없는 사람에게 버튼을 세우지 않는다', () {
+    testWidgets('친구가 아닌 줄은 목록에 없다', (tester) async {
+      // `friends()`는 받은 요청·보낸 요청·친구가 섞여 온다. 친구가 아닌 줄에
+      // 초대 버튼을 세우면 눌러 봐야 409 NOT_FRIEND다.
+      await pumpWith(
+        tester,
+        FakeFriendRepository(
+          friendEntries: const [
+            FriendEntry(
+              userId: 'f-1',
+              nickname: '철수',
+              relation: FriendRelation.friend,
+            ),
+            FriendEntry(
+              userId: 'p-1',
+              nickname: '보낸요청',
+              relation: FriendRelation.requestSent,
+            ),
+            FriendEntry(
+              userId: 'p-2',
+              nickname: '받은요청',
+              relation: FriendRelation.requestReceived,
+            ),
+          ],
+        ),
+      );
+
+      expect(find.text('철수'), findsOneWidget);
+      expect(find.text('보낸요청'), findsNothing);
+      expect(find.text('받은요청'), findsNothing);
     });
   });
 }

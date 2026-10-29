@@ -153,6 +153,32 @@ class AppNotification {
   /// [NotificationType.runningInvited]에만 있다.
   final NotificationInvitation? invitation;
 
+  /// **할 일이 끝난 알림인가.** 끝난 것은 목록에서 빠진다.
+  ///
+  /// ## ⚠️ 서버는 지우지 않는다
+  ///
+  /// 항목별 삭제 API가 없고 서버는 30일을 보관한다(연동 가이드 2-3). 그래서
+  /// 이 판정은 **화면에서만** 쓰고, 안 읽은 수(배지)는 서버 값을 그대로
+  /// 따른다 — 숨긴 줄이 배지에 남는 일은 없다(끝난 것은 이미 읽힌 것뿐이다).
+  ///
+  /// ## 무엇이 끝난 것인가
+  ///
+  /// | | 끝났다고 보는 때 |
+  /// |---|---|
+  /// | 러닝 초대 | `PENDING`이 아니다 — 수락·거절·이탈·만료 |
+  /// | 친구 요청 | 받은 요청이 아니다 — 이미 수락·거절했거나 상대가 탈퇴 |
+  /// | 친구 수락 | **읽었다** — 결과 통보라 한 번은 보여야 한다 |
+  ///
+  /// ⚠️ **친구 수락만 `isRead`를 본다.** 나머지 둘은 버튼이 사라진 순간
+  /// 쌓이기만 하는 줄이 되지만, 친구 수락은 그 자체가 전하려는 내용이다 —
+  /// 열기도 전에 숨기면 "친구가 됐다"를 영영 못 본다.
+  bool get isSettled => switch (type) {
+    NotificationType.runningInvited => invitation?.status.isPending != true,
+    NotificationType.friendRequested =>
+      actor.relation != FriendRelation.requestReceived,
+    NotificationType.friendAccepted => isRead,
+  };
+
   AppNotification withInvitation(NotificationInvitation next) =>
       AppNotification(
         notificationId: notificationId,

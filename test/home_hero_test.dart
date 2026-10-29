@@ -5,6 +5,7 @@ import 'package:runiverse/core/widgets/v2/runner_avatar.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
+import 'package:runiverse/features/session/domain/user_status.dart';
 
 /// 홈 히어로가 **매칭 상태를 전담한다** (S05).
 ///
@@ -31,6 +32,18 @@ void main() {
           isDeleted: false,
           profileImageUrl: withPhotos ? 'https://img/u-$i.png' : null,
         ),
+    ],
+  );
+
+  /// 같은 모양의 초대 방. `type`만 다르다.
+  RoomInfo inviteRoom(RoomStatus status, {int players = 1}) => RoomInfo(
+    runningRoomId: 130,
+    type: RoomType.invite,
+    status: status,
+    scheduledStartAt: startAt,
+    players: [
+      for (var i = 0; i < players; i++)
+        RoomPlayer(userId: 'u-$i', nickname: '러너$i', isDeleted: false),
     ],
   );
 
@@ -484,6 +497,83 @@ void main() {
       await pumpHero(tester, pending: true);
 
       expect(find.text(AppStrings.homeMatchCancel), findsOneWidget);
+    });
+  });
+
+  /// 초대 방 — **놓치기 쉬운 자리다.**
+  ///
+  /// 초대 방은 `push`로 열려서 뒤로 가면 여기가 선다. 그리고 방을 만든 사람은
+  /// **최소 10분**을 이 화면에서 기다린다.
+  group('초대 방 문구', () {
+    testWidgets('⚠️ 매칭 대기 중이라고 말하지 않는다', (tester) async {
+      await pumpHero(tester, withRoom: inviteRoom(RoomStatus.matching));
+
+      expect(find.text(AppStrings.homeMatchWaitingTitle), findsNothing);
+      expect(find.text(AppStrings.homeInviteWaitingTitle), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 찾고 있다고 하지 않는다 — 답을 기다린다', (tester) async {
+      // 나뿐인 방이다. `myUserId`를 줘야 "나 말고" 셀 수 있다.
+      await pumpHero(
+        tester,
+        withRoom: inviteRoom(RoomStatus.matching),
+        myUserId: 'u-0',
+      );
+
+      expect(
+        find.textContaining(AppStrings.homeMatchWaitingAlone),
+        findsNothing,
+      );
+      expect(
+        find.textContaining(AppStrings.homeInviteWaitingAlone),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('사람이 들어오면 몇 명이 함께 뛰는지 적는다', (tester) async {
+      await pumpHero(
+        tester,
+        withRoom: inviteRoom(RoomStatus.matching, players: 3),
+        myUserId: 'u-0',
+      );
+
+      expect(
+        find.textContaining(AppStrings.homeInviteJoined(3)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('⚠️ 모집 마감은 매칭 완료가 아니다', (tester) async {
+      await pumpHero(tester, withRoom: inviteRoom(RoomStatus.matched));
+
+      expect(find.text(AppStrings.homeMatchConfirmedTitle), findsNothing);
+      expect(find.text(AppStrings.homeInviteConfirmedTitle), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 버튼이 매칭 대기중이라고 하지 않는다', (tester) async {
+      await pumpHero(tester, withRoom: inviteRoom(RoomStatus.matching));
+
+      expect(find.text(AppStrings.homeMatchWaitingCta), findsNothing);
+      expect(find.text(AppStrings.homeInviteWaitingCta), findsOneWidget);
+    });
+
+    testWidgets('매칭 방의 버튼은 그대로다', (tester) async {
+      await pumpHero(tester, withRoom: room(RoomStatus.matching));
+
+      expect(find.text(AppStrings.homeMatchWaitingCta), findsOneWidget);
+    });
+
+    testWidgets('매칭 방은 기존 문구를 그대로 쓴다', (tester) async {
+      await pumpHero(tester, withRoom: room(RoomStatus.matching));
+
+      expect(find.text(AppStrings.homeMatchWaitingTitle), findsOneWidget);
+      expect(find.text(AppStrings.homeInviteWaitingTitle), findsNothing);
+    });
+
+    testWidgets('매칭 방의 확정 문구도 그대로다', (tester) async {
+      await pumpHero(tester, withRoom: room(RoomStatus.matched));
+
+      expect(find.text(AppStrings.homeMatchConfirmedTitle), findsOneWidget);
     });
   });
 }

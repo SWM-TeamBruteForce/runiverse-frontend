@@ -1,4 +1,5 @@
 import 'package:runiverse/features/session/domain/run_progress.dart';
+import 'package:runiverse/features/session/domain/party_color.dart';
 
 /// 함께 뛰는 사람 하나의 **표시 정보.**
 ///
@@ -165,20 +166,13 @@ class PartyBoard {
 
   /// 레인 색의 자리. 화면이 이 번호로 팔레트에서 색을 꺼낸다.
   ///
-  /// **명단 순서로** 돌린다 — 명단은 서버가 준 순서라 어느 기기에서 봐도 같은
-  /// 사람이 같은 자리다.
-  /// 명단에 없는 사람은 그 뒤에 `userId` 순으로 붙는다. 통지가 온 순서로 주면
-  /// 재시작할 때마다 색이 바뀐다.
+  /// ⚠️ **나는 늘 0번(파랑)이다.** 전에는 명단 자리를 그대로 줘서 **방마다 내
+  /// 색이 바뀌었다** — 명단에서 내가 둘째면 나는 주황이었다. 규칙은
+  /// `party_color.dart` 하나에 있다.
+  ///
+  /// 명단에 없는 사람(솔로·재시작·낯선 통지)은 `userId` 순으로 명단 뒤에
+  /// 붙여 센다. 통지가 온 순서로 주면 재시작할 때마다 색이 바뀐다.
   int colorSlotOf(String userId) {
-    final index = roster.indexWhere((member) => member.userId == userId);
-    if (index >= 0) return index;
-
-    // 명단에 내가 없으면(솔로·재시작) 명단 바로 뒤가 내 자리, 낯선 사람은 그 뒤다.
-    // ⚠️ 나를 0으로 두면 명단이 비었을 때 첫 낯선 사람과 같은 색이 된다.
-    final meInRoster = roster.any((member) => member.userId == myUserId);
-    if (userId == myUserId) return roster.length;
-    final base = meInRoster ? roster.length : roster.length + 1;
-
     final strangers =
         progress.keys
             .where(
@@ -188,8 +182,12 @@ class PartyBoard {
             )
             .toList()
           ..sort();
-    final offset = strangers.indexOf(userId);
-    return base + (offset < 0 ? 0 : offset);
+
+    return partyColorSlot(
+      userId: userId,
+      myUserId: myUserId,
+      order: [for (final member in roster) member.userId, ...strangers],
+    );
   }
 
   /// 그 사람과의 최고 콤보. 이어 본 적이 없으면 0.

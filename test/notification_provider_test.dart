@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/features/app_update/domain/app_update_status.dart';
+import 'package:runiverse/features/app_update/presentation/app_update_provider.dart';
 import 'package:runiverse/features/friend/domain/friend_relation.dart';
 import 'package:runiverse/features/notification/data/fake_app_stream.dart';
 import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
@@ -54,6 +56,20 @@ void main() {
       targetDistanceMeters: 7000,
     ),
   );
+
+  AppNotification friendAccepted(int id, {required bool isRead}) =>
+      AppNotification(
+        notificationId: id,
+        type: NotificationType.friendAccepted,
+        isRead: isRead,
+        createdAt: createdAt,
+        actor: NotificationActor(
+          userId: 'u-$id',
+          nickname: '러너$id',
+          isDeleted: false,
+          relation: FriendRelation.friend,
+        ),
+      );
 
   NotificationPageResult page(
     List<AppNotification> items, {
@@ -359,15 +375,43 @@ void main() {
       final app = build();
       app.repo.pages[null] = page([], unreadCount: 0);
       await app.container.read(notificationProvider.notifier).start();
+      final before = app.stream.connects;
 
       app.stream.breakConnection();
       await Future<void>.delayed(Duration.zero);
 
       expect(read(app.container).connected, isFalse);
+      // 간격을 두고 다시 붙는다 — 아직은 안 붙었어야 한다.
+      expect(app.stream.connects, before);
+      expect(
+        app.container.read(notificationProvider.notifier).retryPending,
+        isTrue,
+      );
     });
 
-    test('업데이트가 필요하면 재연결하지 않는다', () async {
-      // 구버전 앱이다. 다시 붙어도 같은 403이고, 화면이 업데이트를 안내한다.
+    test('⚠️ 업데이트가 필요하면 다시 붙지 않는다', () async {
+      // 구버전 앱이다. 다시 붙어도 같은 403이라 **예약 자체를 하지 않는다** —
+      // 안 그러면 2분마다 같은 403을 때린다.
+      final app = build();
+      app.repo.pages[null] = page([], unreadCount: 0);
+      await app.container.read(notificationProvider.notifier).start();
+      final before = app.stream.connects;
+
+      app.stream.breakConnection(
+        const AppStreamException(AppStreamFailure.updateRequired),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(read(app.container).updateRequired, isTrue);
+      expect(app.stream.connects, before);
+      expect(
+        app.container.read(notificationProvider.notifier).retryPending,
+        isFalse,
+      );
+    });
+
+    test('⚠️ 구버전이면 업데이트 게이트에 알린다', () async {
+      // 상태만 세우면 **아무도 읽지 않는다.** 매칭 스트림은 게이트를 부른다.
       final app = build();
       app.repo.pages[null] = page([], unreadCount: 0);
       await app.container.read(notificationProvider.notifier).start();
@@ -377,7 +421,206 @@ void main() {
       );
       await Future<void>.delayed(Duration.zero);
 
-      expect(read(app.container).updateRequired, isTrue);
+      expect(
+        app.container.read(appUpdateProvider),
+        isA<AppUpdateChecked>().having(
+          (s) => s.status,
+          'status',
+          AppUpdateStatus.required,
+        ),
+      );
+    });
+
+    test('⚠️ 목록 조회가 실패하면 재시도를 예약한다', () async {
+      // 안 하면 버퍼 모드에 갇혀, 그 뒤 모든 알림이 버퍼로 들어가고 배지가
+      // 영영 안 움직인다 — 초대받은 사람에게 유일한 통로가 막힌다.
+      final app = build();
+      app.repo.pages[null] = page([], unreadCount: 0);
+      app.repo.listFailure = NotificationFailure.network;
+
+      await app.container.read(notificationProvider.notifier).start();
+
+      expect(read(app.container).failure, NotificationFailure.network);
+      expect(
+        app.container.read(notificationProvider.notifier).retryPending,
+        isTrue,
+      );
     });
   });
+
+  group('커서를 잃지 않는다', () {
+    test('⚠️ 실시간 알림이 와도 다음 페이지가 남는다', () async {
+      // 목록을 3페이지까지 본 사람에게 친구 요청 하나가 오면 목록이 거기서
+      // 끝나 버렸다 — 더 못 불러오고 옛 알림에 닿을 길이 사라진다.
+      final app = build();
+      app.repo.pages[null] = page([friendRequest(1)], nextCursor: 'c2');
+      await app.container.read(notificationProvider.notifier).start();
+      expect(read(app.container).nextCursor, 'c2');
+
+      app.stream.emit(invite(913));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(read(app.container).nextCursor, 'c2');
+      expect(read(app.container).hasMore, isTrue);
+    });
+
+    test('⚠️ 스트림이 끊겨도 다음 페이지가 남는다', () async {
+      // 서버가 30분마다 정상으로 끊는다. 그때마다 목록이 끊기면 안 된다.
+      final app = build();
+      app.repo.pages[null] = page([friendRequest(1)], nextCursor: 'c2');
+      await app.container.read(notificationProvider.notifier).start();
+
+      app.stream.breakConnection();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(read(app.container).nextCursor, 'c2');
+    });
+
+    test('마지막 페이지에서는 커서를 지울 수 있다', () async {
+      final app = build();
+      app.repo.pages[null] = page([friendRequest(1)], nextCursor: 'c2');
+      app.repo.pages['c2'] = page([friendRequest(2)]);
+      final notifier = app.container.read(notificationProvider.notifier);
+      await notifier.start();
+      await notifier.loadMore();
+
+      expect(read(app.container).nextCursor, isNull);
+      expect(read(app.container).hasMore, isFalse);
+    });
+  });
+
+  /// ⚠️ **할 일이 끝난 알림은 쌓이지 않는다.**
+  ///
+  /// 서버는 30일을 보관하고 항목별 삭제 API가 없어서, 숨기는 일은 화면이
+  /// 한다. 배지는 서버의 안 읽은 수를 그대로 쓴다.
+  group('끝난 알림은 보이지 않는다', () {
+    test('수락·거절·만료된 초대는 빠진다', () async {
+      final app = build();
+      app.repo.pages[null] = page([
+        invite(1, status: InvitationStatus.pending),
+        invite(2, roomId: 200, status: InvitationStatus.accepted),
+        invite(3, roomId: 300, status: InvitationStatus.declined),
+        invite(4, roomId: 400, status: InvitationStatus.left),
+        invite(5, roomId: 500, status: InvitationStatus.expired),
+      ]);
+
+      await app.container.read(notificationProvider.notifier).start();
+
+      expect(read(app.container).visible.map((n) => n.notificationId), [1]);
+      // ⚠️ 원본은 들고 있다 — 방 단위 갱신과 중복 제거가 그것을 본다.
+      expect(read(app.container).items, hasLength(5));
+    });
+
+    test('이미 처리한 친구 요청은 빠진다', () async {
+      final app = build();
+      app.repo.pages[null] = page([
+        friendRequest(10),
+        friendRequest(11).copyWithRelation(FriendRelation.friend),
+        friendRequest(12).copyWithRelation(null),
+      ]);
+
+      await app.container.read(notificationProvider.notifier).start();
+
+      expect(read(app.container).visible.map((n) => n.notificationId), [10]);
+    });
+
+    test('⚠️ 친구 수락은 한 번은 보인다', () async {
+      // 결과 통보라 열기도 전에 숨기면 "친구가 됐다"를 영영 못 본다.
+      final app = build();
+      app.repo.pages[null] = page([friendAccepted(20, isRead: false)]);
+
+      await app.container.read(notificationProvider.notifier).start();
+
+      expect(read(app.container).visible, hasLength(1));
+    });
+
+    test('읽은 친구 수락은 빠진다', () async {
+      final app = build();
+      app.repo.pages[null] = page([friendAccepted(20, isRead: true)]);
+
+      await app.container.read(notificationProvider.notifier).start();
+
+      expect(read(app.container).visible, isEmpty);
+    });
+
+    test('수락하면 그 줄이 목록에서 빠진다', () async {
+      final app = build();
+      app.repo.pages[null] = page([invite(1)]);
+      final notifier = app.container.read(notificationProvider.notifier);
+      await notifier.start();
+      expect(read(app.container).visible, hasLength(1));
+
+      notifier.updateRoom(130, InvitationStatus.accepted);
+
+      expect(read(app.container).visible, isEmpty);
+    });
+
+    test('⚠️ 한 페이지가 통째로 비면 다음 페이지를 받는다', () async {
+      // 20개가 전부 처리된 건이면 화면이 "없어요"가 되는데, 다음 페이지에
+      // 읽을 것이 있다. 스크롤이 닿을 자리도 없어 loadMore가 안 불린다.
+      final app = build();
+      app.repo.pages[null] = page([
+        invite(1, status: InvitationStatus.declined),
+      ], nextCursor: 'c2');
+      app.repo.pages['c2'] = page([invite(2, roomId: 200)]);
+
+      final notifier = app.container.read(notificationProvider.notifier);
+      await notifier.start();
+      expect(read(app.container).visible, isEmpty);
+
+      await notifier.fillVisible();
+
+      expect(read(app.container).visible.map((n) => n.notificationId), [2]);
+    });
+
+    test('보이는 줄이 있으면 더 받지 않는다', () async {
+      final app = build();
+      app.repo.pages[null] = page([invite(1)], nextCursor: 'c2');
+      final notifier = app.container.read(notificationProvider.notifier);
+      await notifier.start();
+      final before = app.repo.listCalls;
+
+      await notifier.fillVisible();
+
+      expect(app.repo.listCalls, before);
+    });
+
+    test('⚠️ 끝까지 긁지 않는다', () async {
+      // 30일치가 전부 처리된 건일 수 있다. 상한이 없으면 빈 화면을 띄운 채
+      // 서버에 같은 수의 요청을 보낸다.
+      final app = build();
+      for (final cursor in [null, 'c2', 'c3', 'c4', 'c5', 'c6']) {
+        app.repo.pages[cursor] = page(
+          [invite(1, status: InvitationStatus.declined)],
+          nextCursor:
+              'c${(cursor == null ? 1 : int.parse(cursor.substring(1))) + 1}',
+        );
+      }
+
+      final notifier = app.container.read(notificationProvider.notifier);
+      await notifier.start();
+      final before = app.repo.listCalls;
+      await notifier.fillVisible();
+
+      expect(app.repo.listCalls - before, lessThanOrEqualTo(3));
+    });
+  });
+}
+
+/// 관계만 갈아끼운 사본. **테스트 전용** — 처리된 친구 요청을 만든다.
+extension on AppNotification {
+  AppNotification copyWithRelation(FriendRelation? relation) => AppNotification(
+    notificationId: notificationId,
+    type: type,
+    isRead: isRead,
+    createdAt: createdAt,
+    actor: NotificationActor(
+      userId: actor.userId,
+      nickname: actor.nickname,
+      isDeleted: actor.isDeleted,
+      profileImageUrl: actor.profileImageUrl,
+      relation: relation,
+    ),
+    invitation: invitation,
+  );
 }

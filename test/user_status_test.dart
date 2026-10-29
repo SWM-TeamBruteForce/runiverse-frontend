@@ -264,14 +264,30 @@ void main() {
       expect(status.isSolo, isFalse);
     });
 
-    test('⚠️ 모르는 방 유형은 계약이 깨진 것으로 본다', () {
-      // `match`로 접으면 새 방 종류가 생기는 날 엉뚱한 화면을 그린다.
-      expect(
-        () => HttpUserStatusRepository.statusOf(
-          body(status: 'READY', type: 'PARTY'),
-        ),
-        throwsA(isA<UserStatusException>()),
-      );
+    test('⚠️ 모르는 방 유형은 매칭으로 접는다 — 던지지 않는다', () {
+      // 던지면 **방에 들어가 있는 사람이 방에 못 들어간다** — 상태 조회가
+      // 실패하면 홈이 아무것도 못 그리고 스트림도 안 열린다. 서버가 네 번째
+      // 값을 내리는 날(또는 옛 서버가 키를 빼는 날) 그렇게 된다.
+      //
+      // 문구가 틀리는 쪽이 닿을 수 없는 쪽보다 낫다 — `RoomInfo.type`을
+      // nullable로 둔 것과 같은 판단이다.
+      final status =
+          HttpUserStatusRepository.statusOf(
+                body(status: 'READY', type: 'PARTY'),
+              )
+              as UserStatusReady;
+
+      expect(status.type, RoomType.match);
+      expect(status.runningRoomId, 125);
+    });
+
+    test('⚠️ type이 아예 없어도 매칭으로 읽는다', () {
+      // 옛 서버 응답이다.
+      final status =
+          HttpUserStatusRepository.statusOf(body(status: 'WAITING', type: null))
+              as UserStatusWaiting;
+
+      expect(status.type, RoomType.match);
     });
   });
 }

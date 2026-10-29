@@ -170,12 +170,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(f.matches.declineCalls, [130]);
-      // 같은 방의 알림 둘 다 버튼이 사라진다.
+      // ⚠️ **같은 방의 알림 둘이 함께 목록에서 빠진다.** 할 일이 끝난 줄은
+      // 쌓이지 않는다.
       expect(find.text(AppStrings.notificationAccept), findsNothing);
-      expect(
-        find.text(AppStrings.notificationInviteDeclined),
-        findsNWidgets(2),
-      );
+      expect(find.text(AppStrings.notificationInviteDeclined), findsNothing);
+      expect(find.text(AppStrings.notificationEmpty), findsOneWidget);
     });
 
     testWidgets('⚠️ 꽉 찬 방은 버튼을 남긴다', (tester) async {

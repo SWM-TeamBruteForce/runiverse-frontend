@@ -59,6 +59,10 @@ class _NotificationPageState extends ConsumerState<NotificationPage> {
     final notifier = ref.read(notificationProvider.notifier);
     await notifier.refresh();
     if (!mounted) return;
+    // ⚠️ **읽음 처리보다 먼저 채운다.** 한 페이지가 전부 처리된 건이면 화면이
+    // 비는데, 그 상태로 "없어요"를 그리면 다음 페이지의 알림을 못 본다.
+    await notifier.fillVisible();
+    if (!mounted) return;
     await notifier.markAllRead();
   }
 
@@ -96,13 +100,13 @@ class _NotificationPageState extends ConsumerState<NotificationPage> {
   }
 
   Widget _body(NotificationState state, AppColorsV2 colors) {
-    if (state.loading && state.items.isEmpty) {
+    if (state.loading && state.visible.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
     // ⚠️ **"없다"보다 먼저 본다.** 못 받았는데 빈 상태를 그리면 알림이 쌓인
     // 사람에게 "아직 알림이 없어요"라고 말하게 된다.
-    if (state.failure != null && state.items.isEmpty) {
+    if (state.failure != null && state.visible.isEmpty) {
       return EmptyStateV2(
         icon: LucideIcons.cloudOff,
         message: AppStrings.notificationLoadFailed,
@@ -116,7 +120,7 @@ class _NotificationPageState extends ConsumerState<NotificationPage> {
       );
     }
 
-    if (state.items.isEmpty) {
+    if (state.visible.isEmpty) {
       return const EmptyStateV2(
         icon: LucideIcons.bell,
         message: AppStrings.notificationEmpty,
@@ -124,14 +128,16 @@ class _NotificationPageState extends ConsumerState<NotificationPage> {
       );
     }
 
+    final rows = state.visible;
+
     return ListView.separated(
       controller: _scroll,
       padding: const EdgeInsets.only(bottom: AppSpacing.space6),
-      itemCount: state.items.length,
+      itemCount: rows.length,
       separatorBuilder: (_, _) =>
           Divider(height: 1, thickness: 0.6, color: colors.borderDefault),
       itemBuilder: (context, index) {
-        final one = state.items[index];
+        final one = rows[index];
         return NotificationRow(
           notification: one,
           busy: _busy.contains(one.notificationId),

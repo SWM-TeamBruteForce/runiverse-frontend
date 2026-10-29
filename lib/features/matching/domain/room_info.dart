@@ -149,6 +149,10 @@ class RoomInfo {
   static RoomInfo? fromStatus(UserStatus? status) => switch (status) {
     UserStatusReady(type: RoomType.match || RoomType.invite) => RoomInfo(
       runningRoomId: status.runningRoomId,
+      // ⚠️ **알고 있는 값을 버리지 않는다.** 이 대타 방은 스냅샷이 오기 전에
+      // 홈이 그리는 것이고, `READY`인 초대 방 사용자가 앱을 켤 때 바로 그
+      // 상태다 — `type`을 빼면 홈이 `매칭 완료`라고 말한다(설계 §4-8).
+      type: status.type,
       status: RoomStatus.matched,
       scheduledStartAt: status.scheduledStartAt,
       targetDistanceMeters: status.targetDistanceMeters,
@@ -156,6 +160,7 @@ class RoomInfo {
     ),
     UserStatusRunning(type: RoomType.match || RoomType.invite) => RoomInfo(
       runningRoomId: status.runningRoomId,
+      type: status.type,
       status: RoomStatus.started,
       scheduledStartAt: status.scheduledStartAt,
       targetDistanceMeters: status.targetDistanceMeters,

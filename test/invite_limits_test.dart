@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/features/matching/domain/invite_limits.dart';
 
 /// 초대 방의 운영값.
@@ -114,6 +115,19 @@ void main() {
       expect(InviteLimits.capacity, 4);
       expect(InviteLimits.maxInvitesPerFriend, 5);
       expect(InviteLimits.closeBeforeMinutes, 1);
+    });
+  });
+
+  group('거리 표기', () {
+    test('⚠️ 어떤 미터값이든 적는다', () {
+      // `matchDistanceText`는 km 정수만 받는다. 자유 거리가 그 길로 가면
+      // 칸이 그대로 빈다.
+      expect(AppStrings.distanceKm(5000), '5km');
+      expect(AppStrings.distanceKm(7000), '7km');
+      expect(AppStrings.distanceKm(21098), '21.098km');
+      expect(AppStrings.distanceKm(42195), '42.195km');
+      expect(AppStrings.distanceKm(1000), '1km');
+      expect(AppStrings.distanceKm(1500), '1.5km');
     });
   });
 }

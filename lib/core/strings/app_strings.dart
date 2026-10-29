@@ -679,6 +679,18 @@ abstract final class AppStrings {
   /// `3km` — 거리 칩과 요약 줄에 함께 쓴다.
   static String matchDistanceText(int km) => '${km}km';
 
+  /// `5km` · `21.098km` — **어떤 미터값이든** 적는다.
+  ///
+  /// ⚠️ [matchDistanceText]는 km 정수만 받는다. 초대 러닝은 거리가 자유
+  /// 입력이라 `7000`·`21098`이 오고, 그 길로 보내면 `TargetDistance`가
+  /// `null`을 돌려줘 **칸이 그대로 빈다**(실측 2026-10-29).
+  static String distanceKm(int meters) {
+    final km = meters / 1000;
+    // 딱 떨어지면 `5km`. 아니면 소수점 뒤 0을 떼고 `21.098km`.
+    if (km == km.roundToDouble()) return '${km.toInt()}km';
+    return '${km.toString().replaceFirst(RegExp(r'0+\$'), '')}km';
+  }
+
   /// `1500m` — 1000으로 안 나뉘는 거리.
   ///
   /// ⚠️ **선택지를 서버가 정하므로** 앱이 km로 이름 붙일 수 없는 값이 올 수
@@ -1911,6 +1923,83 @@ abstract final class AppStrings {
   static const inviteRoomAloneWarning = '곧 모집이 닫혀요 · 혼자 달리게 됩니다';
 
   static const inviteRoomInviteCta = '러너 초대';
+
+  /// ⚠️ **초대 방에서 나가는 것은 "매칭 취소"가 아니다.** 매칭을 신청한 적이
+  /// 없고, 제재도 없다.
+  static const inviteRoomLeave = '나가기';
+
+  /// 홈 히어로의 버튼. 매칭의 `매칭 대기중`은 초대 방에서 거짓이다 — 매칭하고
+  /// 있지 않고 출발을 기다린다.
+  static const homeInviteWaitingCta = '출발 대기중';
+
+  // ── 홈 히어로 · 초대 방 ──────────────────────────────────────────────
+
+  /// ⚠️ **매칭 문구를 그대로 쓸 수 없다.** 초대 방은 매칭하고 있지 않다 —
+  /// 초대한 사람의 답을 기다린다. 방은 `push`로 열려서 뒤로 가면 홈 히어로가
+  /// 서고, 방을 만든 사람은 **최소 10분**을 거기서 기다린다.
+  static const homeInviteWaitingTitle = '초대 러닝 대기 중';
+
+  /// 혼자일 때. 매칭의 `아직 함께 달릴 러너를 찾고 있어요`는 **찾는 중**이라는
+  /// 뜻이라 초대에 맞지 않는다.
+  static const homeInviteWaitingAlone = '초대한 러너의 답을 기다리고 있어요';
+
+  /// 사람이 들어왔을 때. 매칭의 `님과 매칭성공!`은 매칭이 아니라 수락이다.
+  static String homeInviteJoined(int count) => '$count명이 함께 뛰어요';
+
+  /// 모집 마감 뒤. `매칭 완료`가 아니다.
+  static const homeInviteConfirmedTitle = '출발 준비 완료';
+
+  // ── 초대 등록 ────────────────────────────────────────────────────────
+
+  static const inviteRegisterTitle = '초대 러닝';
+
+  /// ⚠️ **매칭 등록과 같은 말을 쓴다**(`matchTimeLabel`·`matchDistanceLabel`).
+  /// 하는 일이 같은 두 화면이 다른 말을 쓰면 다른 기능으로 읽힌다.
+  static const inviteRegisterWhen = matchTimeLabel;
+  static const inviteRegisterHowFar = matchDistanceLabel;
+  static const inviteRegisterTimePlaceholder = matchTimePlaceholder;
+
+  static const inviteRegisterSubmit = '방 만들기';
+  static const inviteRegisterToday = '오늘';
+
+  /// 고를 수 있는 범위. **하드코딩한 운영값이라 경계가 틀리기 쉽다.**
+  static String inviteRegisterWindow(DateTime from, DateTime to) =>
+      '${_hhmm(from)} ~ ${_hhmm(to)} 사이로 정할 수 있어요';
+
+  /// `19:30` — **이미 벽시계 값**을 적는다.
+  ///
+  /// ⚠️ [matchSlotTime]과 다르다. 저쪽은 순간(기기 시각)을 받아 KST로
+  /// 되돌리는데, 초대 등록이 들고 있는 값은 **이미 KST 벽시계**다. 저것을
+  /// 쓰면 +9시간이 두 번 붙는다.
+  static String inviteRegisterTime(DateTime wall) => _hhmm(wall);
+
+  static String _hhmm(DateTime at) =>
+      '${at.hour.toString().padLeft(2, '0')}:'
+      '${at.minute.toString().padLeft(2, '0')}';
+
+  /// 거리 안내. 매칭(`matchTimeHint`)처럼 **왜 그런지**까지 적는다.
+  static const inviteRegisterDistanceRange =
+      '1km부터 42.195km까지 정할 수 있어요.\n자주 쓰는 거리는 아래에서 고르세요';
+
+  static const inviteRegisterDistancePlaceholder = '거리 입력';
+
+  /// 시각 다이얼 시트의 확인 버튼.
+  static const inviteTimeSheetConfirm = '이 시간으로';
+
+  /// ⚠️ **23:49 이후에는 고를 수 있는 시각이 없다.** 빈 피커만 두면 고장으로
+  /// 읽힌다.
+  static const inviteRegisterClosedToday = '오늘은 초대 러닝을 만들 수 없어요';
+  static const inviteRegisterClosedTodayWhy = '자정이 지나면 다시 열려요';
+
+  static const inviteRegisterShortcut5 = '5km';
+  static const inviteRegisterShortcutHalf = '하프';
+  static const inviteRegisterShortcutFull = '풀';
+
+  /// 개설 실패. 서버가 문구를 주면 그것을 쓴다.
+  static const inviteRegisterOutOfRange = '고를 수 있는 시각이 아니에요';
+  static const inviteRegisterAlreadyInProgress = '이미 참여 중인 러닝이 있어요';
+  static const inviteRegisterOnboarding = '프로필을 먼저 완성해 주세요';
+  static const inviteRegisterFailed = '방을 만들지 못했어요';
 
   // ── 초대 모달 ────────────────────────────────────────────────────────
 

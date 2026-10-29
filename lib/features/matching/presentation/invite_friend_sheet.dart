@@ -11,11 +11,13 @@ import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/empty_state.dart';
 import 'package:runiverse/core/widgets/v2/runner_avatar.dart';
 import 'package:runiverse/features/friend/domain/friend_entry.dart';
+import 'package:runiverse/features/friend/domain/friend_relation.dart';
 import 'package:runiverse/features/friend/presentation/friend_provider.dart';
 import 'package:runiverse/features/matching/domain/invite_failure.dart';
 import 'package:runiverse/features/matching/domain/invite_limits.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
+import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 
 /// 방에서 러너를 골라 초대하는 바텀시트.
 Future<void> showInviteFriendSheet(
@@ -57,9 +59,21 @@ class InviteFriendSheet extends ConsumerStatefulWidget {
 }
 
 class _InviteFriendSheetState extends ConsumerState<InviteFriendSheet> {
-  /// 이 시트에서 초대를 보낸 사람. 스트림이 `invitations`를 갱신하기 전까지
-  /// 버튼을 잠가 둔다 — 두 번 눌려 횟수가 헛되이 줄어드는 것을 막는다.
+  /// 이 시트에서 초대를 보낸 사람. **다음 방 스냅샷이 올 때까지만** 쓴다.
+  ///
+  /// ## ⚠️ 서버 목록이 오면 버린다
+  ///
+  /// 204를 받은 순간부터 `INVITE_ROOM_UPDATED`가 닿기까지 짧은 틈이 있고, 그
+  /// 사이 버튼이 다시 `초대`로 보이면 한 번 더 눌려 **횟수가 헛되이 줄어든다**
+  /// (상한 5회를 볼 수도 없다). 그 틈만 메우는 값이다.
+  ///
+  /// **지우지 않으면 거짓이 된다** — 상대가 거절해 `invitations`에서 빠졌는데도
+  /// `초대 중`으로 남는다(실측 2026-10-29). 그래서 새 스냅샷이 오는 순간
+  /// 통째로 버리고, 그다음부터는 서버 목록만 믿는다.
   final _sent = <String>{};
+
+  /// 마지막으로 본 방. 바뀌면 [_sent]를 버린다.
+  RoomInfo? _seenRoom;
 
   /// 실패한 사람과 그 문구. **서버가 준 말을 그대로 들고 있는다.**
   final _failed = <String, String>{};
@@ -79,7 +93,23 @@ class _InviteFriendSheetState extends ConsumerState<InviteFriendSheet> {
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
     final state = ref.watch(friendProvider);
-    final room = widget.room;
+
+    // ⚠️ **스트림이 나른 최신 방을 본다.** 넘겨받은 것은 열던 순간의 스냅샷
+    // 이고, 초대 방은 **최소 10분**을 기다린다 — 그사이 수락·거절·모집 마감이
+    // 온다. 굳은 값을 보면 꽉 찬 방에 계속 초대를 보내고(상대가
+    // `RUNNING_ROOM_FULL`을 맞는다), 방금 들어온 사람이 아직 `초대 중`으로
+    // 보인다.
+    final live = ref.watch(matchRoomProvider.select((s) => s.room));
+    final room = live != null && live.runningRoomId == widget.room.runningRoomId
+        ? live
+        : widget.room;
+
+    // ⚠️ **새 스냅샷이 오면 낙관적 표시를 버린다.** 서버 목록이 정본이다 —
+    // 거절·이탈로 빠진 사람을 계속 `초대 중`으로 두면 거짓말이 된다.
+    if (!identical(room, _seenRoom)) {
+      _seenRoom = room;
+      _sent.clear();
+    }
 
     final taken = {for (final one in room.players) one.userId};
     final pending = {for (final one in room.invitations) one.userId};
@@ -87,9 +117,17 @@ class _InviteFriendSheetState extends ConsumerState<InviteFriendSheet> {
         InviteLimits.capacity - room.players.length - room.invitations.length;
 
     // 검색 중이면 결과를, 아니면 친구 묶음을 깐다.
-    final entries = state.searching
-        ? state.results
-        : [for (final group in state.groups) ...group.entries];
+    //
+    // ⚠️ **친구만 남긴다.** 친구 목록은 받은 요청·보낸 요청·친구가 섞여 오고
+    // (`FriendState.friends` 주석), 검색은 아예 남을 찾는다. 친구가 아닌 줄에
+    // 초대 버튼을 세우면 눌러 봐야 `409 NOT_FRIEND`다.
+    final entries = [
+      for (final entry
+          in state.searching
+              ? state.results
+              : [for (final group in state.groups) ...group.entries])
+        if (entry.relation == FriendRelation.friend) entry,
+    ];
 
     return Padding(
       // 키보드가 올라오면 시트가 그 위로 따라 올라간다(FE노트 S17).
@@ -133,7 +171,37 @@ class _InviteFriendSheetState extends ConsumerState<InviteFriendSheet> {
               _SearchField(colors: colors),
               const SizedBox(height: AppSpacing.space2),
               Flexible(
-                child: entries.isEmpty
+                child: state.loading && entries.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(
+                          vertical: AppSpacing.space8,
+                        ),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    // ⚠️ **"없다"보다 먼저 본다.** 못 받았는데 빈 상태를 그리면
+                    // 친구가 많은 사람에게 "초대할 러너가 없어요"라고 말한다.
+                    : state.failure != null && entries.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppSpacing.space8,
+                        ),
+                        child: EmptyStateV2(
+                          icon: LucideIcons.cloudOff,
+                          message: AppStrings.friendLoadFailed,
+                          cta: TextButton(
+                            onPressed: () => unawaited(
+                              ref.read(friendProvider.notifier).load(),
+                            ),
+                            child: Text(
+                              AppStrings.notificationRetry,
+                              style: AppTypographyV2.body11.copyWith(
+                                color: colors.primary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : entries.isEmpty
                     ? const Padding(
                         padding: EdgeInsets.symmetric(
                           vertical: AppSpacing.space8,

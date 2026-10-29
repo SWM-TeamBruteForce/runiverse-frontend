@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/features/app_update/presentation/app_update_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/notification/data/http_notification_repository.dart';
 import 'package:runiverse/features/notification/data/sse_app_stream.dart';
@@ -55,6 +56,16 @@ class NotificationState {
 
   /// 더 받을 페이지가 있는가. **`items` 개수로 판단하지 않는다.**
   bool get hasMore => nextCursor != null;
+
+  /// 화면에 그릴 알림. **할 일이 끝난 것은 뺀다.**
+  ///
+  /// ⚠️ [items]를 그대로 두는 이유는 **방 단위 갱신과 중복 제거가 그것을
+  /// 봐야** 하기 때문이다. 같은 방의 알림을 함께 바꿀 때 숨긴 줄도 함께
+  /// 바뀌어야 하고, 이미 받은 `notificationId`를 또 받으면 걸러내야 한다.
+  List<AppNotification> get visible => [
+    for (final one in items)
+      if (!one.isSettled) one,
+  ];
 
   NotificationState copyWith({
     List<AppNotification>? items,
@@ -120,6 +131,10 @@ class NotificationController extends Notifier<NotificationState> {
 
   static const _limit = 20;
 
+  /// 다시 붙기를 예약해 뒀는가. **테스트가 읽는다** — "다시 붙지 않는다"를
+  /// 눈으로 볼 방법이 없다(타이머가 돌기 전에 테스트가 끝난다).
+  bool get retryPending => _retry?.isActive ?? false;
+
   /// ⚠️ **build에서 한 번 붙잡는다.** Riverpod 3는 `onDispose` 안에서
   /// `ref.read`를 막는다(생명주기 콜백에서 다른 provider를 건드릴 수 없다).
   /// 뒷정리할 때 읽으려 하면 단정문에서 죽는다.
@@ -175,7 +190,12 @@ class NotificationController extends Notifier<NotificationState> {
         if (!state.updateRequired) _scheduleRetry();
       },
     );
-    state = state.copyWith(connected: true, updateRequired: false);
+    state = state.copyWith(
+      connected: true,
+      updateRequired: false,
+      nextCursor: state.nextCursor,
+      failure: state.failure,
+    );
   }
 
   void _onStreamError(Object error) {
@@ -186,12 +206,28 @@ class NotificationController extends Notifier<NotificationState> {
     // ⚠️ **구버전이면 다시 붙지 않는다.** 같은 403이 돌아올 뿐이고, 화면이
     // 업데이트를 안내한다.
     if (failure == AppStreamFailure.updateRequired) {
-      state = state.copyWith(connected: false, updateRequired: true);
+      state = state.copyWith(
+        connected: false,
+        updateRequired: true,
+        nextCursor: state.nextCursor,
+        failure: state.failure,
+      );
+      // ⚠️ **상태만 세우면 아무도 읽지 않는다.** 게이트를 직접 깨운다 —
+      // 매칭 스트림이 같은 일을 한다(`match_room_provider.dart`). 다시 붙어
+      // 봐야 같은 403이고, 그동안 사용자는 왜 안 되는지 모른다.
+      ref.read(appUpdateProvider.notifier).markRequired();
       return;
     }
 
     debugPrint('[notification] 앱 스트림이 끊겼다 · $failure');
-    state = state.copyWith(connected: false);
+    // ⚠️ **커서와 실패를 들고 간다.** `copyWith`가 둘을 지우도록 돼 있어
+    // (지울 수 있어야 한다), 안 넘기면 **서버가 30분마다 정상으로 끊을 때마다
+    // 목록이 거기서 끝난다.**
+    state = state.copyWith(
+      connected: false,
+      nextCursor: state.nextCursor,
+      failure: state.failure,
+    );
     _scheduleRetry();
   }
 
@@ -225,9 +261,11 @@ class NotificationController extends Notifier<NotificationState> {
     state = state.copyWith(
       items: [notification, ...state.items],
       unreadCount: state.unreadCount + 1,
-      // ⚠️ **실패를 함께 들고 간다.** `copyWith`가 `failure`를 지우도록 돼 있어
-      // (지울 수 있어야 한다), 안 넘기면 **새 알림 하나가 화면의 오류 안내를
-      // 조용히 치운다.**
+      // ⚠️ **커서와 실패를 함께 들고 간다.** `copyWith`가 둘을 지우도록 돼
+      // 있어(지울 수 있어야 한다), 안 넘기면 **새 알림 하나가** 화면의 오류
+      // 안내를 치우고 **목록을 그 자리에서 끝낸다** — 더 못 불러오고 옛 알림에
+      // 닿을 길이 사라진다.
+      nextCursor: state.nextCursor,
       failure: state.failure,
     );
   }
@@ -271,8 +309,34 @@ class NotificationController extends Notifier<NotificationState> {
         nextCursor: state.nextCursor,
         failure: error.failure,
       );
+      // ⚠️ **다시 시도해야 버퍼 모드에서 나올 수 있다.** 안 하면 그 뒤 모든
+      // 알림이 버퍼로 들어가고 배지가 영영 안 움직인다 — 초대받은 사람에게
+      // 유일한 통로가 조용히 막힌다(포그라운드 복귀 전까지).
+      _scheduleRetry();
     }
   }
+
+  /// 보이는 줄이 없는데 받을 페이지가 남았으면 더 받는다.
+  ///
+  /// ## ⚠️ 끝난 알림을 걸러내면 **한 페이지가 통째로 빌 수 있다**
+  ///
+  /// 20개를 받아 전부 처리된 건이면 화면은 "아직 알림이 없어요"가 된다 —
+  /// 실제로는 다음 페이지에 읽을 것이 있는데도. 스크롤이 닿을 자리도 없어서
+  /// [loadMore]가 불릴 일이 없다.
+  Future<void> fillVisible() async {
+    // 상한을 둔다. 30일치가 전부 처리된 건이면 끝까지 긁게 되는데, 그동안
+    // 화면은 비어 있고 서버는 같은 수의 요청을 받는다.
+    for (var page = 0; page < _fillPages; page++) {
+      if (state.visible.isNotEmpty || !state.hasMore) return;
+      final before = state.nextCursor;
+      await loadMore();
+      // 더 나아가지 못했다(실패했거나 같은 자리다). 무한히 돌지 않는다.
+      if (state.nextCursor == before) return;
+    }
+  }
+
+  /// [fillVisible]이 더 받아 보는 페이지 수.
+  static const _fillPages = 3;
 
   /// 스크롤이 끝에 닿았다.
   Future<void> loadMore() async {

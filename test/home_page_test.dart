@@ -10,6 +10,7 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
+import 'package:runiverse/features/matching/presentation/invite_register_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
@@ -71,11 +72,21 @@ void main() {
 
     testWidgets('⚠️ 둘째 칸은 초대 러닝이다', (tester) async {
       // 2026-10-28에 `친구랑 뛰기`에서 바꿨다. 하는 일은 그대로고 문구만
-      // 바뀐다 — 아직 갈 곳이 없어 준비 중이라고 말한다.
+      // 바뀐다.
       await pumpHome(tester);
 
       expect(find.text('초대 러닝'), findsOneWidget);
       expect(find.text('친구랑 뛰기'), findsNothing);
+    });
+
+    testWidgets('초대 러닝을 누르면 초대 등록으로 간다', (tester) async {
+      // 2026-10-29까지는 준비 중이라고 말했다. 이제 갈 곳이 있다.
+      await pumpHome(tester);
+
+      await tester.tap(find.text(AppStrings.homeInviteRunCta));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(InviteRegisterPage), findsOneWidget);
     });
 
     testWidgets('매칭을 누르면 등록 화면으로 간다', (tester) async {

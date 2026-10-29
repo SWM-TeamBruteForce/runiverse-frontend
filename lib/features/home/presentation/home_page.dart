@@ -189,9 +189,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                     icon: AppIcons.people2,
                     label: AppStrings.homeInviteRunCta,
                     emphasized: false,
-                    // ⚠️ 아직 갈 곳이 없다. 시안의 `친구 목록`(`158:3230`)이
-                    // 이 묶음 밖이라, 문구 결정이 나면 함께 잇는다.
-                    onTap: _comingSoon,
+                    // 시각과 거리를 자유롭게 정하는 별도 화면이다 — 매칭 등록
+                    // 과 입력이 겹치지 않는다.
+                    onTap: () => context.push(AppRoutes.inviteRegister),
                   ),
                 ),
               ],
@@ -315,32 +315,6 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   /// 상태를 못 읽었을 때 쓸 방. 화면이 들고 있던 것이다.
   RoomInfo? _fallbackRoom;
-
-  /// `친구랑 뛰기` — 아직 갈 곳이 없다.
-  ///
-  /// ⚠️ **버튼을 지우지 않는다.** 시안에 있고, 없애면 문구 결정이 난 뒤에
-  /// 자리를 다시 만들어야 한다. 누르면 준비 중이라고 말한다.
-  void _comingSoon() {
-    final colors = context.appColorsV2;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          AppStrings.comingSoonTitle,
-          style: AppTypographyV2.body11.copyWith(color: colors.textStrong),
-        ),
-        // ⚠️ **기본값을 그대로 쓰면 다크 화면에 흰 띠가 뜬다.** 앱 테마의
-        // `SnackBar`가 아직 옛 세대라, 여기서 면과 글자를 직접 준다.
-        backgroundColor: colors.bgElevated,
-        behavior: SnackBarBehavior.floating,
-        shape: const RoundedRectangleBorder(borderRadius: AppRadius.md),
-        // ⚠️ **탭 바 높이를 여기서 더하지 않는다.** `floating`이 이미
-        // 셸의 `bottomNavigationBar` 위로 올려 준다 — 한 번 더 더하면
-        // 화면 한가운데로 떠서 아래 칸들을 덮는다(에뮬레이터에서 확인).
-        margin: const EdgeInsets.all(AppSpacing.space4),
-      ),
-    );
-  }
 }
 
 /// 프로필을 아직 안 채운 사람에게 뜨는 안내 — 시안 `158:2849`.

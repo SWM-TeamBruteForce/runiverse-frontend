@@ -606,6 +606,8 @@ void main() {
       expect(room?.status, RoomStatus.matched);
       expect(room?.runningRoomId, 31);
       expect(room?.targetDistanceMeters, 7000);
+      // ⚠️ **종류를 들고 가야 한다.** 빼면 홈이 `매칭 완료`라고 말한다.
+      expect(room?.type, RoomType.invite);
     });
 
     test('달리는 중인 초대 방도 세운다', () {
@@ -618,6 +620,19 @@ void main() {
       );
 
       expect(room?.status, RoomStatus.started);
+      expect(room?.type, RoomType.invite);
+    });
+
+    test('매칭 방도 종류를 들고 간다', () {
+      final room = RoomInfo.fromStatus(
+        UserStatusReady(
+          runningRoomId: 7,
+          type: RoomType.match,
+          scheduledStartAt: startAt,
+        ),
+      );
+
+      expect(room?.type, RoomType.match);
     });
 
     test('솔로는 매칭 방을 세우지 않는다', () {
@@ -686,6 +701,118 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(app.analytics.countOf('match_confirmed'), 1);
+    });
+  });
+
+  /// ⚠️ **기기 시계를 믿지 않는다.**
+  ///
+  /// 시계가 20시간 뒤처진 기기에서 `모집 마감까지 23:58:26`이 떴다(실측
+  /// 2026-10-29). 사용자 설정이나 시간대 오류로 실제 기기에서도 생긴다.
+  group('서버 시계로 남은 시간을 센다', () {
+    test('입장 이벤트의 startsInMs로 보정을 배운다', () async {
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      // 서버는 "시작까지 10분"이라고 말한다. 기기 시계로 재면 시작까지
+      // 1시간 10분이 남은 것처럼 보인다 — 기기가 1시간 뒤처졌다.
+      final scheduled = DateTime.now().add(const Duration(minutes: 70));
+      app.stream.emit(
+        InviteRoomEntrance(
+          RoomInfo(
+            runningRoomId: 130,
+            type: RoomType.invite,
+            status: RoomStatus.matching,
+            scheduledStartAt: scheduled,
+            players: const [],
+          ),
+          startsInMs: const Duration(minutes: 10).inMilliseconds,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final offset = app.container.read(matchRoomProvider).serverOffset;
+      // 서버가 60분 앞서 있다.
+      expect(offset.inMinutes, closeTo(60, 1));
+    });
+
+    test('⚠️ 보정이 남은 시간에 실제로 반영된다', () async {
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      final deviceNow = DateTime.now();
+      final scheduled = deviceNow.add(const Duration(minutes: 70));
+      app.stream.emit(
+        InviteRoomEntrance(
+          RoomInfo(
+            runningRoomId: 130,
+            type: RoomType.invite,
+            status: RoomStatus.matching,
+            scheduledStartAt: scheduled,
+            // 마감은 시작 1분 전이다.
+            closeAt: scheduled.subtract(const Duration(minutes: 1)),
+            players: const [],
+          ),
+          startsInMs: const Duration(minutes: 10).inMilliseconds,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final state = app.container.read(matchRoomProvider);
+      final left = state.room!.closeAt!.difference(state.serverNow(deviceNow));
+      // 서버 기준으로는 마감까지 9분이다. 기기 시계로 재면 69분이 된다.
+      expect(left.inMinutes, closeTo(9, 1));
+    });
+
+    test('startsInMs가 없으면 보정하지 않는다', () async {
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      app.stream.emit(InviteRoomEntrance(inviteRoom(RoomStatus.matching)));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(app.container.read(matchRoomProvider).serverOffset, Duration.zero);
+    });
+
+    test('⚠️ 매칭 방은 보정을 받을 길이 없다', () async {
+      // `MATCH_ROOM_UPDATED`에 기준 시각이 없다. 지금까지와 같이 0으로 둔다 —
+      // 고치려면 서버가 스냅샷에 실어 줘야 한다.
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      app.stream.emit(MatchRoomUpdated(room(RoomStatus.matching)));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(app.container.read(matchRoomProvider).serverOffset, Duration.zero);
+    });
+
+    test('기기 시계가 맞으면 보정이 0에 가깝다', () async {
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      final scheduled = DateTime.now().add(const Duration(minutes: 10));
+      app.stream.emit(
+        InviteRoomEntrance(
+          RoomInfo(
+            runningRoomId: 130,
+            type: RoomType.invite,
+            status: RoomStatus.matching,
+            scheduledStartAt: scheduled,
+            players: const [],
+          ),
+          startsInMs: const Duration(minutes: 10).inMilliseconds,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        app.container.read(matchRoomProvider).serverOffset.inSeconds.abs(),
+        lessThan(2),
+      );
     });
   });
 }
