@@ -11,6 +11,7 @@ import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/runner_avatar.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
+import 'package:runiverse/features/session/domain/user_status.dart';
 
 /// 매칭을 기다리는 중 — 시안 `158:2951`.
 ///
@@ -285,6 +286,19 @@ class _HomeWaitingState extends State<HomeWaiting>
       if (player.userId != widget.myUserId) player,
   ];
 
+  /// 둘째 줄. **초대 방은 "찾고 있다"고 하지 않는다** — 상대를 이미 골랐고
+  /// 답을 기다리는 중이다.
+  String _waitingBody(int others) {
+    if (widget.room.type == RoomType.invite) {
+      return others == 0
+          ? AppStrings.homeInviteWaitingAlone
+          : AppStrings.homeInviteJoined(others + 1);
+    }
+    return others == 0
+        ? AppStrings.homeMatchWaitingAlone
+        : AppStrings.homeMatchWaitingOthers(others);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
@@ -403,7 +417,11 @@ class _HomeWaitingState extends State<HomeWaiting>
               child: Column(
                 children: [
                   Text(
-                    AppStrings.homeMatchWaitingTitle,
+                    // ⚠️ **초대 방은 매칭하고 있지 않다.** 초대한 사람의 답을
+                    // 기다리는 중이다 — 같은 레이아웃에 문구만 다르다.
+                    widget.room.type == RoomType.invite
+                        ? AppStrings.homeInviteWaitingTitle
+                        : AppStrings.homeMatchWaitingTitle,
                     textAlign: TextAlign.center,
                     style: AppTypographyV2.heading03.copyWith(
                       color: colors.textStrong,
@@ -413,7 +431,7 @@ class _HomeWaitingState extends State<HomeWaiting>
                   Text(
                     // ⚠️ 신청 직후에는 아직 나뿐이다. 그때 `0명의 러너가`라고
                     // 적으면 말이 안 된다 — 시안에 없는 구간이다.
-                    '${others.isEmpty ? AppStrings.homeMatchWaitingAlone : AppStrings.homeMatchWaitingOthers(others.length)}'
+                    '${_waitingBody(others.length)}'
                     '\n${AppStrings.homeMatchWaitingHint}',
                     textAlign: TextAlign.center,
                     style: AppTypographyV2.body07.copyWith(

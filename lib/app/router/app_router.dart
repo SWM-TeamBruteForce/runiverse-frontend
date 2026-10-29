@@ -6,6 +6,7 @@ import 'package:runiverse/core/widgets/coming_soon_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_in_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_up_page.dart';
 import 'package:runiverse/features/friend/presentation/friend_page.dart';
+import 'package:runiverse/features/matching/presentation/invite_register_page.dart';
 import 'package:runiverse/features/notification/presentation/notification_page.dart';
 import 'package:runiverse/features/profile/presentation/user_friends_page.dart';
 import 'package:runiverse/features/profile/presentation/user_profile_page.dart';
@@ -145,6 +146,11 @@ GoRouter createAppRouter({String? initialLocation}) {
       ),
 
       // 매칭 등록 — 셸 밖이다. 조건을 고르는 도중에 탭으로 새면 값이 사라진다.
+      GoRoute(
+        path: AppRoutes.inviteRegister,
+        name: 'invite_register',
+        builder: (context, state) => const InviteRegisterPage(),
+      ),
       GoRoute(
         path: AppRoutes.matchRegister,
         name: 'match_register',

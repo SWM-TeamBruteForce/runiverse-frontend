@@ -158,6 +158,12 @@ abstract final class AppRoutes {
   /// **탭 셸 밖이다.** 조건을 고르는 도중에 다른 탭으로 새면 고른 값이 사라진다.
   static const matchRegister = '/match/register';
 
+  /// 초대 등록 — 시각과 거리를 자유롭게 정해 방을 연다.
+  ///
+  /// **매칭 등록([matchRegister])과 다른 화면이다.** 입력이 겹치지 않는다 —
+  /// 저쪽은 서버가 준 슬롯과 거리 셋, 이쪽은 자유 입력이다.
+  static const inviteRegister = '/match/invite';
+
   /// 대기방 (S10). 모집 중과 확정 뒤를 한 화면이 맡는다.
   ///
   /// **셸 밖이다.** 매칭 상태는 탭이 아니라 그 자체로 하나의 흐름이다.
