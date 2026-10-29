@@ -329,9 +329,13 @@ class HttpProfileRepository implements ProfileRepository {
       // ⚠️ **없으면 거짓이다.** 못 읽었다고 내 것으로 읽으면 남의 화면에
       // "프로필 편집"이 뜬다.
       isMe: body?['isMe'] == true,
-      // ⚠️ **이름도 값도 친구 API와 다르다**(`friendStatus`, `ACCEPTED`).
-      // `friendRelationOf`가 두 어휘를 모두 받는다.
-      relation: friendRelationOf(body?['friendStatus']),
+      // ⚠️ **1.2.0에서 `friendStatus`에서 개명됐다.** 값도 친구 API와 같은
+      // 어휘로 합쳐졌다(`ACCEPTED` → `FRIEND`). 키를 안 고치면 관계가 늘
+      // `null`로 읽혀 **친구인 사람에게 "친구 요청" 버튼이 뜬다.**
+      //
+      // `friendRelationOf`는 옛 어휘도 받는다 — 서버가 1.1.x를 내리는 동안
+      // 섞일 수 있고, 받아 두는 비용이 없다.
+      relation: friendRelationOf(body?['relationshipType']),
     );
   }
 

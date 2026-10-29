@@ -275,6 +275,12 @@ class MatchRoomController extends Notifier<MatchRoomState> {
       // 판정하지 않는다** — 그 판정은 [_applyRoom]이 상태 전이로 한다.
       case MatchStarted(:final room) || MatchRoomUpdated(:final room):
         _applyRoom(room);
+      // ⚠️ **초대 방도 같은 자리로 들어온다.** 이벤트 이름이 둘로 갈려 있을
+      // 뿐, 싣고 오는 것은 같은 `RoomInfo`다. 입장 이벤트의 `startsInMs`는
+      // 남은 시간 표시용이라 여기서 쓰지 않는다 — 발사 시각은 `RunningReady`
+      // 하나가 정한다. 두 벌이 되면 어긋나는 날 참가자마다 출발이 갈린다.
+      case InviteRoomEntrance(:final room) || InviteRoomUpdated(:final room):
+        _applyRoom(room);
       case RunningReady():
         // ⚠️ **내 방의 통지인지 먼저 본다.**
         //
@@ -359,14 +365,22 @@ class MatchRoomController extends Notifier<MatchRoomState> {
     final movedRoom =
         state.room != null && state.room!.runningRoomId != room.runningRoomId;
 
+    // ⚠️ **초대 방은 확정 연출이 없다.** 모집 마감이 `status: matched`로 오는데
+    // (별도 마감 이벤트가 없다) 전이만 보고 판정하면 **마감에 축하가 터진다** —
+    // 매칭이 성사된 것이 아니라 더 들어올 자리가 닫힌 것뿐이다.
+    final celebrates = room.type != RoomType.invite;
     final justMatched =
+        celebrates &&
         state.room?.status != RoomStatus.matched &&
         room.status == RoomStatus.matched;
 
     // ⚠️ **방마다 한 번만 남긴다.** 위의 `justMatched` 는 화면 연출용이라
     // 상태가 비워진 뒤 다시 들어오면 또 켜진다 — 재연결이나 provider 재생성이
     // 그렇다. 그대로 쓰면 한 번의 성사가 여러 번으로 세어진다.
-    if (room.status == RoomStatus.matched &&
+    // ⚠️ **초대 방은 집계하지 않는다.** 매칭 퍼널 지표라, 직접 골라 모은 방이
+    // 섞이면 성사율이 거짓이 된다.
+    if (celebrates &&
+        room.status == RoomStatus.matched &&
         _confirmedLogged != room.runningRoomId) {
       _confirmedLogged = room.runningRoomId;
       unawaited(

@@ -248,7 +248,7 @@ void main() {
     Future<void> serverSaysRunning(WidgetTester tester) async {
       status.status = UserStatusRunning(
         runningRoomId: 1,
-        isSolo: true,
+        type: RoomType.solo,
         scheduledStartAt: clock,
       );
       // ⚠️ **누가 다시 읽었는지는 중요하지 않다.** 진짜 앱에서는 시작 확인을

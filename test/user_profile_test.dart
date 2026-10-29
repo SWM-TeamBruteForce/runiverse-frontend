@@ -16,28 +16,57 @@ import 'package:runiverse/features/profile/presentation/user_profile_page.dart';
 
 /// 남의 프로필.
 ///
-/// ## ⚠️ 프로필 API는 관계를 다른 말로 준다
+/// ## ⚠️ 관계 어휘가 1.2.0에서 하나로 합쳐졌다
 ///
-/// 친구 엔드포인트는 `relationshipType`인데 여기는 `friendStatus`이고 값도
-/// 다르다(`ACCEPTED` 대 `FRIEND`). 이걸 빠뜨리면 **친구인 사람에게 "친구
-/// 요청" 버튼이 뜨고**, 눌러 봐야 `409`만 돌아온다.
+/// 프로필 요약(No 38)이 `friendStatus`·`ACCEPTED`를 쓰다가 친구 엔드포인트와
+/// 같은 `relationshipType`·`FRIEND`로 바뀌었다. 키를 안 고치면 **친구인
+/// 사람에게 "친구 요청" 버튼이 뜨고**, 눌러 봐야 `409`만 돌아온다.
+///
+/// 읽는 쪽은 두 어휘를 모두 받는다 — 구버전 서버와 섞이는 기간을 버틴다.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('응답 읽기', () {
-    test('⚠️ friendStatus 를 관계로 읽는다', () {
-      ProfileSummary of(String? status) => HttpProfileRepository.summaryOf({
+    test('⚠️ relationshipType 을 관계로 읽는다', () {
+      ProfileSummary of(String? type) => HttpProfileRepository.summaryOf({
         'userId': 'u1',
         'nickname': '이서연',
         'friendCount': 38,
         'isMe': false,
-        'friendStatus': status,
+        'relationshipType': type,
+      });
+
+      expect(of('FRIEND').relation, FriendRelation.friend);
+      expect(of('FRIEND_REQUEST_SENT').relation, FriendRelation.requestSent);
+      expect(
+        of('FRIEND_REQUEST_RECEIVED').relation,
+        FriendRelation.requestReceived,
+      );
+      expect(of('NONE').relation, FriendRelation.none);
+    });
+
+    test('옛 어휘도 그대로 읽는다', () {
+      // 서버가 1.1.x를 내리는 동안 섞일 수 있다.
+      ProfileSummary of(String? type) => HttpProfileRepository.summaryOf({
+        'userId': 'u1',
+        'friendCount': 0,
+        'relationshipType': type,
       });
 
       expect(of('ACCEPTED').relation, FriendRelation.friend);
       expect(of('PENDING_SENT').relation, FriendRelation.requestSent);
       expect(of('PENDING_RECEIVED').relation, FriendRelation.requestReceived);
-      expect(of('NONE').relation, FriendRelation.none);
+    });
+
+    test('⚠️ 모르는 관계 값에는 버튼을 세우지 않는다', () {
+      // 새 값이 생겨도 화면이 죽지 않고, 아무 버튼도 임의로 그리지 않는다.
+      final summary = HttpProfileRepository.summaryOf({
+        'userId': 'u1',
+        'friendCount': 0,
+        'relationshipType': 'BLOCKED',
+      });
+
+      expect(summary.relation, isNull);
     });
 
     test('내 프로필이면 관계가 null 이다', () {
@@ -46,7 +75,7 @@ void main() {
         'nickname': '나',
         'friendCount': 12,
         'isMe': true,
-        'friendStatus': null,
+        'relationshipType': null,
       });
 
       expect(summary.isMe, isTrue);

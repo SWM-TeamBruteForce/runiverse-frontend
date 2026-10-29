@@ -42,7 +42,7 @@ void main() {
 
   UserStatusRunning running({int room = 29}) => UserStatusRunning(
     runningRoomId: room,
-    isSolo: false,
+    type: RoomType.match,
     scheduledStartAt: startAt,
     targetDistanceMeters: 3000,
   );

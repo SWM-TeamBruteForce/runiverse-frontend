@@ -53,29 +53,41 @@ class HttpUserStatusRepository implements UserStatusRepository {
       throw const UserStatusException(UserStatusFailure.unknown);
     }
 
-    // ⚠️ `INVITE`는 미래 예약값이라 계약에 없다. 그래서 `SOLO`만 보고 가른다.
-    final isSolo = body?['type'] == 'SOLO';
+    // ⚠️ **`SOLO`만 보고 갈랐던 자리다**(2026-10-29까지). `INVITE`가 계약에만
+    // 있고 내려오지 않던 시절의 코드인데, 초대 방이 생기면서 그 값이 실제로
+    // 오기 시작했다 — 그때 초대 방이 `isSolo: false`로 읽혀 **매칭 방 화면이
+    // 떴다.** 셋을 셋으로 읽는다.
+    //
+    // ⚠️ 모르는 값이면 계약이 깨진 것으로 본다. `match`로 접으면 새 방 종류가
+    // 생기는 날 엉뚱한 화면을 그린다.
+    final type = RoomType.of(body?['type']);
+    if (type == null) {
+      throw const UserStatusException(UserStatusFailure.unknown);
+    }
+
     final target = body?['targetDistanceMeters'];
     final targetMeters = target is int ? target : null;
 
     return switch (status) {
-      // WAITING은 매칭만 가능하다 — 솔로는 모집 단계 없이 태어난다.
+      // ⚠️ 솔로는 모집 단계 없이 태어나므로 여기 오지 않는다. 매칭과 초대
+      // 둘뿐이고, 마감 경계만 다르다(매칭 10분 전 · 초대 1분 전).
       'WAITING' => UserStatusWaiting(
         runningRoomId: roomId,
+        type: type,
         scheduledStartAt: startAt,
         targetDistanceMeters: targetMeters,
         cooldownUntil: cooldownUntil,
       ),
       'READY' => UserStatusReady(
         runningRoomId: roomId,
-        isSolo: isSolo,
+        type: type,
         scheduledStartAt: startAt,
         targetDistanceMeters: targetMeters,
         cooldownUntil: cooldownUntil,
       ),
       'RUNNING' => UserStatusRunning(
         runningRoomId: roomId,
-        isSolo: isSolo,
+        type: type,
         scheduledStartAt: startAt,
         targetDistanceMeters: targetMeters,
         cooldownUntil: cooldownUntil,
