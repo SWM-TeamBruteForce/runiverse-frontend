@@ -19,7 +19,6 @@ import 'package:runiverse/features/matching/domain/room_invitation.dart';
 import 'package:runiverse/features/matching/presentation/invite_friend_sheet.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
-import 'package:runiverse/features/matching/domain/target_distance.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 
 /// 대기방 (S10). 시안 `158:3415` `매칭 완료 / 세션 로비 페이지`.
@@ -176,9 +175,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
                 AppSpacing.space4,
               ),
               child: AppButtonV2(
-                label: room.status == RoomStatus.matching
-                    ? AppStrings.matchRoomCancel
-                    : AppStrings.matchRoomLeave,
+                label: _leaveLabel(room),
                 variant: AppButtonV2Variant.secondary,
                 onPressed: _leaving ? null : () => _confirmLeave(room),
               ),
@@ -271,6 +268,17 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
 
   Future<void> _openInviteSheet(RoomInfo room) async {
     await showInviteFriendSheet(context, room: room);
+  }
+
+  /// 나가기 버튼의 글자.
+  ///
+  /// ⚠️ **초대 방에서는 `매칭 취소하기`가 거짓이다.** 매칭을 신청한 적이 없고,
+  /// 나가도 제재가 없다.
+  String _leaveLabel(RoomInfo room) {
+    if (room.type == RoomType.invite) return AppStrings.inviteRoomLeave;
+    return room.status == RoomStatus.matching
+        ? AppStrings.matchRoomCancel
+        : AppStrings.matchRoomLeave;
   }
 
   /// 나가면 어떻게 되는지. **제재가 걸릴 때만 겁을 준다.**
@@ -441,7 +449,7 @@ class _SessionCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final km = TargetDistance.fromMeters(room.targetDistanceMeters)?.km;
+    final meters = room.targetDistanceMeters;
 
     // ⚠️ 값에는 **숫자와 단위만** 둔다. 카드가 `시작 시간`·`목표 거리`를
     // 이미 이고 있어서, 값에 다시 `시작`·`목표`를 붙이면 같은 말이
@@ -457,12 +465,16 @@ class _SessionCards extends StatelessWidget {
         ),
         const SizedBox(width: AppSpacing.space3),
         Expanded(
-          // 거리를 모르면 칸을 비운다. 임의의 값을 넣으면 목표가 달라 보인다.
-          child: km == null
+          // ⚠️ **`TargetDistance`를 거치지 않는다.** 그쪽은 3/5/10km만 아는
+          // enum이라 초대 러닝의 자유 거리(7km·하프·풀)가 `null`이 되고, 그러면
+          // **옆 칸이 그대로 빈다**(실측 2026-10-29).
+          //
+          // 거리를 모를 때만 비운다. 임의의 값을 넣으면 목표가 달라 보인다.
+          child: meters == null
               ? const SizedBox.shrink()
               : FactCard(
                   label: AppStrings.matchDistanceLabel,
-                  value: AppStrings.matchDistanceText(km),
+                  value: AppStrings.distanceKm(meters),
                 ),
         ),
       ],

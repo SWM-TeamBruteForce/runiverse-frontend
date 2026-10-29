@@ -679,6 +679,18 @@ abstract final class AppStrings {
   /// `3km` — 거리 칩과 요약 줄에 함께 쓴다.
   static String matchDistanceText(int km) => '${km}km';
 
+  /// `5km` · `21.098km` — **어떤 미터값이든** 적는다.
+  ///
+  /// ⚠️ [matchDistanceText]는 km 정수만 받는다. 초대 러닝은 거리가 자유
+  /// 입력이라 `7000`·`21098`이 오고, 그 길로 보내면 `TargetDistance`가
+  /// `null`을 돌려줘 **칸이 그대로 빈다**(실측 2026-10-29).
+  static String distanceKm(int meters) {
+    final km = meters / 1000;
+    // 딱 떨어지면 `5km`. 아니면 소수점 뒤 0을 떼고 `21.098km`.
+    if (km == km.roundToDouble()) return '${km.toInt()}km';
+    return '${km.toString().replaceFirst(RegExp(r'0+\$'), '')}km';
+  }
+
   /// `1500m` — 1000으로 안 나뉘는 거리.
   ///
   /// ⚠️ **선택지를 서버가 정하므로** 앱이 km로 이름 붙일 수 없는 값이 올 수
@@ -1911,6 +1923,14 @@ abstract final class AppStrings {
   static const inviteRoomAloneWarning = '곧 모집이 닫혀요 · 혼자 달리게 됩니다';
 
   static const inviteRoomInviteCta = '러너 초대';
+
+  /// ⚠️ **초대 방에서 나가는 것은 "매칭 취소"가 아니다.** 매칭을 신청한 적이
+  /// 없고, 제재도 없다.
+  static const inviteRoomLeave = '나가기';
+
+  /// 홈 히어로의 버튼. 매칭의 `매칭 대기중`은 초대 방에서 거짓이다 — 매칭하고
+  /// 있지 않고 출발을 기다린다.
+  static const homeInviteWaitingCta = '출발 대기중';
 
   // ── 홈 히어로 · 초대 방 ──────────────────────────────────────────────
 

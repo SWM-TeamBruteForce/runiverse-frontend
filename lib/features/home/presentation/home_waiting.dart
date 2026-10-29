@@ -450,7 +450,11 @@ class _HomeWaitingState extends State<HomeWaiting>
               // 알려주고 거기서 결정하게 한다 — 두 곳에 두면 한쪽 문구만
               // 고쳐진다.
               child: AppButtonV2(
-                label: AppStrings.homeMatchWaitingCta,
+                // ⚠️ **초대 방은 매칭하고 있지 않다.** 상대의 답과 출발을
+                // 기다린다.
+                label: widget.room.type == RoomType.invite
+                    ? AppStrings.homeInviteWaitingCta
+                    : AppStrings.homeMatchWaitingCta,
                 variant: AppButtonV2Variant.tonal,
                 onPressed: widget.onLobby,
               ),

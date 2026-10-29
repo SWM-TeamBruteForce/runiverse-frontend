@@ -57,6 +57,16 @@ class NotificationState {
   /// 더 받을 페이지가 있는가. **`items` 개수로 판단하지 않는다.**
   bool get hasMore => nextCursor != null;
 
+  /// 화면에 그릴 알림. **할 일이 끝난 것은 뺀다.**
+  ///
+  /// ⚠️ [items]를 그대로 두는 이유는 **방 단위 갱신과 중복 제거가 그것을
+  /// 봐야** 하기 때문이다. 같은 방의 알림을 함께 바꿀 때 숨긴 줄도 함께
+  /// 바뀌어야 하고, 이미 받은 `notificationId`를 또 받으면 걸러내야 한다.
+  List<AppNotification> get visible => [
+    for (final one in items)
+      if (!one.isSettled) one,
+  ];
+
   NotificationState copyWith({
     List<AppNotification>? items,
     int? unreadCount,
@@ -305,6 +315,28 @@ class NotificationController extends Notifier<NotificationState> {
       _scheduleRetry();
     }
   }
+
+  /// 보이는 줄이 없는데 받을 페이지가 남았으면 더 받는다.
+  ///
+  /// ## ⚠️ 끝난 알림을 걸러내면 **한 페이지가 통째로 빌 수 있다**
+  ///
+  /// 20개를 받아 전부 처리된 건이면 화면은 "아직 알림이 없어요"가 된다 —
+  /// 실제로는 다음 페이지에 읽을 것이 있는데도. 스크롤이 닿을 자리도 없어서
+  /// [loadMore]가 불릴 일이 없다.
+  Future<void> fillVisible() async {
+    // 상한을 둔다. 30일치가 전부 처리된 건이면 끝까지 긁게 되는데, 그동안
+    // 화면은 비어 있고 서버는 같은 수의 요청을 받는다.
+    for (var page = 0; page < _fillPages; page++) {
+      if (state.visible.isNotEmpty || !state.hasMore) return;
+      final before = state.nextCursor;
+      await loadMore();
+      // 더 나아가지 못했다(실패했거나 같은 자리다). 무한히 돌지 않는다.
+      if (state.nextCursor == before) return;
+    }
+  }
+
+  /// [fillVisible]이 더 받아 보는 페이지 수.
+  static const _fillPages = 3;
 
   /// 스크롤이 끝에 닿았다.
   Future<void> loadMore() async {

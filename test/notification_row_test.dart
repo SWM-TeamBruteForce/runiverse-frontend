@@ -88,7 +88,7 @@ void main() {
         find.text(AppStrings.notificationRunningInvited('철수')),
         findsOneWidget,
       );
-      expect(find.text('19:30 · 5.0km'), findsOneWidget);
+      expect(find.text('19:30 · 5km'), findsOneWidget);
     });
 
     testWidgets('하프는 소수 자리가 남는다', (tester) async {

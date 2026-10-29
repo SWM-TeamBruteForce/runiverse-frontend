@@ -550,6 +550,19 @@ void main() {
       expect(find.text(AppStrings.homeInviteConfirmedTitle), findsOneWidget);
     });
 
+    testWidgets('⚠️ 버튼이 매칭 대기중이라고 하지 않는다', (tester) async {
+      await pumpHero(tester, withRoom: inviteRoom(RoomStatus.matching));
+
+      expect(find.text(AppStrings.homeMatchWaitingCta), findsNothing);
+      expect(find.text(AppStrings.homeInviteWaitingCta), findsOneWidget);
+    });
+
+    testWidgets('매칭 방의 버튼은 그대로다', (tester) async {
+      await pumpHero(tester, withRoom: room(RoomStatus.matching));
+
+      expect(find.text(AppStrings.homeMatchWaitingCta), findsOneWidget);
+    });
+
     testWidgets('매칭 방은 기존 문구를 그대로 쓴다', (tester) async {
       await pumpHero(tester, withRoom: room(RoomStatus.matching));
 
