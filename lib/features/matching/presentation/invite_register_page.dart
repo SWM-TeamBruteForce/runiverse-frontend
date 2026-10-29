@@ -8,15 +8,19 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/core/widgets/v2/empty_state.dart';
 import 'package:runiverse/core/widgets/v2/preset_chip.dart';
-import 'package:runiverse/core/widgets/v2/surface_card.dart';
 import 'package:runiverse/features/matching/domain/invite_failure.dart';
 import 'package:runiverse/features/matching/domain/invite_limits.dart';
+import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/matching/presentation/invite_register_provider.dart';
 
 /// 초대 등록 — 시각과 거리를 **자유롭게** 정해 방을 연다.
@@ -113,51 +117,41 @@ class _InviteRegisterPageState extends ConsumerState<InviteRegisterPage> {
     children: [
       Expanded(
         child: ListView(
+          // 매칭 등록과 같은 여백이다.
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.space4,
-            AppSpacing.space4,
+            AppSpacing.space2,
             AppSpacing.space4,
             AppSpacing.space6,
           ),
           children: [
             _Label(AppStrings.inviteRegisterWhen),
-            SurfaceCard(
-              child: InkWell(
-                onTap: () => unawaited(_pickTime(window)),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: AppSpacing.space1,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          state.startAt == null
-                              ? AppStrings.inviteRegisterWhen
-                              : '${AppStrings.inviteRegisterToday}  '
-                                    '${AppStrings.inviteRegisterTime(state.startAt!)}',
-                          style: AppTypographyV2.body03.copyWith(
-                            color: state.startAt == null
-                                ? colors.textTertiary
-                                : colors.textPrimary,
-                          ),
-                        ),
-                      ),
-                      Icon(
-                        LucideIcons.chevronDown,
-                        size: AppSpacing.space4,
-                        color: colors.textTertiary,
-                      ),
-                    ],
-                  ),
+            const SizedBox(height: AppSpacing.space3),
+
+            _Field(
+              onTap: () => unawaited(_pickTime(window)),
+              child: Text(
+                state.startAt == null
+                    ? AppStrings.inviteRegisterTimePlaceholder
+                    : '${AppStrings.inviteRegisterToday}  '
+                          '${AppStrings.inviteRegisterTime(state.startAt!)}',
+                style: AppTypographyV2.body04.copyWith(
+                  color: state.startAt == null
+                      ? colors.textTertiary
+                      : colors.textStrong,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
             ),
-            _Hint(AppStrings.inviteRegisterWindow(window.from, window.to)),
+            const SizedBox(height: AppSpacing.space3),
 
-            const SizedBox(height: AppSpacing.space5),
+            _Hint(AppStrings.inviteRegisterWindow(window.from, window.to)),
+            const SizedBox(height: AppSpacing.space6),
+
             _Label(AppStrings.inviteRegisterHowFar),
-            SurfaceCard(
+            const SizedBox(height: AppSpacing.space3),
+
+            _Field(
               child: TextField(
                 controller: _distance,
                 keyboardType: const TextInputType.numberWithOptions(
@@ -166,33 +160,32 @@ class _InviteRegisterPageState extends ConsumerState<InviteRegisterPage> {
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                 ],
-                textAlign: TextAlign.center,
-                style: AppTypographyV2.body02.copyWith(
-                  color: colors.textPrimary,
+                // 숫자가 흔들리지 않게 고정폭 숫자를 쓴다 — 러닝 수치의
+                // 규칙이다(CLAUDE.md).
+                style: AppTypographyV2.body04.copyWith(
+                  color: colors.textStrong,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
                 decoration: InputDecoration(
                   isDense: true,
+                  contentPadding: EdgeInsets.zero,
                   border: InputBorder.none,
-                  hintText: '0.0 km',
-                  hintStyle: AppTypographyV2.body02.copyWith(
+                  hintText: AppStrings.inviteRegisterDistancePlaceholder,
+                  hintStyle: AppTypographyV2.body04.copyWith(
                     color: colors.textTertiary,
                   ),
                   suffixText: 'km',
-                  suffixStyle: AppTypographyV2.body06.copyWith(
-                    color: colors.textSecondary,
+                  suffixStyle: AppTypographyV2.body04.copyWith(
+                    color: colors.textTertiary,
                   ),
                 ),
                 onChanged: _onDistance,
               ),
             ),
-
             const SizedBox(height: AppSpacing.space3),
-            // ⚠️ **매칭의 3/5/10을 쓰지 않는다.** 그 셋은 서버가 같은 조건끼리
-            // 묶는 **버킷** 때문에 있고, 초대 방에는 버킷이 없다. 그래서
-            // **타자로 치기 고약하고 이름이 있는 거리**만 남긴다.
-            //
-            // 세 칸을 균등하게 깐다 — 왼쪽으로 쏠리면 오른쪽 빈자리가 "칩이 더
-            // 있는데 잘렸나"로 읽힌다.
+
+            // 세 칸 균등. 왼쪽으로 쏠리면 오른쪽 빈자리가 "칩이 더 있는데
+            // 잘렸나"로 읽힌다.
             Row(
               children: [
                 for (final (index, shortcut)
@@ -208,6 +201,8 @@ class _InviteRegisterPageState extends ConsumerState<InviteRegisterPage> {
                 ],
               ],
             ),
+            const SizedBox(height: AppSpacing.space3),
+
             _Hint(AppStrings.inviteRegisterDistanceRange),
           ],
         ),
@@ -280,7 +275,23 @@ class _InviteRegisterPageState extends ConsumerState<InviteRegisterPage> {
         .read(inviteRegisterProvider.notifier)
         .submit(nowKst: _nowKst);
     if (roomId == null || !mounted) return;
-    // 방 화면이 유저 상태를 보고 스트림에 붙는다 — 여기서 열지 않는다.
+
+    // ⚠️ **순서가 정해져 있다 — 개설 응답을 받은 뒤에 붙는다.**
+    //
+    // 방 화면은 첫 스냅샷(`INVITE_ROOM_ENTRANCE`)이 와야 그려진다. 여기서
+    // 붙이지 않으면 **방은 서버에 멀쩡히 만들어져 있는데 화면은 로딩만 돈다** —
+    // provider는 유저 상태가 `WAITING`·`READY`라고 할 때만 스스로 붙고, 그
+    // 상태는 아래 재조회가 끝나야 바뀐다.
+    //
+    // 활성 신청이 없는데 먼저 열면 서버가 404로 거절하므로 순서를 지킨다.
+    // 매칭 등록도 같은 순서다(`match_register_page._submit`).
+    ref.read(matchRoomProvider.notifier).connect();
+
+    // 방이 생겼으니 서버가 아는 상태가 달라졌다. 홈 히어로와 앱 재시작 복구가
+    // 이 값을 본다.
+    await ref.read(userStatusProvider.notifier).refresh();
+    if (!mounted) return;
+
     context.go(AppRoutes.matchRoom);
   }
 
@@ -302,21 +313,62 @@ class _InviteRegisterPageState extends ConsumerState<InviteRegisterPage> {
     ..showSnackBar(SnackBar(content: Text(message)));
 }
 
+/// 매칭 등록의 `_Label`과 **같은 타이포·색**이다.
 class _Label extends StatelessWidget {
   const _Label(this.text);
 
   final String text;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: AppSpacing.space2),
-    child: Text(
-      text,
-      style: AppTypographyV2.body11.copyWith(
-        color: context.appColorsV2.textPrimary,
-      ),
+  Widget build(BuildContext context) => Text(
+    text,
+    style: AppTypographyV2.body05.copyWith(
+      color: context.appColorsV2.textStrong,
     ),
   );
+}
+
+/// 입력 칸. 매칭 등록의 `_SlotTrigger`와 **같은 치수**다.
+///
+/// ⚠️ **`minHeight`를 반드시 둔다.** 안 두면 글자 높이만큼 쪼그라들어 손가락이
+/// 빗나가고(44 미만), 매칭 등록 옆에 두면 두 화면이 다른 앱처럼 보인다.
+class _Field extends StatelessWidget {
+  const _Field({required this.child, this.onTap});
+
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.lg,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: AppSizes.touchDefault),
+          decoration: BoxDecoration(
+            color: colors.bgSurface,
+            borderRadius: AppRadius.lg,
+          ),
+          padding: const EdgeInsets.all(AppSpacing.space5),
+          child: Row(
+            children: [
+              Expanded(child: child),
+              if (onTap != null)
+                AppIcon(
+                  AppIcons.right,
+                  size: AppSpacing.space6,
+                  color: colors.textTertiary,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _Hint extends StatelessWidget {
@@ -325,13 +377,10 @@ class _Hint extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: AppSpacing.space2),
-    child: Text(
-      text,
-      style: AppTypographyV2.body18.copyWith(
-        color: context.appColorsV2.textTertiary,
-      ),
+  Widget build(BuildContext context) => Text(
+    text,
+    style: AppTypographyV2.body12.copyWith(
+      color: context.appColorsV2.textTertiary,
     ),
   );
 }

@@ -1932,8 +1932,13 @@ abstract final class AppStrings {
   // ── 초대 등록 ────────────────────────────────────────────────────────
 
   static const inviteRegisterTitle = '초대 러닝';
-  static const inviteRegisterWhen = '언제 뛸까요';
-  static const inviteRegisterHowFar = '얼마나 뛸까요';
+
+  /// ⚠️ **매칭 등록과 같은 말을 쓴다**(`matchTimeLabel`·`matchDistanceLabel`).
+  /// 하는 일이 같은 두 화면이 다른 말을 쓰면 다른 기능으로 읽힌다.
+  static const inviteRegisterWhen = matchTimeLabel;
+  static const inviteRegisterHowFar = matchDistanceLabel;
+  static const inviteRegisterTimePlaceholder = matchTimePlaceholder;
+
   static const inviteRegisterSubmit = '방 만들기';
   static const inviteRegisterToday = '오늘';
 
@@ -1952,7 +1957,11 @@ abstract final class AppStrings {
       '${at.hour.toString().padLeft(2, '0')}:'
       '${at.minute.toString().padLeft(2, '0')}';
 
-  static const inviteRegisterDistanceRange = '1km ~ 42.195km';
+  /// 거리 안내. 매칭(`matchTimeHint`)처럼 **왜 그런지**까지 적는다.
+  static const inviteRegisterDistanceRange =
+      '1km부터 42.195km까지 정할 수 있어요.\n자주 쓰는 거리는 아래에서 고르세요';
+
+  static const inviteRegisterDistancePlaceholder = '거리 입력';
 
   /// ⚠️ **23:49 이후에는 고를 수 있는 시각이 없다.** 빈 피커만 두면 고장으로
   /// 읽힌다.

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/storage/match_room_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
@@ -8,7 +10,12 @@ import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/domain/invite_limits.dart';
 import 'package:runiverse/features/matching/presentation/invite_register_page.dart';
+import 'package:runiverse/features/matching/data/fake_match_stream.dart';
+import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
+import 'package:runiverse/features/matching/presentation/invite_register_provider.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
+import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 초대 등록 화면.
 ///
@@ -186,6 +193,69 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(submitButton(tester).onPressed, isNull);
+    });
+  });
+
+  group('⚠️ 방을 만든 뒤', () {
+    testWidgets('스트림에 붙고 상태를 다시 읽는다', (tester) async {
+      // 안 붙으면 방 화면이 **첫 스냅샷을 영영 기다린다** — 사용자에게는
+      // 로딩만 도는 화면이다. 방은 서버에 멀쩡히 만들어져 있다.
+      final matches = FakeMatchRepository();
+      final stream = FakeMatchStream();
+      final statuses = FakeUserStatusRepository();
+      final container = ProviderContainer(
+        overrides: [
+          matchRepositoryProvider.overrideWithValue(matches),
+          matchRoomStoreProvider.overrideWithValue(InMemoryMatchRoomStore()),
+          matchStreamProvider.overrideWithValue(stream),
+          userStatusRepositoryProvider.overrideWithValue(statuses),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final router = GoRouter(
+        initialLocation: AppRoutes.inviteRegister,
+        routes: [
+          GoRoute(
+            path: AppRoutes.inviteRegister,
+            builder: (_, _) =>
+                InviteRegisterPage(now: DateTime.utc(2026, 10, 29, 10)),
+          ),
+          GoRoute(
+            path: AppRoutes.matchRoom,
+            builder: (_, _) => const Scaffold(body: Text('방')),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            theme: AppTheme.dark(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 시각과 거리를 고른다. 피커를 거치지 않고 provider로 직접 세운다 —
+      // 여기서 보려는 것은 보낸 **뒤**의 일이다.
+      container.read(inviteRegisterProvider.notifier)
+        ..pickTime(DateTime(2026, 10, 29, 19, 30))
+        ..setMeters(5000);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(AppStrings.inviteRegisterSubmit));
+      await tester.pumpAndSettle();
+
+      expect(matches.createdMeters, 5000);
+      // 붙어야 방 화면이 스냅샷을 받는다.
+      expect(stream.connects, 1);
+      // 상태도 새로 읽어야 홈과 복구가 방을 안다.
+      expect(statuses.calls, greaterThan(0));
+      expect(find.text('방'), findsOneWidget);
     });
   });
 }
