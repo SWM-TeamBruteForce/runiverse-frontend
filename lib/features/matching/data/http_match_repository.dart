@@ -5,6 +5,7 @@ import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/auth/domain/auth_failure.dart';
 import 'package:runiverse/features/auth/domain/auth_repository.dart';
 import 'package:runiverse/features/matching/data/slot_board_dto.dart';
+import 'package:runiverse/features/matching/domain/invite_failure.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/match_repository.dart';
 import 'package:runiverse/features/matching/domain/slot_board.dart';
@@ -99,6 +100,135 @@ class HttpMatchRepository implements MatchRepository {
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
   });
+
+  @override
+  Future<int> createInviteRoom({
+    required String scheduledStartAt,
+    required int meters,
+  }) => _invited((token) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      _invitePath,
+      data: {
+        'scheduledStartAt': scheduledStartAt,
+        'targetDistanceMeters': meters,
+      },
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    final roomId = response.data?['runningRoomId'];
+    // 방은 열렸는데 스트림에 붙을 수 없다. 조용히 넘기면 방을 만들어 놓고
+    // 아무 소식도 못 받는 상태가 된다 — `apply`와 같은 판단이다.
+    if (roomId is! int) throw const InviteException(InviteFailure.unknown);
+    debugPrint('[invite] 초대 방을 열었다 · $roomId');
+    return roomId;
+  });
+
+  @override
+  Future<void> invite({required int roomId, required String inviteeId}) =>
+      _invited((token) async {
+        await _dio.post<void>(
+          '$_path/$roomId/invitations',
+          // ⚠️ 한 명만 보낸다. 배열이 아니다.
+          data: {'inviteeId': inviteeId},
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        );
+      });
+
+  @override
+  Future<int> acceptInvitation(int roomId) => _invited((token) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_path/$roomId/invitations/accept',
+      // ⚠️ **본문이 없다.** 받는 사람은 토큰 주체다.
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    final accepted = response.data?['runningRoomId'];
+    if (accepted is! int) throw const InviteException(InviteFailure.unknown);
+    return accepted;
+  });
+
+  @override
+  Future<void> declineInvitation(int roomId) => _invited((token) async {
+    await _dio.post<void>(
+      '$_path/$roomId/invitations/decline',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  });
+
+  /// 초대 방 개설 경로. **매칭 신청(`POST $_path`)과 다른 자리다.**
+  static const _invitePath = '$_path/invite';
+
+  /// 초대 요청에서 실패 갈래를 읽는다. **테스트가 직접 부른다.**
+  ///
+  /// ⚠️ **[exceptionOf]를 쓰지 않는다.** 저쪽은 404를
+  /// `MatchFailure.nothingToCancel`로 묶어서, 그대로 쓰면 초대 실패에
+  /// "취소할 활성 신청이 없어요"가 뜬다. `_loadExceptionOf`가 같은 이유로
+  /// 따로 있는 것과 같은 판단이다.
+  ///
+  /// **서버 문구를 그대로 들고 온다** — 명세가 그러라고 한다.
+  static InviteException inviteExceptionOf(DioException error) {
+    if (error.type != DioExceptionType.badResponse) {
+      return const InviteException(InviteFailure.network);
+    }
+
+    final response = error.response;
+    final body = response?.data;
+    final code = body is Map ? body['code'] : null;
+    final message = body is Map && body['message'] is String
+        ? body['message'] as String
+        : null;
+
+    final status = response?.statusCode;
+    if (status == 401) {
+      return const InviteException(InviteFailure.sessionExpired);
+    }
+    // ⚠️ 방 없음·초대 방 아님·내가 참가자 아님을 서버가 구분하지 않는다.
+    if (status == 404) {
+      return InviteException(InviteFailure.notFound, message: message);
+    }
+    if (status != null && status >= 500) {
+      return const InviteException(InviteFailure.network);
+    }
+
+    return InviteException(switch (code) {
+      'RUNNING_INVITATION_CLOSED' => InviteFailure.closed,
+      'NOT_FRIEND' => InviteFailure.notFriend,
+      'INVITEE_ALREADY_IN_ROOM' => InviteFailure.alreadyInRoom,
+      'INVITEE_IN_MATCHING' => InviteFailure.inMatching,
+      'INVITEE_RUNNING' => InviteFailure.running,
+      'INVITE_COUNT_EXCEEDED' => InviteFailure.countExceeded,
+      'RUNNING_INVITATION_NOT_PENDING' => InviteFailure.notPending,
+      'RUNNING_ROOM_FULL' => InviteFailure.roomFull,
+      'INVITE_START_AT_OUT_OF_RANGE' => InviteFailure.startAtOutOfRange,
+      'RUNNING_ALREADY_IN_PROGRESS' => InviteFailure.alreadyInProgress,
+      'ONBOARDING_NOT_COMPLETED' => InviteFailure.onboardingNotCompleted,
+      'INVALID_REQUEST' => InviteFailure.invalidRequest,
+      _ => InviteFailure.unknown,
+    }, message: message);
+  }
+
+  /// [_authorized]와 같은 일을 하되 [InviteException]으로 던진다.
+  Future<T> _invited<T>(Future<T> Function(String accessToken) call) async {
+    final stored = await _store.read();
+    final accessToken = stored.accessToken;
+    if (accessToken == null) {
+      throw const InviteException(InviteFailure.sessionExpired);
+    }
+
+    try {
+      return await call(accessToken);
+    } on DioException catch (error) {
+      if (error.response?.statusCode != 401) throw inviteExceptionOf(error);
+      try {
+        return await call(await _refreshed(stored.refreshToken));
+      } on DioException catch (retried) {
+        throw inviteExceptionOf(retried);
+      } on MatchException {
+        // `_refreshed`가 신청용 갈래로 던진다. 초대 쪽으로 옮긴다.
+        throw const InviteException(InviteFailure.sessionExpired);
+      }
+    } on MatchException {
+      throw const InviteException(InviteFailure.sessionExpired);
+    }
+  }
 
   /// 응답에서 실패 갈래를 읽는다. **테스트가 직접 부른다.**
   static MatchException exceptionOf(DioException error) {

@@ -12,6 +12,7 @@ import 'package:runiverse/core/widgets/profile_prompt_sheet.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
+import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 하단 탭 셸 — 4개 탭의 공통 껍데기.
@@ -64,7 +65,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   void initState() {
     super.initState();
-    _lifecycle = AppLifecycleListener(onResume: _refreshStatus);
+    _lifecycle = AppLifecycleListener(onResume: _onResume);
     // ⚠️ **세워질 때도 한 번 묻는다.** 스플래시를 거쳐 들어오면 이미 읽은
     // 값이 있지만, **로그인을 마치고 들어오는 길에는 없다** — 그 경로에는
     // 상태를 읽는 곳이 없어서, 진행 중인 매칭이 있어도 홈이 처음인 것처럼
@@ -72,7 +73,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     //
     // `build` 중에 provider를 건드리면 Riverpod이 막으므로 첫 프레임 뒤로 민다.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _refreshStatus();
+      if (!mounted) return;
+      _refreshStatus();
+      _startNotifications();
     });
   }
 
@@ -90,6 +93,26 @@ class _AppShellState extends ConsumerState<AppShell> {
   void _refreshStatus() {
     if (ref.read(authControllerProvider) is! AuthSignedIn) return;
     unawaited(ref.read(userStatusProvider.notifier).refresh());
+  }
+
+  /// 앱 스트림을 열고 알림 첫 페이지를 받는다.
+  ///
+  /// ⚠️ **순서가 규칙이다** — 스트림 먼저, 목록 나중. `start()`가 그 순서를
+  /// 지킨다. 바꾸면 목록 응답과 연결 사이에 생긴 알림이 영영 사라진다.
+  void _startNotifications() {
+    if (ref.read(authControllerProvider) is! AuthSignedIn) return;
+    unawaited(ref.read(notificationProvider.notifier).start());
+  }
+
+  /// 포그라운드로 돌아왔다.
+  ///
+  /// ⚠️ **알림은 연결 여부와 무관하게 다시 받는다.** 스트림이 유지된 상태에서도
+  /// 이벤트를 놓칠 수 있다(모바일 백그라운드·서버측 문제). `resume()`이 끊겼으면
+  /// 다시 붙고, 어느 쪽이든 목록을 재조회한다.
+  void _onResume() {
+    _refreshStatus();
+    if (ref.read(authControllerProvider) is! AuthSignedIn) return;
+    unawaited(ref.read(notificationProvider.notifier).resume());
   }
 
   /// 로그인 화면으로 데리고 나간다.
@@ -144,6 +167,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     AppTabSpec(icon: AppIcons.profile, label: AppStrings.tabProfile),
   ];
 
+  /// 프로필 탭의 자리. [_tabs] 순서와 함께 움직인다.
+  static const _profileTab = 3;
+
   void _onDestinationSelected(int index) {
     widget.navigationShell.goBranch(
       index,
@@ -173,12 +199,19 @@ class _AppShellState extends ConsumerState<AppShell> {
     // `go`가 스택째 바꿔 그 화면들도 함께 빠져나온다.
     ref.listen(authControllerProvider, (before, after) {
       if (before is! AuthSignedIn || after is! AuthSignedOut) return;
+      // ⚠️ **알림 연결도 함께 끊는다.** 남겨두면 로그아웃한 계정의 토큰으로
+      // 다시 붙으려 하고, 백오프가 그것을 계속 되풀이한다.
+      unawaited(ref.read(notificationProvider.notifier).signOut());
       _leaveForSignIn();
     });
 
     // 매칭 스트림을 여기서 살려둔다. **화면이 소유하면 탭을 옮기는 사이에
     // 확정 통지를 놓친다.** 붙을지 끊을지는 provider가 유저 상태를 보고 정한다.
     ref.watch(matchRoomProvider);
+
+    // 앱 스트림도 같은 이유로 여기다. **매칭 스트림과 동시에 유지한다** —
+    // 한쪽을 열었다고 다른 쪽을 닫으면 방에 있는 동안 알림을 못 받는다.
+    final hasUnread = ref.watch(hasUnreadProvider);
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -190,6 +223,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       bottomNavigationBar: AppTabBarV2(
         tabs: _tabs,
         currentIndex: widget.navigationShell.currentIndex,
+        // 알림함이 프로필 탭 안에 있어서, 다른 탭에 있을 때 알려 줄 자리가
+        // 여기 하나뿐이다.
+        badges: hasUnread ? const {_profileTab} : const <int>{},
         onSelected: _onDestinationSelected,
       ),
     );

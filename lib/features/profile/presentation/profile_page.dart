@@ -10,6 +10,7 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/profile/presentation/profile_cover.dart';
+import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_cover_action.dart';
 import 'package:runiverse/features/friend/presentation/friend_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_header.dart';
@@ -123,12 +124,27 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       // 여기 값은 **커버 안쪽 간격**이다.
                       top: AppSpacing.space2,
                       right: AppSpacing.space4,
-                      child: ProfileCoverAction(
-                        icon: AppIcons.settings,
-                        label: AppStrings.settingsTitle,
-                        // 편집과 달리 **돌아와서 다시 받아오지 않는다.** 설정은
-                        // 프로필 요약(닉네임·사진·소개글)을 건드리지 않는다.
-                        onTap: () => context.push(AppRoutes.settings),
+                      child: Row(
+                        children: [
+                          // ⚠️ **알림함의 유일한 입구다.** 하단 탭이 넷으로
+                          // 고정이라 탭을 더할 자리가 없다. 다른 탭에 있을 때는
+                          // 탭 바의 점이 알려 준다(`app_shell.dart`).
+                          ProfileCoverAction(
+                            icon: AppIcons.bell,
+                            label: AppStrings.notificationTitle,
+                            badged: ref.watch(hasUnreadProvider),
+                            onTap: () => context.push(AppRoutes.notifications),
+                          ),
+                          const SizedBox(width: AppSpacing.space2),
+                          ProfileCoverAction(
+                            icon: AppIcons.settings,
+                            label: AppStrings.settingsTitle,
+                            // 편집과 달리 **돌아와서 다시 받아오지 않는다.**
+                            // 설정은 프로필 요약(닉네임·사진·소개글)을
+                            // 건드리지 않는다.
+                            onTap: () => context.push(AppRoutes.settings),
+                          ),
+                        ],
                       ),
                     ),
                   ],
