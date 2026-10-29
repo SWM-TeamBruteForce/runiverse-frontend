@@ -46,8 +46,12 @@ class ProfileSummary {
 
   /// 나와 이 사람의 관계. **[isMe]면 `null`이다.**
   ///
-  /// ⚠️ **서버가 이 값을 `friendStatus`로 부르고 값도 다르다**(`ACCEPTED` 대
-  /// `FRIEND`). 읽는 일은 `friendRelationOf`가 두 어휘를 모두 받아서 한다.
+  /// 서버 이름은 `relationshipType`이고, 친구 API와 **같은 어휘**다(1.2.0에서
+  /// `friendStatus`·`ACCEPTED`에서 합쳐졌다). 읽는 일은 `friendRelationOf`가
+  /// 한다 — 옛 어휘도 함께 받는다.
+  ///
+  /// ⚠️ **모르는 값은 `null`이다.** 서버가 관계를 늘려도 화면이 버튼을 임의로
+  /// 세우지 않는다.
   final FriendRelation? relation;
 
   /// 관계만 갈아끼운 사본. 화면이 버튼을 누른 뒤 쓴다.
