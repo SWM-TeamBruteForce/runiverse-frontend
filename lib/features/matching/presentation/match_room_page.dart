@@ -135,7 +135,9 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
                       child: _Notice(AppStrings.matchRoomDisconnected),
                     ),
 
-                  _Headline(room: room, now: _now),
+                  // ⚠️ **기기 시계가 아니라 서버 시계로 센다.** 시계가 틀린
+                  // 기기에서 `모집 마감까지 23:58:26`이 떴다.
+                  _Headline(room: room, now: state.serverNow(_now)),
                   const SizedBox(height: AppSpacing.space10),
 
                   _SessionCards(room: room),
@@ -251,6 +253,9 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
   /// 그 전에 나가는 것 말고 길이 없다.
   ///
   /// 답을 기다리는 초대가 남아 있으면 경고하지 않는다 — 아직 올 사람이 있다.
+  /// 서버가 말하는 지금. 화면의 모든 시각 판정이 이것을 본다.
+  DateTime get _serverNow => ref.read(matchRoomProvider).serverNow(_now);
+
   bool _warnsAlone(RoomInfo room) {
     if (room.type != RoomType.invite) return false;
     if (room.status != RoomStatus.matching) return false;
@@ -258,7 +263,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
 
     final closeAt = room.closeAt;
     if (closeAt == null) return false;
-    final left = closeAt.difference(_now);
+    final left = closeAt.difference(_serverNow);
     return !left.isNegative && left <= _aloneWarning;
   }
 
@@ -296,7 +301,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
     }
 
     final closeAt = room.closeAt;
-    final closed = closeAt != null && !_now.isBefore(closeAt);
+    final closed = closeAt != null && !_serverNow.isBefore(closeAt);
     return closed && !room.isAlone
         ? AppStrings.matchRoomLeavePenalty
         : AppStrings.matchRoomLeaveFree;

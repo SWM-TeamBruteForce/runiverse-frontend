@@ -32,6 +32,7 @@ class MatchRoomState {
     this.justMatched = false,
     this.ready,
     this.launchAt,
+    this.serverOffset = Duration.zero,
   });
 
   /// 마지막으로 받은 방 정보. `null`이면 속한 방이 없다.
@@ -59,6 +60,28 @@ class MatchRoomState {
   /// 백그라운드였으면 이벤트가 오지 않는데, 그렇다고 출발을 포기하지 않는다.
   final DateTime? launchAt;
 
+  /// 서버 시계에서 기기 시계를 뺀 값. **기기가 맞으면 0에 가깝다.**
+  ///
+  /// ## ⚠️ 기기 시계를 믿지 않는다
+  ///
+  /// 남은 시간을 `closeAt - DateTime.now()`로 세면 **기기 시계가 틀린 만큼
+  /// 거짓이 된다.** 시계가 20시간 뒤처진 기기에서 `모집 마감까지 23:58:26`이
+  /// 떴다(실측 2026-10-29, 에뮬레이터). 사용자 설정이나 시간대 오류로 실제
+  /// 기기에서도 생긴다.
+  ///
+  /// `INVITE_ROOM_ENTRANCE`가 `startsInMs`(그 순간 기준 시작까지 남은 밀리초)를
+  /// 싣고 오므로, `scheduledStartAt - startsInMs`가 **서버가 말하는 지금**이다.
+  /// 그것과 기기 시각의 차를 들고 있다가 남은 시간을 셀 때 더한다 —
+  /// `RunningReady.serverNow`와 같은 계산이다.
+  ///
+  /// ⚠️ **매칭 방은 이 값을 받을 길이 없다.** `MATCH_ROOM_UPDATED`에 그런
+  /// 필드가 없어서 0으로 남는다(지금까지와 같다). 고치려면 서버가 스냅샷에
+  /// 기준 시각을 실어 줘야 한다.
+  final Duration serverOffset;
+
+  /// 서버가 말하는 지금. 남은 시간은 **이 값에서** 센다.
+  DateTime serverNow(DateTime deviceNow) => deviceNow.add(serverOffset);
+
   /// 발사 시각을 들고 있는 계산기. 들고 있을 방이 없으면 `null`이다.
   RunLaunch? get launch {
     final at = launchAt ?? room?.scheduledStartAt;
@@ -72,6 +95,7 @@ class MatchRoomState {
     bool? justMatched,
     RunningReady? ready,
     DateTime? launchAt,
+    Duration? serverOffset,
   }) => MatchRoomState(
     room: room ?? this.room,
     connected: connected ?? this.connected,
@@ -80,6 +104,7 @@ class MatchRoomState {
     justMatched: justMatched ?? this.justMatched,
     ready: ready ?? this.ready,
     launchAt: launchAt ?? this.launchAt,
+    serverOffset: serverOffset ?? this.serverOffset,
   );
 }
 
@@ -276,10 +301,21 @@ class MatchRoomController extends Notifier<MatchRoomState> {
       case MatchStarted(:final room) || MatchRoomUpdated(:final room):
         _applyRoom(room);
       // ⚠️ **초대 방도 같은 자리로 들어온다.** 이벤트 이름이 둘로 갈려 있을
-      // 뿐, 싣고 오는 것은 같은 `RoomInfo`다. 입장 이벤트의 `startsInMs`는
-      // 남은 시간 표시용이라 여기서 쓰지 않는다 — 발사 시각은 `RunningReady`
-      // 하나가 정한다. 두 벌이 되면 어긋나는 날 참가자마다 출발이 갈린다.
-      case InviteRoomEntrance(:final room) || InviteRoomUpdated(:final room):
+      // 뿐, 싣고 오는 것은 같은 `RoomInfo`다.
+      case InviteRoomEntrance(:final room, :final startsInMs):
+        // ⚠️ **`startsInMs`로 서버 시계를 배운다.** 발사 시각은 여전히
+        // `RunningReady` 하나가 정한다 — 두 벌이 되면 어긋나는 날 참가자마다
+        // 출발이 갈린다. 여기서 쓰는 것은 **남은 시간 표시**뿐이다.
+        if (startsInMs != null) {
+          final serverNow = room.scheduledStartAt.subtract(
+            Duration(milliseconds: startsInMs),
+          );
+          state = state.copyWith(
+            serverOffset: serverNow.difference(DateTime.now()),
+          );
+        }
+        _applyRoom(room);
+      case InviteRoomUpdated(:final room):
         _applyRoom(room);
       case RunningReady():
         // ⚠️ **내 방의 통지인지 먼저 본다.**
