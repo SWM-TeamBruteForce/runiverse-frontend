@@ -108,15 +108,24 @@ class RoomInfo {
   /// 아무 일도 일어나지 않았다 — 방 스냅샷의 `STARTED`도, 상태 조회의
   /// `RUNNING`도 홈이 그리지 않아 **달리고 있는데 화면은 "지금 매칭하기"였다.**
   /// 들어갈 길을 여기서 만든다.
+  /// ## ⚠️ 초대 방도 세운다
+  ///
+  /// `solo`만 빼고 세운다. 여기서 초대 방을 빠뜨리면 홈이 아무것도 못 그려
+  /// `HomeIdle`로 떨어지고, **초대 방에 들어가 있는 사람에게 "매칭 시작"
+  /// 버튼**이 뜬다 — 눌러도 409다.
+  ///
+  /// 조건을 `isSolo: false`가 아니라 [RoomType]으로 적는다. 뜻은 같지만
+  /// (`isSolo`가 [RoomType]에서 파생된다) 읽는 사람이 **초대가 포함되는지**를
+  /// 알 수 없다.
   static RoomInfo? fromStatus(UserStatus? status) => switch (status) {
-    UserStatusReady(isSolo: false) => RoomInfo(
+    UserStatusReady(type: RoomType.match || RoomType.invite) => RoomInfo(
       runningRoomId: status.runningRoomId,
       status: RoomStatus.matched,
       scheduledStartAt: status.scheduledStartAt,
       targetDistanceMeters: status.targetDistanceMeters,
       players: const [],
     ),
-    UserStatusRunning(isSolo: false) => RoomInfo(
+    UserStatusRunning(type: RoomType.match || RoomType.invite) => RoomInfo(
       runningRoomId: status.runningRoomId,
       status: RoomStatus.started,
       scheduledStartAt: status.scheduledStartAt,

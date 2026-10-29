@@ -86,7 +86,11 @@ void main() {
     // 신청이 사라진 줄 알고 다시 누르고, 서버는 409로 막는다.
     await pumpApp(
       tester,
-      status: UserStatusWaiting(runningRoomId: 1, scheduledStartAt: startAt),
+      status: UserStatusWaiting(
+        runningRoomId: 1,
+        type: RoomType.match,
+        scheduledStartAt: startAt,
+      ),
     );
 
     expect(find.byType(HomePage), findsOneWidget);
@@ -104,7 +108,7 @@ void main() {
       tester,
       status: UserStatusReady(
         runningRoomId: 1,
-        isSolo: false,
+        type: RoomType.match,
         scheduledStartAt: startAt,
       ),
     );
@@ -123,7 +127,7 @@ void main() {
       tester,
       status: UserStatusReady(
         runningRoomId: 1,
-        isSolo: true,
+        type: RoomType.solo,
         scheduledStartAt: startAt,
       ),
     );

@@ -225,7 +225,10 @@ void main() {
 
     test('서버 시각을 되짚을 수 있다', () {
       // 기기 시계가 어긋나 있어도 이 값으로 보정한다.
-      expect(ready(10000).serverNow, DateTime.utc(2026, 9, 15, 9, 59, 50).toLocal());
+      expect(
+        ready(10000).serverNow,
+        DateTime.utc(2026, 9, 15, 9, 59, 50).toLocal(),
+      );
     });
 
     test('값이 빠지면 읽지 않는다', () {

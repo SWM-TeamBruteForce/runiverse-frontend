@@ -163,6 +163,7 @@ void main() {
       // 이미 진행 중인 매칭이 있다. 쿨다운과는 다른 이유로 막힌다.
       final status = UserStatusWaiting(
         runningRoomId: 125,
+        type: RoomType.match,
         scheduledStartAt: DateTime(2026, 9, 15, 19),
       );
 
@@ -183,6 +184,94 @@ void main() {
               as UserStatusRunning;
 
       expect(status.remainingCooldown(now: now), const Duration(minutes: 20));
+    });
+  });
+
+  group('RoomType', () {
+    test('모르는 방 유형은 null이다', () {
+      // ⚠️ `RoomStatus.of`와 같은 판단이다. 아무 값으로 뭉개면 초대 방을
+      // 매칭 방으로 그린다.
+      expect(RoomType.of('MATCH'), RoomType.match);
+      expect(RoomType.of('INVITE'), RoomType.invite);
+      expect(RoomType.of('SOLO'), RoomType.solo);
+      expect(RoomType.of('PARTY'), isNull);
+      expect(RoomType.of(null), isNull);
+      expect(RoomType.of(7), isNull);
+    });
+  });
+
+  group('방 유형이 솔로 시작을 가른다', () {
+    UserStatusReady ready(RoomType type) => UserStatusReady(
+      runningRoomId: 7,
+      type: type,
+      scheduledStartAt: DateTime.utc(2026, 10, 29, 10, 30).toLocal(),
+      targetDistanceMeters: 5000,
+    );
+
+    test('⚠️ 확정된 초대 방은 솔로 시작을 허락하지 않는다', () {
+      // `true`로 접으면 함께 달릴 사람이 있는 방에서 홈이 "혼자 달리기"를
+      // 세운다.
+      expect(ready(RoomType.invite).canStartSolo, isFalse);
+    });
+
+    test('확정된 솔로 방만 솔로 시작을 허락한다', () {
+      expect(ready(RoomType.solo).canStartSolo, isTrue);
+      expect(ready(RoomType.match).canStartSolo, isFalse);
+    });
+
+    test('isSolo는 type에서 파생된다', () {
+      // 셋 중 하나를 묻는 자리는 `type`을 읽는다. `isSolo`는 "솔로인가" 하나만
+      // 묻는 자리의 지름길이다.
+      expect(ready(RoomType.solo).isSolo, isTrue);
+      expect(ready(RoomType.invite).isSolo, isFalse);
+      expect(ready(RoomType.match).isSolo, isFalse);
+    });
+  });
+
+  group('초대 방을 읽는다', () {
+    test('⚠️ WAITING · INVITE는 초대 방이다', () {
+      // 2026-10-29까지 `SOLO`만 보고 갈라서 **초대 방이 매칭 방으로 읽혔다.**
+      final status =
+          HttpUserStatusRepository.statusOf(
+                body(status: 'WAITING', type: 'INVITE'),
+              )
+              as UserStatusWaiting;
+
+      expect(status.type, RoomType.invite);
+      expect(status.runningRoomId, 125);
+    });
+
+    test('READY · INVITE는 초대 방이고 솔로가 아니다', () {
+      final status =
+          HttpUserStatusRepository.statusOf(
+                body(status: 'READY', type: 'INVITE'),
+              )
+              as UserStatusReady;
+
+      expect(status.type, RoomType.invite);
+      expect(status.isSolo, isFalse);
+      expect(status.canStartSolo, isFalse);
+    });
+
+    test('RUNNING · INVITE는 매칭과 같은 길을 간다', () {
+      final status =
+          HttpUserStatusRepository.statusOf(
+                body(status: 'RUNNING', type: 'INVITE'),
+              )
+              as UserStatusRunning;
+
+      expect(status.type, RoomType.invite);
+      expect(status.isSolo, isFalse);
+    });
+
+    test('⚠️ 모르는 방 유형은 계약이 깨진 것으로 본다', () {
+      // `match`로 접으면 새 방 종류가 생기는 날 엉뚱한 화면을 그린다.
+      expect(
+        () => HttpUserStatusRepository.statusOf(
+          body(status: 'READY', type: 'PARTY'),
+        ),
+        throwsA(isA<UserStatusException>()),
+      );
     });
   });
 }

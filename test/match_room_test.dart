@@ -76,6 +76,7 @@ void main() {
       final statuses = FakeUserStatusRepository(
         status: UserStatusWaiting(
           runningRoomId: 125,
+          type: RoomType.match,
           scheduledStartAt: startAt,
         ),
       );
@@ -100,6 +101,7 @@ void main() {
       final app = build();
       app.statuses.status = UserStatusWaiting(
         runningRoomId: 125,
+        type: RoomType.match,
         scheduledStartAt: startAt,
       );
 
@@ -114,7 +116,7 @@ void main() {
       final app = build();
       app.statuses.status = UserStatusReady(
         runningRoomId: 125,
-        isSolo: false,
+        type: RoomType.match,
         scheduledStartAt: startAt,
       );
 
@@ -130,7 +132,7 @@ void main() {
       final app = build();
       app.statuses.status = UserStatusReady(
         runningRoomId: 125,
-        isSolo: true,
+        type: RoomType.solo,
         scheduledStartAt: startAt,
       );
 
@@ -146,7 +148,7 @@ void main() {
       final app = build();
       app.statuses.status = UserStatusRunning(
         runningRoomId: 125,
-        isSolo: false,
+        type: RoomType.match,
         scheduledStartAt: startAt,
       );
 
@@ -162,6 +164,7 @@ void main() {
       final app = build();
       app.statuses.status = UserStatusWaiting(
         runningRoomId: 125,
+        type: RoomType.match,
         scheduledStartAt: startAt,
       );
 
@@ -178,6 +181,7 @@ void main() {
       final app = build();
       app.statuses.status = UserStatusWaiting(
         runningRoomId: 125,
+        type: RoomType.match,
         scheduledStartAt: startAt,
       );
       await app.container.read(userStatusProvider.notifier).refresh();
@@ -193,6 +197,7 @@ void main() {
       final app = build();
       app.statuses.status = UserStatusWaiting(
         runningRoomId: 125,
+        type: RoomType.match,
         scheduledStartAt: startAt,
       );
       await app.container.read(userStatusProvider.notifier).refresh();
@@ -497,7 +502,7 @@ void main() {
       final room = RoomInfo.fromStatus(
         UserStatusReady(
           runningRoomId: 7,
-          isSolo: false,
+          type: RoomType.match,
           scheduledStartAt: startAt,
         ),
       );
@@ -514,7 +519,7 @@ void main() {
       final room = RoomInfo.fromStatus(
         UserStatusRunning(
           runningRoomId: 7,
-          isSolo: false,
+          type: RoomType.match,
           scheduledStartAt: startAt,
         ),
       );
@@ -523,13 +528,42 @@ void main() {
       expect(room?.runningRoomId, 7);
     });
 
+    test('⚠️ 확정된 초대 방도 세운다', () {
+      // 여기가 `null`이면 홈이 `HomeIdle`을 그려 **초대 방에 들어가 있는
+      // 사람에게 "매칭 시작" 버튼**이 뜬다. 눌러도 409다.
+      final room = RoomInfo.fromStatus(
+        UserStatusReady(
+          runningRoomId: 31,
+          type: RoomType.invite,
+          scheduledStartAt: startAt,
+          targetDistanceMeters: 7000,
+        ),
+      );
+
+      expect(room?.status, RoomStatus.matched);
+      expect(room?.runningRoomId, 31);
+      expect(room?.targetDistanceMeters, 7000);
+    });
+
+    test('달리는 중인 초대 방도 세운다', () {
+      final room = RoomInfo.fromStatus(
+        UserStatusRunning(
+          runningRoomId: 31,
+          type: RoomType.invite,
+          scheduledStartAt: startAt,
+        ),
+      );
+
+      expect(room?.status, RoomStatus.started);
+    });
+
     test('솔로는 매칭 방을 세우지 않는다', () {
       // 솔로는 매칭이 아니다. 매칭 히어로를 띄우면 거짓이다.
       expect(
         RoomInfo.fromStatus(
           UserStatusRunning(
             runningRoomId: 7,
-            isSolo: true,
+            type: RoomType.solo,
             scheduledStartAt: startAt,
           ),
         ),
@@ -539,7 +573,7 @@ void main() {
         RoomInfo.fromStatus(
           UserStatusReady(
             runningRoomId: 7,
-            isSolo: true,
+            type: RoomType.solo,
             scheduledStartAt: startAt,
           ),
         ),

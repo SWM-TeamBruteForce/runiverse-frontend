@@ -46,7 +46,7 @@ void main() {
     status = FakeUserStatusRepository(
       status: UserStatusRunning(
         runningRoomId: 125,
-        isSolo: false,
+        type: RoomType.match,
         scheduledStartAt: DateTime(2026, 9, 18, 15, 5),
       ),
     );
@@ -97,7 +97,7 @@ void main() {
     await connection.openMatched(125, targetDistanceMeters: 3000);
     status.status = UserStatusRunning(
       runningRoomId: 999,
-      isSolo: false,
+      type: RoomType.match,
       scheduledStartAt: DateTime(2026, 9, 18, 15, 5),
     );
 

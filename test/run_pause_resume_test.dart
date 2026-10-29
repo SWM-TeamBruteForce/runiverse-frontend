@@ -89,7 +89,7 @@ void main() {
           FakeUserStatusRepository(
             status: UserStatusRunning(
               runningRoomId: 1,
-              isSolo: false,
+              type: RoomType.match,
               scheduledStartAt: DateTime(2026, 10, 14, 7),
             ),
           ),

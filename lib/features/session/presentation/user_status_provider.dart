@@ -63,12 +63,15 @@ class UserStatusController extends Notifier<UserStatus?> {
     final tail = cooldown == null ? '' : ' · 쿨다운 $cooldown';
     return switch (status) {
       UserStatusIdle() => 'IDLE$tail',
-      UserStatusWaiting(:final runningRoomId) =>
-        'WAITING · 방 $runningRoomId$tail',
-      UserStatusReady(:final runningRoomId, :final isSolo) =>
-        'READY · 방 $runningRoomId · ${isSolo ? 'SOLO' : 'MATCH'}$tail',
-      UserStatusRunning(:final runningRoomId, :final isSolo) =>
-        'RUNNING · 방 $runningRoomId · ${isSolo ? 'SOLO' : 'MATCH'}$tail',
+      // ⚠️ **방 종류를 적는다.** `SOLO`/`MATCH` 둘로만 적던 자리라, 초대 방이
+      // 로그에서 매칭 방으로 보였다 — "왜 매칭 화면이 뜨나"를 쫓을 때 로그가
+      // 거짓말을 한다.
+      UserStatusWaiting(:final runningRoomId, :final type) =>
+        'WAITING · 방 $runningRoomId · ${type.wire}$tail',
+      UserStatusReady(:final runningRoomId, :final type) =>
+        'READY · 방 $runningRoomId · ${type.wire}$tail',
+      UserStatusRunning(:final runningRoomId, :final type) =>
+        'RUNNING · 방 $runningRoomId · ${type.wire}$tail',
     };
   }
 }

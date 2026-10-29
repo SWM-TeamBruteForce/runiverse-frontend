@@ -77,6 +77,7 @@ void main() {
             FakeUserStatusRepository(
               status: UserStatusWaiting(
                 runningRoomId: 1,
+                type: RoomType.match,
                 scheduledStartAt: startAt,
               ),
             ),
