@@ -1883,6 +1883,56 @@ abstract final class AppStrings {
   static const notificationLoadFailed = '알림을 불러오지 못했어요';
   static const notificationRetry = '다시 시도';
 
+  // ── 초대 방 ──────────────────────────────────────────────────────────
+
+  static const inviteRoomTitle = '초대 러닝';
+
+  /// 모집 중. 매칭 방의 `매칭 대기 중`과 다른 말을 쓴다 — 매칭하고 있지 않다.
+  static const inviteRoomWaiting = '러너 모으는 중';
+
+  /// 모집 마감 뒤. **`매칭 완료`가 아니다** — 성사된 것이 아니라 닫힌 것이다.
+  static const inviteRoomClosed = '출발 준비 완료';
+
+  /// 답을 기다리는 자리.
+  static String inviteRoomPending(String nickname) => '초대 중 · $nickname';
+
+  /// 남은 자리.
+  static String inviteRoomSeatsLeft(int count) => '남은 자리 $count';
+
+  /// ⚠️ **초대 방은 제재가 없다.** 매칭 방의 "20분 동안 다시 신청할 수
+  /// 없어요"를 쓰면 거짓이다.
+  static const inviteRoomLeaveFree = '언제든 나갈 수 있어요';
+
+  /// 마지막 사람일 때. 나가면 방이 사라지고 받은 초대도 함께 없어진다.
+  static const inviteRoomLeaveLast = '나가면 방이 사라져요';
+
+  /// ⚠️ **마감 전 유일한 경고다.** 초대 취소도 `CANCELLED`도 없어서, 마감
+  /// 뒤에는 혼자 출발하는 것 말고 길이 없다.
+  static const inviteRoomAloneWarning = '곧 모집이 닫혀요 · 혼자 달리게 됩니다';
+
+  static const inviteRoomInviteCta = '러너 초대';
+
+  // ── 초대 모달 ────────────────────────────────────────────────────────
+
+  static const inviteSheetTitle = '러너 초대';
+  static const inviteSheetSearchHint = '닉네임 검색';
+  static const inviteSheetInvite = '초대';
+
+  /// 보냈고 답을 기다린다. **잠긴 상태다 — 독촉을 내보내지 않는다.**
+  static const inviteSheetInvited = '초대 중';
+  static const inviteSheetJoined = '참여 중';
+  static const inviteSheetRetry = '다시 초대';
+  static const inviteSheetEmpty = '초대할 러너가 없어요';
+
+  /// 서버가 문구를 안 줬을 때의 기본 문구. **대개는 서버 말을 그대로 쓴다.**
+  static const inviteSheetNotFriend = '친구에게만 초대할 수 있어요';
+  static const inviteSheetAlreadyInRoom = '이미 이 방에 있어요';
+  static const inviteSheetInMatching = '지금 매칭 중이에요';
+  static const inviteSheetRunning = '지금 달리는 중이에요';
+  static const inviteSheetCountExceeded = '더 보낼 수 없어요';
+  static const inviteSheetRoomGone = '방을 찾을 수 없어요';
+  static const inviteSheetFailed = '초대하지 못했어요';
+
   /// 방이 꽉 차서 수락하지 못했다. **초대는 PENDING으로 남는다.**
   static const inviteRoomFull = '방이 꽉 찼어요 · 자리가 생기면 다시 눌러보세요';
 

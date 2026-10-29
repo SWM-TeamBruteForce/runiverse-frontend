@@ -11,6 +11,7 @@ import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/data/fake_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
+import 'package:runiverse/features/matching/domain/room_invitation.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/matching/presentation/match_room_page.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
@@ -45,6 +46,33 @@ void main() {
           userId: 'u-$i',
           nickname: names?[i] ?? '러너$i',
           isDeleted: deletedLast && i == players - 1,
+        ),
+    ],
+  );
+
+  /// 같은 모양의 초대 방. `type`과 `invitations`만 다르다.
+  RoomInfo inviteRoom({
+    required RoomStatus status,
+    DateTime? closeAt,
+    int players = 2,
+    List<String> invited = const [],
+  }) => RoomInfo(
+    runningRoomId: 130,
+    type: RoomType.invite,
+    status: status,
+    scheduledStartAt: startAt,
+    closeAt: closeAt,
+    targetDistanceMeters: 5000,
+    players: [
+      for (var i = 0; i < players; i++)
+        RoomPlayer(userId: 'u-$i', nickname: '러너$i', isDeleted: false),
+    ],
+    invitations: [
+      for (final nickname in invited)
+        RoomInvitation(
+          userId: 'i-$nickname',
+          nickname: nickname,
+          isDeleted: false,
         ),
     ],
   );
@@ -370,6 +398,168 @@ void main() {
       );
 
       expect(find.text(AppStrings.matchRoomCancel), findsOneWidget);
+    });
+  });
+
+  /// 초대 방 — **매칭 방과 같은 화면이 `type`으로 갈린다.**
+  group('초대 방', () {
+    testWidgets('⚠️ 제목이 매칭 완료가 아니다', (tester) async {
+      // 매칭이 성사된 것이 아니라 더 들어올 자리가 닫힌 것뿐이다.
+      await pumpRoom(tester, snapshot: inviteRoom(status: RoomStatus.matched));
+
+      expect(find.text(AppStrings.inviteRoomClosed), findsOneWidget);
+      expect(find.text(AppStrings.matchRoomMatched), findsNothing);
+    });
+
+    testWidgets('모집 중에는 러너를 모으는 중이라고 말한다', (tester) async {
+      await pumpRoom(tester, snapshot: inviteRoom(status: RoomStatus.matching));
+
+      expect(find.text(AppStrings.inviteRoomWaiting), findsOneWidget);
+      expect(find.text(AppStrings.matchRoomWaiting), findsNothing);
+    });
+
+    testWidgets('⚠️ 매칭 제재 문구를 말하지 않는다', (tester) async {
+      // 초대 방은 나가기 제재가 없다. 매칭 문구를 쓰면 거짓말이다.
+      await pumpRoom(
+        tester,
+        snapshot: inviteRoom(
+          status: RoomStatus.matched,
+          closeAt: closedAlready,
+        ),
+      );
+      await revealBottom(tester);
+
+      expect(find.text(AppStrings.matchRoomLeavePenalty), findsNothing);
+      expect(find.text(AppStrings.inviteRoomLeaveFree), findsOneWidget);
+    });
+
+    testWidgets('마지막 사람이면 방이 사라진다고 알린다', (tester) async {
+      await pumpRoom(
+        tester,
+        snapshot: inviteRoom(status: RoomStatus.matched, players: 1),
+      );
+      await revealBottom(tester);
+
+      expect(find.text(AppStrings.inviteRoomLeaveLast), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 답을 기다리는 초대가 자리에 선다', (tester) async {
+      await pumpRoom(
+        tester,
+        snapshot: inviteRoom(
+          status: RoomStatus.matching,
+          players: 1,
+          invited: ['민수'],
+        ),
+      );
+      await revealBottom(tester);
+
+      expect(find.text(AppStrings.inviteRoomPending('민수')), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 모집 마감으로 invitations가 비면 초대 자리가 사라진다', (tester) async {
+      // 서버가 마감에 빈 배열을 보낸다 — 따로 지우지 않아도 사라져야 한다.
+      final app = await pumpRoom(
+        tester,
+        snapshot: inviteRoom(
+          status: RoomStatus.matching,
+          players: 1,
+          invited: ['민수'],
+        ),
+      );
+      await revealBottom(tester);
+      expect(find.text(AppStrings.inviteRoomPending('민수')), findsOneWidget);
+
+      app.stream.emit(
+        InviteRoomUpdated(inviteRoom(status: RoomStatus.matched, players: 2)),
+      );
+      await tick(tester);
+
+      expect(find.textContaining('초대 중'), findsNothing);
+    });
+
+    testWidgets('모집 중이고 자리가 남으면 초대 버튼이 선다', (tester) async {
+      await pumpRoom(
+        tester,
+        snapshot: inviteRoom(status: RoomStatus.matching, players: 2),
+      );
+
+      await revealBottom(tester);
+
+      expect(find.text(AppStrings.inviteRoomInviteCta), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 자리가 없으면 초대 버튼이 없다', (tester) async {
+      // 꽉 찬 방에도 서버는 초대를 받아 주지만 상대가 수락할 때 막힌다.
+      await pumpRoom(
+        tester,
+        snapshot: inviteRoom(status: RoomStatus.matching, players: 4),
+      );
+      await revealBottom(tester);
+
+      expect(find.text(AppStrings.inviteRoomInviteCta), findsNothing);
+    });
+
+    testWidgets('모집이 마감되면 초대 버튼이 없다', (tester) async {
+      await pumpRoom(
+        tester,
+        snapshot: inviteRoom(status: RoomStatus.matched, players: 2),
+      );
+      await revealBottom(tester);
+
+      expect(find.text(AppStrings.inviteRoomInviteCta), findsNothing);
+    });
+
+    testWidgets('매칭 방에는 초대 버튼이 없다', (tester) async {
+      await pumpRoom(tester, snapshot: room(status: RoomStatus.matching));
+      await revealBottom(tester);
+
+      expect(find.text(AppStrings.inviteRoomInviteCta), findsNothing);
+    });
+
+    testWidgets('⚠️ 혼자인 방은 마감 전에 혼자 달리게 된다고 알린다', (tester) async {
+      // 초대 취소도 CANCELLED도 없어서, 마감 전 나가기가 유일한 출구다.
+      await pumpRoom(
+        tester,
+        snapshot: inviteRoom(
+          status: RoomStatus.matching,
+          players: 1,
+          closeAt: DateTime.now().add(const Duration(minutes: 2)),
+        ),
+      );
+      await revealBottom(tester);
+
+      expect(find.text(AppStrings.inviteRoomAloneWarning), findsOneWidget);
+    });
+
+    testWidgets('답을 기다리는 초대가 있으면 경고하지 않는다', (tester) async {
+      // 아직 올 사람이 있다.
+      await pumpRoom(
+        tester,
+        snapshot: inviteRoom(
+          status: RoomStatus.matching,
+          players: 1,
+          invited: ['민수'],
+          closeAt: DateTime.now().add(const Duration(minutes: 2)),
+        ),
+      );
+      await revealBottom(tester);
+
+      expect(find.text(AppStrings.inviteRoomAloneWarning), findsNothing);
+    });
+
+    testWidgets('마감이 멀면 경고하지 않는다', (tester) async {
+      await pumpRoom(
+        tester,
+        snapshot: inviteRoom(
+          status: RoomStatus.matching,
+          players: 1,
+          closeAt: closeAtSoon,
+        ),
+      );
+      await revealBottom(tester);
+
+      expect(find.text(AppStrings.inviteRoomAloneWarning), findsNothing);
     });
   });
 }
