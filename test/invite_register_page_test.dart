@@ -213,9 +213,15 @@ void main() {
       );
       addTearDown(container.dispose);
 
+      // ⚠️ **홈에서 밀려 들어온 상태를 재현한다.** 방에서 나갈 때 돌아갈 곳이
+      // 있어야 하고, 그것이 이 테스트의 요점이다.
       final router = GoRouter(
-        initialLocation: AppRoutes.inviteRegister,
+        initialLocation: AppRoutes.home,
         routes: [
+          GoRoute(
+            path: AppRoutes.home,
+            builder: (_, _) => const Scaffold(body: Text('홈')),
+          ),
           GoRoute(
             path: AppRoutes.inviteRegister,
             builder: (_, _) =>
@@ -240,6 +246,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      router.push(AppRoutes.inviteRegister);
+      await tester.pumpAndSettle();
+
       // 시각과 거리를 고른다. 피커를 거치지 않고 provider로 직접 세운다 —
       // 여기서 보려는 것은 보낸 **뒤**의 일이다.
       container.read(inviteRegisterProvider.notifier)
@@ -256,6 +265,15 @@ void main() {
       // 상태도 새로 읽어야 홈과 복구가 방을 안다.
       expect(statuses.calls, greaterThan(0));
       expect(find.text('방'), findsOneWidget);
+      // 등록 화면은 치운다 — 뒤로 가서 또 방을 만들 자리가 아니다.
+      expect(find.text(AppStrings.inviteRegisterSubmit), findsNothing);
+
+      // ⚠️ **홈이 아래에 남아야 한다.** `go`로 들어가면 스택이 날아가고, 방에서
+      // 나갈 때 `pop()`이 아무 일도 안 해 **빈 방 화면에 갇힌다.**
+      expect(router.canPop(), isTrue);
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(find.text('홈'), findsOneWidget);
     });
   });
 }

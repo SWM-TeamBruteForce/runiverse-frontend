@@ -562,4 +562,24 @@ void main() {
       expect(find.text(AppStrings.inviteRoomAloneWarning), findsNothing);
     });
   });
+
+  /// ⚠️ **스택 없이 이 화면에 들어올 수 있다.**
+  ///
+  /// 초대 등록이 `go`로 들어오던 동안 방을 나가도 `pop()`이 아무 일도 하지
+  /// 않아 **빈 방 화면에 갇혔다**(실측 2026-10-29). 딥링크도 같은 모양이다.
+  group('나갈 때 갇히지 않는다', () {
+    testWidgets('방이 사라지면 홈으로 간다 — 돌아갈 스택이 없어도', (tester) async {
+      final app = await pumpRoom(
+        tester,
+        snapshot: inviteRoom(status: RoomStatus.matching),
+      );
+
+      // 서버가 방을 닫았다(나가기·취소 뒤의 모습이다).
+      app.stream.emit(MatchRoomUpdated(room(status: RoomStatus.cancelled)));
+      await tick(tester);
+
+      // 방 화면이 아니다 — 빈 방에 남아 있으면 로딩만 도는 화면이다.
+      expect(find.byType(MatchRoomPage), findsNothing);
+    });
+  });
 }

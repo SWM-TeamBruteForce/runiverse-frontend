@@ -90,7 +90,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
       gone,
     ) {
       if (!gone || _leaving || !mounted) return;
-      if (context.canPop()) context.pop();
+      _leaveScreen();
     });
 
     // 아직 첫 스냅샷이 오지 않았다. **비워두지 않는다** — 빈 화면은 고장으로
@@ -337,7 +337,23 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
       return;
     }
 
-    if (context.canPop()) context.pop();
+    _leaveScreen();
+  }
+
+  /// 이 화면에서 빠져나간다.
+  ///
+  /// ## ⚠️ `pop`만으로는 부족하다
+  ///
+  /// 이 화면에 **스택 없이 들어올 수 있다.** 초대 등록이 `go`로 들어오던 동안
+  /// 방을 나가도 `pop()`이 아무 일도 하지 않아 **빈 방 화면에 갇혔다**(실측
+  /// 2026-10-29). 지금은 `pushReplacement`로 들어오지만, 딥링크나 다음에 생길
+  /// 경로가 같은 함정을 다시 밟지 않게 여기서 막는다.
+  void _leaveScreen() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go(AppRoutes.home);
   }
 }
 

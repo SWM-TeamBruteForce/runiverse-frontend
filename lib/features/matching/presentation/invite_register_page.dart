@@ -22,6 +22,7 @@ import 'package:runiverse/features/matching/domain/invite_limits.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 import 'package:runiverse/features/matching/presentation/invite_register_provider.dart';
+import 'package:runiverse/features/matching/presentation/invite_time_sheet.dart';
 
 /// 초대 등록 — 시각과 거리를 **자유롭게** 정해 방을 연다.
 ///
@@ -227,26 +228,16 @@ class _InviteRegisterPageState extends ConsumerState<InviteRegisterPage> {
 
   /// 분 단위 피커. 범위 밖을 고르면 받지 않는다.
   Future<void> _pickTime(({DateTime from, DateTime to}) window) async {
-    final current = ref.read(inviteRegisterProvider).startAt ?? window.from;
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay(hour: current.hour, minute: current.minute),
+    // ⚠️ **아날로그 시계판을 쓰지 않는다.** 분 단위 자유 입력이라 바늘로
+    // `19:37`을 맞추는 것이 손으로 어렵고, 범위 밖을 고르면 되돌려 주는 수밖에
+    // 없다. 숫자 휠은 **고를 수 있는 값만 담아** 애초에 범위 밖이 없다.
+    final at = await showInviteTimeSheet(
+      context,
+      from: window.from,
+      to: window.to,
+      selected: ref.read(inviteRegisterProvider).startAt,
     );
-    if (picked == null || !mounted) return;
-
-    final at = DateTime(
-      window.from.year,
-      window.from.month,
-      window.from.day,
-      picked.hour,
-      picked.minute,
-    );
-    // 범위 밖이면 **고르지 않고 안내만 한다.** 받아 두면 버튼이 잠긴 이유를
-    // 알 수 없다.
-    if (at.isBefore(window.from) || at.isAfter(window.to)) {
-      _say(AppStrings.inviteRegisterWindow(window.from, window.to));
-      return;
-    }
+    if (at == null || !mounted) return;
     ref.read(inviteRegisterProvider.notifier).pickTime(at);
   }
 
@@ -292,7 +283,11 @@ class _InviteRegisterPageState extends ConsumerState<InviteRegisterPage> {
     await ref.read(userStatusProvider.notifier).refresh();
     if (!mounted) return;
 
-    context.go(AppRoutes.matchRoom);
+    // ⚠️ **`go`를 쓰지 않는다.** 스택을 날려서 방에서 나갈 때 돌아갈 곳이
+    // 사라진다 — `pop()`이 아무 일도 안 하고 방 화면에 갇힌다(실측
+    // 2026-10-29). `pushReplacement`는 등록 화면만 방으로 갈아 끼워서
+    // 아래에 홈이 남는다.
+    context.pushReplacement(AppRoutes.matchRoom);
   }
 
   /// **서버 문구를 그대로 쓴다.** 없으면 갈래별 기본 문구다.

@@ -1963,6 +1963,9 @@ abstract final class AppStrings {
 
   static const inviteRegisterDistancePlaceholder = '거리 입력';
 
+  /// 시각 다이얼 시트의 확인 버튼.
+  static const inviteTimeSheetConfirm = '이 시간으로';
+
   /// ⚠️ **23:49 이후에는 고를 수 있는 시각이 없다.** 빈 피커만 두면 고장으로
   /// 읽힌다.
   static const inviteRegisterClosedToday = '오늘은 초대 러닝을 만들 수 없어요';
