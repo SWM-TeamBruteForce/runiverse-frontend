@@ -606,6 +606,8 @@ void main() {
       expect(room?.status, RoomStatus.matched);
       expect(room?.runningRoomId, 31);
       expect(room?.targetDistanceMeters, 7000);
+      // ⚠️ **종류를 들고 가야 한다.** 빼면 홈이 `매칭 완료`라고 말한다.
+      expect(room?.type, RoomType.invite);
     });
 
     test('달리는 중인 초대 방도 세운다', () {
@@ -618,6 +620,19 @@ void main() {
       );
 
       expect(room?.status, RoomStatus.started);
+      expect(room?.type, RoomType.invite);
+    });
+
+    test('매칭 방도 종류를 들고 간다', () {
+      final room = RoomInfo.fromStatus(
+        UserStatusReady(
+          runningRoomId: 7,
+          type: RoomType.match,
+          scheduledStartAt: startAt,
+        ),
+      );
+
+      expect(room?.type, RoomType.match);
     });
 
     test('솔로는 매칭 방을 세우지 않는다', () {

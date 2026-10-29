@@ -218,4 +218,77 @@ void main() {
       );
     });
   });
+
+  group('⚠️ 지운 것은 지워져야 한다', () {
+    test('거리를 비우면 거리가 없어진다', () {
+      // `??`로 두면 입력란은 비었는데 옛 값이 남아, `하프`를 눌렀다 지운
+      // 사람이 **21km 방을 만든다.** 초대 취소가 없어서 나가는 것 말고 길이
+      // 없다.
+      final app = build();
+      notifier(app.container)
+        ..pickTime(DateTime(2026, 10, 29, 19, 30))
+        ..setMeters(21098)
+        ..setMeters(null);
+
+      expect(read(app.container).meters, isNull);
+      expect(read(app.container).canSubmit(nowKst: now), isFalse);
+    });
+
+    test('시각을 비울 수 있다', () {
+      final app = build();
+      notifier(app.container)
+        ..pickTime(DateTime(2026, 10, 29, 19, 30))
+        ..setMeters(5000);
+      notifier(app.container).clearTime();
+
+      expect(read(app.container).startAt, isNull);
+      expect(read(app.container).canSubmit(nowKst: now), isFalse);
+    });
+  });
+
+  group('⚠️ 굳은 버튼이 조용히 죽지 않는다', () {
+    test('범위를 지난 뒤 누르면 실패를 남긴다', () async {
+      // 버튼은 build 시점의 판정으로 그려진다. 그사이 시간이 흘러 범위를
+      // 벗어나면 `submit`이 `null`을 돌려주는데, 아무 말도 안 하면 **버튼이
+      // 눌리지 않는 것처럼** 보인다.
+      final app = build();
+      notifier(app.container)
+        ..pickTime(DateTime(2026, 10, 29, 19, 11))
+        ..setMeters(5000);
+
+      // 10분이 흘렀다 — 고른 시각이 이제 바닥보다 이르다.
+      final roomId = await notifier(
+        app.container,
+      ).submit(nowKst: DateTime(2026, 10, 29, 19, 21));
+
+      expect(roomId, isNull);
+      expect(read(app.container).failure, InviteFailure.startAtOutOfRange);
+      // 서버를 부르지 않았다.
+      expect(app.matches.createdStartAt, isNull);
+    });
+
+    test('23:49를 넘긴 뒤 누르면 실패를 남긴다', () async {
+      final app = build();
+      notifier(app.container)
+        ..pickTime(DateTime(2026, 10, 29, 23, 55))
+        ..setMeters(5000);
+
+      final roomId = await notifier(
+        app.container,
+      ).submit(nowKst: DateTime(2026, 10, 29, 23, 50));
+
+      expect(roomId, isNull);
+      expect(read(app.container).failure, InviteFailure.startAtOutOfRange);
+    });
+
+    test('아직 다 안 골랐으면 실패를 남기지 않는다', () async {
+      // 처음 들어온 화면에 빨간 글씨를 띄우면 안 된다.
+      final app = build();
+      notifier(app.container).setMeters(5000);
+
+      await notifier(app.container).submit(nowKst: now);
+
+      expect(read(app.container).failure, isNull);
+    });
+  });
 }

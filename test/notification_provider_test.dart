@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/features/app_update/domain/app_update_status.dart';
+import 'package:runiverse/features/app_update/presentation/app_update_provider.dart';
 import 'package:runiverse/features/friend/domain/friend_relation.dart';
 import 'package:runiverse/features/notification/data/fake_app_stream.dart';
 import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
@@ -359,15 +361,43 @@ void main() {
       final app = build();
       app.repo.pages[null] = page([], unreadCount: 0);
       await app.container.read(notificationProvider.notifier).start();
+      final before = app.stream.connects;
 
       app.stream.breakConnection();
       await Future<void>.delayed(Duration.zero);
 
       expect(read(app.container).connected, isFalse);
+      // 간격을 두고 다시 붙는다 — 아직은 안 붙었어야 한다.
+      expect(app.stream.connects, before);
+      expect(
+        app.container.read(notificationProvider.notifier).retryPending,
+        isTrue,
+      );
     });
 
-    test('업데이트가 필요하면 재연결하지 않는다', () async {
-      // 구버전 앱이다. 다시 붙어도 같은 403이고, 화면이 업데이트를 안내한다.
+    test('⚠️ 업데이트가 필요하면 다시 붙지 않는다', () async {
+      // 구버전 앱이다. 다시 붙어도 같은 403이라 **예약 자체를 하지 않는다** —
+      // 안 그러면 2분마다 같은 403을 때린다.
+      final app = build();
+      app.repo.pages[null] = page([], unreadCount: 0);
+      await app.container.read(notificationProvider.notifier).start();
+      final before = app.stream.connects;
+
+      app.stream.breakConnection(
+        const AppStreamException(AppStreamFailure.updateRequired),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(read(app.container).updateRequired, isTrue);
+      expect(app.stream.connects, before);
+      expect(
+        app.container.read(notificationProvider.notifier).retryPending,
+        isFalse,
+      );
+    });
+
+    test('⚠️ 구버전이면 업데이트 게이트에 알린다', () async {
+      // 상태만 세우면 **아무도 읽지 않는다.** 매칭 스트림은 게이트를 부른다.
       final app = build();
       app.repo.pages[null] = page([], unreadCount: 0);
       await app.container.read(notificationProvider.notifier).start();
@@ -377,7 +407,71 @@ void main() {
       );
       await Future<void>.delayed(Duration.zero);
 
-      expect(read(app.container).updateRequired, isTrue);
+      expect(
+        app.container.read(appUpdateProvider),
+        isA<AppUpdateChecked>().having(
+          (s) => s.status,
+          'status',
+          AppUpdateStatus.required,
+        ),
+      );
+    });
+
+    test('⚠️ 목록 조회가 실패하면 재시도를 예약한다', () async {
+      // 안 하면 버퍼 모드에 갇혀, 그 뒤 모든 알림이 버퍼로 들어가고 배지가
+      // 영영 안 움직인다 — 초대받은 사람에게 유일한 통로가 막힌다.
+      final app = build();
+      app.repo.pages[null] = page([], unreadCount: 0);
+      app.repo.listFailure = NotificationFailure.network;
+
+      await app.container.read(notificationProvider.notifier).start();
+
+      expect(read(app.container).failure, NotificationFailure.network);
+      expect(
+        app.container.read(notificationProvider.notifier).retryPending,
+        isTrue,
+      );
+    });
+  });
+
+  group('커서를 잃지 않는다', () {
+    test('⚠️ 실시간 알림이 와도 다음 페이지가 남는다', () async {
+      // 목록을 3페이지까지 본 사람에게 친구 요청 하나가 오면 목록이 거기서
+      // 끝나 버렸다 — 더 못 불러오고 옛 알림에 닿을 길이 사라진다.
+      final app = build();
+      app.repo.pages[null] = page([friendRequest(1)], nextCursor: 'c2');
+      await app.container.read(notificationProvider.notifier).start();
+      expect(read(app.container).nextCursor, 'c2');
+
+      app.stream.emit(invite(913));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(read(app.container).nextCursor, 'c2');
+      expect(read(app.container).hasMore, isTrue);
+    });
+
+    test('⚠️ 스트림이 끊겨도 다음 페이지가 남는다', () async {
+      // 서버가 30분마다 정상으로 끊는다. 그때마다 목록이 끊기면 안 된다.
+      final app = build();
+      app.repo.pages[null] = page([friendRequest(1)], nextCursor: 'c2');
+      await app.container.read(notificationProvider.notifier).start();
+
+      app.stream.breakConnection();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(read(app.container).nextCursor, 'c2');
+    });
+
+    test('마지막 페이지에서는 커서를 지울 수 있다', () async {
+      final app = build();
+      app.repo.pages[null] = page([friendRequest(1)], nextCursor: 'c2');
+      app.repo.pages['c2'] = page([friendRequest(2)]);
+      final notifier = app.container.read(notificationProvider.notifier);
+      await notifier.start();
+      await notifier.loadMore();
+
+      expect(read(app.container).nextCursor, isNull);
+      expect(read(app.container).hasMore, isFalse);
     });
   });
 }

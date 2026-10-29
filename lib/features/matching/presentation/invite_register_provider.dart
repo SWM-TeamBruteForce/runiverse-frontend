@@ -48,6 +48,13 @@ class InviteRegisterState {
     return !at.isBefore(window.from) && !at.isAfter(window.to);
   }
 
+  /// ## ⚠️ 고른 값도 **지울 수 있어야 한다**
+  ///
+  /// `meters`를 `??`로 두면 입력란은 비었는데 옛 값이 남는다 — `하프`를
+  /// 눌렀다 지운 사람이 **21km 방을 만든다.** 초대 취소가 없어서(설계 §7-2)
+  /// 나가는 것 말고 되돌릴 길이 없다.
+  ///
+  /// 그래서 네 값 모두 넘긴 그대로 쓴다. 안 바꿀 값은 부르는 쪽이 다시 넘긴다.
   InviteRegisterState copyWith({
     DateTime? startAt,
     int? meters,
@@ -55,11 +62,9 @@ class InviteRegisterState {
     InviteFailure? failure,
     String? message,
   }) => InviteRegisterState(
-    startAt: startAt ?? this.startAt,
-    meters: meters ?? this.meters,
+    startAt: startAt,
+    meters: meters,
     submitting: submitting ?? this.submitting,
-    // ⚠️ `??`를 쓰지 않는다. 실패를 **지울** 수 있어야 한다 — 스낵바로 알리고
-    // 곧바로 비우는 자리다.
     failure: failure,
     message: message,
   );
@@ -86,23 +91,40 @@ class InviteRegisterController extends Notifier<InviteRegisterState> {
   void pickTime(DateTime at) {
     state = state.copyWith(
       startAt: DateTime(at.year, at.month, at.day, at.hour, at.minute),
+      meters: state.meters,
     );
   }
 
+  /// 고른 시각을 지운다.
+  void clearTime() => state = state.copyWith(meters: state.meters);
+
   /// 거리를 고친다. 범위 밖 값도 상태에 들어온다 — 화면이 안내를 띄우고
   /// 버튼만 잠근다. 입력 중에 값을 되돌리면 지금 치는 숫자가 사라진다.
-  void setMeters(int? meters) => state = state.copyWith(meters: meters);
+  void setMeters(int? meters) =>
+      state = state.copyWith(startAt: state.startAt, meters: meters);
 
   /// 방을 연다. 성공하면 방 번호를, 실패하면 `null`을 돌려준다.
   ///
   /// ⚠️ **실패해도 다시 보내지 않는다.** 네트워크가 끊긴 경우 방이 열렸는지
   /// 알 수 없어, 재시도가 곧 빈 방 두 개가 된다.
   Future<int?> submit({required DateTime nowKst}) async {
-    if (!state.canSubmit(nowKst: nowKst)) return null;
+    if (!state.canSubmit(nowKst: nowKst)) {
+      // ⚠️ **조용히 돌아가지 않는다.** 버튼은 `build` 시점의 판정으로 그려져
+      // 있어서, 그사이 시간이 흘러 범위를 벗어나면 **눌리지 않는 것처럼**
+      // 보인다. 다 고르지 않은 경우(버튼이 잠긴 정상 상태)는 뺀다.
+      if (state.startAt != null && state.meters != null && !state.submitting) {
+        state = state.copyWith(
+          startAt: state.startAt,
+          meters: state.meters,
+          failure: InviteFailure.startAtOutOfRange,
+        );
+      }
+      return null;
+    }
     final at = state.startAt!;
     final meters = state.meters!;
 
-    state = state.copyWith(submitting: true);
+    state = state.copyWith(startAt: at, meters: meters, submitting: true);
     try {
       final roomId = await ref
           .read(matchRepositoryProvider)
@@ -116,10 +138,12 @@ class InviteRegisterController extends Notifier<InviteRegisterState> {
       // 죽는 순간 끊긴다 — 매칭 신청과 같은 판단이다.
       await ref.read(matchRoomStoreProvider).save(roomId);
 
-      state = state.copyWith(submitting: false);
+      state = state.copyWith(startAt: at, meters: meters, submitting: false);
       return roomId;
     } on InviteException catch (error) {
       state = state.copyWith(
+        startAt: at,
+        meters: meters,
         submitting: false,
         failure: error.failure,
         message: error.message,
@@ -129,5 +153,9 @@ class InviteRegisterController extends Notifier<InviteRegisterState> {
   }
 
   /// 알린 실패를 지운다. 화면이 스낵바를 띄운 뒤 부른다.
-  void clearFailure() => state = state.copyWith(submitting: state.submitting);
+  void clearFailure() => state = state.copyWith(
+    startAt: state.startAt,
+    meters: state.meters,
+    submitting: state.submitting,
+  );
 }

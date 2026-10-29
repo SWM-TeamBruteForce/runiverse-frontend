@@ -160,4 +160,32 @@ void main() {
       expect(find.text(AppStrings.inviteRegisterClosedToday), findsNothing);
     });
   });
+
+  group('⚠️ 입력란을 비우면 거리가 없어진다', () {
+    testWidgets('하프를 눌렀다 지우면 버튼이 잠긴다', (tester) async {
+      // 안 그러면 입력란은 비었는데 21km 방이 만들어진다. 초대 취소가 없어서
+      // 나가는 것 말고 되돌릴 길이 없다.
+      await pump(tester);
+
+      await tester.tap(find.text(AppStrings.inviteRegisterShortcutHalf));
+      await tester.pumpAndSettle();
+      expect(find.text('21.098'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), '');
+      await tester.pumpAndSettle();
+
+      expect(submitButton(tester).onPressed, isNull);
+    });
+
+    testWidgets('읽을 수 없는 값도 비운 것으로 본다', (tester) async {
+      await pump(tester);
+
+      await tester.tap(find.text(AppStrings.inviteRegisterShortcut5));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '1.2.3');
+      await tester.pumpAndSettle();
+
+      expect(submitButton(tester).onPressed, isNull);
+    });
+  });
 }
