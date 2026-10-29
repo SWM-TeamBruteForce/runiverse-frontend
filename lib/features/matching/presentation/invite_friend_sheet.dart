@@ -59,9 +59,21 @@ class InviteFriendSheet extends ConsumerStatefulWidget {
 }
 
 class _InviteFriendSheetState extends ConsumerState<InviteFriendSheet> {
-  /// 이 시트에서 초대를 보낸 사람. 스트림이 `invitations`를 갱신하기 전까지
-  /// 버튼을 잠가 둔다 — 두 번 눌려 횟수가 헛되이 줄어드는 것을 막는다.
+  /// 이 시트에서 초대를 보낸 사람. **다음 방 스냅샷이 올 때까지만** 쓴다.
+  ///
+  /// ## ⚠️ 서버 목록이 오면 버린다
+  ///
+  /// 204를 받은 순간부터 `INVITE_ROOM_UPDATED`가 닿기까지 짧은 틈이 있고, 그
+  /// 사이 버튼이 다시 `초대`로 보이면 한 번 더 눌려 **횟수가 헛되이 줄어든다**
+  /// (상한 5회를 볼 수도 없다). 그 틈만 메우는 값이다.
+  ///
+  /// **지우지 않으면 거짓이 된다** — 상대가 거절해 `invitations`에서 빠졌는데도
+  /// `초대 중`으로 남는다(실측 2026-10-29). 그래서 새 스냅샷이 오는 순간
+  /// 통째로 버리고, 그다음부터는 서버 목록만 믿는다.
   final _sent = <String>{};
+
+  /// 마지막으로 본 방. 바뀌면 [_sent]를 버린다.
+  RoomInfo? _seenRoom;
 
   /// 실패한 사람과 그 문구. **서버가 준 말을 그대로 들고 있는다.**
   final _failed = <String, String>{};
@@ -91,6 +103,13 @@ class _InviteFriendSheetState extends ConsumerState<InviteFriendSheet> {
     final room = live != null && live.runningRoomId == widget.room.runningRoomId
         ? live
         : widget.room;
+
+    // ⚠️ **새 스냅샷이 오면 낙관적 표시를 버린다.** 서버 목록이 정본이다 —
+    // 거절·이탈로 빠진 사람을 계속 `초대 중`으로 두면 거짓말이 된다.
+    if (!identical(room, _seenRoom)) {
+      _seenRoom = room;
+      _sent.clear();
+    }
 
     final taken = {for (final one in room.players) one.userId};
     final pending = {for (final one in room.invitations) one.userId};

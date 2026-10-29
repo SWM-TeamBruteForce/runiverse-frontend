@@ -345,6 +345,70 @@ void main() {
     });
   });
 
+  /// ⚠️ **거절했는데 `초대 중`으로 남던 자리다**(실측 2026-10-29).
+  group('보낸 뒤 서버 목록을 따른다', () {
+    testWidgets('상대가 거절하면 다시 초대할 수 있다', (tester) async {
+      final stream = FakeMatchStream();
+      final matches = FakeMatchRepository();
+      final tokens = InMemoryTokenStore();
+      await tokens.saveSession(
+        userId: 'me',
+        accessToken: 'a-1',
+        refreshToken: 'r-1',
+        isOnboarded: true,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          tokenStoreProvider.overrideWithValue(tokens),
+          friendRepositoryProvider.overrideWithValue(friends()),
+          matchRepositoryProvider.overrideWithValue(matches),
+          matchStreamProvider.overrideWithValue(stream),
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: Scaffold(body: InviteFriendSheet(room: room())),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      container.read(matchRoomProvider.notifier).connect();
+      await tester.pump();
+
+      // 철수를 초대한다.
+      await tester.tap(
+        find.descendant(
+          of: find
+              .ancestor(of: find.text('철수'), matching: find.byType(Row))
+              .first,
+          matching: find.text(AppStrings.inviteSheetInvite),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(buttonOf(tester, '철수'), AppStrings.inviteSheetInvited);
+
+      // 서버가 초대를 확인해 준다.
+      stream.emit(InviteRoomUpdated(room(invited: ['f-1'])));
+      await tester.pumpAndSettle();
+      expect(buttonOf(tester, '철수'), AppStrings.inviteSheetInvited);
+
+      // 철수가 거절했다 — 목록에서 빠진다.
+      stream.emit(InviteRoomUpdated(room()));
+      await tester.pumpAndSettle();
+
+      // ⚠️ `초대 중`으로 남으면 거짓이고, 다시 보낼 길도 없다.
+      expect(buttonOf(tester, '철수'), AppStrings.inviteSheetInvite);
+    });
+  });
+
   group('3분기를 처리한다', () {
     testWidgets('⚠️ 못 받았으면 "없다"가 아니라 실패를 말한다', (tester) async {
       // 친구가 많은 사람에게 "초대할 러너가 없어요"라고 하면 안 된다.
