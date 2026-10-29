@@ -1,4 +1,5 @@
 import 'package:runiverse/core/utils/kst_time.dart';
+import 'package:runiverse/features/matching/domain/invite_failure.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/match_repository.dart';
 import 'package:runiverse/features/matching/domain/match_slot.dart';
@@ -153,6 +154,70 @@ class FakeMatchRepository implements MatchRepository {
     cancelCalls++;
     await Future<void>.delayed(latency);
     _throwIfSet(cancelFailure);
+  }
+
+  // ── 초대 방 ──────────────────────────────────────────────────────────
+
+  /// 열린 초대 방 번호. [roomId]와 따로 둔다 — 매칭 방과 섞이면 어느 쪽을
+  /// 세웠는지 알 수 없다.
+  int inviteRoomId = 130;
+
+  /// 마지막으로 보낸 개설 요청.
+  String? createdStartAt;
+  int? createdMeters;
+
+  /// 보낸 초대들. `(roomId, inviteeId)` 꼴로 **순서대로** 담는다 — 한 명씩
+  /// 보내는지 세는 자리다.
+  final List<(int, String)> inviteCalls = [];
+
+  final List<int> acceptCalls = [];
+  final List<int> declineCalls = [];
+
+  /// 다음 호출이 던질 오류. 한 번 쓰면 비워진다.
+  InviteException? createFailure;
+  InviteException? inviteFailure;
+  InviteException? acceptFailure;
+  InviteException? declineFailure;
+
+  @override
+  Future<int> createInviteRoom({
+    required String scheduledStartAt,
+    required int meters,
+  }) async {
+    await Future<void>.delayed(latency);
+    createdStartAt = scheduledStartAt;
+    createdMeters = meters;
+    _throwInvite(() => createFailure, () => createFailure = null);
+    return inviteRoomId;
+  }
+
+  @override
+  Future<void> invite({required int roomId, required String inviteeId}) async {
+    await Future<void>.delayed(latency);
+    inviteCalls.add((roomId, inviteeId));
+    _throwInvite(() => inviteFailure, () => inviteFailure = null);
+  }
+
+  @override
+  Future<int> acceptInvitation(int roomId) async {
+    await Future<void>.delayed(latency);
+    acceptCalls.add(roomId);
+    _throwInvite(() => acceptFailure, () => acceptFailure = null);
+    return roomId;
+  }
+
+  @override
+  Future<void> declineInvitation(int roomId) async {
+    await Future<void>.delayed(latency);
+    declineCalls.add(roomId);
+    _throwInvite(() => declineFailure, () => declineFailure = null);
+  }
+
+  void _throwInvite(InviteException? Function() read, void Function() clear) {
+    final failure = read();
+    if (failure == null) return;
+    clear();
+    throw failure;
   }
 
   void _throwIfSet(MatchFailure? failure) {
