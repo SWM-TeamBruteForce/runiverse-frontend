@@ -12,6 +12,7 @@ import 'package:runiverse/features/record/presentation/split_line_chart.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/core/widgets/run_map_view.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/features/session/domain/party_color.dart';
 
 /// 러닝 결과 (S16) — Figma `46:69`에 `47:65`(S16.5)를 이어 붙인 한 화면.
 ///
@@ -62,26 +63,15 @@ class _RunResultViewState extends State<RunResultView> {
   /// 찾는 눈이 흔들리지 않는다.
   static final _myColor = RunPaletteV2.lane(0);
 
-  /// 그 사람의 색. **나를 뺀 나머지가** 주황·분홍·초록을 명단 순서로 나눠 갖는다.
-  ///
-  /// 방은 최대 4명이라 나 하나와 상대 셋이 팔레트 4색에 꼭 맞는다.
-  ///
-  /// ⚠️ **명단 자리 번호를 그대로 쓰면 안 된다.** 명단에 내가 둘째로 들어 있으면
-  /// 첫 자리의 상대가 `lane(0)`, 즉 **내 파랑을 가져간다.** 서버가 주는 명단
-  /// 순서는 내가 몇 번째에 설지 정해 주지 않는다.
-  Color _colorOf(String userId) {
-    if (userId == _myUserId) return _myColor;
-
-    final others = [
-      for (final player in detail.players)
-        if (!player.isMe) player.userId,
-    ];
-    final index = others.indexOf(userId);
-    // ⚠️ 못 찾아도 **0으로 떨어뜨리지 않는다** — 0은 내 파랑이라 남이 나로
-    // 보인다. 팔레트 끝 색을 준다. 명단에 없으면 그릴 이름도 없어 실제로는
-    // 오지 않는 길이다.
-    return RunPaletteV2.lane(index < 0 ? 3 : index + 1);
-  }
+  /// 그 사람의 색. 규칙은 `party_color.dart` 하나에 있다 — 러닝 중 화면과
+  /// 카운트다운이 같은 것을 쓴다.
+  Color _colorOf(String userId) => RunPaletteV2.lane(
+    partyColorSlot(
+      userId: userId,
+      myUserId: _myUserId,
+      order: [for (final player in detail.players) player.userId],
+    ),
+  );
 
   /// 명단 속의 나. 서버가 나를 빠뜨리면 `null`이고, 그래도 내 색은 파랑이다.
   String? get _myUserId =>

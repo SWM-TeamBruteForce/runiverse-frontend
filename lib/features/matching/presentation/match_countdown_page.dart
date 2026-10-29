@@ -26,6 +26,7 @@ import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/presentation/party_provider.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
+import 'package:runiverse/features/session/domain/party_color.dart';
 
 /// 출발 대기실 (S11, Figma `43:46` · `43:113`).
 ///
@@ -203,6 +204,9 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
     final number = launch?.countdownNumber(_now);
 
     final players = room?.players ?? const <RoomPlayer>[];
+    // 나를 가려낼 값. 색 규칙이 나를 늘 파랑으로 둔다(`party_color.dart`).
+    final auth = ref.watch(authControllerProvider);
+    final myUserId = auth is AuthSignedIn ? auth.userId : null;
 
     return PopScope(
       // 취소 불가 구간이다. 여기서 빠져나가면 방은 시작했는데 이 사람만
@@ -232,7 +236,11 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
                           ),
                         ),
                       ),
-                      _PartyAvatars(players: players, size: AppSpacing.space9),
+                      _PartyAvatars(
+                        players: players,
+                        size: AppSpacing.space9,
+                        myUserId: myUserId,
+                      ),
                       const SizedBox(height: AppSpacing.space6),
                     ],
                   )
@@ -268,6 +276,7 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
                       _PartyAvatars(
                         players: players,
                         size: AppSpacing.space9 + AppSpacing.space2,
+                        myUserId: myUserId,
                         withNames: true,
                       ),
                       const SizedBox(height: AppSpacing.space5),
@@ -443,16 +452,22 @@ class _GpsCard extends ConsumerWidget {
   }
 }
 
-/// 파티원 아바타. 색은 명단 순서 — 러닝 화면의 레인과 같은 자리, 같은 색이다.
+/// 파티원 아바타. 색 규칙은 `party_color.dart` 하나에 있다 — 러닝 중 화면과
+/// 결과 화면이 같은 것을 쓴다. **나는 늘 파랑이다.**
 class _PartyAvatars extends StatelessWidget {
   const _PartyAvatars({
     required this.players,
     required this.size,
+    required this.myUserId,
     this.withNames = false,
   });
 
   final List<RoomPlayer> players;
   final double size;
+
+  /// 나를 가려낼 값. 없으면 아무도 파랑을 받지 못한다.
+  final String? myUserId;
+
   final bool withNames;
 
   @override
@@ -466,10 +481,17 @@ class _PartyAvatars extends StatelessWidget {
           PartyChip(
             name: players[i].nickname,
             imageUrl: players[i].profileImageUrl,
-            // ⚠️ **자리 번호별 색을 유지한다.** 시안은 이 링을 준비 상태에
-            // 쓰지만 우리는 그 값을 받지 못한다. 대신 누가 누구인지 색으로
-            // 구분하던 기존 뜻을 링으로 옮긴다.
-            accent: RunPaletteV2.lane(i),
+            // ⚠️ **그리는 순서가 아니라 공용 규칙을 쓴다.** 시안은 이 링을
+            // 준비 상태에 쓰지만 우리는 그 값을 받지 못해, 누가 누구인지
+            // 구분하는 뜻으로 옮겼다. 순서대로 주면 세 화면에서 내 색이
+            // 저마다 달라진다.
+            accent: RunPaletteV2.lane(
+              partyColorSlot(
+                userId: players[i].userId,
+                myUserId: myUserId,
+                order: [for (final player in players) player.userId],
+              ),
+            ),
             size: size,
             showName: withNames,
           ),
