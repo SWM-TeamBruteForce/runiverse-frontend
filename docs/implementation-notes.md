@@ -1123,3 +1123,66 @@ REST(`createDio`) · SSE(`SseMatchStream._open`) · WebSocket(`WsClient._connect
 판정을 못 받으면 들여보내지 않는다. 포그라운드로 돌아올 때마다 다시 묻되,
 **못 받으면 막아 둔 것을 풀지 않는다** — 한 번 실패했다고 풀면 업데이트하지 않은
 사람이 그대로 들어간다.
+
+---
+
+## 15. 푸시 — 서버에 기기를 올려야 온다
+
+서버는 iOS·Android 둘 다 FCM으로 보내고, **등록된 기기에만** 보낸다(API 명세서 2-1).
+앱이 등록을 놓치면 오류 화면도 없이 그 사람에게만 푸시가 안 온다.
+
+### 15-1. ⚠️ 진짜 SDK는 `main.dart`만 끼운다
+
+`pushMessagingProvider`의 기본값은 아무것도 안 하는 `NoopPushMessaging`이다 —
+셸을 띄우는 위젯 테스트가 플랫폼 채널 없이 돌아야 한다(분석과 같은 방식).
+**main의 override를 지우면 토큰이 없어 등록을 안 하고, 푸시가 조용히 멈춘다.**
+
+### 15-2. 등록은 앱 루트에서 로그인 상태를 듣는다
+
+`PushController.start()`를 `RuniverseApp`이 부른다. 셸에서 시작하면 가입한 사람은
+프로필 입력을 마칠 때까지 등록이 미뤄진다. 로그아웃은 서버가 기기를 끄므로 앱은
+나가 있는 등록의 결과만 버린다.
+
+복귀 때 다시 보내는 것은 **망 실패와 세션 만료뿐이다.** 토큰 갱신이 망 문제로
+실패해도 세션 만료로 오기 때문이다. 403 `APP_UPDATE_REQUIRED`·400은 다시 보내도
+같은 답이다 — 버전을 못 읽어 헤더가 빠지면 서버가 400으로 막는다.
+
+⚠️ **등록은 한 줄로 내보낸다.** 옛 토큰을 올리는 중에 새 토큰이 오면 서버가
+새 것을 옛 것으로 덮어쓸 수 있다.
+
+### 15-3. ⚠️ iOS는 APNs 토큰이 먼저다
+
+APNs 토큰이 없을 때 FCM 토큰을 달라고 하면 예외가 난다(Firebase iOS SDK 10.4+).
+설치 직후에는 늦게 올 수 있어 `null`로 두고, 처음 생기면 `onTokenRefresh`로,
+아니면 포그라운드 복귀 때 다시 묻는다.
+
+### 15-4. ⚠️ UIScene 앱은 `AppDelegate`가 알림 delegate를 건다
+
+이 앱은 UIScene이라 플러그인이 `didFinishLaunching` 뒤에 등록된다. 플러그인에
+맡기면 **꺼진 앱을 연 푸시를 놓친다.** `AppDelegate`가
+`FLTFirebaseMessagingPlugin.configureNotificationCenterDelegate()`를 먼저 부른다
+(firebase_messaging README).
+
+### 15-5. 앱이 켜져 있으면 배너를 띄우지 않는다
+
+FCM 기본값이 그렇다. 같은 알림이 앱 스트림(SSE)으로 이미 들어오므로 두 번 알리지
+않는다. ⚠️ iOS에서 `setForegroundNotificationPresentationOptions(alert: true)`를
+한 번 부르면 **지워도 기기에 남는다** — 끄려면 `false`로 직접 불러야 한다.
+
+### 15-6. `aps-environment`는 파일과 배포 앱이 다르다
+
+`Runner.entitlements`에는 `development`를 둔다(로컬 디버그). 배포 서명 뒤에는
+`production`이어야 TestFlight·스토어 앱에 온다 — 배포 워크플로의 산출물 검증이
+본다.
+
+### 15-7. ⚠️ 같은 누름이 두 통로로 온다
+
+꺼진 앱을 알림으로 열면 `onMessageOpenedApp`과 `getInitialMessage`가 **같은 메시지를
+둘 다** 준다(Android, firebase_messaging 16.7.0 — 에뮬레이터 실측). 패키지 주석은
+`getInitialMessage`만 준다고 적었지만 실제로는 둘 다 왔다. `messageId`로 거른다 —
+스플래시가 길어서 우연히 한 번만 열리는 것에 기대지 않는다.
+
+### 15-8. 갈 곳이 없으면 옮기지 않는다
+
+5-3의 홈 폴백과 다르다. 꺼진 앱은 어차피 홈에서 시작하고, 뒤에 있던 앱을 홈으로
+끌어내면 달리던 러닝 화면이 사라진다.
