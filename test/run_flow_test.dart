@@ -14,6 +14,9 @@ import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/notification/data/fake_app_stream.dart';
+import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
+import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_running_room_repository.dart';
 import 'package:runiverse/features/session/data/fake_step_repository.dart';
@@ -102,6 +105,13 @@ void main() {
           // ⚠️ 준비 화면이 들어올 때 상태를 다시 읽는다. 갈아 끼우지
           // 않으면 진짜 HTTP를 열려다 주소가 없어 죽는다.
           userStatusRepositoryProvider.overrideWithValue(status),
+          // ⚠️ 셸이 알림 배지를 그리며 앱 스트림을 만들고, 로그인돼 있으면
+          // 첫 페이지도 받는다. 갈아 끼우지 않으면 진짜 HTTP를 열려다 주소가
+          // 없어 죽는다.
+          appStreamProvider.overrideWithValue(FakeAppStream()),
+          notificationRepositoryProvider.overrideWithValue(
+            FakeNotificationRepository(),
+          ),
           // ⚠️ 갈아 끼우지 않으면 진짜 DB를 열려다 실패하고, 컨트롤러가 그
           // 실패를 삼켜 **좌표가 쌓이는지 아무도 확인하지 않는 상태**가 된다.
           trackRepositoryProvider.overrideWithValue(track),

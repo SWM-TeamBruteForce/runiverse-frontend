@@ -13,6 +13,9 @@ import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/presentation/invite_register_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
+import 'package:runiverse/features/notification/data/fake_app_stream.dart';
+import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
+import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
@@ -35,6 +38,12 @@ void main() {
           // 진짜를 두면 여기서도 dio가 서버 주소를 찾다 죽는다.
           userStatusRepositoryProvider.overrideWithValue(
             FakeUserStatusRepository(),
+          ),
+          // 셸이 알림 배지를 그리며 앱 스트림을 만들고, 로그인돼 있으면 첫
+          // 페이지도 받는다. 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
+          appStreamProvider.overrideWithValue(FakeAppStream()),
+          notificationRepositoryProvider.overrideWithValue(
+            FakeNotificationRepository(),
           ),
           if (auth != null)
             authControllerProvider.overrideWith(

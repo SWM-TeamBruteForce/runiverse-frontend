@@ -15,6 +15,9 @@ import 'package:runiverse/features/matching/domain/room_invitation.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/matching/presentation/match_room_page.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
+import 'package:runiverse/features/notification/data/fake_app_stream.dart';
+import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
+import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
@@ -109,6 +112,13 @@ void main() {
                 scheduledStartAt: startAt,
               ),
             ),
+          ),
+          // 홈으로 나가면 셸이 알림 배지를 그리며 앱 스트림을 만들고,
+          // 로그인돼 있으면 첫 페이지도 받는다. 진짜를 두면 dio가 서버 주소를
+          // 찾다 죽는다.
+          appStreamProvider.overrideWithValue(FakeAppStream()),
+          notificationRepositoryProvider.overrideWithValue(
+            FakeNotificationRepository(),
           ),
         ],
         child: const RuniverseApp(initialLocation: AppRoutes.matchRoom),
