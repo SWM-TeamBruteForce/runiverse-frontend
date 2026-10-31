@@ -86,6 +86,9 @@ dependencies:
   firebase_core: ^4.15.0
   firebase_analytics: ^12.6.0
   firebase_crashlytics: ^5.4.0
+  # 푸시를 받는다. 서버는 iOS에도 FCM 토큰으로 보내서, APNs 토큰을 FCM 토큰으로
+  # 바꾸는 일까지 이것이 한다.
+  firebase_messaging: ^16.7.0
   flutter_image_compress: ^2.5.1
   # 애플 로그인. **iOS 에서만 부른다** — 안드로이드·웹에서는 애플 웹 흐름을
   # 열어야 해서 `serviceIdentifier` 와 `redirectUri` 가 필요한데, 서버는 iOS
