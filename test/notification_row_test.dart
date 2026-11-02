@@ -88,13 +88,13 @@ void main() {
         find.text(AppStrings.notificationRunningInvited('철수')),
         findsOneWidget,
       );
-      expect(find.text('19:30 · 5km'), findsOneWidget);
+      expect(find.text('19:30 · 5 km'), findsOneWidget);
     });
 
     testWidgets('하프는 소수 자리가 남는다', (tester) async {
       await pump(tester, invite(InvitationStatus.pending, meters: 21098));
 
-      expect(find.text('19:30 · 21.098km'), findsOneWidget);
+      expect(find.text('19:30 · 21.098 km'), findsOneWidget);
     });
   });
 

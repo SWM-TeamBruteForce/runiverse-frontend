@@ -83,7 +83,7 @@ void main() {
 
     test('바로가기가 보내는 값은 5000 · 21098 · 42195다', () {
       expect(InviteLimits.shortcuts.map((s) => s.meters), [5000, 21098, 42195]);
-      expect(InviteLimits.shortcuts.map((s) => s.label), ['5km', '하프', '풀']);
+      expect(InviteLimits.shortcuts.map((s) => s.label), ['5 km', '하프', '풀']);
     });
 
     test('⚠️ 하프는 21,097.5를 올린 값이다', () {
@@ -122,12 +122,12 @@ void main() {
     test('⚠️ 어떤 미터값이든 적는다', () {
       // `matchDistanceText`는 km 정수만 받는다. 자유 거리가 그 길로 가면
       // 칸이 그대로 빈다.
-      expect(AppStrings.distanceKm(5000), '5km');
-      expect(AppStrings.distanceKm(7000), '7km');
-      expect(AppStrings.distanceKm(21098), '21.098km');
-      expect(AppStrings.distanceKm(42195), '42.195km');
-      expect(AppStrings.distanceKm(1000), '1km');
-      expect(AppStrings.distanceKm(1500), '1.5km');
+      expect(AppStrings.distanceKm(5000), '5 km');
+      expect(AppStrings.distanceKm(7000), '7 km');
+      expect(AppStrings.distanceKm(21098), '21.098 km');
+      expect(AppStrings.distanceKm(42195), '42.195 km');
+      expect(AppStrings.distanceKm(1000), '1 km');
+      expect(AppStrings.distanceKm(1500), '1.5 km');
     });
   });
 }

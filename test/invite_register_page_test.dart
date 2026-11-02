@@ -59,8 +59,8 @@ void main() {
       // 버킷 때문에 있던 값이다. 초대에는 그 이유가 없다.
       await pump(tester);
 
-      expect(find.text('3km'), findsNothing);
-      expect(find.text('10km'), findsNothing);
+      expect(find.text('3 km'), findsNothing);
+      expect(find.text('10 km'), findsNothing);
     });
 
     testWidgets('⚠️ 세 칸이 균등하게 깔린다', (tester) async {

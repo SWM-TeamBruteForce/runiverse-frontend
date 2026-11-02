@@ -77,7 +77,7 @@ void main() {
 
   /// 제목이 [title]인 그래프 안에서만 찾는다.
   ///
-  /// 바깥에도 같은 글자가 있다 — 1km 그래프와 구간 표가 `1km`를 적는다.
+  /// 바깥에도 같은 글자가 있다 — 1km 그래프와 구간 표가 `1 km`를 적는다.
   Finder inChart(String title, String text) => find.descendant(
     of: find.ancestor(
       of: find.text(title),
@@ -89,18 +89,18 @@ void main() {
   group('50m 그래프의 x축', () {
     testWidgets('⚠️ 딱 떨어지는 거리에 찍는다', (tester) async {
       // 2km면 50m 표본이 40개다. 개수로 솎으면 여덟씩 세어 첫 점
-      // `0.05km`부터 `0.45 · 0.85 · 1.25km`가 나왔다.
+      // `0.05 km`부터 `0.45 · 0.85 · 1.25 km`가 나왔다.
       await pump(tester, detail(meters: 2000));
 
       const title = AppStrings.runResultPaceDetailChart;
-      expect(inChart(title, '0.5km'), findsOneWidget);
-      expect(inChart(title, '1km'), findsOneWidget);
-      expect(inChart(title, '1.5km'), findsOneWidget);
-      expect(inChart(title, '2km'), findsOneWidget);
+      expect(inChart(title, '0.5 km'), findsOneWidget);
+      expect(inChart(title, '1 km'), findsOneWidget);
+      expect(inChart(title, '1.5 km'), findsOneWidget);
+      expect(inChart(title, '2 km'), findsOneWidget);
 
-      expect(inChart(title, '0.05km'), findsNothing);
-      expect(inChart(title, '0.45km'), findsNothing);
-      expect(inChart(title, '1.25km'), findsNothing);
+      expect(inChart(title, '0.05 km'), findsNothing);
+      expect(inChart(title, '0.45 km'), findsNothing);
+      expect(inChart(title, '1.25 km'), findsNothing);
     });
 
     testWidgets('⚠️ 길어지면 간격을 성기게 잡는다', (tester) async {
@@ -108,10 +108,10 @@ void main() {
       await pump(tester, detail(meters: 3000));
 
       const title = AppStrings.runResultPaceDetailChart;
-      expect(inChart(title, '1km'), findsOneWidget);
-      expect(inChart(title, '2km'), findsOneWidget);
-      expect(inChart(title, '3km'), findsOneWidget);
-      expect(inChart(title, '0.5km'), findsNothing);
+      expect(inChart(title, '1 km'), findsOneWidget);
+      expect(inChart(title, '2 km'), findsOneWidget);
+      expect(inChart(title, '3 km'), findsOneWidget);
+      expect(inChart(title, '0.5 km'), findsNothing);
     });
 
     testWidgets('⚠️ 짧은 러닝에서도 자리가 남는다', (tester) async {
@@ -120,10 +120,10 @@ void main() {
       await pump(tester, detail(meters: 220));
 
       const title = AppStrings.runResultPaceDetailChart;
-      expect(inChart(title, '0.05km'), findsOneWidget);
-      expect(inChart(title, '0.1km'), findsOneWidget);
-      expect(inChart(title, '0.15km'), findsOneWidget);
-      expect(inChart(title, '0.22km'), findsOneWidget);
+      expect(inChart(title, '0.05 km'), findsOneWidget);
+      expect(inChart(title, '0.1 km'), findsOneWidget);
+      expect(inChart(title, '0.15 km'), findsOneWidget);
+      expect(inChart(title, '0.22 km'), findsOneWidget);
     });
 
     testWidgets('마지막 점은 딱 떨어지지 않아도 찍는다', (tester) async {
@@ -131,7 +131,7 @@ void main() {
       await pump(tester, detail(meters: 2150));
 
       expect(
-        inChart(AppStrings.runResultPaceDetailChart, '2.15km'),
+        inChart(AppStrings.runResultPaceDetailChart, '2.15 km'),
         findsOneWidget,
       );
     });
@@ -141,8 +141,8 @@ void main() {
       await pump(tester, detail(meters: 2000));
 
       const title = AppStrings.runResultCadenceDetailChart;
-      expect(inChart(title, '0.5km'), findsOneWidget);
-      expect(inChart(title, '0.05km'), findsNothing);
+      expect(inChart(title, '0.5 km'), findsOneWidget);
+      expect(inChart(title, '0.05 km'), findsNothing);
     });
   });
 
