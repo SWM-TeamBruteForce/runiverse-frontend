@@ -77,15 +77,20 @@ class BackgroundPicker extends ConsumerWidget {
               fit: StackFit.expand,
               children: [
                 ColoredBox(color: colors.bgElevated),
-                // ⚠️ **`contain`이다 — 커버와 같아야 한다.** 여기서 베어내면
+                // ⚠️ **`cover`다 — 커버와 같아야 한다.** 다르면
                 // 고르는 자리와 보이는 자리가 다른 그림을 준다(`ProfileCover`).
                 if (picked != null)
                   // 막 고른 사진. 아직 올라가지 않았으니 주소가 없다.
-                  Image.file(File(picked.image.path), fit: BoxFit.contain)
+                  _DraggableCover(
+                    picked: picked,
+                    // 도는 동안 옮기면 올라가는 것과 화면이 갈린다.
+                    enabled: !(ready?.busy ?? false),
+                    onPending: onPending,
+                  )
                 else if (url != null)
                   Image.network(
                     url,
-                    fit: BoxFit.contain,
+                    fit: BoxFit.cover,
                     // ⚠️ 여기서는 다시 받지 않는다. 커버가 이미 그 일을 하고,
                     // 두 군데서 부르면 "한 번만"이 두 번이 된다.
                     errorBuilder: (context, error, stack) =>
@@ -155,5 +160,128 @@ class BackgroundPicker extends ConsumerWidget {
       case ProfilePhotoAction.reset:
         onPending(const PhotoRemoved());
     }
+  }
+}
+
+/// 막 고른 사진. **위아래로 끌어 보일 부분을 고른다.**
+///
+/// 저장하면 이 위치대로 잘려 올라간다(`BackgroundImageController.apply`).
+/// 이미 올라간 사진은 원본이 없어 옮길 수 없다 — 다시 골라야 한다.
+///
+/// ## 손가락을 따라 움직인다
+///
+/// 끈 거리를 **넘친 높이**로 나눠 위치로 바꾼다. 칸 높이로 나누면 긴 사진일수록
+/// 사진이 손가락보다 빨리 움직인다. 넘친 높이를 알려면 사진 크기가 필요해서,
+/// 사진을 한 번 읽어 크기만 받는다.
+///
+/// 칸보다 납작한 사진은 위아래로 넘치지 않아 끌 것이 없다.
+class _DraggableCover extends StatefulWidget {
+  const _DraggableCover({
+    required this.picked,
+    required this.enabled,
+    required this.onPending,
+  });
+
+  final PhotoPicked picked;
+  final bool enabled;
+  final ValueChanged<PendingPhoto> onPending;
+
+  @override
+  State<_DraggableCover> createState() => _DraggableCoverState();
+}
+
+class _DraggableCoverState extends State<_DraggableCover> {
+  ImageStream? _stream;
+  late final _listener = ImageStreamListener(_onImage);
+
+  /// 사진의 픽셀 크기. 읽기 전에는 `null`이고, 그동안은 끌 수 없다.
+  Size? _imageSize;
+
+  /// 끄는 동안 마지막으로 보낸 위치. 끌지 않을 때는 `null`이다.
+  double? _dragging;
+
+  ImageProvider get _provider => FileImage(File(widget.picked.image.path));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(_DraggableCover old) {
+    super.didUpdateWidget(old);
+    if (old.picked.image.path != widget.picked.image.path) {
+      _imageSize = null;
+      _resolve();
+    }
+  }
+
+  void _resolve() {
+    final stream = _provider.resolve(createLocalImageConfiguration(context));
+    if (stream.key == _stream?.key) return;
+    _stream?.removeListener(_listener);
+    _stream = stream..addListener(_listener);
+  }
+
+  void _onImage(ImageInfo info, bool synchronousCall) {
+    final size = Size(
+      info.image.width.toDouble(),
+      info.image.height.toDouble(),
+    );
+    // ⚠️ 받은 쪽이 놓아야 한다. 크기만 읽고 바로 놓는다.
+    info.dispose();
+    if (!mounted) return;
+    setState(() => _imageSize = size);
+  }
+
+  @override
+  void dispose() {
+    _stream?.removeListener(_listener);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final alignY = widget.picked.alignY;
+    final image = Image.file(
+      File(widget.picked.image.path),
+      fit: BoxFit.cover,
+      alignment: Alignment(0, alignY),
+    );
+
+    return LayoutBuilder(
+      builder: (context, box) {
+        final overflow = _overflow(box.biggest);
+        if (!widget.enabled || overflow <= 0) return image;
+
+        return GestureDetector(
+          onVerticalDragUpdate: (details) {
+            // ⚠️ **방금 보낸 값에서 이어 간다.** 한 프레임에 끌기가 여러 번
+            // 오면 화면이 아직 다시 그려지지 않아 [alignY]가 옛 값이다 —
+            // 그 값에서 셈하면 끈 거리가 사라진다.
+            final from = _dragging ?? widget.picked.alignY;
+            // 아래로 끌면 사진이 내려가 **윗부분**이 보인다.
+            final next = (from - details.delta.dy / (overflow / 2)).clamp(
+              -1.0,
+              1.0,
+            );
+            if (next == from) return;
+            _dragging = next;
+            widget.onPending(PhotoPicked(widget.picked.image, alignY: next));
+          },
+          onVerticalDragEnd: (_) => _dragging = null,
+          onVerticalDragCancel: () => _dragging = null,
+          child: image,
+        );
+      },
+    );
+  }
+
+  /// 칸 폭에 맞췄을 때 **위아래로 넘치는 높이**. 모르거나 넘치지 않으면 0이다.
+  double _overflow(Size box) {
+    final size = _imageSize;
+    if (size == null || size.width == 0) return 0;
+    return box.width * size.height / size.width - box.height;
   }
 }

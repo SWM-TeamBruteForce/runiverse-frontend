@@ -21,9 +21,15 @@ sealed class PendingPhoto {
 
 /// 앨범에서 새로 골랐다. 저장하면 [image]가 올라간다.
 final class PhotoPicked extends PendingPhoto {
-  const PhotoPicked(this.image);
+  const PhotoPicked(this.image, {this.alignY = 0});
 
   final PickedImage image;
+
+  /// 배경에서 **보일 부분의 세로 위치**. -1이 맨 위, 0이 가운데, 1이 맨 아래다.
+  ///
+  /// 사용자가 미리보기를 끌어 정하고, 저장할 때 이 위치대로 잘라 올린다
+  /// (`BackgroundImageController.apply`). 아바타는 쓰지 않는다.
+  final double alignY;
 }
 
 /// 지우고 기본 이미지로 돌아가기로 했다.
