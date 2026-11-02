@@ -389,7 +389,7 @@ class _RouteCard extends StatelessWidget {
                     vertical: AppSpacing.space1,
                   ),
                   child: Text(
-                    '${detail.distanceKm.toStringAsFixed(2)}'
+                    '${detail.distanceKm.toStringAsFixed(2)} '
                     '${AppStrings.runSummaryUnitKm} · '
                     '${_elapsedText(detail.duration)}',
                     style: AppTypographyV2.body15.copyWith(
@@ -430,7 +430,7 @@ class _MetricGrid extends StatelessWidget {
               child: _Metric(
                 label: AppStrings.runResultDistance,
                 value:
-                    '${detail.distanceKm.toStringAsFixed(2)}'
+                    '${detail.distanceKm.toStringAsFixed(2)} '
                     '${AppStrings.runSummaryUnitKm}',
               ),
             ),
