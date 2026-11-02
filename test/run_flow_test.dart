@@ -625,7 +625,25 @@ void main() {
       duration: const Duration(minutes: 4, seconds: 55),
       averagePace: const Duration(minutes: 5, seconds: 31),
       rawSplits: const [],
+      players: const [
+        RunPlayerResult(
+          userId: 'u-1',
+          nickname: '나',
+          isMe: true,
+          distanceMeters: 890,
+          duration: Duration(minutes: 4, seconds: 55),
+        ),
+      ],
     );
+
+    /// 앱이 잰 거리. 서버 값을 못 쓸 때 요약이 보이는 숫자다.
+    String measuredKm(WidgetTester tester) {
+      final container = ProviderScope.containerOf(
+        tester.element(find.text(AppStrings.runSummaryTitle)),
+      );
+      final state = container.read(runSessionControllerProvider) as RunFinished;
+      return AppStrings.kmFloor(state.metrics.distanceMeters);
+    }
 
     testWidgets('⚠️ 종료가 확인되면 서버가 확정한 값을 보인다', (tester) async {
       // 앱 값은 튄 좌표를 거르지 않고 종료 버튼을 누르는 시간까지 센다.
@@ -700,25 +718,78 @@ void main() {
       // 비워 두면 방금 달린 것을 볼 길이 없다.
       await finish(tester);
 
-      final container = ProviderScope.containerOf(
-        tester.element(find.text(AppStrings.runSummaryTitle)),
-      );
-      final state = container.read(runSessionControllerProvider) as RunFinished;
-      expect(
-        find.text(AppStrings.kmFloor(state.metrics.distanceMeters)),
-        findsOneWidget,
-      );
+      expect(find.text(measuredKm(tester)), findsOneWidget);
       expect(find.text(AppStrings.runUnavailable), findsNothing);
+    });
+
+    testWidgets('⚠️ 내 기록이 안 남았으면 앱이 잰 값을 보인다', (tester) async {
+      // 너무 짧게 달리면 조회는 성공해도 내 수치가 비고, 거리·시간이 0으로
+      // 채워진다. 그대로 보이면 달렸는데 `0.00`이다.
+      records = _SummaryRecords(
+        detail: RunDetail(
+          runningRoomId: 1,
+          distanceMeters: 0,
+          duration: Duration.zero,
+          rawSplits: const [],
+          players: const [
+            RunPlayerResult(userId: 'u-1', nickname: '나', isMe: true),
+          ],
+        ),
+      );
+      await finish(tester);
+
+      // 시계를 고정해 둬서 시간은 앱 값도 `00:00`이다. 거리로 가른다.
+      expect(measuredKm(tester), isNot('0.00'));
+      expect(find.text(measuredKm(tester)), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 다시 받다 실패해도 받아 둔 서버 값을 둔다', (tester) async {
+      // 상세를 오가면 결과를 다시 받는다. 그게 실패했다고 앱 값으로 바꾸면
+      // 뒤로 가기만 했는데 숫자가 바뀐다.
+      records = _SummaryRecords(detail: confirmed, failAfterFirst: true);
+      await finish(tester);
+      expect(find.text('0.89'), findsOneWidget);
+
+      await tester.tap(find.text(AppStrings.runSummaryDetail));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip(AppStrings.runResultBack));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runSummaryTitle), findsOneWidget);
+      expect(find.text('0.89'), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 상세로 갈 때 결과를 새로 받는다', (tester) async {
+      // 요약이 받아 둔 결과에는 나보다 늦게 끝나는 파티원이 아직 "달리는
+      // 중"이다. 그대로 넘기면 상세에서 그 사람과 비교가 안 보인다.
+      records = _SummaryRecords(detail: confirmed);
+      await finish(tester);
+      expect(records.calls, 1);
+
+      await tester.tap(find.text(AppStrings.runSummaryDetail));
+      await tester.pumpAndSettle();
+
+      expect(records.calls, 2);
     });
   });
 }
 
 /// 요약이 부르는 결과 조회. [detail]이 없으면 실패한다.
+///
+/// [failAfterFirst]면 첫 조회만 성공한다 — 다시 받다 끊긴 경우다.
 class _SummaryRecords implements RunRecordRepository {
-  _SummaryRecords({this.detail, this.delay = Duration.zero});
+  _SummaryRecords({
+    this.detail,
+    this.delay = Duration.zero,
+    this.failAfterFirst = false,
+  });
 
   final RunDetail? detail;
   final Duration delay;
+  final bool failAfterFirst;
+
+  /// [byRoom]을 부른 횟수.
+  var calls = 0;
 
   @override
   Future<List<RunRecord>> byDateRange({
@@ -728,7 +799,11 @@ class _SummaryRecords implements RunRecordRepository {
 
   @override
   Future<RunDetail> byRoom(int runningRoomId) async {
+    calls++;
     if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (failAfterFirst && calls > 1) {
+      throw const RunRecordException(RunRecordFailure.network);
+    }
     return detail ?? (throw const RunRecordException(RunRecordFailure.network));
   }
 }
