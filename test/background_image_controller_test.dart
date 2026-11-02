@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/profile/data/fake_profile_image_repository.dart';
+import 'package:runiverse/features/profile/domain/cover_crop.dart';
+import 'package:runiverse/features/profile/domain/image_cropper.dart';
 import 'package:runiverse/features/profile/domain/pending_photo.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
@@ -20,12 +22,15 @@ import 'package:runiverse/features/profile/presentation/profile_image_state.dart
 /// 주면 끝없이 두드린다.
 void main() {
   late FakeProfileImageRepository repository;
+  late _FakeCropper cropper;
 
   ProviderContainer makeContainer() {
     repository = FakeProfileImageRepository(latency: Duration.zero);
+    cropper = _FakeCropper();
     return ProviderContainer.test(
       overrides: [
         backgroundImageRepositoryProvider.overrideWithValue(repository),
+        imageCropperProvider.overrideWithValue(cropper),
       ],
     );
   }
@@ -102,6 +107,43 @@ void main() {
     expect(repository.url, isNot('https://cdn.test/old.jpg'));
   });
 
+  group('⚠️ 보이던 부분만 올린다', () {
+    // 서버에는 위치를 담을 자리가 없다. 미리보기에서 옮긴 위치는 잘라 낸
+    // 그림으로만 남는다.
+
+    test('고른 위치대로 커버 비율로 잘라 올린다', () async {
+      final container = makeContainer();
+      await controllerOf(container).load();
+
+      await controllerOf(container).apply(PhotoPicked(image(), alignY: -0.5));
+
+      expect(cropper.alignY, -0.5);
+      expect(cropper.aspectRatio, CoverCrop.aspectRatio);
+      expect(repository.uploaded?.path, _FakeCropper.croppedPath);
+    });
+
+    test('⚠️ 자르지 못하면 올리지 않고 원래 주소를 둔다', () async {
+      // 자르지 않은 채로 올리면 보던 것과 다른 그림이 올라간다.
+      final container = makeContainer();
+      repository.url = 'https://cdn.test/cover.jpg';
+      await controllerOf(container).load();
+      cropper.failWith = ProfileImageFailure.unsupportedFormat;
+
+      final failure = await controllerOf(container).apply(PhotoPicked(image()));
+
+      expect(failure, ProfileImageFailure.unsupportedFormat);
+      expect(repository.uploaded, isNull);
+      expect(
+        stateOf(container),
+        isA<ProfileImageReady>().having(
+          (s) => s.url,
+          'url',
+          'https://cdn.test/cover.jpg',
+        ),
+      );
+    });
+  });
+
   test('기본으로 되돌리면 주소가 비워진다', () async {
     final container = makeContainer();
     repository.url = 'https://cdn.test/cover.jpg';
@@ -126,6 +168,7 @@ void main() {
         backgroundImageRepositoryProvider.overrideWithValue(
           _UploadFailsRepository('https://cdn.test/cover.jpg'),
         ),
+        imageCropperProvider.overrideWithValue(_FakeCropper()),
       ],
     );
     await controllerOf(container).load();
@@ -217,6 +260,32 @@ void main() {
       expect(repository.fetchCalls, 1);
     });
   });
+}
+
+/// 자르지 않고 **받은 값만 기록하는** 가짜.
+///
+/// 진짜는 JPEG로 바꾸는 데 플랫폼 플러그인을 써서 테스트 환경에 없다.
+class _FakeCropper implements ImageCropper {
+  static const croppedPath = '/tmp/cropped.jpg';
+
+  double? alignY;
+  double? aspectRatio;
+
+  /// 있으면 자르지 못한 것처럼 던진다.
+  ProfileImageFailure? failWith;
+
+  @override
+  Future<PickedImage> crop(
+    PickedImage image, {
+    required double aspectRatio,
+    required double alignY,
+  }) async {
+    this.alignY = alignY;
+    this.aspectRatio = aspectRatio;
+    final failure = failWith;
+    if (failure != null) throw ProfileImageException(failure);
+    return PickedImage.validated(path: croppedPath, sizeBytes: 512);
+  }
 }
 
 /// 조회는 되고 **올리기만 실패하는** 저장소.
