@@ -695,7 +695,7 @@ abstract final class AppStrings {
   ///
   /// ⚠️ **선택지를 서버가 정하므로** 앱이 km로 이름 붙일 수 없는 값이 올 수
   /// 있다. 지어낸 `1km`보다 낯선 `1500m`가 낫다.
-  static String matchDistanceMeters(int meters) => '${meters}m';
+  static String matchDistanceMeters(int meters) => '$meters m';
 
   /// `19:00` — 슬롯 표기. 날짜는 오늘뿐이라 시각만 적는다.
   ///
@@ -1268,7 +1268,7 @@ abstract final class AppStrings {
   /// ⚠️ **"제한 없이 끝낼 수 있다"고 말하지 않는다.** 판정은 서버 몫이라
   /// 앱이 약속할 수 없다(가이드 3.4). 화면 기준이라고 밝히고 거리만 알린다.
   static String runFinishRemaining(double km) =>
-      '화면 기준으로 ${km.toStringAsFixed(2)} km 더 달리면 80%를 채워요';
+      '화면 기준으로 ${km.toStringAsFixed(2)}km 더 달리면 80%를 채워요';
 
   static const runPaceLabel = '페이스';
   static const runTimeLabel = '시간';
@@ -1527,7 +1527,7 @@ abstract final class AppStrings {
 
   /// `42m`
   static String recordElevationText(int? meters) =>
-      meters == null ? recordUnknown : '${meters}m';
+      meters == null ? recordUnknown : '$meters m';
 
   /// `아침 07:10` · `저녁 20:05`
   ///

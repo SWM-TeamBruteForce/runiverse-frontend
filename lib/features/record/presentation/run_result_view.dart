@@ -894,7 +894,7 @@ class _SplitRow extends StatelessWidget {
             ),
           ),
           Text(
-            '$burned${AppStrings.runResultUnitKcal}',
+            '$burned ${AppStrings.runResultUnitKcal}',
             style: AppTypographyV2.body15.copyWith(color: colors.textSecondary),
           ),
         ],
