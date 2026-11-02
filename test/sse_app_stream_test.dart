@@ -9,8 +9,7 @@ import 'package:runiverse/features/notification/domain/app_notification.dart';
 ///
 /// - **404가 없다.** 활성 신청과 무관하게 열린다. 매칭 스트림의 404(수락 전
 ///   연결)와 구분해야 한다
-/// - **버전 헤더가 없으면 거절한다.** 다른 경로의 공통 규칙("없으면 통과")과
-///   어긋나는 자리다
+/// - **버전 헤더가 없으면 거절한다.** 다른 경로도 같고, 토큰 검사보다 먼저다
 void main() {
   group('이벤트를 읽는다', () {
     const invited =

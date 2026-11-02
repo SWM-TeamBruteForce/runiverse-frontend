@@ -190,7 +190,7 @@ class SseMatchStream implements MatchStream {
       // 프록시가 중간에 모아서 보내면 이벤트가 늦게 도착한다.
       ..set(HttpHeaders.cacheControlHeader, 'no-cache');
 
-    // 앱 버전 헤더. 못 읽었으면 비어 있고, 서버는 없으면 그냥 통과시킨다.
+    // 앱 버전 헤더. 못 읽었으면 비어 있고, 서버는 없으면 403으로 거절한다.
     AppVersionHeaders.current.forEach(request.headers.set);
 
     final response = await request.close();
