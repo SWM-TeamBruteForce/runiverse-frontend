@@ -140,7 +140,7 @@ class RunSummaryPage extends ConsumerWidget {
                     //
                     // ⚠️ **확정 중에도 잠근다.** 서버가 `RUNNING_FINISH`를
                     // 처리하기 전에 부르면 200에 빈 기록이 와서
-                    // `0.00km · 구간 0개`가 된다([RunningConnectionState.settling]).
+                    // `0.00 km · 구간 0개`가 된다([RunningConnectionState.settling]).
                     onPressed: room == null || settling
                         ? null
                         : () =>

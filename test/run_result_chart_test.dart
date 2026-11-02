@@ -10,7 +10,7 @@ import 'package:runiverse/features/record/presentation/split_line_chart.dart';
 /// 러닝 결과의 그래프 — **읽을 수 있는 자로 그리는가.**
 ///
 /// 여기서 보는 것은 선의 모양이 아니라 **축에 적힌 말**이다. 50m 표본은 점이
-/// 수십 개라 x축을 개수로 솎으면 `0.65km` 같은 어중간한 거리가 나온다.
+/// 수십 개라 x축을 개수로 솎으면 `0.65 km` 같은 어중간한 거리가 나온다.
 void main() {
   /// 10m 구간 [count]개. [cadence]를 주면 그 값으로 채운다.
   ///

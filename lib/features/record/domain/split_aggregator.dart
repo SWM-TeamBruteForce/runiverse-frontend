@@ -59,7 +59,7 @@ class SplitBucket {
 
   /// 이 구간이 온전한 [bucketMeters]를 채웠는가.
   ///
-  /// 마지막 구간만 짧을 수 있다. 화면이 `5km`가 아니라 `5.4km`로 적어야 해서
+  /// 마지막 구간만 짧을 수 있다. 화면이 `5 km`가 아니라 `5.40 km`로 적어야 해서
   /// 들고 있는다.
   bool isPartialOf(int bucketMeters) => distanceMeters < bucketMeters;
 }
