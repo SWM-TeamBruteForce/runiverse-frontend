@@ -20,6 +20,7 @@ void main() {
     double? remainingKm,
     bool? showPenaltyNotice,
     bool paused = false,
+    bool finishing = false,
     VoidCallback? onFinish,
     VoidCallback? onPause,
   }) async {
@@ -34,6 +35,7 @@ void main() {
             onFinish: onFinish ?? () {},
             showPenaltyNotice: showPenaltyNotice ?? remainingKm != null,
             penaltyRemainingKm: remainingKm,
+            finishing: finishing,
           ),
         ),
       ),
@@ -151,6 +153,53 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(finished, 0, reason: '이어서 차면 두 번의 짧은 터치로 끝난다');
+    });
+  });
+
+  group('⚠️ 종료 답을 기다리는 동안', () {
+    // 게이지가 다 찬 뒤 서버 답까지 몇 초가 걸린다. 아무 표시가 없으면
+    // 손을 뗀 순간 게이지가 줄어 안 눌린 것처럼 보였다.
+    testWidgets('종료 버튼 자리에 로딩 원이 돈다', (tester) async {
+      await pump(tester, finishing: true);
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(finish(), findsNothing, reason: '또 누를 버튼이 없다');
+    });
+
+    testWidgets('⚠️ 거절돼 버튼이 돌아오면 다시 끝낼 수 있다', (tester) async {
+      // 기다리는 동안 버튼이 로딩 원으로 바뀌어 손을 떼는 것을 못 받는다.
+      // 게이지가 찬 채로 남으면 다시 눌러도 이미 찬 것이라 끝나지 않았다.
+      var finished = 0;
+      Future<void> holdUntilFinished() async {
+        final before = finished;
+        final gesture = await tester.startGesture(tester.getCenter(finish()));
+        for (var i = 0; i < 30 && finished == before; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        // 다 찼다. 화면이 기다리기 시작한다 — 손가락은 아직 대고 있다.
+        await pump(tester, finishing: true, onFinish: () => finished++);
+        await gesture.up();
+        await tester.pump();
+      }
+
+      await pump(tester, onFinish: () => finished++);
+      await holdUntilFinished();
+      // 서버가 거절했다. 버튼이 돌아온다.
+      await pump(tester, onFinish: () => finished++);
+      await holdUntilFinished();
+
+      expect(finished, 2);
+    });
+
+    testWidgets('⚠️ 일시정지도 잠근다', (tester) async {
+      // 종료를 보낸 뒤에 멈춤·재개가 섞여 나가지 않게 한다.
+      var toggled = 0;
+      await pump(tester, finishing: true, onPause: () => toggled++);
+
+      await tester.tap(find.bySemanticsLabel(AppStrings.runPauseCta));
+      await tester.pump();
+
+      expect(toggled, 0);
     });
   });
 

@@ -1326,6 +1326,9 @@ abstract final class AppStrings {
   /// 종료는 **길게 눌러야** 한다. 실수로 끝내면 되돌릴 방법이 없다.
   static const runFinishHold = '길게 눌러 종료';
 
+  /// 서버가 종료를 거절했다. 러닝은 이어진다.
+  static const runFinishRejected = '종료하지 못했어요. 다시 길게 눌러 주세요';
+
   /// 지도 페이지에 키가 없을 때. 나머지 기능은 그대로 돈다.
   static const runMapUnavailable = '지도를 불러올 수 없어요';
 

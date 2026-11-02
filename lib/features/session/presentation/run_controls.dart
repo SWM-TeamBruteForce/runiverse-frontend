@@ -35,6 +35,7 @@ class RunControls extends StatefulWidget {
     required this.onFinish,
     this.showPenaltyNotice = false,
     this.penaltyRemainingKm,
+    this.finishing = false,
     super.key,
   });
 
@@ -43,6 +44,13 @@ class RunControls extends StatefulWidget {
 
   /// 누를 수 있는가. 준비 중이거나 이미 끝났으면 `false`다.
   final bool enabled;
+
+  /// 종료를 보내고 서버 답을 기다리는 중인가.
+  ///
+  /// ⚠️ **답이 올 때까지 몇 초가 걸린다**(신호가 나쁘면 15초). 그동안 아무
+  /// 표시가 없으면 손을 뗀 순간 게이지가 줄어 **안 눌린 것처럼** 보인다. 종료
+  /// 버튼 자리에 로딩 원만 두고(로그인 버튼과 같다) 일시정지를 잠근다.
+  final bool finishing;
 
   final VoidCallback onPauseToggle;
 
@@ -75,6 +83,15 @@ class _RunControlsState extends State<RunControls>
         });
 
   @override
+  void didUpdateWidget(RunControls oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // ⚠️ **기다리기 시작하면 게이지를 비운다.** 그동안 버튼이 로딩 원으로
+    // 바뀌어 손을 떼는 것을 못 받는다 — 찬 채로 남으면 거절돼 버튼이 돌아온
+    // 뒤 다시 눌러도 이미 찬 것이라 끝나지 않는다.
+    if (widget.finishing && !oldWidget.finishing) _hold.value = 0;
+  }
+
+  @override
   void dispose() {
     _hold.dispose();
     super.dispose();
@@ -90,6 +107,9 @@ class _RunControlsState extends State<RunControls>
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.space5),
       child: Column(
+        // ⚠️ 화면 아래 고정 자리(`bottomNavigationBar`)에 놓인다. 기본값(max)이면
+        // 화면 높이만큼 늘어나 위 기록을 짓누른다.
+        mainAxisSize: MainAxisSize.min,
         children: [
           // 누르고 있는 동안에만 뜬다.
           AnimatedBuilder(
@@ -135,7 +155,9 @@ class _RunControlsState extends State<RunControls>
               Expanded(
                 child: _PauseButton(
                   paused: widget.paused,
-                  onTap: widget.enabled ? widget.onPauseToggle : null,
+                  onTap: widget.enabled && !widget.finishing
+                      ? widget.onPauseToggle
+                      : null,
                 ),
               ),
             ],
@@ -157,6 +179,23 @@ class _FinishButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
     final enabled = controls.enabled;
+
+    // 기다리는 동안은 버튼 자리에 로딩 원만 둔다 — 로그인 버튼과 같다. 높이는
+    // 그대로라 위 기록이 밀리지 않는다.
+    if (controls.finishing) {
+      return SizedBox(
+        height: AppSizes.touchRunning,
+        child: Center(
+          child: SizedBox.square(
+            dimension: AppSpacing.space6,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: colors.primary,
+            ),
+          ),
+        ),
+      );
+    }
 
     return Semantics(
       button: true,
