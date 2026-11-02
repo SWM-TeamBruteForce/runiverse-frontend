@@ -795,7 +795,7 @@ class _SplitHead extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 64,
+            width: 80,
             child: Text(AppStrings.runResultSplitColumn, style: style),
           ),
           Expanded(
@@ -850,7 +850,7 @@ class _SplitRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 64,
+            width: 80,
             child: Text(
               split.isPartialOf(SplitAggregator.tableMeters)
                   ? AppStrings.runResultPartialLabel(totalKm)
