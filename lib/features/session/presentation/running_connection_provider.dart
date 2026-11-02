@@ -498,12 +498,21 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// 값이 오지만 그것은 첫 통지까지 최대 10초가 빈다.
   /// ⚠️ **복구가 아니다.** 매칭 방은 신청할 때 만들어졌고 이 호출이 그 방의
   /// **첫 진입**이라, 서버가 받은 좌표가 없다 — 그래서 [recovered]가 거짓이다.
-  Future<void> openMatched(int runningRoomId, {int? targetDistanceMeters}) =>
-      reopen(
-        runningRoomId,
-        targetDistanceMeters: targetDistanceMeters,
-        recovered: false,
-      );
+  ///
+  /// [playerCount]는 출발 대기실의 확정 명단 수다. 이 길에서만 알 수 있다
+  /// ([RunningRoom.playerCount]).
+  Future<void> openMatched(
+    int runningRoomId, {
+    int? targetDistanceMeters,
+    RoomType? type,
+    int? playerCount,
+  }) => reopen(
+    runningRoomId,
+    targetDistanceMeters: targetDistanceMeters,
+    type: type,
+    playerCount: playerCount,
+    recovered: false,
+  );
 
   /// 이미 서버에 열려 있는 방에 **다시 붙는다.**
   ///
@@ -512,6 +521,9 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   ///
   /// [matched]가 거짓이면 솔로 방이다. 화면이 이 값으로 파티원 장을 띄울지
   /// 정하므로, 솔로에 참을 넘기면 빈 파티원 장이 생긴다.
+  ///
+  /// [type]·[playerCount]는 종료 때 매칭 제한 안내를 띄울지 가른다
+  /// ([RunningRoom.mayPenalize]). 모르면 비워 둔다 — 그러면 안내가 뜬다.
   ///
   /// ## ⚠️ [recovered] 는 기본값이 참이다
   ///
@@ -526,6 +538,8 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     int runningRoomId, {
     int? targetDistanceMeters,
     bool matched = true,
+    RoomType? type,
+    int? playerCount,
     bool recovered = true,
   }) async {
     if (state.opening || state.isReady) return;
@@ -536,6 +550,8 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       runningRoomId,
       targetDistanceMeters: targetDistanceMeters,
       isMatched: matched,
+      type: type,
+      playerCount: playerCount,
     );
     // 솔로와 같은 이유로 번호를 남긴다. 러닝 중 앱이 죽어도 이 번호로
     // 다시 붙어 끝낼 수 있다.

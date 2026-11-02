@@ -33,7 +33,7 @@ class RunControls extends StatefulWidget {
     required this.enabled,
     required this.onPauseToggle,
     required this.onFinish,
-    this.hasTarget = false,
+    this.showPenaltyNotice = false,
     this.penaltyRemainingKm,
     super.key,
   });
@@ -49,13 +49,14 @@ class RunControls extends StatefulWidget {
   /// 길게 누르기가 끝까지 찼을 때.
   final VoidCallback onFinish;
 
-  /// 채워야 할 목표가 있는가. 제재 안내를 띄울지 가른다.
+  /// 제재 안내를 띄울지. 목표가 있고 서버가 제재할 수 있는 방일 때 참이다 —
+  /// 초대 방과 1인 확정 방은 서버가 제재하지 않는다(`RunningRoom.mayPenalize`).
   ///
   /// ⚠️ **[penaltyRemainingKm] 이 `null` 인 것과 다르다.** 화면 거리가
   /// 80% 를 넘으면 남은 거리는 없지만 **안내는 남아 있어야 한다** — 판정은
   /// 서버 확정 거리로 하고, 화면에서 넘겼어도 모자랄 수 있다(가이드 3.4).
   /// 안내를 걷어 버리면 그것이 곧 "제재 없다"는 약속이 된다.
-  final bool hasTarget;
+  final bool showPenaltyNotice;
 
   /// 목표의 80%까지 **화면 기준으로** 남은 거리. 이미 넘겼거나 목표가 없으면
   /// `null` 이고, 그때는 거리 줄만 빠진다.
@@ -94,7 +95,7 @@ class _RunControlsState extends State<RunControls>
           AnimatedBuilder(
             animation: _hold,
             builder: (context, _) {
-              if (!_holding || !widget.hasTarget) {
+              if (!_holding || !widget.showPenaltyNotice) {
                 return const SizedBox.shrink();
               }
               return Padding(

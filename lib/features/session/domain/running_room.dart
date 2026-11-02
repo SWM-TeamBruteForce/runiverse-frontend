@@ -1,3 +1,5 @@
+import 'package:runiverse/features/session/domain/user_status.dart';
+
 /// 서버가 만들어 준 러닝 방. `POST /api/v1/running-rooms/solo` (명세 16번).
 ///
 /// ## 혼자 달려도 방이 있다
@@ -13,6 +15,8 @@ class RunningRoom {
     this.id, {
     this.targetDistanceMeters,
     this.isMatched = false,
+    this.type,
+    this.playerCount,
   });
 
   /// 서버가 발급한 Long.
@@ -30,6 +34,29 @@ class RunningRoom {
   /// 상대가 취소했거나 재시작 뒤 첫 통지가 오기 전에 화면이 통째로 사라져
   /// 내 기록까지 안 보인다.
   final bool isMatched;
+
+  /// 매칭 방인가 초대 방인가. 솔로이거나 모르면 `null`이다.
+  ///
+  /// ⚠️ [isMatched]로는 가를 수 없다 — 초대 방도 파티원 화면이 있어 참이다.
+  final RoomType? type;
+
+  /// 출발한 인원. **나를 포함한다.** 모르면 `null`이다.
+  ///
+  /// 출발 대기실이 확정 명단을 들고 있어 거기서만 채운다. 확정 뒤에는 취소할
+  /// 수 없어 출발 인원이 끝까지 간다. 앱을 다시 켜고 붙는 길에는 인원을 줄
+  /// 곳이 없다 — 상태 응답에 없고, 러닝 중 스냅샷은 완주·이탈한 사람을 빼서
+  /// 출발 인원이 아니다.
+  final int? playerCount;
+
+  /// 일찍 끝내면 서버가 매칭 제한을 걸 수 있는 방인가.
+  ///
+  /// 서버는 **매칭 방이면서 2명 이상**일 때만 제한한다(`RunningFinisher`).
+  /// 초대 방과 1인 확정 방은 목표의 80%를 못 채워도 제한이 없다.
+  ///
+  /// ⚠️ **모르면 참이다.** 종류나 인원을 모를 때 거짓으로 두면, 제한받는
+  /// 방에서 안내가 사라진다 — 그것이 "제한 없다"는 약속이 된다.
+  bool get mayPenalize =>
+      isMatched && type != RoomType.invite && playerCount != 1;
 
   @override
   String toString() => 'RunningRoom($id)';

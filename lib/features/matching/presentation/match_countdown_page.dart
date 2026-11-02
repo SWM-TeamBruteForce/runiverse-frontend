@@ -183,6 +183,9 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
           .openMatched(
             room.runningRoomId,
             targetDistanceMeters: room.targetDistanceMeters,
+            type: room.type,
+            // 명단이 비어 있으면 상태 조회로 세운 대타 방이라 인원을 모른다.
+            playerCount: room.players.isEmpty ? null : room.players.length,
           ),
     );
     // 신호가 있으면 지금, 없으면 첫 신호에 출발한다. 서버는 이미 시작했다.

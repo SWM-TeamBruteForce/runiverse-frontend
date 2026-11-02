@@ -201,6 +201,7 @@ class _SplashPageState extends ConsumerState<SplashPage> {
                   status.runningRoomId,
                   targetDistanceMeters: status.targetDistanceMeters,
                   matched: !status.isSolo,
+                  type: status.type,
                 ),
           );
           unawaited(
