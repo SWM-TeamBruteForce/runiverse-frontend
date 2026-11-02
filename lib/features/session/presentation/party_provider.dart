@@ -75,9 +75,11 @@ class PartyController extends Notifier<PartyBoard> {
     return const PartyBoard();
   }
 
+  // ⚠️ 버린다(`round` 아님) — 서버 진행이 오기 전에는 이 값이 화면에 뜬다.
+  // 올리면 4,999.6m가 5,000m로 넘어가 `AppStrings.kmFloor` 가 버릴 것이 없다.
   static int _myDistanceOf(RunSessionState state) => switch (state) {
     RunRunning(:final metrics) ||
-    RunPaused(:final metrics) => metrics.distanceMeters.round(),
+    RunPaused(:final metrics) => metrics.distanceMeters.floor(),
     _ => 0,
   };
 

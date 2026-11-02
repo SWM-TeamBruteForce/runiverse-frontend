@@ -288,7 +288,7 @@ class _Distance extends StatelessWidget {
           textBaseline: TextBaseline.alphabetic,
           children: [
             Text(
-              (meters / 1000).toStringAsFixed(2),
+              AppStrings.kmFloor(meters),
               style: AppTypographyV2.heading01.copyWith(
                 color: colors.textStrong,
                 // 파란 빛 위에 얹히는 흰 글자다. 굵기를 한 칸 올리고 뒤에

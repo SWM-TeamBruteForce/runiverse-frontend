@@ -83,7 +83,8 @@ void main() {
     expect(find.text('김도윤'), findsOneWidget);
     expect(find.text('러너42'), findsOneWidget);
     expect(find.text(AppStrings.runPartyMe), findsOneWidget);
-    expect(find.text('3.4'), findsOneWidget);
+    // 3,360m — 거리는 버린다(`AppStrings.kmFloor`).
+    expect(find.text('3.3'), findsOneWidget);
     expect(find.text('/ 5 km'), findsNWidgets(3));
     expect(find.text("5'21\""), findsOneWidget);
     expect(find.text("5'38\""), findsOneWidget);

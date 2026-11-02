@@ -531,8 +531,7 @@ class _MapPage extends StatelessWidget {
               Expanded(
                 child: _InlineMetric(
                   label: AppStrings.runDistanceLabel,
-                  value:
-                      '${(metrics.distanceMeters / 1000).toStringAsFixed(2)} km',
+                  value: '${AppStrings.kmFloor(metrics.distanceMeters)} km',
                 ),
               ),
             ],
@@ -659,7 +658,7 @@ class _MetricsPage extends StatelessWidget {
               Expanded(
                 child: _Metric(
                   label: AppStrings.runDistanceLabel,
-                  value: (metrics.distanceMeters / 1000).toStringAsFixed(2),
+                  value: AppStrings.kmFloor(metrics.distanceMeters),
                   unit: 'km',
                 ),
               ),
