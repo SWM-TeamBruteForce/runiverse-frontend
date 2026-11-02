@@ -47,8 +47,8 @@ import 'package:runiverse/features/session/presentation/running_connection_provi
 /// 그대로 보이면 `자세한 기록 보기`와 숫자가 다르다 — 에뮬레이터에서 200m
 /// 튄 좌표 하나로 요약이 130m 길었다. 그래서 종료가 확인된 방은 결과
 /// 화면과 같은 [runDetailProvider]로 그리고, 받는 동안은 [AppStrings.runUnavailable]
-/// 을 둔다. 방을 못 열었거나 종료 확인을 못 받았거나 조회가 실패하면 서버
-/// 값이 없으니 앱 값을 쓴다.
+/// 을 둔다. 방을 못 열었거나 종료 확인을 못 받았거나 조회가 실패했거나 내
+/// 기록이 남지 않았으면 서버 값이 없으니 앱 값을 쓴다.
 class RunSummaryPage extends ConsumerWidget {
   const RunSummaryPage({super.key});
 
@@ -86,24 +86,28 @@ class RunSummaryPage extends ConsumerWidget {
     final result = room != null && finishedRoomId == room.id && !settling
         ? ref.watch(runDetailProvider(room.id))
         : null;
-    // ⚠️ **오류가 났으면 `when`보다 먼저 앱 값으로 돌린다.** Riverpod이 실패한
-    // 조회를 최대 10번 다시 시도하는데(약 40초) 그동안 `when`은 `loading`을
-    // 부른다 — 끊긴 곳에서 끝내면 그만큼 숫자 없이 `--`만 보인다.
-    final shown = result == null || result.hasError
-        ? measured
-        : result.when(
-            data: (detail) => (
-              distance: AppStrings.kmFloor(detail.distanceMeters),
-              time: _elapsedText(detail.duration),
-              pace: PaceCalculator.format(detail.averagePace),
-            ),
-            loading: () => (
-              distance: AppStrings.runUnavailable,
-              time: AppStrings.runUnavailable,
-              pace: AppStrings.runUnavailable,
-            ),
-            error: (_, _) => measured,
-          );
+    // 받아 둔 값은 다시 받다 실패해도 남는다 — 상세에서 돌아왔을 뿐인데
+    // 숫자가 앱 값으로 바뀌면 안 된다.
+    final detail = result?.value;
+    // ⚠️ **내 기록이 있을 때만 서버 값을 쓴다.** 너무 짧게 달려 기록이 안
+    // 남으면 조회는 성공해도 내 수치가 비고, 거리·시간이 0으로 채워진다.
+    final mine = detail?.players.where((p) => p.isMe).firstOrNull;
+    // ⚠️ **처음 받다 오류가 나면 바로 앱 값으로 돌린다.** Riverpod이 실패한
+    // 조회를 최대 10번 다시 시도하는데(약 40초) 그동안 상태가 "받는 중"이라,
+    // 그것만 보면 끊긴 곳에서 끝냈을 때 숫자 없이 `--`만 보인다.
+    final shown = detail != null && mine != null && mine.hasRecord
+        ? (
+            distance: AppStrings.kmFloor(detail.distanceMeters),
+            time: _elapsedText(detail.duration),
+            pace: PaceCalculator.format(detail.averagePace),
+          )
+        : result != null && !result.hasError && !result.hasValue
+        ? (
+            distance: AppStrings.runUnavailable,
+            time: AppStrings.runUnavailable,
+            pace: AppStrings.runUnavailable,
+          )
+        : measured;
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -181,10 +185,16 @@ class RunSummaryPage extends ConsumerWidget {
                     // ⚠️ **확정 중에도 잠근다.** 서버가 `RUNNING_FINISH`를
                     // 처리하기 전에 부르면 200에 빈 기록이 와서
                     // `0.00 km · 구간 0개`가 된다([RunningConnectionState.settling]).
+                    //
+                    // ⚠️ **누를 때 새로 받는다.** 요약이 받아 둔 결과에는 나보다
+                    // 늦게 끝나는 파티원이 아직 "달리는 중"으로 남아 있다.
+                    // 그대로 넘기면 상세에서 그 사람과 비교가 안 보인다.
                     onPressed: room == null || settling
                         ? null
-                        : () =>
-                              context.push(AppRoutes.runResult, extra: room.id),
+                        : () {
+                            ref.invalidate(runDetailProvider(room.id));
+                            context.push(AppRoutes.runResult, extra: room.id);
+                          },
                   ),
                 ),
               ],
