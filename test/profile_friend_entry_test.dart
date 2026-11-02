@@ -56,11 +56,13 @@ void main() {
     expect(find.text('20'), findsNothing);
   });
 
-  testWidgets('업적 줄은 준비중이고 눌리지 않는다', (tester) async {
+  // TODO(되살리기): 업적을 되살리면 세 줄을 findsOneWidget으로, 이름을
+  // '업적 줄은 준비중이고 눌리지 않는다'로 되돌린다.
+  testWidgets('업적 줄은 숨겨져 있다', (tester) async {
     await pump(tester, friendCount: 0);
 
-    expect(find.text(AppStrings.friendAchievement), findsOneWidget);
-    expect(find.text(AppStrings.friendAchievementSoon), findsOneWidget);
-    expect(find.text(AppStrings.friendAchievementTitle), findsOneWidget);
+    expect(find.text(AppStrings.friendAchievement), findsNothing);
+    expect(find.text(AppStrings.friendAchievementSoon), findsNothing);
+    expect(find.text(AppStrings.friendAchievementTitle), findsNothing);
   });
 }
