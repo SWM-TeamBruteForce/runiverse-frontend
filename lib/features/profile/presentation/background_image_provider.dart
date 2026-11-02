@@ -1,6 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/profile/data/http_profile_image_repository.dart';
+import 'package:runiverse/features/profile/data/ui_image_cropper.dart';
+import 'package:runiverse/features/profile/domain/cover_crop.dart';
+import 'package:runiverse/features/profile/domain/image_cropper.dart';
 import 'package:runiverse/features/profile/domain/pending_photo.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
@@ -20,6 +23,14 @@ final backgroundImageRepositoryProvider = Provider<ProfileImageRepository>(
     ref.watch(tokenRefresherProvider),
     kind: ProfileImageKind.background,
   ),
+);
+
+/// 저장할 때 **보이는 부분만 잘라 낸다.**
+///
+/// ⚠️ **위젯 테스트는 이것을 override해야 한다.** JPEG로 바꾸는 것은 플랫폼
+/// 플러그인이라 테스트 환경에서 `MissingPluginException`이 난다.
+final imageCropperProvider = Provider<ImageCropper>(
+  (ref) => const UiImageCropper(),
 );
 
 final backgroundImageControllerProvider =
@@ -104,8 +115,13 @@ class BackgroundImageController extends Notifier<ProfileImageState> {
 
   /// 들고 있던 변경을 **실제로 보낸다.** 성공하면 `null`.
   Future<ProfileImageFailure?> apply(PendingPhoto photo) => switch (photo) {
-    PhotoPicked(:final image) => _busy(() async {
-      await _repository.upload(image);
+    PhotoPicked(:final image, :final alignY) => _busy(() async {
+      // ⚠️ **보이던 부분만 올린다.** 서버에는 위치를 담을 자리가 없어서,
+      // 미리보기에서 옮긴 위치는 잘라 낸 그림으로만 남는다.
+      final cropped = await ref
+          .read(imageCropperProvider)
+          .crop(image, aspectRatio: CoverCrop.aspectRatio, alignY: alignY);
+      await _repository.upload(cropped);
       // 확정 응답에는 키만 온다. 그릴 주소는 다시 물어야 한다.
       return _repository.fetchUrl();
     }),
