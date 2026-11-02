@@ -307,7 +307,7 @@ void main() {
     });
 
     test('⚠️ 확정 연출은 상태 전이로 판정한다', () async {
-      // 연동 가이드가 "SSE에 연결하면 MATCH_STARTED를 전송한다"고 정했다 —
+      // 연동 가이드가 "SSE에 연결하면 MATCH_CONFIRMED를 전송한다"고 정했다 —
       // 이벤트 종류로 판정하면 앱을 켤 때마다 다시 축하하게 된다.
       final app = build();
       app.container.read(matchRoomProvider.notifier).connect();
@@ -355,7 +355,7 @@ void main() {
     });
 
     test('⚠️ 초대 방의 모집 마감에는 확정 연출이 없다', () async {
-      // 초대 방은 `MATCH_STARTED`를 받지 않고, 마감이 `INVITE_ROOM_UPDATED`의
+      // 초대 방은 `MATCH_CONFIRMED`를 받지 않고, 마감이 `INVITE_ROOM_UPDATED`의
       // `status: MATCHED`로 온다. 전이만 보고 판정하면 **마감에 축하가 터진다** —
       // 매칭된 것이 아니라 모집이 닫힌 것뿐이다.
       final app = build();
@@ -391,7 +391,7 @@ void main() {
       expect(app.analytics.countOf('match_confirmed'), 0);
     });
 
-    test('⚠️ 초대 방에 MATCH_STARTED가 와도 축하하지 않는다', () async {
+    test('⚠️ 초대 방에 MATCH_CONFIRMED가 와도 축하하지 않는다', () async {
       // 서버가 보내지 않기로 했지만, 와도 초대 방에 확정 연출이 터지면 안 된다.
       final app = build();
       app.container.read(matchRoomProvider.notifier).connect();

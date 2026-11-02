@@ -70,7 +70,7 @@ void main() {
 
     test('⚠️ 한 프레임이 여러 조각으로 나뉘어 와도 읽는다', () async {
       // 네트워크는 줄 단위로 끊어주지 않는다. 조각마다 파싱하면 다 버린다.
-      final whole = frame('MATCH_STARTED', room);
+      final whole = frame('MATCH_CONFIRMED', room);
       final cut = whole.length ~/ 3;
 
       final events = await decode([
@@ -87,7 +87,7 @@ void main() {
       final events = await decode([
         Uint8List.fromList([
           ...frame('MATCH_ROOM_UPDATED', room),
-          ...frame('MATCH_STARTED', room),
+          ...frame('MATCH_CONFIRMED', room),
         ]),
       ]);
 
@@ -100,7 +100,7 @@ void main() {
       // 하나가 이상하다고 끊으면 그 뒤에 올 확정 통지까지 놓친다.
       final events = await decode([
         utf8.encode('event: SOMETHING_NEW\ndata: {}\n\n'),
-        frame('MATCH_STARTED', room),
+        frame('MATCH_CONFIRMED', room),
       ]);
 
       expect(events, hasLength(1));
@@ -109,8 +109,8 @@ void main() {
 
     test('깨진 JSON도 버리고 이어간다', () async {
       final events = await decode([
-        utf8.encode('event: MATCH_STARTED\ndata: {망가진\n\n'),
-        frame('MATCH_STARTED', room),
+        utf8.encode('event: MATCH_CONFIRMED\ndata: {망가진\n\n'),
+        frame('MATCH_CONFIRMED', room),
       ]);
 
       expect(events, hasLength(1));
@@ -119,7 +119,7 @@ void main() {
     test('닫히지 않은 프레임은 이벤트가 되지 않는다', () async {
       // 빈 줄이 오기 전에 끊긴 것이다. 반쪽짜리를 올리면 안 된다.
       final events = await decode([
-        utf8.encode('event: MATCH_STARTED\ndata: ${jsonEncode(room)}\n'),
+        utf8.encode('event: MATCH_CONFIRMED\ndata: ${jsonEncode(room)}\n'),
       ]);
 
       expect(events, isEmpty);
@@ -432,7 +432,7 @@ void main() {
     });
 
     test('⚠️ 모집 마감은 status MATCHED와 빈 invitations로 온다', () {
-      // 초대 방은 `MATCH_STARTED`를 받지 않는다 — 마감에 확정 연출이 없다.
+      // 초대 방은 `MATCH_CONFIRMED`를 받지 않는다 — 마감에 확정 연출이 없다.
       final event =
           SseMatchStream.eventOf(
                 'INVITE_ROOM_UPDATED',

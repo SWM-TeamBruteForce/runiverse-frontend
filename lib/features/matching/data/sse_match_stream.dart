@@ -316,7 +316,7 @@ class SseMatchStream implements MatchStream {
     if (decoded is! Map<String, dynamic>) return null;
 
     switch (name) {
-      case 'MATCH_STARTED':
+      case 'MATCH_CONFIRMED':
         final room = roomOf(decoded);
         return room == null ? null : MatchStarted(room);
       case 'MATCH_ROOM_UPDATED':
@@ -361,7 +361,7 @@ class SseMatchStream implements MatchStream {
       runningRoomId: roomId,
       status: status,
       // ⚠️ **모르는 값은 `null`로 둔다.** `match`로 뭉개면 초대 방에 매칭 방
-      // 문구가 뜨고, 오지 않을 `MATCH_STARTED`를 기다린다. 옛 서버는 이 키를
+      // 문구가 뜨고, 오지 않을 `MATCH_CONFIRMED`를 기다린다. 옛 서버는 이 키를
       // 아예 안 보내므로 `null`이 정상 경로이기도 하다.
       type: RoomType.of(body['type']),
       scheduledStartAt: startAt,

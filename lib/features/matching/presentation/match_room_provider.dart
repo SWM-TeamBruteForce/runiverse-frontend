@@ -292,10 +292,10 @@ class MatchRoomController extends Notifier<MatchRoomState> {
     switch (event) {
       // ⚠️ **두 이벤트를 같게 다룬다.** 서버 코드가 정본이다 — 연결하면
       // `MATCH_ROOM_UPDATED`가 스냅샷으로 오고(`OpenMatchStreamHandler`),
-      // `MATCH_STARTED`는 **모집 마감에 단 한 번** 나온다
+      // `MATCH_CONFIRMED`는 **모집 마감에 단 한 번** 나온다
       // (`CloseMatchingHandler`, 인원과 무관하게 1인도 확정이다).
       //
-      // 연동 가이드는 "SSE에 연결하면 서버가 `MATCH_STARTED`를 전송한다"고
+      // 연동 가이드는 "SSE에 연결하면 서버가 `MATCH_CONFIRMED`를 전송한다"고
       // 적었지만 실제 동작은 위와 같다. 어느 쪽이든 **이벤트 종류로 확정을
       // 판정하지 않는다** — 그 판정은 [_applyRoom]이 상태 전이로 한다.
       case MatchStarted(:final room) || MatchRoomUpdated(:final room):
