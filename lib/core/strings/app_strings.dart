@@ -24,14 +24,13 @@ abstract final class AppStrings {
   /// 알았는데 러닝이 끝나지 않는다. 워치 앱도 같은 규칙이다.
   ///
   /// 목표 거리에는 쓰지 않는다. 목표는 정해진 값이라 버릴 것이 없다.
-  static String kmFloor(num meters, {int digits = 2}) {
-    final step = switch (digits) {
-      1 => 100,
-      2 => 10,
-      _ => throw ArgumentError.value(digits, 'digits', '1 또는 2만 쓴다'),
-    };
-    return ((meters / step).floor() * step / 1000).toStringAsFixed(digits);
-  }
+  static String kmFloor(num meters) => _floorKm(meters, 10, 2);
+
+  /// `4.9` — [kmFloor]의 소수 한 자리. 100m 단위로 버린다.
+  static String kmFloor1(num meters) => _floorKm(meters, 100, 1);
+
+  static String _floorKm(num meters, int step, int digits) =>
+      ((meters / step).floor() * step / 1000).toStringAsFixed(digits);
 
   /// km로 받은 기록 거리를 미터로 되돌린다.
   ///
@@ -1239,7 +1238,7 @@ abstract final class AppStrings {
   };
 
   /// `3.4` — 카드의 현재 거리. 소수 한 자리, 버린다([kmFloor]).
-  static String runPartyKm1(int meters) => kmFloor(meters, digits: 1);
+  static String runPartyKm1(int meters) => kmFloor1(meters);
 
   /// `5 km` — 목표 거리.
   static String runPartyTargetKm(int meters) {
@@ -1536,7 +1535,7 @@ abstract final class AppStrings {
   /// 19분인지 19시간인지 알 수가 없다. 시각은 `HH:MM`, 소요는 말로 적는다.
   static String recordRunLine(DateTime startedAt, double km, Duration took) =>
       '${_clockOf(startedAt)} 시작'
-      ' · ${kmFloor(_metersOf(km), digits: 1)} km'
+      ' · ${kmFloor1(_metersOf(km))} km'
       ' · ${recordDurationText(took)} 소요';
 
   /// `06:40`. 벽시계 그대로 — 시간대를 옮기지 않는다.
@@ -1552,7 +1551,7 @@ abstract final class AppStrings {
 
   /// `14.2 km` — 요약 줄은 소수 한 자리로 줄인다.
   static String recordSummaryDistanceText(double km) =>
-      '${kmFloor(_metersOf(km), digits: 1)} km';
+      '${kmFloor1(_metersOf(km))} km';
 
   /// `42 m`
   static String recordElevationText(int? meters) =>

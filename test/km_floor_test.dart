@@ -19,12 +19,8 @@ void main() {
     });
 
     test('소수 한 자리는 100m 단위로 버린다', () {
-      expect(AppStrings.kmFloor(4950, digits: 1), '4.9');
-      expect(AppStrings.kmFloor(5000, digits: 1), '5.0');
-    });
-
-    test('1·2 말고는 받지 않는다', () {
-      expect(() => AppStrings.kmFloor(4996, digits: 0), throwsArgumentError);
+      expect(AppStrings.kmFloor1(4950), '4.9');
+      expect(AppStrings.kmFloor1(5000), '5.0');
     });
   });
 
