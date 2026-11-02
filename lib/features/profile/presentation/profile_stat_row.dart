@@ -8,6 +8,11 @@ import 'package:runiverse/core/theme/v2/app_sizes.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 
+// TODO(되살리기): 업적이 생기면 true로.
+// 빌드 때 고정하는 숨김이다(원격 설정 아님). 되살릴 때
+// profile_friend_entry_test의 업적 검사(findsNothing → findsOneWidget)도 되돌린다.
+const _showAchievement = false;
+
 /// 닉네임 아래 두 줄 — 시안 `85:2882`.
 ///
 /// ```
@@ -91,24 +96,26 @@ class ProfileStatRow extends StatelessWidget {
             ),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.space2),
-          child: Row(
-            children: [
-              Icon(LucideIcons.medal, size: 18, color: colors.textTertiary),
-              const SizedBox(width: AppSpacing.space3),
-              Text(
-                AppStrings.friendAchievement,
-                style: AppTypographyV2.body05.copyWith(
-                  color: colors.textTertiary,
+        if (_showAchievement) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.space2),
+            child: Row(
+              children: [
+                Icon(LucideIcons.medal, size: 18, color: colors.textTertiary),
+                const SizedBox(width: AppSpacing.space3),
+                Text(
+                  AppStrings.friendAchievement,
+                  style: AppTypographyV2.body05.copyWith(
+                    color: colors.textTertiary,
+                  ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.space2),
-              _SoonTag(label: AppStrings.friendAchievementSoon),
-            ],
+                const SizedBox(width: AppSpacing.space2),
+                _SoonTag(label: AppStrings.friendAchievementSoon),
+              ],
+            ),
           ),
-        ),
-        const _AchievementSilhouette(),
+          const _AchievementSilhouette(),
+        ],
       ],
     );
   }
