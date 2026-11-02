@@ -48,7 +48,11 @@ class _RecordDetailPageState extends ConsumerState<RecordDetailPage> {
 
   @override
   void dispose() {
-    _container?.invalidate(runDetailProvider(widget.runningRoomId));
+    // 요약도 같은 결과를 보고 있다 — 트리가 잠긴 dispose 중에 버리면
+    // 요약을 다시 그리라는 요청이 거기서 터진다. 잠금이 풀린 뒤에 버린다.
+    final container = _container;
+    final id = widget.runningRoomId;
+    Future.microtask(() => container?.invalidate(runDetailProvider(id)));
     super.dispose();
   }
 

@@ -17,6 +17,10 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/notification/data/fake_app_stream.dart';
 import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
 import 'package:runiverse/features/notification/presentation/notification_provider.dart';
+import 'package:runiverse/features/record/domain/run_detail.dart';
+import 'package:runiverse/features/record/domain/run_record.dart';
+import 'package:runiverse/features/record/domain/run_record_repository.dart';
+import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_running_room_repository.dart';
 import 'package:runiverse/features/session/data/fake_step_repository.dart';
@@ -25,8 +29,10 @@ import 'package:runiverse/features/session/data/fake_user_status_repository.dart
 import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
+import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/session/domain/run_numbers.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
+import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
@@ -60,6 +66,7 @@ void main() {
 
   late InMemoryBodyProfileStore body;
   late FakeStepRepository steps;
+  late _SummaryRecords records;
 
   setUp(() {
     clock = start;
@@ -69,6 +76,7 @@ void main() {
     status = FakeUserStatusRepository();
     body = InMemoryBodyProfileStore();
     steps = FakeStepRepository();
+    records = _SummaryRecords();
   });
 
   Future<void> pumpRun(
@@ -123,6 +131,9 @@ void main() {
           runningChannelFactoryProvider.overrideWithValue(
             (_) => _SilentChannel(),
           ),
+          // ⚠️ 요약이 종료가 확인된 방의 결과를 부른다. 갈아 끼우지 않으면
+          // 진짜 HTTP를 열려다 주소가 없어 죽는다.
+          runRecordRepositoryProvider.overrideWithValue(records),
         ],
         child: const RuniverseApp(initialLocation: AppRoutes.runPrepare),
       ),
@@ -606,7 +617,195 @@ void main() {
 
       expect(find.text(AppStrings.runSummaryTitle), findsNothing);
     });
+
+    /// 서버가 확정한 값 — 앱이 잰 값과 일부러 다르게 둔다.
+    final confirmed = RunDetail(
+      runningRoomId: 1,
+      distanceMeters: 890,
+      duration: const Duration(minutes: 4, seconds: 55),
+      averagePace: const Duration(minutes: 5, seconds: 31),
+      rawSplits: const [],
+      players: const [
+        RunPlayerResult(
+          userId: 'u-1',
+          nickname: '나',
+          isMe: true,
+          distanceMeters: 890,
+          duration: Duration(minutes: 4, seconds: 55),
+        ),
+      ],
+    );
+
+    /// 앱이 잰 거리. 서버 값을 못 쓸 때 요약이 보이는 숫자다.
+    String measuredKm(WidgetTester tester) {
+      final container = ProviderScope.containerOf(
+        tester.element(find.text(AppStrings.runSummaryTitle)),
+      );
+      final state = container.read(runSessionControllerProvider) as RunFinished;
+      return AppStrings.kmFloor(state.metrics.distanceMeters);
+    }
+
+    testWidgets('⚠️ 종료가 확인되면 서버가 확정한 값을 보인다', (tester) async {
+      // 앱 값은 튄 좌표를 거르지 않고 종료 버튼을 누르는 시간까지 센다.
+      // 그대로 보이면 `자세한 기록 보기`와 숫자가 다르다.
+      records = _SummaryRecords(detail: confirmed);
+      await finish(tester);
+
+      expect(find.text('0.89'), findsOneWidget);
+      expect(find.text('04:55'), findsOneWidget);
+      expect(
+        find.text(PaceCalculator.format(confirmed.averagePace)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('⚠️ 요약을 닫으면 받은 결과를 버린다', (tester) async {
+      // 상세는 경로·10m 구간까지 담아 무겁다. 상세를 안 열고 닫을 때마다
+      // 남으면 러닝 수만큼 쌓인다.
+      records = _SummaryRecords(detail: confirmed);
+      await finish(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.text(AppStrings.runSummaryTitle)),
+      );
+      expect(container.exists(runDetailProvider(1)), isTrue);
+
+      await tester.tap(find.byTooltip(AppStrings.runSummaryClose));
+      await tester.pumpAndSettle();
+
+      expect(container.exists(runDetailProvider(1)), isFalse);
+    });
+
+    testWidgets('받는 동안은 숫자를 비워 둔다', (tester) async {
+      // 앱 값을 먼저 보였다가 바꾸면 숫자가 눈앞에서 줄어든다.
+      records = _SummaryRecords(
+        detail: confirmed,
+        delay: const Duration(seconds: 5),
+      );
+      await finish(tester);
+
+      expect(find.text(AppStrings.runUnavailable), findsNWidgets(3));
+
+      await tester.pump(const Duration(seconds: 5));
+      expect(find.text('0.89'), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 상세에서 돌아와도 숫자가 비지 않는다', (tester) async {
+      // 상세는 닫힐 때 결과를 버린다(빈 기록이 남지 않게). 요약이 같은 결과를
+      // 보고 있으니 돌아오면 다시 받는데, 그동안 받아 둔 값을 그대로 둔다.
+      records = _SummaryRecords(
+        detail: confirmed,
+        delay: const Duration(seconds: 3),
+      );
+      await finish(tester);
+      await tester.pump(const Duration(seconds: 3));
+
+      await tester.tap(find.text(AppStrings.runSummaryDetail));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip(AppStrings.runResultBack));
+      // 전환이 끝날 만큼만 돌린다. 다시 받는 3초보다 짧아야 그 사이를 본다.
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.text(AppStrings.runSummaryTitle), findsOneWidget);
+      expect(find.text('0.89'), findsOneWidget);
+      expect(find.text(AppStrings.runUnavailable), findsNothing);
+
+      // 다시 받는 것까지 끝낸다. 남은 타이머가 있으면 flutter_test가 죽는다.
+      await tester.pump(const Duration(seconds: 3));
+    });
+
+    testWidgets('⚠️ 결과를 못 받으면 앱이 잰 값을 보인다', (tester) async {
+      // 비워 두면 방금 달린 것을 볼 길이 없다.
+      await finish(tester);
+
+      expect(find.text(measuredKm(tester)), findsOneWidget);
+      expect(find.text(AppStrings.runUnavailable), findsNothing);
+    });
+
+    testWidgets('⚠️ 내 기록이 안 남았으면 앱이 잰 값을 보인다', (tester) async {
+      // 너무 짧게 달리면 조회는 성공해도 내 수치가 비고, 거리·시간이 0으로
+      // 채워진다. 그대로 보이면 달렸는데 `0.00`이다.
+      records = _SummaryRecords(
+        detail: RunDetail(
+          runningRoomId: 1,
+          distanceMeters: 0,
+          duration: Duration.zero,
+          rawSplits: const [],
+          players: const [
+            RunPlayerResult(userId: 'u-1', nickname: '나', isMe: true),
+          ],
+        ),
+      );
+      await finish(tester);
+
+      // 시계를 고정해 둬서 시간은 앱 값도 `00:00`이다. 거리로 가른다.
+      expect(measuredKm(tester), isNot('0.00'));
+      expect(find.text(measuredKm(tester)), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 다시 받다 실패해도 받아 둔 서버 값을 둔다', (tester) async {
+      // 상세를 오가면 결과를 다시 받는다. 그게 실패했다고 앱 값으로 바꾸면
+      // 뒤로 가기만 했는데 숫자가 바뀐다.
+      records = _SummaryRecords(detail: confirmed, failAfterFirst: true);
+      await finish(tester);
+      expect(find.text('0.89'), findsOneWidget);
+
+      await tester.tap(find.text(AppStrings.runSummaryDetail));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip(AppStrings.runResultBack));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runSummaryTitle), findsOneWidget);
+      expect(find.text('0.89'), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 상세로 갈 때 결과를 새로 받는다', (tester) async {
+      // 요약이 받아 둔 결과에는 나보다 늦게 끝나는 파티원이 아직 "달리는
+      // 중"이다. 그대로 넘기면 상세에서 그 사람과 비교가 안 보인다.
+      records = _SummaryRecords(detail: confirmed);
+      await finish(tester);
+      expect(records.calls, 1);
+
+      await tester.tap(find.text(AppStrings.runSummaryDetail));
+      await tester.pumpAndSettle();
+
+      expect(records.calls, 2);
+    });
   });
+}
+
+/// 요약이 부르는 결과 조회. [detail]이 없으면 실패한다.
+///
+/// [failAfterFirst]면 첫 조회만 성공한다 — 다시 받다 끊긴 경우다.
+class _SummaryRecords implements RunRecordRepository {
+  _SummaryRecords({
+    this.detail,
+    this.delay = Duration.zero,
+    this.failAfterFirst = false,
+  });
+
+  final RunDetail? detail;
+  final Duration delay;
+  final bool failAfterFirst;
+
+  /// [byRoom]을 부른 횟수.
+  var calls = 0;
+
+  @override
+  Future<List<RunRecord>> byDateRange({
+    required DateTime from,
+    required DateTime to,
+  }) async => const [];
+
+  @override
+  Future<RunDetail> byRoom(int runningRoomId) async {
+    calls++;
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (failAfterFirst && calls > 1) {
+      throw const RunRecordException(RunRecordFailure.network);
+    }
+    return detail ?? (throw const RunRecordException(RunRecordFailure.network));
+  }
 }
 
 /// 아무것도 하지 않는 러닝 채널.

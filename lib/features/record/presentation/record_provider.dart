@@ -37,9 +37,10 @@ final recordClockProvider = Provider<DateTime Function()>(
 /// 러닝을 막 끝냈을 때와 기록 탭에서 지난 기록을 눌렀을 때 둘 다 이걸 쓴다.
 /// 앱이 아는 것이 방 번호라 기록 번호가 아니라 방 번호가 키다.
 ///
-/// `autoDispose`가 기본이라 화면을 닫으면 버려진다 — 상세는 무거워서
-/// (구간이 10m 단위로 수백 개다) 들고 있을 이유가 없다.
-final runDetailProvider = FutureProvider.family<RunDetail, int>(
+/// 화면을 닫으면 버린다(`autoDispose`) — 상세는 무거워서(구간이 10m 단위로
+/// 수백 개다) 들고 있을 이유가 없다. 직접 만든 provider는 기본이 아니라서
+/// 붙여야 한다(Riverpod 3).
+final runDetailProvider = FutureProvider.autoDispose.family<RunDetail, int>(
   (ref, runningRoomId) =>
       ref.read(runRecordRepositoryProvider).byRoom(runningRoomId),
 );
