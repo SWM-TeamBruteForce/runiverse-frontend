@@ -35,8 +35,8 @@ Dio createDio({void Function()? onUpdateRequired}) {
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
       contentType: Headers.jsonContentType,
-      // 앱 버전 헤더. **없으면 서버가 그냥 통과시킨다**(공통 규칙) — 못 읽은
-      // 값을 지어내면 통과했을 요청이 403으로 막힌다.
+      // 앱 버전 헤더. 못 읽었으면 비어 있고, 서버는 없으면 403으로 거절한다
+      // ([AppVersionHeaders] 참조).
       headers: AppVersionHeaders.current,
       // 4xx·5xx에서 던지게 둔다. 저장소가 `DioException`을 잡아
       // 자기 실패 타입으로 바꾼다.

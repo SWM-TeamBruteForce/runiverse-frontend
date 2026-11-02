@@ -11,11 +11,10 @@ import 'package:runiverse/core/version/installed_app_version.dart';
 
 /// 앱 버전 헤더와 403 판정.
 ///
-/// ## ⚠️ 이 헤더가 차단의 스위치다
+/// ## ⚠️ 헤더가 없어도 막힌다
 ///
-/// 서버는 **헤더가 없으면 거절하지 않고 그대로 처리한다**(공통 규칙). 지금껏
-/// 구버전 앱이 멀쩡히 돈 이유가 그것이다. 헤더를 싣는 순간부터 최소 버전에
-/// 못 미치는 앱은 `/app/version`을 뺀 모든 경로에서 403을 받는다.
+/// 서버는 **헤더가 없거나 형식이 틀리면 403으로 거절한다** — 최소 버전에 못
+/// 미치는 앱과 같다. `/app/version`을 뺀 모든 경로가 그렇다.
 void main() {
   setUp(InstalledAppVersion.resetForTest);
   tearDown(InstalledAppVersion.resetForTest);
@@ -32,8 +31,8 @@ void main() {
     });
 
     test('⚠️ 버전을 못 읽었으면 아예 싣지 않는다', () {
-      // 지어낸 값을 실으면 **통과했을 요청이 403으로 막힌다.** 서버는 헤더가
-      // 없으면 그냥 통과시키므로, 모르면 비우는 쪽이 안전하다.
+      // 서버는 헤더가 없어도 403으로 거절한다. 그래도 모르는 값은 지어내지
+      // 않고 비운다.
       InstalledAppVersion.setForTest(null);
 
       expect(AppVersionHeaders.current, isEmpty);

@@ -161,9 +161,8 @@ class SseAppStream implements AppStream {
       ..set(HttpHeaders.acceptHeader, 'text/event-stream')
       ..set(HttpHeaders.cacheControlHeader, 'no-cache');
 
-    // ⚠️ **이 경로는 두 헤더가 없으면 403으로 거절한다.** 다른 경로는 없으면
-    // 그냥 통과시키는데(공통 규칙) 여기만 다르고, 버전 검사가 토큰 검사보다
-    // 먼저다. 못 읽었을 때의 처리는 [failureOf]에 있다.
+    // ⚠️ **두 헤더가 없으면 403으로 거절한다.** 다른 경로도 같고, 버전 검사가
+    // 토큰 검사보다 먼저다. 못 읽었을 때의 처리는 [failureOf]에 있다.
     AppVersionHeaders.current.forEach(request.headers.set);
 
     final response = await request.close();

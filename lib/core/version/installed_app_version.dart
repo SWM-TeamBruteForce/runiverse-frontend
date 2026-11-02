@@ -31,8 +31,9 @@ abstract final class InstalledAppVersion {
   /// 플랫폼 채널에서 읽어 온다. 앱이 서기 전에 한 번 부른다.
   ///
   /// ⚠️ **실패해도 던지지 않는다.** 버전을 못 읽는 것은 앱을 못 쓸 이유가
-  /// 아니다. 헤더를 안 싣고 판정도 하지 않을 뿐이다 — 서버도 헤더가 없으면
-  /// 그냥 통과시킨다(공통 규칙).
+  /// 아니다. 헤더를 안 싣고 판정도 하지 않을 뿐이다 — 다만 서버는 헤더가
+  /// 없으면 403 `APP_UPDATE_REQUIRED`로 거절한다(버전 확인 API는 뺀다).
+  /// 릴리스 빌드는 `pubspec`의 `x.y.z`를 그대로 읽어 못 읽는 경로가 없다.
   static Future<AppVersion?> load() async {
     if (_loaded) return _cached;
     _loaded = true;
