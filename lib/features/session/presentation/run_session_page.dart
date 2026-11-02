@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
@@ -195,6 +196,28 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     if (outcome is FinishGoalPending) {
       setState(() => _finishing = false);
       unawaited(_showGoalPending(outcome.remainingMeters));
+      return;
+    }
+
+    // ⚠️ **러닝이 이어진다.** 서버가 종료를 거절했다 — 알리고 다시 누르게 한다.
+    // 누른 버튼이 조용하면 고장으로 읽힌다(친구 화면과 같은 알림).
+    if (outcome is FinishRejected) {
+      setState(() => _finishing = false);
+      // 참가자가 아니라는 거절이면 [_leaveKickedOut] 이 홈으로 보낸다.
+      if (outcome.code == WsErrorCode.notRoomPlayer) return;
+      final colors = context.appColorsV2;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              AppStrings.runFinishRejected,
+              style: AppTypographyV2.body11.copyWith(color: colors.textStrong),
+            ),
+            backgroundColor: colors.bgElevated,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       return;
     }
 
@@ -452,16 +475,22 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                   currentIndex: _page,
                 ),
               ),
-
-              RunControls(
-                paused: state is RunPaused,
-                enabled: state is RunRunning || state is RunPaused,
-                onPauseToggle: _togglePause,
-                onFinish: _finishByHold,
-                showPenaltyNotice: target != null && canPenalize,
-                penaltyRemainingKm: _penaltyRemainingKm(),
-              ),
             ],
+          ),
+        ),
+        // ⚠️ **본문이 아니라 아래 고정 자리에 둔다.** 떠 있는 알림은 이 자리 위에
+        // 뜬다 — 본문 맨 아래에 두면 종료 거절 알림이 다시 누를 버튼을 가린다.
+        // 본문의 아래 여백은 Scaffold 가 빼므로 여기서 감싼다.
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: RunControls(
+            paused: state is RunPaused,
+            enabled: state is RunRunning || state is RunPaused,
+            onPauseToggle: _togglePause,
+            onFinish: _finishByHold,
+            showPenaltyNotice: target != null && canPenalize,
+            penaltyRemainingKm: _penaltyRemainingKm(),
+            finishing: _finishing,
           ),
         ),
         backgroundColor: colors.bgBase,

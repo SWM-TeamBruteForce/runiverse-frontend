@@ -239,6 +239,43 @@ void main() {
         expect(await finishing, isA<FinishGoalPending>());
       });
     });
+
+    group('⚠️ 서버가 종료를 거절한 경우', () {
+      // 예전에는 거절을 듣지 않아 15초를 기다린 뒤 "못 받음"으로 요약에 갔다.
+      // 서버에서는 러닝이 끝나지 않았다.
+
+      test('곧바로 거절로 끝난다', () async {
+        await channel.start(roomId);
+
+        final finishing = channel.finish();
+        await receive('ERROR', {
+          'code': 'INVALID_ROOM_STATE',
+          'sourceType': 'RUNNING_FINISH',
+        });
+
+        final outcome = await finishing.timeout(
+          const Duration(milliseconds: 40),
+          onTimeout: () => const FinishUnconfirmed(),
+        );
+        expect(outcome, isA<FinishRejected>());
+        expect((outcome as FinishRejected).code, WsErrorCode.invalidRoomState);
+      });
+
+      test('⚠️ 좌표 배치의 오류로는 풀리지 않는다', () async {
+        // 종료 직전에 남은 좌표를 몰아 보내므로, 그 오류가 기다리는 중에 올 수
+        // 있다. 그것을 종료 거절로 읽으면 멀쩡한 종료가 실패로 보인다.
+        await channel.start(roomId);
+
+        final finishing = channel.finish();
+        await receive('ERROR', {
+          'code': 'RUNNING_TRACK_UNAVAILABLE',
+          'sourceType': 'RUNNING_LOCATION_UPDATE',
+        });
+        await receive('RUNNING_FINISHED');
+
+        expect(await finishing, isA<FinishConfirmed>());
+      });
+    });
   });
 
   group('세션이 없다는 오류', () {

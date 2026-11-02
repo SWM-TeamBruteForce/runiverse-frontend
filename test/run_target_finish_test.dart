@@ -420,6 +420,37 @@ void main() {
     });
   });
 
+  group('⚠️ 서버가 종료를 거절하면 러닝이 이어진다', () {
+    // 예전에는 거절을 듣지 않아 15초 뒤 요약으로 갔다. 서버에서는 러닝이
+    // 끝나지 않았는데 끝난 것처럼 보였다.
+
+    testWidgets('화면이 러닝에 남고 다시 누르라고 말한다', (tester) async {
+      final container = await pumpRunning(tester);
+      channel.outcome = const FinishRejected(WsErrorCode.invalidRoomState);
+
+      await holdFinish(tester);
+
+      expect(find.byType(RunSessionPage), findsOneWidget);
+      expect(find.text(AppStrings.runFinishRejected), findsOneWidget);
+      expect(container.read(runSessionControllerProvider), isA<RunRunning>());
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 다시 누르면 종료가 또 나간다', (tester) async {
+      // 종료 중 잠금이 풀리지 않으면 다시 누를 길이 없다.
+      final container = await pumpRunning(tester);
+      channel.outcome = const FinishRejected(WsErrorCode.invalidRoomState);
+      await holdFinish(tester);
+
+      channel.outcome = const FinishConfirmed();
+      await holdFinish(tester);
+
+      expect(channel.finishes, hasLength(2));
+      expect(find.byType(RunSessionPage, skipOffstage: false), findsNothing);
+      await unmount(tester, container);
+    });
+  });
+
   group('⚠️ 복구 중이라 거리를 모를 때', () {
     // ⚠️ **`forced` 를 로컬 거리로 판정한다**(가이드 3.2). 그런데 앱을 껐다
     // 켜면 로컬 누적은 0부터 다시 시작하고, 서버가 아는 거리는 스냅샷이
