@@ -887,11 +887,11 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// ⚠️ **상세는 다르다.** 서버가 확정한 값을 읽으므로 ack 전에 부르면 빈
   /// 기록이 온다. 그래서 이 구간 동안 [RunningConnectionState.settling]을
   /// 세워 요약 화면이 문을 잠그게 한다.
-  /// 돌려주는 값이 셋이다([FinishOutcome]).
+  /// 돌려주는 값이 넷이다([FinishOutcome]).
   ///
   /// ⚠️ **[FinishGoalPending] 이면 아무것도 정리하지 않는다.** 소켓도 트랙도
   /// 그대로 두고 러닝을 이어 간다 — 서버가 확정한 거리가 목표에 모자라다는
-  /// 뜻이지 종료가 아니다(1.1.0 가이드 3.2).
+  /// 뜻이지 종료가 아니다(1.1.0 가이드 3.2). [FinishRejected] 도 같다.
   Future<FinishOutcome> finish({bool forced = false}) async {
     final channel = _channel;
     if (channel == null) {
@@ -933,8 +933,18 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       //
       // ⚠️ `return` 으로는 못 빠져나간다 — `finally` 는 그때도 돈다. 플래그를
       // 세워 그 안에서 가른다.
-      if (outcome is FinishGoalPending) {
-        debugPrint('[running] 목표 보류 · ${outcome.remainingMeters}m 남음');
+      //
+      // ⚠️ **거절([FinishRejected])도 같다.** 서버에서 러닝이 안 끝났으므로
+      // 이어 가고 다시 종료하게 한다. 다만 구간 번호 거부로 스스로 끝내던
+      // 중([_finishOnRejectedTrack])이면 이어 가도 더 기록되지 않으므로
+      // 예전처럼 정리한다.
+      final rejected = outcome is FinishRejected && !state.trackRejected;
+      if (outcome is FinishGoalPending || rejected) {
+        debugPrint(
+          outcome is FinishGoalPending
+              ? '[running] 목표 보류 · ${outcome.remainingMeters}m 남음'
+              : '[running] 종료 거절 · 러닝을 이어 간다',
+        );
         // 멈춰 둔 전송기를 다시 돌린다. 계속 뛰므로 좌표가 또 쌓인다.
         //
         // ⚠️ `start` 가 아니라 [TrackSender.resumeTimer] 다. `start` 는 커서를
@@ -966,7 +976,9 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       } else {
         debugPrint('[running] 종료 확인을 못 받아 로컬 트랙을 남긴다');
       }
-      result = outcome;
+      // ⚠️ 여기까지 온 거절은 정리한 것이라 "못 받음"으로 넘긴다. 거절은
+      // "러닝이 이어진다"는 뜻이라, 그대로 넘기면 화면이 닫힌 소켓으로 계속 달린다.
+      result = outcome is FinishRejected ? const FinishUnconfirmed() : outcome;
     } finally {
       // ⚠️ **보류는 정리하지 않는다.** 소켓도 상태도 그대로 두고 러닝을
       // 이어 간다 — 닫으면 그 뒤 좌표가 어디로도 못 간다.

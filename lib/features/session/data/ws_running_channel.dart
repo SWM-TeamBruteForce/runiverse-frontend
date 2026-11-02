@@ -251,6 +251,18 @@ class WsRunningChannel implements RunningChannel {
         // 정했다. 여기서 끊으면 좌표 하나가 잘못됐을 때 러닝 전체가 죽는다.
         debugPrint('[running] 서버 거절 · $code · ${message.data['sourceType']}');
 
+        // ⚠️ **종료 요청에 대한 거절이면 기다리기를 바로 끝낸다.** 안 풀면
+        // 15초 시간 초과 뒤 [FinishUnconfirmed] 로 요약에 가는데, 서버에서는
+        // 러닝이 끝나지 않았다.
+        //
+        // ⚠️ **`sourceType` 으로 가린다.** 종료 직전에 남은 좌표를 몰아
+        // 보내므로, 그 배치의 오류(`RUNNING_TRACK_UNAVAILABLE` 등)가 기다리는
+        // 중에 올 수 있다. 서버는 거절한 요청의 이벤트 이름을 여기에 싣는다.
+        if (message.data['sourceType'] == WsEvents.runningFinish &&
+            _finishing?.isCompleted == false) {
+          _finishing!.complete(FinishRejected(code));
+        }
+
         // ⚠️ **서버에 이 사용자의 러닝 세션이 없다는 뜻이다.** 다시 알리지
         // 않으면 그 뒤 좌표가 전부 같은 오류로 거절된다 — 그런데 좌표에는
         // ack가 없어 앱은 아무것도 모른 채 계속 보낸다.
