@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:runiverse/features/friend/data/fake_friend_repository.dart';
+import 'package:runiverse/features/friend/presentation/friend_provider.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/storage/consent_store.dart';
@@ -94,6 +96,9 @@ void main() {
           appVersionRepositoryProvider.overrideWithValue(
             FakeAppVersionRepository(),
           ),
+          // 프로필의 `친구 · N` 줄이 받은 요청 수를 세려고 친구 목록을
+          // 받는다. 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
+          friendRepositoryProvider.overrideWithValue(FakeFriendRepository()),
           tokenStoreProvider.overrideWithValue(store),
           signInMemoryStoreProvider.overrideWithValue(
             InMemorySignInMemoryStore(),

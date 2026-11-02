@@ -10,8 +10,12 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
+import 'package:runiverse/features/matching/presentation/invite_register_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
+import 'package:runiverse/features/notification/data/fake_app_stream.dart';
+import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
+import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
@@ -34,6 +38,12 @@ void main() {
           // 진짜를 두면 여기서도 dio가 서버 주소를 찾다 죽는다.
           userStatusRepositoryProvider.overrideWithValue(
             FakeUserStatusRepository(),
+          ),
+          // 셸이 알림 배지를 그리며 앱 스트림을 만들고, 로그인돼 있으면 첫
+          // 페이지도 받는다. 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
+          appStreamProvider.overrideWithValue(FakeAppStream()),
+          notificationRepositoryProvider.overrideWithValue(
+            FakeNotificationRepository(),
           ),
           if (auth != null)
             authControllerProvider.overrideWith(
@@ -66,7 +76,26 @@ void main() {
 
       expect(find.byType(ActionTileV2), findsNWidgets(2));
       expect(find.text(AppStrings.homeSoloCta), findsOneWidget);
-      expect(find.text(AppStrings.homeWithFriendCta), findsOneWidget);
+      expect(find.text(AppStrings.homeInviteRunCta), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 둘째 칸은 초대 러닝이다', (tester) async {
+      // 2026-10-28에 `친구랑 뛰기`에서 바꿨다. 하는 일은 그대로고 문구만
+      // 바뀐다.
+      await pumpHome(tester);
+
+      expect(find.text('초대 러닝'), findsOneWidget);
+      expect(find.text('친구랑 뛰기'), findsNothing);
+    });
+
+    testWidgets('초대 러닝을 누르면 초대 등록으로 간다', (tester) async {
+      // 2026-10-29까지는 준비 중이라고 말했다. 이제 갈 곳이 있다.
+      await pumpHome(tester);
+
+      await tester.tap(find.text(AppStrings.homeInviteRunCta));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(InviteRegisterPage), findsOneWidget);
     });
 
     testWidgets('매칭을 누르면 등록 화면으로 간다', (tester) async {

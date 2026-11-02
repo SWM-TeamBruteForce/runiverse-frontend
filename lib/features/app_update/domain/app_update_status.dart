@@ -36,8 +36,7 @@ class AppVersionPolicy {
   ///
   /// ⚠️ **설치 버전을 못 읽었으면(`null`) 막지 않는다.** 값을 못 읽은 것과
   /// 낡은 것은 다르다. 모르는 것을 "낡았다"로 판정하면, 버전을 못 읽는 기기의
-  /// 사용자가 **업데이트를 해도 풀리지 않는 화면**에 갇힌다. 서버가 헤더를
-  /// 못 읽었을 때 그냥 통과시키는 것과 같은 판단이다(공통 규칙).
+  /// 사용자가 **업데이트를 해도 풀리지 않는 화면**에 갇힌다.
   AppUpdateStatus statusFor(AppVersion? installed) {
     if (installed == null) return AppUpdateStatus.current;
     if (installed < minimum) return AppUpdateStatus.required;

@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
+import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/settings/data/http_settings_repository.dart';
 import 'package:runiverse/features/settings/domain/settings_failure.dart';
 
@@ -39,7 +40,7 @@ void main() {
     return HttpSettingsRepository(
       Dio(BaseOptions(baseUrl: 'http://test.invalid'))..httpClientAdapter = api,
       store,
-      auth,
+      TokenRefresher(auth, store),
     );
   }
 

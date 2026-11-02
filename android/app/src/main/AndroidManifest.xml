@@ -182,6 +182,10 @@
         <meta-data
             android:name="firebase_crashlytics_collection_enabled"
             android:value="false" />
+        <!-- 푸시 알림 아이콘. 없으면 컬러 앱 아이콘이 한 색으로 칠해져 덩어리로 뭉개진다. 러닝 알림과 같은 실루엣을 쓴다. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_running" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

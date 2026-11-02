@@ -390,6 +390,9 @@ jobs:
           codesign -d --entitlements - --xml "$APP" > "$RUNNER_TEMP/entitlements.plist" 2>/dev/null
           grep -q 'com.apple.developer.applesignin' "$RUNNER_TEMP/entitlements.plist" || { echo "::error::애플 로그인 권한이 없다"; exit 1; }
           if grep -q '<key>get-task-allow</key><true/>' "$RUNNER_TEMP/entitlements.plist"; then echo "::error::개발 서명이다"; exit 1; fi
+          # 푸시 권한이 production이 아니면 빌드는 성공해도 설치한 아이폰에 푸시가 오지 않으니 여기서 멈춘다
+          APS=$($PB -c 'Print :aps-environment' "$RUNNER_TEMP/entitlements.plist" 2>/dev/null || true)
+          [ "$APS" = "production" ] || { echo "::error::푸시 권한이 production이 아니다 (${APS:-없음})"; exit 1; }
 
           # 복귀 스킴이 없으면 빌드 단계는 경고만 남긴다. 그 로그인이 안 되니 여기서 멈춘다
           SCHEMES=$($PB -c 'Print :CFBundleURLTypes' "$INFO")

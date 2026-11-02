@@ -12,6 +12,9 @@ import 'package:runiverse/features/auth/domain/login_type.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
+import 'package:runiverse/features/notification/data/fake_app_stream.dart';
+import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
+import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/profile/data/fake_profile_repository.dart';
 import 'package:runiverse/features/profile/domain/nickname_change_failure.dart';
@@ -41,6 +44,12 @@ void main() {
     userStatusRepositoryProvider.overrideWithValue(FakeUserStatusRepository()),
     // 홈의 매칭 버튼이 등록 화면을 띄울 수 있어야 한다. 같은 이유로 가짜다.
     matchRepositoryProvider.overrideWithValue(FakeMatchRepository()),
+    // ⚠️ **셸이 앱 스트림을 연다**(알림). 가짜를 안 끼우면 진짜가 붙으려 하고,
+    // 실패 후 백오프 타이머가 남아 트리를 치운 뒤에도 보류 타이머로 잡힌다.
+    appStreamProvider.overrideWithValue(FakeAppStream()),
+    notificationRepositoryProvider.overrideWithValue(
+      FakeNotificationRepository(),
+    ),
     authRepositoryProvider.overrideWithValue(
       FakeAuthRepository(latency: Duration.zero, loginType: loginType),
     ),

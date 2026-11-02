@@ -107,6 +107,11 @@ class RunPartyView extends StatelessWidget {
           Padding(
             key: ValueKey(lane.userId),
             padding: const EdgeInsets.only(bottom: AppSpacing.space3),
+            // ⚠️ **팔레트는 v1을 그대로 쓴다.** 이 화면은 타이포·색도 아직
+            // v1이라 팔레트만 v2로 바꾸면 세대가 섞이고 `theme_generation_test`
+            // 가 막는다. 파티 4색은 두 팔레트가 **같은 값**이라(v2 주석) 보이는
+            // 것에 차이가 없고, 색을 고르는 **규칙**은 `colorSlotOf` 하나로
+            // 통일했다.
             child: _PartyCard(
               lane: lane,
               color: RunPalette.lane(board.colorSlotOf(lane.userId)),

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
@@ -121,10 +122,21 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   /// 80%(`_safeRatio`)로 갈랐는데, 그러면 85% 에서 멈춘 사람이 `forced=false`
   /// 로 나가 **끝낼 뜻이 분명한데 서버가 보류로 되돌려 보낸다.** 80% 는
   /// 제재 선이지 완주 선이 아니다.
+  /// ⚠️ **모를 때는 모자라다고 단정하지 않는다.** 앱을 껐다 켜서 이어 붙은
+  /// 러닝은 로컬 누적이 0부터 다시 시작하고, 서버가 아는 거리는 스냅샷이
+  /// 와야 채워진다([RunSessionController.awaitingDistanceSeed]). 그 사이에
+  /// 종료를 누르면 **목표를 한참 넘긴 사람이 `forced=true` 로 나간다** —
+  /// 서버는 이 값과 자기 확정 거리를 함께 보고 제재를 정한다.
+  ///
+  /// 정말 모자랐다면 서버가 보류로 되돌려 보내고(가이드 3.3) 그때 사용자가
+  /// 고른다. 되돌릴 수 있는 쪽으로 기운다.
   void _finishByHold() {
     final metrics = _metricsOf(ref.read(runSessionControllerProvider));
     final target = _targetDistanceMeters();
-    final short = target != null && metrics.distanceMeters < target;
+    final unknown = ref
+        .read(runSessionControllerProvider.notifier)
+        .awaitingDistanceSeed;
+    final short = target != null && !unknown && metrics.distanceMeters < target;
     unawaited(_finishRun(forced: short));
   }
 
@@ -135,7 +147,7 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   ///
   /// ⚠️ **`null` 이 "제재 없다"는 뜻은 아니다.** 80% 판정은 서버가 정지
   /// 구간과 오염 좌표를 빼고 센 거리로 한다(가이드 3.4) — 화면에서 넘겼어도
-  /// 모자랄 수 있다. 제재 안내는 `RunControls.hasTarget` 이 따로 들고 있고,
+  /// 모자랄 수 있다. 제재 안내는 `RunControls.showPenaltyNotice` 가 따로 들고 있고,
   /// 이 값은 **거리 줄 하나**만 가른다.
   double? _penaltyRemainingKm() {
     final target = _targetDistanceMeters();
@@ -184,6 +196,28 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     if (outcome is FinishGoalPending) {
       setState(() => _finishing = false);
       unawaited(_showGoalPending(outcome.remainingMeters));
+      return;
+    }
+
+    // ⚠️ **러닝이 이어진다.** 서버가 종료를 거절했다 — 알리고 다시 누르게 한다.
+    // 누른 버튼이 조용하면 고장으로 읽힌다(친구 화면과 같은 알림).
+    if (outcome is FinishRejected) {
+      setState(() => _finishing = false);
+      // 참가자가 아니라는 거절이면 [_leaveKickedOut] 이 홈으로 보낸다.
+      if (outcome.code == WsErrorCode.notRoomPlayer) return;
+      final colors = context.appColorsV2;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              AppStrings.runFinishRejected,
+              style: AppTypographyV2.body11.copyWith(color: colors.textStrong),
+            ),
+            backgroundColor: colors.bgElevated,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       return;
     }
 
@@ -335,6 +369,12 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
       runningConnectionProvider.select((state) => state.room?.isMatched),
     );
     final hasParty = isMatched == true || party.rows.isNotEmpty;
+    // 방이 아직 안 열렸으면 모르는 것이라 안내를 띄운다(RunningRoom.canPenalize).
+    final canPenalize = ref.watch(
+      runningConnectionProvider.select(
+        (state) => state.room?.canPenalize ?? true,
+      ),
+    );
     // 목표는 방 정보가 실어 온다. 없으면 파티원 통지로 메운다. 솔로는 `null`.
     final target =
         ref.watch(
@@ -435,16 +475,22 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                   currentIndex: _page,
                 ),
               ),
-
-              RunControls(
-                paused: state is RunPaused,
-                enabled: state is RunRunning || state is RunPaused,
-                onPauseToggle: _togglePause,
-                onFinish: _finishByHold,
-                hasTarget: target != null,
-                penaltyRemainingKm: _penaltyRemainingKm(),
-              ),
             ],
+          ),
+        ),
+        // ⚠️ **본문이 아니라 아래 고정 자리에 둔다.** 떠 있는 알림은 이 자리 위에
+        // 뜬다 — 본문 맨 아래에 두면 종료 거절 알림이 다시 누를 버튼을 가린다.
+        // 본문의 아래 여백은 Scaffold 가 빼므로 여기서 감싼다.
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: RunControls(
+            paused: state is RunPaused,
+            enabled: state is RunRunning || state is RunPaused,
+            onPauseToggle: _togglePause,
+            onFinish: _finishByHold,
+            showPenaltyNotice: target != null && canPenalize,
+            penaltyRemainingKm: _penaltyRemainingKm(),
+            finishing: _finishing,
           ),
         ),
         backgroundColor: colors.bgBase,
@@ -520,8 +566,7 @@ class _MapPage extends StatelessWidget {
               Expanded(
                 child: _InlineMetric(
                   label: AppStrings.runDistanceLabel,
-                  value:
-                      '${(metrics.distanceMeters / 1000).toStringAsFixed(2)} km',
+                  value: '${AppStrings.kmFloor(metrics.distanceMeters)} km',
                 ),
               ),
             ],
@@ -648,7 +693,7 @@ class _MetricsPage extends StatelessWidget {
               Expanded(
                 child: _Metric(
                   label: AppStrings.runDistanceLabel,
-                  value: (metrics.distanceMeters / 1000).toStringAsFixed(2),
+                  value: AppStrings.kmFloor(metrics.distanceMeters),
                   unit: 'km',
                 ),
               ),

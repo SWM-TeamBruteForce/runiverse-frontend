@@ -215,8 +215,17 @@ void main() {
     });
   });
 
+  /// 정본 "각자의 레인 색으로 칠해요".
+  ///
+  /// ## ⚠️ 나는 늘 0번(파랑)이다
+  ///
+  /// 2026-10-29까지는 **명단 자리를 그대로** 줬다 — 명단에서 내가 둘째면 나는
+  /// 주황이었고, 방마다 내 색이 바뀌었다. 같은 러닝을 결과 화면에서 보면
+  /// 또 달랐다(그쪽은 처음부터 나를 파랑으로 고정했다).
+  ///
+  /// 규칙은 `party_color.dart` 하나에 있고, 상대는 **나를 뺀 순서**로
+  /// 1번부터 받는다.
   group('색 자리', () {
-    // 정본 "각자의 레인 색으로 칠해요". 명단 순서로 돌린다.
     // 명단은 서버가 준 순서라 어느 기기에서 봐도 같은 사람이 같은 자리다.
     const everyone = [
       PartyMember(userId: 'me-1', nickname: '러너42'),
@@ -239,10 +248,28 @@ void main() {
           .withProgress(progress('u-9', 10))
           .withProgress(progress('u-5', 20));
 
-      // 명단(2) 뒤가 내 자리(2), 낯선 사람은 그 뒤(3, 4).
-      expect(board.colorSlotOf(PartyBoard.meId), 2);
+      // ⚠️ **명단에 내가 없어도 나는 0번이다.** 전에는 명단 뒤(2번)를 받았다.
+      expect(board.colorSlotOf(PartyBoard.meId), 0);
+      // 상대는 나를 뺀 순서로 1번부터 — 명단 둘, 그 뒤 낯선 사람 둘.
+      expect(board.colorSlotOf('u-1'), 1);
+      expect(board.colorSlotOf('u-2'), 2);
       expect(board.colorSlotOf('u-5'), 3);
+      // ⚠️ 팔레트가 4색이라 다섯째는 끝 색으로 돌아온다 — 방 정원(4)을
+      // 넘는 자리는 실제로 오지 않는다.
       expect(board.colorSlotOf('u-9'), 4);
+    });
+
+    test('⚠️ 명단 둘째여도 나는 0번이다', () {
+      // 여기가 바뀐 자리다. 전에는 1번(주황)을 받아 방마다 내 색이 흔들렸다.
+      final board = empty.withRoster(const [
+        PartyMember(userId: 'u-1', nickname: '러너1'),
+        PartyMember(userId: 'me-1', nickname: '러너42'),
+        PartyMember(userId: 'u-2', nickname: '러너2'),
+      ], myUserId: 'me-1');
+
+      expect(board.colorSlotOf('me-1'), 0);
+      expect(board.colorSlotOf('u-1'), 1);
+      expect(board.colorSlotOf('u-2'), 2);
     });
 
     test('솔로인 나는 첫 자리다', () {

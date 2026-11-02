@@ -1,3 +1,5 @@
+import 'package:runiverse/core/network/ws_message.dart';
+
 /// `RUNNING_FINISH` 를 보낸 뒤 돌아온 답.
 ///
 /// ## ⚠️ 예전에는 `bool` 이었다
@@ -34,6 +36,19 @@ final class FinishGoalPending extends FinishOutcome {
   /// ⚠️ **서버가 계산한 시점의 값이다.** 받은 뒤의 로컬 이동량을 빼서 보일
   /// 때는 추정값이라고 말하고 **0 미만으로 내리지 않는다**(가이드 3.3).
   final int remainingMeters;
+}
+
+/// 서버가 종료 요청을 `ERROR` 로 거절했다.
+///
+/// ⚠️ **러닝은 끝나지 않았다.** [FinishGoalPending] 처럼 정리하지 않고 러닝을
+/// 이어 가며, 사용자가 다시 종료할 수 있다 — 서버 종료는 멱등이다.
+///
+/// 예전에는 이 답을 듣지 않아 15초를 기다린 뒤 [FinishUnconfirmed] 로 요약에
+/// 갔다. 서버에서는 안 끝난 러닝이 끝난 것처럼 보였다.
+final class FinishRejected extends FinishOutcome {
+  const FinishRejected(this.code);
+
+  final WsErrorCode code;
 }
 
 /// 답을 못 받았다. 타임아웃이거나 소켓에 넘기지 못했다.

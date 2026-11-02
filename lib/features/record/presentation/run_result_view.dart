@@ -12,6 +12,7 @@ import 'package:runiverse/features/record/presentation/split_line_chart.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/core/widgets/run_map_view.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/features/session/domain/party_color.dart';
 
 /// 러닝 결과 (S16) — Figma `46:69`에 `47:65`(S16.5)를 이어 붙인 한 화면.
 ///
@@ -29,7 +30,8 @@ import 'package:runiverse/core/widgets/v2/app_icon.dart';
 /// ## Figma에 있는데 여기 없는 것
 ///
 /// - **획득 컬러 카드** — 색 생성 규칙이 아직 없다
-/// - **팔로우 버튼** — API가 아직 없다
+/// - **친구 요청 버튼** — 친구 API는 생겼다(2026-10-28). 이 화면에 붙이는
+///   것은 범위 밖이라 아직 없다
 ///
 /// ## 파티원 비교
 ///
@@ -61,26 +63,15 @@ class _RunResultViewState extends State<RunResultView> {
   /// 찾는 눈이 흔들리지 않는다.
   static final _myColor = RunPaletteV2.lane(0);
 
-  /// 그 사람의 색. **나를 뺀 나머지가** 주황·분홍·초록을 명단 순서로 나눠 갖는다.
-  ///
-  /// 방은 최대 4명이라 나 하나와 상대 셋이 팔레트 4색에 꼭 맞는다.
-  ///
-  /// ⚠️ **명단 자리 번호를 그대로 쓰면 안 된다.** 명단에 내가 둘째로 들어 있으면
-  /// 첫 자리의 상대가 `lane(0)`, 즉 **내 파랑을 가져간다.** 서버가 주는 명단
-  /// 순서는 내가 몇 번째에 설지 정해 주지 않는다.
-  Color _colorOf(String userId) {
-    if (userId == _myUserId) return _myColor;
-
-    final others = [
-      for (final player in detail.players)
-        if (!player.isMe) player.userId,
-    ];
-    final index = others.indexOf(userId);
-    // ⚠️ 못 찾아도 **0으로 떨어뜨리지 않는다** — 0은 내 파랑이라 남이 나로
-    // 보인다. 팔레트 끝 색을 준다. 명단에 없으면 그릴 이름도 없어 실제로는
-    // 오지 않는 길이다.
-    return RunPaletteV2.lane(index < 0 ? 3 : index + 1);
-  }
+  /// 그 사람의 색. 규칙은 `party_color.dart` 하나에 있다 — 러닝 중 화면과
+  /// 카운트다운이 같은 것을 쓴다.
+  Color _colorOf(String userId) => RunPaletteV2.lane(
+    partyColorSlot(
+      userId: userId,
+      myUserId: _myUserId,
+      order: [for (final player in detail.players) player.userId],
+    ),
+  );
 
   /// 명단 속의 나. 서버가 나를 빠뜨리면 `null`이고, 그래도 내 색은 파랑이다.
   String? get _myUserId =>
@@ -279,7 +270,7 @@ class _RunResultViewState extends State<RunResultView> {
 
   /// 50m 표본의 x축·툴팁 라벨. **닿은 지점의 누적 거리**다.
   ///
-  /// 구간 번호(`1km` `2km`)를 쓰지 않는다 — 50m면 5km에 100개가 되어 번호가
+  /// 구간 번호(`1 km` `2 km`)를 쓰지 않는다 — 50m면 5km에 100개가 되어 번호가
   /// 아무 뜻도 갖지 못한다. 어디쯤이었는지가 읽고 싶은 값이다.
   static List<String> _sampleLabels(List<SplitBucket> samples) => [
     for (final sample in samples)
@@ -291,7 +282,7 @@ class _RunResultViewState extends State<RunResultView> {
   /// ## ⚠️ 점 개수로 솎으면 어중간한 거리가 나온다
   ///
   /// 3km는 점이 60개다. 전체의 1/5마다 찍으면 첫 점부터 열둘씩 세어
-  /// `0.05 · 0.65 · 1.25 · 1.85 · 2.45km`가 된다. 겹치지 않게 줄이려던
+  /// `0.05 · 0.65 · 1.25 · 1.85 · 2.45 km`가 된다. 겹치지 않게 줄이려던
   /// 것이지만, **읽는 사람이 쓰는 자는 거리**지 점 번호가 아니다.
   ///
   /// ## 간격은 러닝 길이를 보고 고른다
@@ -328,7 +319,7 @@ class _RunResultViewState extends State<RunResultView> {
 
   /// x축에 둘 거리 라벨의 최대 개수.
   ///
-  /// 그림 영역이 270px 남짓이라 여섯 개부터는 `2.5km`가 옆 라벨에 닿는다.
+  /// 그림 영역이 270px 남짓이라 여섯 개부터는 `2.5 km`가 옆 라벨에 닿는다.
   /// 마지막 점은 이 수에 들어가지 않는다 — 총 거리는 늘 따로 찍힌다.
   static const _maxTicks = 5;
 }
@@ -398,7 +389,7 @@ class _RouteCard extends StatelessWidget {
                     vertical: AppSpacing.space1,
                   ),
                   child: Text(
-                    '${detail.distanceKm.toStringAsFixed(2)}'
+                    '${AppStrings.kmFloor(detail.distanceMeters)} '
                     '${AppStrings.runSummaryUnitKm} · '
                     '${_elapsedText(detail.duration)}',
                     style: AppTypographyV2.body15.copyWith(
@@ -439,7 +430,7 @@ class _MetricGrid extends StatelessWidget {
               child: _Metric(
                 label: AppStrings.runResultDistance,
                 value:
-                    '${detail.distanceKm.toStringAsFixed(2)}'
+                    '${AppStrings.kmFloor(detail.distanceMeters)} '
                     '${AppStrings.runSummaryUnitKm}',
               ),
             ),
@@ -502,8 +493,8 @@ class _Metric extends StatelessWidget {
 
 /// 파티원 비교 카드(S16). 색 점 · 이름 · 시간 · 평균 페이스.
 ///
-/// 정본의 `[팔로우]`는 API가 없어 뺐다. 순위 숫자는 두지 않는다 — 순서도
-/// 서버가 준 순서 그대로다.
+/// 정본의 `[팔로우]`는 뺐다. 지금은 친구 API가 있지만 여기에 붙이는 것은
+/// 범위 밖이다. 순위 숫자는 두지 않는다 — 순서도 서버가 준 순서 그대로다.
 class _PartyCard extends StatelessWidget {
   const _PartyCard({required this.detail, required this.colorOf});
 
@@ -804,7 +795,7 @@ class _SplitHead extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 64,
+            width: 80,
             child: Text(AppStrings.runResultSplitColumn, style: style),
           ),
           Expanded(
@@ -859,7 +850,7 @@ class _SplitRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 64,
+            width: 80,
             child: Text(
               split.isPartialOf(SplitAggregator.tableMeters)
                   ? AppStrings.runResultPartialLabel(totalKm)
@@ -903,7 +894,7 @@ class _SplitRow extends StatelessWidget {
             ),
           ),
           Text(
-            '$burned${AppStrings.runResultUnitKcal}',
+            '$burned ${AppStrings.runResultUnitKcal}',
             style: AppTypographyV2.body15.copyWith(color: colors.textSecondary),
           ),
         ],

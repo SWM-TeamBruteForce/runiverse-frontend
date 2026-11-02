@@ -14,8 +14,11 @@ import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/core/widgets/v2/fact_card.dart';
 import 'package:runiverse/core/widgets/v2/party_chip.dart';
 import 'package:runiverse/core/widgets/v2/surface_card.dart';
+import 'package:runiverse/features/matching/domain/invite_limits.dart';
+import 'package:runiverse/features/matching/domain/room_invitation.dart';
+import 'package:runiverse/features/matching/presentation/invite_friend_sheet.dart';
+import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
-import 'package:runiverse/features/matching/domain/target_distance.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 
 /// 대기방 (S10). 시안 `158:3415` `매칭 완료 / 세션 로비 페이지`.
@@ -86,7 +89,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
       gone,
     ) {
       if (!gone || _leaving || !mounted) return;
-      if (context.canPop()) context.pop();
+      _leaveScreen();
     });
 
     // 아직 첫 스냅샷이 오지 않았다. **비워두지 않는다** — 빈 화면은 고장으로
@@ -106,9 +109,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
         // ⚠️ **제목이 곧 상태다.** 시안(`158:3416`)이 여기에 `매칭완료`를
         // 둔다. 상태를 따로 표시하는 줄이 없으므로, 제목을 `로비`·`대기실`
         // 같은 장소 이름으로 두면 지금이 어느 단계인지 알 길이 사라진다.
-        room.status == RoomStatus.matching
-            ? AppStrings.matchRoomWaiting
-            : AppStrings.matchRoomMatched,
+        _title(room),
       ),
       body: SafeArea(
         top: false,
@@ -134,16 +135,36 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
                       child: _Notice(AppStrings.matchRoomDisconnected),
                     ),
 
-                  _Headline(room: room, now: _now),
+                  // ⚠️ **기기 시계가 아니라 서버 시계로 센다.** 시계가 틀린
+                  // 기기에서 `모집 마감까지 23:58:26`이 떴다.
+                  _Headline(room: room, now: state.serverNow(_now)),
                   const SizedBox(height: AppSpacing.space10),
 
                   _SessionCards(room: room),
                   const SizedBox(height: AppSpacing.space5),
 
-                  _PartyCard(players: room.players),
+                  _PartyCard(
+                    players: room.players,
+                    // ⚠️ **모집 마감 뒤에는 서버가 빈 배열을 보낸다.** 그래서
+                    // 마감되면 초대 현황이 저절로 사라진다 — 따로 지우지
+                    // 않는다.
+                    invitations: room.invitations,
+                  ),
+
+                  if (_invitable(room)) ...[
+                    const SizedBox(height: AppSpacing.space4),
+                    AppButtonV2(
+                      label: AppStrings.inviteRoomInviteCta,
+                      variant: AppButtonV2Variant.secondary,
+                      onPressed: () => _openInviteSheet(room),
+                    ),
+                  ],
 
                   const SizedBox(height: AppSpacing.space5),
-                  _Notice(_leaveNotice(room)),
+                  if (_warnsAlone(room))
+                    _Notice(AppStrings.inviteRoomAloneWarning)
+                  else
+                    _Notice(_leaveNotice(room)),
                 ],
               ),
             ),
@@ -156,9 +177,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
                 AppSpacing.space4,
               ),
               child: AppButtonV2(
-                label: room.status == RoomStatus.matching
-                    ? AppStrings.matchRoomCancel
-                    : AppStrings.matchRoomLeave,
+                label: _leaveLabel(room),
                 variant: AppButtonV2Variant.secondary,
                 onPressed: _leaving ? null : () => _confirmLeave(room),
               ),
@@ -202,14 +221,87 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
     context.pushReplacement(AppRoutes.matchCountdown);
   }
 
+  /// 제목만으로 지금이 어느 단계인지 알아야 한다.
+  ///
+  /// ⚠️ **초대 방은 `매칭 완료`라고 하지 않는다.** 매칭이 성사된 것이 아니라
+  /// 더 들어올 자리가 닫힌 것뿐이다.
+  String _title(RoomInfo room) {
+    final waiting = room.status == RoomStatus.matching;
+    if (room.type == RoomType.invite) {
+      return waiting
+          ? AppStrings.inviteRoomWaiting
+          : AppStrings.inviteRoomClosed;
+    }
+    return waiting ? AppStrings.matchRoomWaiting : AppStrings.matchRoomMatched;
+  }
+
+  /// 지금 더 초대할 수 있는가.
+  ///
+  /// 초대 방이고, 모집 중이고, 자리가 남아야 한다. **꽉 찬 방에도 서버는
+  /// 초대를 받아 주지만** 상대가 수락할 때 `RUNNING_ROOM_FULL`로 막히므로
+  /// 보내 봐야 헛일이다.
+  bool _invitable(RoomInfo room) =>
+      room.type == RoomType.invite &&
+      room.status == RoomStatus.matching &&
+      room.players.length + room.invitations.length < InviteLimits.capacity;
+
+  /// 혼자인 방에 마감이 가까운가.
+  ///
+  /// ## ⚠️ 마감 전 유일한 출구를 알리는 자리다
+  ///
+  /// 초대 취소가 없고 `CANCELLED`도 오지 않아서, 마감되면 **혼자 출발한다.**
+  /// 그 전에 나가는 것 말고 길이 없다.
+  ///
+  /// 답을 기다리는 초대가 남아 있으면 경고하지 않는다 — 아직 올 사람이 있다.
+  /// 서버가 말하는 지금. 화면의 모든 시각 판정이 이것을 본다.
+  DateTime get _serverNow => ref.read(matchRoomProvider).serverNow(_now);
+
+  bool _warnsAlone(RoomInfo room) {
+    if (room.type != RoomType.invite) return false;
+    if (room.status != RoomStatus.matching) return false;
+    if (!room.isAlone || room.invitations.isNotEmpty) return false;
+
+    final closeAt = room.closeAt;
+    if (closeAt == null) return false;
+    final left = closeAt.difference(_serverNow);
+    return !left.isNegative && left <= _aloneWarning;
+  }
+
+  /// 마감 몇 분 전부터 경고하는가. 초대 방 마감이 시작 1분 전이라 그보다
+  /// 넉넉히 둔다 — 1분 전에 알리면 나갈 시간이 없다.
+  static const _aloneWarning = Duration(minutes: 3);
+
+  Future<void> _openInviteSheet(RoomInfo room) async {
+    await showInviteFriendSheet(context, room: room);
+  }
+
+  /// 나가기 버튼의 글자.
+  ///
+  /// ⚠️ **초대 방에서는 `매칭 취소하기`가 거짓이다.** 매칭을 신청한 적이 없고,
+  /// 나가도 제재가 없다.
+  String _leaveLabel(RoomInfo room) {
+    if (room.type == RoomType.invite) return AppStrings.inviteRoomLeave;
+    return room.status == RoomStatus.matching
+        ? AppStrings.matchRoomCancel
+        : AppStrings.matchRoomLeave;
+  }
+
   /// 나가면 어떻게 되는지. **제재가 걸릴 때만 겁을 준다.**
   ///
   /// 판정 기준은 방의 `status`가 아니라 **모집 마감 시각**이다 — 마감이 지났는데
   /// 서버가 아직 방을 안 닫은 틈이 있어서, 서버도 시각으로 가른다.
   /// 혼자 남은 방은 마감이 지났어도 면제다.
   String _leaveNotice(RoomInfo room) {
+    // ⚠️ **초대 방은 제재가 없다.** 매칭 방의 문구를 그대로 쓰면 "20분 동안
+    // 다시 신청할 수 없어요"라고 거짓말을 한다.
+    if (room.type == RoomType.invite) {
+      return room.isAlone
+          ? AppStrings.inviteRoomLeaveLast
+          : AppStrings.inviteRoomLeaveFree;
+    }
+
     final closeAt = room.closeAt;
-    final closed = closeAt != null && !_now.isBefore(closeAt);
+    final closed = closeAt != null && !_serverNow.isBefore(closeAt);
     return closed && !room.isAlone
         ? AppStrings.matchRoomLeavePenalty
         : AppStrings.matchRoomLeaveFree;
@@ -258,7 +350,23 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
       return;
     }
 
-    if (context.canPop()) context.pop();
+    _leaveScreen();
+  }
+
+  /// 이 화면에서 빠져나간다.
+  ///
+  /// ## ⚠️ `pop`만으로는 부족하다
+  ///
+  /// 이 화면에 **스택 없이 들어올 수 있다.** 초대 등록이 `go`로 들어오던 동안
+  /// 방을 나가도 `pop()`이 아무 일도 하지 않아 **빈 방 화면에 갇혔다**(실측
+  /// 2026-10-29). 지금은 `pushReplacement`로 들어오지만, 딥링크나 다음에 생길
+  /// 경로가 같은 함정을 다시 밟지 않게 여기서 막는다.
+  void _leaveScreen() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go(AppRoutes.home);
   }
 }
 
@@ -346,7 +454,7 @@ class _SessionCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final km = TargetDistance.fromMeters(room.targetDistanceMeters)?.km;
+    final meters = room.targetDistanceMeters;
 
     // ⚠️ 값에는 **숫자와 단위만** 둔다. 카드가 `시작 시간`·`목표 거리`를
     // 이미 이고 있어서, 값에 다시 `시작`·`목표`를 붙이면 같은 말이
@@ -362,12 +470,16 @@ class _SessionCards extends StatelessWidget {
         ),
         const SizedBox(width: AppSpacing.space3),
         Expanded(
-          // 거리를 모르면 칸을 비운다. 임의의 값을 넣으면 목표가 달라 보인다.
-          child: km == null
+          // ⚠️ **`TargetDistance`를 거치지 않는다.** 그쪽은 3/5/10km만 아는
+          // enum이라 초대 러닝의 자유 거리(7km·하프·풀)가 `null`이 되고, 그러면
+          // **옆 칸이 그대로 빈다**(실측 2026-10-29).
+          //
+          // 거리를 모를 때만 비운다. 임의의 값을 넣으면 목표가 달라 보인다.
+          child: meters == null
               ? const SizedBox.shrink()
               : FactCard(
                   label: AppStrings.matchDistanceLabel,
-                  value: AppStrings.matchDistanceText(km),
+                  value: AppStrings.distanceKm(meters),
                 ),
         ),
       ],
@@ -378,10 +490,16 @@ class _SessionCards extends StatelessWidget {
 /// 함께 뛸 사람들 — 시안은 카드 하나에 아바타를 가로로 늘어놓는다(`158:3435`).
 ///
 /// ⚠️ **페이스를 적지 않는다.** 정본이 뺀 항목이다 — 경쟁이 아니라 동행이다.
+/// 참가자와 **답을 기다리는 초대**를 함께 깐다.
+///
+/// 초대는 점선 칩으로 서고, `players`보다 뒤에 온다 — 들어온 사람이 먼저다.
 class _PartyCard extends StatelessWidget {
-  const _PartyCard({required this.players});
+  const _PartyCard({required this.players, this.invitations = const []});
 
   final List<RoomPlayer> players;
+
+  /// 답을 기다리는 초대. **매칭 방은 늘 비어 있다.**
+  final List<RoomInvitation> invitations;
 
   @override
   Widget build(BuildContext context) {
@@ -415,6 +533,14 @@ class _PartyCard extends StatelessWidget {
                   accent: player.isDeleted
                       ? colors.textTertiary
                       : colors.primary,
+                ),
+              // 답을 기다리는 사람. 들어온 사람 뒤에 선다.
+              for (final one in invitations)
+                PartyChip(
+                  name: AppStrings.inviteRoomPending(one.nickname),
+                  imageUrl: one.profileImageUrl,
+                  // 아직 들어오지 않았다는 뜻으로 흐리게 둔다.
+                  accent: colors.textTertiary,
                 ),
             ],
           ),

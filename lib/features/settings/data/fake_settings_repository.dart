@@ -4,13 +4,7 @@ import 'package:runiverse/features/settings/domain/profile_visibility.dart';
 import 'package:runiverse/features/settings/domain/settings_failure.dart';
 import 'package:runiverse/features/settings/domain/settings_repository.dart';
 
-/// 서버 없이 설정 화면을 돌려보기 위한 가짜.
-///
-/// ## 지금은 이게 대부분을 답한다
-///
-/// 일곱 항목 중 서버가 준비된 것은 비밀번호 변경과 로그아웃 둘뿐이다.
-/// 계정 조회·설정 조회·설정 변경·탈퇴는 **아직 배포되지 않았다**(설계 문서 1절).
-/// 화면을 다 그려 두고 서버가 뜰 때 `settings_provider.dart`의 한 줄만 바꾼다.
+/// 서버 없이 설정 화면을 돌려보기 위한 가짜. 테스트가 쓴다.
 ///
 /// ## 값을 들고 있는다
 ///

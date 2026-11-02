@@ -12,6 +12,9 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/matching/data/fake_match_stream.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
+import 'package:runiverse/features/notification/data/fake_app_stream.dart';
+import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
+import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
@@ -59,6 +62,12 @@ void main() {
           // 대기·확정이면 앱이 곧바로 매칭 스트림에 붙는다. 진짜를 두면
           // dio가 서버 주소를 찾다 죽는다.
           matchStreamProvider.overrideWithValue(FakeMatchStream()),
+          // 셸이 알림 배지를 그리며 앱 스트림을 만들고, 로그인돼 있으면 첫
+          // 페이지도 받는다. 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
+          appStreamProvider.overrideWithValue(FakeAppStream()),
+          notificationRepositoryProvider.overrideWithValue(
+            FakeNotificationRepository(),
+          ),
           authRepositoryProvider.overrideWithValue(auth),
         ],
         child: const RuniverseApp(),
@@ -86,7 +95,11 @@ void main() {
     // 신청이 사라진 줄 알고 다시 누르고, 서버는 409로 막는다.
     await pumpApp(
       tester,
-      status: UserStatusWaiting(runningRoomId: 1, scheduledStartAt: startAt),
+      status: UserStatusWaiting(
+        runningRoomId: 1,
+        type: RoomType.match,
+        scheduledStartAt: startAt,
+      ),
     );
 
     expect(find.byType(HomePage), findsOneWidget);
@@ -104,7 +117,7 @@ void main() {
       tester,
       status: UserStatusReady(
         runningRoomId: 1,
-        isSolo: false,
+        type: RoomType.match,
         scheduledStartAt: startAt,
       ),
     );
@@ -123,7 +136,7 @@ void main() {
       tester,
       status: UserStatusReady(
         runningRoomId: 1,
-        isSolo: true,
+        type: RoomType.solo,
         scheduledStartAt: startAt,
       ),
     );

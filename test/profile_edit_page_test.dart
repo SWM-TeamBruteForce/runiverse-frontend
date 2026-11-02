@@ -1,6 +1,12 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/features/friend/data/fake_friend_repository.dart';
+import 'package:runiverse/features/friend/presentation/friend_provider.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
@@ -16,6 +22,7 @@ import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/profile/data/fake_profile_image_repository.dart';
 import 'package:runiverse/features/profile/data/fake_profile_repository.dart';
+import 'package:runiverse/features/profile/domain/image_cropper.dart';
 import 'package:runiverse/features/profile/domain/photo_picker.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
@@ -43,6 +50,9 @@ void main() {
   /// 커버가 읽는 저장소. 테스트는 배경을 다루지 않지만 **끼우지 않으면**
   /// 진짜 저장소가 만들어져 서버 주소를 찾다 죽는다.
   late FakeProfileImageRepository background;
+
+  /// 배경을 저장할 때 자르는 자리. 진짜는 플랫폼 플러그인을 쓴다.
+  late _FakeCropper cropper;
 
   Future<void> pumpEdit(
     WidgetTester tester, {
@@ -80,6 +90,7 @@ void main() {
       url: backgroundUrl,
       failWith: backgroundFails,
     );
+    cropper = _FakeCropper();
 
     final auth = FakeAuthRepository(latency: Duration.zero);
     const email = 'runner@example.com';
@@ -101,6 +112,9 @@ void main() {
           appVersionRepositoryProvider.overrideWithValue(
             FakeAppVersionRepository(),
           ),
+          // 프로필의 `친구 · N` 줄이 받은 요청 수를 세려고 친구 목록을
+          // 받는다. 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
+          friendRepositoryProvider.overrideWithValue(FakeFriendRepository()),
           tokenStoreProvider.overrideWithValue(store),
           signInMemoryStoreProvider.overrideWithValue(
             InMemorySignInMemoryStore(),
@@ -117,6 +131,9 @@ void main() {
           // ⚠️ 배경도 끼운다. 커버가 이 provider를 읽는데, 안 끼우면 진짜
           // 저장소가 만들어져 테스트에 없는 서버 주소를 찾다 죽는다.
           backgroundImageRepositoryProvider.overrideWithValue(background),
+          // ⚠️ 배경을 저장할 때 자른다. JPEG로 바꾸는 것은 플랫폼 플러그인이라
+          // 테스트에 없다.
+          imageCropperProvider.overrideWithValue(cropper),
           // ⚠️ 앨범을 여는 것은 플랫폼 채널이라 테스트에 없다.
           photoPickerProvider.overrideWithValue(picker ?? _FakePicker()),
           profileRepositoryProvider.overrideWithValue(repo),
@@ -242,10 +259,8 @@ void main() {
         expect(avatar.bottom, greaterThan(cover.bottom), reason: '아래는 커버 밖');
       });
 
-      testWidgets('⚠️ 미리보기도 사진을 잘라내지 않는다', (tester) async {
-        // 프로필 화면이 `BoxFit.contain`으로 **전체**를 보여주는데 여기서만
-        // 베어내면, 고르는 자리와 보이는 자리가 다른 그림을 준다 —
-        // 미리보기가 거짓말을 한다.
+      testWidgets('⚠️ 미리보기도 커버와 같이 꽉 채운다', (tester) async {
+        // 프로필 화면과 미리보기가 같은 그림을 줘야 한다.
         await pumpEdit(tester, backgroundUrl: 'https://cdn.test/cover.jpg');
         await tester.pump();
 
@@ -258,7 +273,23 @@ void main() {
               .first,
         );
 
-        expect(image.fit, BoxFit.contain);
+        expect(image.fit, BoxFit.cover);
+      });
+
+      testWidgets('⚠️ 막 고른 사진도 꽉 채운다', (tester) async {
+        await pumpEdit(tester, picker: picked);
+        await pickBackground(tester);
+
+        final image = tester.widget<Image>(
+          find
+              .descendant(
+                of: find.byType(BackgroundPicker),
+                matching: find.byType(Image),
+              )
+              .first,
+        );
+
+        expect(image.fit, BoxFit.cover);
       });
 
       testWidgets('아바타가 왼쪽에 선다', (tester) async {
@@ -268,6 +299,135 @@ void main() {
         final avatar = tester.getRect(find.byType(ProfileAvatar));
 
         expect(avatar.center.dx, lessThan(screen / 2));
+      });
+    });
+
+    group('⚠️ 고른 사진은 위아래로 옮긴다', () {
+      // 세로 사진은 칸에 가운데만 보인다. 끌어서 보일 부분을 고르고, 저장하면
+      // 그 위치대로 잘려 올라간다.
+      late String path;
+
+      /// 9:16 세로 사진을 **실제 파일로** 만든다. 넘친 높이를 알려면 사진
+      /// 크기를 읽어야 해서, 없는 경로로는 끌기가 켜지지 않는다.
+      Future<_FakePicker> portraitPicker(WidgetTester tester) async {
+        await tester.runAsync(() async {
+          final stamp = DateTime.now().microsecondsSinceEpoch;
+          path = '${Directory.systemTemp.path}/runiverse_drag_$stamp.png';
+          await File(path).writeAsBytes(await _png(9, 16));
+        });
+        final file = File(path);
+        addTearDown(() {
+          if (file.existsSync()) file.deleteSync();
+        });
+        return _FakePicker(
+          image: PickedImage.validated(path: path, sizeBytes: 1024),
+        );
+      }
+
+      /// 고를 사진을 미리 읽어 둔다. ⚠️ 파일 읽기는 테스트 시계 밖에서만 끝난다.
+      ///
+      /// ⚠️ **고르기 전에 부른다.** 고르면 화면이 먼저 읽기 시작하는데, 그
+      /// 읽기는 테스트 시계 안이라 끝나지 않는다. 뒤에 읽으면 같은 사진이라
+      /// 그 끝나지 않는 읽기를 기다리다 멈춘다.
+      Future<void> loadPicked(WidgetTester tester) async {
+        await tester.runAsync(
+          () => precacheImage(
+            FileImage(File(path)),
+            tester.element(find.byType(BackgroundPicker)),
+          ),
+        );
+        await tester.pump();
+      }
+
+      Image coverImage(WidgetTester tester) => tester.widget<Image>(
+        find
+            .descendant(
+              of: find.byType(BackgroundPicker),
+              matching: find.byType(Image),
+            )
+            .first,
+      );
+
+      double alignY(WidgetTester tester) =>
+          (coverImage(tester).alignment as Alignment).y;
+
+      testWidgets('위로 끌면 아랫부분이 보인다', (tester) async {
+        await pumpEdit(tester, picker: await portraitPicker(tester));
+        await loadPicked(tester);
+        await pickBackground(tester);
+
+        await tester.drag(find.byType(BackgroundPicker), const Offset(0, -40));
+        await tester.pumpAndSettle();
+
+        expect(alignY(tester), greaterThan(0));
+      });
+
+      testWidgets('아래로 끌면 윗부분이 보인다', (tester) async {
+        await pumpEdit(tester, picker: await portraitPicker(tester));
+        await loadPicked(tester);
+        await pickBackground(tester);
+
+        await tester.drag(find.byType(BackgroundPicker), const Offset(0, 40));
+        await tester.pumpAndSettle();
+
+        expect(alignY(tester), lessThan(0));
+      });
+
+      testWidgets('⚠️ 끄는 동안 화면이 스크롤되지 않는다', (tester) async {
+        // 편집 화면은 스크롤된다. 화면이 끌기를 가져가면 사진이 안 움직인다.
+        await pumpEdit(tester, picker: await portraitPicker(tester));
+        await loadPicked(tester);
+        await pickBackground(tester);
+        final scroll = tester.state<ScrollableState>(
+          find
+              .ancestor(
+                of: find.byType(BackgroundPicker),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
+        final before = scroll.position.pixels;
+
+        await tester.drag(find.byType(BackgroundPicker), const Offset(0, -40));
+        await tester.pumpAndSettle();
+
+        expect(scroll.position.pixels, before);
+      });
+
+      testWidgets('저장하면 옮긴 위치로 잘라 올린다', (tester) async {
+        await pumpEdit(tester, picker: await portraitPicker(tester));
+        await loadPicked(tester);
+        await pickBackground(tester);
+        await tester.drag(find.byType(BackgroundPicker), const Offset(0, -40));
+        await tester.pumpAndSettle();
+        final shown = alignY(tester);
+
+        await tester.tap(saveButton());
+        await tester.pumpAndSettle();
+
+        expect(cropper.alignY, shown);
+        expect(background.uploaded, isNotNull);
+      });
+
+      testWidgets('⚠️ 이미 올라간 사진은 끌어도 그대로다', (tester) async {
+        // 원본이 없어 옮길 수 없다. 다시 골라야 한다. 커버가 끌기를 가져가지
+        // 않으면 **화면이 스크롤된다** — 위치 값은 원래 기본값이라 증거가 못 된다.
+        await pumpEdit(tester, backgroundUrl: 'https://cdn.test/cover.jpg');
+        await tester.pump();
+        final scroll = tester.state<ScrollableState>(
+          find
+              .ancestor(
+                of: find.byType(BackgroundPicker),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
+        final before = scroll.position.pixels;
+
+        await tester.drag(find.byType(BackgroundPicker), const Offset(0, -40));
+        await tester.pumpAndSettle();
+
+        expect(scroll.position.pixels, greaterThan(before));
       });
     });
 
@@ -721,6 +881,39 @@ void main() {
 }
 
 /// 앨범을 여는 척한다. 실제 구현은 플랫폼 채널이라 테스트에서 부를 수 없다.
+/// 자르지 않고 **받은 위치만 기록하는** 가짜.
+class _FakeCropper implements ImageCropper {
+  double? alignY;
+
+  @override
+  Future<PickedImage> crop(
+    PickedImage image, {
+    required double aspectRatio,
+    required double alignY,
+  }) async {
+    this.alignY = alignY;
+    return image;
+  }
+
+  /// ⚠️ 지우지 않는다. 자르지 않고 **고른 파일을 그대로** 돌려주므로, 지우면
+  /// 다음 테스트가 쓸 사진이 사라진다.
+  @override
+  Future<void> discard(PickedImage cropped) async {}
+}
+
+/// [width]×[height] 단색 PNG.
+Future<Uint8List> _png(int width, int height) async {
+  final recorder = ui.PictureRecorder();
+  ui.Canvas(recorder).drawRect(
+    Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+    Paint()..color = const Color(0xFF3366FF),
+  );
+  final image = await recorder.endRecording().toImage(width, height);
+  final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+  image.dispose();
+  return bytes!.buffer.asUint8List();
+}
+
 class _FakePicker implements PhotoPicker {
   _FakePicker({this.image, this.failure});
 

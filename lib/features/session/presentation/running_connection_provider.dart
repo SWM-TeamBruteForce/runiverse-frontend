@@ -129,7 +129,7 @@ class RunningConnectionState {
   /// ## ⚠️ 이걸 안 보면 빈 기록을 보여준다
   ///
   /// 상세(17·18번)는 서버가 `RUNNING_FINISH`를 처리한 뒤에야 값이 찬다. 그
-  /// 전에 부르면 **200에 빈 기록**이 와서 화면이 `0.00km · 구간 0개`가 된다 —
+  /// 전에 부르면 **200에 빈 기록**이 와서 화면이 `0.00 km · 구간 0개`가 된다 —
   /// 실제로 44분 6.38km 러닝에서 그렇게 됐다. 좌표가 유실된 것이 아니라
   /// 너무 일찍 물어본 것이다.
   ///
@@ -498,12 +498,21 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// 값이 오지만 그것은 첫 통지까지 최대 10초가 빈다.
   /// ⚠️ **복구가 아니다.** 매칭 방은 신청할 때 만들어졌고 이 호출이 그 방의
   /// **첫 진입**이라, 서버가 받은 좌표가 없다 — 그래서 [recovered]가 거짓이다.
-  Future<void> openMatched(int runningRoomId, {int? targetDistanceMeters}) =>
-      reopen(
-        runningRoomId,
-        targetDistanceMeters: targetDistanceMeters,
-        recovered: false,
-      );
+  ///
+  /// [playerCount]는 출발 대기실의 확정 명단 수다. 이 길에서만 알 수 있다
+  /// ([RunningRoom.playerCount]).
+  Future<void> openMatched(
+    int runningRoomId, {
+    int? targetDistanceMeters,
+    RoomType? type,
+    int? playerCount,
+  }) => reopen(
+    runningRoomId,
+    targetDistanceMeters: targetDistanceMeters,
+    type: type,
+    playerCount: playerCount,
+    recovered: false,
+  );
 
   /// 이미 서버에 열려 있는 방에 **다시 붙는다.**
   ///
@@ -512,6 +521,9 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   ///
   /// [matched]가 거짓이면 솔로 방이다. 화면이 이 값으로 파티원 장을 띄울지
   /// 정하므로, 솔로에 참을 넘기면 빈 파티원 장이 생긴다.
+  ///
+  /// [type]·[playerCount]는 종료 때 매칭 제한 안내를 띄울지 가른다
+  /// ([RunningRoom.canPenalize]). 모르면 비워 둔다 — 그러면 안내가 뜬다.
   ///
   /// ## ⚠️ [recovered] 는 기본값이 참이다
   ///
@@ -526,6 +538,8 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     int runningRoomId, {
     int? targetDistanceMeters,
     bool matched = true,
+    RoomType? type,
+    int? playerCount,
     bool recovered = true,
   }) async {
     if (state.opening || state.isReady) return;
@@ -536,6 +550,8 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       runningRoomId,
       targetDistanceMeters: targetDistanceMeters,
       isMatched: matched,
+      type: type,
+      playerCount: playerCount,
     );
     // 솔로와 같은 이유로 번호를 남긴다. 러닝 중 앱이 죽어도 이 번호로
     // 다시 붙어 끝낼 수 있다.
@@ -815,9 +831,15 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   ///
   /// ⚠️ **`HEALTH_CHECK` 는 계속 나간다.** 그 시계는 `WsClient` 가
   /// 따로 들고 있어 전송기를 세워도 영향이 없다(가이드 2.1).
+  ///
+  /// ⚠️ **흘려보내는 사이 [resume] 이 오면 멈추지 않는다.** 흘려보내기는
+  /// 0.3초쯤 걸린다. 그사이 다시 달리기 시작했는데 여기서 전송기를 세우고
+  /// `PAUSE` 를 보내면, `RESUME` 뒤에 `PAUSE` 가 닿아 서버는 멈춘 것으로
+  /// 알고 좌표는 다음 일시정지·종료 때까지 안 나간다.
   Future<void> pause() async {
     _paused = true;
     await _sender?.drain();
+    if (!_paused) return;
     // ⚠️ `stop` 이 아니라 [TrackSender.pauseTimer] 다. `stop` 은 방과
     // 커서를 지우는 **해체**라, 그 뒤에 [resume] 이 타이머를 다시 세우지
     // 못한다 — 다시 달리는데 좌표가 조용히 안 나간다.
@@ -865,11 +887,11 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// ⚠️ **상세는 다르다.** 서버가 확정한 값을 읽으므로 ack 전에 부르면 빈
   /// 기록이 온다. 그래서 이 구간 동안 [RunningConnectionState.settling]을
   /// 세워 요약 화면이 문을 잠그게 한다.
-  /// 돌려주는 값이 셋이다([FinishOutcome]).
+  /// 돌려주는 값이 넷이다([FinishOutcome]).
   ///
   /// ⚠️ **[FinishGoalPending] 이면 아무것도 정리하지 않는다.** 소켓도 트랙도
   /// 그대로 두고 러닝을 이어 간다 — 서버가 확정한 거리가 목표에 모자라다는
-  /// 뜻이지 종료가 아니다(1.1.0 가이드 3.2).
+  /// 뜻이지 종료가 아니다(1.1.0 가이드 3.2). [FinishRejected] 도 같다.
   Future<FinishOutcome> finish({bool forced = false}) async {
     final channel = _channel;
     if (channel == null) {
@@ -911,8 +933,18 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       //
       // ⚠️ `return` 으로는 못 빠져나간다 — `finally` 는 그때도 돈다. 플래그를
       // 세워 그 안에서 가른다.
-      if (outcome is FinishGoalPending) {
-        debugPrint('[running] 목표 보류 · ${outcome.remainingMeters}m 남음');
+      //
+      // ⚠️ **거절([FinishRejected])도 같다.** 서버에서 러닝이 안 끝났으므로
+      // 이어 가고 다시 종료하게 한다. 다만 구간 번호 거부로 스스로 끝내던
+      // 중([_finishOnRejectedTrack])이면 이어 가도 더 기록되지 않으므로
+      // 예전처럼 정리한다.
+      final rejected = outcome is FinishRejected && !state.trackRejected;
+      if (outcome is FinishGoalPending || rejected) {
+        debugPrint(
+          outcome is FinishGoalPending
+              ? '[running] 목표 보류 · ${outcome.remainingMeters}m 남음'
+              : '[running] 종료 거절 · 러닝을 이어 간다',
+        );
         // 멈춰 둔 전송기를 다시 돌린다. 계속 뛰므로 좌표가 또 쌓인다.
         //
         // ⚠️ `start` 가 아니라 [TrackSender.resumeTimer] 다. `start` 는 커서를
@@ -944,7 +976,9 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       } else {
         debugPrint('[running] 종료 확인을 못 받아 로컬 트랙을 남긴다');
       }
-      result = outcome;
+      // ⚠️ 여기까지 온 거절은 정리한 것이라 "못 받음"으로 넘긴다. 거절은
+      // "러닝이 이어진다"는 뜻이라, 그대로 넘기면 화면이 닫힌 소켓으로 계속 달린다.
+      result = outcome is FinishRejected ? const FinishUnconfirmed() : outcome;
     } finally {
       // ⚠️ **보류는 정리하지 않는다.** 소켓도 상태도 그대로 두고 러닝을
       // 이어 간다 — 닫으면 그 뒤 좌표가 어디로도 못 간다.

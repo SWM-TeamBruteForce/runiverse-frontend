@@ -13,6 +13,9 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/sign_in_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_up_page.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
+import 'package:runiverse/features/notification/data/fake_app_stream.dart';
+import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
+import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
@@ -54,6 +57,12 @@ void main() {
           // 죽는다 — 테스트에는 주소가 없다.
           userStatusRepositoryProvider.overrideWithValue(
             FakeUserStatusRepository(),
+          ),
+          // 셸이 알림 배지를 그리며 앱 스트림을 만들고, 로그인돼 있으면 첫
+          // 페이지도 받는다. 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
+          appStreamProvider.overrideWithValue(FakeAppStream()),
+          notificationRepositoryProvider.overrideWithValue(
+            FakeNotificationRepository(),
           ),
           authRepositoryProvider.overrideWithValue(
             repository ?? FakeAuthRepository(latency: Duration.zero),

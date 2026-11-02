@@ -12,6 +12,10 @@ import 'package:runiverse/core/widgets/profile_prompt_sheet.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
+import 'package:runiverse/features/notification/domain/push_landing.dart';
+import 'package:runiverse/features/notification/presentation/notification_provider.dart';
+import 'package:runiverse/features/notification/presentation/push_provider.dart';
+import 'package:runiverse/features/session/domain/run_resume.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 하단 탭 셸 — 4개 탭의 공통 껍데기.
@@ -50,6 +54,9 @@ class _AppShellState extends ConsumerState<AppShell> {
   /// `build`는 한 번만 불리는 자리가 아니다.
   bool _gateUp = false;
 
+  /// 알림 권한을 물으러 갔는가. [_gateUp]과 같은 이유로 둔다.
+  bool _pushAsked = false;
+
   /// 포그라운드 복귀를 듣는다.
   ///
   /// ## ⚠️ 돌아올 때마다 서버에 다시 묻는다
@@ -61,10 +68,15 @@ class _AppShellState extends ConsumerState<AppShell> {
   /// **여기 하나만 둔다.** 화면마다 붙이면 복귀 한 번에 여러 번 묻는다.
   late final AppLifecycleListener _lifecycle;
 
+  /// `dispose`에서는 `ref`를 쓸 수 없어 붙일 때 잡아 둔다.
+  late final PushController _push = ref.read(pushProvider.notifier);
+
   @override
   void initState() {
     super.initState();
-    _lifecycle = AppLifecycleListener(onResume: _refreshStatus);
+    _lifecycle = AppLifecycleListener(onResume: _onResume);
+    // 셸이 없는 사이에 누른 푸시를 가리려고 알린다([PushController.attachShell]).
+    _push.attachShell();
     // ⚠️ **세워질 때도 한 번 묻는다.** 스플래시를 거쳐 들어오면 이미 읽은
     // 값이 있지만, **로그인을 마치고 들어오는 길에는 없다** — 그 경로에는
     // 상태를 읽는 곳이 없어서, 진행 중인 매칭이 있어도 홈이 처음인 것처럼
@@ -72,13 +84,18 @@ class _AppShellState extends ConsumerState<AppShell> {
     //
     // `build` 중에 provider를 건드리면 Riverpod이 막으므로 첫 프레임 뒤로 민다.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _refreshStatus();
+      if (!mounted) return;
+      _refreshStatus();
+      _startNotifications();
+      // 꺼진 앱을 푸시로 열었으면 그 푸시는 셸이 서기 전에 이미 도착해 있다.
+      unawaited(_openPushed());
     });
   }
 
   @override
   void dispose() {
     _lifecycle.dispose();
+    _push.detachShell();
     super.dispose();
   }
 
@@ -90,6 +107,82 @@ class _AppShellState extends ConsumerState<AppShell> {
   void _refreshStatus() {
     if (ref.read(authControllerProvider) is! AuthSignedIn) return;
     unawaited(ref.read(userStatusProvider.notifier).refresh());
+  }
+
+  /// 앱 스트림을 열고 알림 첫 페이지를 받는다.
+  ///
+  /// ⚠️ **순서가 규칙이다** — 스트림 먼저, 목록 나중. `start()`가 그 순서를
+  /// 지킨다. 바꾸면 목록 응답과 연결 사이에 생긴 알림이 영영 사라진다.
+  void _startNotifications() {
+    if (ref.read(authControllerProvider) is! AuthSignedIn) return;
+    unawaited(ref.read(notificationProvider.notifier).start());
+  }
+
+  /// 포그라운드로 돌아왔다.
+  ///
+  /// ⚠️ **알림은 연결 여부와 무관하게 다시 받는다.** 스트림이 유지된 상태에서도
+  /// 이벤트를 놓칠 수 있다(모바일 백그라운드·서버측 문제). `resume()`이 끊겼으면
+  /// 다시 붙고, 어느 쪽이든 목록을 재조회한다.
+  void _onResume() {
+    _refreshStatus();
+    if (ref.read(authControllerProvider) is! AuthSignedIn) return;
+    unawaited(ref.read(notificationProvider.notifier).resume());
+    // 앞선 기기 등록이 실패로 남았을 때만 다시 보낸다(명세 2-1).
+    unawaited(ref.read(pushProvider.notifier).resume());
+  }
+
+  /// 프로필을 채운 사람에게 알림 권한을 묻는다. 관문이 서 있는 동안은 아직
+  /// 홈에 들어온 것이 아니다.
+  ///
+  /// `build` 중에 권한 창을 띄우지 않는다. 첫 프레임 뒤로 민다.
+  void _askPushIfNeeded() {
+    if (_pushAsked) return;
+    _pushAsked = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ref.read(pushProvider.notifier).askPermission());
+    });
+  }
+
+  /// 눌린 푸시가 가리키는 화면을 연다.
+  ///
+  /// ## ⚠️ 갈 곳이 없으면 옮기지 않는다
+  ///
+  /// 꺼진 앱이었으면 이미 홈이다. 뒤에 있던 앱이면 보던 화면을 빼앗지 않는다 —
+  /// 달리는 중에 홈으로 끌어내면 러닝 화면이 사라진다([_refreshStatus]와 같은 판단).
+  ///
+  /// ## ⚠️ 카운트다운·러닝 중이면 버린다
+  ///
+  /// 셸 위에 얹힌 그 화면들 위로 옮기면 출발이나 달리기가 가려진다. 알림함에는
+  /// 남아 있다([LaunchGate]가 같은 두 자리를 본다).
+  Future<void> _openPushed() async {
+    if (ref.read(authControllerProvider) is! AuthSignedIn) return;
+    final landing = _push.take();
+    if (landing == null) return;
+    final where = GoRouter.of(context).state.matchedLocation;
+    if (where == AppRoutes.matchCountdown || where == AppRoutes.runSession) {
+      debugPrint('[push] 카운트다운·러닝 중이라 옮기지 않는다');
+      return;
+    }
+    switch (landing) {
+      case PushLandingProfile(:final userId):
+        context.push(AppRoutes.userProfileOf(userId));
+      case PushLandingNotifications():
+        context.push(AppRoutes.notifications);
+      case PushLandingRoom():
+        // ⚠️ **상태를 다시 읽어야 방 화면이 스트림을 연다**(알림함의 초대 수락과
+        // 같은 이유). 그사이 방을 나갔으면 열지 않는다.
+        final status = await ref.read(userStatusProvider.notifier).refresh();
+        if (!mounted || status == null) return;
+        if (!RunResume.showsMatchBanner(status)) return;
+        // 이미 대기방·출발 대기실이면 그대로 둔다. 하나 더 쌓으면 뒤로가기가
+        // 같은 방으로 돌아온다.
+        final here = GoRouter.of(context).state.matchedLocation;
+        if (here == AppRoutes.matchRoom || here == AppRoutes.matchCountdown) {
+          return;
+        }
+        context.push(AppRoutes.matchRoom);
+    }
   }
 
   /// 로그인 화면으로 데리고 나간다.
@@ -144,6 +237,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     AppTabSpec(icon: AppIcons.profile, label: AppStrings.tabProfile),
   ];
 
+  /// 프로필 탭의 자리. [_tabs] 순서와 함께 움직인다.
+  static const _profileTab = 3;
+
   void _onDestinationSelected(int index) {
     widget.navigationShell.goBranch(
       index,
@@ -161,6 +257,21 @@ class _AppShellState extends ConsumerState<AppShell> {
     // 채운 사람도 잠깐 갇힌다.
     final auth = ref.watch(authControllerProvider);
     if (auth is AuthSignedIn) _gateIfNeeded(auth.isOnboarded);
+    if (auth is AuthSignedIn && auth.isOnboarded) _askPushIfNeeded();
+
+    // 뒤에 있던 앱에서 푸시를 눌렀다. 빌드 도중에 옮기지 않는다
+    // ([_leaveForSignIn]과 같은 이유).
+    //
+    // ⚠️ **프레임을 직접 요청한다.** 푸시는 화면이 다 그려진 뒤에 올 수 있는데,
+    // post-frame 콜백은 프레임을 부르지 않아 다음 터치 때까지 옮기지 않는다.
+    ref.listen(pushProvider, (_, landing) {
+      if (landing == null) return;
+      WidgetsBinding.instance
+        ..addPostFrameCallback((_) {
+          if (mounted) unawaited(_openPushed());
+        })
+        ..scheduleFrame();
+    });
 
     // ⚠️ **세션이 끝나면 여기서 데리고 나간다.**
     //
@@ -173,12 +284,19 @@ class _AppShellState extends ConsumerState<AppShell> {
     // `go`가 스택째 바꿔 그 화면들도 함께 빠져나온다.
     ref.listen(authControllerProvider, (before, after) {
       if (before is! AuthSignedIn || after is! AuthSignedOut) return;
+      // ⚠️ **알림 연결도 함께 끊는다.** 남겨두면 로그아웃한 계정의 토큰으로
+      // 다시 붙으려 하고, 백오프가 그것을 계속 되풀이한다.
+      unawaited(ref.read(notificationProvider.notifier).signOut());
       _leaveForSignIn();
     });
 
     // 매칭 스트림을 여기서 살려둔다. **화면이 소유하면 탭을 옮기는 사이에
     // 확정 통지를 놓친다.** 붙을지 끊을지는 provider가 유저 상태를 보고 정한다.
     ref.watch(matchRoomProvider);
+
+    // 앱 스트림도 같은 이유로 여기다. **매칭 스트림과 동시에 유지한다** —
+    // 한쪽을 열었다고 다른 쪽을 닫으면 방에 있는 동안 알림을 못 받는다.
+    final hasUnread = ref.watch(hasUnreadProvider);
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -190,6 +308,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       bottomNavigationBar: AppTabBarV2(
         tabs: _tabs,
         currentIndex: widget.navigationShell.currentIndex,
+        // 알림함이 프로필 탭 안에 있어서, 다른 탭에 있을 때 알려 줄 자리가
+        // 여기 하나뿐이다.
+        badges: hasUnread ? const {_profileTab} : const <int>{},
         onSelected: _onDestinationSelected,
       ),
     );

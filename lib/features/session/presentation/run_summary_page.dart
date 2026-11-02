@@ -11,6 +11,7 @@ import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/core/widgets/v2/fact_card.dart';
+import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
@@ -39,6 +40,15 @@ import 'package:runiverse/features/session/presentation/running_connection_provi
 ///
 /// 시안의 `러닝종료`는 이 화면이 무엇인지가 아니라 방금 한 일을 가리킨다.
 /// 우리는 `러닝 완료`를 그대로 쓴다 — 같은 뜻이고 이미 쓰던 말이다.
+///
+/// ## ⚠️ 숫자는 서버가 확정한 값이다
+///
+/// 앱이 잰 값은 튄 좌표를 거르지 않고, 종료 버튼을 누르는 시간까지 센다.
+/// 그대로 보이면 `자세한 기록 보기`와 숫자가 다르다 — 에뮬레이터에서 200m
+/// 튄 좌표 하나로 요약이 130m 길었다. 그래서 종료가 확인된 방은 결과
+/// 화면과 같은 [runDetailProvider]로 그리고, 받는 동안은 [AppStrings.runUnavailable]
+/// 을 둔다. 방을 못 열었거나 종료 확인을 못 받았거나 조회가 실패했거나 내
+/// 기록이 남지 않았으면 서버 값이 없으니 앱 값을 쓴다.
 class RunSummaryPage extends ConsumerWidget {
   const RunSummaryPage({super.key});
 
@@ -58,12 +68,46 @@ class RunSummaryPage extends ConsumerWidget {
     final settling = ref.watch(
       runningConnectionProvider.select((it) => it.settling),
     );
-    final averagePace = PaceCalculator.format(
-      PaceCalculator.perKilometer(
-        meters: metrics.distanceMeters,
-        elapsed: metrics.elapsed,
+    final finishedRoomId = ref.watch(
+      runningConnectionProvider.select((it) => it.finishedRoomId),
+    );
+    final measured = (
+      distance: AppStrings.kmFloor(metrics.distanceMeters),
+      time: _elapsedText(metrics.elapsed),
+      pace: PaceCalculator.format(
+        PaceCalculator.perKilometer(
+          meters: metrics.distanceMeters,
+          elapsed: metrics.elapsed,
+        ),
       ),
     );
+    // ⚠️ 방 번호만 보지 않는다. 종료 확인을 못 받으면 [finishedRoomId]가 이
+    // 방이 아니고, 확정 전에 부르면 200에 빈 기록이 온다([settling]).
+    final result = room != null && finishedRoomId == room.id && !settling
+        ? ref.watch(runDetailProvider(room.id))
+        : null;
+    // 받아 둔 값은 다시 받다 실패해도 남는다 — 상세에서 돌아왔을 뿐인데
+    // 숫자가 앱 값으로 바뀌면 안 된다.
+    final detail = result?.value;
+    // ⚠️ **내 기록이 있을 때만 서버 값을 쓴다.** 너무 짧게 달려 기록이 안
+    // 남으면 조회는 성공해도 내 수치가 비고, 거리·시간이 0으로 채워진다.
+    final mine = detail?.players.where((p) => p.isMe).firstOrNull;
+    // ⚠️ **처음 받다 오류가 나면 바로 앱 값으로 돌린다.** Riverpod이 실패한
+    // 조회를 최대 10번 다시 시도하는데(약 40초) 그동안 상태가 "받는 중"이라,
+    // 그것만 보면 끊긴 곳에서 끝냈을 때 숫자 없이 `--`만 보인다.
+    final shown = detail != null && mine != null && mine.hasRecord
+        ? (
+            distance: AppStrings.kmFloor(detail.distanceMeters),
+            time: _elapsedText(detail.duration),
+            pace: PaceCalculator.format(detail.averagePace),
+          )
+        : result != null && !result.hasError && !result.hasValue
+        ? (
+            distance: AppStrings.runUnavailable,
+            time: AppStrings.runUnavailable,
+            pace: AppStrings.runUnavailable,
+          )
+        : measured;
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -88,7 +132,7 @@ class RunSummaryPage extends ConsumerWidget {
                         // 내려앉아 빛과 숫자가 화면 한가운데 몰린다.
                         const Spacer(),
                         ...[
-                          _Distance(meters: metrics.distanceMeters),
+                          _Distance(text: shown.distance),
                           const SizedBox(height: AppSpacing.space8),
 
                           // 거리 하나만 키우고 나머지 둘은 나란히 눕힌다. 셋을
@@ -98,14 +142,14 @@ class RunSummaryPage extends ConsumerWidget {
                               Expanded(
                                 child: FactCard(
                                   label: AppStrings.runSummaryTotalTime,
-                                  value: _elapsedText(metrics.elapsed),
+                                  value: shown.time,
                                 ),
                               ),
                               const SizedBox(width: AppSpacing.space3),
                               Expanded(
                                 child: FactCard(
                                   label: AppStrings.runSummaryAveragePace,
-                                  value: averagePace,
+                                  value: shown.pace,
                                 ),
                               ),
                             ],
@@ -140,11 +184,17 @@ class RunSummaryPage extends ConsumerWidget {
                     //
                     // ⚠️ **확정 중에도 잠근다.** 서버가 `RUNNING_FINISH`를
                     // 처리하기 전에 부르면 200에 빈 기록이 와서
-                    // `0.00km · 구간 0개`가 된다([RunningConnectionState.settling]).
+                    // `0.00 km · 구간 0개`가 된다([RunningConnectionState.settling]).
+                    //
+                    // ⚠️ **누를 때 새로 받는다.** 요약이 받아 둔 결과에는 나보다
+                    // 늦게 끝나는 파티원이 아직 "달리는 중"으로 남아 있다.
+                    // 그대로 넘기면 상세에서 그 사람과 비교가 안 보인다.
                     onPressed: room == null || settling
                         ? null
-                        : () =>
-                              context.push(AppRoutes.runResult, extra: room.id),
+                        : () {
+                            ref.invalidate(runDetailProvider(room.id));
+                            context.push(AppRoutes.runResult, extra: room.id);
+                          },
                   ),
                 ),
               ],
@@ -248,9 +298,10 @@ class _TopBar extends StatelessWidget {
 
 /// 총 거리 — 이 화면에서 60px은 여기 하나뿐이다.
 class _Distance extends StatelessWidget {
-  const _Distance({required this.meters});
+  const _Distance({required this.text});
 
-  final double meters;
+  /// km 숫자. 받는 중이면 [AppStrings.runUnavailable]이다.
+  final String text;
 
   @override
   Widget build(BuildContext context) {
@@ -288,7 +339,7 @@ class _Distance extends StatelessWidget {
           textBaseline: TextBaseline.alphabetic,
           children: [
             Text(
-              (meters / 1000).toStringAsFixed(2),
+              text,
               style: AppTypographyV2.heading01.copyWith(
                 color: colors.textStrong,
                 // 파란 빛 위에 얹히는 흰 글자다. 굵기를 한 칸 올리고 뒤에

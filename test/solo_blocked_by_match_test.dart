@@ -37,6 +37,7 @@ void main() {
       statuses = FakeUserStatusRepository(
         status: UserStatusWaiting(
           runningRoomId: 12,
+          type: RoomType.match,
           scheduledStartAt: _startAt,
         ),
       );
@@ -128,7 +129,11 @@ void main() {
     testWidgets('⚠️ 매칭을 신청해 뒀으면 매칭을 가리킨다', (tester) async {
       await pump(
         tester,
-        UserStatusWaiting(runningRoomId: 12, scheduledStartAt: _startAt),
+        UserStatusWaiting(
+          runningRoomId: 12,
+          type: RoomType.match,
+          scheduledStartAt: _startAt,
+        ),
       );
 
       expect(find.text(AppStrings.runBlockedByMatch), findsOneWidget);
@@ -143,7 +148,7 @@ void main() {
         tester,
         UserStatusReady(
           runningRoomId: 12,
-          isSolo: false,
+          type: RoomType.match,
           scheduledStartAt: _startAt,
         ),
       );
@@ -157,7 +162,7 @@ void main() {
         tester,
         UserStatusRunning(
           runningRoomId: 12,
-          isSolo: true,
+          type: RoomType.solo,
           scheduledStartAt: _startAt,
         ),
       );
@@ -177,7 +182,7 @@ void main() {
         tester,
         UserStatusReady(
           runningRoomId: 12,
-          isSolo: true,
+          type: RoomType.solo,
           scheduledStartAt: _startAt,
         ),
       );

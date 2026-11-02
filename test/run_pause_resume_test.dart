@@ -89,7 +89,7 @@ void main() {
           FakeUserStatusRepository(
             status: UserStatusRunning(
               runningRoomId: 1,
-              isSolo: false,
+              type: RoomType.match,
               scheduledStartAt: DateTime(2026, 10, 14, 7),
             ),
           ),
@@ -465,6 +465,45 @@ void main() {
       expect(resumed, isNonNegative);
       expect(sent, isNonNegative, reason: '다시 쌓인 좌표가 나가야 한다');
       expect(resumed, lessThan(sent));
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 흘려보내는 사이 다시 가면 멈춤을 알리지 않는다', (tester) async {
+      // ⚠️ **늦게 끝난 `pause`가 `RESUME` 뒤에 `PAUSE`를 보냈다.** 전송기도
+      // 세워 버려서, 내 화면은 달리는데 서버는 멈춘 것으로 알고 좌표가 다음
+      // 일시정지·종료 때까지 안 나갔다 — 에뮬레이터에서 0.07초 간격으로 재현.
+      final container = await pumpRunning(tester);
+
+      // 남은 좌표를 흘려보내는 동안(배치 뒤 300ms 쉼) 다시 누른다.
+      await tester.tap(find.bySemanticsLabel(AppStrings.runPauseCta));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(find.bySemanticsLabel(AppStrings.runResumeCta));
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 400));
+      }
+
+      final resumed = channel.log.indexOf('resume');
+      expect(resumed, isNonNegative);
+      expect(
+        channel.log.sublist(resumed),
+        isNot(contains('pause')),
+        reason: '`RESUME` 뒤에 `PAUSE`가 나가면 서버는 멈춘 것으로 안다',
+      );
+
+      // 전송기도 돌고 있어야 한다. 다시 쌓인 좌표가 나가는지 본다.
+      channel.log.clear();
+      for (var i = 9; i <= 12; i++) {
+        await emit(tester, north(30.0 * i));
+      }
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(seconds: 4));
+      }
+
+      expect(
+        channel.log.where((e) => e.startsWith('locations')),
+        isNotEmpty,
+        reason: '전송기가 서 있다',
+      );
       await unmount(tester, container);
     });
 

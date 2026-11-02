@@ -16,6 +16,28 @@ import 'package:runiverse/core/utils/kst_time.dart';
 /// 받침 유무에 따라 은/는, 이/가가 갈리는데 코드는 그걸 모른다
 /// ("피드**는**" / "대회일정**은**"). 조사가 필요 없게 문장을 짠다.
 abstract final class AppStrings {
+  // ── 달린 거리 (여러 화면) ────────────────────────────────────
+
+  /// `4.99` — 달린 거리의 km 숫자. **반올림하지 않고 버린다.**
+  ///
+  /// ⚠️ 반올림하면 5km 목표에서 4,996m가 `5.00`으로 보인다 — 다 달린 줄
+  /// 알았는데 러닝이 끝나지 않는다. 워치 앱도 같은 규칙이다.
+  ///
+  /// 목표 거리에는 쓰지 않는다. 목표는 정해진 값이라 버릴 것이 없다.
+  static String kmFloor(num meters) => _floorKm(meters, 10, 2);
+
+  /// `4.9` — [kmFloor]의 소수 한 자리. 100m 단위로 버린다.
+  static String kmFloor1(num meters) => _floorKm(meters, 100, 1);
+
+  static String _floorKm(num meters, int step, int digits) =>
+      ((meters / step).floor() * step / 1000).toStringAsFixed(digits);
+
+  /// km로 받은 기록 거리를 미터로 되돌린다.
+  ///
+  /// ⚠️ 바로 버리면 안 된다 — `2.03 * 1000` 이 `2029.99…` 라 `2.02`가 된다.
+  /// 기록 거리는 서버가 미터 정수로 주므로 반올림하면 원래 값이 나온다.
+  static int _metersOf(double km) => (km * 1000).round();
+
   // ── 하단 탭 ──────────────────────────────────────────────────
   //
   // 탭 4개는 홈 / 기록 / 기록카드 / 프로필이다(시안 158:2899).
@@ -517,10 +539,10 @@ abstract final class AppStrings {
   static const homeMatchCta = '매칭 시작';
   static const homeSoloCta = '혼자 연습하기';
 
-  /// ⚠️ **CLAUDE.md는 "친구"를 금지한다**(요청→수락 모델). 시안이 이 말을
-  /// 쓰고, 프로필 시안의 `팔로워/팔로우`와 **한 덩어리 결정**이라 일단
-  /// 시안대로 뒀다. 기획 확인이 필요하다.
-  static const homeWithFriendCta = '친구랑 뛰기';
+  /// ⚠️ **아직 갈 곳이 없다.** 누르면 준비 중이라고 말한다
+  /// (`home_page.dart`). 2026-10-28에 `친구랑 뛰기`에서 이름을 바꿨다 —
+  /// 친구를 불러 같이 뛰는 것이 아니라 **방에 초대하는** 기능이라서다.
+  static const homeInviteRunCta = '초대 러닝';
 
   /// 히어로 부제. 줄바꿈 위치를 고정해 두 줄로 읽히게 한다.
   static const homeHeroSubtitle = '나와 비슷한 러너를 만나\n같은 시간, 각자의 자리에서 함께 달려보세요.';
@@ -548,6 +570,20 @@ abstract final class AppStrings {
   /// ⚠️ **시안에 없는 구간이다.** 신청 직후에는 아직 나뿐이라 궤도가 빈다.
   /// 그때 `0명의 러너가 준비를 하고 있어요`라고 적으면 말이 안 된다.
   static const homeMatchWaitingAlone = '아직 함께 달릴 러너를 찾고 있어요';
+
+  /// `민수님과 매칭성공!` — 파티원이 **늘어난 순간** 히어로 한가운데 뜬다.
+  ///
+  /// ⚠️ **머릿수의 문구가 아니라 사건의 문구다.** 화면에 들어올 때마다
+  /// 띄우면 축하가 아니라 머릿수 안내가 된다.
+  ///
+  /// ⚠️ **긴 닉네임은 이 문자열로 자르지 않는다.** 16자까지 받으므로
+  /// 문장을 통째로 줄이면 정작 알려야 할 `매칭성공!`이 먼저 잘린다. 화면이
+  /// 닉네임과 [homeMatchSuccessSuffix]를 따로 세우고 **닉네임만** 줄인다.
+  static String homeMatchSuccess(String nickname) =>
+      '$nickname$homeMatchSuccessSuffix';
+
+  /// 닉네임 뒤에 붙는 고정 부분. **잘리지 않는 쪽**이다.
+  static const homeMatchSuccessSuffix = '님과 매칭성공!';
 
   /// 잠긴 CTA. 누를 수 없고, 지금 무엇을 하는 중인지만 말한다.
   static const homeMatchWaitingCta = '매칭 대기중';
@@ -643,6 +679,17 @@ abstract final class AppStrings {
   static const matchRegisterTitle = '매칭 등록';
   static const matchRegisterCta = '매칭 등록하기';
 
+  /// `매칭 등록하기 · 3명 대기` — **시간·거리를 둘 다 고른 뒤**의 등록 버튼.
+  ///
+  /// ⚠️ **시간 시트의 숫자와 다른 수다.** 시트는 그 시각의 모든 거리를 더한
+  /// 합계를 그리고([matchWaitingCount]), 여기는 고른 거리 하나의 수다. 거리를
+  /// 고르면 숫자가 좁혀지는 것이 정상이다.
+  ///
+  /// ⚠️ **0명이면 붙이지 않는다.** `0명 대기`는 비어 있다고 알리는 꼴이라
+  /// 오히려 사람을 민다 — 그때는 [matchRegisterCta]로 남는다.
+  static String matchRegisterCtaWaiting(int count) =>
+      '$matchRegisterCta · $count명 대기';
+
   static const matchTimeLabel = '오늘 언제 뛸까요?';
   static const matchTimePlaceholder = '시간 고르기';
 
@@ -651,8 +698,26 @@ abstract final class AppStrings {
 
   static const matchDistanceLabel = '목표 거리';
 
-  /// `3km` — 거리 칩과 요약 줄에 함께 쓴다.
-  static String matchDistanceText(int km) => '${km}km';
+  /// `3 km` — 거리 칩과 요약 줄에 함께 쓴다.
+  static String matchDistanceText(int km) => '$km km';
+
+  /// `5 km` · `21.098 km` — **어떤 미터값이든** 적는다.
+  ///
+  /// ⚠️ [matchDistanceText]는 km 정수만 받는다. 초대 러닝은 거리가 자유
+  /// 입력이라 `7000`·`21098`이 오고, 그 길로 보내면 `TargetDistance`가
+  /// `null`을 돌려줘 **칸이 그대로 빈다**(실측 2026-10-29).
+  static String distanceKm(int meters) {
+    final km = meters / 1000;
+    // 딱 떨어지면 `5 km`. 아니면 소수점 뒤 0을 떼고 `21.098 km`.
+    if (km == km.roundToDouble()) return '${km.toInt()} km';
+    return '${km.toString().replaceFirst(RegExp(r'0+\$'), '')} km';
+  }
+
+  /// `1500 m` — 1000으로 안 나뉘는 거리.
+  ///
+  /// ⚠️ **선택지를 서버가 정하므로** 앱이 km로 이름 붙일 수 없는 값이 올 수
+  /// 있다. 지어낸 `1 km`보다 낯선 `1500 m`가 낫다.
+  static String matchDistanceMeters(int meters) => '$meters m';
 
   /// `19:00` — 슬롯 표기. 날짜는 오늘뿐이라 시각만 적는다.
   ///
@@ -735,11 +800,6 @@ abstract final class AppStrings {
   static String matchClosingSoon(String times) =>
       '오늘 남은 시간대는 $times뿐이에요. 모집은 시작 직전에 마감돼요';
 
-  /// 거리를 고르기 전에 시간 선택기가 잠긴 이유.
-  ///
-  /// ⚠️ 목록을 받으려면 거리가 먼저 있어야 한다 — 조회가 거리를 필수로 받는다.
-  static const matchSlotsLockedByDistance = '거리를 먼저 골라주세요';
-
   /// 고를 수 있는 시간이 하나도 없다. 22시가 지났거나 전부 마감이다.
   ///
   /// ⚠️ **목록이 비지 않아도 여기 온다.** 전부 `selectable: false`면 시트를
@@ -750,19 +810,17 @@ abstract final class AppStrings {
   static const matchSlotsRetry = '다시 시도';
   static const matchSlotsLoading = '시간대를 불러오는 중이에요';
 
-  /// `현재 3km에 7명의 러너가 대기중이에요` — **거리만 골랐을 때** 등록 버튼
-  /// 위에 서는 줄(시안 `158:3186`).
+  /// `3명 대기` — 시간 시트의 한 줄에 붙는다. 사회적 증거다.
   ///
-  /// ⚠️ 시안 원문은 `현재 18:00에 3명의…`로 **시각**을 적는다. 거리를 먼저
-  /// 고르게 되면서 그 자리가 거리로 바뀌었다 — 시각은 아직 안 골랐고, 이 줄이
-  /// 답하는 질문은 "이 거리에 사람이 있는가"다. 어느 시각인지는 시트가 답한다.
+  /// ⚠️ **그 시각의 모든 거리를 더한 수다.** 시트는 거리를 고르기 전에도
+  /// 열리므로 거리 하나의 수를 적으면 다른 거리를 고를 사람에게 거짓이 된다.
   ///
-  /// ⚠️ **시간까지 고르면 그리지 않는다.** 시트에서 이미 그 시각의 수를 보고
-  /// 고른 사람에게 같은 말을 한 번 더 적는 셈이다.
-  static String matchWaitingTotal(int km, int count) =>
-      '현재 ${km}km에 $count명의 러너가 대기중이에요';
-
-  /// `3명 대기` — 사회적 증거다. 0명이면 붙이지 않는다.
+  /// ⚠️ **"함께"라는 말을 붙이지 않는다.** 명세가 거리가 다르면 같은 방에
+  /// 매칭되지 않는다고 못 박았다 — `5명`이 3km 3명과 10km 2명일 수 있고 그
+  /// 다섯이 서로 만나지는 않는다. 거리를 고르면 등록 버튼의 숫자가 진짜 그
+  /// 조건의 수로 바뀌면서 저절로 좁혀진다([matchRegisterCtaWaiting]).
+  ///
+  /// 0명이면 붙이지 않는다.
   static String matchWaitingCount(int count) => '$count명 대기';
 
   static const matchSlotSheetTitle = '시간 선택';
@@ -1179,8 +1237,8 @@ abstract final class AppStrings {
     _ => '나란히 달리는 중',
   };
 
-  /// `3.4` — 카드의 현재 거리. 소수 한 자리.
-  static String runPartyKm1(int meters) => (meters / 1000).toStringAsFixed(1);
+  /// `3.4` — 카드의 현재 거리. 소수 한 자리, 버린다([kmFloor]).
+  static String runPartyKm1(int meters) => kmFloor1(meters);
 
   /// `5 km` — 목표 거리.
   static String runPartyTargetKm(int meters) {
@@ -1200,9 +1258,8 @@ abstract final class AppStrings {
   /// ⚠️ 이름을 모르는 파티원. 러닝 중 앱을 재시작하면 명단이 사라진다.
   static const runPartyUnknown = '함께 달리는 사람';
 
-  /// `2.32km` — 막대 옆 숫자.
-  static String runPartyDistance(int meters) =>
-      '${(meters / 1000).toStringAsFixed(2)}km';
+  /// `2.32 km` — 막대 옆 숫자.
+  static String runPartyDistance(int meters) => '${kmFloor(meters)} km';
 
   /// 파티원이 **뛰고 있지 않을 때** 격차 자리에 대신 넣는 말.
   ///
@@ -1231,8 +1288,15 @@ abstract final class AppStrings {
   ///
   /// ⚠️ **"제한 없이 끝낼 수 있다"고 말하지 않는다.** 판정은 서버 몫이라
   /// 앱이 약속할 수 없다(가이드 3.4). 화면 기준이라고 밝히고 거리만 알린다.
-  static String runFinishRemaining(double km) =>
-      '화면 기준으로 ${km.toStringAsFixed(2)}km 더 달리면 80%를 채워요';
+  ///
+  /// ⚠️ 남은 거리는 10m 단위로 **올린다** — 반올림하면 4m 남았을 때
+  /// `0.00km 더`라고 한다. 미터로 먼저 반올림해서 부동소수점 끝자리
+  /// (`10.000…01m`)가 한 칸 더 올리지 않게 하고, 남아 있으면 최소 1m로 본다.
+  static String runFinishRemaining(double km) {
+    final meters = (km * 1000).round();
+    final tens = ((meters < 1 ? 1 : meters) + 9) ~/ 10;
+    return '화면 기준으로 ${(tens / 100).toStringAsFixed(2)}km 더 달리면 80%를 채워요';
+  }
 
   static const runPaceLabel = '페이스';
   static const runTimeLabel = '시간';
@@ -1261,6 +1325,9 @@ abstract final class AppStrings {
 
   /// 종료는 **길게 눌러야** 한다. 실수로 끝내면 되돌릴 방법이 없다.
   static const runFinishHold = '길게 눌러 종료';
+
+  /// 서버가 종료를 거절했다. 러닝은 이어진다.
+  static const runFinishRejected = '종료하지 못했어요. 다시 길게 눌러 주세요';
 
   /// 지도 페이지에 키가 없을 때. 나머지 기능은 그대로 돈다.
   static const runMapUnavailable = '지도를 불러올 수 없어요';
@@ -1299,7 +1366,7 @@ abstract final class AppStrings {
   /// 종료를 알리고 서버가 기록을 확정하는 동안 [runSummaryDetail] 대신 쓴다.
   ///
   /// ⚠️ **버튼을 말없이 잠그면 안 된다.** 이 사이 상세를 열면 빈 기록이 와서
-  /// `0.00km · 구간 0개`가 뜨므로 막아야 하는데, 이유를 안 적으면 사용자는
+  /// `0.00 km · 구간 0개`가 뜨므로 막아야 하는데, 이유를 안 적으면 사용자는
   /// 버튼이 고장 난 줄 안다. 몇 초면 풀린다.
   static const runSummaryDetailSettling = '기록을 확정하는 중이에요';
 
@@ -1368,8 +1435,8 @@ abstract final class AppStrings {
   /// 케이던스가 원래 없는 화면인 줄 알게 된다.
   static const runResultNoCadence = '걸음 센서를 읽지 못해 이번 러닝은 케이던스가 없어요';
 
-  /// `3km`처럼 구간 끝 지점을 적는다.
-  static String runResultSplitLabel(int index) => '${index}km';
+  /// `3 km`처럼 구간 끝 지점을 적는다.
+  static String runResultSplitLabel(int index) => '$index km';
 
   // ── 파티원 비교 (S16 · S16.5) ─────────────────────────────────
 
@@ -1386,17 +1453,17 @@ abstract final class AppStrings {
   /// 러너 칩 위의 안내. 한 번에 한 명만 겹쳐 본다.
   static const runResultCompareHint = '한 명을 골라 구간별로 비교해요';
 
-  /// 마지막 자투리 구간. `5.4km`처럼 실제로 닿은 지점을 적는다.
+  /// 마지막 자투리 구간. `5.40 km`처럼 실제로 닿은 지점을 적는다.
   static String runResultPartialLabel(double totalKm) =>
-      '${totalKm.toStringAsFixed(2)}km';
+      '${kmFloor(_metersOf(totalKm))} km';
 
-  /// 50m 표본이 닿은 지점. `1km` `2.5km` `3.02km`.
+  /// 50m 표본이 닿은 지점. `1 km` `2.5 km` `3.02 km`.
   ///
   /// ⚠️ [runResultPartialLabel]과 달리 **끝자리 0을 뗀다.** x축을 거리마다
-  /// 찍게 되면서 `1.00km`가 바로 위 1km 그래프의 `1km`와 나란히 놓인다 —
+  /// 찍게 되면서 `1.00 km`가 바로 위 1km 그래프의 `1 km`와 나란히 놓인다 —
   /// 같은 지점인데 다르게 적혀 있으면 다른 값으로 읽힌다.
   static String runResultSampleLabel(double km) =>
-      '${km.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '')}km';
+      '${km.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '')} km';
 
   // ── 기록 탭 S21 ──────────────────────────────────────────────
 
@@ -1471,7 +1538,7 @@ abstract final class AppStrings {
   /// 19분인지 19시간인지 알 수가 없다. 시각은 `HH:MM`, 소요는 말로 적는다.
   static String recordRunLine(DateTime startedAt, double km, Duration took) =>
       '${_clockOf(startedAt)} 시작'
-      ' · ${km.toStringAsFixed(1)} km'
+      ' · ${kmFloor1(_metersOf(km))} km'
       ' · ${recordDurationText(took)} 소요';
 
   /// `06:40`. 벽시계 그대로 — 시간대를 옮기지 않는다.
@@ -1482,16 +1549,16 @@ abstract final class AppStrings {
   static String recordDayLabel(DateTime day, int count) =>
       '${day.month}월 ${day.day}일 · 러닝 $count회';
 
-  /// `5.02km`
-  static String recordDistanceText(double km) => '${km.toStringAsFixed(2)}km';
+  /// `5.02 km`
+  static String recordDistanceText(double km) => '${kmFloor(_metersOf(km))} km';
 
-  /// `14.2km` — 요약 줄은 소수 한 자리로 줄인다.
+  /// `14.2 km` — 요약 줄은 소수 한 자리로 줄인다.
   static String recordSummaryDistanceText(double km) =>
-      '${km.toStringAsFixed(1)}km';
+      '${kmFloor1(_metersOf(km))} km';
 
-  /// `42m`
+  /// `42 m`
   static String recordElevationText(int? meters) =>
-      meters == null ? recordUnknown : '${meters}m';
+      meters == null ? recordUnknown : '$meters m';
 
   /// `아침 07:10` · `저녁 20:05`
   ///
@@ -1513,7 +1580,7 @@ abstract final class AppStrings {
     return '$label $hh:$mm';
   }
 
-  /// `아침 07:10 · 5.02km` — 목록 행의 첫 줄 앞부분.
+  /// `아침 07:10 · 5.02 km` — 목록 행의 첫 줄 앞부분.
   static String recordRunLabel(DateTime startedAt, double km) =>
       '${recordTimeOfDay(startedAt)} · ${recordDistanceText(km)}';
 
@@ -1562,8 +1629,8 @@ abstract final class AppStrings {
   //
   // - 알림이 3종(매칭·러닝·소셜)이 아니라 **하나**다 (`alertConsent`)
   // - 공개 범위가 3단이 아니라 **둘**이다 (`PUBLIC` / `FRIENDS`)
-  // - `FRIENDS`를 **"친구"라고 부르지 않는다** — 이 파일 맨 위의 톤 규칙과
-  //   `CLAUDE.md`가 정한 것이다. 요청→수락 모델이라 "팔로워"로 쓴다
+  // - `FRIENDS`를 **"친구"라고 부른다** — 2026-10-28에 앱 어휘를 통일했다
+  //   (`docs/specs/2026-10-28-friend-design.md` §1). 그 전에는 "팔로워"였다
 
   static const settingsTitle = '설정';
 
@@ -1571,8 +1638,9 @@ abstract final class AppStrings {
 
   static const settingsAlertConsent = '알림 허용';
 
-  /// ⚠️ **지금은 이걸 켜도 알림이 오지 않는다.** 앱에 알림을 띄우는 코드가
-  /// 아직 없다. 그래서 "받고 있어요"가 아니라 **받겠다는 의사**로 적는다.
+  /// ⚠️ **켜도 기기 알림 권한이 꺼져 있으면 오지 않는다.** 서버는 이 값이
+  /// `false`인 사람에게만 보내지 않는다. 그래서 "받고 있어요"가 아니라
+  /// **받겠다는 의사**로 적는다.
   static const settingsAlertConsentWhy = '매칭과 러닝 소식을 받아요';
 
   static const settingsVisibilitySection = '공개 범위';
@@ -1580,11 +1648,11 @@ abstract final class AppStrings {
   static const settingsVisibilityPublic = '전체 공개';
 
   /// 서버 `FRIENDS`. 정본의 "팔로워공개"와 같은 것이다.
-  static const settingsVisibilityFollowers = '팔로워에게만';
+  static const settingsVisibilityFriends = '친구에게만';
 
   static const settingsVisibilityPublicWhy = '누구나 프로필을 볼 수 있어요';
 
-  static const settingsVisibilityFollowersWhy = '팔로워만 프로필을 볼 수 있어요';
+  static const settingsVisibilityFriendsWhy = '친구만 프로필을 볼 수 있어요';
 
   static const settingsAccountSection = '계정';
 
@@ -1747,4 +1815,248 @@ abstract final class AppStrings {
 
   /// 스토어를 열지 못했다. 눌러도 조용하면 고장으로 읽힌다.
   static const updateStoreFailed = '스토어를 열지 못했어요';
+
+  // ── 친구 ────────────────────────────────────────────────────────────
+  //
+  // ⚠️ **"친구"라고 쓴다.** 2026-10-28에 어휘를 통일했다. 그 전에는 팔로우
+  // 모델을 따라 "팔로워"였다 — `docs/specs/2026-10-28-friend-design.md` §1.
+
+  static const friendSearchHint = '닉네임으로 찾기';
+
+  static const friendTabFriends = '친구';
+  static const friendTabRecommendations = '추천';
+
+  /// 묶음 머리글. 서버가 주는 순서가 곧 이 순서다.
+  static const friendSectionReceived = '받은 요청';
+  static const friendSectionSent = '보낸 요청';
+  static const friendSectionFriends = '친구';
+
+  /// 검색 결과에서 아직 아무 사이도 아닌 사람들.
+  static const friendSectionOthers = '그 밖의 러너';
+
+  static const friendAccept = '수락';
+  static const friendReject = '거절';
+  static const friendCancel = '요청 취소';
+  static const friendRequest = '친구 요청';
+
+  /// ⚠️ **누른 직후에만 보인다.** 추천 목록은 요청이 오간 사람을 빼고 오므로,
+  /// 다음에 열면 그 줄이 아예 없다.
+  static const friendRequested = '요청됨';
+
+  static const friendRemove = '친구 삭제';
+
+  /// 되돌릴 수 없어서 한 번 묻는다.
+  static const friendRemoveConfirmTitle = '친구를 끊을까요?';
+  static String friendRemoveConfirmBody(String nickname) =>
+      '$nickname님과 친구가 아니게 돼요. 다시 맺으려면 요청해야 해요.';
+  static const friendRemoveConfirmYes = '끊기';
+  static const friendRemoveConfirmNo = '그대로 두기';
+
+  /// 추천 이유. 서버가 주는 것은 둘뿐이다.
+  static const friendReasonRanTogether = '최근에 함께 뛴 러너';
+  static const friendReasonSimilarPace = '나와 페이스가 비슷한 러너';
+
+  static const friendEmptyFriends = '아직 친구가 없어요';
+  static const friendEmptyFriendsWhy = '추천에서 함께 뛴 러너를 찾아보세요';
+
+  static const friendEmptyRecommendations = '추천할 러너를 아직 못 찾았어요';
+  static const friendEmptyRecommendationsWhy = '매칭 러닝을 한 번 뛰고 오면 생겨요';
+
+  static String friendEmptySearch(String query) => '‘$query’으로 찾은 러너가 없어요';
+
+  /// 프로필의 진입점. 시안 `85:2882`의 팔로워 자리다.
+  static String friendProfileEntry(int count) => '친구 · $count';
+
+  /// ⚠️ **첫 페이지만 세기 때문이다.** 받은 요청이 20개를 넘기면 정확한 수에
+  /// 뜻이 없다.
+  static const friendBadgeOverflow = '20+';
+
+  /// ⚠️ **"없다"와 "못 받았다"를 가른다.** 터널이 끊겼을 때 "아직 친구가
+  /// 없어요"가 뜨면, 친구 40명인 사람에게 거짓말을 하는 것이다.
+  static const friendLoadFailed = '목록을 불러오지 못했어요';
+  static const friendRetry = '다시 시도';
+
+  /// 404. 내가 누르는 사이 상대가 취소했거나, 이미 처리된 요청이다.
+  static const friendGone = '이미 처리된 요청이에요';
+
+  /// 409. 화면과 서버가 어긋났다.
+  static const friendAlready = '이미 요청했거나 친구예요';
+
+  static const friendActionFailed = '잠시 후 다시 시도해주세요';
+
+  /// 남의 친구 목록. 친구만 담긴다 — 누구에게 요청했는지는 본인만 안다.
+  static String userFriendsTitle(String nickname) => '$nickname님의 친구';
+  static String userFriendsEmpty(String nickname) => '$nickname님은 아직 친구가 없어요';
+
+  /// 남의 프로필을 못 받았다. 404(탈퇴·없는 사람)도 여기로 온다.
+  static const friendProfileLoadFailed = '프로필을 불러오지 못했어요';
+
+  /// 아직 만들지 않은 것. 다음 업데이트 몫이다.
+  static const friendAchievement = '업적';
+  static const friendAchievementSoon = '준비중';
+  static const friendAchievementTitle = '러닝 업적 준비중';
+
+  // ── 알림함 ───────────────────────────────────────────────────────────
+
+  static const notificationTitle = '알림';
+
+  /// ⚠️ **문구는 앱이 만든다.** 서버가 내려주지 않는다 — `type`별로 한 줄씩
+  /// 여기서 정하고, 알림에 실려 온 값으로 빈자리를 채운다.
+  static String notificationFriendRequested(String nickname) =>
+      '$nickname 님이 친구 요청을 보냈어요';
+  static String notificationFriendAccepted(String nickname) =>
+      '$nickname 님과 친구가 되었어요';
+  static String notificationRunningInvited(String nickname) =>
+      '$nickname 님이 러닝에 초대했어요';
+
+  /// 초대 알림의 둘째 줄. 시각과 거리를 함께 적는다.
+  static String notificationInviteDetail(String time, String distance) =>
+      '$time · $distance';
+
+  static const notificationAccept = '수락';
+  static const notificationDecline = '거절';
+
+  /// `invitation.status`별 안내. **버튼이 없는 상태들이다.**
+  static const notificationInviteAccepted = '수락했어요';
+  static const notificationInviteDeclined = '거절했어요';
+  static const notificationInviteLeft = '방에서 나갔어요';
+  static const notificationInviteExpired = '모집이 마감됐어요';
+
+  static const notificationEmpty = '아직 알림이 없어요';
+  static const notificationEmptyWhy = '친구 요청과 러닝 초대가 여기 모여요';
+  static const notificationLoadFailed = '알림을 불러오지 못했어요';
+  static const notificationRetry = '다시 시도';
+
+  // ── 초대 방 ──────────────────────────────────────────────────────────
+
+  static const inviteRoomTitle = '초대 러닝';
+
+  /// 모집 중. 매칭 방의 `매칭 대기 중`과 다른 말을 쓴다 — 매칭하고 있지 않다.
+  static const inviteRoomWaiting = '러너 모으는 중';
+
+  /// 모집 마감 뒤. **`매칭 완료`가 아니다** — 성사된 것이 아니라 닫힌 것이다.
+  static const inviteRoomClosed = '출발 준비 완료';
+
+  /// 답을 기다리는 자리.
+  static String inviteRoomPending(String nickname) => '초대 중 · $nickname';
+
+  /// 남은 자리.
+  static String inviteRoomSeatsLeft(int count) => '남은 자리 $count';
+
+  /// ⚠️ **초대 방은 제재가 없다.** 매칭 방의 "20분 동안 다시 신청할 수
+  /// 없어요"를 쓰면 거짓이다.
+  static const inviteRoomLeaveFree = '언제든 나갈 수 있어요';
+
+  /// 마지막 사람일 때. 나가면 방이 사라지고 받은 초대도 함께 없어진다.
+  static const inviteRoomLeaveLast = '나가면 방이 사라져요';
+
+  /// ⚠️ **마감 전 유일한 경고다.** 초대 취소도 `CANCELLED`도 없어서, 마감
+  /// 뒤에는 혼자 출발하는 것 말고 길이 없다.
+  static const inviteRoomAloneWarning = '곧 모집이 닫혀요 · 혼자 달리게 됩니다';
+
+  static const inviteRoomInviteCta = '러너 초대';
+
+  /// ⚠️ **초대 방에서 나가는 것은 "매칭 취소"가 아니다.** 매칭을 신청한 적이
+  /// 없고, 제재도 없다.
+  static const inviteRoomLeave = '나가기';
+
+  /// 홈 히어로의 버튼. 매칭의 `매칭 대기중`은 초대 방에서 거짓이다 — 매칭하고
+  /// 있지 않고 출발을 기다린다.
+  static const homeInviteWaitingCta = '출발 대기중';
+
+  // ── 홈 히어로 · 초대 방 ──────────────────────────────────────────────
+
+  /// ⚠️ **매칭 문구를 그대로 쓸 수 없다.** 초대 방은 매칭하고 있지 않다 —
+  /// 초대한 사람의 답을 기다린다. 방은 `push`로 열려서 뒤로 가면 홈 히어로가
+  /// 서고, 방을 만든 사람은 **최소 10분**을 거기서 기다린다.
+  static const homeInviteWaitingTitle = '초대 러닝 대기 중';
+
+  /// 혼자일 때. 매칭의 `아직 함께 달릴 러너를 찾고 있어요`는 **찾는 중**이라는
+  /// 뜻이라 초대에 맞지 않는다.
+  static const homeInviteWaitingAlone = '초대한 러너의 답을 기다리고 있어요';
+
+  /// 사람이 들어왔을 때. 매칭의 `님과 매칭성공!`은 매칭이 아니라 수락이다.
+  static String homeInviteJoined(int count) => '$count명이 함께 뛰어요';
+
+  /// 모집 마감 뒤. `매칭 완료`가 아니다.
+  static const homeInviteConfirmedTitle = '출발 준비 완료';
+
+  // ── 초대 등록 ────────────────────────────────────────────────────────
+
+  static const inviteRegisterTitle = '초대 러닝';
+
+  /// ⚠️ **매칭 등록과 같은 말을 쓴다**(`matchTimeLabel`·`matchDistanceLabel`).
+  /// 하는 일이 같은 두 화면이 다른 말을 쓰면 다른 기능으로 읽힌다.
+  static const inviteRegisterWhen = matchTimeLabel;
+  static const inviteRegisterHowFar = matchDistanceLabel;
+  static const inviteRegisterTimePlaceholder = matchTimePlaceholder;
+
+  static const inviteRegisterSubmit = '방 만들기';
+  static const inviteRegisterToday = '오늘';
+
+  /// 고를 수 있는 범위. **하드코딩한 운영값이라 경계가 틀리기 쉽다.**
+  static String inviteRegisterWindow(DateTime from, DateTime to) =>
+      '${_hhmm(from)} ~ ${_hhmm(to)} 사이로 정할 수 있어요';
+
+  /// `19:30` — **이미 벽시계 값**을 적는다.
+  ///
+  /// ⚠️ [matchSlotTime]과 다르다. 저쪽은 순간(기기 시각)을 받아 KST로
+  /// 되돌리는데, 초대 등록이 들고 있는 값은 **이미 KST 벽시계**다. 저것을
+  /// 쓰면 +9시간이 두 번 붙는다.
+  static String inviteRegisterTime(DateTime wall) => _hhmm(wall);
+
+  static String _hhmm(DateTime at) =>
+      '${at.hour.toString().padLeft(2, '0')}:'
+      '${at.minute.toString().padLeft(2, '0')}';
+
+  /// 거리 안내. 매칭(`matchTimeHint`)처럼 **왜 그런지**까지 적는다.
+  static const inviteRegisterDistanceRange =
+      '1km부터 42.195km까지 정할 수 있어요.\n자주 쓰는 거리는 아래에서 고르세요';
+
+  static const inviteRegisterDistancePlaceholder = '거리 입력';
+
+  /// 시각 다이얼 시트의 확인 버튼.
+  static const inviteTimeSheetConfirm = '이 시간으로';
+
+  /// ⚠️ **23:49 이후에는 고를 수 있는 시각이 없다.** 빈 피커만 두면 고장으로
+  /// 읽힌다.
+  static const inviteRegisterClosedToday = '오늘은 초대 러닝을 만들 수 없어요';
+  static const inviteRegisterClosedTodayWhy = '자정이 지나면 다시 열려요';
+
+  static const inviteRegisterShortcut5 = '5 km';
+  static const inviteRegisterShortcutHalf = '하프';
+  static const inviteRegisterShortcutFull = '풀';
+
+  /// 개설 실패. 서버가 문구를 주면 그것을 쓴다.
+  static const inviteRegisterOutOfRange = '고를 수 있는 시각이 아니에요';
+  static const inviteRegisterAlreadyInProgress = '이미 참여 중인 러닝이 있어요';
+  static const inviteRegisterOnboarding = '프로필을 먼저 완성해 주세요';
+  static const inviteRegisterFailed = '방을 만들지 못했어요';
+
+  // ── 초대 모달 ────────────────────────────────────────────────────────
+
+  static const inviteSheetTitle = '러너 초대';
+  static const inviteSheetSearchHint = '닉네임 검색';
+  static const inviteSheetInvite = '초대';
+
+  /// 보냈고 답을 기다린다. **잠긴 상태다 — 독촉을 내보내지 않는다.**
+  static const inviteSheetInvited = '초대 중';
+  static const inviteSheetJoined = '참여 중';
+  static const inviteSheetRetry = '다시 초대';
+  static const inviteSheetEmpty = '초대할 러너가 없어요';
+
+  /// 서버가 문구를 안 줬을 때의 기본 문구. **대개는 서버 말을 그대로 쓴다.**
+  static const inviteSheetNotFriend = '친구에게만 초대할 수 있어요';
+  static const inviteSheetAlreadyInRoom = '이미 이 방에 있어요';
+  static const inviteSheetInMatching = '지금 매칭 중이에요';
+  static const inviteSheetRunning = '지금 달리는 중이에요';
+  static const inviteSheetCountExceeded = '더 보낼 수 없어요';
+  static const inviteSheetRoomGone = '방을 찾을 수 없어요';
+  static const inviteSheetFailed = '초대하지 못했어요';
+
+  /// 방이 꽉 차서 수락하지 못했다. **초대는 PENDING으로 남는다.**
+  static const inviteRoomFull = '방이 꽉 찼어요 · 자리가 생기면 다시 눌러보세요';
+
+  /// 탭 바와 벨이 읽히는 이름. **점을 그림으로만 두면 안 읽힌다.**
+  static const notificationUnreadSemantics = '읽지 않은 알림 있음';
 }

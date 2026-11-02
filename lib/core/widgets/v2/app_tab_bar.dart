@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 
@@ -27,6 +28,7 @@ class AppTabBarV2 extends StatelessWidget {
     required this.tabs,
     required this.currentIndex,
     required this.onSelected,
+    this.badges = const {},
     super.key,
   });
 
@@ -35,6 +37,21 @@ class AppTabBarV2 extends StatelessWidget {
 
   final int currentIndex;
   final ValueChanged<int> onSelected;
+
+  /// 빨간 점을 얹을 탭의 인덱스.
+  ///
+  /// ## ⚠️ [AppTabSpec]에 담지 않는다
+  ///
+  /// 그 목록은 `static const`다(라우터 branch 순서와 묶여 있어 그래야 한다).
+  /// 점은 알림이 오고 가며 바뀌므로 const에 들어갈 수 없다 — 셸이 매 빌드마다
+  /// 여기로 넘긴다.
+  ///
+  /// ## ⚠️ 숫자가 아니라 점이다
+  ///
+  /// 서버가 깨진 행을 건너뛰어 안 읽은 수가 목록보다 클 수 있다(연동 가이드
+  /// 2-3). 어긋난 숫자는 틀린 숫자지만, 점은 "있다/없다"만 말해서 틀릴 자리가
+  /// 없다.
+  final Set<int> badges;
 
   /// 바깥 프레임. 화면 좌우로 24씩 비운다.
   static const _sideMargin = 24.0;
@@ -96,8 +113,10 @@ class AppTabBarV2 extends StatelessWidget {
                     for (final (index, tab) in tabs.indexed)
                       _Slot(
                         tab: tab,
+                        index: index,
                         width: slotWidth,
                         selected: index == currentIndex,
+                        badged: badges.contains(index),
                         onTap: () => onSelected(index),
                       ),
                   ],
@@ -125,18 +144,30 @@ class AppTabSpec {
 class _Slot extends StatelessWidget {
   const _Slot({
     required this.tab,
+    required this.index,
     required this.width,
     required this.selected,
+    required this.badged,
     required this.onTap,
   });
 
   final AppTabSpec tab;
 
+  /// 점에 붙일 키를 만드는 데 쓴다. 테스트가 그것으로 찾는다.
+  final int index;
+
   /// 바가 정해 준 폭. 넷이 나란히 들어가는 값이다([AppTabBarV2._slotWidth]).
   final double width;
 
   final bool selected;
+
+  /// 읽지 않은 알림이 있는 탭인가.
+  final bool badged;
+
   final VoidCallback onTap;
+
+  /// 점의 지름. 글리프 모서리에 걸치는 크기다.
+  static const _dot = 8.0;
 
   @override
   Widget build(BuildContext context) {
@@ -149,7 +180,12 @@ class _Slot extends StatelessWidget {
     // 대신 [MergeSemantics]로 이름과 탭 액션을 한 덩어리로 합친다.
     return MergeSemantics(
       child: Semantics(
-        label: tab.label,
+        // ⚠️ **점을 그림으로만 두면 읽히지 않는다.** 이 바에는 글자가 하나도
+        // 없어서 이 라벨이 스크린리더가 가진 전부다 — 점만 그리면 "읽지 않은
+        // 알림이 있다"는 사실이 눈으로만 전해진다.
+        label: badged
+            ? '${tab.label}, ${AppStrings.notificationUnreadSemantics}'
+            : tab.label,
         button: true,
         selected: selected,
         child: Material(
@@ -164,11 +200,33 @@ class _Slot extends StatelessWidget {
               width: width,
               height: AppTabBarV2._slotHeight,
               child: Center(
-                child: AppIcon(
-                  tab.icon,
-                  // ⚠️ 선택된 아이콘은 **흰 알약 위**에 앉는다.
-                  // `textPrimary`(#FAFAFA)를 쓰면 면과 같은 값이라 사라진다.
-                  color: selected ? colors.primary : colors.textTertiary,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    AppIcon(
+                      tab.icon,
+                      // ⚠️ 선택된 아이콘은 **흰 알약 위**에 앉는다.
+                      // `textPrimary`(#FAFAFA)를 쓰면 면과 같은 값이라 사라진다.
+                      color: selected ? colors.primary : colors.textTertiary,
+                    ),
+                    if (badged)
+                      Positioned(
+                        key: ValueKey('tab-badge-$index'),
+                        top: -2,
+                        right: -2,
+                        child: Container(
+                          width: _dot,
+                          height: _dot,
+                          decoration: BoxDecoration(
+                            color: colors.error,
+                            shape: BoxShape.circle,
+                            // 알약과 바 양쪽 면에서 모두 떠 보이게 테두리를
+                            // 둔다. 없으면 선택된 흰 알약 위에서 번진다.
+                            border: Border.all(color: colors.bgBase, width: 1),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),

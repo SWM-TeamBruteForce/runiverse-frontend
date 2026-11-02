@@ -419,7 +419,7 @@ class WsClient {
       Uri.parse(url),
       headers: {
         'Authorization': 'Bearer $accessToken',
-        // 앱 버전 헤더. 못 읽었으면 비어 있고, 서버는 없으면 그냥 통과시킨다.
+        // 앱 버전 헤더. 못 읽었으면 비어 있고, 서버는 없으면 403으로 거절한다.
         ...AppVersionHeaders.current,
       },
     );

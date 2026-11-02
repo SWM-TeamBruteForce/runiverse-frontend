@@ -30,9 +30,9 @@ import 'package:runiverse/features/settings/domain/settings_failure.dart';
 import 'package:runiverse/features/settings/presentation/settings_provider.dart';
 import 'package:runiverse/features/settings/presentation/withdraw_sheet.dart';
 
-// TODO(되살리기): 알림 동의·공개 범위를 서버에 저장하게 되면 true로.
+// TODO(되살리기): 공개 범위를 서버가 실제로 적용하게 되면 true로.
 // 빌드 때 고정하는 숨김이다(원격 설정 아님).
-const _showPreferences = false;
+const _showVisibility = false;
 
 /// 설정 (S22.2).
 ///
@@ -77,9 +77,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     // 빌드 중에 provider를 고치면 죽는다 (`docs/implementation-notes.md` §10-1).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_showPreferences) {
-        ref.read(settingsControllerProvider.notifier).load();
-      }
+      ref.read(settingsControllerProvider.notifier).load();
       _loadBody();
     });
   }
@@ -236,7 +234,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         '.${birthday.day.toString().padLeft(2, '0')}';
   }
 
-  /// `180cm · 85kg` 한 줄. **한쪽만 있으면 비운다** — 시트가 두 값을 함께
+  /// `180 cm · 85 kg` 한 줄. **한쪽만 있으면 비운다** — 시트가 두 값을 함께
   /// 돌려주므로 반쪽만 있는 상태는 없다.
   String? get _bodyText {
     if (_bodyLoading) return null;
@@ -244,8 +242,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final height = body.heightCm;
     final weight = body.weightKg;
     if (height == null || weight == null) return AppStrings.profileEditUnknown;
-    return '$height${AppStrings.profileUnitHeight}'
-        ' · $weight${AppStrings.profileUnitWeight}';
+    return '$height ${AppStrings.profileUnitHeight}'
+        ' · $weight ${AppStrings.profileUnitWeight}';
   }
 
   Future<void> _setVisibility(ProfileVisibility value) async {
@@ -387,35 +385,41 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             AppSpacing.space8,
           ),
           children: [
-            if (_showPreferences) ...[
-              if (failed)
-                _ErrorCard(
-                  onRetry: () =>
-                      ref.read(settingsControllerProvider.notifier).load(),
-                )
-              else ...[
-                const _SectionLabel(AppStrings.settingsNotificationSection),
-                _Card(
-                  children: [
-                    _SwitchRow(
-                      label: AppStrings.settingsAlertConsent,
-                      description: AppStrings.settingsAlertConsentWhy,
-                      // 아직 못 읽었으면 끈 것처럼 두고 누르지 못하게 한다.
-                      // 켜 보이게 두면 실제 값과 반대일 수 있다.
-                      value: settings?.alertConsent ?? false,
-                      onChanged: settings == null ? null : _setAlertConsent,
-                    ),
-                  ],
-                ),
+            if (failed)
+              _ErrorCard(
+                onRetry: () =>
+                    ref.read(settingsControllerProvider.notifier).load(),
+              )
+            else ...[
+              const _SectionLabel(AppStrings.settingsNotificationSection),
+              _Card(
+                children: [
+                  _SwitchRow(
+                    label: AppStrings.settingsAlertConsent,
+                    description: AppStrings.settingsAlertConsentWhy,
+                    // 아직 못 읽었으면 끈 것처럼 두고 누르지 못하게 한다.
+                    // 켜 보이게 두면 실제 값과 반대일 수 있다.
+                    value: settings?.alertConsent ?? false,
+                    // 읽는 중에도 잠근다. 다시 들어왔을 때 남아 있는 값은 늦게 온
+                    // 조회에 덮이거나, 계정을 바꾼 직후면 앞 계정의 값이다.
+                    onChanged: settings == null || state.loading
+                        ? null
+                        : _setAlertConsent,
+                  ),
+                ],
+              ),
+              if (_showVisibility) ...[
                 const SizedBox(height: AppSpacing.space6),
                 const _SectionLabel(AppStrings.settingsVisibilitySection),
                 _VisibilityChips(
                   value: settings?.visibility,
-                  onChanged: settings == null ? null : _setVisibility,
+                  onChanged: settings == null || state.loading
+                      ? null
+                      : _setVisibility,
                 ),
               ],
-              const SizedBox(height: AppSpacing.space6),
             ],
+            const SizedBox(height: AppSpacing.space6),
 
             // ⚠️ **편집 화면에서 옮겨 왔다**(2026-10-22 요청). 자주 고치는
             // 값이 아니고, 거기 있으면 홈과 닮은 위쪽이 긴 폼에 묻힌다.
@@ -796,12 +800,12 @@ class _VisibilityChips extends StatelessWidget {
 
   static String _label(ProfileVisibility value) => switch (value) {
     ProfileVisibility.public => AppStrings.settingsVisibilityPublic,
-    ProfileVisibility.followers => AppStrings.settingsVisibilityFollowers,
+    ProfileVisibility.friends => AppStrings.settingsVisibilityFriends,
   };
 
   static String _description(ProfileVisibility value) => switch (value) {
     ProfileVisibility.public => AppStrings.settingsVisibilityPublicWhy,
-    ProfileVisibility.followers => AppStrings.settingsVisibilityFollowersWhy,
+    ProfileVisibility.friends => AppStrings.settingsVisibilityFriendsWhy,
   };
 }
 

@@ -15,7 +15,7 @@ abstract interface class RunningRoomRepository {
   /// 실패: `alreadyRunning`(409) · `sessionExpired` · `network` · `server`
   Future<RunningRoom> openSolo();
 
-  /// 아직 시작하지 않은 방을 **서버에서 없앤다**(`DELETE /running-matches`).
+  /// 아직 시작하지 않은 방을 **서버에서 없앤다**(`POST /match-rooms/leave`).
   ///
   /// ## 왜 준비 화면이 이것을 부르는가
   ///

@@ -2,29 +2,35 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/utils/kst_time.dart';
-import 'package:runiverse/features/auth/domain/auth_failure.dart';
-import 'package:runiverse/features/auth/domain/auth_repository.dart';
-import 'package:runiverse/features/matching/data/slot_dto.dart';
+import 'package:runiverse/features/auth/domain/token_refresher.dart';
+import 'package:runiverse/features/matching/data/slot_board_dto.dart';
+import 'package:runiverse/features/matching/domain/invite_failure.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/matching/domain/match_repository.dart';
-import 'package:runiverse/features/matching/domain/match_slot.dart';
+import 'package:runiverse/features/matching/domain/slot_board.dart';
 import 'package:runiverse/features/matching/domain/slot_load_failure.dart';
-import 'package:runiverse/features/matching/domain/target_distance.dart';
 
 /// 진짜 서버를 부르는 [MatchRepository]. **여기가 응답 형식을 아는 유일한 곳이다.**
 ///
 /// 401이면 한 번만 갱신하고 다시 부른다 — 다른 저장소와 같은 규칙이다.
+/// 갱신은 반드시 [TokenRefresher]를 거친다(`docs/implementation-notes.md` 9-6).
 class HttpMatchRepository implements MatchRepository {
-  HttpMatchRepository(this._dio, this._store, this._auth);
+  HttpMatchRepository(this._dio, this._store, this._refresher);
 
   final Dio _dio;
   final TokenStore _store;
-  final AuthRepository _auth;
+  final TokenRefresher _refresher;
 
-  static const _path = '/api/v1/running-matches';
+  /// ⚠️ **2026-10-28에 `/running-matches`에서 바뀌었다**(BE PR #112). 서버가
+  /// 옛 주소를 남기지 않고 지워서 호환이 없다 — 옛 주소로 보내면 404다.
+  static const _path = '/api/v1/match-rooms';
+
+  /// 나가기. ⚠️ **주소와 방식이 함께 바뀌었다** — `DELETE /running-matches`
+  /// 였다. 주소만 고치고 `DELETE`로 보내면 405다.
+  static const _leavePath = '$_path/leave';
 
   @override
-  Future<List<MatchSlot>> slots({required TargetDistance distance}) async {
+  Future<SlotBoard> slots() async {
     // ⚠️ **`_authorized`를 쓰지 않는다.** 그쪽은 `MatchException`을 던지는데,
     // 조회는 자기 갈래를 갖는다(아래 [_loadExceptionOf]). 401 한 번 갱신은
     // 여기서 직접 한다.
@@ -37,9 +43,9 @@ class HttpMatchRepository implements MatchRepository {
     Future<Response<Map<String, dynamic>>> call(String accessToken) =>
         _dio.get<Map<String, dynamic>>(
           '$_path/slots',
-          // ⚠️ `date`는 보내지 않는다 — 오늘뿐이고, 보내면 형식이 틀렸을 때
-          // 400을 자초한다. 생략하면 서버가 오늘로 읽는다.
-          queryParameters: {'targetDistanceMeters': distance.meters},
+          // ⚠️ **쿼리를 하나도 보내지 않는다.** 거리는 명세가 받지 않고(판
+          // 전체가 온다), `date`는 오늘뿐이라 보내면 형식이 틀렸을 때 400을
+          // 자초한다. 생략하면 서버가 오늘로 읽는다.
           options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
         );
 
@@ -49,10 +55,10 @@ class HttpMatchRepository implements MatchRepository {
         response = await call(token);
       } on DioException catch (error) {
         if (error.response?.statusCode != 401) rethrow;
-        token = await _refreshed(stored.refreshToken);
+        token = await _refreshed();
         response = await call(token);
       }
-      return matchSlotsFromJson(response.data);
+      return slotBoardFromJson(response.data);
     } on DioException catch (error) {
       throw SlotLoadException(_loadExceptionOf(error));
     } on MatchException catch (error) {
@@ -67,37 +73,162 @@ class HttpMatchRepository implements MatchRepository {
   }
 
   @override
-  Future<int> apply({
-    required String slotRaw,
-    required TargetDistance distance,
-  }) => _authorized((token) async {
+  Future<int> apply({required String slotRaw, required int meters}) =>
+      _authorized((token) async {
+        final response = await _dio.post<Map<String, dynamic>>(
+          _path,
+          // ⚠️ 서버가 준 문자열·미터값을 그대로 돌려보낸다. 다시 조립하지도,
+          // `TargetDistance`를 거치지도 않는다.
+          data: {'scheduledStartAt': slotRaw, 'targetDistanceMeters': meters},
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        );
+        final roomId = response.data?['runningRoomId'];
+        // 방 번호가 없으면 신청은 됐는데 스트림에 붙을 수 없다. 조용히 넘기면
+        // 신청해 놓고 아무 소식도 못 받는 상태가 된다.
+        if (roomId is! int) throw const MatchException(MatchFailure.unknown);
+        // 이 번호가 신청·러닝·결과 조회를 잇는 유일한 고리다. 남겨두면 "어느 방에
+        // 배정됐나"를 로그만으로 따라갈 수 있다 — 같은 조건으로 신청한 두 사람이
+        // 한 방에 묶였는지도 이 한 줄로 갈린다.
+        debugPrint('[match] 방에 배정됐다 · $roomId');
+        return roomId;
+      });
+
+  @override
+  Future<void> cancel() => _authorized((token) async {
+    await _dio.post<void>(
+      _leavePath,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  });
+
+  @override
+  Future<int> createInviteRoom({
+    required String scheduledStartAt,
+    required int meters,
+  }) => _invited((token) async {
     final response = await _dio.post<Map<String, dynamic>>(
-      _path,
-      // ⚠️ 서버가 준 문자열을 그대로 돌려보낸다. 다시 조립하지 않는다.
+      _invitePath,
       data: {
-        'scheduledStartAt': slotRaw,
-        'targetDistanceMeters': distance.meters,
+        'scheduledStartAt': scheduledStartAt,
+        'targetDistanceMeters': meters,
       },
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     final roomId = response.data?['runningRoomId'];
-    // 방 번호가 없으면 신청은 됐는데 스트림에 붙을 수 없다. 조용히 넘기면
-    // 신청해 놓고 아무 소식도 못 받는 상태가 된다.
-    if (roomId is! int) throw const MatchException(MatchFailure.unknown);
-    // 이 번호가 신청·러닝·결과 조회를 잇는 유일한 고리다. 남겨두면 "어느 방에
-    // 배정됐나"를 로그만으로 따라갈 수 있다 — 같은 조건으로 신청한 두 사람이
-    // 한 방에 묶였는지도 이 한 줄로 갈린다.
-    debugPrint('[match] 방에 배정됐다 · $roomId');
+    // 방은 열렸는데 스트림에 붙을 수 없다. 조용히 넘기면 방을 만들어 놓고
+    // 아무 소식도 못 받는 상태가 된다 — `apply`와 같은 판단이다.
+    if (roomId is! int) throw const InviteException(InviteFailure.unknown);
+    debugPrint('[invite] 초대 방을 열었다 · $roomId');
     return roomId;
   });
 
   @override
-  Future<void> cancel() => _authorized((token) async {
-    await _dio.delete<void>(
-      _path,
+  Future<void> invite({required int roomId, required String inviteeId}) =>
+      _invited((token) async {
+        await _dio.post<void>(
+          '$_path/$roomId/invitations',
+          // ⚠️ 한 명만 보낸다. 배열이 아니다.
+          data: {'inviteeId': inviteeId},
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        );
+      });
+
+  @override
+  Future<int> acceptInvitation(int roomId) => _invited((token) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_path/$roomId/invitations/accept',
+      // ⚠️ **본문이 없다.** 받는 사람은 토큰 주체다.
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    final accepted = response.data?['runningRoomId'];
+    if (accepted is! int) throw const InviteException(InviteFailure.unknown);
+    return accepted;
+  });
+
+  @override
+  Future<void> declineInvitation(int roomId) => _invited((token) async {
+    await _dio.post<void>(
+      '$_path/$roomId/invitations/decline',
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
   });
+
+  /// 초대 방 개설 경로. **매칭 신청(`POST $_path`)과 다른 자리다.**
+  static const _invitePath = '$_path/invite';
+
+  /// 초대 요청에서 실패 갈래를 읽는다. **테스트가 직접 부른다.**
+  ///
+  /// ⚠️ **[exceptionOf]를 쓰지 않는다.** 저쪽은 404를
+  /// `MatchFailure.nothingToCancel`로 묶어서, 그대로 쓰면 초대 실패에
+  /// "취소할 활성 신청이 없어요"가 뜬다. `_loadExceptionOf`가 같은 이유로
+  /// 따로 있는 것과 같은 판단이다.
+  ///
+  /// **서버 문구를 그대로 들고 온다** — 명세가 그러라고 한다.
+  static InviteException inviteExceptionOf(DioException error) {
+    if (error.type != DioExceptionType.badResponse) {
+      return const InviteException(InviteFailure.network);
+    }
+
+    final response = error.response;
+    final body = response?.data;
+    final code = body is Map ? body['code'] : null;
+    final message = body is Map && body['message'] is String
+        ? body['message'] as String
+        : null;
+
+    final status = response?.statusCode;
+    if (status == 401) {
+      return const InviteException(InviteFailure.sessionExpired);
+    }
+    // ⚠️ 방 없음·초대 방 아님·내가 참가자 아님을 서버가 구분하지 않는다.
+    if (status == 404) {
+      return InviteException(InviteFailure.notFound, message: message);
+    }
+    if (status != null && status >= 500) {
+      return const InviteException(InviteFailure.network);
+    }
+
+    return InviteException(switch (code) {
+      'RUNNING_INVITATION_CLOSED' => InviteFailure.closed,
+      'NOT_FRIEND' => InviteFailure.notFriend,
+      'INVITEE_ALREADY_IN_ROOM' => InviteFailure.alreadyInRoom,
+      'INVITEE_IN_MATCHING' => InviteFailure.inMatching,
+      'INVITEE_RUNNING' => InviteFailure.running,
+      'INVITE_COUNT_EXCEEDED' => InviteFailure.countExceeded,
+      'RUNNING_INVITATION_NOT_PENDING' => InviteFailure.notPending,
+      'RUNNING_ROOM_FULL' => InviteFailure.roomFull,
+      'INVITE_START_AT_OUT_OF_RANGE' => InviteFailure.startAtOutOfRange,
+      'RUNNING_ALREADY_IN_PROGRESS' => InviteFailure.alreadyInProgress,
+      'ONBOARDING_NOT_COMPLETED' => InviteFailure.onboardingNotCompleted,
+      'INVALID_REQUEST' => InviteFailure.invalidRequest,
+      _ => InviteFailure.unknown,
+    }, message: message);
+  }
+
+  /// [_authorized]와 같은 일을 하되 [InviteException]으로 던진다.
+  Future<T> _invited<T>(Future<T> Function(String accessToken) call) async {
+    final stored = await _store.read();
+    final accessToken = stored.accessToken;
+    if (accessToken == null) {
+      throw const InviteException(InviteFailure.sessionExpired);
+    }
+
+    try {
+      return await call(accessToken);
+    } on DioException catch (error) {
+      if (error.response?.statusCode != 401) throw inviteExceptionOf(error);
+      try {
+        return await call(await _refreshed());
+      } on DioException catch (retried) {
+        throw inviteExceptionOf(retried);
+      } on MatchException {
+        // `_refreshed`가 신청용 갈래로 던진다. 초대 쪽으로 옮긴다.
+        throw const InviteException(InviteFailure.sessionExpired);
+      }
+    } on MatchException {
+      throw const InviteException(InviteFailure.sessionExpired);
+    }
+  }
 
   /// 응답에서 실패 갈래를 읽는다. **테스트가 직접 부른다.**
   static MatchException exceptionOf(DioException error) {
@@ -174,31 +305,18 @@ class HttpMatchRepository implements MatchRepository {
     } on DioException catch (error) {
       if (error.response?.statusCode != 401) throw exceptionOf(error);
       try {
-        return await call(await _refreshed(stored.refreshToken));
+        return await call(await _refreshed());
       } on DioException catch (retried) {
         throw exceptionOf(retried);
       }
     }
   }
 
-  Future<String> _refreshed(String? refreshToken) async {
-    if (refreshToken == null) {
+  Future<String> _refreshed() async {
+    final accessToken = await _refresher.refresh();
+    if (accessToken == null) {
       throw const MatchException(MatchFailure.sessionExpired);
     }
-    try {
-      final tokens = await _auth.refresh(refreshToken);
-      // ⚠️ 회전된 refreshToken도 반드시 덮어쓴다. 안 하면 다음 갱신이 죽는다.
-      await _store.saveTokens(
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      );
-      return tokens.accessToken;
-    } on AuthException catch (error) {
-      throw MatchException(
-        error.failure == AuthFailure.sessionExpired
-            ? MatchFailure.sessionExpired
-            : MatchFailure.network,
-      );
-    }
+    return accessToken;
   }
 }

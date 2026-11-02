@@ -1,9 +1,9 @@
 import 'package:dio/dio.dart';
+import 'package:runiverse/features/friend/domain/friend_relation.dart';
 import 'package:runiverse/core/storage/body_profile_remote.dart';
 import 'package:runiverse/core/storage/body_profile_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
-import 'package:runiverse/features/auth/domain/auth_failure.dart';
-import 'package:runiverse/features/auth/domain/auth_repository.dart';
+import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/profile/domain/nickname_change_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_failure.dart';
@@ -13,13 +13,14 @@ import 'package:runiverse/features/profile/domain/profile_summary.dart';
 /// 진짜 서버를 부르는 [ProfileRepository].
 ///
 /// 401이면 **한 번만** 갱신하고 다시 부른다. `HttpProfileImageRepository`와
-/// 같은 규칙이다.
+/// 같은 규칙이다. 갱신은 반드시 [TokenRefresher]를 거친다
+/// (`docs/implementation-notes.md` 9-6).
 class HttpProfileRepository implements ProfileRepository {
-  HttpProfileRepository(this._dio, this._store, this._auth);
+  HttpProfileRepository(this._dio, this._store, this._refresher);
 
   final Dio _dio;
   final TokenStore _store;
-  final AuthRepository _auth;
+  final TokenRefresher _refresher;
 
   static String _path(String userId) => '/api/v1/users/$userId';
 
@@ -45,7 +46,7 @@ class HttpProfileRepository implements ProfileRepository {
         throw ProfileException(_failureOf(error));
       }
       try {
-        return await _get(userId, await _refreshed(stored.refreshToken));
+        return await _get(userId, await _refreshed());
       } on DioException catch (retried) {
         throw ProfileException(_failureOf(retried));
       }
@@ -71,7 +72,7 @@ class HttpProfileRepository implements ProfileRepository {
           nickname,
           // ⚠️ 갱신이 실패하면 [ProfileException]이 나온다. 시트는 그것을
           // 잡지 않으므로 여기서 이 경로의 말로 옮긴다.
-          await _refreshedForNickname(stored.refreshToken),
+          await _refreshedForNickname(),
         );
       } on DioException catch (retried) {
         throw NicknameChangeException(_nicknameFailureOf(retried));
@@ -114,7 +115,7 @@ class HttpProfileRepository implements ProfileRepository {
         throw ProfileException(_failureOf(error));
       }
       try {
-        return await _getBody(await _refreshed(stored.refreshToken));
+        return await _getBody(await _refreshed());
       } on DioException catch (retried) {
         throw ProfileException(_failureOf(retried));
       }
@@ -177,7 +178,7 @@ class HttpProfileRepository implements ProfileRepository {
         throw ProfileEditException(_editFailureOf(error));
       }
       try {
-        await _patchProfile(body, await _refreshedForEdit(stored.refreshToken));
+        await _patchProfile(body, await _refreshedForEdit());
       } on DioException catch (retried) {
         throw ProfileEditException(_editFailureOf(retried));
       }
@@ -214,9 +215,9 @@ class HttpProfileRepository implements ProfileRepository {
       '-${date.month.toString().padLeft(2, '0')}'
       '-${date.day.toString().padLeft(2, '0')}';
 
-  Future<String> _refreshedForEdit(String? refreshToken) async {
+  Future<String> _refreshedForEdit() async {
     try {
-      return await _refreshed(refreshToken);
+      return await _refreshed();
     } on ProfileException catch (error) {
       throw ProfileEditException(
         error.failure == ProfileFailure.network
@@ -275,9 +276,9 @@ class HttpProfileRepository implements ProfileRepository {
     }
   }
 
-  Future<String> _refreshedForNickname(String? refreshToken) async {
+  Future<String> _refreshedForNickname() async {
     try {
-      return await _refreshed(refreshToken);
+      return await _refreshed();
     } on ProfileException catch (error) {
       throw NicknameChangeException(
         error.failure == ProfileFailure.network
@@ -304,12 +305,14 @@ class HttpProfileRepository implements ProfileRepository {
       _path(userId),
       options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
     );
-    return _summaryOf(response.data);
+    return summaryOf(response.data);
   }
 
   /// 200인데 몸통이 기대와 다를 수 있다. `userId` 하나만 필수로 본다 —
   /// 나머지는 온보딩 전이면 정말로 `null`이다.
-  ProfileSummary _summaryOf(Map<String, dynamic>? body) {
+  ///
+  /// **테스트가 직접 부른다.**
+  static ProfileSummary summaryOf(Map<String, dynamic>? body) {
     final userId = body?['userId'];
     if (userId is! String) {
       throw const ProfileException(ProfileFailure.unknown);
@@ -323,31 +326,28 @@ class HttpProfileRepository implements ProfileRepository {
       // 없으면 0으로 둔다. 셀 수 없다는 것과 아무도 없다는 것은 화면에서
       // 같은 그림이고, `null`을 흘려보내면 그릴 때마다 물어야 한다.
       friendCount: friendCount is int ? friendCount : 0,
+      // ⚠️ **없으면 거짓이다.** 못 읽었다고 내 것으로 읽으면 남의 화면에
+      // "프로필 편집"이 뜬다.
+      isMe: body?['isMe'] == true,
+      // ⚠️ **1.2.0에서 `friendStatus`에서 개명됐다.** 값도 친구 API와 같은
+      // 어휘로 합쳐졌다(`ACCEPTED` → `FRIEND`). 키를 안 고치면 관계가 늘
+      // `null`로 읽혀 **친구인 사람에게 "친구 요청" 버튼이 뜬다.**
+      //
+      // `friendRelationOf`는 옛 어휘도 받는다 — 서버가 1.1.x를 내리는 동안
+      // 섞일 수 있고, 받아 두는 비용이 없다.
+      relation: friendRelationOf(body?['relationshipType']),
     );
   }
 
   static String? _stringOrNull(Object? value) =>
       value is String && value.isNotEmpty ? value : null;
 
-  Future<String> _refreshed(String? refreshToken) async {
-    if (refreshToken == null) {
+  Future<String> _refreshed() async {
+    final accessToken = await _refresher.refresh();
+    if (accessToken == null) {
       throw const ProfileException(ProfileFailure.sessionExpired);
     }
-    try {
-      final tokens = await _auth.refresh(refreshToken);
-      // ⚠️ 회전된 refreshToken도 반드시 덮어쓴다. 안 하면 다음 갱신이 죽는다.
-      await _store.saveTokens(
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      );
-      return tokens.accessToken;
-    } on AuthException catch (error) {
-      throw ProfileException(
-        error.failure == AuthFailure.sessionExpired
-            ? ProfileFailure.sessionExpired
-            : ProfileFailure.network,
-      );
-    }
+    return accessToken;
   }
 
   ProfileFailure _failureOf(DioException error) {

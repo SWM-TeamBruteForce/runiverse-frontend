@@ -6,9 +6,11 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
+import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/matching/data/sse_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
+import 'package:runiverse/features/session/domain/user_status.dart';
 
 /// 매칭 스트림 — **서버가 미는 것을 앱이 어떻게 읽는가.**
 ///
@@ -68,7 +70,7 @@ void main() {
 
     test('⚠️ 한 프레임이 여러 조각으로 나뉘어 와도 읽는다', () async {
       // 네트워크는 줄 단위로 끊어주지 않는다. 조각마다 파싱하면 다 버린다.
-      final whole = frame('MATCH_STARTED', room);
+      final whole = frame('MATCH_CONFIRMED', room);
       final cut = whole.length ~/ 3;
 
       final events = await decode([
@@ -85,7 +87,7 @@ void main() {
       final events = await decode([
         Uint8List.fromList([
           ...frame('MATCH_ROOM_UPDATED', room),
-          ...frame('MATCH_STARTED', room),
+          ...frame('MATCH_CONFIRMED', room),
         ]),
       ]);
 
@@ -98,7 +100,7 @@ void main() {
       // 하나가 이상하다고 끊으면 그 뒤에 올 확정 통지까지 놓친다.
       final events = await decode([
         utf8.encode('event: SOMETHING_NEW\ndata: {}\n\n'),
-        frame('MATCH_STARTED', room),
+        frame('MATCH_CONFIRMED', room),
       ]);
 
       expect(events, hasLength(1));
@@ -107,8 +109,8 @@ void main() {
 
     test('깨진 JSON도 버리고 이어간다', () async {
       final events = await decode([
-        utf8.encode('event: MATCH_STARTED\ndata: {망가진\n\n'),
-        frame('MATCH_STARTED', room),
+        utf8.encode('event: MATCH_CONFIRMED\ndata: {망가진\n\n'),
+        frame('MATCH_CONFIRMED', room),
       ]);
 
       expect(events, hasLength(1));
@@ -117,7 +119,7 @@ void main() {
     test('닫히지 않은 프레임은 이벤트가 되지 않는다', () async {
       // 빈 줄이 오기 전에 끊긴 것이다. 반쪽짜리를 올리면 안 된다.
       final events = await decode([
-        utf8.encode('event: MATCH_STARTED\ndata: ${jsonEncode(room)}\n'),
+        utf8.encode('event: MATCH_CONFIRMED\ndata: ${jsonEncode(room)}\n'),
       ]);
 
       expect(events, isEmpty);
@@ -225,7 +227,10 @@ void main() {
 
     test('서버 시각을 되짚을 수 있다', () {
       // 기기 시계가 어긋나 있어도 이 값으로 보정한다.
-      expect(ready(10000).serverNow, DateTime.utc(2026, 9, 15, 9, 59, 50).toLocal());
+      expect(
+        ready(10000).serverNow,
+        DateTime.utc(2026, 9, 15, 9, 59, 50).toLocal(),
+      );
     });
 
     test('값이 빠지면 읽지 않는다', () {
@@ -256,7 +261,7 @@ void main() {
       );
       stream = SseMatchStream(
         store,
-        FakeAuthRepository(latency: Duration.zero),
+        TokenRefresher(FakeAuthRepository(latency: Duration.zero), store),
         baseUrl: 'http://${server.address.address}:${server.port}',
       );
     });
@@ -309,6 +314,147 @@ void main() {
       await stream.close();
       released.complete();
       await Future<void>.delayed(const Duration(milliseconds: 200));
+    });
+  });
+
+  /// 초대 방 — **매칭 방과 같은 `RoomInfo`를 싣지만 두 필드가 더 온다.**
+  group('초대 방을 읽는다', () {
+    test('초대 현황을 읽는다', () {
+      final room = SseMatchStream.roomOf({
+        'runningRoomId': 130,
+        'type': 'INVITE',
+        'status': 'MATCHING',
+        'scheduledStartAt': '2026-10-28T19:30:00',
+        'closeAt': '2026-10-28T19:29:00',
+        'targetDistanceMeters': 7000,
+        'players': [],
+        'invitations': [
+          {
+            'userId': 'u1',
+            'nickname': '철수',
+            'profileImageUrl': null,
+            'status': 'PENDING',
+            'isDeleted': false,
+          },
+        ],
+      });
+
+      expect(room!.type, RoomType.invite);
+      expect(room.invitations.single.nickname, '철수');
+      expect(room.invitations.single.userId, 'u1');
+    });
+
+    test('매칭 방은 invitations가 없고, 없으면 빈 목록이다', () {
+      final room = SseMatchStream.roomOf({
+        'runningRoomId': 125,
+        'type': 'MATCH',
+        'status': 'MATCHING',
+        'scheduledStartAt': '2026-10-28T19:30:00',
+        'players': [],
+      });
+
+      expect(room!.type, RoomType.match);
+      expect(room.invitations, isEmpty);
+    });
+
+    test('⚠️ 모르는 type은 null이다 — 아무 방으로도 뭉개지 않는다', () {
+      final room = SseMatchStream.roomOf({
+        'runningRoomId': 125,
+        'type': 'PARTY',
+        'status': 'MATCHING',
+        'scheduledStartAt': '2026-10-28T19:30:00',
+        'players': [],
+      });
+
+      expect(room!.type, isNull);
+    });
+
+    test('못 읽는 초대 원소만 건너뛴다', () {
+      final room = SseMatchStream.roomOf({
+        'runningRoomId': 130,
+        'type': 'INVITE',
+        'status': 'MATCHING',
+        'scheduledStartAt': '2026-10-28T19:30:00',
+        'players': [],
+        'invitations': [
+          {'userId': 'u1', 'nickname': '철수', 'isDeleted': false},
+          {'userId': 7, 'nickname': '숫자', 'isDeleted': false},
+          'not-a-map',
+          {'userId': 'u2', 'nickname': '영희', 'isDeleted': false},
+        ],
+      });
+
+      expect(room!.invitations.map((i) => i.nickname), ['철수', '영희']);
+    });
+
+    test('INVITE_ROOM_ENTRANCE는 startsInMs를 방과 같은 깊이에서 읽는다', () {
+      // ⚠️ `data`가 방을 감싸지 않는다 — 기존 파서가 그대로 읽고 한 필드만
+      // 더 꺼낸다.
+      final event = SseMatchStream.eventOf(
+        'INVITE_ROOM_ENTRANCE',
+        '{"runningRoomId":130,"type":"INVITE","status":"MATCHING",'
+            '"scheduledStartAt":"2026-10-28T19:30:00","targetDistanceMeters":7000,'
+            '"players":[],"invitations":[],"startsInMs":600000}',
+      );
+
+      expect(event, isA<InviteRoomEntrance>());
+      final entrance = event! as InviteRoomEntrance;
+      expect(entrance.startsInMs, 600000);
+      expect(entrance.room.type, RoomType.invite);
+      expect(entrance.room.runningRoomId, 130);
+    });
+
+    test('startsInMs가 없거나 숫자가 아니면 null이다', () {
+      final event =
+          SseMatchStream.eventOf(
+                'INVITE_ROOM_ENTRANCE',
+                '{"runningRoomId":130,"type":"INVITE","status":"MATCHING",'
+                    '"scheduledStartAt":"2026-10-28T19:30:00","players":[],'
+                    '"startsInMs":"600000"}',
+              )!
+              as InviteRoomEntrance;
+
+      expect(event.startsInMs, isNull);
+      // 방은 멀쩡하다 — 남은 시간만 못 그린다.
+      expect(event.room.runningRoomId, 130);
+    });
+
+    test('INVITE_ROOM_UPDATED는 방만 싣는다', () {
+      final event = SseMatchStream.eventOf(
+        'INVITE_ROOM_UPDATED',
+        '{"runningRoomId":130,"type":"INVITE","status":"MATCHING",'
+            '"scheduledStartAt":"2026-10-28T19:30:00","players":[],'
+            '"invitations":[{"userId":"u1","nickname":"철수","isDeleted":false}]}',
+      );
+
+      expect(event, isA<InviteRoomUpdated>());
+      expect((event! as InviteRoomUpdated).room.invitations, hasLength(1));
+    });
+
+    test('⚠️ 모집 마감은 status MATCHED와 빈 invitations로 온다', () {
+      // 초대 방은 `MATCH_CONFIRMED`를 받지 않는다 — 마감에 확정 연출이 없다.
+      final event =
+          SseMatchStream.eventOf(
+                'INVITE_ROOM_UPDATED',
+                '{"runningRoomId":130,"type":"INVITE","status":"MATCHED",'
+                    '"scheduledStartAt":"2026-10-28T19:30:00","players":[],'
+                    '"invitations":[]}',
+              )!
+              as InviteRoomUpdated;
+
+      expect(event.room.status, RoomStatus.matched);
+      expect(event.room.invitations, isEmpty);
+    });
+
+    test('방을 못 읽으면 이벤트도 버린다', () {
+      expect(
+        SseMatchStream.eventOf(
+          'INVITE_ROOM_ENTRANCE',
+          '{"runningRoomId":"130","type":"INVITE","status":"MATCHING",'
+              '"scheduledStartAt":"2026-10-28T19:30:00","players":[]}',
+        ),
+        isNull,
+      );
     });
   });
 }

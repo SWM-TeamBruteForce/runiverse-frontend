@@ -178,6 +178,7 @@ void main() {
         ),
       );
 
+      expect(find.text('0.00 km'), findsNothing);
       expect(find.text('0.00km'), findsNothing);
     });
   });

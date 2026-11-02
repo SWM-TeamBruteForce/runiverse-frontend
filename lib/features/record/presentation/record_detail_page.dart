@@ -23,7 +23,7 @@ import 'package:runiverse/features/record/presentation/run_result_view.dart';
 /// ## ⚠️ 나갈 때 캐시를 버린다
 ///
 /// 서버가 종료를 처리하기 전에 부르면 **200에 빈 기록**이 온다. 그 값이 캐시에
-/// 남으면 화면을 닫았다 다시 열어도 `0.00km · 구간 0개`가 그대로라, 사용자가
+/// 남으면 화면을 닫았다 다시 열어도 `0.00 km · 구간 0개`가 그대로라, 사용자가
 /// 앱 안에서 복구할 방법이 없다. 그래서 [dispose]에서 버린다 — 다시 열면
 /// 반드시 서버에 다시 묻는다.
 class RecordDetailPage extends ConsumerStatefulWidget {
@@ -48,7 +48,11 @@ class _RecordDetailPageState extends ConsumerState<RecordDetailPage> {
 
   @override
   void dispose() {
-    _container?.invalidate(runDetailProvider(widget.runningRoomId));
+    // 요약도 같은 결과를 보고 있다 — 트리가 잠긴 dispose 중에 버리면
+    // 요약을 다시 그리라는 요청이 거기서 터진다. 잠금이 풀린 뒤에 버린다.
+    final container = _container;
+    final id = widget.runningRoomId;
+    Future.microtask(() => container?.invalidate(runDetailProvider(id)));
     super.dispose();
   }
 

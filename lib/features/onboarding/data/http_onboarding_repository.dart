@@ -1,8 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:runiverse/core/storage/token_store.dart';
-import 'package:runiverse/features/auth/domain/auth_failure.dart';
-import 'package:runiverse/features/auth/domain/auth_repository.dart';
+import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/onboarding/data/onboarding_profile_dto.dart';
 import 'package:runiverse/features/onboarding/domain/onboarding_failure.dart';
 import 'package:runiverse/features/onboarding/domain/onboarding_profile.dart';
@@ -12,11 +11,10 @@ import 'package:runiverse/features/onboarding/domain/onboarding_repository.dart'
 ///
 /// ## 인터셉터를 쓰지 않는다
 ///
-/// `Authorization` 헤더가 필요한 요청은 지금 이것 하나뿐이다. 인터셉터를 만들면
-/// 요청마다 저장소를 읽거나 토큰 캐시를 따로 관리해야 하는데, 대상이 하나인
-/// 상태에서는 **관리할 것만 늘어난다.** 인증 요청이 늘어나는 시점에 올린다.
+/// 저장소마다 401을 직접 다룬다. 갱신만 [TokenRefresher] 하나로 모은다
+/// (`docs/implementation-notes.md` 9-6).
 ///
-/// ## 왜 `AuthRepository`를 받는가
+/// ## 왜 `TokenRefresher`를 받는가
 ///
 /// access 토큰은 30분이라 프로필을 천천히 채우는 동안 만료될 수 있다. 그때 401을
 /// 그대로 돌려주면 **다섯 개를 다 입력한 사람의 값이 날아간다.** 여기서 갱신 한 번을
@@ -30,11 +28,11 @@ import 'package:runiverse/features/onboarding/domain/onboarding_repository.dart'
 /// ⚠️ 통과시킨다고 성공은 아니다. 409의 뜻은 [_resolveConflict]가 `code`로 가른다 —
 /// **닉네임 중복도 409로 온다.**
 class HttpOnboardingRepository implements OnboardingRepository {
-  HttpOnboardingRepository(this._dio, this._store, this._auth);
+  HttpOnboardingRepository(this._dio, this._store, this._refresher);
 
   final Dio _dio;
   final TokenStore _store;
-  final AuthRepository _auth;
+  final TokenRefresher _refresher;
 
   static const _path = '/api/v1/users/onboarding';
 
@@ -62,7 +60,7 @@ class HttpOnboardingRepository implements OnboardingRepository {
       }
       // access가 만료됐다. 갱신하고 한 번만 다시 보낸다.
       try {
-        await _post(body, await _refreshed(stored.refreshToken));
+        await _post(body, await _refreshed());
       } on DioException catch (retried) {
         throw OnboardingException(_failureOf(retried));
       }
@@ -125,28 +123,16 @@ class HttpOnboardingRepository implements OnboardingRepository {
     }
   }
 
-  /// 새 access 토큰을 받아 저장하고 돌려준다.
+  /// 새 access 토큰을 받는다. 갱신은 반드시 [TokenRefresher]를 거친다
+  /// (`docs/implementation-notes.md` 9-6).
   ///
   /// 갱신에 실패하면 되살릴 방법이 없다 — 다시 로그인해야 한다.
-  Future<String> _refreshed(String? refreshToken) async {
-    if (refreshToken == null) {
+  Future<String> _refreshed() async {
+    final accessToken = await _refresher.refresh();
+    if (accessToken == null) {
       throw const OnboardingException(OnboardingFailure.sessionExpired);
     }
-    try {
-      final tokens = await _auth.refresh(refreshToken);
-      // ⚠️ 회전된 refreshToken도 반드시 덮어쓴다. 안 하면 다음 갱신이 죽는다.
-      await _store.saveTokens(
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      );
-      return tokens.accessToken;
-    } on AuthException catch (error) {
-      throw OnboardingException(
-        error.failure == AuthFailure.sessionExpired
-            ? OnboardingFailure.sessionExpired
-            : OnboardingFailure.network,
-      );
-    }
+    return accessToken;
   }
 
   /// 서버가 준 응답을 앱의 실패 이유로 옮긴다.

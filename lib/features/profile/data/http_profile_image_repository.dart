@@ -3,8 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:runiverse/core/storage/token_store.dart';
-import 'package:runiverse/features/auth/domain/auth_failure.dart';
-import 'package:runiverse/features/auth/domain/auth_repository.dart';
+import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/profile/domain/profile_image_kind.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
@@ -30,7 +29,7 @@ class HttpProfileImageRepository implements ProfileImageRepository {
   HttpProfileImageRepository(
     this._dio,
     this._store,
-    this._auth, {
+    this._refresher, {
     Dio? uploadDio,
     this.kind = ProfileImageKind.profile,
   }) : _uploadDio = uploadDio ?? Dio(uploadOptions);
@@ -71,7 +70,7 @@ class HttpProfileImageRepository implements ProfileImageRepository {
   Dio get uploadDio => _uploadDio;
 
   final TokenStore _store;
-  final AuthRepository _auth;
+  final TokenRefresher _refresher;
 
   /// ⚠️ **인증을 걸지 않는다.** 명세의 사진 4종 중 이것만 `권한: NO`다.
   /// [_authed]로 감싸면 붙는 401 재시도 경로가 **영영 실행되지 않는 죽은 코드**로
@@ -225,33 +224,21 @@ class HttpProfileImageRepository implements ProfileImageRepository {
         throw ProfileImageException(_failureOf(error));
       }
       try {
-        return await call(userId, await _refreshed(stored.refreshToken));
+        return await call(userId, await _refreshed());
       } on DioException catch (retried) {
         throw ProfileImageException(_failureOf(retried));
       }
     }
   }
 
-  /// 새 access 토큰을 받아 저장하고 돌려준다. `HttpOnboardingRepository`와 같다.
-  Future<String> _refreshed(String? refreshToken) async {
-    if (refreshToken == null) {
+  /// 새 access 토큰을 받는다. 갱신은 반드시 [TokenRefresher]를 거친다
+  /// (`docs/implementation-notes.md` 9-6).
+  Future<String> _refreshed() async {
+    final accessToken = await _refresher.refresh();
+    if (accessToken == null) {
       throw const ProfileImageException(ProfileImageFailure.sessionExpired);
     }
-    try {
-      final tokens = await _auth.refresh(refreshToken);
-      // ⚠️ 회전된 refreshToken도 반드시 덮어쓴다. 안 하면 다음 갱신이 죽는다.
-      await _store.saveTokens(
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      );
-      return tokens.accessToken;
-    } on AuthException catch (error) {
-      throw ProfileImageException(
-        error.failure == AuthFailure.sessionExpired
-            ? ProfileImageFailure.sessionExpired
-            : ProfileImageFailure.network,
-      );
-    }
+    return accessToken;
   }
 
   /// 상태 코드를 1차 근거로 삼는다. `HttpOnboardingRepository`와 같은 규칙이다.

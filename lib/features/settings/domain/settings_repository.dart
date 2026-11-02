@@ -3,11 +3,8 @@ import 'package:runiverse/features/settings/domain/profile_visibility.dart';
 
 /// 설정 저장소 — **인터페이스만 있다.**
 ///
-/// 화면은 이 타입에만 기대고 누가 답하는지 모른다. 지금은 대부분
-/// `FakeSettingsRepository`가 답한다. 일곱 항목 중 서버가 준비된 것은
-/// 비밀번호 변경과 로그아웃 둘뿐이다(설계 문서 1절).
-///
-/// 서버가 뜨면 **`settings_provider.dart`의 한 줄**을 바꾼다.
+/// 화면은 이 타입에만 기대고 누가 답하는지 모른다. 앱에서는
+/// `HttpSettingsRepository`가, 테스트에서는 `FakeSettingsRepository`가 답한다.
 ///
 /// 실패는 전부 `SettingsException`(비밀번호만 `PasswordChangeException`)으로
 /// 던진다. 구현체가 dio 사정을 밖으로 흘리지 않는다 — 흘리면 화면이 HTTP를 알게 된다.
@@ -22,9 +19,9 @@ abstract interface class SettingsRepository {
 
   /// **준 것만 보낸다.** 생략한 필드는 서버가 지금 값을 그대로 둔다.
   ///
-  /// 돌려받은 값을 그대로 쓴다. 보낸 값을 화면에 쓰면 안 된다 —
-  /// 서버는 **부분 수정이어도 갱신 후 전체 설정을 돌려주므로**, 연타해서
-  /// 응답 순서가 뒤바뀌어도 마지막 응답이 화면을 정리해 준다.
+  /// 돌려받은 값을 그대로 쓴다. 서버는 **부분 수정이어도 갱신 후 전체 설정을
+  /// 돌려준다.** 연타했을 때 요청을 하나씩 보내는 것은 부르는 쪽 몫이다
+  /// (`SettingsController`).
   Future<AppSettings> updateSettings({
     bool? alertConsent,
     ProfileVisibility? visibility,

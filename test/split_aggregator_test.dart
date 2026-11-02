@@ -36,7 +36,7 @@ void main() {
   });
 
   test('⚠️ 마지막 묶음은 짧을 수 있다', () {
-    // 1.23km를 뛰면 1km 하나와 230m 하나다. 화면이 `1.23km`라고 적어야 한다.
+    // 1.23km를 뛰면 1km 하나와 230m 하나다. 화면이 `1.23 km`라고 적어야 한다.
     final buckets = SplitAggregator.bucket(tenMeters(count: 123), 1000);
 
     expect(buckets, hasLength(2));

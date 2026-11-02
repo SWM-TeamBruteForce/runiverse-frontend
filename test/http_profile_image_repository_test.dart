@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
+import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/profile/data/http_profile_image_repository.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
@@ -41,7 +42,7 @@ void main() {
     return HttpProfileImageRepository(
       Dio(BaseOptions(baseUrl: 'http://test.invalid'))..httpClientAdapter = api,
       store,
-      FakeAuthRepository(latency: Duration.zero),
+      TokenRefresher(FakeAuthRepository(latency: Duration.zero), store),
       uploadDio: uploadDio ?? (Dio()..httpClientAdapter = s3),
     );
   }
@@ -118,7 +119,7 @@ void main() {
         Dio(BaseOptions(baseUrl: 'http://test.invalid'))
           ..httpClientAdapter = api,
         store,
-        FakeAuthRepository(latency: Duration.zero),
+        TokenRefresher(FakeAuthRepository(latency: Duration.zero), store),
         uploadDio: Dio()..httpClientAdapter = s3,
         kind: ProfileImageKind.background,
       );
@@ -208,10 +209,11 @@ void main() {
     test('⚠️ 기본으로 만든 Dio에 그 설정이 실제로 걸린다', () async {
       // 설정 객체만 검사하면 **"값은 맞는데 아무 데도 안 쓰는"** 상태를 못
       // 잡는다 — 생성자에서 `Dio()`로 만들던 것이 정확히 그 상태였다.
+      final tokens = InMemoryTokenStore();
       final repo = HttpProfileImageRepository(
         Dio(),
-        InMemoryTokenStore(),
-        FakeAuthRepository(latency: Duration.zero),
+        tokens,
+        TokenRefresher(FakeAuthRepository(latency: Duration.zero), tokens),
       );
 
       expect(repo.uploadDio.options.connectTimeout, isNotNull);

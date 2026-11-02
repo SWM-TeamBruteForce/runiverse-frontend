@@ -1,3 +1,4 @@
+import 'package:runiverse/features/friend/domain/friend_relation.dart';
 import 'package:runiverse/core/storage/body_profile_store.dart';
 import 'package:runiverse/features/profile/domain/nickname_change_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
@@ -12,6 +13,8 @@ class FakeProfileRepository implements ProfileRepository {
     this.profileImageUrl,
     this.introduction,
     this.friendCount = 0,
+    this.relation,
+    this.isMe = false,
     this.failure,
     this.nicknameFailure,
     this.editFailure,
@@ -23,6 +26,10 @@ class FakeProfileRepository implements ProfileRepository {
   final String? profileImageUrl;
   final String? introduction;
   final int friendCount;
+
+  /// 나와 이 사람의 관계. 타인 프로필 테스트가 심는다.
+  final FriendRelation? relation;
+  final bool isMe;
 
   /// 주면 그 이유로 실패한다. **서버가 아직 없는 상황**을 만드는 데 쓴다.
   final ProfileFailure? failure;
@@ -67,6 +74,8 @@ class FakeProfileRepository implements ProfileRepository {
       profileImageUrl: profileImageUrl,
       introduction: introduction,
       friendCount: friendCount,
+      relation: relation,
+      isMe: isMe,
     );
   }
 

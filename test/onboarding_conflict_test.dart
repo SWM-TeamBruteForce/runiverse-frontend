@@ -10,6 +10,7 @@ import 'package:runiverse/features/auth/domain/auth_tokens.dart';
 import 'package:runiverse/features/auth/domain/current_user.dart';
 import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
+import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/onboarding/data/http_onboarding_repository.dart';
 import 'package:runiverse/features/onboarding/domain/gender.dart';
 import 'package:runiverse/features/onboarding/domain/onboarding_failure.dart';
@@ -50,7 +51,11 @@ void main() {
       refreshToken: 'refresh',
       isOnboarded: false,
     );
-    return HttpOnboardingRepository(dio, store, _UnusedAuthRepository());
+    return HttpOnboardingRepository(
+      dio,
+      store,
+      TokenRefresher(_UnusedAuthRepository(), store),
+    );
   }
 
   Future<OnboardingFailure?> failureOf(

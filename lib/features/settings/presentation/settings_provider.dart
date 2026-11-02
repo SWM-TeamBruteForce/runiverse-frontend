@@ -3,9 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
-import 'package:runiverse/features/settings/data/fake_settings_repository.dart';
 import 'package:runiverse/features/settings/data/http_settings_repository.dart';
-import 'package:runiverse/features/settings/data/staged_settings_repository.dart';
 import 'package:runiverse/features/settings/domain/app_settings.dart';
 import 'package:runiverse/features/settings/domain/password_change_failure.dart';
 import 'package:runiverse/features/settings/domain/profile_visibility.dart';
@@ -13,22 +11,11 @@ import 'package:runiverse/features/settings/domain/settings_failure.dart';
 import 'package:runiverse/features/settings/domain/settings_repository.dart';
 
 /// 설정 저장소.
-///
-/// ## ⚠️ 서버가 뜨면 여기를 바꾼다
-///
-/// 지금은 [StagedSettingsRepository]가 배포된 것만 서버로 보낸다.
-/// 55·57·58번과 탈퇴가 배포되면 **이 한 줄을 `HttpSettingsRepository`로 바꾸고**
-/// `staged_settings_repository.dart`와 가짜를 지운다.
 final settingsRepositoryProvider = Provider<SettingsRepository>(
-  (ref) => StagedSettingsRepository(
-    live: HttpSettingsRepository(
-      ref.watch(dioProvider),
-      ref.watch(tokenStoreProvider),
-      ref.watch(authRepositoryProvider),
-    ),
-    // ⚠️ `Provider`가 이 인스턴스를 하나만 만들어 들고 있는다. 그래야 토글을
-    // 켜고 화면을 나갔다 들어와도 켜진 채로 남는다.
-    fake: FakeSettingsRepository(),
+  (ref) => HttpSettingsRepository(
+    ref.watch(dioProvider),
+    ref.watch(tokenStoreProvider),
+    ref.watch(tokenRefresherProvider),
   ),
 );
 
@@ -91,15 +78,22 @@ class SettingsController extends Notifier<SettingsState> {
   Future<void> load() async {
     state = state.copyWith(loading: true);
 
+    // 저장 중에 시작한 조회는 버린다. 서버가 그 저장을 처리하기 전에 읽었을
+    // 수 있다 — 화면은 저장 응답이 정리한다.
+    final sendingAtStart = _sending;
     final (settings, failure) = await _attempt(_repository.fetchSettings());
+    if (sendingAtStart || _sending) {
+      state = state.copyWith(loading: false);
+      return;
+    }
 
     state = SettingsState(settings: settings, failure: failure);
   }
 
   /// 알림을 받겠다는 의사를 바꾼다. 실패하면 그 이유를 돌려준다.
   ///
-  /// ⚠️ 이 값이 `true`라고 알림이 오지는 않는다. 앱에 알림을 띄우는 코드가
-  /// 아직 없다(설계 문서 3절).
+  /// ⚠️ 서버는 이 값이 `false`인 사람에게 푸시를 보내지 않는다. `true`여도
+  /// 기기 알림 권한이 꺼져 있으면 오지 않는다(설계 문서 3절).
   Future<SettingsFailure?> setAlertConsent(bool value) =>
       _update(alertConsent: value);
 
@@ -107,37 +101,78 @@ class SettingsController extends Notifier<SettingsState> {
   Future<SettingsFailure?> setVisibility(ProfileVisibility value) =>
       _update(visibility: value);
 
+  /// 지금 `PATCH`가 나가 있는가. 한 번에 하나만 보낸다.
+  bool _sending = false;
+
+  /// 사용자가 눌렀지만 아직 보내지 않은 값. 보낼 때 꺼내 비운다.
+  ///
+  /// ⚠️ 화면 값(`state.settings`)을 쓰지 않는다. 그사이 [load]가 옛 값을
+  /// 써 넣으면 그것을 사용자가 고른 값으로 알고 다시 보낸다.
+  bool? _pendingAlertConsent;
+  ProfileVisibility? _pendingVisibility;
+
   /// 낙관적 반영의 실체.
   ///
-  /// **되돌리려면 "보내기 전 값"을 들고 있어야 한다.** 보낸 값을 들고 있으면
-  /// 되돌릴 곳을 모른다.
+  /// **되돌리려면 "서버가 확인해 준 값"을 들고 있어야 한다.** 보낸 값을 들고
+  /// 있으면 되돌릴 곳을 모른다.
+  ///
+  /// ## ⚠️ 연타해도 요청은 하나씩 나간다
+  ///
+  /// 요청을 겹쳐 보내면 서버가 처리하는 순서도, 응답이 도착하는 순서도
+  /// 보장되지 않는다. 늦게 도착한 옛 응답이 화면을 덮으면 화면은 꺼짐인데
+  /// 서버는 켜짐인 채로 남는다. 그래서 보내는 중에 누르면 화면을 바꾸고 누른
+  /// 값을 기억해 두었다가, 응답이 오면 서버 값과 다를 때만 한 번 더 보낸다.
   Future<SettingsFailure?> _update({
     bool? alertConsent,
     ProfileVisibility? visibility,
   }) async {
-    final previous = state.settings;
+    final shown = state.settings;
     // 아직 못 읽었다. 바꿀 대상이 없으니 요청도 만들지 않는다.
-    if (previous == null) return null;
+    if (shown == null) return null;
 
     state = state.copyWith(
-      settings: previous.copyWith(
+      settings: shown.copyWith(
         alertConsent: alertConsent,
         visibility: visibility,
       ),
     );
+    _pendingAlertConsent = alertConsent ?? _pendingAlertConsent;
+    _pendingVisibility = visibility ?? _pendingVisibility;
+    // 보내는 중이면 기억만 한다. 응답이 오면 아래 반복이 보낸다.
+    if (_sending) return null;
 
+    _sending = true;
+    // 서버가 마지막으로 확인해 준 값. 실패하면 여기로 되돌린다.
+    var confirmed = shown;
     try {
-      final updated = await _repository.updateSettings(
-        alertConsent: alertConsent,
-        visibility: visibility,
-      );
-      // **응답으로 통째로 덮는다.** 서버가 부분 수정이어도 전체 설정을 돌려주므로,
-      // 연타해서 응답 순서가 뒤바뀌어도 마지막 응답이 화면을 정리한다.
-      state = state.copyWith(settings: updated);
+      while (true) {
+        final pendingAlert = _pendingAlertConsent;
+        final pendingVisibility = _pendingVisibility;
+        _pendingAlertConsent = null;
+        _pendingVisibility = null;
+        final sendAlert = pendingAlert == confirmed.alertConsent
+            ? null
+            : pendingAlert;
+        final sendVisibility = pendingVisibility == confirmed.visibility
+            ? null
+            : pendingVisibility;
+        if (sendAlert == null && sendVisibility == null) break;
+        // **응답으로 통째로 덮는다.** 서버는 부분 수정이어도 전체 설정을 돌려준다.
+        confirmed = await _repository.updateSettings(
+          alertConsent: sendAlert,
+          visibility: sendVisibility,
+        );
+      }
+      state = state.copyWith(settings: confirmed);
       return null;
     } on SettingsException catch (error) {
-      state = state.copyWith(settings: previous);
+      // 화면을 되돌리므로 그사이 누른 값도 버린다.
+      _pendingAlertConsent = null;
+      _pendingVisibility = null;
+      state = state.copyWith(settings: confirmed);
       return error.failure;
+    } finally {
+      _sending = false;
     }
   }
 

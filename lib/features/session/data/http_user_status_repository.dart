@@ -1,20 +1,21 @@
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/utils/kst_time.dart';
-import 'package:runiverse/features/auth/domain/auth_failure.dart';
-import 'package:runiverse/features/auth/domain/auth_repository.dart';
+import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/session/domain/user_status_repository.dart';
 
 /// 진짜 서버를 부르는 [UserStatusRepository]. **여기가 응답 형식을 아는 유일한 곳이다.**
 ///
 /// 401이면 한 번만 갱신하고 다시 부른다 — 다른 저장소와 같은 규칙이다.
+/// 갱신은 반드시 [TokenRefresher]를 거친다(`docs/implementation-notes.md` 9-6).
 class HttpUserStatusRepository implements UserStatusRepository {
-  HttpUserStatusRepository(this._dio, this._store, this._auth);
+  HttpUserStatusRepository(this._dio, this._store, this._refresher);
 
   final Dio _dio;
   final TokenStore _store;
-  final AuthRepository _auth;
+  final TokenRefresher _refresher;
 
   static const _path = '/api/v1/users/me/status';
 
@@ -53,29 +54,49 @@ class HttpUserStatusRepository implements UserStatusRepository {
       throw const UserStatusException(UserStatusFailure.unknown);
     }
 
-    // ⚠️ `INVITE`는 미래 예약값이라 계약에 없다. 그래서 `SOLO`만 보고 가른다.
-    final isSolo = body?['type'] == 'SOLO';
+    // ⚠️ **`SOLO`만 보고 갈랐던 자리다**(2026-10-29까지). `INVITE`가 계약에만
+    // 있고 내려오지 않던 시절의 코드인데, 초대 방이 생기면서 그 값이 실제로
+    // 오기 시작했다 — 그때 초대 방이 `isSolo: false`로 읽혀 **매칭 방 화면이
+    // 떴다.** 셋을 셋으로 읽는다.
+    //
+    // ⚠️ **모르는 값은 매칭으로 접는다. 던지지 않는다.**
+    //
+    // 던지면 상태 조회가 실패하고, 그러면 홈이 아무것도 못 그리고 방 스트림도
+    // 안 열린다 — **방에 들어가 있는 사람이 방에 못 들어간다.** 서버가 네 번째
+    // 값을 내리는 날이나 옛 서버가 키를 빼는 날 그렇게 된다.
+    //
+    // 문구가 틀리는 쪽이 닿을 수 없는 쪽보다 낫고, 매칭이 압도적으로 많다 —
+    // `RoomInfo.type`을 nullable로 둔 것과 같은 판단이다. 대신 로그를 남겨
+    // 계약이 어긋난 것을 쫓을 수 있게 한다.
+    final wire = body?['type'];
+    final type = RoomType.of(wire);
+    if (type == null) {
+      debugPrint('[status] 모르는 방 유형을 매칭으로 읽었다 · $wire');
+    }
+
     final target = body?['targetDistanceMeters'];
     final targetMeters = target is int ? target : null;
 
     return switch (status) {
-      // WAITING은 매칭만 가능하다 — 솔로는 모집 단계 없이 태어난다.
+      // ⚠️ 솔로는 모집 단계 없이 태어나므로 여기 오지 않는다. 매칭과 초대
+      // 둘뿐이고, 마감 경계만 다르다(매칭 10분 전 · 초대 1분 전).
       'WAITING' => UserStatusWaiting(
         runningRoomId: roomId,
+        type: type ?? RoomType.match,
         scheduledStartAt: startAt,
         targetDistanceMeters: targetMeters,
         cooldownUntil: cooldownUntil,
       ),
       'READY' => UserStatusReady(
         runningRoomId: roomId,
-        isSolo: isSolo,
+        type: type ?? RoomType.match,
         scheduledStartAt: startAt,
         targetDistanceMeters: targetMeters,
         cooldownUntil: cooldownUntil,
       ),
       'RUNNING' => UserStatusRunning(
         runningRoomId: roomId,
-        isSolo: isSolo,
+        type: type ?? RoomType.match,
         scheduledStartAt: startAt,
         targetDistanceMeters: targetMeters,
         cooldownUntil: cooldownUntil,
@@ -102,32 +123,19 @@ class HttpUserStatusRepository implements UserStatusRepository {
         throw UserStatusException(_failureOf(error));
       }
       try {
-        return await call(await _refreshed(stored.refreshToken));
+        return await call(await _refreshed());
       } on DioException catch (retried) {
         throw UserStatusException(_failureOf(retried));
       }
     }
   }
 
-  Future<String> _refreshed(String? refreshToken) async {
-    if (refreshToken == null) {
+  Future<String> _refreshed() async {
+    final accessToken = await _refresher.refresh();
+    if (accessToken == null) {
       throw const UserStatusException(UserStatusFailure.sessionExpired);
     }
-    try {
-      final tokens = await _auth.refresh(refreshToken);
-      // ⚠️ 회전된 refreshToken도 반드시 덮어쓴다. 안 하면 다음 갱신이 죽는다.
-      await _store.saveTokens(
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      );
-      return tokens.accessToken;
-    } on AuthException catch (error) {
-      throw UserStatusException(
-        error.failure == AuthFailure.sessionExpired
-            ? UserStatusFailure.sessionExpired
-            : UserStatusFailure.network,
-      );
-    }
+    return accessToken;
   }
 
   UserStatusFailure _failureOf(DioException error) {

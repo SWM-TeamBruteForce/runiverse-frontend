@@ -130,10 +130,10 @@ class SplitLineChart extends StatefulWidget {
   /// ## ⚠️ 개수로 솎으면 어중간한 거리가 나온다
   ///
   /// 50m 표본은 3km가 점 60개라 12개마다 찍히는데, 그러면 첫 점부터 세어
-  /// `0.05 · 0.65 · 1.25km`가 된다. 읽는 사람이 쓰는 자는 **거리**지 점 번호가
-  /// 아니다. 그래서 부르는 쪽이 `0.5km`처럼 딱 떨어지는 자리를 골라 넘긴다.
+  /// `0.05 · 0.65 · 1.25 km`가 된다. 읽는 사람이 쓰는 자는 **거리**지 점 번호가
+  /// 아니다. 그래서 부르는 쪽이 `0.5 km`처럼 딱 떨어지는 자리를 골라 넘긴다.
   ///
-  /// 구간 번호가 곧 거리인 1km 그래프(`1km` `2km` …)는 넘기지 않는다 —
+  /// 구간 번호가 곧 거리인 1km 그래프(`1 km` `2 km` …)는 넘기지 않는다 —
   /// 개수로 솎아도 어차피 딱 떨어진다.
   ///
   /// **마지막 점은 여기에 없어도 늘 찍힌다** — 총 거리를 읽는 자리다.
@@ -163,7 +163,7 @@ class SplitLineChart extends StatefulWidget {
   /// 다른 말이라, 여기서는 선을 끊는다.
   final List<double?> values;
 
-  /// [values]와 같은 길이의 x축 라벨. `1km` `2km` …
+  /// [values]와 같은 길이의 x축 라벨. `1 km` `2 km` …
   final List<String> labels;
 
   /// 스크러버가 집은 값을 사람이 읽는 말로. 페이스면 `5'28"`이다.
@@ -591,8 +591,8 @@ class _Labels extends StatelessWidget {
   final double inset;
   final Color color;
 
-  /// 라벨 한 칸의 너비. 50m 표본은 `12.34km`처럼 소수 둘까지 적으므로
-  /// `10km` 시절보다 넓어야 한다.
+  /// 라벨 한 칸의 너비. 50m 표본은 `12.34 km`처럼 소수 둘까지 적으므로
+  /// `10 km` 시절보다 넓어야 한다.
   static const _slot = 56.0;
 
   @override
@@ -692,7 +692,7 @@ class _LinePainter extends CustomPainter {
   /// 집은 값을 사람이 읽는 말로. 손을 떼면 `null`이다.
   final String? reading;
 
-  /// 그 값이 어느 지점인가. `0.65km`처럼 [reading] 아래 줄에 흐리게 붙는다.
+  /// 그 값이 어느 지점인가. `0.65 km`처럼 [reading] 아래 줄에 흐리게 붙는다.
   final String? readingAt;
 
   final Color bubble;

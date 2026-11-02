@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_sizes.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
@@ -25,12 +26,22 @@ class ProfileCoverAction extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.badged = false,
     super.key,
   });
 
   final String icon;
   final String label;
   final VoidCallback onTap;
+
+  /// 빨간 점을 얹는가. 벨에만 쓴다.
+  ///
+  /// ⚠️ **숫자가 아니라 점이다.** 안 읽은 수가 서버와 어긋날 수 있어
+  /// (연동 가이드 2-3) 숫자를 적으면 틀린 숫자를 적게 된다.
+  final bool badged;
+
+  /// 점의 지름.
+  static const _dot = 8.0;
 
   /// 시안은 21. 24는 이 원 안에서 꽉 차 보인다.
   static const _glyph = AppSpacing.space5;
@@ -41,7 +52,11 @@ class ProfileCoverAction extends StatelessWidget {
 
     return MergeSemantics(
       child: Semantics(
-        label: label,
+        // ⚠️ **점을 그림으로만 두면 읽히지 않는다.** 이 단추에는 글자가 없어서
+        // 이 라벨이 스크린리더가 가진 전부다.
+        label: badged
+            ? '$label, ${AppStrings.notificationUnreadSemantics}'
+            : label,
         button: true,
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -60,7 +75,31 @@ class ProfileCoverAction extends StatelessWidget {
                 width: AppSizes.touchDefault,
                 height: AppSizes.touchDefault,
                 child: Center(
-                  child: AppIcon(icon, size: _glyph, color: colors.textPrimary),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      AppIcon(icon, size: _glyph, color: colors.textPrimary),
+                      if (badged)
+                        Positioned(
+                          key: const ValueKey('cover-action-badge'),
+                          top: -1,
+                          right: -1,
+                          child: Container(
+                            width: _dot,
+                            height: _dot,
+                            decoration: BoxDecoration(
+                              color: colors.error,
+                              shape: BoxShape.circle,
+                              // 어두운 원 위에 떠 보이게 테두리를 둔다.
+                              border: Border.all(
+                                color: colors.coverScrim,
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),

@@ -111,6 +111,34 @@ abstract final class AppRoutes {
   /// 하단 탭이 함께 보이면 저장하지 않고 다른 탭으로 샐 수 있다.
   static const profileEdit = '/profile/edit';
 
+  /// 친구 — 목록 · 추천 · 검색이 한 화면이다.
+  ///
+  /// **탭 셸 밖에 둔다.** 검색창이 상단에 고정이라 하단 탭까지 함께 있으면
+  /// 화면이 위아래로 눌린다. 인앱 알림이 생기면 이 경로가 딥링크가 된다.
+  static const friends = '/profile/friends';
+
+  /// 알림함 — 친구 요청·수락과 러닝 초대가 한 목록에 모인다.
+  ///
+  /// **프로필 탭 상단의 벨로 들어온다.** 하단 탭이 넷으로 고정이라 탭을 더할
+  /// 자리가 없고, 알림이 프로필 영역의 일이기도 하다.
+  ///
+  /// [friends]와 같은 이유로 **탭 셸 밖**이다 — 목록을 보다 다른 탭으로 새면
+  /// 읽음 처리와 배지가 어긋난다.
+  static const notifications = '/profile/notifications';
+
+  /// 남의 프로필. `userId`가 누구를 보는지 정한다.
+  ///
+  /// 인앱 알림의 "누가 친구 요청을 보냈어요"가 이 경로로 떨어진다.
+  static const userProfile = '/profile/user/:userId';
+
+  /// [userProfile]의 자리를 채운다.
+  static String userProfileOf(String userId) => '/profile/user/$userId';
+
+  /// 남의 친구 목록. 그 사람의 프로필에서 `친구 · N`을 눌러 들어온다.
+  static const userFriends = '/profile/user/:userId/friends';
+
+  static String userFriendsOf(String userId) => '/profile/user/$userId/friends';
+
   /// 설정 (S22.2)
   ///
   /// **탭 셸 밖에 둔다.** [profileEdit]과 같은 이유다 — 하단 탭이 함께 보이면
@@ -129,6 +157,12 @@ abstract final class AppRoutes {
   ///
   /// **탭 셸 밖이다.** 조건을 고르는 도중에 다른 탭으로 새면 고른 값이 사라진다.
   static const matchRegister = '/match/register';
+
+  /// 초대 등록 — 시각과 거리를 자유롭게 정해 방을 연다.
+  ///
+  /// **매칭 등록([matchRegister])과 다른 화면이다.** 입력이 겹치지 않는다 —
+  /// 저쪽은 서버가 준 슬롯과 거리 셋, 이쪽은 자유 입력이다.
+  static const inviteRegister = '/match/invite';
 
   /// 대기방 (S10). 모집 중과 확정 뒤를 한 화면이 맡는다.
   ///

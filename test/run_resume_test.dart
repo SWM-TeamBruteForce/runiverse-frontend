@@ -8,20 +8,18 @@ import 'package:runiverse/features/session/domain/user_status.dart';
 void main() {
   final startAt = DateTime(2026, 9, 15, 19);
 
-  UserStatus ready({required bool isSolo}) => UserStatusReady(
-    runningRoomId: 1,
-    isSolo: isSolo,
-    scheduledStartAt: startAt,
-  );
+  UserStatus ready({required RoomType type}) =>
+      UserStatusReady(runningRoomId: 1, type: type, scheduledStartAt: startAt);
 
-  UserStatus running({required bool isSolo}) => UserStatusRunning(
+  UserStatus running({required RoomType type}) => UserStatusRunning(
     runningRoomId: 1,
-    isSolo: isSolo,
+    type: type,
     scheduledStartAt: startAt,
   );
 
   final waiting = UserStatusWaiting(
     runningRoomId: 1,
+    type: RoomType.match,
     scheduledStartAt: startAt,
   );
 
@@ -37,14 +35,14 @@ void main() {
     test('⚠️ READY는 솔로만 준비 화면으로 간다', () {
       // 같은 READY라도 갈 곳이 다르다. 매칭은 스트림·카운트다운이 필요한데
       // 그 화면이 아직 없다.
-      expect(RunResume.of(ready(isSolo: true)), RunResume.soloPrepare);
-      expect(RunResume.of(ready(isSolo: false)), RunResume.home);
+      expect(RunResume.of(ready(type: RoomType.solo)), RunResume.soloPrepare);
+      expect(RunResume.of(ready(type: RoomType.match)), RunResume.home);
     });
 
     test('RUNNING은 둘 다 러닝 화면이다', () {
       // 매칭이든 솔로든 할 일이 같다 — 방에 다시 붙어 이어 달린다.
-      expect(RunResume.of(running(isSolo: true)), RunResume.running);
-      expect(RunResume.of(running(isSolo: false)), RunResume.running);
+      expect(RunResume.of(running(type: RoomType.solo)), RunResume.running);
+      expect(RunResume.of(running(type: RoomType.match)), RunResume.running);
     });
   });
 
@@ -52,17 +50,20 @@ void main() {
     test('⚠️ 대기·확정이면 띄운다', () {
       // 흔적이 없으면 신청이 사라진 줄 알고 다시 신청하다 409를 맞는다.
       expect(RunResume.showsMatchBanner(waiting), isTrue);
-      expect(RunResume.showsMatchBanner(ready(isSolo: false)), isTrue);
+      expect(RunResume.showsMatchBanner(ready(type: RoomType.match)), isTrue);
     });
 
     test('솔로에는 띄우지 않는다', () {
-      expect(RunResume.showsMatchBanner(ready(isSolo: true)), isFalse);
-      expect(RunResume.showsMatchBanner(running(isSolo: true)), isFalse);
+      expect(RunResume.showsMatchBanner(ready(type: RoomType.solo)), isFalse);
+      expect(RunResume.showsMatchBanner(running(type: RoomType.solo)), isFalse);
     });
 
     test('⚠️ 달리는 중에는 띄우지 않는다', () {
       // 러닝 화면으로 가 있다. 거기서 "매칭 진행 중"은 지난 이야기다.
-      expect(RunResume.showsMatchBanner(running(isSolo: false)), isFalse);
+      expect(
+        RunResume.showsMatchBanner(running(type: RoomType.match)),
+        isFalse,
+      );
     });
 
     test('IDLE에는 띄우지 않는다', () {

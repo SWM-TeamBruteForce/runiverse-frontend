@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
+import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/profile/data/http_profile_repository.dart';
 import 'package:runiverse/features/profile/domain/nickname_change_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
@@ -34,7 +35,7 @@ void main() {
     return HttpProfileRepository(
       Dio(BaseOptions(baseUrl: 'http://test.invalid'))..httpClientAdapter = api,
       store,
-      FakeAuthRepository(latency: Duration.zero),
+      TokenRefresher(FakeAuthRepository(latency: Duration.zero), store),
     );
   }
 

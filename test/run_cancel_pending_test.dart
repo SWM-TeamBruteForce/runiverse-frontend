@@ -23,7 +23,7 @@ import 'package:runiverse/features/session/presentation/run_session_provider.dar
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/domain/finish_outcome.dart';
 
-/// 아직 시작하지 않은 방을 **서버에서 없애기**(`DELETE /running-matches`).
+/// 아직 시작하지 않은 방을 **서버에서 없애기**(`POST /match-rooms/leave`).
 ///
 /// 솔로 방은 만들어지는 순간 `READY`다. 앱을 껐다 켜면 준비 화면이 복구되는데,
 /// 거기서 그냥 나가면 방이 서버에 남아 **이후 매칭 신청이 전부 409로 막힌다.**
@@ -51,13 +51,13 @@ void main() {
       );
     }
 
-    test('DELETE /api/v1/running-matches로 나간다', () async {
+    test('POST /api/v1/match-rooms/leave로 나간다', () async {
       final repository = await repositoryReturning();
 
       await repository.cancelPending();
 
-      expect(api.method, 'DELETE');
-      expect(api.path, '/api/v1/running-matches');
+      expect(api.method, 'POST');
+      expect(api.path, '/api/v1/match-rooms/leave');
     });
 
     test('⚠️ 404는 실패가 아니다', () async {

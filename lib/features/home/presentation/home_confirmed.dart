@@ -8,6 +8,7 @@ import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/fact_row.dart';
 import 'package:runiverse/core/widgets/v2/runner_avatar.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
+import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/matching/domain/target_distance.dart';
 
 /// 매칭이 확정됐다 — 시안 `158:3102`.
@@ -75,7 +76,11 @@ class HomeConfirmed extends StatelessWidget {
                 children: [
                   const SizedBox(height: AppSpacing.space5),
                   Text(
-                    AppStrings.homeMatchConfirmedTitle,
+                    // ⚠️ **초대 방은 `매칭 완료`가 아니다.** 매칭이 성사된 것이
+                    // 아니라 더 들어올 자리가 닫힌 것뿐이다.
+                    room.type == RoomType.invite
+                        ? AppStrings.homeInviteConfirmedTitle
+                        : AppStrings.homeMatchConfirmedTitle,
                     textAlign: TextAlign.center,
                     style: AppTypographyV2.heading03.copyWith(
                       color: colors.textStrong,
@@ -133,7 +138,7 @@ class HomeConfirmed extends StatelessWidget {
     );
   }
 
-  /// `5km`. ⚠️ **모르면 지어내지 않는다.**
+  /// `5 km`. ⚠️ **모르면 지어내지 않는다.**
   ///
   /// ⚠️ 시안은 `5 km`로 띄어 쓰는데 우리는 붙여 쓴다. 거리 칩·요약 줄이
   /// 전부 같은 표기라 여기만 바꾸면 앱 안에서 두 표기가 생긴다
