@@ -315,6 +315,10 @@ void main() {
           path = '${Directory.systemTemp.path}/runiverse_drag_$stamp.png';
           await File(path).writeAsBytes(await _png(9, 16));
         });
+        final file = File(path);
+        addTearDown(() {
+          if (file.existsSync()) file.deleteSync();
+        });
         return _FakePicker(
           image: PickedImage.validated(path: path, sizeBytes: 1024),
         );
@@ -406,14 +410,24 @@ void main() {
       });
 
       testWidgets('⚠️ 이미 올라간 사진은 끌어도 그대로다', (tester) async {
-        // 원본이 없어 옮길 수 없다. 다시 골라야 한다.
+        // 원본이 없어 옮길 수 없다. 다시 골라야 한다. 커버가 끌기를 가져가지
+        // 않으면 **화면이 스크롤된다** — 위치 값은 원래 기본값이라 증거가 못 된다.
         await pumpEdit(tester, backgroundUrl: 'https://cdn.test/cover.jpg');
         await tester.pump();
+        final scroll = tester.state<ScrollableState>(
+          find
+              .ancestor(
+                of: find.byType(BackgroundPicker),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
+        final before = scroll.position.pixels;
 
         await tester.drag(find.byType(BackgroundPicker), const Offset(0, -40));
         await tester.pumpAndSettle();
 
-        expect(coverImage(tester).alignment, Alignment.center);
+        expect(scroll.position.pixels, greaterThan(before));
       });
     });
 
@@ -880,6 +894,11 @@ class _FakeCropper implements ImageCropper {
     this.alignY = alignY;
     return image;
   }
+
+  /// ⚠️ 지우지 않는다. 자르지 않고 **고른 파일을 그대로** 돌려주므로, 지우면
+  /// 다음 테스트가 쓸 사진이 사라진다.
+  @override
+  Future<void> discard(PickedImage cropped) async {}
 }
 
 /// [width]×[height] 단색 PNG.

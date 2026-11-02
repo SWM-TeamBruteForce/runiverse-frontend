@@ -122,6 +122,16 @@ void main() {
       expect(repository.uploaded?.path, _FakeCropper.croppedPath);
     });
 
+    test('올리고 나면 자른 파일을 버린다', () async {
+      // 저장할 때마다 새로 자른다. 버리지 않으면 임시 폴더에 쌓인다.
+      final container = makeContainer();
+      await controllerOf(container).load();
+
+      await controllerOf(container).apply(PhotoPicked(image()));
+
+      expect(cropper.discarded, _FakeCropper.croppedPath);
+    });
+
     test('⚠️ 자르지 못하면 올리지 않고 원래 주소를 둔다', () async {
       // 자르지 않은 채로 올리면 보던 것과 다른 그림이 올라간다.
       final container = makeContainer();
@@ -163,12 +173,13 @@ void main() {
     //
     // ⚠️ 조회는 되고 올리기만 실패하는 저장소가 필요하다. 공용 가짜는 실패를
     // 하나로만 들고 있어 조회까지 함께 실패한다.
+    final cropper = _FakeCropper();
     final container = ProviderContainer.test(
       overrides: [
         backgroundImageRepositoryProvider.overrideWithValue(
           _UploadFailsRepository('https://cdn.test/cover.jpg'),
         ),
-        imageCropperProvider.overrideWithValue(_FakeCropper()),
+        imageCropperProvider.overrideWithValue(cropper),
       ],
     );
     await controllerOf(container).load();
@@ -176,6 +187,8 @@ void main() {
     final failure = await controllerOf(container).apply(PhotoPicked(image()));
 
     expect(failure, ProfileImageFailure.upload);
+    // 실패해도 자른 파일은 버린다. 다시 누르면 원본에서 새로 자른다.
+    expect(cropper.discarded, _FakeCropper.croppedPath);
     expect(
       stateOf(container),
       isA<ProfileImageReady>().having(
@@ -286,6 +299,12 @@ class _FakeCropper implements ImageCropper {
     if (failure != null) throw ProfileImageException(failure);
     return PickedImage.validated(path: croppedPath, sizeBytes: 512);
   }
+
+  /// 버린 파일 경로.
+  String? discarded;
+
+  @override
+  Future<void> discard(PickedImage cropped) async => discarded = cropped.path;
 }
 
 /// 조회는 되고 **올리기만 실패하는** 저장소.
