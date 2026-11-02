@@ -124,14 +124,13 @@ void main() {
     );
   });
 
-  testWidgets('⚠️ 사진을 잘라내지 않는다', (tester) async {
-    // `BoxFit.cover`는 커버 비율(412:200)에 맞춰 **남는 쪽을 베어낸다.** 세로
-    // 사진을 올린 사람은 가운데 띠만 보게 된다 — 기기에서 "일부분이 잘린 것처럼
-    // 보인다"로 드러났다(2026-10-23). 비율은 지키고 **전체**를 넣는다.
+  testWidgets('⚠️ 칸을 꽉 채운다', (tester) async {
+    // 세로 사진은 가운데만 보이는 것을 감수하고 꽉 채운다(2026-11-02 결정,
+    // #204 되돌림).
     await pumpCover(tester, url: 'https://cdn.test/cover.jpg');
 
     final image = tester.widget<Image>(find.byType(Image));
-    expect(image.fit, BoxFit.contain);
+    expect(image.fit, BoxFit.cover);
     await settleRetry(tester);
   });
 
