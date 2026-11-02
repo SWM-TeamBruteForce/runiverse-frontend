@@ -554,11 +554,11 @@ class _DistanceChips extends StatelessWidget {
 
   final void Function(int meters) onTap;
 
-  /// `5000` → `5km`.
+  /// `5000` → `5 km`.
   ///
   /// ⚠️ **`TargetDistance`를 거치지 않는다.** enum에 없는 거리(7km)가 오면
   /// 이름을 못 찾아 칩이 비거나 사라진다. 1000으로 안 나뉘는 값은 미터로
-  /// 적는다 — 지어낸 `1km`보다 낯선 `1500m`가 낫다.
+  /// 적는다 — 지어낸 `1 km`보다 낯선 `1500 m`가 낫다.
   static String _label(int meters) => meters % 1000 == 0
       ? AppStrings.matchDistanceText(meters ~/ 1000)
       : AppStrings.matchDistanceMeters(meters);

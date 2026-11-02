@@ -32,7 +32,7 @@ void main() {
             unit: '/km',
             values: values,
             labels:
-                labels ?? [for (var i = 1; i <= values.length; i++) '${i}km'],
+                labels ?? [for (var i = 1; i <= values.length; i++) '$i km'],
             axisTicks: axisTicks,
             format: pace,
             color: const Color(0xFF3B82F6),
@@ -88,7 +88,7 @@ void main() {
     await pump(tester, values: [300, 360, 330]);
 
     final cardLeft = tester.getTopLeft(find.byType(SplitLineChart)).dx;
-    final labelLeft = tester.getTopLeft(find.text('1km')).dx;
+    final labelLeft = tester.getTopLeft(find.text('1 km')).dx;
 
     expect(labelLeft - cardLeft, greaterThan(40));
   });
@@ -129,7 +129,7 @@ void main() {
 
   /// x축 라벨 — **거리로 고른 자리에 찍는가.**
   ///
-  /// 점 개수로 솎으면 50m 표본에서 `0.05 · 0.65 · 1.25km`가 나온다.
+  /// 점 개수로 솎으면 50m 표본에서 `0.05 · 0.65 · 1.25 km`가 나온다.
   /// 읽는 사람이 쓰는 자는 거리지 점 번호가 아니다.
   group('가로 라벨', () {
     /// 50m씩 스무 점(1km). 라벨은 닿은 거리를 적는다.
@@ -146,11 +146,11 @@ void main() {
         axisTicks: const [9, 19],
       );
 
-      expect(find.text('0.5km'), findsOneWidget);
-      expect(find.text('1km'), findsOneWidget);
+      expect(find.text('0.5 km'), findsOneWidget);
+      expect(find.text('1 km'), findsOneWidget);
       // 개수로 솎던 시절에 나오던 자리.
-      expect(find.text('0.05km'), findsNothing);
-      expect(find.text('0.25km'), findsNothing);
+      expect(find.text('0.05 km'), findsNothing);
+      expect(find.text('0.25 km'), findsNothing);
     });
 
     testWidgets('⚠️ 마지막 점은 자리에 없어도 찍는다', (tester) async {
@@ -162,7 +162,7 @@ void main() {
         axisTicks: const [],
       );
 
-      expect(find.text('1km'), findsOneWidget);
+      expect(find.text('1 km'), findsOneWidget);
     });
 
     testWidgets('⚠️ 마지막과 붙는 자리는 버린다', (tester) async {
@@ -174,16 +174,16 @@ void main() {
         axisTicks: const [18],
       );
 
-      expect(find.text('0.95km'), findsNothing);
-      expect(find.text('1km'), findsOneWidget);
+      expect(find.text('0.95 km'), findsNothing);
+      expect(find.text('1 km'), findsOneWidget);
     });
 
     testWidgets('자리를 주지 않으면 개수로 솎는다', (tester) async {
       // 1km 그래프는 구간 번호가 곧 거리라 이대로가 맞다.
       await pump(tester, values: [300, 310, 320, 330, 340, 350]);
 
-      expect(find.text('1km'), findsOneWidget);
-      expect(find.text('6km'), findsOneWidget);
+      expect(find.text('1 km'), findsOneWidget);
+      expect(find.text('6 km'), findsOneWidget);
     });
   });
 

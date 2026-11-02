@@ -19,7 +19,7 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 
 /// 초대 등록 화면.
 ///
-/// ## ⚠️ 바로가기가 `5km · 하프 · 풀`이다
+/// ## ⚠️ 바로가기가 `5 km · 하프 · 풀`이다
 ///
 /// 매칭의 3/5/10은 서버가 같은 조건끼리 묶는 **버킷** 때문에 있는 값이고 초대
 /// 방에는 버킷이 없다. 타자로 치기 고약하고 이름이 있는 거리만 남긴다.
@@ -59,8 +59,8 @@ void main() {
       // 버킷 때문에 있던 값이다. 초대에는 그 이유가 없다.
       await pump(tester);
 
-      expect(find.text('3km'), findsNothing);
-      expect(find.text('10km'), findsNothing);
+      expect(find.text('3 km'), findsNothing);
+      expect(find.text('10 km'), findsNothing);
     });
 
     testWidgets('⚠️ 세 칸이 균등하게 깔린다', (tester) async {

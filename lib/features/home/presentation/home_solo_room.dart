@@ -130,7 +130,7 @@ class HomeSoloRoom extends StatelessWidget {
     );
   }
 
-  /// `5km`. ⚠️ **모르면 지어내지 않는다.**
+  /// `5 km`. ⚠️ **모르면 지어내지 않는다.**
   static String _distance(int? meters) {
     final km = TargetDistance.fromMeters(meters)?.km;
     return km == null

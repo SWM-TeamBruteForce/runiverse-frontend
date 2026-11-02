@@ -592,7 +592,7 @@ void main() {
         ),
       );
 
-      expect(find.text('7km'), findsOneWidget);
+      expect(find.text('7 km'), findsOneWidget);
     });
 
     testWidgets('하프는 소수 자리가 남는다', (tester) async {
@@ -610,13 +610,13 @@ void main() {
         ),
       );
 
-      expect(find.text('21.098km'), findsOneWidget);
+      expect(find.text('21.098 km'), findsOneWidget);
     });
 
     testWidgets('매칭 방의 5km도 그대로다', (tester) async {
       await pumpRoom(tester, snapshot: room(status: RoomStatus.matching));
 
-      expect(find.text('5km'), findsOneWidget);
+      expect(find.text('5 km'), findsOneWidget);
     });
 
     testWidgets('거리를 모르면 칸을 비운다', (tester) async {

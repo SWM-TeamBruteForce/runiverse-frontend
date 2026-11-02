@@ -51,7 +51,7 @@ abstract final class InviteLimits {
   ///
   /// 칩은 자유 입력을 대신하지 않는다 — 눌러서 입력란을 채운다.
   static const shortcuts = <({String label, int meters})>[
-    (label: '5km', meters: 5000),
+    (label: '5 km', meters: 5000),
     (label: '하프', meters: halfMeters),
     (label: '풀', meters: fullMeters),
   ];

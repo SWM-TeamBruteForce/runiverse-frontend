@@ -23,7 +23,7 @@ import 'package:runiverse/features/record/presentation/run_result_view.dart';
 /// ## ⚠️ 나갈 때 캐시를 버린다
 ///
 /// 서버가 종료를 처리하기 전에 부르면 **200에 빈 기록**이 온다. 그 값이 캐시에
-/// 남으면 화면을 닫았다 다시 열어도 `0.00km · 구간 0개`가 그대로라, 사용자가
+/// 남으면 화면을 닫았다 다시 열어도 `0.00 km · 구간 0개`가 그대로라, 사용자가
 /// 앱 안에서 복구할 방법이 없다. 그래서 [dispose]에서 버린다 — 다시 열면
 /// 반드시 서버에 다시 묻는다.
 class RecordDetailPage extends ConsumerStatefulWidget {
