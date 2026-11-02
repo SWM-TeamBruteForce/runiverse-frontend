@@ -815,9 +815,15 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   ///
   /// ⚠️ **`HEALTH_CHECK` 는 계속 나간다.** 그 시계는 `WsClient` 가
   /// 따로 들고 있어 전송기를 세워도 영향이 없다(가이드 2.1).
+  ///
+  /// ⚠️ **흘려보내는 사이 [resume] 이 오면 멈추지 않는다.** 흘려보내기는
+  /// 0.3초쯤 걸린다. 그사이 다시 달리기 시작했는데 여기서 전송기를 세우고
+  /// `PAUSE` 를 보내면, `RESUME` 뒤에 `PAUSE` 가 닿아 서버는 멈춘 것으로
+  /// 알고 좌표는 다음 일시정지·종료 때까지 안 나간다.
   Future<void> pause() async {
     _paused = true;
     await _sender?.drain();
+    if (!_paused) return;
     // ⚠️ `stop` 이 아니라 [TrackSender.pauseTimer] 다. `stop` 은 방과
     // 커서를 지우는 **해체**라, 그 뒤에 [resume] 이 타이머를 다시 세우지
     // 못한다 — 다시 달리는데 좌표가 조용히 안 나간다.
