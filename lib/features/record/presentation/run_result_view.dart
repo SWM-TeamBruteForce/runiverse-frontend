@@ -270,7 +270,7 @@ class _RunResultViewState extends State<RunResultView> {
 
   /// 50m 표본의 x축·툴팁 라벨. **닿은 지점의 누적 거리**다.
   ///
-  /// 구간 번호(`1km` `2km`)를 쓰지 않는다 — 50m면 5km에 100개가 되어 번호가
+  /// 구간 번호(`1 km` `2 km`)를 쓰지 않는다 — 50m면 5km에 100개가 되어 번호가
   /// 아무 뜻도 갖지 못한다. 어디쯤이었는지가 읽고 싶은 값이다.
   static List<String> _sampleLabels(List<SplitBucket> samples) => [
     for (final sample in samples)
@@ -282,7 +282,7 @@ class _RunResultViewState extends State<RunResultView> {
   /// ## ⚠️ 점 개수로 솎으면 어중간한 거리가 나온다
   ///
   /// 3km는 점이 60개다. 전체의 1/5마다 찍으면 첫 점부터 열둘씩 세어
-  /// `0.05 · 0.65 · 1.25 · 1.85 · 2.45km`가 된다. 겹치지 않게 줄이려던
+  /// `0.05 · 0.65 · 1.25 · 1.85 · 2.45 km`가 된다. 겹치지 않게 줄이려던
   /// 것이지만, **읽는 사람이 쓰는 자는 거리**지 점 번호가 아니다.
   ///
   /// ## 간격은 러닝 길이를 보고 고른다
@@ -319,7 +319,7 @@ class _RunResultViewState extends State<RunResultView> {
 
   /// x축에 둘 거리 라벨의 최대 개수.
   ///
-  /// 그림 영역이 270px 남짓이라 여섯 개부터는 `2.5km`가 옆 라벨에 닿는다.
+  /// 그림 영역이 270px 남짓이라 여섯 개부터는 `2.5 km`가 옆 라벨에 닿는다.
   /// 마지막 점은 이 수에 들어가지 않는다 — 총 거리는 늘 따로 찍힌다.
   static const _maxTicks = 5;
 }
