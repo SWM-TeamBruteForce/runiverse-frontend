@@ -433,8 +433,8 @@ void main() {
     testWidgets('서버 값으로 행이 채워진다', (tester) async {
       await pumpSettings(tester, body: stored);
 
-      expect(find.textContaining('175cm'), findsOneWidget);
-      expect(find.textContaining('71kg'), findsOneWidget);
+      expect(find.textContaining('175 cm'), findsOneWidget);
+      expect(find.textContaining('71 kg'), findsOneWidget);
     });
 
     testWidgets('⚠️ 고르면 저장 버튼 없이 바로 간다', (tester) async {

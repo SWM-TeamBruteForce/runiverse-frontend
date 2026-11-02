@@ -234,7 +234,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         '.${birthday.day.toString().padLeft(2, '0')}';
   }
 
-  /// `180cm · 85kg` 한 줄. **한쪽만 있으면 비운다** — 시트가 두 값을 함께
+  /// `180 cm · 85 kg` 한 줄. **한쪽만 있으면 비운다** — 시트가 두 값을 함께
   /// 돌려주므로 반쪽만 있는 상태는 없다.
   String? get _bodyText {
     if (_bodyLoading) return null;
@@ -242,8 +242,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final height = body.heightCm;
     final weight = body.weightKg;
     if (height == null || weight == null) return AppStrings.profileEditUnknown;
-    return '$height${AppStrings.profileUnitHeight}'
-        ' · $weight${AppStrings.profileUnitWeight}';
+    return '$height ${AppStrings.profileUnitHeight}'
+        ' · $weight ${AppStrings.profileUnitWeight}';
   }
 
   Future<void> _setVisibility(ProfileVisibility value) async {
