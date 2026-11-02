@@ -677,7 +677,7 @@ abstract final class AppStrings {
   static const matchDistanceLabel = '목표 거리';
 
   /// `3km` — 거리 칩과 요약 줄에 함께 쓴다.
-  static String matchDistanceText(int km) => '${km}km';
+  static String matchDistanceText(int km) => '$km km';
 
   /// `5km` · `21.098km` — **어떤 미터값이든** 적는다.
   ///
@@ -687,8 +687,8 @@ abstract final class AppStrings {
   static String distanceKm(int meters) {
     final km = meters / 1000;
     // 딱 떨어지면 `5km`. 아니면 소수점 뒤 0을 떼고 `21.098km`.
-    if (km == km.roundToDouble()) return '${km.toInt()}km';
-    return '${km.toString().replaceFirst(RegExp(r'0+\$'), '')}km';
+    if (km == km.roundToDouble()) return '${km.toInt()} km';
+    return '${km.toString().replaceFirst(RegExp(r'0+\$'), '')} km';
   }
 
   /// `1500m` — 1000으로 안 나뉘는 거리.
@@ -1238,7 +1238,7 @@ abstract final class AppStrings {
 
   /// `2.32km` — 막대 옆 숫자.
   static String runPartyDistance(int meters) =>
-      '${(meters / 1000).toStringAsFixed(2)}km';
+      '${(meters / 1000).toStringAsFixed(2)} km';
 
   /// 파티원이 **뛰고 있지 않을 때** 격차 자리에 대신 넣는 말.
   ///
@@ -1268,7 +1268,7 @@ abstract final class AppStrings {
   /// ⚠️ **"제한 없이 끝낼 수 있다"고 말하지 않는다.** 판정은 서버 몫이라
   /// 앱이 약속할 수 없다(가이드 3.4). 화면 기준이라고 밝히고 거리만 알린다.
   static String runFinishRemaining(double km) =>
-      '화면 기준으로 ${km.toStringAsFixed(2)}km 더 달리면 80%를 채워요';
+      '화면 기준으로 ${km.toStringAsFixed(2)} km 더 달리면 80%를 채워요';
 
   static const runPaceLabel = '페이스';
   static const runTimeLabel = '시간';
@@ -1405,7 +1405,7 @@ abstract final class AppStrings {
   static const runResultNoCadence = '걸음 센서를 읽지 못해 이번 러닝은 케이던스가 없어요';
 
   /// `3km`처럼 구간 끝 지점을 적는다.
-  static String runResultSplitLabel(int index) => '${index}km';
+  static String runResultSplitLabel(int index) => '$index km';
 
   // ── 파티원 비교 (S16 · S16.5) ─────────────────────────────────
 
@@ -1424,7 +1424,7 @@ abstract final class AppStrings {
 
   /// 마지막 자투리 구간. `5.4km`처럼 실제로 닿은 지점을 적는다.
   static String runResultPartialLabel(double totalKm) =>
-      '${totalKm.toStringAsFixed(2)}km';
+      '${totalKm.toStringAsFixed(2)} km';
 
   /// 50m 표본이 닿은 지점. `1km` `2.5km` `3.02km`.
   ///
@@ -1432,7 +1432,7 @@ abstract final class AppStrings {
   /// 찍게 되면서 `1.00km`가 바로 위 1km 그래프의 `1km`와 나란히 놓인다 —
   /// 같은 지점인데 다르게 적혀 있으면 다른 값으로 읽힌다.
   static String runResultSampleLabel(double km) =>
-      '${km.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '')}km';
+      '${km.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '')} km';
 
   // ── 기록 탭 S21 ──────────────────────────────────────────────
 
@@ -1519,11 +1519,11 @@ abstract final class AppStrings {
       '${day.month}월 ${day.day}일 · 러닝 $count회';
 
   /// `5.02km`
-  static String recordDistanceText(double km) => '${km.toStringAsFixed(2)}km';
+  static String recordDistanceText(double km) => '${km.toStringAsFixed(2)} km';
 
   /// `14.2km` — 요약 줄은 소수 한 자리로 줄인다.
   static String recordSummaryDistanceText(double km) =>
-      '${km.toStringAsFixed(1)}km';
+      '${km.toStringAsFixed(1)} km';
 
   /// `42m`
   static String recordElevationText(int? meters) =>
@@ -1992,7 +1992,7 @@ abstract final class AppStrings {
   static const inviteRegisterClosedToday = '오늘은 초대 러닝을 만들 수 없어요';
   static const inviteRegisterClosedTodayWhy = '자정이 지나면 다시 열려요';
 
-  static const inviteRegisterShortcut5 = '5km';
+  static const inviteRegisterShortcut5 = '5 km';
   static const inviteRegisterShortcutHalf = '하프';
   static const inviteRegisterShortcutFull = '풀';
 
