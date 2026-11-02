@@ -22,4 +22,10 @@ abstract interface class ImageCropper {
     required double aspectRatio,
     required double alignY,
   });
+
+  /// [crop]이 만든 파일을 지운다. **올리기가 끝나면 성공이든 실패든 부른다.**
+  ///
+  /// 다시 저장하면 원본에서 새로 자르므로 남겨 둘 이유가 없다. 지우지 못해도
+  /// 던지지 않는다 — 임시 폴더라 OS가 결국 비운다.
+  Future<void> discard(PickedImage cropped);
 }

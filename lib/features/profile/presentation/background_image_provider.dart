@@ -118,10 +118,18 @@ class BackgroundImageController extends Notifier<ProfileImageState> {
     PhotoPicked(:final image, :final alignY) => _busy(() async {
       // ⚠️ **보이던 부분만 올린다.** 서버에는 위치를 담을 자리가 없어서,
       // 미리보기에서 옮긴 위치는 잘라 낸 그림으로만 남는다.
-      final cropped = await ref
-          .read(imageCropperProvider)
-          .crop(image, aspectRatio: CoverCrop.aspectRatio, alignY: alignY);
-      await _repository.upload(cropped);
+      final cropper = ref.read(imageCropperProvider);
+      final cropped = await cropper.crop(
+        image,
+        aspectRatio: CoverCrop.aspectRatio,
+        alignY: alignY,
+      );
+      try {
+        await _repository.upload(cropped);
+      } finally {
+        // 다시 누르면 원본에서 새로 자른다. 자른 파일은 남겨 둘 이유가 없다.
+        await cropper.discard(cropped);
+      }
       // 확정 응답에는 키만 온다. 그릴 주소는 다시 물어야 한다.
       return _repository.fetchUrl();
     }),

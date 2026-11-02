@@ -54,9 +54,23 @@ class UiImageCropper implements ImageCropper {
       );
     } on ProfileImageException {
       rethrow;
+    } on FileSystemException {
+      // 고른 파일이 사라졌다 — 오래 백그라운드에 두면 OS가 임시 폴더를 비운다.
+      // **형식 탓이 아니다.** 형식이라고 하면 다른 사진을 고르게 된다. 올리는
+      // 자리(`HttpProfileImageRepository.upload`)와 같은 실패로 말한다.
+      throw const ProfileImageException(ProfileImageFailure.upload);
     } on Object {
       // 파일을 못 읽었거나 디코더가 거절했다. 자르지 않은 채로 물러서지 않는다.
       throw const ProfileImageException(ProfileImageFailure.unsupportedFormat);
+    }
+  }
+
+  @override
+  Future<void> discard(PickedImage cropped) async {
+    try {
+      await File(cropped.path).delete();
+    } on Object {
+      // 임시 파일 하나가 남는 것뿐이다.
     }
   }
 
