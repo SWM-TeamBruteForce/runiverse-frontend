@@ -21,31 +21,31 @@ void main() {
   );
 
   test('매칭 방에 둘 이상이면 제한할 수 있다', () {
-    expect(room(playerCount: 2).mayPenalize, isTrue);
-    expect(room(playerCount: 4).mayPenalize, isTrue);
+    expect(room(playerCount: 2).canPenalize, isTrue);
+    expect(room(playerCount: 4).canPenalize, isTrue);
   });
 
   test('⚠️ 매칭이 혼자로 확정됐으면 제한하지 않는다', () {
-    expect(room(playerCount: 1).mayPenalize, isFalse);
+    expect(room(playerCount: 1).canPenalize, isFalse);
   });
 
   test('⚠️ 초대 방은 인원과 상관없이 제한하지 않는다', () {
     // 초대 방도 파티원 화면이 있어 `isMatched` 가 참이다 — 그것만 보면 안 된다.
-    expect(room(type: RoomType.invite, playerCount: 3).mayPenalize, isFalse);
-    expect(room(type: RoomType.invite).mayPenalize, isFalse);
+    expect(room(type: RoomType.invite, playerCount: 3).canPenalize, isFalse);
+    expect(room(type: RoomType.invite).canPenalize, isFalse);
   });
 
   test('솔로는 제한하지 않는다', () {
-    expect(room(matched: false, type: RoomType.solo).mayPenalize, isFalse);
+    expect(room(matched: false, type: RoomType.solo).canPenalize, isFalse);
   });
 
   group('⚠️ 모르면 제한할 수 있다고 본다 — 안내를 걷으면 "제한 없다"는 약속이 된다', () {
     test('앱을 다시 켜고 붙으면 인원을 모른다', () {
-      expect(room().mayPenalize, isTrue);
+      expect(room().canPenalize, isTrue);
     });
 
     test('방 종류를 모른다', () {
-      expect(room(type: null, playerCount: 2).mayPenalize, isTrue);
+      expect(room(type: null, playerCount: 2).canPenalize, isTrue);
     });
   });
 }

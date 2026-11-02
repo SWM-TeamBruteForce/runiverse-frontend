@@ -523,7 +523,7 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// 정하므로, 솔로에 참을 넘기면 빈 파티원 장이 생긴다.
   ///
   /// [type]·[playerCount]는 종료 때 매칭 제한 안내를 띄울지 가른다
-  /// ([RunningRoom.mayPenalize]). 모르면 비워 둔다 — 그러면 안내가 뜬다.
+  /// ([RunningRoom.canPenalize]). 모르면 비워 둔다 — 그러면 안내가 뜬다.
   ///
   /// ## ⚠️ [recovered] 는 기본값이 참이다
   ///

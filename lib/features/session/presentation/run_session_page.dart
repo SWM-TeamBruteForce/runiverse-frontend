@@ -346,10 +346,10 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
       runningConnectionProvider.select((state) => state.room?.isMatched),
     );
     final hasParty = isMatched == true || party.rows.isNotEmpty;
-    // 방이 아직 안 열렸으면 모르는 것이라 안내를 띄운다(RunningRoom.mayPenalize).
-    final mayPenalize = ref.watch(
+    // 방이 아직 안 열렸으면 모르는 것이라 안내를 띄운다(RunningRoom.canPenalize).
+    final canPenalize = ref.watch(
       runningConnectionProvider.select(
-        (state) => state.room?.mayPenalize ?? true,
+        (state) => state.room?.canPenalize ?? true,
       ),
     );
     // 목표는 방 정보가 실어 온다. 없으면 파티원 통지로 메운다. 솔로는 `null`.
@@ -458,7 +458,7 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                 enabled: state is RunRunning || state is RunPaused,
                 onPauseToggle: _togglePause,
                 onFinish: _finishByHold,
-                showPenaltyNotice: target != null && mayPenalize,
+                showPenaltyNotice: target != null && canPenalize,
                 penaltyRemainingKm: _penaltyRemainingKm(),
               ),
             ],

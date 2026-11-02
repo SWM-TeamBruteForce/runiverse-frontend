@@ -50,7 +50,7 @@ class RunControls extends StatefulWidget {
   final VoidCallback onFinish;
 
   /// 제재 안내를 띄울지. 목표가 있고 서버가 제재할 수 있는 방일 때 참이다 —
-  /// 초대 방과 1인 확정 방은 서버가 제재하지 않는다(`RunningRoom.mayPenalize`).
+  /// 초대 방과 1인 확정 방은 서버가 제재하지 않는다(`RunningRoom.canPenalize`).
   ///
   /// ⚠️ **[penaltyRemainingKm] 이 `null` 인 것과 다르다.** 화면 거리가
   /// 80% 를 넘으면 남은 거리는 없지만 **안내는 남아 있어야 한다** — 판정은

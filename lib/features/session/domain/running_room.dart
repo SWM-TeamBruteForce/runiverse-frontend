@@ -55,7 +55,7 @@ class RunningRoom {
   ///
   /// ⚠️ **모르면 참이다.** 종류나 인원을 모를 때 거짓으로 두면, 제한받는
   /// 방에서 안내가 사라진다 — 그것이 "제한 없다"는 약속이 된다.
-  bool get mayPenalize =>
+  bool get canPenalize =>
       isMatched && type != RoomType.invite && playerCount != 1;
 
   @override
