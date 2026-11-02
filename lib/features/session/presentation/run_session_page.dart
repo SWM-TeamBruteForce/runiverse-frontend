@@ -146,7 +146,7 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   ///
   /// ⚠️ **`null` 이 "제재 없다"는 뜻은 아니다.** 80% 판정은 서버가 정지
   /// 구간과 오염 좌표를 빼고 센 거리로 한다(가이드 3.4) — 화면에서 넘겼어도
-  /// 모자랄 수 있다. 제재 안내는 `RunControls.hasTarget` 이 따로 들고 있고,
+  /// 모자랄 수 있다. 제재 안내는 `RunControls.showPenaltyNotice` 가 따로 들고 있고,
   /// 이 값은 **거리 줄 하나**만 가른다.
   double? _penaltyRemainingKm() {
     final target = _targetDistanceMeters();
@@ -346,6 +346,12 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
       runningConnectionProvider.select((state) => state.room?.isMatched),
     );
     final hasParty = isMatched == true || party.rows.isNotEmpty;
+    // 방이 아직 안 열렸으면 모르는 것이라 안내를 띄운다(RunningRoom.canPenalize).
+    final canPenalize = ref.watch(
+      runningConnectionProvider.select(
+        (state) => state.room?.canPenalize ?? true,
+      ),
+    );
     // 목표는 방 정보가 실어 온다. 없으면 파티원 통지로 메운다. 솔로는 `null`.
     final target =
         ref.watch(
@@ -452,7 +458,7 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
                 enabled: state is RunRunning || state is RunPaused,
                 onPauseToggle: _togglePause,
                 onFinish: _finishByHold,
-                hasTarget: target != null,
+                showPenaltyNotice: target != null && canPenalize,
                 penaltyRemainingKm: _penaltyRemainingKm(),
               ),
             ],
@@ -531,8 +537,7 @@ class _MapPage extends StatelessWidget {
               Expanded(
                 child: _InlineMetric(
                   label: AppStrings.runDistanceLabel,
-                  value:
-                      '${(metrics.distanceMeters / 1000).toStringAsFixed(2)} km',
+                  value: '${AppStrings.kmFloor(metrics.distanceMeters)} km',
                 ),
               ),
             ],
@@ -659,7 +664,7 @@ class _MetricsPage extends StatelessWidget {
               Expanded(
                 child: _Metric(
                   label: AppStrings.runDistanceLabel,
-                  value: (metrics.distanceMeters / 1000).toStringAsFixed(2),
+                  value: AppStrings.kmFloor(metrics.distanceMeters),
                   unit: 'km',
                 ),
               ),

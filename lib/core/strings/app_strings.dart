@@ -16,6 +16,28 @@ import 'package:runiverse/core/utils/kst_time.dart';
 /// 받침 유무에 따라 은/는, 이/가가 갈리는데 코드는 그걸 모른다
 /// ("피드**는**" / "대회일정**은**"). 조사가 필요 없게 문장을 짠다.
 abstract final class AppStrings {
+  // ── 달린 거리 (여러 화면) ────────────────────────────────────
+
+  /// `4.99` — 달린 거리의 km 숫자. **반올림하지 않고 버린다.**
+  ///
+  /// ⚠️ 반올림하면 5km 목표에서 4,996m가 `5.00`으로 보인다 — 다 달린 줄
+  /// 알았는데 러닝이 끝나지 않는다. 워치 앱도 같은 규칙이다.
+  ///
+  /// 목표 거리에는 쓰지 않는다. 목표는 정해진 값이라 버릴 것이 없다.
+  static String kmFloor(num meters) => _floorKm(meters, 10, 2);
+
+  /// `4.9` — [kmFloor]의 소수 한 자리. 100m 단위로 버린다.
+  static String kmFloor1(num meters) => _floorKm(meters, 100, 1);
+
+  static String _floorKm(num meters, int step, int digits) =>
+      ((meters / step).floor() * step / 1000).toStringAsFixed(digits);
+
+  /// km로 받은 기록 거리를 미터로 되돌린다.
+  ///
+  /// ⚠️ 바로 버리면 안 된다 — `2.03 * 1000` 이 `2029.99…` 라 `2.02`가 된다.
+  /// 기록 거리는 서버가 미터 정수로 주므로 반올림하면 원래 값이 나온다.
+  static int _metersOf(double km) => (km * 1000).round();
+
   // ── 하단 탭 ──────────────────────────────────────────────────
   //
   // 탭 4개는 홈 / 기록 / 기록카드 / 프로필이다(시안 158:2899).
@@ -1215,8 +1237,8 @@ abstract final class AppStrings {
     _ => '나란히 달리는 중',
   };
 
-  /// `3.4` — 카드의 현재 거리. 소수 한 자리.
-  static String runPartyKm1(int meters) => (meters / 1000).toStringAsFixed(1);
+  /// `3.4` — 카드의 현재 거리. 소수 한 자리, 버린다([kmFloor]).
+  static String runPartyKm1(int meters) => kmFloor1(meters);
 
   /// `5 km` — 목표 거리.
   static String runPartyTargetKm(int meters) {
@@ -1237,8 +1259,7 @@ abstract final class AppStrings {
   static const runPartyUnknown = '함께 달리는 사람';
 
   /// `2.32 km` — 막대 옆 숫자.
-  static String runPartyDistance(int meters) =>
-      '${(meters / 1000).toStringAsFixed(2)} km';
+  static String runPartyDistance(int meters) => '${kmFloor(meters)} km';
 
   /// 파티원이 **뛰고 있지 않을 때** 격차 자리에 대신 넣는 말.
   ///
@@ -1267,8 +1288,15 @@ abstract final class AppStrings {
   ///
   /// ⚠️ **"제한 없이 끝낼 수 있다"고 말하지 않는다.** 판정은 서버 몫이라
   /// 앱이 약속할 수 없다(가이드 3.4). 화면 기준이라고 밝히고 거리만 알린다.
-  static String runFinishRemaining(double km) =>
-      '화면 기준으로 ${km.toStringAsFixed(2)}km 더 달리면 80%를 채워요';
+  ///
+  /// ⚠️ 남은 거리는 10m 단위로 **올린다** — 반올림하면 4m 남았을 때
+  /// `0.00km 더`라고 한다. 미터로 먼저 반올림해서 부동소수점 끝자리
+  /// (`10.000…01m`)가 한 칸 더 올리지 않게 하고, 남아 있으면 최소 1m로 본다.
+  static String runFinishRemaining(double km) {
+    final meters = (km * 1000).round();
+    final tens = ((meters < 1 ? 1 : meters) + 9) ~/ 10;
+    return '화면 기준으로 ${(tens / 100).toStringAsFixed(2)}km 더 달리면 80%를 채워요';
+  }
 
   static const runPaceLabel = '페이스';
   static const runTimeLabel = '시간';
@@ -1424,7 +1452,7 @@ abstract final class AppStrings {
 
   /// 마지막 자투리 구간. `5.40 km`처럼 실제로 닿은 지점을 적는다.
   static String runResultPartialLabel(double totalKm) =>
-      '${totalKm.toStringAsFixed(2)} km';
+      '${kmFloor(_metersOf(totalKm))} km';
 
   /// 50m 표본이 닿은 지점. `1 km` `2.5 km` `3.02 km`.
   ///
@@ -1507,7 +1535,7 @@ abstract final class AppStrings {
   /// 19분인지 19시간인지 알 수가 없다. 시각은 `HH:MM`, 소요는 말로 적는다.
   static String recordRunLine(DateTime startedAt, double km, Duration took) =>
       '${_clockOf(startedAt)} 시작'
-      ' · ${km.toStringAsFixed(1)} km'
+      ' · ${kmFloor1(_metersOf(km))} km'
       ' · ${recordDurationText(took)} 소요';
 
   /// `06:40`. 벽시계 그대로 — 시간대를 옮기지 않는다.
@@ -1519,11 +1547,11 @@ abstract final class AppStrings {
       '${day.month}월 ${day.day}일 · 러닝 $count회';
 
   /// `5.02 km`
-  static String recordDistanceText(double km) => '${km.toStringAsFixed(2)} km';
+  static String recordDistanceText(double km) => '${kmFloor(_metersOf(km))} km';
 
   /// `14.2 km` — 요약 줄은 소수 한 자리로 줄인다.
   static String recordSummaryDistanceText(double km) =>
-      '${km.toStringAsFixed(1)} km';
+      '${kmFloor1(_metersOf(km))} km';
 
   /// `42 m`
   static String recordElevationText(int? meters) =>

@@ -18,7 +18,7 @@ void main() {
   Future<void> pump(
     WidgetTester tester, {
     double? remainingKm,
-    bool? hasTarget,
+    bool? showPenaltyNotice,
     bool paused = false,
     VoidCallback? onFinish,
     VoidCallback? onPause,
@@ -32,7 +32,7 @@ void main() {
             enabled: true,
             onPauseToggle: onPause ?? () {},
             onFinish: onFinish ?? () {},
-            hasTarget: hasTarget ?? remainingKm != null,
+            showPenaltyNotice: showPenaltyNotice ?? remainingKm != null,
             penaltyRemainingKm: remainingKm,
           ),
         ),
@@ -75,7 +75,7 @@ void main() {
       // 센 거리로 한다 — 화면에서 넘겼어도 모자랄 수 있다. 예전에는 화면
       // 거리가 80%를 넘는 순간 안내를 걷었는데, 그것이 곧 **"제재 없다"는
       // 약속**이었다.
-      await pump(tester, hasTarget: true);
+      await pump(tester, showPenaltyNotice: true);
 
       final gesture = await tester.startGesture(tester.getCenter(finish()));
       await tester.pump();
@@ -94,7 +94,7 @@ void main() {
 
     testWidgets('⚠️ 솔로에게는 띄우지 않는다', (tester) async {
       // 목표가 없으면 제재도 없다. 겁줄 이유가 없다.
-      await pump(tester, hasTarget: false);
+      await pump(tester, showPenaltyNotice: false);
 
       final gesture = await tester.startGesture(tester.getCenter(finish()));
       // ⚠️ **프레임이 둘 필요하다.** 첫 프레임에 `onTapDown` 이 불려

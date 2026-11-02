@@ -297,6 +297,7 @@ class _HomePageState extends ConsumerState<HomePage> {
             .reopen(
               room.runningRoomId,
               targetDistanceMeters: room.targetDistanceMeters,
+              type: room.type,
             ),
       );
       unawaited(
