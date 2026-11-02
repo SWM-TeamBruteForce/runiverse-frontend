@@ -1289,8 +1289,15 @@ abstract final class AppStrings {
   ///
   /// ⚠️ **"제한 없이 끝낼 수 있다"고 말하지 않는다.** 판정은 서버 몫이라
   /// 앱이 약속할 수 없다(가이드 3.4). 화면 기준이라고 밝히고 거리만 알린다.
-  static String runFinishRemaining(double km) =>
-      '화면 기준으로 ${km.toStringAsFixed(2)}km 더 달리면 80%를 채워요';
+  ///
+  /// ⚠️ 남은 거리는 10m 단위로 **올린다** — 반올림하면 4m 남았을 때
+  /// `0.00km 더`라고 한다. 미터로 먼저 반올림해서 부동소수점 끝자리
+  /// (`10.000…01m`)가 한 칸 더 올리지 않게 하고, 남아 있으면 최소 1m로 본다.
+  static String runFinishRemaining(double km) {
+    final meters = (km * 1000).round();
+    final tens = ((meters < 1 ? 1 : meters) + 9) ~/ 10;
+    return '화면 기준으로 ${(tens / 100).toStringAsFixed(2)}km 더 달리면 80%를 채워요';
+  }
 
   static const runPaceLabel = '페이스';
   static const runTimeLabel = '시간';
