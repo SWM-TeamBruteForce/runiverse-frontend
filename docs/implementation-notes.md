@@ -230,6 +230,7 @@
 | **비밀번호 규칙** (백엔드 `SignUpRequest`의 `@Size`·`@Pattern`) | `lib/features/auth/domain/password_rule.dart` + `AppStrings.authPasswordGuide` 등 문구 4개 |
 | `PasswordRule`의 규칙 | `FakeAuthRepository.seedPassword` — 씨앗 계정이 자기 규칙에 걸리면 로그인 시험을 못 한다 |
 | **`GeoPoint`의 필드** | `LocationSmoother.smooth()` — 새 `GeoPoint`를 만들어 돌려주므로 빠뜨린 필드가 조용히 `null`이 된다 (11-2) |
+| **워치와의 약속** (`WatchBridge.kt`의 경로 `/running`·워치를 켜는 주소 `runiverse://`, 앱 식별자) | 워치 레포 `docs/phone-communication.md`·`PhoneChannel.kt`(경로)·`AndroidManifest.xml`(켜는 주소) — 어긋나도 빌드는 되고, 메시지가 안 가거나 워치 앱이 안 켜진다 |
 
 `lib/` 밖에서 앱이 쓰는 것은 `assets/fonts/`(Pretendard) 하나다.
 
