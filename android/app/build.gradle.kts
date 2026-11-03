@@ -112,3 +112,10 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // 워치와 메시지를 주고받는다(MessageClient·NodeClient). 워치 앱과 같은 버전을 쓴다.
+    implementation("com.google.android.gms:play-services-wearable:20.0.1")
+    // 폰에서 워치 앱을 켠다(RemoteActivityHelper).
+    implementation("androidx.wear:wear-remote-interactions:1.2.0")
+}
