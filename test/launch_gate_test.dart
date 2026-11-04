@@ -21,7 +21,10 @@ import 'package:runiverse/features/notification/data/fake_notification_repositor
 import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/domain/run_metrics.dart';
+import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
+import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 출발 시각이 오면 **어느 화면에 있든** 러닝으로 데려간다.
@@ -45,7 +48,10 @@ void main() {
   );
 
   /// 홈에 선 앱. 돌려주는 것으로 서버 이벤트를 민다.
-  Future<FakeMatchStream> pumpHome(WidgetTester tester) async {
+  Future<FakeMatchStream> pumpHome(
+    WidgetTester tester, {
+    RunSessionState? session,
+  }) async {
     final tokens = InMemoryTokenStore();
     await tokens.saveSession(
       userId: 'u-1',
@@ -58,6 +64,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          if (session != null)
+            runSessionControllerProvider.overrideWith(() => _Session(session)),
           // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
           // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
           appVersionRepositoryProvider.overrideWithValue(
@@ -140,6 +148,49 @@ void main() {
     expect(find.text(AppStrings.matchLaunchNoticeTitle), findsNothing);
   });
 
+  group('로비로 옮길 때 러닝', () {
+    const metrics = RunMetrics(
+      distanceMeters: 1200,
+      elapsed: Duration(minutes: 7),
+    );
+
+    Future<RunSessionState> sessionAfterMove(
+      WidgetTester tester,
+      RunSessionState session,
+    ) async {
+      final stream = await pumpHome(tester, session: session);
+      await confirm(tester, stream, inSeconds: 55);
+      await tick(tester);
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MatchRoomPage), findsOneWidget);
+      return ProviderScope.containerOf(
+        tester.element(find.byType(MatchRoomPage)),
+      ).read(runSessionControllerProvider);
+    }
+
+    testWidgets('⚠️ 끝난 러닝은 비운다', (tester) async {
+      // 요약을 닫은 것과 같다. 안 비우면 폰은 대기방인데 워치에 결과가 남는다.
+      final session = await sessionAfterMove(
+        tester,
+        RunFinished(
+          metrics: metrics,
+          startedAt: DateTime(2026, 11, 4, 8),
+          endedAt: DateTime(2026, 11, 4, 9),
+        ),
+      );
+
+      expect(session, isA<RunIdle>());
+    });
+
+    testWidgets('⚠️ 달리는 중인 러닝은 비우지 않는다', (tester) async {
+      final session = await sessionAfterMove(tester, const RunRunning(metrics));
+
+      expect(session, isA<RunRunning>());
+    });
+  });
+
   testWidgets('⚠️ 30초 전에 다른 화면이면 카운트다운으로 직행한다', (tester) async {
     // 안내를 못 봤거나 앱이 백그라운드였을 수 있다. **그래도 출발한다.**
     final stream = await pumpHome(tester);
@@ -174,4 +225,14 @@ void main() {
     expect(find.byType(HomePage), findsOneWidget);
     expect(find.text(AppStrings.matchLaunchNoticeTitle), findsNothing);
   });
+}
+
+/// 정해 둔 상태로 시작하는 러닝.
+class _Session extends RunSessionController {
+  _Session(this._initial);
+
+  final RunSessionState _initial;
+
+  @override
+  RunSessionState build() => _initial;
 }

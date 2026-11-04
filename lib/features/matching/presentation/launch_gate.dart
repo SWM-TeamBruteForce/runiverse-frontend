@@ -11,6 +11,8 @@ import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/domain/run_launch.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
+import 'package:runiverse/features/session/domain/run_session_state.dart';
+import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 
 /// 출발 시각이 오면 **어느 화면에 있든** 러닝으로 데려간다.
 ///
@@ -160,6 +162,10 @@ class _LaunchGateState extends ConsumerState<LaunchGate> {
     _dismiss();
     // 그 사이에 스스로 로비로 갔을 수 있다.
     if (widget.router.state.matchedLocation != AppRoutes.matchRoom) {
+      // 요약을 닫은 것과 같다. 끝난 러닝을 비워야 워치 결과도 같이 닫힌다.
+      if (ref.read(runSessionControllerProvider) is RunFinished) {
+        ref.read(runSessionControllerProvider.notifier).reset();
+      }
       widget.router.go(AppRoutes.matchRoom);
     }
   }
