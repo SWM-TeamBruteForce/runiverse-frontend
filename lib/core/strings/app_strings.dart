@@ -2144,4 +2144,11 @@ abstract final class AppStrings {
 
   /// 전송 버튼이 읽히는 이름. **아이콘만 있는 버튼이라 라벨이 없다.**
   static const chatSendSemantics = '보내기';
+
+  /// 대기방 채팅 버튼이 읽히는 이름.
+  ///
+  /// ⚠️ **글자 라벨이 없는 버튼이다.** 안 붙이면 스크린리더가 읽을 것이 없고,
+  /// 안 읽은 수는 배지의 숫자로만 보이므로 여기서 함께 읽어 준다.
+  static String chatButtonSemantics(int unread) =>
+      unread == 0 ? '채팅' : '채팅 · 안 읽은 메시지 $unread개';
 }

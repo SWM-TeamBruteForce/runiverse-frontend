@@ -14,6 +14,10 @@ import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/core/widgets/v2/fact_card.dart';
 import 'package:runiverse/core/widgets/v2/party_chip.dart';
 import 'package:runiverse/core/widgets/v2/surface_card.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/chat/domain/chat_repository.dart';
+import 'package:runiverse/features/chat/presentation/chat_provider.dart';
 import 'package:runiverse/features/matching/domain/invite_limits.dart';
 import 'package:runiverse/features/matching/domain/room_invitation.dart';
 import 'package:runiverse/features/matching/presentation/invite_friend_sheet.dart';
@@ -46,6 +50,12 @@ import 'package:runiverse/features/matching/presentation/match_room_provider.dar
 class MatchRoomPage extends ConsumerStatefulWidget {
   const MatchRoomPage({super.key});
 
+  /// 채팅 버튼. **글자 라벨이 없어** 테스트가 글자로 찾을 수 없다.
+  static const chatKey = Key('match_room_chat');
+
+  /// 안 읽은 수 배지. 0이면 아예 없다.
+  static const chatBadgeKey = Key('match_room_chat_badge');
+
   @override
   ConsumerState<MatchRoomPage> createState() => _MatchRoomPageState();
 }
@@ -60,6 +70,9 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
 
   /// 출발 대기실로 넘어가는 중. 타이머가 두 번 밀지 않게 막는다.
   var _entering = false;
+
+  /// 채팅을 붙여 둔 방. 같은 방에 두 번 붙지 않게 막는다.
+  int? _chatRoomId;
 
   @override
   void initState() {
@@ -102,6 +115,14 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
       );
     }
 
+    // 방이 들어왔다. **채팅을 미리 붙여 둔다** — 배지는 채팅을 열기 전부터
+    // 숫자를 보여야 한다. build 중에 provider를 건드릴 수 없어 프레임 뒤로 민다.
+    if (_chatRoomId != room.runningRoomId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _syncChat(room);
+      });
+    }
+
     return Scaffold(
       backgroundColor: colors.bgBase,
       appBar: _appBar(
@@ -116,49 +137,74 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
         child: Column(
           children: [
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.space4,
-                  AppSpacing.space6,
-                  AppSpacing.space4,
-                  AppSpacing.space6,
-                ),
+              // ⚠️ **`Scaffold.floatingActionButton`을 쓰지 않는다.** `나가기`가
+              // `body` 안에 있어서 FAB이 그것을 가린다. 목록만 `Stack`으로
+              // 감싸면 버튼이 목록 위에 뜨고 `나가기` **위에서** 멈춘다.
+              child: Stack(
                 children: [
-                  // ⚠️ `connected`가 아니라 `failure`를 본다. 서버가 30분마다
-                  // 스트림을 정상으로 닫는데(`match-stream.timeout`), 그때마다
-                  // 1초 남짓 이 문구를 띄우면 **스스로 낫는 일에 겁을 주는
-                  // 셈**이다. 정상 종료는 실패를 남기지 않고 조용히 다시 붙고,
-                  // 다시 붙는 데 실패한 경우에만 여기가 켜진다.
-                  if (state.failure != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.space6),
-                      child: _Notice(AppStrings.matchRoomDisconnected),
+                  ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      AppSpacing.space4,
+                      AppSpacing.space6,
+                      AppSpacing.space4,
+                      // ⚠️ 채팅 버튼이 떠 있으면 **그만큼 비워 둔다.** 버튼은
+                      // 목록 위에 떠 있으므로, 안 비우면 목록 맨 끝 줄(파티
+                      // 카드나 초대 버튼)이 버튼 뒤로 들어가 눌리지 않는다.
+                      _chatting(room)
+                          ? AppSpacing.space4 * 2 + _ChatButton.size
+                          : AppSpacing.space6,
                     ),
+                    children: [
+                      // ⚠️ `connected`가 아니라 `failure`를 본다. 서버가 30분마다
+                      // 스트림을 정상으로 닫는데(`match-stream.timeout`), 그때마다
+                      // 1초 남짓 이 문구를 띄우면 **스스로 낫는 일에 겁을 주는
+                      // 셈**이다. 정상 종료는 실패를 남기지 않고 조용히 다시 붙고,
+                      // 다시 붙는 데 실패한 경우에만 여기가 켜진다.
+                      if (state.failure != null)
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: AppSpacing.space6,
+                          ),
+                          child: _Notice(AppStrings.matchRoomDisconnected),
+                        ),
 
-                  // ⚠️ **기기 시계가 아니라 서버 시계로 센다.** 시계가 틀린
-                  // 기기에서 `모집 마감까지 23:58:26`이 떴다.
-                  _Headline(room: room, now: state.serverNow(_now)),
-                  const SizedBox(height: AppSpacing.space10),
+                      // ⚠️ **기기 시계가 아니라 서버 시계로 센다.** 시계가 틀린
+                      // 기기에서 `모집 마감까지 23:58:26`이 떴다.
+                      _Headline(room: room, now: state.serverNow(_now)),
+                      const SizedBox(height: AppSpacing.space10),
 
-                  _SessionCards(room: room),
-                  const SizedBox(height: AppSpacing.space5),
+                      _SessionCards(room: room),
+                      const SizedBox(height: AppSpacing.space5),
 
-                  _PartyCard(
-                    players: room.players,
-                    // ⚠️ **모집 마감 뒤에는 서버가 빈 배열을 보낸다.** 그래서
-                    // 마감되면 초대 현황이 저절로 사라진다 — 따로 지우지
-                    // 않는다.
-                    invitations: room.invitations,
+                      _PartyCard(
+                        players: room.players,
+                        // ⚠️ **모집 마감 뒤에는 서버가 빈 배열을 보낸다.** 그래서
+                        // 마감되면 초대 현황이 저절로 사라진다 — 따로 지우지
+                        // 않는다.
+                        invitations: room.invitations,
+                      ),
+
+                      if (_invitable(room)) ...[
+                        const SizedBox(height: AppSpacing.space4),
+                        AppButtonV2(
+                          label: AppStrings.inviteRoomInviteCta,
+                          variant: AppButtonV2Variant.secondary,
+                          onPressed: () => _openInviteSheet(room),
+                        ),
+                      ],
+                    ],
                   ),
-
-                  if (_invitable(room)) ...[
-                    const SizedBox(height: AppSpacing.space4),
-                    AppButtonV2(
-                      label: AppStrings.inviteRoomInviteCta,
-                      variant: AppButtonV2Variant.secondary,
-                      onPressed: () => _openInviteSheet(room),
+                  if (_chatting(room))
+                    Positioned(
+                      right: AppSpacing.space4,
+                      bottom: AppSpacing.space4,
+                      child: _ChatButton(
+                        unread: ref.watch(
+                          chatProvider.select((state) => state.unread),
+                        ),
+                        onTap: () => context.push(AppRoutes.matchRoomChat),
+                      ),
                     ),
-                  ],
                 ],
               ),
             ),
@@ -220,6 +266,9 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
 
     _entering = true;
     _ticker?.cancel();
+    // ⚠️ 채팅이 위에 있으면 `pushReplacement`가 **채팅을 갈아치운다** — 방
+    // 화면이 스택에 남아 러닝 내내 살아 있게 된다. 먼저 닫는다.
+    _closeChat();
     // `pushReplacement` — 출발한 뒤에 뒤로 가서 대기방이 나오면 안 된다.
     context.pushReplacement(AppRoutes.matchCountdown);
   }
@@ -383,12 +432,154 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
   /// 2026-10-29). 지금은 `pushReplacement`로 들어오지만, 딥링크나 다음에 생길
   /// 경로가 같은 함정을 다시 밟지 않게 여기서 막는다.
   void _leaveScreen() {
+    // ⚠️ 채팅이 위에 있으면 이 `pop()`이 **채팅만 닫는다** — 죽은 방 화면에
+    // 사람이 남는다. 먼저 닫고 나서 나간다.
+    _closeChat();
     if (context.canPop()) {
       context.pop();
       return;
     }
     context.go(AppRoutes.home);
   }
+
+  /// 채팅이 맨 위에 있으면 닫는다.
+  ///
+  /// ## ⚠️ 자동 이동 두 개가 맨 위 라우트를 건드린다
+  ///
+  /// go_router는 자식을 띄워도 부모를 내리지 않는다. 채팅을 올려 둔 동안
+  /// [_leaveScreen]의 `pop()`은 **채팅만 닫고** 죽은 방에 사람을 남기고,
+  /// [_enterIfDue]의 `pushReplacement`는 **방이 아니라 채팅을 갈아치워** 방
+  /// 화면을 스택에 남긴다 — 그 화면의 1초 타이머와 `ref.listen`은 러닝이 끝날
+  /// 때까지 살아서, 방이 사라지는 순간 러닝 화면을 `pop`한다.
+  ///
+  /// 그래서 **둘 다 먼저 이것을 부른다.**
+  void _closeChat() {
+    final router = GoRouter.of(context);
+    if (router.state.matchedLocation != AppRoutes.matchRoomChat) return;
+    router.pop();
+  }
+
+  /// 채팅 버튼을 보여줄 때인가.
+  ///
+  /// 출발 전(`matching`·`matched`)이고 **혼자가 아닐 때**만 보인다. 혼자 쓰는
+  /// 채팅방은 보여줄 것이 없고(사람이 들어오면 나타난다), 답을 기다리는 초대는
+  /// 파티원으로 세지 않는다 — 수락 전에는 채팅에 들어올 수 없다.
+  bool _chatting(RoomInfo room) =>
+      !room.isAlone &&
+      (room.status == RoomStatus.matching || room.status == RoomStatus.matched);
+
+  /// 채팅을 방에 붙인다. **배지는 채팅을 열기 전부터 숫자를 보여야 한다.**
+  ///
+  /// `chatProvider`가 `matchRoomProvider`를 듣지 않으므로(서로 들으면
+  /// `CircularDependencyError`다) 방 번호와 명단을 이 화면이 넣어 준다.
+  void _syncChat(RoomInfo room) {
+    if (_chatRoomId == room.runningRoomId) return;
+    _chatRoomId = room.runningRoomId;
+
+    final auth = ref.read(authControllerProvider);
+    unawaited(
+      ref
+          .read(chatProvider.notifier)
+          .connect(
+            ChatRoomSeed(
+              runningRoomId: room.runningRoomId,
+              partyUserIds: [for (final player in room.players) player.userId],
+              // 로그인 없이 이 화면에 올 수 없다. 그래도 빈 값이면 아무 메시지도
+              // 내 것으로 그려지지 않을 뿐이라 화면이 깨지지는 않는다.
+              myUserId: auth is AuthSignedIn ? auth.userId : '',
+            ),
+          ),
+    );
+  }
+}
+
+/// 대기방의 채팅 버튼 — 원형 `primary` 면에 말풍선을 흰색으로 얹는다.
+///
+/// 배지는 **0이면 그리지 않는다.** 0을 동그라미로 띄우면 읽을 것이 있는 것처럼
+/// 보인다.
+class _ChatButton extends StatelessWidget {
+  const _ChatButton({required this.unread, required this.onTap});
+
+  final int unread;
+  final VoidCallback onTap;
+
+  static const _size = 52.0;
+  static const _glyph = 24.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Semantics(
+      button: true,
+      label: AppStrings.chatButtonSemantics(unread),
+      onTap: onTap,
+      // ⚠️ **`container`가 없으면 라벨이 자기 노드를 못 만든다** — 조상 노드에
+      // 얹히기만 해서 아무것도 읽히지 않는다(`runner_avatar.dart:41-46`이 같은
+      // 함정을 적어 뒀다).
+      container: true,
+      // ⚠️ **안쪽을 가린다.** 안 가리면 스크린리더가 배지의 숫자만 `2`라고
+      // 읽는다. 그 숫자는 라벨이 이미 말로 담고 있다.
+      excludeSemantics: true,
+      child: GestureDetector(
+        key: MatchRoomPage.chatKey,
+        onTap: onTap,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: _size,
+              height: _size,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: colors.primary,
+                borderRadius: AppRadius.full,
+              ),
+              // ⚠️ **PNG다.** `AppIcon`은 `assets/icons/<name>.svg`만 읽으므로
+              // 이 그림은 그 경로를 못 탄다. 단색 선화라 틴트는 먹는다 —
+              // `AppIcon`이 SVG에 하는 일과 같은 결과다.
+              child: Image.asset(
+                'assets/images/icon_chat.png',
+                width: _glyph,
+                height: _glyph,
+                color: colors.textOnPrimary,
+                errorBuilder: (_, _, _) =>
+                    const SizedBox(width: _glyph, height: _glyph),
+              ),
+            ),
+            if (unread > 0)
+              Positioned(
+                right: -AppSpacing.space0,
+                top: -AppSpacing.space0,
+                child: Container(
+                  key: MatchRoomPage.chatBadgeKey,
+                  constraints: const BoxConstraints(minWidth: _badge),
+                  height: _badge,
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.space1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.error,
+                    borderRadius: AppRadius.full,
+                    // 버튼 색과 맞붙으면 숫자가 묻는다. 배경색으로 테두리를 둔다.
+                    border: Border.all(color: colors.bgBase, width: 2),
+                  ),
+                  child: Text(
+                    '$unread',
+                    style: AppTypographyV2.body18.copyWith(
+                      color: colors.textOnPrimary,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static const _badge = 20.0;
 }
 
 /// 화면 맨 위 — 지금이 어느 단계이고 얼마나 남았는가.
