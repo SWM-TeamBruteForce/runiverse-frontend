@@ -16,11 +16,11 @@ import 'package:runiverse/core/widgets/page_indicator.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/session/domain/run_metrics.dart';
-import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/core/widgets/run_map_view.dart';
 import 'package:runiverse/features/session/presentation/party_provider.dart';
+import 'package:runiverse/features/session/presentation/run_control_provider.dart';
 import 'package:runiverse/features/session/presentation/run_controls.dart';
 import 'package:runiverse/features/session/presentation/run_party_view.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
@@ -85,29 +85,13 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     super.dispose();
   }
 
-  /// 멈추거나 다시 간다. **되돌릴 수 있는 것이라 길게 누르지 않는다.**
-  ///
-  /// ## ⚠️ 서버에도 알린다
-  ///
-  /// 1.1.0 전까지 일시정지는 **이 화면 안에만 있었다.** 상대 화면에서는 내가
-  /// 계속 달리는 것으로 보였고, 서버는 멈춘 구간을 알 길이 없었다(가이드 2.1).
-  ///
-  /// 순서가 양쪽으로 다르다.
-  ///
-  /// - **멈출 때는 세션이 먼저다.** 세션이 멈춰야 들어오는 좌표를 버리고,
-  ///   그래야 [RunningConnectionController.pause] 가 **다 흘려보낸 뒤** 알릴
-  ///   수 있다. 거꾸로 하면 `PAUSE` 뒤에 좌표가 닿아 서버가 일시정지를 푼다.
-  /// - **다시 갈 때는 알리는 것이 먼저다.** 좌표만으로도 서버는 돌아오지만
-  ///   배치까지 최대 10초가 걸린다 — 그동안 상대 화면에는 멈춰 보인다.
+  /// 멈추거나 다시 간다. 순서는 [RunControlController.pause] 참조.
   void _togglePause() {
-    final controller = ref.read(runSessionControllerProvider.notifier);
-    final connection = ref.read(runningConnectionProvider.notifier);
+    final control = ref.read(runControlProvider.notifier);
     if (ref.read(runSessionControllerProvider) is RunPaused) {
-      connection.resume();
-      controller.resume();
+      control.resume();
     } else {
-      controller.pause();
-      unawaited(connection.pause());
+      control.pause();
     }
   }
 
@@ -137,7 +121,7 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
         .read(runSessionControllerProvider.notifier)
         .awaitingDistanceSeed;
     final short = target != null && !unknown && metrics.distanceMeters < target;
-    unawaited(_finishRun(forced: short));
+    unawaited(ref.read(runControlProvider.notifier).finish(forced: short));
   }
 
   /// 목표의 80%까지 남은 거리(km). 이미 넘겼거나 목표가 없으면 `null` 이다.
@@ -159,72 +143,22 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     return (safe - metrics.distanceMeters) / 1000;
   }
 
-  /// 러닝을 끝내고 요약으로 간다. **손으로 멈출 때와 목표에 닿을 때가 같은 길이다.**
-  ///
-  /// ## 순서가 명세로 정해져 있다
-  ///
-  /// `RUNNING_FINISH` → `RUNNING_FINISHED` ack → 로컬 트랙 삭제 → 결과 조회.
-  /// 앞의 셋은 [RunningConnectionController.finish]가 맡고, 결과 조회는 요약
-  /// 화면이 [RunningConnectionState.settling]이 풀린 뒤에만 연다.
-  ///
-  /// ⚠️ **ack를 기다리지 않고 요약으로 넘어간다.** 요약에 뜨는 값은 러닝 중
-  /// 계산한 것이라 서버 확정과 무관하다. 기다리게 하면 신호가 나쁜 곳에서
-  /// 요약조차 못 본다. 서버가 확정한 값을 읽는 **상세**만 기다린다.
-  /// ## ⚠️ 이제 답을 기다린다
-  ///
-  /// 예전에는 요청만 던지고 **곧바로** 요약으로 넘어갔다. 1.1.0 서버는
-  /// `RUNNING_GOAL_PENDING` 으로 **"확정 거리가 모자라다"** 고 답할 수 있는데,
-  /// 그때는 러닝이 끝나지 않는다 — 먼저 넘어가 버리면 **러닝이 뒤에서 계속
-  /// 도는 채로 요약 화면이 뜬다.**
-  ///
-  /// 기다리는 시간은 채널의 ack 타임아웃(15초)이 윗선이다. 못 받으면
-  /// [FinishUnconfirmed] 로 떨어져 예전처럼 요약으로 간다 — 신호가 나쁜 곳에서
-  /// 요약조차 못 보는 일은 그대로 막는다.
-  Future<void> _finishRun({required bool forced}) async {
-    if (_finishing) return;
-    setState(() => _finishing = true);
-
-    // 끝나면 소켓도 함께 닫힌다 — 안 닫으면 다음 러닝에서 서버가 중복 연결로
-    // 보고 이쪽을 4001로 끊는다.
-    final outcome = await ref
-        .read(runningConnectionProvider.notifier)
-        .finish(forced: forced);
-
-    if (!mounted) return;
-
-    // ⚠️ **러닝이 이어진다.** 세션을 접지도, 화면을 옮기지도 않는다.
-    if (outcome is FinishGoalPending) {
-      setState(() => _finishing = false);
-      unawaited(_showGoalPending(outcome.remainingMeters));
-      return;
-    }
-
-    // ⚠️ **러닝이 이어진다.** 서버가 종료를 거절했다 — 알리고 다시 누르게 한다.
-    // 누른 버튼이 조용하면 고장으로 읽힌다(친구 화면과 같은 알림).
-    if (outcome is FinishRejected) {
-      setState(() => _finishing = false);
-      // 참가자가 아니라는 거절이면 [_leaveKickedOut] 이 홈으로 보낸다.
-      if (outcome.code == WsErrorCode.notRoomPlayer) return;
-      final colors = context.appColorsV2;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              AppStrings.runFinishRejected,
-              style: AppTypographyV2.body11.copyWith(color: colors.textStrong),
-            ),
-            backgroundColor: colors.bgElevated,
-            behavior: SnackBarBehavior.floating,
+  /// 서버가 종료를 거절했다. 누른 버튼이 조용하면 고장으로 읽힌다(친구 화면과
+  /// 같은 알림).
+  void _showFinishRejected() {
+    final colors = context.appColorsV2;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            AppStrings.runFinishRejected,
+            style: AppTypographyV2.body11.copyWith(color: colors.textStrong),
           ),
-        );
-      return;
-    }
-
-    // ⚠️ **세션은 여기서 접는다.** 보류일 수 있으므로 답을 받기 전에 접으면
-    // 멀쩡한 러닝의 시계가 멈춘다.
-    ref.read(runSessionControllerProvider.notifier).finish();
-    context.pushReplacement(AppRoutes.runSummary);
+          backgroundColor: colors.bgElevated,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
   }
 
   /// 서버가 "아직 모자라다"고 답했다. **남은 거리를 보여 주고 고르게 한다** —
@@ -245,9 +179,13 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   /// 사라졌다 — 닫는 주체가 이쪽이 아니라는 뜻이다.)
   ///
   /// 걷히면 이 `await` 가 `null` 로 풀려 아무것도 보내지 않는다. 뒤늦은 손가락은
-  /// [_finishing] 이 막는다 — 서버 종료를 받은 그 프레임에 세워진다.
+  /// [RunControlController.finish] 가 막는다 — 서버 종료를 받은 그 프레임에
+  /// 세션이 접힌다.
+  ///
+  /// 워치에서 다시 종료했을 때만 러닝이 이어지는 채로 창이 필요 없어진다 —
+  /// [_closeGoalPending].
   Future<void> _showGoalPending(int remainingMeters) async {
-    final finish = await showDialog<bool>(
+    final route = DialogRoute<bool>(
       context: context,
       // 바깥을 눌러 넘기지 못한다. 고를 것이 둘 다 뚜렷하다.
       barrierDismissible: false,
@@ -266,12 +204,32 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
         ],
       ),
     );
-    if (finish != true || !mounted) return;
-    unawaited(_finishRun(forced: true));
+    _goalPendingRoute = route;
+    final finish = await Navigator.of(context, rootNavigator: true).push(route);
+    _goalPendingRoute = null;
+    if (!mounted) return;
+    final control = ref.read(runControlProvider.notifier);
+    if (finish == true) {
+      unawaited(control.finish(forced: true));
+    } else {
+      // 뒤로가기로 닫아도 계속 달리는 것이다. 보류를 안 거두면 워치에 남는다.
+      control.keepRunning();
+    }
   }
 
-  /// 끝내는 중인가. 목표 도달과 중지 시트가 겹쳐 두 번 보내는 것을 막는다.
-  var _finishing = false;
+  /// 떠 있는 보류 창. 경로를 직접 들고 있어야 폰이 잠겨 아직 못 그린 창도 닫는다.
+  DialogRoute<bool>? _goalPendingRoute;
+
+  /// 러닝이 이어지는데 보류가 풀렸다 — 워치에서 다시 종료했다. 끝났으면 화면을
+  /// 옮길 때 함께 걷히니 여기서 닫지 않는다.
+  void _closeGoalPending() {
+    final route = _goalPendingRoute;
+    if (route == null || !route.isActive) return;
+    final session = ref.read(runSessionControllerProvider);
+    if (session is! RunRunning && session is! RunPaused) return;
+    _goalPendingRoute = null;
+    Navigator.of(context, rootNavigator: true).removeRoute(route);
+  }
 
   /// 제재 없이 끝낼 수 있는 선. 연동 가이드가 정한 값이다.
   static const _safeRatio = 0.8;
@@ -335,15 +293,15 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     // 잰 거리로 보내던 것을 없앴다 — 서버는 정지 구간과 오염 좌표를 뺀
     // 확정 거리로 판단하므로, 앱 기준으로 넘었어도 아직 모자랄 수 있다.
     //
-    // 내가 눌러서 끝낸 경우는 [_finishRun]이 화면을 옮기므로 여기서 또
-    // 옮기지 않는다([_finishing]).
+    // 내가 눌러서 끝낸 경우는 [RunControlController.finish]가 세션을 접으므로
+    // 여기서 또 접지 않는다.
     ref.listen(runningConnectionProvider.select((s) => s.finishedRoomId), (
       previous,
       next,
     ) {
-      if (next == null || next == previous || _finishing) return;
+      if (next == null || next == previous) return;
+      if (ref.read(runControlProvider).finishing) return;
       debugPrint('[running] 서버가 끝냈다. 요약으로 간다');
-      _finishing = true;
       ref.read(runSessionControllerProvider.notifier).finish();
       if (!mounted) return;
 
@@ -358,7 +316,37 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
           const SnackBar(content: Text(AppStrings.runTrackRejected)),
         );
       }
-      context.pushReplacement(AppRoutes.runSummary);
+
+      // 첫 좌표 전이면 시작 전이라 세션이 안 접히고 아래 듣기도 안 불린다.
+      // 화면은 그래도 옮긴다.
+      if (ref.read(runSessionControllerProvider) is! RunFinished) {
+        context.pushReplacement(AppRoutes.runSummary);
+      }
+    });
+
+    // 세션이 끝나면 요약으로 간다.
+    ref.listen(runSessionControllerProvider.select((s) => s is RunFinished), (
+      _,
+      finished,
+    ) {
+      if (finished) context.pushReplacement(AppRoutes.runSummary);
+    });
+
+    ref.listen(runControlProvider.select((s) => s.goalPendingMeters), (
+      previous,
+      next,
+    ) {
+      if (next == null) {
+        _closeGoalPending();
+      } else if (previous == null) {
+        unawaited(_showGoalPending(next));
+      }
+    });
+
+    ref.listen(runControlProvider.select((s) => s.rejectedCode), (_, code) {
+      // 참가자가 아니라는 거절이면 [_leaveKickedOut] 이 홈으로 보낸다.
+      if (code == null || code == WsErrorCode.notRoomPlayer) return;
+      _showFinishRejected();
     });
 
     final party = ref.watch(partyProvider);
@@ -490,7 +478,11 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
             onFinish: _finishByHold,
             showPenaltyNotice: target != null && canPenalize,
             penaltyRemainingKm: _penaltyRemainingKm(),
-            finishing: _finishing,
+            // 서버 종료·구간 거부도 답을 기다린다. 이때 눌린 종료는 보내지 않으니
+            // 버튼을 그대로 두면 눌러도 무반응으로 보인다.
+            finishing:
+                ref.watch(runControlProvider.select((s) => s.finishing)) ||
+                ref.watch(runningConnectionProvider.select((s) => s.settling)),
           ),
         ),
         backgroundColor: colors.bgBase,

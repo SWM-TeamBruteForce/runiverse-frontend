@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/watch/watch_channel.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/session/domain/party_board.dart';
@@ -13,6 +15,7 @@ import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/domain/watch_payload.dart';
 import 'package:runiverse/features/session/presentation/party_provider.dart';
+import 'package:runiverse/features/session/presentation/run_control_provider.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 
@@ -26,7 +29,7 @@ final watchLinkProvider = NotifierProvider<WatchLinkController, void>(
   WatchLinkController.new,
 );
 
-/// 러닝 상태를 워치로 보낸다. 메시지와 보내는 규칙은 워치 레포
+/// 러닝 상태를 워치로 보내고 워치 명령을 받는다. 메시지와 보내는 규칙은 워치 레포
 /// `docs/phone-communication.md` 가 정본이다.
 ///
 /// 앱 루트에서 시작한다. 러닝을 시작하며 워치 앱을 켤 때 받기 등록이 끝나 있어야
@@ -69,15 +72,28 @@ class WatchLinkController extends Notifier<void> {
   var _stateSequence = 0;
   var _statusVersion = 0;
 
+  /// 마지막으로 처리한 워치 명령.
+  String? _lastRequestId;
+
+  /// 이번 러닝을 시작한 계정. 로그인이 만료돼도 세션은 남아서, 그 뒤 들어온 명령을
+  /// 가리는 데 쓴다.
+  String? _runOwnerId;
+
   /// 마지막으로 알린 단계. 바뀔 때만 [_statusVersion] 을 올린다.
   _Stage _stage = _Stage.none;
 
-  /// 종료 답을 기다리는 중인가.
+  /// 연결이 종료를 처리하는 중인가([RunningConnectionState.settling] 을 따라 선다).
+  /// 폰 버튼·워치 명령은 그보다 먼저 [RunControlState.finishing] 이 선다 — 둘을 합친
+  /// 값은 [_isFinishing].
   ///
   /// [RunningConnectionState.settling] 이 내려가도 방이 그대로일 때만 푼다(보류·거절로
   /// 러닝이 이어짐). 확정되면 연결이 먼저 비워지고 세션이 나중에 끝나서, 그 사이에
   /// 풀면 워치가 `종료 중` → 달리는 중 → 결과로 깜빡인다.
   var _finishing = false;
+
+  /// 종료 답을 기다리는 중인가. 단계와 보낼 값이 같은 판정을 쓴다 — 갈리면 번호만
+  /// 오르고 `종료 중` 은 안 뜬다.
+  bool get _isFinishing => _finishing || ref.read(runControlProvider).finishing;
 
   /// 마지막으로 본 이번 러닝의 방. 연결이 비워져도 결과에 방 번호를 싣는다.
   RunningRoom? _room;
@@ -118,6 +134,10 @@ class WatchLinkController extends Notifier<void> {
     );
     ref.listen(runningConnectionProvider, _onConnection);
     ref.listen(partyProvider, _onParty);
+    ref.listen(runControlProvider, (_, _) {
+      _syncDetail();
+      _syncStage();
+    });
   }
 
   void _listen(WatchChannel channel) {
@@ -149,10 +169,84 @@ class WatchLinkController extends Notifier<void> {
         unawaited(_sendSynced(message.data['syncId'] as String));
       case WatchEvents.watchVisibilityUpdate:
         _onVisibility(message.data['isVisible'] == true);
-      // 일시정지·재개·종료 명령은 아직 받지 않는다.
+      // requestId 가 없으면 답할 수 없다 — 워치는 3초 뒤 SYNC 로 다시 맞춘다.
+      case WatchEvents.watchPause ||
+              WatchEvents.watchResume ||
+              WatchEvents.watchFinish
+          when message.data['requestId'] is String:
+        _onCommand(message);
       case _:
         break;
     }
+  }
+
+  /// 워치 명령을 폰 버튼과 같은 길로 처리한다. 답은 바뀐 상태다.
+  void _onCommand(WatchMessage message) {
+    final requestId = message.data['requestId'] as String;
+    if (requestId == _lastRequestId) {
+      unawaited(_sendState());
+      return;
+    }
+
+    final rejection = _rejectionOf(message.data);
+    if (rejection != null) {
+      debugPrint('[watch] ${message.event} 거절 · ${rejection.code}');
+      unawaited(
+        _send(
+          WatchEvents.error,
+          () => {
+            'code': rejection.code,
+            'message': rejection.message,
+            'sourceType': message.event,
+            'requestId': requestId,
+          },
+        ),
+      );
+      return;
+    }
+
+    // 먼저 적어 둔다 — 아래에서 단계가 바뀌면 그 자리에서 상태가 나간다.
+    _lastRequestId = requestId;
+    final sent = _stateSequence;
+    final control = ref.read(runControlProvider.notifier);
+    switch (message.event) {
+      case WatchEvents.watchPause:
+        control.pause();
+      case WatchEvents.watchResume:
+        control.resume();
+      case WatchEvents.watchFinish:
+        unawaited(
+          control.finishByWatch(forced: message.data['forced'] == true),
+        );
+      case _:
+        break;
+    }
+    // 단계가 안 바뀌어 아직 안 나갔다. 답이 없으면 워치가 3초 동안 잠긴다.
+    if (_stateSequence == sent) unawaited(_sendState());
+  }
+
+  /// 명령을 거절할 이유. `null` 이면 받는다.
+  _Rejection? _rejectionOf(Map<String, dynamic> command) {
+    final session = ref.read(runSessionControllerProvider);
+    if (session is! RunRunning && session is! RunPaused) {
+      return _Rejection.noRun;
+    }
+    final auth = ref.read(authControllerProvider);
+    if (auth is! AuthSignedIn || auth.userId != _runOwnerId) {
+      return _Rejection.notRunOwner;
+    }
+    if (command['phoneInstanceId'] != _phoneInstanceId) {
+      return _Rejection.otherPhoneInstance;
+    }
+    if (command['statusVersion'] != _statusVersion) {
+      return _Rejection.staleStatus;
+    }
+    final roomId = command['runningRoomId'];
+    final connection = ref.read(runningConnectionProvider);
+    if (roomId != null && roomId != (_liveRoom(connection) ?? _room)?.id) {
+      return _Rejection.otherRoom;
+    }
+    return null;
   }
 
   void _onVisibility(bool visible) {
@@ -183,6 +277,8 @@ class WatchLinkController extends Notifier<void> {
 
     if (!_launched && session is RunRunning) {
       _launched = true;
+      final auth = ref.read(authControllerProvider);
+      _runOwnerId = auth is AuthSignedIn ? auth.userId : null;
       unawaited(_launch());
     }
     // 단계보다 먼저 건다 — 끝났다는 첫 상태부터 "받는 중"이어야 숫자가 바뀌지 않는다.
@@ -315,13 +411,18 @@ class WatchLinkController extends Notifier<void> {
     unawaited(_sendState());
   }
 
-  _Stage _stageOf(RunSessionState session) => switch (session) {
-    RunRunning() || RunPaused() when _finishing => _Stage.finishing,
-    RunRunning() => _Stage.running,
-    RunPaused() => _Stage.paused,
-    RunFinished() => _Stage.finished,
-    RunIdle() || RunPreparing() => _Stage.none,
-  };
+  _Stage _stageOf(RunSessionState session) {
+    final pending = ref.read(runControlProvider).goalPendingMeters != null;
+    return switch (session) {
+      RunRunning() || RunPaused() when _isFinishing => _Stage.finishing,
+      RunRunning() when pending => _Stage.pendingRunning,
+      RunPaused() when pending => _Stage.pendingPaused,
+      RunRunning() => _Stage.running,
+      RunPaused() => _Stage.paused,
+      RunFinished() => _Stage.finished,
+      RunIdle() || RunPreparing() => _Stage.none,
+    };
+  }
 
   /// 워치 화면이 켜져 있고 러닝이 끝나기 전(일시정지 포함)이면 1초 전송을 돌린다.
   void _syncTicker() {
@@ -357,11 +458,13 @@ class WatchLinkController extends Notifier<void> {
       phoneInstanceId: _phoneInstanceId,
       stateSequence: ++_stateSequence,
       statusVersion: _statusVersion,
+      lastRequestId: _lastRequestId,
       session: ref.read(runSessionControllerProvider),
       room: _liveRoom(connection) ?? _room,
       board: ref.read(partyProvider),
       isServerConnected: connection.isReady,
-      finishing: _finishing,
+      finishing: _isFinishing,
+      goalPendingMeters: ref.read(runControlProvider).goalPendingMeters,
       result: _result(),
       unknownNickname: AppStrings.runPartyUnknown,
       now: ref.read(runClockProvider)(),
@@ -436,4 +539,27 @@ class WatchLinkController extends Notifier<void> {
 }
 
 /// 워치에 알리는 단계. 바뀔 때 `statusVersion` 이 오른다.
-enum _Stage { none, running, paused, finishing, finished }
+enum _Stage {
+  none,
+  running,
+  paused,
+  finishing,
+  pendingRunning,
+  pendingPaused,
+  finished,
+}
+
+/// 워치 명령을 거절하는 이유. 워치는 `code` 를 읽지 않고 `requestId` 만 보지만,
+/// 디코더가 `code`·`message` 를 필수로 읽어 비우면 메시지를 통째로 버린다.
+enum _Rejection {
+  noRun('NO_RUN', '진행 중인 러닝이 없다'),
+  notRunOwner('NOT_RUN_OWNER', '러닝을 시작한 계정이 로그인돼 있지 않다'),
+  otherPhoneInstance('OTHER_PHONE_INSTANCE', '폰 앱이 다시 켜졌다'),
+  staleStatus('STALE_STATUS', '누른 뒤 러닝 단계가 바뀌었다'),
+  otherRoom('OTHER_ROOM', '다른 방의 명령이다');
+
+  const _Rejection(this.code, this.message);
+
+  final String code;
+  final String message;
+}

@@ -41,16 +41,20 @@ void main() {
     RunningRoom? room = matched,
     PartyBoard board = const PartyBoard(),
     bool finishing = false,
+    int? goalPendingMeters,
+    String? lastRequestId,
     WatchResult result = const WatchResultMeasured(),
   }) => WatchPayload.state(
     phoneInstanceId: '3f2a9c1e',
     stateSequence: 7,
     statusVersion: 2,
+    lastRequestId: lastRequestId,
     session: session,
     room: room,
     board: board,
     isServerConnected: true,
     finishing: finishing,
+    goalPendingMeters: goalPendingMeters,
     result: result,
     unknownNickname: '함께 달리는 사람',
     now: now,
@@ -326,6 +330,47 @@ void main() {
 
     expect(run['status'], 'PAUSED');
     expect(run['finish'], {'stage': 'FINISHING'});
+  });
+
+  test('보류 중이면 남은 거리를 싣는다', () {
+    final run = runOf(
+      stateOf(const RunRunning(metrics), goalPendingMeters: 420),
+    );
+
+    expect(run['finish'], {'stage': 'GOAL_PENDING', 'remainingMeters': 420});
+  });
+
+  test('다시 종료해 답을 기다리는 동안은 보류보다 종료 중이 먼저다', () {
+    final run = runOf(
+      stateOf(
+        const RunRunning(metrics),
+        finishing: true,
+        goalPendingMeters: 420,
+      ),
+    );
+
+    expect(run['finish'], {'stage': 'FINISHING'});
+  });
+
+  test('끝났으면 종료 단계를 싣지 않는다', () {
+    final run = runOf(
+      stateOf(
+        RunFinished(
+          metrics: metrics,
+          startedAt: DateTime(2026, 11, 4, 8),
+          endedAt: DateTime(2026, 11, 4, 9),
+        ),
+        finishing: true,
+        goalPendingMeters: 420,
+      ),
+    );
+
+    expect(run['finish'], isNull);
+  });
+
+  test('마지막으로 처리한 워치 명령을 싣는다', () {
+    expect(stateOf(const RunIdle())['lastRequestId'], isNull);
+    expect(stateOf(const RunIdle(), lastRequestId: 'a')['lastRequestId'], 'a');
   });
 
   group('끝난 결과는 폰 요약(S15)과 같은 숫자다', () {
