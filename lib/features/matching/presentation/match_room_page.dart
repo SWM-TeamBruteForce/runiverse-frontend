@@ -503,7 +503,7 @@ class _ChatButton extends StatelessWidget {
   final int unread;
   final VoidCallback onTap;
 
-  static const _size = 52.0;
+  static const size = 52.0;
   static const _glyph = 24.0;
 
   @override
@@ -528,8 +528,8 @@ class _ChatButton extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             Container(
-              width: _size,
-              height: _size,
+              width: size,
+              height: size,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: colors.primary,

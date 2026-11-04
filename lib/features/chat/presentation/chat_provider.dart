@@ -51,6 +51,12 @@ class ChatState {
 
 final chatProvider = NotifierProvider<ChatController, ChatState>(
   ChatController.new,
+  // ⚠️ **기본값이 `false`다.** 코드생성이 아닌 `NotifierProvider`는 auto-dispose가
+  // 아니다(riverpod 3.4.2 `src/providers/notifier/orphan.dart`의
+  // `super.isAutoDispose = false`). 안 켜면 아래 `ref.onDispose`가 **제품 경로에서
+  // 한 번도 돌지 않는다** — 테스트가 `container.dispose()`를 손으로 불러 통과할
+  // 뿐이고, 서버가 붙는 날 방이 끝나도 연결이 열려 있게 된다.
+  isAutoDispose: true,
 );
 
 /// 대기방 채팅을 들고 있는다.
@@ -63,16 +69,26 @@ final chatProvider = NotifierProvider<ChatController, ChatState>(
 ///
 /// 채팅은 방에 묶인 것이라 `keepAlive`를 걸지 않는다 — 방을 떠나면 함께 사라진다.
 class ChatController extends Notifier<ChatState> {
-  /// ⚠️ **build에서 한 번 붙잡는다.** Riverpod 3는 `onDispose` 안에서
-  /// `ref.read`를 막는다 — 뒷정리할 때 읽으려 하면 단정문에서 죽는다.
-  late final ChatRepository _repo;
+  /// ⚠️ **미리 붙잡아 두지 않는다.** `onDispose` 클로저가 저장소를 건드리지
+  /// 않으므로 필드로 들 이유가 없고, `late final`로 들면 **다시 `build`될 때**
+  /// `LateInitializationError`가 난다 — auto-dispose라 그 일이 실제로 생긴다.
+  ChatRepository get _repo => ref.read(chatRepositoryProvider);
 
   StreamSubscription<ChatMessage>? _subscription;
 
+  /// 아직 살아 있는가. `await` 뒤에 상태를 쓰기 전에 본다.
+  var _alive = false;
+
   @override
   ChatState build() {
-    _repo = ref.read(chatRepositoryProvider);
-    ref.onDispose(() => unawaited(_subscription?.cancel()));
+    // 다시 build될 수 있으므로 **여기서 되살린다.** 한 번만 세우면 버려졌다
+    // 살아난 provider가 영영 죽은 것으로 남는다.
+    _alive = true;
+    ref.onDispose(() {
+      _alive = false;
+      unawaited(_subscription?.cancel());
+      _subscription = null;
+    });
     return const ChatState();
   }
 
@@ -93,29 +109,57 @@ class ChatController extends Notifier<ChatState> {
     state = ChatState(seed: seed, loading: true, opened: state.opened);
     await previous?.cancel();
 
+    if (!_current(seed)) return;
+
     _subscription = _repo.incoming(seed).listen(_received);
     try {
       final history = await _repo.history(seed);
+      if (!_current(seed)) return;
       // 싣는 동안 들어온 것은 과거 뒤에 붙인다 — 시간 순이 유지된다.
       state = state.copyWith(
         messages: [...history, ...state.messages],
         loading: false,
       );
     } on ChatException {
+      if (!_current(seed)) return;
       state = state.copyWith(loading: false, failed: true);
     }
   }
 
+  /// `await` 뒤에 **아직 이 방인가, 그리고 아직 살아 있는가.**
+  ///
+  /// ## ⚠️ 둘 다 봐야 한다
+  ///
+  /// 느린 `history`가 돌아오는 사이에 방이 바뀌면 **앞 방의 메시지가 새 방의
+  /// 상태에 써진다** — 실패도 같아서 앞 방의 실패가 새 방을 `failed`로 만든다.
+  /// 지금 가짜는 마이크로태스크로 끝나 닿지 않지만, `history`가 네트워크가 되는
+  /// 순간 방을 빠르게 옮기면 재현된다.
+  ///
+  /// 그리고 **보는 사람이 없는 동안** 붙으면(혼자인 방은 채팅 버튼이 숨어
+  /// 아무도 watch하지 않는다) 응답이 오기 전에 버려져, 쓰는 순간 터진다.
+  /// `_alive`를 먼저 보는 이유는 버려진 뒤에는 `state`도 읽을 수 없기 때문이다.
+  bool _current(ChatRoomSeed seed) =>
+      _alive && state.seed?.runningRoomId == seed.runningRoomId;
+
   /// 채팅 페이지가 떴다. **그 자리에서 전부 읽음이 된다.**
-  void open() => state = state.copyWith(
-    opened: true,
-    messages: [
-      for (final message in state.messages) message.copyWith(isRead: true),
-    ],
-  );
+  ///
+  /// ⚠️ 버려진 뒤에 불릴 수 있다 — 화면이 내려갈 때 `dispose`가 [close]를
+  /// 부르는데, 그 순간 이미 아무도 보지 않아 버려져 있을 수 있다.
+  void open() {
+    if (!_alive) return;
+    state = state.copyWith(
+      opened: true,
+      messages: [
+        for (final message in state.messages) message.copyWith(isRead: true),
+      ],
+    );
+  }
 
   /// 채팅 페이지를 떠났다. 이제 들어오는 것은 센다.
-  void close() => state = state.copyWith(opened: false);
+  void close() {
+    if (!_alive) return;
+    state = state.copyWith(opened: false);
+  }
 
   /// 한 건 보낸다. **공백만이면 아무 일도 없다** — 빈 버블을 만들지 않는다.
   Future<void> send(String text) async {
@@ -134,6 +178,8 @@ class ChatController extends Notifier<ChatState> {
 
   /// 들어온 한 건. **보고 있는 동안 온 것은 읽은 것으로 넣는다.**
   void _received(ChatMessage message) {
+    // 끊기 전에 줄 서 있던 것이 뒤늦게 올 수 있다.
+    if (!_alive) return;
     final one = state.opened ? message.copyWith(isRead: true) : message;
     state = state.copyWith(messages: [...state.messages, one]);
   }

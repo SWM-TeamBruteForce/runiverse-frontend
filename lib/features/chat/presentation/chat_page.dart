@@ -92,10 +92,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 colors: colors,
               ),
             ),
-            ChatComposer(
-              sendButtonKey: ChatPage.sendKey,
-              onSend: _chat.send,
-            ),
+            ChatComposer(sendButtonKey: ChatPage.sendKey, onSend: _chat.send),
           ],
         ),
       ),
@@ -278,9 +275,7 @@ class _Title extends StatelessWidget {
             title.bottom,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppTypographyV2.body18.copyWith(
-              color: colors.textSecondary,
-            ),
+            style: AppTypographyV2.body18.copyWith(color: colors.textSecondary),
           ),
       ],
     );

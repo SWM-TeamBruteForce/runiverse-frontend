@@ -45,8 +45,15 @@ ChatTitle chatTitleOf({
     orElse: () => others.first,
   );
 
+  // ⚠️ 건너뛸 곳이 없어 탈퇴한 사람을 세웠을 때는 **이름을 가린다.** 버블과
+  // 명단이 이미 같은 사람을 가리고 있고(`match_room_page.dart`), 서버가 닉네임을
+  // 익명 처리해 준다는 계약은 아직 확인 전이다(명세 9절).
+  final name = leader.isDeleted
+      ? AppStrings.matchRoomDeletedPlayer
+      : leader.nickname;
+
   return ChatTitle(
     top: top,
-    bottom: AppStrings.chatTitleParty(leader.nickname, others.length - 1),
+    bottom: AppStrings.chatTitleParty(name, others.length - 1),
   );
 }

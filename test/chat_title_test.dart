@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/chat/domain/chat_title.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
@@ -53,24 +54,22 @@ void main() {
   test('⚠️ 대표가 탈퇴했으면 다음 사람이 대표다', () {
     // 탈퇴한 사람을 방의 얼굴로 세우지 않는다. 대신 **인원 수에서는 빼지 않는다** —
     // 빼면 숫자가 방과 어긋난다.
-    final title = titleOf([
-      me,
-      player('u1', '영희', isDeleted: true),
-      cheolsu,
-    ]);
+    final title = titleOf([me, player('u1', '영희', isDeleted: true), cheolsu]);
 
     expect(title.bottom, '철수님 외 1명');
   });
 
-  test('전원 탈퇴면 첫 사람을 그대로 쓴다', () {
-    // 건너뛸 곳이 없으면 멈추지 않는다.
+  test('⚠️ 전원 탈퇴면 첫 사람을 쓰지만 이름은 가린다', () {
+    // 건너뛸 곳이 없으면 멈추지 않는다. 다만 **탈퇴한 사람의 닉네임을 드러내지
+    // 않는다** — 버블과 명단이 이미 같은 사람을 가리고 있고, 서버가 익명 처리해
+    // 준다는 계약은 아직 확인 전이다(명세 9절).
     final title = titleOf([
       me,
       player('u1', '영희', isDeleted: true),
       player('u2', '철수', isDeleted: true),
     ]);
 
-    expect(title.bottom, '영희님 외 1명');
+    expect(title.bottom, '${AppStrings.matchRoomDeletedPlayer}님 외 1명');
   });
 
   test('⚠️ 나 하나뿐이면 아랫줄이 빈다', () {

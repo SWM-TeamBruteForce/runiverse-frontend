@@ -188,6 +188,21 @@ void main() {
     });
   });
 
+  group('열고 닫기', () {
+    testWidgets('⚠️ 뜨면 열고, 내려가면 닫는다', (tester) async {
+      // 이 호출이 사라지면 **보고 있는 말이 안 읽음으로 쌓인다.** 대역이
+      // 빈 몸으로 덮고 있어 상태로는 확인할 수 없어서 횟수를 센다.
+      final chat = await pumpChat(tester);
+
+      expect(chat.opens, 1);
+      expect(chat.closes, 0);
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+
+      expect(chat.closes, 1);
+    });
+  });
+
   group('보내기', () {
     testWidgets('칩을 누르면 바로 보내진다', (tester) async {
       final chat = await pumpChat(tester);
@@ -196,6 +211,22 @@ void main() {
       await tester.pump();
 
       expect(chat.sent, [AppStrings.chatQuickReplies.first]);
+    });
+
+    testWidgets('⚠️ 칩을 눌러도 쓰던 글은 남는다', (tester) async {
+      // 칩 문구는 입력칸에서 온 것이 아니다. 비우면 **사람이 쓰던 글을 지운다.**
+      final chat = await pumpChat(tester);
+
+      await tester.enterText(find.byType(TextField), '쓰던 글');
+      await tester.pump();
+      await tester.tap(find.text(AppStrings.chatQuickReplies.first));
+      await tester.pumpAndSettle();
+
+      expect(chat.sent, [AppStrings.chatQuickReplies.first]);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        '쓰던 글',
+      );
     });
 
     testWidgets('⚠️ 보내는 동안 칩이 잠긴다', (tester) async {
@@ -253,14 +284,17 @@ class _StubChat extends ChatController {
 
   final sent = <String>[];
 
+  var opens = 0;
+  var closes = 0;
+
   @override
   ChatState build() => initial;
 
   @override
-  void open() {}
+  void open() => opens++;
 
   @override
-  void close() {}
+  void close() => closes++;
 
   @override
   Future<void> send(String text) async {

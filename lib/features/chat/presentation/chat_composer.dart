@@ -46,14 +46,18 @@ class _ChatComposerState extends State<ChatComposer> {
 
   bool get _typed => _controller.text.trim().isNotEmpty;
 
-  Future<void> _send(String text) async {
+  /// [fromInput]이면 보낸 뒤 입력칸을 비운다.
+  ///
+  /// ⚠️ **칩은 비우지 않는다.** 칩 문구는 입력칸에서 온 것이 아니므로, 비우면
+  /// 쓰다 말고 칩을 누른 사람의 **글을 지운다.**
+  Future<void> _send(String text, {bool fromInput = false}) async {
     if (_sending || text.trim().isEmpty) return;
 
     setState(() => _sending = true);
     try {
       await widget.onSend(text);
       // 보낸 뒤 비우고 **포커스는 유지한다** — 연달아 말할 수 있어야 한다.
-      _controller.clear();
+      if (fromInput) _controller.clear();
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -111,7 +115,9 @@ class _ChatComposerState extends State<ChatComposer> {
                 label: AppStrings.chatSendSemantics,
                 child: GestureDetector(
                   key: widget.sendButtonKey,
-                  onTap: canSend ? () => _send(_controller.text) : null,
+                  onTap: canSend
+                      ? () => _send(_controller.text, fromInput: true)
+                      : null,
                   // ⚠️ **PNG가 버튼 면 자체다.** 두 색 아이콘이라 틴트하면
                   // 화살표가 사라지고, 파란 원 위에 코랄 원을 또 얹을 수도 없다.
                   child: Opacity(

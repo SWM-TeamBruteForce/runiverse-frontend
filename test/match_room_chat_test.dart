@@ -159,6 +159,19 @@ void main() {
       expect(find.byKey(MatchRoomPage.chatKey), findsNothing);
     });
 
+    testWidgets('⚠️ 떠 있는 버튼이 목록 끝 안내를 가리지 않는다', (tester) async {
+      // 목록 맨 끝의 안내는 나가기 조건을 알리는 유일한 자리다. 버튼이 그 위에
+      // 떠 있으므로 목록이 버튼만큼 아래 여백을 둬야 한다.
+      await pumpRoom(tester, snapshot: room());
+      await tester.drag(find.byType(ListView), const Offset(0, -2000));
+      await tick(tester);
+
+      final notice = tester.getRect(find.text(AppStrings.matchRoomLeaveFree));
+      final button = tester.getRect(find.byKey(MatchRoomPage.chatKey));
+
+      expect(notice.overlaps(button), isFalse);
+    });
+
     testWidgets('나가기 버튼이 가려지지 않는다', (tester) async {
       // A안(Scaffold FAB)이 깨진 이유다 — `나가기`가 body 안에 있다.
       await pumpRoom(tester, snapshot: room());
