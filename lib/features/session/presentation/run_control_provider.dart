@@ -131,6 +131,20 @@ class RunControlController extends Notifier<RunControlState> {
     }
   }
 
+  /// 워치에서 종료를 눌렀다. [forced] 는 워치가 자기 화면 거리로 정한 값이다.
+  ///
+  /// 보류 중이면 폰 창의 `종료하기` 와 같이 `true` 로 보낸다 — 같은 값으로 또
+  /// 보내면 같은 답이 돌아온다. 복구 중이라 거리를 모르면 폰 버튼처럼 조기 종료로
+  /// 단정하지 않는다(`RunSessionPage._finishByHold`).
+  Future<void> finishByWatch({required bool forced}) {
+    final unknown = ref
+        .read(runSessionControllerProvider.notifier)
+        .awaitingDistanceSeed;
+    return finish(
+      forced: state.goalPendingMeters != null || (forced && !unknown),
+    );
+  }
+
   /// 보류 창에서 `계속 달리기` 를 골랐다.
   void keepRunning() {
     if (state.finishing) return;

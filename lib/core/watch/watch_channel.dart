@@ -66,6 +66,10 @@ abstract final class WatchEvents {
   static const watchStateUpdated = 'WATCH_STATE_UPDATED';
   static const watchComboTriggered = 'WATCH_COMBO_TRIGGERED';
   static const watchVisibilityUpdate = 'WATCH_VISIBILITY_UPDATE';
+  static const watchPause = 'WATCH_PAUSE';
+  static const watchResume = 'WATCH_RESUME';
+  static const watchFinish = 'WATCH_FINISH';
+  static const error = 'ERROR';
 }
 
 /// 폰 ↔ 워치 통로. 안드로이드는 `WatchBridge.kt` 가 갤럭시워치와 잇는다.

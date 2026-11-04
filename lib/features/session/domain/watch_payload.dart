@@ -18,17 +18,21 @@ abstract final class WatchPayload {
   /// `WATCH_STATE_UPDATED` 의 data.
   ///
   /// [room] 이 `null` 이면 방이 아직 안 세워진 것이다 — 출발은 방을 기다리지 않는다.
-  /// [finishing] 은 종료 답을 기다리는 중인가, [result] 는 끝난 결과 숫자의 출처,
-  /// [unknownNickname] 은 이름을 모르는 파티원에게 폰이 붙이는 문구다.
+  /// [lastRequestId] 는 마지막으로 처리한 워치 명령, [finishing] 은 종료 답을 기다리는
+  /// 중인가, [goalPendingMeters] 는 서버가 종료를 미뤘을 때 남은 거리, [result] 는
+  /// 끝난 결과 숫자의 출처, [unknownNickname] 은 이름을 모르는 파티원에게 폰이 붙이는
+  /// 문구다.
   static Map<String, Object?> state({
     required String phoneInstanceId,
     required int stateSequence,
     required int statusVersion,
+    required String? lastRequestId,
     required RunSessionState session,
     required RunningRoom? room,
     required PartyBoard board,
     required bool isServerConnected,
     required bool finishing,
+    required int? goalPendingMeters,
     required WatchResult result,
     required String unknownNickname,
     required DateTime now,
@@ -36,14 +40,14 @@ abstract final class WatchPayload {
     'phoneInstanceId': phoneInstanceId,
     'stateSequence': stateSequence,
     'statusVersion': statusVersion,
-    // 워치 명령은 아직 받지 않는다.
-    'lastRequestId': null,
+    'lastRequestId': lastRequestId,
     'run': _run(
       session,
       room: room,
       board: board,
       isServerConnected: isServerConnected,
       finishing: finishing,
+      goalPendingMeters: goalPendingMeters,
       result: result,
       unknownNickname: unknownNickname,
       now: now,
@@ -100,6 +104,7 @@ abstract final class WatchPayload {
     required PartyBoard board,
     required bool isServerConnected,
     required bool finishing,
+    required int? goalPendingMeters,
     required WatchResult result,
     required String unknownNickname,
     required DateTime now,
@@ -163,8 +168,15 @@ abstract final class WatchPayload {
             'isStale': _stale(row, now),
           },
       ],
-      // 종료 보류(GOAL_PENDING)는 워치 명령을 받을 때 싣는다 — 보류 창이 아직 러닝 화면 안에만 있다.
-      'finish': finishing && !finished ? {'stage': 'FINISHING'} : null,
+      'finish': switch ((finished, finishing, goalPendingMeters)) {
+        (true, _, _) => null,
+        (false, true, _) => {'stage': 'FINISHING'},
+        (false, false, final int meters) => {
+          'stage': 'GOAL_PENDING',
+          'remainingMeters': meters,
+        },
+        (false, false, null) => null,
+      },
       'result': finished
           ? switch (result) {
               WatchResultConfirmed() => {

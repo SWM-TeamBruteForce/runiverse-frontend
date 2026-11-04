@@ -26,6 +26,7 @@ import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
+import 'package:runiverse/features/session/presentation/run_control_provider.dart';
 import 'package:runiverse/features/session/presentation/run_session_page.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
@@ -585,6 +586,43 @@ void main() {
       expect(channel.finishes, [false], reason: '처음 보낸 하나뿐이어야 한다');
       await unmount(tester, container);
     });
+
+    testWidgets('창이 떠 있을 때 워치에서 다시 종료하면 창이 닫히고 요약으로 간다', (tester) async {
+      final container = await pumpPending(tester);
+
+      unawaited(
+        container
+            .read(runControlProvider.notifier)
+            .finishByWatch(forced: false),
+      );
+      await settleFinish(tester, count: 2);
+      await tester.pumpAndSettle();
+
+      expect(channel.finishes, [false, true]);
+      expect(find.byType(AlertDialog, skipOffstage: false), findsNothing);
+      expect(find.byType(RunSessionPage, skipOffstage: false), findsNothing);
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 다시 종료가 거절되면 창 없이 달리는 화면에 남는다', (tester) async {
+      // 러닝이 이어지니 요약으로 교체되며 걷힐 일이 없다. 안 닫으면 고를 것이 없는
+      // 창이 화면을 막는다.
+      final container = await pumpPending(tester);
+      channel.outcome = const FinishRejected(WsErrorCode.invalidRoomState);
+
+      unawaited(
+        container
+            .read(runControlProvider.notifier)
+            .finishByWatch(forced: false),
+      );
+      await settleFinish(tester, count: 2);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog, skipOffstage: false), findsNothing);
+      expect(find.byType(RunSessionPage), findsOneWidget);
+      expect(find.text(AppStrings.runFinishRejected), findsOneWidget);
+      await unmount(tester, container);
+    });
   });
 
   testWidgets('⚠️ 첫 좌표 전에 서버가 끝내도 요약으로 간다', (tester) async {
@@ -612,6 +650,73 @@ void main() {
 
     expect(find.byType(RunSessionPage, skipOffstage: false), findsNothing);
     await unmount(tester, container);
+  });
+
+  group('워치 명령도 폰 버튼과 같은 길을 탄다', () {
+    testWidgets('일시정지하면 폰 버튼도 재개로 바뀐다', (tester) async {
+      final container = await pumpRunning(tester);
+
+      container.read(runControlProvider.notifier).pause();
+      await tester.pump();
+
+      expect(find.bySemanticsLabel(AppStrings.runResumeCta), findsOneWidget);
+      await unmount(tester, container);
+    });
+
+    testWidgets('보류면 폰에도 창이 뜬다', (tester) async {
+      final container = await pumpRunning(tester);
+      channel.outcome = const FinishGoalPending(40);
+
+      unawaited(
+        container
+            .read(runControlProvider.notifier)
+            .finishByWatch(forced: false),
+      );
+      await settleFinish(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runGoalPendingBody(40)), findsOneWidget);
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 폰이 잠겨 창을 못 그린 사이 다시 종료해도 창이 남지 않는다', (tester) async {
+      // 잠긴 동안은 프레임이 안 돌아 창의 builder 가 불리지 않는다. 시간만 흘린다.
+      final container = await pumpRunning(tester);
+      final control = container.read(runControlProvider.notifier);
+      channel.outcome = const FinishGoalPending(40);
+      unawaited(control.finishByWatch(forced: false));
+      await tester.binding.delayed(const Duration(seconds: 2));
+      expect(container.read(runControlProvider).goalPendingMeters, 40);
+
+      channel.outcome = const FinishRejected(WsErrorCode.invalidRoomState);
+      unawaited(control.finishByWatch(forced: false));
+      await tester.binding.delayed(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+
+      expect(channel.finishes, [false, true]);
+      expect(find.byType(AlertDialog, skipOffstage: false), findsNothing);
+      await unmount(tester, container);
+    });
+
+    testWidgets('확정이면 폰도 요약으로 간다', (tester) async {
+      // 요약 화면이 기본 뷰포트에서 넘친다 — `holdFinish` 참조.
+      tester.view.physicalSize = const Size(1200, 2400);
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final container = await pumpRunning(tester);
+
+      unawaited(
+        container
+            .read(runControlProvider.notifier)
+            .finishByWatch(forced: false),
+      );
+      await settleFinish(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RunSessionPage, skipOffstage: false), findsNothing);
+      await unmount(tester, container);
+    });
   });
 
   testWidgets('⚠️ 목표의 80%를 넘겨도 `forced=true` 다', (tester) async {

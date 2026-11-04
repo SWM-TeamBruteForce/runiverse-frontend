@@ -181,8 +181,11 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   /// 걷히면 이 `await` 가 `null` 로 풀려 아무것도 보내지 않는다. 뒤늦은 손가락은
   /// [RunControlController.finish] 가 막는다 — 서버 종료를 받은 그 프레임에
   /// 세션이 접힌다.
+  ///
+  /// 워치에서 다시 종료했을 때만 러닝이 이어지는 채로 창이 필요 없어진다 —
+  /// [_closeGoalPending].
   Future<void> _showGoalPending(int remainingMeters) async {
-    final finish = await showDialog<bool>(
+    final route = DialogRoute<bool>(
       context: context,
       // 바깥을 눌러 넘기지 못한다. 고를 것이 둘 다 뚜렷하다.
       barrierDismissible: false,
@@ -201,6 +204,9 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
         ],
       ),
     );
+    _goalPendingRoute = route;
+    final finish = await Navigator.of(context, rootNavigator: true).push(route);
+    _goalPendingRoute = null;
     if (finish == null || !mounted) return;
     final control = ref.read(runControlProvider.notifier);
     if (finish) {
@@ -208,6 +214,20 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     } else {
       control.keepRunning();
     }
+  }
+
+  /// 떠 있는 보류 창. 경로를 직접 들고 있어야 폰이 잠겨 아직 못 그린 창도 닫는다.
+  DialogRoute<bool>? _goalPendingRoute;
+
+  /// 러닝이 이어지는데 보류가 풀렸다 — 워치에서 다시 종료했다. 끝났으면 화면을
+  /// 옮길 때 함께 걷히니 여기서 닫지 않는다.
+  void _closeGoalPending() {
+    final route = _goalPendingRoute;
+    if (route == null || !route.isActive) return;
+    final session = ref.read(runSessionControllerProvider);
+    if (session is! RunRunning && session is! RunPaused) return;
+    _goalPendingRoute = null;
+    Navigator.of(context, rootNavigator: true).removeRoute(route);
   }
 
   /// 제재 없이 끝낼 수 있는 선. 연동 가이드가 정한 값이다.
@@ -315,7 +335,9 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
       previous,
       next,
     ) {
-      if (previous == null && next != null) {
+      if (next == null) {
+        _closeGoalPending();
+      } else if (previous == null) {
         unawaited(_showGoalPending(next));
       }
     });
