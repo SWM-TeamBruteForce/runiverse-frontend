@@ -9,6 +9,7 @@ import androidx.wear.remote.interactions.RemoteActivityHelper
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.tasks.Task
+import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.Wearable
 import io.flutter.plugin.common.BinaryMessenger
@@ -26,7 +27,7 @@ class WatchBridge(private val context: Context, messenger: BinaryMessenger) :
     MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
 
     private val messageClient = Wearable.getMessageClient(context)
-    private val nodeClient = Wearable.getNodeClient(context)
+    private val capabilityClient = Wearable.getCapabilityClient(context)
     private val methodChannel = MethodChannel(messenger, "watch")
     private val eventChannel = EventChannel(messenger, "watch/messages")
 
@@ -115,16 +116,17 @@ class WatchBridge(private val context: Context, messenger: BinaryMessenger) :
     }
 
     // 보낼 때마다 묻는다 — 워치는 러닝 중에도 꺼지거나 멀어진다.
-    // 폰 안의 Play 서비스에 묻는 것이라 블루투스 왕복은 없다.
+    // 우리 워치 앱이 깔린 워치만 찾는다(워치 레포 res/values/wear.xml). 연결된 기기 전체에서
+    // 고르면 앱이 없는 워치도 잡혀, 보내기는 SENT로 사라지고 켜기는 FAILED라 "앱 없음"과 못 가린다.
     // 워치는 한 대만 쓴다 — 가까이 있는 첫 번째로 보낸다.
     private fun withNearbyWatch(
         onFound: (String) -> Unit,
         onNone: () -> Unit,
         onError: (Exception) -> Unit,
     ) {
-        nodeClient.connectedNodes
-            .addOnSuccessListener { nodes ->
-                val watch = nodes.firstOrNull { it.isNearby }
+        capabilityClient.getCapability(CAPABILITY, CapabilityClient.FILTER_REACHABLE)
+            .addOnSuccessListener { info ->
+                val watch = info.nodes.firstOrNull { it.isNearby }
                 if (watch == null) {
                     onNone()
                 } else {
@@ -193,5 +195,8 @@ class WatchBridge(private val context: Context, messenger: BinaryMessenger) :
     private companion object {
         const val TAG = "WatchBridge"
         const val PATH = "/running"
+
+        // 워치 앱이 wear.xml에 선언한 이름. 바꾸면 워치 레포와 함께 바꾼다.
+        const val CAPABILITY = "runiverse_running"
     }
 }
