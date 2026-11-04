@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 
 /// [WatchChannel.send] 의 결과.
 enum WatchSendResult {
-  /// 가까이 연결된 워치가 없다. 워치 앱이 없는 폰도 여기다.
+  /// 우리 앱이 깔린 워치가 가까이 연결돼 있지 않다. 워치 앱이 없는 폰도 여기다.
   noWatch,
 
   /// 연결된 워치를 묻거나 보내다가 실패했다.
@@ -25,15 +25,14 @@ enum WatchSendResult {
 
 /// [WatchChannel.launchApp] 의 결과.
 enum WatchLaunchResult {
-  /// 가까이 연결된 워치가 없다. 워치 앱이 없는 폰도 여기다.
+  /// 우리 앱이 깔린 워치가 가까이 연결돼 있지 않다. 워치 앱이 없는 폰도 여기다.
   noWatch,
 
   /// [WatchChannel.messages] 구독 전이거나 받기 등록이 아직 안 끝났다.
   /// 켜자마자 워치가 보내는 `WATCH_SYNC` 를 놓치므로 켜지 않았다.
   notListening,
 
-  /// 연결된 워치를 묻거나 실행 요청을 넘기다가 실패했다. 워치에 우리 앱이 없을
-  /// 때도 여기다.
+  /// 연결된 워치를 묻거나 실행 요청을 넘기다가 실패했다.
   failed,
 
   /// 실행 요청이 넘어갔다. **화면이 떴다는 뜻은 아니다.**
