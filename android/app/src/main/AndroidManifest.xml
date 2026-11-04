@@ -117,12 +117,20 @@
         <meta-data
             android:name="com.facebook.sdk.AutoLogAppEventsEnabled"
             android:value="false" />
+        <!--
+          세로로 고정한다. 가로 배치가 따로 없어, 러닝 화면처럼 스크롤이 없는 화면은
+          가로로 돌리면 아래가 넘친다. iOS는 Info.plist에서 같이 막는다.
+
+          ⚠️ Android 16부터 폴드 펼친 화면·태블릿(최소 폭 600dp 이상)에서는 이 값이
+          무시된다(targetSdk 36).
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
+            android:screenOrientation="portrait"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
