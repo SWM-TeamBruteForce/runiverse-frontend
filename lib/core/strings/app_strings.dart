@@ -2113,4 +2113,35 @@ abstract final class AppStrings {
   /// 둘뿐인 방에서 읽기 이상하다.
   static String chatTitleParty(String leader, int others) =>
       others == 0 ? '$leader님과 함께' : '$leader님 외 $others명';
+
+  /// 빠른 답장. 입력창 바로 위에 수평으로 늘어놓고 **누르면 바로 보낸다.**
+  ///
+  /// ⚠️ **초안이다 — 디자인 확인이 필요하다.**
+  ///
+  /// 이모지를 넣지 않고(`implementation-notes.md` 7-2), 위치 관련 문구도 넣지
+  /// 않는다 — 좌표·경로를 파티원에게 노출하지 않는다는 규칙이 말로도 적용된다.
+  static const chatQuickReplies = [
+    '곧 도착해요',
+    '조금 늦어요',
+    '출발 준비 됐어요',
+    '화이팅!',
+    '잠시만요',
+  ];
+
+  /// 아직 아무도 말하지 않았다. **이때도 칩과 입력창은 보인다.**
+  static const chatEmpty = '아직 대화가 없어요. 먼저 인사해 보세요.';
+
+  /// `영희님이 들어왔어요`
+  ///
+  /// ⚠️ **문구를 화면이 만든다.** 메시지는 "누가 들어왔다"는 종류와 그 userId만
+  /// 들고 있다 — 덕분에 저장소가 닉네임을 알 필요가 없다.
+  static String chatJoined(String nickname) => '$nickname님이 들어왔어요';
+
+  static const chatHint = '메시지 입력';
+
+  static const chatFailed = '대화를 불러오지 못했어요';
+  static const chatRetry = '다시 시도';
+
+  /// 전송 버튼이 읽히는 이름. **아이콘만 있는 버튼이라 라벨이 없다.**
+  static const chatSendSemantics = '보내기';
 }
