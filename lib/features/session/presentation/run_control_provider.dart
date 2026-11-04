@@ -13,29 +13,29 @@ final runControlProvider =
       RunControlController.new,
     );
 
-/// 일시정지·종료 조작의 진행 상태. 러닝 화면이 이 값을 보고 그린다.
-final class RunControlState {
+/// 종료 조작의 진행 상태. 러닝 화면이 이 값을 보고 그린다.
+class RunControlState {
   const RunControlState({
     this.finishing = false,
     this.goalPendingMeters,
-    this.rejected,
+    this.rejectedCode,
   });
 
-  /// 종료를 보내고 서버 답을 기다리는 중인가. 목표 도달과 중지가 겹쳐 두 번
+  /// 종료를 보내고 서버 답을 기다리는 중인가. 폰 버튼과 워치 명령이 겹쳐 두 번
   /// 보내는 것을 막는다.
   final bool finishing;
 
   /// 서버가 종료를 미뤘다. 서버 기준 남은 거리(m)이고, 고를 때까지 남는다.
   final int? goalPendingMeters;
 
-  /// 서버가 종료를 거절했다. 다음 종료를 보낼 때 비운다.
-  final WsErrorCode? rejected;
+  /// 서버가 종료를 거절한 이유. 다음 종료를 보낼 때 비운다.
+  final WsErrorCode? rejectedCode;
 }
 
 /// 폰 버튼과 워치 명령이 같이 타는 조작의 길.
 ///
 /// 화면에 두면 워치 명령이 같은 길을 탈 수 없어 앱이 켜져 있는 동안 산다. 러닝
-/// 화면은 이 상태를 보고 로딩 원·보류 창·거절 알림·요약 이동만 맡는다.
+/// 화면은 이 상태를 보고 로딩 원·보류 창·거절 알림만 맡는다.
 class RunControlController extends Notifier<RunControlState> {
   @override
   RunControlState build() {
@@ -46,11 +46,11 @@ class RunControlController extends Notifier<RunControlState> {
     return const RunControlState();
   }
 
-  /// 멈춘다. **되돌릴 수 있는 것이라 길게 누르지 않는다.**
+  /// 멈춘다.
   ///
   /// ## ⚠️ 서버에도 알린다
   ///
-  /// 1.1.0 전까지 일시정지는 **이 화면 안에만 있었다.** 상대 화면에서는 내가
+  /// 1.1.0 전까지 일시정지는 **러닝 화면 안에만 있었다.** 상대 화면에서는 내가
   /// 계속 달리는 것으로 보였고, 서버는 멈춘 구간을 알 길이 없었다(가이드 2.1).
   ///
   /// 순서가 양쪽으로 다르다.
@@ -75,7 +75,8 @@ class RunControlController extends Notifier<RunControlState> {
     ref.read(runSessionControllerProvider.notifier).resume();
   }
 
-  /// 러닝을 끝낸다. **손으로 멈출 때와 목표에 닿을 때가 같은 길이다.**
+  /// 러닝을 끝낸다. **폰 버튼·보류 창·워치 명령이 같은 길이다.** 목표에 닿아
+  /// 끝나는 것은 서버의 몫이라 여기로 오지 않는다.
   ///
   /// ## 순서가 명세로 정해져 있다
   ///
@@ -125,7 +126,9 @@ class RunControlController extends Notifier<RunControlState> {
         state = RunControlState(goalPendingMeters: remainingMeters);
       // ⚠️ **러닝이 이어진다.** 서버가 종료를 거절했다 — 알리고 다시 누르게 한다.
       case FinishRejected(:final code):
-        state = RunControlState(rejected: code);
+        state = RunControlState(rejectedCode: code);
+      // ⚠️ **세션은 여기서 접는다.** 보류일 수 있으므로 답을 받기 전에 접으면
+      // 멀쩡한 러닝의 시계가 멈춘다. 접히면 [build] 의 듣기가 상태를 비운다.
       case FinishConfirmed() || FinishUnconfirmed():
         _foldSession();
     }

@@ -172,17 +172,20 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   }
 
+  /// ⚠️ **요약 화면이 기본 뷰포트(600×800)에서 2px 넘친다.** 이 PR 과 무관한
+  /// 레이아웃 문제인데, 렌더 예외는 테스트를 죽인다. 세로만 늘려 둔다.
+  void useTallView(WidgetTester tester) {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+  }
+
   /// 종료 버튼을 끝까지 길게 누른다.
   ///
   /// ⚠️ **1.1.0부터 종료는 사용자만 보낸다.** 예전에는 목표를 넘기면 앱이
   /// 알아서 보냈고 이 그물도 그것에 기댔다.
   Future<void> holdFinish(WidgetTester tester) async {
-    // ⚠️ **요약 화면이 기본 뷰포트(600×800)에서 2px 넘친다.** 이 PR 과 무관한
-    // 레이아웃 문제인데, 렌더 예외는 테스트를 죽인다. 세로만 늘려 둔다.
-    tester.view.physicalSize = const Size(1200, 2400);
-    tester.view.devicePixelRatio = 2;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+    useTallView(tester);
 
     final button = find.bySemanticsLabel(AppStrings.runFinishHold);
     final gesture = await tester.startGesture(tester.getCenter(button));
@@ -628,10 +631,7 @@ void main() {
   testWidgets('⚠️ 첫 좌표 전에 서버가 끝내도 요약으로 간다', (tester) async {
     // 시작 전이라 세션이 안 접힌다(`RunSessionController.finish`). 세션만 보고
     // 옮기면 이미 끝난 러닝의 화면에 남는다.
-    tester.view.physicalSize = const Size(1200, 2400);
-    tester.view.devicePixelRatio = 2;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+    useTallView(tester);
     final container = await makeContainer();
     addTearDown(container.dispose);
     await container
@@ -699,11 +699,7 @@ void main() {
     });
 
     testWidgets('확정이면 폰도 요약으로 간다', (tester) async {
-      // 요약 화면이 기본 뷰포트에서 넘친다 — `holdFinish` 참조.
-      tester.view.physicalSize = const Size(1200, 2400);
-      tester.view.devicePixelRatio = 2;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+      useTallView(tester);
       final container = await pumpRunning(tester);
 
       unawaited(

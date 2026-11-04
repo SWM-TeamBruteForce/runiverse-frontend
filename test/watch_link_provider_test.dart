@@ -252,7 +252,7 @@ void main() {
     connection.set(
       const RunningConnectionState(room: room, finishedRoomId: 812),
     );
-    // 그다음에 러닝 화면이 세션을 접는다.
+    // 그다음에 `RunControlController` 가 세션을 접는다.
     session.set(
       RunFinished(
         metrics: metrics,
@@ -1244,7 +1244,7 @@ void main() {
         connection.answer(const FinishRejected(WsErrorCode.invalidRoomState));
         await tester.pump();
 
-        expect(container.read(runControlProvider).rejected, isNull);
+        expect(container.read(runControlProvider).rejectedCode, isNull);
       });
     });
 

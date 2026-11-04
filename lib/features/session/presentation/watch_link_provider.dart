@@ -29,7 +29,7 @@ final watchLinkProvider = NotifierProvider<WatchLinkController, void>(
   WatchLinkController.new,
 );
 
-/// 러닝 상태를 워치로 보낸다. 메시지와 보내는 규칙은 워치 레포
+/// 러닝 상태를 워치로 보내고 워치 명령을 받는다. 메시지와 보내는 규칙은 워치 레포
 /// `docs/phone-communication.md` 가 정본이다.
 ///
 /// 앱 루트에서 시작한다. 러닝을 시작하며 워치 앱을 켤 때 받기 등록이 끝나 있어야
@@ -82,8 +82,9 @@ class WatchLinkController extends Notifier<void> {
   /// 마지막으로 알린 단계. 바뀔 때만 [_statusVersion] 을 올린다.
   _Stage _stage = _Stage.none;
 
-  /// 서버 종료·구간 거부로 끝내는 중인가. 폰 버튼·워치 명령은
-  /// [RunControlState.finishing] 이 안다 — 둘을 합친 값은 [_isFinishing].
+  /// 연결이 종료를 처리하는 중인가([RunningConnectionState.settling] 을 따라 선다).
+  /// 폰 버튼·워치 명령은 그보다 먼저 [RunControlState.finishing] 이 선다 — 둘을 합친
+  /// 값은 [_isFinishing].
   ///
   /// [RunningConnectionState.settling] 이 내려가도 방이 그대로일 때만 푼다(보류·거절로
   /// 러닝이 이어짐). 확정되면 연결이 먼저 비워지고 세션이 나중에 끝나서, 그 사이에
@@ -213,10 +214,12 @@ class WatchLinkController extends Notifier<void> {
         control.pause();
       case WatchEvents.watchResume:
         control.resume();
-      case _:
+      case WatchEvents.watchFinish:
         unawaited(
           control.finishByWatch(forced: message.data['forced'] == true),
         );
+      case _:
+        break;
     }
     // 단계가 안 바뀌어 아직 안 나갔다. 답이 없으면 워치가 3초 동안 잠긴다.
     if (_stateSequence == sent) unawaited(_sendState());

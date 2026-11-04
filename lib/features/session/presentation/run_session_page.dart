@@ -342,7 +342,7 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
       }
     });
 
-    ref.listen(runControlProvider.select((s) => s.rejected), (_, code) {
+    ref.listen(runControlProvider.select((s) => s.rejectedCode), (_, code) {
       // 참가자가 아니라는 거절이면 [_leaveKickedOut] 이 홈으로 보낸다.
       if (code == null || code == WsErrorCode.notRoomPlayer) return;
       _showFinishRejected();
