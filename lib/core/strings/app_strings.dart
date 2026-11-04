@@ -2098,4 +2098,19 @@ abstract final class AppStrings {
 
   /// 홈 종에 점이 있을 때 덧붙여 읽히는 말. **점을 그림으로만 두면 안 읽힌다.**
   static const notificationUnreadSemantics = '읽지 않은 알림 있음';
+
+  // ── 대기방 채팅 ──────────────────────────────────────────────
+
+  /// 채팅 제목 윗줄 `19:30 - 5 km 러닝`. 거리를 모르면 `19:30 러닝`.
+  ///
+  /// ⚠️ 거리만 뺀다. `19:30 - 러닝`처럼 하이픈이 떠 있으면 빠뜨린 것처럼 보인다.
+  static String chatTitleRun(String time, String? distance) =>
+      distance == null ? '$time 러닝' : '$time - $distance 러닝';
+
+  /// 채팅 제목 아랫줄 `영희님 외 2명`.
+  ///
+  /// ⚠️ [others]가 0이면 `영희님과 함께`다. `외 1명`은 나를 가리키는 말이라
+  /// 둘뿐인 방에서 읽기 이상하다.
+  static String chatTitleParty(String leader, int others) =>
+      others == 0 ? '$leader님과 함께' : '$leader님 외 $others명';
 }
