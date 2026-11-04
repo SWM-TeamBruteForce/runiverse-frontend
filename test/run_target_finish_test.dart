@@ -587,6 +587,33 @@ void main() {
     });
   });
 
+  testWidgets('⚠️ 첫 좌표 전에 서버가 끝내도 요약으로 간다', (tester) async {
+    // 시작 전이라 세션이 안 접힌다(`RunSessionController.finish`). 세션만 보고
+    // 옮기면 이미 끝난 러닝의 화면에 남는다.
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final container = await makeContainer();
+    addTearDown(container.dispose);
+    await container
+        .read(runningConnectionProvider.notifier)
+        .openMatched(1, targetDistanceMeters: target);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const RuniverseApp(initialLocation: AppRoutes.runSession),
+      ),
+    );
+    await tester.pump();
+
+    channel.finished_.add(null);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(RunSessionPage, skipOffstage: false), findsNothing);
+    await unmount(tester, container);
+  });
+
   testWidgets('⚠️ 목표의 80%를 넘겨도 `forced=true` 다', (tester) async {
     // ⚠️ **가이드 3.2 가 가른 선은 목표 전체다.** 80%(`_safeRatio`)는
     // 제재 선이지 완주 선이 아니다. 80%로 가르면 85%에서 멈춘 사람이
