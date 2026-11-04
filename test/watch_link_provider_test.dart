@@ -1127,6 +1127,31 @@ void main() {
       expect(session.current, isA<RunPaused>());
     });
 
+    testWidgets('다음 러닝을 다른 계정이 시작하면 그 계정의 명령을 받는다', (tester) async {
+      startRunning();
+      session.set(const RunIdle());
+      auth.set(const AuthSignedIn('other', isOnboarded: true));
+      session.set(const RunRunning(metrics));
+
+      watch.receive('WATCH_PAUSE', command('a'));
+      await tester.pump();
+
+      expect(watch.errors, isEmpty);
+      expect(session.current, isA<RunPaused>());
+    });
+
+    testWidgets('연결이 방을 비운 사이에도 이번 방의 명령을 받는다', (tester) async {
+      startRunning();
+      final pause = command('a');
+      connection.set(const RunningConnectionState());
+
+      watch.receive('WATCH_PAUSE', pause);
+      await tester.pump();
+
+      expect(watch.errors, isEmpty);
+      expect(session.current, isA<RunPaused>());
+    });
+
     testWidgets('명령의 방 번호가 없으면 방 비교만 건너뛴다', (tester) async {
       startRunning();
 
@@ -1235,6 +1260,63 @@ void main() {
         expect(watch.states.last['lastRequestId'], 'a');
       });
 
+      testWidgets('⚠️ 이전 러닝의 늦은 답은 새 러닝을 끝내지 않는다', (tester) async {
+        final container = startRunning();
+
+        watch.receive('WATCH_FINISH', command('a', {'forced': false}));
+        await tester.pump();
+        session.set(const RunIdle());
+        session.set(const RunRunning(metrics));
+        connection.answer(const FinishUnconfirmed());
+        await tester.pump();
+
+        expect(session.current, isA<RunRunning>());
+        expect(container.read(runControlProvider).finishing, isFalse);
+      });
+
+      testWidgets('⚠️ 이전 러닝의 늦은 실패도 새 러닝을 끝내지 않는다', (tester) async {
+        startRunning();
+
+        watch.receive('WATCH_FINISH', command('a', {'forced': false}));
+        await tester.pump();
+        session.set(const RunIdle());
+        session.set(const RunRunning(metrics));
+        connection.failFinish();
+        await tester.pump();
+
+        expect(session.current, isA<RunRunning>());
+      });
+
+      testWidgets('답을 기다리는 동안 일시정지는 답만 한다', (tester) async {
+        startRunning();
+
+        watch.receive('WATCH_FINISH', command('a', {'forced': false}));
+        await tester.pump();
+        watch.receive('WATCH_PAUSE', command('b'));
+        await tester.pump();
+
+        expect(calls, isEmpty);
+        expect(watch.states.last['lastRequestId'], 'b');
+      });
+
+      testWidgets('⚠️ 서버가 끝내는 중이면 일시정지·재개는 답만 한다', (tester) async {
+        startRunning();
+        connection.set(connection.current.copyWith(settling: true));
+
+        watch.receive('WATCH_PAUSE', command('a'));
+        await tester.pump();
+
+        expect(calls, isEmpty);
+        expect(watch.states.last['lastRequestId'], 'a');
+
+        session.set(const RunPaused(metrics));
+        watch.receive('WATCH_RESUME', command('b'));
+        await tester.pump();
+
+        expect(calls, isEmpty);
+        expect(session.current, isA<RunPaused>());
+      });
+
       testWidgets('기다리는 사이 세션이 비워지면 상태를 더 쓰지 않는다', (tester) async {
         final container = startRunning();
 
@@ -1324,6 +1406,17 @@ void main() {
 
         expect(runOf(watch.states.last)['finish'], isNull);
         expect(watch.states.last['statusVersion'], version + 1);
+      });
+
+      testWidgets('다시 종료해 답을 기다리는 동안 계속 달리기는 끼어들지 못한다', (tester) async {
+        final container = await pending(tester);
+
+        watch.receive('WATCH_FINISH', command('a', {'forced': false}));
+        await tester.pump();
+        container.read(runControlProvider.notifier).keepRunning();
+
+        expect(container.read(runControlProvider).finishing, isTrue);
+        expect(runOf(watch.states.last)['finish'], {'stage': 'FINISHING'});
       });
 
       testWidgets('다음 러닝에 남지 않는다', (tester) async {

@@ -207,11 +207,12 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
     _goalPendingRoute = route;
     final finish = await Navigator.of(context, rootNavigator: true).push(route);
     _goalPendingRoute = null;
-    if (finish == null || !mounted) return;
+    if (!mounted) return;
     final control = ref.read(runControlProvider.notifier);
-    if (finish) {
+    if (finish == true) {
       unawaited(control.finish(forced: true));
     } else {
+      // 뒤로가기로 닫아도 계속 달리는 것이다. 보류를 안 거두면 워치에 남는다.
       control.keepRunning();
     }
   }
@@ -477,7 +478,11 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
             onFinish: _finishByHold,
             showPenaltyNotice: target != null && canPenalize,
             penaltyRemainingKm: _penaltyRemainingKm(),
-            finishing: ref.watch(runControlProvider.select((s) => s.finishing)),
+            // 서버 종료·구간 거부도 답을 기다린다. 이때 눌린 종료는 보내지 않으니
+            // 버튼을 그대로 두면 눌러도 무반응으로 보인다.
+            finishing:
+                ref.watch(runControlProvider.select((s) => s.finishing)) ||
+                ref.watch(runningConnectionProvider.select((s) => s.settling)),
           ),
         ),
         backgroundColor: colors.bgBase,

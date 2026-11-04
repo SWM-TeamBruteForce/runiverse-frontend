@@ -312,6 +312,23 @@ void main() {
       await unmount(tester, container);
     });
 
+    testWidgets('⚠️ 답을 기다리는 동안 종료 버튼이 로딩 원이다', (tester) async {
+      // 이때 눌린 종료는 보내지 않는다. 버튼이 그대로면 눌러도 무반응으로 보인다.
+      useTallView(tester);
+      final container = await pumpRunning(tester);
+      final answer = channel.answer = Completer<FinishOutcome>();
+
+      channel.errors_.add(WsErrorCode.pauseSegmentDecreased);
+      await settleFinish(tester);
+
+      expect(channel.finishes, [true]);
+      expect(find.bySemanticsLabel(AppStrings.runFinishHold), findsNothing);
+
+      answer.complete(const FinishConfirmed());
+      await tester.pumpAndSettle();
+      await unmount(tester, container);
+    });
+
     testWidgets('⚠️ 왜 끝났는지 말해 준다', (tester) async {
       final container = await pumpRunning(tester);
 
@@ -437,6 +454,17 @@ void main() {
       expect(find.byType(RunSessionPage), findsOneWidget);
       expect(find.text(AppStrings.runFinishRejected), findsOneWidget);
       expect(container.read(runSessionControllerProvider), isA<RunRunning>());
+      await unmount(tester, container);
+    });
+
+    testWidgets('참가자가 아니라는 거절에는 알리지 않는다', (tester) async {
+      // 강퇴 안내가 따로 뜬다. 함께 띄우면 다시 누르라는 말이 겹친다.
+      final container = await pumpRunning(tester);
+      channel.outcome = const FinishRejected(WsErrorCode.notRoomPlayer);
+
+      await holdFinish(tester);
+
+      expect(find.text(AppStrings.runFinishRejected), findsNothing);
       await unmount(tester, container);
     });
 
@@ -587,6 +615,40 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(channel.finishes, [false], reason: '처음 보낸 하나뿐이어야 한다');
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 뒤로가기로 창을 닫으면 보류가 풀린다', (tester) async {
+      // 창만 닫히고 보류가 남으면 워치는 계속 보류를 받고, 다음 워치 종료가 고른 적
+      // 없이 `forced=true` 로 확정된다.
+      final container = await pumpPending(tester);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog, skipOffstage: false), findsNothing);
+      expect(find.byType(RunSessionPage), findsOneWidget);
+      expect(container.read(runControlProvider).goalPendingMeters, isNull);
+      expect(channel.finishes, [false], reason: '고르지 않은 것을 보내면 안 된다');
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 서버가 끝낸 뒤 늦은 종료는 결과를 지우지 않는다', (tester) async {
+      // 또 보내면 연결을 닫으며 끝낸 방 번호가 사라져 상세로 가는 문이 잠긴다.
+      final container = await pumpPending(tester);
+      channel.finished_.add(null);
+      await tester.pumpAndSettle();
+      final finishedRoomId = container
+          .read(runningConnectionProvider)
+          .finishedRoomId;
+
+      await container.read(runControlProvider.notifier).finish(forced: true);
+
+      expect(finishedRoomId, isNotNull);
+      expect(
+        container.read(runningConnectionProvider).finishedRoomId,
+        finishedRoomId,
+      );
       await unmount(tester, container);
     });
 
@@ -786,6 +848,9 @@ class _FinishChannel implements RunningChannel {
   /// 무엇으로 답할지. 보류를 흉내 내려면 [FinishGoalPending] 을 넣는다.
   FinishOutcome outcome = const FinishConfirmed();
 
+  /// 세워 두면 끝낼 때까지 답하지 않는다. 답을 기다리는 동안의 화면을 본다.
+  Completer<FinishOutcome>? answer;
+
   @override
   bool pause() => true;
 
@@ -795,7 +860,7 @@ class _FinishChannel implements RunningChannel {
   @override
   Future<FinishOutcome> finish({bool forced = false}) async {
     finishes.add(forced);
-    return outcome;
+    return answer?.future ?? outcome;
   }
 
   @override

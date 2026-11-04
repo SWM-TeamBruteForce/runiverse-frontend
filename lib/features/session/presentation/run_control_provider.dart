@@ -37,11 +37,16 @@ class RunControlState {
 /// 화면에 두면 워치 명령이 같은 길을 탈 수 없어 앱이 켜져 있는 동안 산다. 러닝
 /// 화면은 이 상태를 보고 로딩 원·보류 창·거절 알림만 맡는다.
 class RunControlController extends Notifier<RunControlState> {
+  /// 세션을 비우면 오른다. 기다리던 종료 답이 다음 러닝에 닿지 않게 한다.
+  var _finishToken = 0;
+
   @override
   RunControlState build() {
     // 앱이 켜져 있는 동안 살아서, 안 비우면 값이 다음 러닝에 남는다.
     ref.listen(runSessionControllerProvider, (_, next) {
-      if (!_isRunning(next)) state = const RunControlState();
+      if (_isRunning(next)) return;
+      _finishToken++;
+      state = const RunControlState();
     });
     return const RunControlState();
   }
@@ -62,7 +67,7 @@ class RunControlController extends Notifier<RunControlState> {
   ///   배치까지 최대 10초가 걸린다 — 그동안 상대 화면에는 멈춰 보인다.
   void pause() {
     if (ref.read(runSessionControllerProvider) is! RunRunning) return;
-    if (state.finishing) return;
+    if (_isFinishing) return;
     ref.read(runSessionControllerProvider.notifier).pause();
     unawaited(ref.read(runningConnectionProvider.notifier).pause());
   }
@@ -70,7 +75,7 @@ class RunControlController extends Notifier<RunControlState> {
   /// 다시 간다. 순서는 [pause] 참조.
   void resume() {
     if (ref.read(runSessionControllerProvider) is! RunPaused) return;
-    if (state.finishing) return;
+    if (_isFinishing) return;
     ref.read(runningConnectionProvider.notifier).resume();
     ref.read(runSessionControllerProvider.notifier).resume();
   }
@@ -95,15 +100,13 @@ class RunControlController extends Notifier<RunControlState> {
   /// [FinishUnconfirmed] 로 떨어져 예전처럼 요약으로 간다 — 신호가 나쁜 곳에서
   /// 요약조차 못 보는 일은 그대로 막는다.
   Future<void> finish({required bool forced}) async {
-    if (state.finishing) return;
+    if (_isFinishing) return;
     if (!_isRunning(ref.read(runSessionControllerProvider))) return;
-    // 서버 종료·구간 거부가 이미 끝내는 중이다. 또 보내면 채널이 먼저 보낸 쪽의
-    // 답 기다리기를 덮어써, 그쪽이 타임아웃까지 매달린다.
-    if (ref.read(runningConnectionProvider).settling) return;
 
+    final token = _finishToken;
     state = const RunControlState(finishing: true);
 
-    final FinishOutcome outcome;
+    FinishOutcome outcome;
     try {
       // 끝나면 소켓도 함께 닫힌다 — 안 닫으면 다음 러닝에서 서버가 중복 연결로
       // 보고 이쪽을 4001로 끊는다.
@@ -113,12 +116,11 @@ class RunControlController extends Notifier<RunControlState> {
     } on Object catch (error) {
       // 못 받은 것과 같다. 안 풀면 로딩 원에 갇힌다.
       debugPrint('[running] 종료 정리가 어긋났다 · $error');
-      _foldSession();
-      return;
+      outcome = const FinishUnconfirmed();
     }
 
-    // 기다리는 사이 강퇴·서버 종료로 세션을 이미 비웠다.
-    if (!_isRunning(ref.read(runSessionControllerProvider))) return;
+    // 기다리는 사이 강퇴·서버 종료로 세션을 비웠다. 지난 러닝의 답이다.
+    if (!ref.mounted || token != _finishToken) return;
 
     switch (outcome) {
       // ⚠️ **러닝이 이어진다.** 세션을 접지도, 화면을 옮기지도 않는다.
@@ -130,7 +132,7 @@ class RunControlController extends Notifier<RunControlState> {
       // ⚠️ **세션은 여기서 접는다.** 보류일 수 있으므로 답을 받기 전에 접으면
       // 멀쩡한 러닝의 시계가 멈춘다. 접히면 [build] 의 듣기가 상태를 비운다.
       case FinishConfirmed() || FinishUnconfirmed():
-        _foldSession();
+        ref.read(runSessionControllerProvider.notifier).finish();
     }
   }
 
@@ -148,16 +150,16 @@ class RunControlController extends Notifier<RunControlState> {
     );
   }
 
-  /// 보류 창에서 `계속 달리기` 를 골랐다.
+  /// 보류 창을 `계속 달리기` 나 뒤로가기로 닫았다.
   void keepRunning() {
-    if (state.finishing) return;
+    if (state.goalPendingMeters == null) return;
     state = const RunControlState();
   }
 
-  /// ⚠️ **세션은 여기서 접는다.** 보류일 수 있으므로 답을 받기 전에 접으면
-  /// 멀쩡한 러닝의 시계가 멈춘다. 접히면 [build] 의 듣기가 상태를 비운다.
-  void _foldSession() =>
-      ref.read(runSessionControllerProvider.notifier).finish();
+  /// 종료 답을 기다리는 중인가. 서버 종료·구간 거부도 연결이 기다린다 — 이때 또
+  /// 보내면 채널이 먼저 보낸 쪽의 답 기다리기를 덮어써, 그쪽이 타임아웃까지 매달린다.
+  bool get _isFinishing =>
+      state.finishing || ref.read(runningConnectionProvider).settling;
 
   static bool _isRunning(RunSessionState session) =>
       session is RunRunning || session is RunPaused;
