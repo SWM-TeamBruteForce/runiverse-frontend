@@ -55,6 +55,19 @@ class WatchMessage {
   final Map<String, dynamic> data;
 }
 
+/// 워치와 주고받는 event 이름. 정본은 워치 레포 `docs/phone-communication.md`
+/// 「메시지」다.
+///
+/// 문자열을 흩어 놓지 않는다. 오타는 컴파일러가 못 잡고, 워치는 모르는 event를
+/// 말없이 버린다.
+abstract final class WatchEvents {
+  static const watchSync = 'WATCH_SYNC';
+  static const watchSynced = 'WATCH_SYNCED';
+  static const watchStateUpdated = 'WATCH_STATE_UPDATED';
+  static const watchComboTriggered = 'WATCH_COMBO_TRIGGERED';
+  static const watchVisibilityUpdate = 'WATCH_VISIBILITY_UPDATE';
+}
+
 /// 폰 ↔ 워치 통로. 안드로이드는 `WatchBridge.kt` 가 갤럭시워치와 잇는다.
 ///
 /// 메시지 종류와 보내는 규칙은 워치 레포 `docs/phone-communication.md` 가

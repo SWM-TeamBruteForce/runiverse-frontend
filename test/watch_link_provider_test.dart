@@ -1,0 +1,983 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/network/ws_client.dart';
+import 'package:runiverse/core/storage/body_profile_provider.dart';
+import 'package:runiverse/core/storage/body_profile_store.dart';
+import 'package:runiverse/core/watch/watch_channel.dart';
+import 'package:runiverse/features/record/domain/run_detail.dart';
+import 'package:runiverse/features/record/presentation/record_provider.dart';
+import 'package:runiverse/features/session/domain/party_board.dart';
+import 'package:runiverse/features/session/domain/run_metrics.dart';
+import 'package:runiverse/features/session/domain/run_progress.dart';
+import 'package:runiverse/features/session/domain/run_session_state.dart';
+import 'package:runiverse/features/session/domain/running_room.dart';
+import 'package:runiverse/features/session/presentation/party_provider.dart';
+import 'package:runiverse/features/session/presentation/run_session_provider.dart';
+import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
+import 'package:runiverse/features/session/presentation/watch_link_provider.dart';
+
+/// 폰이 **언제** 워치에 보내는가. 규칙은 워치 레포
+/// `docs/phone-communication.md` 「보내는 규칙 — 폰」이다.
+///
+/// 워치는 받은 것만 그린다. 보내야 할 때 안 보내면 워치가 멈춰 보이고, 화면이
+/// 꺼진 동안 보내면 배터리만 쓴다.
+void main() {
+  const metrics = RunMetrics(
+    distanceMeters: 1200,
+    elapsed: Duration(minutes: 7),
+  );
+  const room = RunningRoom(812, targetDistanceMeters: 5000, isMatched: true);
+
+  late _Watch watch;
+  late _Session session;
+  late _Connection connection;
+  late _Party party;
+
+  /// 방 번호 → 서버 기록 조회. 테스트가 끝낼 때를 정한다.
+  late Map<int, Completer<RunDetail>> details;
+
+  ProviderContainer start({bool withWatch = true, BodyProfileStore? body}) {
+    watch = _Watch();
+    details = {};
+    final container = ProviderContainer.test(
+      overrides: [
+        watchChannelProvider.overrideWithValue(withWatch ? watch : null),
+        runSessionControllerProvider.overrideWith(_Session.new),
+        runningConnectionProvider.overrideWith(_Connection.new),
+        partyProvider.overrideWith(_Party.new),
+        runDetailProvider.overrideWith(
+          (ref, roomId) => (details[roomId] ??= Completer<RunDetail>()).future,
+        ),
+        bodyProfileStoreProvider.overrideWithValue(
+          body ?? InMemoryBodyProfileStore(),
+        ),
+        runClockProvider.overrideWithValue(() => DateTime(2026, 11, 4, 9)),
+      ],
+    );
+    session = container.read(runSessionControllerProvider.notifier) as _Session;
+    connection =
+        container.read(runningConnectionProvider.notifier) as _Connection;
+    party = container.read(partyProvider.notifier) as _Party;
+    container.read(watchLinkProvider.notifier).start();
+    return container;
+  }
+
+  Map<String, Object?> runOf(Map<String, Object?> state) =>
+      state['run']! as Map<String, Object?>;
+
+  testWidgets('러닝이 시작되면 워치 앱을 한 번 켜고 상태를 바로 보낸다', (tester) async {
+    start();
+
+    session.set(const RunRunning(metrics));
+    // 1초 티커가 상태를 다시 세워도 단계는 그대로다.
+    session.set(const RunRunning(metrics));
+    await tester.pump();
+
+    expect(watch.launches, 1);
+    expect(watch.states, hasLength(1));
+    expect(watch.states.single['statusVersion'], 1);
+  });
+
+  testWidgets('워치 화면이 켜져 있을 때만 1초마다 보낸다', (tester) async {
+    start();
+    session.set(const RunRunning(metrics));
+    // 화면이 꺼져 있으면 시작 한 번뿐이다.
+    await tester.pump(const Duration(seconds: 3));
+    expect(watch.states, hasLength(1));
+
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': true});
+    await tester.pump();
+    // 켜졌다는 알림을 받으면 바로 한 번 보낸다.
+    expect(watch.states, hasLength(2));
+
+    await tester.pump(const Duration(seconds: 3));
+    expect(watch.states, hasLength(5));
+
+    // 15초 동안 알림이 없으면 꺼진 것으로 보고 멈춘다.
+    await tester.pump(const Duration(seconds: 15));
+    final stopped = watch.states.length;
+    await tester.pump(const Duration(seconds: 5));
+    expect(watch.states, hasLength(stopped));
+  });
+
+  testWidgets('화면 신호가 10초마다 오면 1초 전송이 이어진다', (tester) async {
+    start();
+    session.set(const RunRunning(metrics));
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': true});
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 10));
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': true});
+    await tester.pump(const Duration(seconds: 10));
+
+    // 첫 신호에서 15초가 지났어도, 두 번째 신호로 창이 늘어나 계속 보낸다.
+    final before = watch.states.length;
+    await tester.pump(const Duration(seconds: 3));
+    expect(watch.states, hasLength(before + 3));
+
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': false});
+    await tester.pump();
+  });
+
+  testWidgets('일시정지 중에도 1초마다 보내고 끝나면 멈춘다', (tester) async {
+    start();
+    session.set(const RunRunning(metrics));
+    session.set(const RunPaused(metrics));
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': true});
+    await tester.pump();
+
+    final paused = watch.states.length;
+    await tester.pump(const Duration(seconds: 2));
+    expect(watch.states, hasLength(paused + 2));
+
+    session.set(
+      RunFinished(
+        metrics: metrics,
+        startedAt: DateTime(2026, 11, 4, 8),
+        endedAt: DateTime(2026, 11, 4, 9),
+      ),
+    );
+    await tester.pump();
+    final finished = watch.states.length;
+    await tester.pump(const Duration(seconds: 2));
+    expect(watch.states, hasLength(finished));
+
+    // 화면이 다시 켜지면 놓친 결과를 되찾게 한 번 보낸다.
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': true});
+    await tester.pump();
+    expect(watch.states, hasLength(finished + 1));
+    expect(runOf(watch.states.last)['status'], 'FINISHED');
+
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': false});
+    await tester.pump();
+  });
+
+  testWidgets('서버 연결 상태를 그대로 싣는다', (tester) async {
+    start();
+    connection.set(
+      const RunningConnectionState(
+        room: room,
+        connection: WsConnectionState.connected,
+      ),
+    );
+    session.set(const RunRunning(metrics));
+    expect(runOf(watch.states.last)['isServerConnected'], isTrue);
+
+    connection.set(
+      connection.current.copyWith(connection: WsConnectionState.disconnected),
+    );
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': true});
+    await tester.pump();
+    expect(runOf(watch.states.last)['isServerConnected'], isFalse);
+
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': false});
+    await tester.pump();
+  });
+
+  testWidgets('러닝을 다시 시작하면 워치 앱도 다시 켠다', (tester) async {
+    start();
+    session.set(const RunRunning(metrics));
+    session.set(const RunIdle());
+    session.set(const RunPreparing(hasFix: true));
+    session.set(const RunRunning(metrics));
+    await tester.pump();
+
+    expect(watch.launches, 2);
+  });
+
+  testWidgets('꺼졌다는 알림을 받으면 바로 멈춘다', (tester) async {
+    start();
+    session.set(const RunRunning(metrics));
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': true});
+    await tester.pump();
+
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': false});
+    await tester.pump();
+    final stopped = watch.states.length;
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(watch.states, hasLength(stopped));
+  });
+
+  testWidgets('일시정지는 화면이 꺼져 있어도 바로 보내고 번호를 올린다', (tester) async {
+    start();
+    session.set(const RunRunning(metrics));
+    session.set(const RunPaused(metrics));
+    session.set(const RunRunning(metrics));
+    await tester.pump();
+
+    expect(
+      [for (final state in watch.states) runOf(state)['status']],
+      ['RUNNING', 'PAUSED', 'RUNNING'],
+    );
+    expect(
+      [for (final state in watch.states) state['statusVersion']],
+      [1, 2, 3],
+    );
+    // 보낼 때마다 오른다. 워치는 지난 번호를 버린다.
+    expect(
+      [for (final state in watch.states) state['stateSequence']],
+      [1, 2, 3],
+    );
+  });
+
+  testWidgets('종료가 확정될 때 종료 중에서 결과로 바로 간다', (tester) async {
+    start();
+    connection.set(
+      const RunningConnectionState(
+        room: room,
+        connection: WsConnectionState.connected,
+      ),
+    );
+    session.set(const RunRunning(metrics));
+
+    // 종료를 보냈다.
+    connection.set(connection.current.copyWith(settling: true));
+    // 확정을 받아 소켓을 닫는다 — 상태가 한 번 통째로 비워진다.
+    connection.set(const RunningConnectionState());
+    connection.set(
+      const RunningConnectionState(room: room, finishedRoomId: 812),
+    );
+    // 그다음에 러닝 화면이 세션을 접는다.
+    session.set(
+      RunFinished(
+        metrics: metrics,
+        startedAt: DateTime(2026, 11, 4, 8),
+        endedAt: DateTime(2026, 11, 4, 9),
+      ),
+    );
+    await tester.pump();
+
+    // ⚠️ 사이에 달리는 중으로 돌아가면 워치가 종료 버튼을 다시 연다.
+    expect(
+      [for (final state in watch.states) runOf(state)['status']],
+      ['RUNNING', 'RUNNING', 'FINISHED'],
+    );
+    expect(
+      [for (final state in watch.states) runOf(state)['finish']],
+      [
+        null,
+        {'stage': 'FINISHING'},
+        null,
+      ],
+    );
+    // 서버 기록을 받는 동안은 결과를 비운다 — 폰 요약이 `--` 를 띄운다.
+    expect(runOf(watch.states.last)['result'], isNull);
+    expect(runOf(watch.states.last)['runningRoomId'], 812);
+
+    // 서버 기록이 오면 화면이 꺼져 있어도 바로 그 숫자로 보낸다.
+    details[812]!.complete(
+      RunDetail(
+        runningRoomId: 812,
+        distanceMeters: 1190,
+        duration: const Duration(minutes: 6, seconds: 50),
+        averagePace: const Duration(minutes: 5, seconds: 44),
+        rawSplits: const [],
+        players: const [
+          RunPlayerResult(
+            userId: 'me',
+            nickname: '나',
+            isMe: true,
+            duration: Duration(minutes: 6, seconds: 50),
+          ),
+        ],
+      ),
+    );
+    await tester.pump();
+
+    expect(runOf(watch.states.last)['result'], {
+      'isServerConfirmed': true,
+      'totalDistanceMeters': 1190,
+      'averagePaceSecondsPerKm': 344,
+      'elapsedSeconds': 410,
+    });
+  });
+
+  testWidgets('서버 기록을 못 받으면 폰이 잰 숫자로 보낸다', (tester) async {
+    start();
+    connection.set(
+      const RunningConnectionState(room: room, finishedRoomId: 812),
+    );
+    session.set(const RunRunning(metrics));
+    session.set(
+      RunFinished(
+        metrics: metrics,
+        startedAt: DateTime(2026, 11, 4, 8),
+        endedAt: DateTime(2026, 11, 4, 9),
+      ),
+    );
+    await tester.pump();
+
+    details[812]!.completeError(Exception('조회 실패'));
+    await tester.pump();
+
+    // 다시 시도를 기다리지 않고 첫 실패에서 바로 폰 숫자로 간다 — 폰 요약과 같다.
+    final result = runOf(watch.states.last)['result']! as Map;
+    expect(result['isServerConfirmed'], isFalse);
+    expect(result['totalDistanceMeters'], 1200);
+    expect(result['elapsedSeconds'], 420);
+
+    // 실패한 조회를 Riverpod 이 몇 번 더 시도한다. 그 시계를 다 흘려보낸다.
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('서버 기록에 내 기록이 없으면 폰이 잰 숫자로 보낸다', (tester) async {
+    start();
+    connection.set(
+      const RunningConnectionState(room: room, finishedRoomId: 812),
+    );
+    session.set(const RunRunning(metrics));
+    session.set(
+      RunFinished(
+        metrics: metrics,
+        startedAt: DateTime(2026, 11, 4, 8),
+        endedAt: DateTime(2026, 11, 4, 9),
+      ),
+    );
+    await tester.pump();
+
+    // 너무 짧게 달려 조회는 성공해도 내 수치가 비어 온다.
+    details[812]!.complete(
+      RunDetail(
+        runningRoomId: 812,
+        distanceMeters: 0,
+        duration: Duration.zero,
+        rawSplits: const [],
+        players: const [
+          RunPlayerResult(userId: 'me', nickname: '나', isMe: true),
+        ],
+      ),
+    );
+    await tester.pump();
+
+    final result = runOf(watch.states.last)['result']! as Map;
+    expect(result['isServerConfirmed'], isFalse);
+    expect(result['totalDistanceMeters'], 1200);
+  });
+
+  testWidgets('종료 확인을 못 받으면 서버 기록을 부르지 않고 폰 숫자로 보낸다', (tester) async {
+    start();
+    // 확인을 못 받아 연결이 비워졌다. 끝낸 방 표시가 없다.
+    connection.set(const RunningConnectionState(room: room));
+    session.set(const RunRunning(metrics));
+    session.set(
+      RunFinished(
+        metrics: metrics,
+        startedAt: DateTime(2026, 11, 4, 8),
+        endedAt: DateTime(2026, 11, 4, 9),
+      ),
+    );
+    await tester.pump();
+
+    expect(details, isEmpty);
+    final result = runOf(watch.states.last)['result']! as Map;
+    expect(result['isServerConfirmed'], isFalse);
+  });
+
+  testWidgets('폰에서 요약을 닫으면 화면이 꺼져 있어도 바로 러닝 없음을 보낸다', (tester) async {
+    start();
+    session.set(const RunRunning(metrics));
+    session.set(
+      RunFinished(
+        metrics: metrics,
+        startedAt: DateTime(2026, 11, 4, 8),
+        endedAt: DateTime(2026, 11, 4, 9),
+      ),
+    );
+    final version = watch.states.last['statusVersion']! as int;
+
+    // 워치 결과 화면도 같이 닫힌다.
+    session.set(const RunIdle());
+    await tester.pump();
+
+    expect(watch.states.last['run'], isNull);
+    expect(watch.states.last['statusVersion'], version + 1);
+  });
+
+  testWidgets('서버가 끝낸 러닝도 바로 러닝 없음을 보낸다', (tester) async {
+    start();
+    session.set(const RunRunning(metrics));
+
+    // 서버 종료·강퇴는 요약 없이 홈으로 간다.
+    session.set(const RunIdle());
+    await tester.pump();
+
+    expect(watch.states.last['run'], isNull);
+  });
+
+  testWidgets('러닝 중에 방이 세워지면 화면이 꺼져 있어도 바로 다시 보낸다', (tester) async {
+    start();
+    // 출발은 방을 기다리지 않는다. 첫 상태엔 방 번호·목표가 없다.
+    session.set(const RunRunning(metrics));
+    await tester.pump();
+    expect(runOf(watch.states.last)['runningRoomId'], isNull);
+    final version = watch.states.last['statusVersion'];
+
+    connection.set(
+      const RunningConnectionState(
+        room: room,
+        connection: WsConnectionState.connected,
+      ),
+    );
+    await tester.pump();
+
+    expect(watch.states, hasLength(2));
+    expect(runOf(watch.states.last)['runningRoomId'], 812);
+    expect(runOf(watch.states.last)['targetDistanceMeters'], 5000);
+    // 단계가 바뀐 것은 아니다. 번호를 올리면 누른 명령이 거절된다.
+    expect(watch.states.last['statusVersion'], version);
+
+    // 같은 방으로 연결 상태만 바뀌면 또 보내지 않는다.
+    connection.set(const RunningConnectionState(room: room));
+    await tester.pump();
+    expect(watch.states, hasLength(2));
+  });
+
+  testWidgets('구간 거부로 끝내려다 확인을 못 받으면 종료 중을 푼다', (tester) async {
+    start();
+    connection.set(
+      const RunningConnectionState(
+        room: room,
+        connection: WsConnectionState.connected,
+      ),
+    );
+    session.set(const RunRunning(metrics));
+
+    connection.set(
+      connection.current.copyWith(settling: true, trackRejected: true),
+    );
+    await tester.pump();
+    expect(runOf(watch.states.last)['finish'], {'stage': 'FINISHING'});
+
+    // 답을 못 받아 정리한다 — 상태가 비워졌다가 방과 거부 표시만 되돌아온다.
+    connection.set(const RunningConnectionState());
+    connection.set(
+      const RunningConnectionState(room: room, trackRejected: true),
+    );
+    await tester.pump();
+
+    // 폰 러닝 화면은 달리는 중으로 남는다. 워치도 같게 돌아간다.
+    expect(runOf(watch.states.last)['status'], 'RUNNING');
+    expect(runOf(watch.states.last)['finish'], isNull);
+  });
+
+  testWidgets('구간 거부로 끝내다 확인을 받으면 결과로 간다', (tester) async {
+    start();
+    connection.set(
+      const RunningConnectionState(
+        room: room,
+        connection: WsConnectionState.connected,
+      ),
+    );
+    session.set(const RunRunning(metrics));
+    connection.set(
+      connection.current.copyWith(settling: true, trackRejected: true),
+    );
+
+    connection.set(const RunningConnectionState());
+    connection.set(
+      const RunningConnectionState(
+        room: room,
+        trackRejected: true,
+        finishedRoomId: 812,
+      ),
+    );
+    await tester.pump();
+
+    // 확인을 받았으면 세션이 곧 끝난다. 그 사이 달리는 중으로 돌아가지 않는다.
+    expect(runOf(watch.states.last)['finish'], {'stage': 'FINISHING'});
+  });
+
+  testWidgets('종료 확인을 못 받아도 결과까지 종료 중을 유지한다', (tester) async {
+    start();
+    connection.set(
+      const RunningConnectionState(
+        room: room,
+        connection: WsConnectionState.connected,
+      ),
+    );
+    session.set(const RunRunning(metrics));
+    connection.set(connection.current.copyWith(settling: true));
+    // 답을 못 받아 정리한다 — 방만 되돌아오고 끝낸 방 표시는 없다.
+    connection.set(const RunningConnectionState());
+    connection.set(const RunningConnectionState(room: room));
+    session.set(
+      RunFinished(
+        metrics: metrics,
+        startedAt: DateTime(2026, 11, 4, 8),
+        endedAt: DateTime(2026, 11, 4, 9),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      [for (final state in watch.states) runOf(state)['finish']],
+      [
+        null,
+        {'stage': 'FINISHING'},
+        null,
+      ],
+    );
+    expect(runOf(watch.states.last)['status'], 'FINISHED');
+  });
+
+  testWidgets('종료가 보류되면 러닝이 이어진다고 알린다', (tester) async {
+    start();
+    connection.set(
+      const RunningConnectionState(
+        room: room,
+        connection: WsConnectionState.connected,
+      ),
+    );
+    session.set(const RunRunning(metrics));
+
+    connection.set(connection.current.copyWith(settling: true));
+    // 거리가 모자라다는 답이다. 방과 소켓은 그대로다.
+    connection.set(connection.current.copyWith(settling: false));
+    await tester.pump();
+
+    final last = watch.states.last;
+    expect(runOf(last)['finish'], isNull);
+    expect(runOf(last)['status'], 'RUNNING');
+    expect(last['statusVersion'], 3);
+  });
+
+  testWidgets('SYNC 를 받으면 같은 syncId 로 SYNCED 를 보낸다', (tester) async {
+    start();
+
+    watch.receive('WATCH_SYNC', {'syncId': 's-1'});
+    await tester.pump();
+
+    final (event, data) = watch.sent.single;
+    expect(event, 'WATCH_SYNCED');
+    expect(data['syncId'], 's-1');
+    expect(data['run'], isNull);
+    expect(data['photos'], isEmpty);
+  });
+
+  testWidgets('SYNCED 에 저장된 생일을 싣는다', (tester) async {
+    final body = InMemoryBodyProfileStore();
+    await body.save(birthday: DateTime(1998, 3, 7));
+    final container = start(body: body);
+    // 앱은 스플래시에서 미리 읽어 둔다.
+    container.read(bodyProfileProvider);
+    await tester.pump();
+
+    watch.receive('WATCH_SYNC', {'syncId': 's-1'});
+    await tester.pump();
+
+    expect(watch.sent.single.$2['birthday'], '1998-03-07');
+  });
+
+  testWidgets('syncId 가 없는 SYNC 에는 답하지 않는다', (tester) async {
+    start();
+
+    // 돌려줄 syncId 가 없으면 워치가 그 답을 못 읽는다.
+    watch.receive('WATCH_SYNC', {});
+    await tester.pump();
+
+    expect(watch.sent, isEmpty);
+  });
+
+  testWidgets('콤보가 오르거나 끊기면 화면이 꺼져 있어도 알린다', (tester) async {
+    start();
+    session.set(const RunRunning(metrics));
+    final board = const PartyBoard()
+        .withRoster(const [
+          PartyMember(userId: 'me', nickname: '나'),
+          PartyMember(userId: 'u-1', nickname: '콩나물'),
+        ], myUserId: 'me')
+        .withProgress(const RunProgress(userId: 'u-1', distanceMeters: 1210));
+
+    party.set(board);
+    party.set(
+      board.withCombos(
+        const RunCombo([
+          ComboPeer(
+            userId: 'u-1',
+            gapMeters: 10,
+            comboCount: 0,
+            maxComboCount: 0,
+          ),
+        ]),
+      ),
+    );
+    party.set(party.current.withCombos(const RunCombo([])));
+    await tester.pump();
+
+    expect([for (final data in watch.combos) data['kind']], ['TICK', 'BREAK']);
+    expect(watch.combos.first['userId'], 'u-1');
+    expect(watch.combos.first['eventId'], isNot(watch.combos.last['eventId']));
+  });
+
+  testWidgets('러닝이 끝나며 비워진 보드는 끊김이 아니다', (tester) async {
+    start();
+    session.set(const RunRunning(metrics));
+    party.set(
+      const PartyBoard()
+          .withProgress(const RunProgress(userId: 'u-1', distanceMeters: 1210))
+          .withCombos(
+            const RunCombo([
+              ComboPeer(
+                userId: 'u-1',
+                gapMeters: 10,
+                comboCount: 4,
+                maxComboCount: 4,
+              ),
+            ]),
+          ),
+    );
+    final before = watch.combos.length;
+
+    // 연결이 닫히면 `PartyController` 가 보드를 통째로 비운다.
+    party.set(const PartyBoard());
+    await tester.pump();
+
+    expect(watch.combos, hasLength(before));
+  });
+
+  testWidgets('콤보만 얹힌 보드가 비워져도 끊김이 아니다', (tester) async {
+    start();
+    session.set(const RunRunning(metrics));
+    // 복구 중이라 명단·진행보다 콤보가 먼저 보드에 얹혔다.
+    party.set(
+      const PartyBoard().withCombos(
+        const RunCombo([
+          ComboPeer(
+            userId: 'u-1',
+            gapMeters: 10,
+            comboCount: 4,
+            maxComboCount: 4,
+          ),
+        ]),
+      ),
+    );
+    final before = watch.combos.length;
+
+    // 그 상태에서 연결이 닫혀 `PartyController` 가 보드를 비운다.
+    party.set(const PartyBoard());
+    await tester.pump();
+
+    expect(watch.combos, hasLength(before));
+  });
+
+  testWidgets('명단·진행보다 먼저 온 콤보도 알린다', (tester) async {
+    start();
+    session.set(const RunRunning(metrics));
+
+    // 복구할 때는 콤보가 명단·진행보다 먼저 보드에 얹힌다.
+    party.set(
+      const PartyBoard().withCombos(
+        const RunCombo([
+          ComboPeer(
+            userId: 'u-1',
+            gapMeters: 10,
+            comboCount: 7,
+            maxComboCount: 7,
+          ),
+        ]),
+      ),
+    );
+    await tester.pump();
+
+    expect([for (final data in watch.combos) data['kind']], ['MILESTONE']);
+  });
+
+  testWidgets('다시 붙을 때 스냅샷으로 얹힌 콤보는 알리지 않는다', (tester) async {
+    start();
+    session.set(const RunRunning(metrics));
+
+    // 스냅샷은 명단·진행·콤보를 한 번에 얹는다. 폰도 이때는 진동하지 않는다.
+    party.set(
+      const PartyBoard()
+          .withRoster(const [
+            PartyMember(userId: 'me', nickname: '나'),
+            PartyMember(userId: 'u-1', nickname: '콩나물'),
+          ], myUserId: 'me')
+          .withProgress(const RunProgress(userId: 'u-1', distanceMeters: 1210))
+          .withCombos(
+            const RunCombo([
+              ComboPeer(
+                userId: 'u-1',
+                gapMeters: 10,
+                comboCount: 7,
+                maxComboCount: 7,
+              ),
+            ]),
+          ),
+    );
+    await tester.pump();
+
+    expect(watch.combos, isEmpty);
+  });
+
+  testWidgets('종료 답을 기다리는 동안 생긴 콤보도 알린다', (tester) async {
+    start();
+    connection.set(
+      const RunningConnectionState(
+        room: room,
+        connection: WsConnectionState.connected,
+      ),
+    );
+    session.set(const RunRunning(metrics));
+    final board = const PartyBoard()
+        .withProgress(const RunProgress(userId: 'u-1', distanceMeters: 1210))
+        .withCombos(
+          const RunCombo([
+            ComboPeer(
+              userId: 'u-1',
+              gapMeters: 10,
+              comboCount: 4,
+              maxComboCount: 4,
+            ),
+          ]),
+        );
+    party.set(board);
+    final before = watch.combos.length;
+
+    // 보류로 끝나면 러닝이 이어진다. 그사이 끊긴 것을 버리면 다시 올 길이 없다.
+    connection.set(connection.current.copyWith(settling: true));
+    party.set(board.withCombos(const RunCombo([])));
+    await tester.pump();
+
+    expect(
+      [for (final data in watch.combos.skip(before)) data['kind']],
+      ['BREAK'],
+    );
+  });
+
+  testWidgets('새 방이 열리기 전에는 지난 러닝의 방을 싣지 않는다', (tester) async {
+    start();
+    // 지난 러닝을 끝내고 요약을 닫았다. 연결은 끝난 방을 그대로 들고 있다.
+    connection.set(
+      const RunningConnectionState(room: room, finishedRoomId: 812),
+    );
+    session.set(const RunRunning(metrics));
+    session.set(
+      RunFinished(
+        metrics: metrics,
+        startedAt: DateTime(2026, 11, 4, 8),
+        endedAt: DateTime(2026, 11, 4, 9),
+      ),
+    );
+    session.set(const RunIdle());
+
+    // 새 솔로를 시작했는데 방이 카운트다운보다 늦다.
+    session.set(const RunPreparing(hasFix: true));
+    session.set(const RunRunning(metrics));
+    await tester.pump();
+    expect(runOf(watch.states.last)['runningRoomId'], isNull);
+    expect(runOf(watch.states.last)['targetDistanceMeters'], isNull);
+
+    // 새 방이 열리면 그 번호를 싣는다.
+    connection.set(
+      const RunningConnectionState(
+        room: RunningRoom(813),
+        connection: WsConnectionState.connected,
+      ),
+    );
+    watch.receive('WATCH_SYNC', {'syncId': 's-2'});
+    await tester.pump();
+    expect(runOf(watch.sent.last.$2)['runningRoomId'], 813);
+
+    // 지난 러닝의 서버 기록 구독을 닫으며 Riverpod 이 걸어 둔 정리 타이머를 흘려보낸다.
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('받을 준비가 안 돼 못 켰으면 1초 뒤 다시 켠다', (tester) async {
+    start();
+    // 폰 앱을 켤 때 워치에 닿지 못해, 러닝을 시작하는 순간에야 받기를 다시 건다.
+    watch.launchResults.addAll([
+      WatchLaunchResult.notListening,
+      WatchLaunchResult.notListening,
+    ]);
+
+    session.set(const RunRunning(metrics));
+    await tester.pump();
+    expect(watch.launches, 1);
+
+    await tester.pump(const Duration(seconds: 2));
+    expect(watch.launches, 3);
+
+    // 켜기 요청이 나갔으면 더 하지 않는다.
+    await tester.pump(const Duration(seconds: 5));
+    expect(watch.launches, 3);
+  });
+
+  testWidgets('다시 켜기는 세 번까지만 한다', (tester) async {
+    start();
+    watch.launchResults.addAll(List.filled(10, WatchLaunchResult.notListening));
+
+    session.set(const RunRunning(metrics));
+    await tester.pump(const Duration(seconds: 10));
+
+    expect(watch.launches, 4);
+  });
+
+  testWidgets('다시 켜기 전에 러닝이 끝났으면 켜지 않는다', (tester) async {
+    start();
+    watch.launchResults.add(WatchLaunchResult.notListening);
+
+    session.set(const RunRunning(metrics));
+    await tester.pump();
+    session.set(const RunIdle());
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(watch.launches, 1);
+  });
+
+  testWidgets('받기가 실패하면 5초 뒤 다시 듣는다', (tester) async {
+    start();
+    expect(watch.listens, 1);
+
+    watch.failListening();
+    await tester.pump(const Duration(seconds: 5));
+    expect(watch.listens, 2);
+
+    // 다시 들은 뒤로는 워치가 보낸 것을 받는다.
+    watch.receive('WATCH_SYNC', {'syncId': 's-3'});
+    await tester.pump();
+    expect(watch.sent.single.$1, 'WATCH_SYNCED');
+  });
+
+  testWidgets('다시 듣기 전에 켜기를 포기했으면 다시 들은 뒤 다시 켠다', (tester) async {
+    start();
+    // 받기가 실패한 직후 러닝을 시작해, 켜기가 다시 듣기(5초)보다 먼저 끝난다.
+    watch.failListening();
+    await tester.pump();
+    watch.launchResults.addAll(List.filled(4, WatchLaunchResult.notListening));
+    session.set(const RunRunning(metrics));
+
+    await tester.pump(const Duration(seconds: 4));
+    expect(watch.launches, 4);
+
+    await tester.pump(const Duration(seconds: 1));
+    expect(watch.listens, 2);
+    expect(watch.launches, 5);
+  });
+
+  testWidgets('답이 안 오는 요청이 있어도 3초 뒤 1초 전송을 이어 간다', (tester) async {
+    start();
+    session.set(const RunRunning(metrics));
+    // 화면이 켜졌다는 알림에 답하는 요청이 끝내 답을 못 받는다.
+    watch.holdNextSend = true;
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': true});
+    await tester.pump();
+    final held = watch.states.length;
+
+    // 답을 기다리는 동안은 1초 요청을 거른다.
+    await tester.pump(const Duration(seconds: 2));
+    expect(watch.states, hasLength(held));
+
+    // 3초가 지나면 실패로 보고 다시 보낸다.
+    await tester.pump(const Duration(seconds: 3));
+    expect(watch.states.length, greaterThan(held));
+
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': false});
+    await tester.pump();
+  });
+
+  testWidgets('통로가 없으면(테스트·iOS) 러닝이 돌아도 오류 없이 지나간다', (tester) async {
+    start(withWatch: false);
+
+    session.set(const RunRunning(metrics));
+    party.set(
+      const PartyBoard().withCombos(
+        const RunCombo([
+          ComboPeer(
+            userId: 'u-1',
+            gapMeters: 10,
+            comboCount: 1,
+            maxComboCount: 1,
+          ),
+        ]),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(tester.takeException(), isNull);
+  });
+}
+
+class _Watch implements WatchChannel {
+  late final _incoming = StreamController<WatchMessage>.broadcast(
+    onListen: () => listens++,
+  );
+  final sent = <(String, Map<String, Object?>)>[];
+  var launches = 0;
+
+  /// 받기를 몇 번 걸었나. 다시 구독하면 오른다.
+  var listens = 0;
+
+  /// 켜기마다 차례로 돌려줄 결과. 비면 [WatchLaunchResult.launched].
+  final launchResults = <WatchLaunchResult>[];
+
+  /// 참이면 다음 보내기 요청 하나에 끝내 답하지 않는다(Play 서비스가 알림을 안 줌).
+  var holdNextSend = false;
+
+  void receive(String event, Map<String, dynamic> data) =>
+      _incoming.add(WatchMessage(event: event, data: data));
+
+  /// 네이티브 받기 등록이 실패했다(`LISTEN_FAILED`).
+  void failListening() => _incoming.addError(Exception('LISTEN_FAILED'));
+
+  List<Map<String, Object?>> get states => [
+    for (final (event, data) in sent)
+      if (event == 'WATCH_STATE_UPDATED') data,
+  ];
+
+  List<Map<String, Object?>> get combos => [
+    for (final (event, data) in sent)
+      if (event == 'WATCH_COMBO_TRIGGERED') data,
+  ];
+
+  @override
+  Stream<WatchMessage> get messages => _incoming.stream;
+
+  @override
+  Future<WatchSendResult> send(String event, Map<String, Object?> data) {
+    // 진짜 통로처럼 JSON으로 바꿔 본다. 못 바꾸는 값이 섞이면 여기서 던진다.
+    jsonEncode(data);
+    sent.add((event, data));
+    if (holdNextSend) {
+      holdNextSend = false;
+      return Completer<WatchSendResult>().future;
+    }
+    return Future.value(WatchSendResult.sent);
+  }
+
+  @override
+  Future<WatchLaunchResult> launchApp() async {
+    launches++;
+    return launchResults.isEmpty
+        ? WatchLaunchResult.launched
+        : launchResults.removeAt(0);
+  }
+}
+
+class _Session extends RunSessionController {
+  @override
+  RunSessionState build() => const RunIdle();
+
+  void set(RunSessionState next) => state = next;
+}
+
+class _Connection extends RunningConnectionController {
+  @override
+  RunningConnectionState build() => const RunningConnectionState();
+
+  RunningConnectionState get current => state;
+
+  void set(RunningConnectionState next) => state = next;
+}
+
+class _Party extends PartyController {
+  @override
+  PartyBoard build() => const PartyBoard();
+
+  PartyBoard get current => state;
+
+  void set(PartyBoard next) => state = next;
+}
