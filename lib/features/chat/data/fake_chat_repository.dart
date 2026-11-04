@@ -21,7 +21,9 @@ class FakeChatRepository implements ChatRepository {
   FakeChatRepository({this.fails = false, DateTime Function()? now})
     : _now = now ?? DateTime.now;
 
-  final bool fails;
+  /// ⚠️ **가변이다.** "실패한 뒤 다시 붙으면 산다"를 한 컨테이너 안에서
+  /// 확인하려면 도중에 바꿀 수 있어야 한다. 제품 경로는 끄고 쓴다.
+  bool fails;
   final DateTime Function() _now;
 
   final _controller = StreamController<ChatMessage>.broadcast();
@@ -42,7 +44,10 @@ class FakeChatRepository implements ChatRepository {
     if (fails) throw const ChatException();
 
     final at = _now();
-    final stamp = at.millisecondsSinceEpoch;
+    // ⚠️ **방 번호가 id에 들어간다.** 시각과 순번만으로 지으면 서로 다른 두
+    // 방이 같은 시계에서 **같은 id**를 받는다 — 방을 옮겨도 전 방의 메시지가
+    // 남아 있는 것처럼 보인다.
+    final stamp = '${seed.runningRoomId}-${at.millisecondsSinceEpoch}';
     final party = seed.partyUserIds;
     final total = _texts.length + 1;
 
