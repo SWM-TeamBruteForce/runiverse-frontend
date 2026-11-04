@@ -109,7 +109,7 @@ class RunSummaryPage extends ConsumerWidget {
           )
         : measured;
 
-    return Scaffold(
+    final page = Scaffold(
       backgroundColor: colors.bgBase,
       body: Stack(
         children: [
@@ -202,6 +202,16 @@ class RunSummaryPage extends ConsumerWidget {
           ),
         ],
       ),
+    );
+
+    return PopScope(
+      // 뒤로가기도 닫기와 같은 길로 나간다. 그냥 pop되면 러닝이 끝난 채로 남아
+      // 워치 결과 화면이 닫히지 않는다.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _leave(ref, context);
+      },
+      child: page,
     );
   }
 
