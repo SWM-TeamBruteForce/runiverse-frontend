@@ -194,7 +194,7 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
   }
 
   /// 워치에 보낼 파티원 사진을 출발 전에 만들어 둔다. 워치는 출발하며 켜지자마자
-  /// 사진을 한 번만 받아 간다.
+  /// SYNC로 사진을 받아 가고, 화면이 켜진 동안에는 다시 묻지 않을 수 있다.
   void _prefetchWatchPhotos() {
     final room = ref.read(matchRoomProvider).room;
     if (room == null) return;

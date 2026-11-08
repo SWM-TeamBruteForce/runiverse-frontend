@@ -23,7 +23,7 @@ import 'package:runiverse/features/session/domain/watch_photo_maker.dart';
 class UiWatchPhotoMaker implements WatchPhotoMaker {
   UiWatchPhotoMaker({Dio? dio}) : _dio = dio ?? Dio(_options);
 
-  /// 워치가 받는 한 변. 워치는 256을 넘으면 버린다(`PlayerPhotos.kt`).
+  /// 워치가 받는 한 변. 정본은 워치 레포 `docs/phone-communication.md`의 `photos`다.
   static const side = 128;
 
   /// `dio`의 기본값은 무제한 대기다. 카운트다운 30초 안에 끝나야 쓸모가 있다.
