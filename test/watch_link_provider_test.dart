@@ -919,6 +919,23 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('미뤄 둔 전송은 워치 화면이 꺼지면 버린다', (tester) async {
+    start();
+    session.set(runningAt(420));
+    watch.holdNextSend = true;
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': true});
+    await tester.pump();
+    final held = watch.states.length;
+
+    session.set(runningAt(421));
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': false});
+    await tester.pump();
+
+    // 붙잡힌 전송이 3초 뒤 실패로 끝나도 화면이 꺼진 워치엔 더 보내지 않는다.
+    await tester.pump(const Duration(seconds: 4));
+    expect(watch.states, hasLength(held));
+  });
+
   testWidgets('통로가 없으면(테스트·iOS) 러닝이 돌아도 오류 없이 지나간다', (tester) async {
     start(withWatch: false);
 
