@@ -161,7 +161,7 @@ class RunSessionController extends Notifier<RunSessionState> {
 
   double _distanceMeters = 0;
 
-  /// 일시정지 이전까지 쌓인 시간.
+  /// 버튼 일시정지 이전까지 쌓인 경과 시간.
   Duration _accumulated = Duration.zero;
 
   /// 현재 구간이 시작된 시각. 일시정지 중에는 `null`이다.
@@ -456,7 +456,7 @@ class RunSessionController extends Notifier<RunSessionState> {
     if (state is! RunRunning) return;
 
     final now = _now();
-    _accumulated = _elapsed(now);
+    _accumulated = _clockElapsed(now);
     _resumedAt = null;
     // 서 있다가 누른 것이면 그 정지를 여기서 끊는다. 열어 두면 버튼으로 멈춘
     // 동안에도 정지가 자라 움직인 시간이 깎인다. 시계와 **같은 시각**으로 끊는다.
@@ -662,7 +662,7 @@ class RunSessionController extends Notifier<RunSessionState> {
     _stoppedUntil = now;
   }
 
-  Duration _elapsed(DateTime now) {
+  Duration _clockElapsed(DateTime now) {
     final resumedAt = _resumedAt;
     if (resumedAt == null) return _accumulated;
     return _accumulated + now.difference(resumedAt);
@@ -683,7 +683,7 @@ class RunSessionController extends Notifier<RunSessionState> {
     // ⚠️ 시각은 한 번만 읽는다. 시계와 정지를 다른 순간에 재면 멈춘 동안
     // 움직인 시간이 미세하게 흔들린다.
     final now = _now();
-    final clock = _elapsed(now);
+    final clock = _clockElapsed(now);
     final elapsed = _moving(clock, now);
     return RunMetrics(
       distanceMeters: _distanceMeters,
