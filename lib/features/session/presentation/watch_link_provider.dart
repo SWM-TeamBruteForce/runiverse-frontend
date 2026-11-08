@@ -10,10 +10,12 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
+import 'package:runiverse/features/session/data/ui_watch_photo_maker.dart';
 import 'package:runiverse/features/session/domain/party_board.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
 import 'package:runiverse/features/session/domain/watch_payload.dart';
+import 'package:runiverse/features/session/domain/watch_photo_maker.dart';
 import 'package:runiverse/features/session/presentation/party_provider.dart';
 import 'package:runiverse/features/session/presentation/run_control_provider.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
@@ -24,6 +26,11 @@ import 'package:runiverse/features/session/presentation/running_connection_provi
 /// 네이티브 쪽이 안드로이드에만 있어 기본은 `null` 이고 `main.dart` 가 안드로이드에서만
 /// 끼운다 — 테스트·iOS에서 받기를 걸면 멈추거나 `MissingPluginException` 이 난다.
 final watchChannelProvider = Provider<WatchChannel?>((ref) => null);
+
+/// 워치에 보낼 파티원 사진을 만든다.
+final watchPhotoMakerProvider = Provider<WatchPhotoMaker>(
+  (ref) => UiWatchPhotoMaker(),
+);
 
 final watchLinkProvider = NotifierProvider<WatchLinkController, void>(
   WatchLinkController.new,
@@ -117,6 +124,17 @@ class WatchLinkController extends Notifier<void> {
   /// 켜기를 "준비 안 됨"으로 끝까지 못 보냈는가. 받기를 다시 걸면 한 번 더 시도한다.
   var _launchGaveUp = false;
 
+  /// 사람 번호 → 워치에 보낼 사진(JPEG base64). 사진 주소가 1시간 뒤 만료돼
+  /// 카운트다운에서 미리 만들어 러닝이 끝날 때까지 둔다.
+  final _photos = <String, String>{};
+
+  /// 사진을 만드는 중인 사람. 같은 사람을 겹쳐 받지 않는다.
+  final _photosInFlight = <String>{};
+
+  /// 사진을 비울 때마다 오른다. 비우기 전에 시작한 받기가 늦게 끝나도 지난 러닝
+  /// 사진을 넣지 않는다.
+  var _photoGeneration = 0;
+
   /// 끝난 러닝의 서버 기록. 폰 요약(S15)과 같은 조회다.
   ProviderSubscription<AsyncValue<RunDetail>>? _detail;
   int? _detailRoomId;
@@ -176,6 +194,8 @@ class WatchLinkController extends Notifier<void> {
       // syncId 가 없으면 돌려줄 수 없다 — 워치는 그 답을 못 읽고 버린다.
       case WatchEvents.watchSync when message.data['syncId'] is String:
         unawaited(_sendSynced(message.data['syncId'] as String));
+        // 이번 답에 못 실은 사람은 다음 SYNCED 부터 실린다.
+        _fetchMissingPhotos();
       case WatchEvents.watchVisibilityUpdate:
         _onVisibility(message.data['isVisible'] == true);
       // requestId 가 없으면 답할 수 없다 — 워치는 3초 뒤 SYNC 로 다시 맞춘다.
@@ -276,6 +296,8 @@ class WatchLinkController extends Notifier<void> {
       // 다시 잡으면 그사이 열린 새 방을 지난 방으로 만든다.
       if (_stage != _Stage.none) {
         _lastRunRoom = ref.read(runningConnectionProvider).room;
+        // 출발 전(카운트다운)에 미리 만든 사진은 지우지 않는다.
+        _clearPhotos();
       }
       _launched = false;
       _launchGaveUp = false;
@@ -376,6 +398,9 @@ class WatchLinkController extends Notifier<void> {
 
   /// 콤보 순간을 알린다. 워치는 화면이 꺼져 있어도 진동한다.
   void _onParty(PartyBoard? previous, PartyBoard next) {
+    // 카운트다운 없이 들어온 러닝(앱을 다시 켜 이어 뜀)은 서버 명단이 올 때 받는다.
+    if (!identical(previous?.roster, next.roster)) _fetchMissingPhotos();
+
     if (previous == null || identical(previous.combos, next.combos)) return;
 
     // 러닝이 끝나 비워진 보드는 끊김이 아니다. 비울 때는 `const PartyBoard()` 를 넣고
@@ -478,8 +503,63 @@ class WatchLinkController extends Notifier<void> {
       _state(),
       syncId: syncId,
       birthday: ref.read(bodyProfileProvider).birthday,
+      board: ref.read(partyProvider),
+      photos: _photos,
     ),
   );
+
+  /// 카운트다운 화면이 부른다. 출발 뒤 첫 SYNCED 에 사진이 실리게 미리 만든다.
+  ///
+  /// [members] 는 방 전원이라 [myUserId] 를 뺀다 — 내 사진은 보내지 않는다.
+  void prefetchPhotos(List<PartyMember> members, {required String myUserId}) {
+    if (_channel == null) return;
+    _clearPhotos();
+    _fetchPhotos([
+      for (final member in members)
+        if (member.userId != myUserId) member,
+    ]);
+  }
+
+  /// 파티원 중 사진이 아직 없는 사람을 받기 시작한다.
+  void _fetchMissingPhotos() => _fetchPhotos([
+    for (final row in ref.read(partyProvider).rows) ?row.member,
+  ]);
+
+  void _fetchPhotos(List<PartyMember> members) {
+    if (_channel == null) return;
+    final maker = ref.read(watchPhotoMakerProvider);
+    final generation = _photoGeneration;
+    for (final member in members) {
+      final url = member.profileImageUrl;
+      if (url == null || url.isEmpty) continue;
+      if (_photos.containsKey(member.userId)) continue;
+      if (!_photosInFlight.add(member.userId)) continue;
+      unawaited(_fetchPhoto(maker, member.userId, url, generation));
+    }
+  }
+
+  /// 못 만들면 그 사람은 빼고 보낸다. 다음 SYNC·명단에서 다시 받는다.
+  Future<void> _fetchPhoto(
+    WatchPhotoMaker maker,
+    String userId,
+    String url,
+    int generation,
+  ) async {
+    try {
+      final jpeg = await maker.jpegBase64(url);
+      if (generation == _photoGeneration) _photos[userId] = jpeg;
+    } on Object catch (error) {
+      debugPrint('[watch] 사진을 만들지 못했다 · $error');
+    } finally {
+      if (generation == _photoGeneration) _photosInFlight.remove(userId);
+    }
+  }
+
+  void _clearPhotos() {
+    _photoGeneration++;
+    _photos.clear();
+    _photosInFlight.clear();
+  }
 
   /// 지금 상태 한 벌. 만들 때마다 [_stateSequence] 를 올린다(SYNCED 포함).
   ///

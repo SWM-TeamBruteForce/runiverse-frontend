@@ -445,12 +445,34 @@ void main() {
       stateOf(const RunIdle()),
       syncId: 'a1',
       birthday: DateTime(1998, 3, 7),
+      board: const PartyBoard(),
+      photos: const {},
     );
 
     expect(synced['phoneInstanceId'], '3f2a9c1e');
     expect(synced['syncId'], 'a1');
     expect(synced['birthday'], '1998-03-07');
     expect(synced['photos'], isEmpty);
+  });
+
+  test('SYNCED 사진은 파티원 중 사진이 있는 사람만 싣는다', () {
+    final board = const PartyBoard().withRoster(const [
+      ...members,
+      PartyMember(userId: 'u-2', nickname: '두부'),
+    ], myUserId: 'me');
+
+    final synced = WatchPayload.synced(
+      stateOf(const RunRunning(metrics), board: board),
+      syncId: 'a1',
+      birthday: null,
+      board: board,
+      // 내 사진이 섞여 와도 싣지 않는다. 두부는 못 만들었다.
+      photos: const {'me': 'mine', 'u-1': '/9j/kong'},
+    );
+
+    expect(synced['photos'], [
+      {'userId': 'u-1', 'jpegBase64': '/9j/kong'},
+    ]);
   });
 
   group('콤보 순간', () {

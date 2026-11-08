@@ -54,17 +54,27 @@ abstract final class WatchPayload {
     ),
   };
 
-  /// `WATCH_SYNCED` 의 data. 상태에 [syncId]·생일·사진을 더한다. 사진은 아직 비운다.
+  /// `WATCH_SYNCED` 의 data. 상태에 [syncId]·생일·사진을 더한다.
+  ///
+  /// [photos] 는 사람 번호 → JPEG base64 다. [board] 의 파티원 중 사진이 있는
+  /// 사람만 싣는다 — 나는 파티원 줄에 없어 빠지고, 못 만든 사람은 워치가 첫 글자로
+  /// 그린다. 워치는 받을 때마다 사진을 통째로 바꾸므로 매번 전부 싣는다.
   static Map<String, Object?> synced(
     Map<String, Object?> state, {
     required String syncId,
     required DateTime? birthday,
+    required PartyBoard board,
+    required Map<String, String> photos,
   }) => {
     ...state,
     'syncId': syncId,
     // 기기에 저장할 때와 같은 모양(`yyyy-MM-dd`)이다.
     'birthday': birthday?.toIso8601String().split('T').first,
-    'photos': const <Object>[],
+    'photos': [
+      for (final row in board.rows)
+        if (photos[row.userId] case final jpeg?)
+          {'userId': row.userId, 'jpegBase64': jpeg},
+    ],
   };
 
   /// 콤보 목록이 [before] 에서 [after] 로 바뀌며 생긴 순간들. 보낼 때 `eventId` 를 붙인다.
