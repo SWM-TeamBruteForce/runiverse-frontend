@@ -221,7 +221,7 @@ void main() {
     // 좌표 시각만 2초씩 간다.
     var recordedAt = clock;
     clock = clock.add(const Duration(minutes: 1));
-    Future<void> late(double meters) async {
+    Future<void> emitLate(double meters) async {
       recordedAt = recordedAt.add(const Duration(seconds: 2));
       location.emit(
         GeoPoint(
@@ -235,16 +235,17 @@ void main() {
     }
 
     for (var i = 1; i <= 8; i++) {
-      await late(60 + 20.0 * i);
+      await emitLate(60 + 20.0 * i);
     }
     for (var i = 1; i <= 16; i++) {
-      await late(300 + (i.isEven ? 2.0 : -2.0));
+      await emitLate(300 + (i.isEven ? 2.0 : -2.0));
     }
     // 둘째 정지가 확정됐는지도 본다 — 서 있는 채로 10초가 더 가도 그대로여야 한다.
     await emit(container, 302, after: const Duration(seconds: 10));
 
-    // 1분 내내 서 있었고 몰려 온 동안은 시간이 안 흘렀다. 움직인 시간은
-    // 처음 섰을 때 그대로여야 한다.
+    // 앞 정지는 빠져나간 좌표를 **받은 시각**에 닫혀, 밀린 1분이 통째로 정지로
+    // 든다. 몰려 온 동안은 시계가 서 있었으니 둘째 정지가 겹쳐 빠지지 않으면
+    // 움직인 시간은 처음 섰을 때 그대로다.
     expect(metricsOf(container).elapsed, stopped);
   });
 
@@ -293,8 +294,13 @@ void main() {
     }
     await stand(container);
 
-    // 서 있는 동안 사용자가 폰 시각을 1분 뒤로 돌렸다.
-    clock = clock.subtract(const Duration(minutes: 1));
+    // 서 있는 동안 사용자가 폰 시각을 40초 뒤로 돌렸다. 정지가 시작된 시각보다
+    // 앞이지만 출발보다는 뒤다 — 출발보다 앞으로 가면 경과 시간부터 음수가 된다.
+    clock = clock.subtract(const Duration(seconds: 40));
+    await emit(container, 60);
+    final standing = metricsOf(container);
+    expect(standing.elapsed, lessThanOrEqualTo(standing.clockElapsed));
+
     for (var i = 1; i <= 8; i++) {
       await emit(container, 60 + 20.0 * i);
     }
