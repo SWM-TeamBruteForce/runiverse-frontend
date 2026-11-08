@@ -64,8 +64,14 @@ class WatchLinkController extends Notifier<void> {
   var _started = false;
   var _visible = false;
 
-  /// 나가 있는 전송 수. 1초 전송은 이게 0일 때만 나간다.
+  /// 나가 있는 전송 수. 1초 전송은 이게 0이 될 때까지 [_queued] 로 미룬다.
   var _inFlight = 0;
+
+  /// 앞 전송이 끝나기를 기다리는 1초 전송이 있는가. 끝나면 최신 상태 하나를 보낸다.
+  var _queued = false;
+
+  /// 마지막으로 보낸 러닝 시간(초). 달리는 중엔 이게 바뀔 때 보낸다.
+  int? _sentSecond;
 
   /// 폰 앱이 켜질 때마다 새 값.
   final _phoneInstanceId = _newId();
@@ -285,6 +291,7 @@ class WatchLinkController extends Notifier<void> {
     _syncDetail();
     _syncStage();
     _syncTicker();
+    _sendOnSecond(session);
   }
 
   void _onConnection(
@@ -431,13 +438,32 @@ class WatchLinkController extends Notifier<void> {
     if (!wanted) {
       _ticker?.cancel();
       _ticker = null;
+      _queued = false;
       return;
     }
     _ticker ??= Timer.periodic(_tick, (_) {
-      // 앞 전송이 안 끝났으면 건너뛰고 다음 초에 최신 하나만 보낸다.
-      if (_inFlight > 0) return;
-      unawaited(_sendState());
+      // 달리는 중엔 [_sendOnSecond] 가 보낸다. 시간이 멈춘 일시정지만 1초마다.
+      if (ref.read(runSessionControllerProvider) is RunRunning) return;
+      _sendLatest();
     });
+  }
+
+  /// 달리는 중엔 폰 화면 시간이 바뀌는 순간 보낸다. 따로 1초 타이머로 읽으면
+  /// 화면이 바뀌기 직전·직후를 오가며 읽어 워치 시간이 2초씩 뛴다.
+  void _sendOnSecond(RunSessionState session) {
+    if (_ticker == null || session is! RunRunning) return;
+    if (session.metrics.clockElapsed.inSeconds == _sentSecond) return;
+    _sendLatest();
+  }
+
+  /// 앞 전송이 안 끝났으면 건너뛰지 않고, 끝나는 대로 최신 하나를 보낸다.
+  /// 건너뛰면 그 초가 빠져 워치 시간이 2초 뛴다.
+  void _sendLatest() {
+    if (_inFlight > 0) {
+      _queued = true;
+      return;
+    }
+    unawaited(_sendState());
   }
 
   Future<void> _sendState() => _send(WatchEvents.watchStateUpdated, _state);
@@ -452,14 +478,21 @@ class WatchLinkController extends Notifier<void> {
   );
 
   /// 지금 상태 한 벌. 만들 때마다 [_stateSequence] 를 올린다(SYNCED 포함).
+  ///
+  /// 어느 길로 나가든 최신 상태라 기다리던 1초 전송도 이것으로 갈음한다.
   Map<String, Object?> _state() {
     final connection = ref.read(runningConnectionProvider);
+    final session = ref.read(runSessionControllerProvider);
+    _queued = false;
+    _sentSecond = session is RunRunning
+        ? session.metrics.clockElapsed.inSeconds
+        : null;
     return WatchPayload.state(
       phoneInstanceId: _phoneInstanceId,
       stateSequence: ++_stateSequence,
       statusVersion: _statusVersion,
       lastRequestId: _lastRequestId,
-      session: ref.read(runSessionControllerProvider),
+      session: session,
       room: _liveRoom(connection) ?? _room,
       board: ref.read(partyProvider),
       isServerConnected: connection.isReady,
@@ -493,6 +526,7 @@ class WatchLinkController extends Notifier<void> {
       debugPrint('[watch] $event 를 보내지 못했다 · $error');
     } finally {
       _inFlight--;
+      if (_queued && _inFlight == 0) unawaited(_sendState());
     }
   }
 

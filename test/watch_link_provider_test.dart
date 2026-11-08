@@ -80,6 +80,14 @@ void main() {
   Map<String, Object?> runOf(Map<String, Object?> state) =>
       state['run']! as Map<String, Object?>;
 
+  Object? secondsOf(Map<String, Object?> state) =>
+      (runOf(state)['me']! as Map<String, Object?>)['elapsedSeconds'];
+
+  /// 러닝 시계가 [seconds] 초를 적은 상태.
+  RunRunning runningAt(int seconds) => RunRunning(
+    RunMetrics(distanceMeters: 1200, elapsed: Duration(seconds: seconds)),
+  );
+
   testWidgets('러닝이 시작되면 워치 앱을 한 번 켜고 상태를 바로 보낸다', (tester) async {
     start();
 
@@ -93,10 +101,11 @@ void main() {
     expect(watch.states.single['statusVersion'], 1);
   });
 
-  testWidgets('워치 화면이 켜져 있을 때만 1초마다 보낸다', (tester) async {
+  testWidgets('워치 화면이 켜져 있을 때만 러닝 시간이 바뀔 때마다 보낸다', (tester) async {
     start();
-    session.set(const RunRunning(metrics));
+    session.set(runningAt(420));
     // 화면이 꺼져 있으면 시작 한 번뿐이다.
+    session.set(runningAt(421));
     await tester.pump(const Duration(seconds: 3));
     expect(watch.states, hasLength(1));
 
@@ -105,19 +114,35 @@ void main() {
     // 켜졌다는 알림을 받으면 바로 한 번 보낸다.
     expect(watch.states, hasLength(2));
 
+    // 달리는 중엔 1초 타이머로 따로 읽지 않는다. 폰 화면 시간이 바뀔 때 보낸다.
     await tester.pump(const Duration(seconds: 3));
+    expect(watch.states, hasLength(2));
+    for (final second in [422, 423, 424]) {
+      session.set(runningAt(second));
+      await tester.pump();
+    }
+    expect(
+      [for (final state in watch.states.skip(2)) secondsOf(state)],
+      [422, 423, 424],
+    );
+
+    // 좌표로 같은 초가 다시 적히면 보내지 않는다.
+    session.set(runningAt(424));
+    await tester.pump();
     expect(watch.states, hasLength(5));
 
     // 15초 동안 알림이 없으면 꺼진 것으로 보고 멈춘다.
     await tester.pump(const Duration(seconds: 15));
-    final stopped = watch.states.length;
-    await tester.pump(const Duration(seconds: 5));
-    expect(watch.states, hasLength(stopped));
+    session.set(runningAt(440));
+    await tester.pump();
+    expect(watch.states, hasLength(5));
   });
 
   testWidgets('화면 신호가 10초마다 오면 1초 전송이 이어진다', (tester) async {
     start();
+    // 달리는 중엔 시간이 바뀔 때 보내 1초 전송은 일시정지로 본다.
     session.set(const RunRunning(metrics));
+    session.set(const RunPaused(metrics));
     watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': true});
     await tester.pump();
     await tester.pump(const Duration(seconds: 10));
@@ -870,22 +895,25 @@ void main() {
     expect(watch.launches, 5);
   });
 
-  testWidgets('답이 안 오는 요청이 있어도 3초 뒤 1초 전송을 이어 간다', (tester) async {
+  testWidgets('앞 전송이 안 끝났으면 그 초를 버리지 않고 끝나는 대로 최신 하나를 보낸다', (tester) async {
     start();
-    session.set(const RunRunning(metrics));
+    session.set(runningAt(420));
     // 화면이 켜졌다는 알림에 답하는 요청이 끝내 답을 못 받는다.
     watch.holdNextSend = true;
     watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': true});
     await tester.pump();
     final held = watch.states.length;
 
-    // 답을 기다리는 동안은 1초 요청을 거른다.
-    await tester.pump(const Duration(seconds: 2));
+    // 답을 기다리는 동안 바뀐 시간은 미뤄 둔다.
+    session.set(runningAt(421));
+    session.set(runningAt(422));
+    await tester.pump(const Duration(seconds: 1));
     expect(watch.states, hasLength(held));
 
-    // 3초가 지나면 실패로 보고 다시 보낸다.
+    // 3초가 지나 실패로 보면 미뤄 둔 것 중 최신 하나만 보낸다.
     await tester.pump(const Duration(seconds: 3));
-    expect(watch.states.length, greaterThan(held));
+    expect(watch.states, hasLength(held + 1));
+    expect(secondsOf(watch.states.last), 422);
 
     watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': false});
     await tester.pump();
