@@ -35,7 +35,8 @@ final watchLinkProvider = NotifierProvider<WatchLinkController, void>(
 /// 앱 루트에서 시작한다. 러닝을 시작하며 워치 앱을 켤 때 받기 등록이 끝나 있어야
 /// 켜자마자 오는 `WATCH_SYNC` 를 받는다.
 class WatchLinkController extends Notifier<void> {
-  /// 워치 화면이 켜진 동안 상태를 보내는 간격.
+  /// 일시정지 중 워치 화면이 켜진 동안 상태를 보내는 간격. 달리는 중엔 러닝 시간이
+  /// 바뀔 때 보낸다.
   static const _tick = Duration(seconds: 1);
 
   /// 이만큼 화면 신호가 없으면 꺼진 것으로 본다. 워치는 켜진 동안 10초마다 알린다.
@@ -53,7 +54,8 @@ class WatchLinkController extends Notifier<void> {
   static const _relistenAfter = Duration(seconds: 5);
 
   /// 보내기 요청에 이만큼 답이 없으면 실패로 본다. 답을 끝내 못 받은 요청을 진행 중으로
-  /// 세어 두면 그 뒤 1초 전송이 앱을 다시 켤 때까지 전부 걸러진다.
+  /// 세어 두면 그 뒤 초마다 보내는 상태가 앱을 다시 켤 때까지 [_queued] 에 묶여
+  /// 나가지 않는다.
   static const _sendTimeout = Duration(seconds: 3);
 
   WatchChannel? _channel;
@@ -64,8 +66,15 @@ class WatchLinkController extends Notifier<void> {
   var _started = false;
   var _visible = false;
 
-  /// 나가 있는 전송 수. 1초 전송은 이게 0일 때만 나간다.
+  /// 나가 있는 전송 수. [_sendLatest] 로 보내는 상태는 이게 0이 될 때까지 [_queued] 로
+  /// 미룬다.
   var _inFlight = 0;
+
+  /// 앞 전송이 끝나기를 기다리는 상태 전송이 있는가. 끝나면 최신 상태 하나를 보낸다.
+  var _queued = false;
+
+  /// 마지막으로 보낸 러닝 시간(초). 달리는 중엔 이게 바뀔 때 보낸다.
+  int? _sentSecond;
 
   /// 폰 앱이 켜질 때마다 새 값.
   final _phoneInstanceId = _newId();
@@ -285,6 +294,7 @@ class WatchLinkController extends Notifier<void> {
     _syncDetail();
     _syncStage();
     _syncTicker();
+    _sendOnSecond(session);
   }
 
   void _onConnection(
@@ -424,20 +434,40 @@ class WatchLinkController extends Notifier<void> {
     };
   }
 
-  /// 워치 화면이 켜져 있고 러닝이 끝나기 전(일시정지 포함)이면 1초 전송을 돌린다.
+  /// 워치 화면이 켜져 있고 러닝이 끝나기 전(일시정지 포함)이면 타이머를 둔다. 1초
+  /// 전송은 일시정지일 때만 하고, 달리는 중엔 [_sendOnSecond] 가 보낸다.
   void _syncTicker() {
     final session = ref.read(runSessionControllerProvider);
     final wanted = _visible && (session is RunRunning || session is RunPaused);
     if (!wanted) {
       _ticker?.cancel();
       _ticker = null;
+      _queued = false;
       return;
     }
     _ticker ??= Timer.periodic(_tick, (_) {
-      // 앞 전송이 안 끝났으면 건너뛰고 다음 초에 최신 하나만 보낸다.
-      if (_inFlight > 0) return;
-      unawaited(_sendState());
+      // 달리는 중엔 [_sendOnSecond] 가 보낸다. 시간이 멈춘 일시정지만 1초마다.
+      if (ref.read(runSessionControllerProvider) is RunRunning) return;
+      _sendLatest();
     });
+  }
+
+  /// 달리는 중엔 폰 화면 시간이 바뀌는 순간 보낸다. 따로 1초 타이머로 읽으면
+  /// 화면이 바뀌기 직전·직후를 오가며 읽어 워치 시간이 2초씩 뛴다.
+  void _sendOnSecond(RunSessionState session) {
+    if (!_visible || session is! RunRunning) return;
+    if (session.metrics.clockElapsed.inSeconds == _sentSecond) return;
+    _sendLatest();
+  }
+
+  /// 앞 전송이 안 끝났으면 건너뛰지 않고, 끝나는 대로 최신 하나를 보낸다.
+  /// 건너뛰면 그 초가 빠져 워치 시간이 2초 뛴다.
+  void _sendLatest() {
+    if (_inFlight > 0) {
+      _queued = true;
+      return;
+    }
+    unawaited(_sendState());
   }
 
   Future<void> _sendState() => _send(WatchEvents.watchStateUpdated, _state);
@@ -452,14 +482,21 @@ class WatchLinkController extends Notifier<void> {
   );
 
   /// 지금 상태 한 벌. 만들 때마다 [_stateSequence] 를 올린다(SYNCED 포함).
+  ///
+  /// 어느 길로 나가든 최신 상태라 [_queued] 로 기다리던 전송도 이것으로 갈음한다.
   Map<String, Object?> _state() {
     final connection = ref.read(runningConnectionProvider);
+    final session = ref.read(runSessionControllerProvider);
+    _queued = false;
+    _sentSecond = session is RunRunning
+        ? session.metrics.clockElapsed.inSeconds
+        : null;
     return WatchPayload.state(
       phoneInstanceId: _phoneInstanceId,
       stateSequence: ++_stateSequence,
       statusVersion: _statusVersion,
       lastRequestId: _lastRequestId,
-      session: ref.read(runSessionControllerProvider),
+      session: session,
       room: _liveRoom(connection) ?? _room,
       board: ref.read(partyProvider),
       isServerConnected: connection.isReady,
@@ -493,6 +530,11 @@ class WatchLinkController extends Notifier<void> {
       debugPrint('[watch] $event 를 보내지 못했다 · $error');
     } finally {
       _inFlight--;
+      if (_queued && _inFlight == 0) {
+        // 먼저 지운다 — 상태를 만들다 던지면 여기로 다시 와 끝없이 되풀이한다.
+        _queued = false;
+        unawaited(_sendState());
+      }
     }
   }
 
