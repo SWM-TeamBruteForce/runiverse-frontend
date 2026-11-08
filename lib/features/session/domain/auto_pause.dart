@@ -144,10 +144,10 @@ class AutoPauseStep {
   /// 멈춰 있는 동안. 세지 않고, 되돌릴 것도 없다.
   const AutoPauseStep.frozen() : this._(counts: false, stopped: true);
 
-  /// 이 좌표까지의 이동을 거리·시간에 세는가.
+  /// 이 좌표까지의 이동을 거리에 세는가.
   final bool counts;
 
-  /// 넣고 난 뒤 멈춘 것으로 보는가. 화면의 시계를 세울지 가른다.
+  /// 넣고 난 뒤 멈춘 것으로 보는가. 움직인 시간에서 정지를 끝낼지 가른다.
   final bool stopped;
 
   /// 지금 거리에서 빼야 할 미터. **멈춤이 확정되는 순간에만** 0보다 크다.

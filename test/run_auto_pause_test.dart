@@ -6,7 +6,7 @@ import 'package:runiverse/features/session/domain/run_metrics.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 
-/// 버튼 없이 멈춘 구간이 **화면에서도 빠지는가** — 1.1.0 가이드 2.3.
+/// 버튼 없이 멈춘 구간이 **거리와 움직인 시간에서도 빠지는가** — 1.1.0 가이드 2.3.
 ///
 /// 판정 자체는 `auto_pause_test.dart`가 본다. 여기서 보는 것은 **세션에
 /// 닿았는가**다 — 거리와 움직인 시간이 안 늘고, 경과 시간은 흐르고, 다시 가면
@@ -35,7 +35,7 @@ void main() {
   Future<void> settle() => Future<void>.delayed(Duration.zero);
 
   /// 북쪽으로 [meters] 간 자리의 좌표를 흘린다. **시계도 함께 간다** —
-  /// 경과 시간이 멈추는지 보려면 벽시계가 흘러야 한다.
+  /// 움직인 시간이 서고 경과 시간은 흐르는지 보려면 벽시계가 흘러야 한다.
   Future<void> emit(
     ProviderContainer container,
     double meters, {
@@ -206,6 +206,103 @@ void main() {
     expect(gap(metricsOf(container)), greaterThan(moving));
   });
 
+  test('⚠️ 좌표가 늦게 몰려 와도 같은 정지를 두 번 빼지 않는다', () async {
+    // 앞 정지가 닫힌 직후 다음 정지가 확정되면, 그 시작점(받은 시각 − 머문
+    // 시간)이 앞 정지 안으로 들어가 같은 시간이 두 번 빠졌다. 그만큼이
+    // 쌓여 남아 **그 뒤 달린 시간도 움직인 시간에 안 잡혔다.**
+    final container = await running();
+    for (var i = 1; i <= 10; i++) {
+      await emit(container, 6.0 * i);
+    }
+    await stand(container);
+    final stopped = metricsOf(container).elapsed;
+
+    // 위치 콜백이 1분 밀렸다가 한꺼번에 들어온다. 받는 동안 시계는 서 있고
+    // 좌표 시각만 2초씩 간다.
+    var recordedAt = clock;
+    clock = clock.add(const Duration(minutes: 1));
+    Future<void> late(double meters) async {
+      recordedAt = recordedAt.add(const Duration(seconds: 2));
+      location.emit(
+        GeoPoint(
+          latitude: 37.4979 + meters / 111320,
+          longitude: 127.0276,
+          recordedAt: recordedAt,
+          accuracy: 5,
+        ),
+      );
+      await settle();
+    }
+
+    for (var i = 1; i <= 8; i++) {
+      await late(60 + 20.0 * i);
+    }
+    for (var i = 1; i <= 16; i++) {
+      await late(300 + (i.isEven ? 2.0 : -2.0));
+    }
+    // 둘째 정지가 확정됐는지도 본다 — 서 있는 채로 10초가 더 가도 그대로여야 한다.
+    await emit(container, 302, after: const Duration(seconds: 10));
+
+    // 1분 내내 서 있었고 몰려 온 동안은 시간이 안 흘렀다. 움직인 시간은
+    // 처음 섰을 때 그대로여야 한다.
+    expect(metricsOf(container).elapsed, stopped);
+  });
+
+  test('재개 직전에 찍힌 좌표로 멈춰도 재개 전 시간은 빼지 않는다', () async {
+    // 재개 전 시간은 이미 버튼 일시정지로 빠져 있다. 기준점 좌표가 재개보다
+    // 앞서 찍혔다고 그만큼을 또 빼면 앞 구간의 움직인 시간이 깎인다.
+    //
+    // ⚠️ **먼저 서서 필터의 속도를 죽인다.** 달리던 채로 멈추면 필터가 그 속도로
+    // 앞으로 기어가, 재개 전 기준점이 곧 새 기준점으로 바뀌어 이 갈래에 닿지 않는다.
+    final container = await running();
+    for (var i = 1; i <= 10; i++) {
+      await emit(container, 6.0 * i);
+    }
+    await stand(container);
+    final session = container.read(runSessionControllerProvider.notifier);
+    session.pause();
+    clock = clock.add(const Duration(seconds: 30));
+    session.resume();
+    final resumedAt = clock;
+    final before = metricsOf(container);
+
+    // 재개 5초 전에 찍힌 좌표가 재개 뒤에 도착한다.
+    location.emit(
+      GeoPoint(
+        latitude: 37.4979 + 60 / 111320,
+        longitude: 127.0276,
+        recordedAt: resumedAt.subtract(const Duration(seconds: 5)),
+        accuracy: 5,
+      ),
+    );
+    await settle();
+    await stand(container);
+
+    final after = metricsOf(container);
+    final added =
+        (after.clockElapsed - after.elapsed) -
+        (before.clockElapsed - before.elapsed);
+    expect(added, greaterThan(Duration.zero), reason: '정지가 확정돼야 한다');
+    expect(added, lessThanOrEqualTo(clock.difference(resumedAt)));
+  });
+
+  test('폰 시각이 뒤로 가도 움직인 시간이 경과 시간을 넘지 않는다', () async {
+    final container = await running();
+    for (var i = 1; i <= 10; i++) {
+      await emit(container, 6.0 * i);
+    }
+    await stand(container);
+
+    // 서 있는 동안 사용자가 폰 시각을 1분 뒤로 돌렸다.
+    clock = clock.subtract(const Duration(minutes: 1));
+    for (var i = 1; i <= 8; i++) {
+      await emit(container, 60 + 20.0 * i);
+    }
+
+    final metrics = metricsOf(container);
+    expect(metrics.elapsed, lessThanOrEqualTo(metrics.clockElapsed));
+  });
+
   test('⚠️ 상태는 달리는 중으로 남는다', () async {
     // [RunPaused]로 바꾸면 **버튼이 제멋대로 재개로 바뀌고**, 연결이
     // `RUNNING_PAUSE`를 보낸다 — 가이드가 금지한 바로 그것이다.
@@ -218,7 +315,7 @@ void main() {
     expect(container.read(runSessionControllerProvider), isA<RunRunning>());
   });
 
-  test('⚠️ 다시 걸으면 거리와 시계가 함께 풀린다', () async {
+  test('⚠️ 다시 걸으면 거리와 움직인 시간이 함께 풀린다', () async {
     final container = await running();
     for (var i = 1; i <= 10; i++) {
       await emit(container, 6.0 * i);

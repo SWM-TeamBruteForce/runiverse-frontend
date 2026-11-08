@@ -176,6 +176,9 @@ class RunSessionController extends Notifier<RunSessionState> {
   /// 좌표의 시각과 수신 지연만큼 다를 수 있다. 예전에 시계를 되돌리던 것과 같은 근사다.
   DateTime? _stoppedSince;
 
+  /// 마지막으로 접은 정지가 끝난 시각. 다음 정지가 이보다 앞서 시작하지 않게 막는다.
+  DateTime? _stoppedUntil;
+
   /// 버튼 없이 멈춘 구간을 가려내는 것 — 가이드 2.3.
   final _autoPause = AutoPause();
 
@@ -537,7 +540,7 @@ class RunSessionController extends Notifier<RunSessionState> {
 
       case RunRunning():
         // ⚠️ **버튼 없이 멈춰 있는가**(가이드 2.3). 좌표는 그대로 쌓고
-        // 보내되, 화면의 거리·시간만 멈춘다.
+        // 보내되, 거리와 움직인 시간만 멈춘다 — 경과 시간은 흐른다.
         final step = _autoPause.add(point);
         _applyAutoPause(step);
 
@@ -631,15 +634,18 @@ class RunSessionController extends Notifier<RunSessionState> {
     }
     if (step.rollbackElapsed > Duration.zero) {
       // 멈춤 확정. 기준점부터 멈춘 것으로 친다 — 가이드가 "기준점부터 inside까지
-      // 이미 누적한 시간도 제외"라고 적은 그것이다.
+      // 이미 누적한 시간·거리도 제외"라고 적은 것의 시간 쪽이다.
       final since = _now().subtract(step.rollbackElapsed);
-      final resumedAt = _resumedAt;
-      // 이번 구간이 시작된 시각 앞으로는 가지 않는다. 기준점은 재개 뒤 좌표라
-      // 그보다 앞서는 건 좌표 시각과 수신 시각의 차이뿐이고, 그만큼을 빼면
-      // 앞 구간의 움직인 시간이 깎인다.
-      _stoppedSince = resumedAt != null && since.isBefore(resumedAt)
-          ? resumedAt
-          : since;
+      // 이번 구간이 시작된 시각과 앞 정지가 끝난 시각 중 **늦은 쪽** 앞으로는
+      // 가지 않는다. 그보다 앞서는 건 좌표 시각과 수신 시각의 차이뿐이다 —
+      // 좌표가 늦게 몰려 오면 커진다. 그만큼을 빼면 버튼으로 멈춘 시간이나
+      // 이미 뺀 정지를 **또 뺀다.**
+      var floor = _resumedAt;
+      final until = _stoppedUntil;
+      if (until != null && (floor == null || until.isAfter(floor))) {
+        floor = until;
+      }
+      _stoppedSince = floor != null && since.isBefore(floor) ? floor : since;
       return;
     }
     // 다시 간다. 멈춘 동안을 움직인 시간에서 뺀 것으로 접는다.
@@ -650,8 +656,10 @@ class RunSessionController extends Notifier<RunSessionState> {
   void _closeStop(DateTime now) {
     final since = _stoppedSince;
     if (since == null) return;
-    _stoppedTotal += now.difference(since);
+    // ⚠️ 폰 시각이 뒤로 갔으면 음수다. 그대로 더하면 움직인 시간이 경과 시간을 넘는다.
+    if (now.isAfter(since)) _stoppedTotal += now.difference(since);
     _stoppedSince = null;
+    _stoppedUntil = now;
   }
 
   Duration _elapsed(DateTime now) {
@@ -663,8 +671,10 @@ class RunSessionController extends Notifier<RunSessionState> {
   /// 움직인 시간 — [clock]에서 버튼 없이 멈춘 구간을 뺀다.
   Duration _moving(Duration clock, DateTime now) {
     final since = _stoppedSince;
-    final stopped =
-        _stoppedTotal + (since == null ? Duration.zero : now.difference(since));
+    final ongoing = since == null || !now.isAfter(since)
+        ? Duration.zero
+        : now.difference(since);
+    final stopped = _stoppedTotal + ongoing;
     final moving = clock - stopped;
     return moving.isNegative ? Duration.zero : moving;
   }
@@ -720,6 +730,7 @@ class RunSessionController extends Notifier<RunSessionState> {
     _resumedAt = null;
     _stoppedTotal = Duration.zero;
     _stoppedSince = null;
+    _stoppedUntil = null;
     _startedAt = null;
   }
 
