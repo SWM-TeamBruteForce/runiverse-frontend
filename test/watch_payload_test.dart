@@ -88,6 +88,23 @@ void main() {
     expect(run['result'], isNull);
   });
 
+  test('⚠️ 러닝 중 시간은 경과 시간, 결과는 움직인 시간', () {
+    // 서 있던 시간이 둘을 가른다. 같은 값으로 시험하면 바뀐 쪽을 못 잡는다.
+    const split = RunMetrics(
+      distanceMeters: 3421.9,
+      elapsed: Duration(seconds: 20),
+      clockElapsed: Duration(seconds: 50),
+    );
+
+    final running = runOf(stateOf(const RunRunning(split)));
+    expect((running['me']! as Map)['elapsedSeconds'], 50);
+
+    final finished = runOf(
+      stateOf(RunFinished(metrics: split, startedAt: now, endedAt: now)),
+    );
+    expect((finished['result']! as Map)['elapsedSeconds'], 20);
+  });
+
   test('파티원은 나를 빼고 색 번호·격차·콤보를 싣는다', () {
     final board = const PartyBoard()
         .withRoster(members, myUserId: 'me')

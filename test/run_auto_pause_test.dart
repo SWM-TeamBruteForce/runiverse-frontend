@@ -9,7 +9,8 @@ import 'package:runiverse/features/session/presentation/run_session_provider.dar
 /// 버튼 없이 멈춘 구간이 **화면에서도 빠지는가** — 1.1.0 가이드 2.3.
 ///
 /// 판정 자체는 `auto_pause_test.dart`가 본다. 여기서 보는 것은 **세션에
-/// 닿았는가**다 — 거리가 안 늘고, 시계가 서고, 다시 가면 둘 다 풀리는가.
+/// 닿았는가**다 — 거리와 움직인 시간이 안 늘고, 경과 시간은 흐르고, 다시 가면
+/// 둘 다 풀리는가.
 ///
 /// ## ⚠️ 상태는 [RunRunning]에 남는다
 ///
@@ -112,19 +113,97 @@ void main() {
     expect(metricsOf(container).distanceMeters, frozen);
   });
 
-  test('⚠️ 서 있으면 시계도 선다', () async {
+  test('⚠️ 서 있으면 움직인 시간은 서고 경과 시간은 흐른다', () async {
     final container = await running();
     for (var i = 1; i <= 10; i++) {
       await emit(container, 6.0 * i);
     }
 
     await stand(container);
-    final frozen = metricsOf(container).elapsed;
+    final stopped = metricsOf(container);
 
-    // 그 자리에서 더 선다. 시계가 서 있어야 한다.
+    // 그 자리에서 더 선다. 좌표마다 2초씩, 20초다.
     await stand(container, count: 10);
 
-    expect(metricsOf(container).elapsed, frozen, reason: '시계가 서 있어야 한다');
+    final later = metricsOf(container);
+    expect(later.elapsed, stopped.elapsed, reason: '움직인 시간은 서 있어야 한다');
+    expect(
+      later.clockElapsed - stopped.clockElapsed,
+      const Duration(seconds: 20),
+      reason: '경과 시간은 버튼으로만 선다',
+    );
+  });
+
+  test('⚠️ 멈춤이 확정돼도 경과 시간은 되돌아가지 않는다', () async {
+    // 확정이 10초 넘게 늦어, 시계를 기준점으로 되돌리면 18초에서 2초로
+    // 거꾸로 갔다. 워치도 이 값을 그대로 그린다.
+    final container = await running();
+    for (var i = 1; i <= 10; i++) {
+      await emit(container, 6.0 * i);
+    }
+
+    var previous = metricsOf(container).clockElapsed;
+    for (var i = 1; i <= 16; i++) {
+      await emit(container, 60 + (i.isEven ? 2.0 : -2.0));
+      final current = metricsOf(container).clockElapsed;
+      expect(current, greaterThan(previous), reason: '$i번째 좌표에서 거꾸로 갔다');
+      previous = current;
+    }
+
+    // 확정은 됐어야 한다 — 안 되면 위 검사가 아무것도 안 본 것이다.
+    final metrics = metricsOf(container);
+    expect(metrics.elapsed, lessThan(metrics.clockElapsed));
+  });
+
+  test('⚠️ 서 있다가 버튼으로 멈추면 그 정지는 거기서 끝난다', () async {
+    // 안 끊으면 버튼으로 멈춘 동안에도 정지가 자라, 움직인 시간이 깎인다.
+    // [RunPaused]는 멈춘 순간의 값을 들고 있으므로 **다시 계산하는 종료로** 본다.
+    final container = await running();
+    for (var i = 1; i <= 10; i++) {
+      await emit(container, 6.0 * i);
+    }
+    await stand(container);
+
+    final session = container.read(runSessionControllerProvider.notifier);
+    session.pause();
+    final paused = metricsOf(container);
+
+    clock = clock.add(const Duration(seconds: 30));
+    session.finish();
+
+    final finished = container.read(runSessionControllerProvider);
+    expect(finished, isA<RunFinished>());
+    final metrics = (finished as RunFinished).metrics;
+    expect(metrics.elapsed, paused.elapsed);
+    expect(metrics.clockElapsed, paused.clockElapsed);
+  });
+
+  test('두 번 서면 두 번 다 움직인 시간에서 빠진다', () async {
+    Duration gap(RunMetrics metrics) => metrics.clockElapsed - metrics.elapsed;
+
+    final container = await running();
+    for (var i = 1; i <= 10; i++) {
+      await emit(container, 6.0 * i);
+    }
+    await stand(container);
+    final first = gap(metricsOf(container));
+    expect(first, greaterThan(Duration.zero), reason: '첫 정지가 확정돼야 한다');
+
+    // 반경을 벗어나 달린다. 달리는 동안은 더 빠지지 않는다.
+    for (var i = 1; i <= 8; i++) {
+      await emit(container, 60 + 20.0 * i);
+    }
+    final moving = gap(metricsOf(container));
+    for (var i = 9; i <= 12; i++) {
+      await emit(container, 60 + 20.0 * i);
+    }
+    expect(gap(metricsOf(container)), moving, reason: '달리는 동안 빠졌다');
+
+    // 다른 자리에서 또 선다.
+    for (var i = 1; i <= 16; i++) {
+      await emit(container, 300 + (i.isEven ? 2.0 : -2.0));
+    }
+    expect(gap(metricsOf(container)), greaterThan(moving));
   });
 
   test('⚠️ 상태는 달리는 중으로 남는다', () async {
