@@ -140,7 +140,7 @@ abstract final class WatchPayload {
       'isPenaltyApplicable': target != null && (room?.canPenalize ?? true),
       'me': {
         'distanceMeters': distance,
-        'elapsedSeconds': metrics.elapsed.inSeconds,
+        'elapsedSeconds': metrics.clockElapsed.inSeconds,
         'currentPaceSecondsPerKm': metrics.currentPace?.inSeconds,
         'caloriesKcal': metrics.calories,
         'cadenceSpm': metrics.cadenceSpm,

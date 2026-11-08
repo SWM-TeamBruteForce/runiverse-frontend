@@ -82,7 +82,11 @@ final runSessionControllerProvider =
 ///
 /// 신호 대기처럼 **누르지 않고 멈춘 경우**다([AutoPause], 가이드 2.3). 그때는
 /// 좌표 수집·전송을 그대로 이어 가고 — 서버가 좌표를 봐야 정지 구간을
-/// 판정한다 — **화면의 시간·거리만** 같은 기준으로 멈춘다.
+/// 판정한다 — **거리와 움직인 시간([RunMetrics.elapsed])만** 같은 기준으로 멈춘다.
+///
+/// ⚠️ **경과 시간([RunMetrics.clockElapsed])은 멈추지 않는다.** 멈춤은 10초 넘게
+/// 서 있어야 확정되는데, 그때 시계를 기준점으로 되돌리면 러닝 화면과 워치의
+/// 시간이 18초에서 2초로 거꾸로 간다. 시계는 버튼으로만 선다.
 ///
 /// 상태는 [RunRunning]에 그대로 둔다. 사용자가 누른 것이 아니라 [RunPaused]로
 /// 바꾸면 **일시정지 버튼이 제멋대로 재개 버튼이 된다.**
@@ -157,11 +161,23 @@ class RunSessionController extends Notifier<RunSessionState> {
 
   double _distanceMeters = 0;
 
-  /// 일시정지 이전까지 쌓인 시간.
+  /// 버튼 일시정지 이전까지 쌓인 경과 시간.
   Duration _accumulated = Duration.zero;
 
   /// 현재 구간이 시작된 시각. 일시정지 중에는 `null`이다.
   DateTime? _resumedAt;
+
+  /// 버튼 없이 멈춰 움직인 시간에서 뺀 시간. **끝난 정지만** 든다.
+  Duration _stoppedTotal = Duration.zero;
+
+  /// 지금 버튼 없이 멈춰 있으면, 멈춘 것으로 치기 시작한 시각. 아니면 `null`이다.
+  ///
+  /// 확정 좌표를 받은 시각에서 좌표 시각으로 잰 머문 시간을 뺀 값이라, 기준점
+  /// 좌표의 시각과 수신 지연만큼 다를 수 있다. 예전에 시계를 되돌리던 것과 같은 근사다.
+  DateTime? _stoppedSince;
+
+  /// 마지막으로 접은 정지가 끝난 시각. 다음 정지가 이보다 앞서 시작하지 않게 막는다.
+  DateTime? _stoppedUntil;
 
   /// 버튼 없이 멈춘 구간을 가려내는 것 — 가이드 2.3.
   final _autoPause = AutoPause();
@@ -439,8 +455,12 @@ class RunSessionController extends Notifier<RunSessionState> {
   void pause() {
     if (state is! RunRunning) return;
 
-    _accumulated = _elapsed();
+    final now = _now();
+    _accumulated = _clockElapsed(now);
     _resumedAt = null;
+    // 서 있다가 누른 것이면 그 정지를 여기서 끊는다. 열어 두면 버튼으로 멈춘
+    // 동안에도 정지가 자라 움직인 시간이 깎인다. 시계와 **같은 시각**으로 끊는다.
+    _closeStop(now);
     _stopTicker();
 
     // ⚠️ **여기서 접지 않는다.** [track]이 이미 [_points]를 마지막 구간으로
@@ -520,7 +540,7 @@ class RunSessionController extends Notifier<RunSessionState> {
 
       case RunRunning():
         // ⚠️ **버튼 없이 멈춰 있는가**(가이드 2.3). 좌표는 그대로 쌓고
-        // 보내되, 화면의 거리·시간만 멈춘다.
+        // 보내되, 거리와 움직인 시간만 멈춘다 — 경과 시간은 흐른다.
         final step = _autoPause.add(point);
         _applyAutoPause(step);
 
@@ -595,12 +615,12 @@ class RunSessionController extends Notifier<RunSessionState> {
     _ticker = null;
   }
 
-  /// [AutoPause]가 말한 대로 화면의 시계와 거리를 맞춘다.
+  /// [AutoPause]가 말한 대로 거리와 움직인 시간을 맞춘다.
   ///
-  /// ## ⚠️ 시계를 멈추는 방법이 버튼과 같다
+  /// ## ⚠️ 시계([_resumedAt])는 건드리지 않는다
   ///
-  /// [_resumedAt]을 지우면 [_elapsed]가 [_accumulated]에서 멈춘다. 버튼
-  /// 일시정지가 쓰는 길 그대로다 — 다만 **상태는 [RunRunning]에 둔다.**
+  /// 멈춘 구간은 [_stoppedSince]·[_stoppedTotal]로 따로 세어 움직인 시간에서만
+  /// 뺀다. 시계를 세우면 확정 순간에 경과 시간이 거꾸로 간다.
   ///
   /// ⚠️ **버튼으로 멈춰 있는 동안에는 여기 오지 않는다.** 그때는 좌표가
   /// [RunPaused] 가지에서 버려진다.
@@ -613,36 +633,62 @@ class RunSessionController extends Notifier<RunSessionState> {
       );
     }
     if (step.rollbackElapsed > Duration.zero) {
-      final rolled = _elapsed() - step.rollbackElapsed;
-      _accumulated = rolled.isNegative ? Duration.zero : rolled;
-      _resumedAt = null;
-      return;
-    }
-
-    if (step.stopped) {
-      // 아직 멈춰 있다. 시계가 가고 있으면 세운다.
-      if (_resumedAt != null) {
-        _accumulated = _elapsed();
-        _resumedAt = null;
+      // 멈춤 확정. 기준점부터 멈춘 것으로 친다 — 가이드가 "기준점부터 inside까지
+      // 이미 누적한 시간·거리도 제외"라고 적은 것의 시간 쪽이다.
+      final since = _now().subtract(step.rollbackElapsed);
+      // 이번 구간이 시작된 시각과 앞 정지가 끝난 시각 중 **늦은 쪽** 앞으로는
+      // 가지 않는다. 그보다 앞서는 건 좌표 시각과 수신 시각의 차이뿐이다 —
+      // 좌표가 늦게 몰려 오면 커진다. 그만큼을 빼면 버튼으로 멈춘 시간이나
+      // 이미 뺀 정지를 **또 뺀다.**
+      var floor = _resumedAt;
+      final until = _stoppedUntil;
+      if (until != null && (floor == null || until.isAfter(floor))) {
+        floor = until;
       }
+      _stoppedSince = floor != null && since.isBefore(floor) ? floor : since;
       return;
     }
-
-    // 다시 간다. 세워 둔 시계를 다시 건다.
-    _resumedAt ??= _now();
+    // 다시 간다. 멈춘 동안을 움직인 시간에서 뺀 것으로 접는다.
+    if (!step.stopped) _closeStop(_now());
   }
 
-  Duration _elapsed() {
+  /// 진행 중인 정지를 [_stoppedTotal]에 접는다. 멈춰 있지 않으면 아무것도 안 한다.
+  void _closeStop(DateTime now) {
+    final since = _stoppedSince;
+    if (since == null) return;
+    // ⚠️ 폰 시각이 뒤로 갔으면 음수다. 그대로 더하면 움직인 시간이 경과 시간을 넘는다.
+    if (now.isAfter(since)) _stoppedTotal += now.difference(since);
+    _stoppedSince = null;
+    _stoppedUntil = now;
+  }
+
+  Duration _clockElapsed(DateTime now) {
     final resumedAt = _resumedAt;
     if (resumedAt == null) return _accumulated;
-    return _accumulated + _now().difference(resumedAt);
+    return _accumulated + now.difference(resumedAt);
+  }
+
+  /// 움직인 시간 — [clock]에서 버튼 없이 멈춘 구간을 뺀다.
+  Duration _moving(Duration clock, DateTime now) {
+    final since = _stoppedSince;
+    final ongoing = since == null || !now.isAfter(since)
+        ? Duration.zero
+        : now.difference(since);
+    final stopped = _stoppedTotal + ongoing;
+    final moving = clock - stopped;
+    return moving.isNegative ? Duration.zero : moving;
   }
 
   RunMetrics _metrics() {
-    final elapsed = _elapsed();
+    // ⚠️ 시각은 한 번만 읽는다. 시계와 정지를 다른 순간에 재면 멈춘 동안
+    // 움직인 시간이 미세하게 흔들린다.
+    final now = _now();
+    final clock = _clockElapsed(now);
+    final elapsed = _moving(clock, now);
     return RunMetrics(
       distanceMeters: _distanceMeters,
       elapsed: elapsed,
+      clockElapsed: clock,
       currentPace: PaceCalculator.recent(_points),
       // ⚠️ **화면 표시용이다.** 서버가 종료 시 확정하는 칼로리와 다를 수 있다.
       // 몸무게를 모르면 `null`이고, 화면은 그것을 `--`로 그린다.
@@ -682,6 +728,9 @@ class RunSessionController extends Notifier<RunSessionState> {
     _pendingStartedAt = null;
     _accumulated = Duration.zero;
     _resumedAt = null;
+    _stoppedTotal = Duration.zero;
+    _stoppedSince = null;
+    _stoppedUntil = null;
     _startedAt = null;
   }
 

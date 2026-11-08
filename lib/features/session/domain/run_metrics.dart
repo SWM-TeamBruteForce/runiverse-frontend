@@ -8,10 +8,11 @@ class RunMetrics {
   const RunMetrics({
     required this.distanceMeters,
     required this.elapsed,
+    Duration? clockElapsed,
     this.currentPace,
     this.calories,
     this.cadenceSpm,
-  });
+  }) : clockElapsed = clockElapsed ?? elapsed;
 
   /// 시작 직후. 아무것도 쌓이지 않은 상태다.
   static const zero = RunMetrics(distanceMeters: 0, elapsed: Duration.zero);
@@ -21,8 +22,16 @@ class RunMetrics {
   /// 미터로 든다. km 소수로 들면 반올림 지점이 화면과 서버에서 갈린다.
   final double distanceMeters;
 
-  /// 일시정지를 **뺀** 러닝 시간.
+  /// 움직인 시간 — 일시정지와 **버튼 없이 멈춘 구간**을 뺀다(가이드 2.3).
+  ///
+  /// 서버 `totalDurationSeconds`와 같은 기준이다. 요약·평균 페이스·칼로리가 이걸 쓴다.
   final Duration elapsed;
+
+  /// 경과 시간 — **버튼 일시정지만** 뺀 시계. 러닝 화면과 워치가 보여 준다.
+  ///
+  /// ⚠️ 버튼 없이 멈춘 구간을 여기서 빼지 않는다. 멈춤은 10초 넘게 서 있어야
+  /// 확정돼서, 빼면 확정 순간에 시간이 거꾸로 간다. 안 주면 [elapsed]와 같다.
+  final Duration clockElapsed;
 
   /// 최근 구간의 페이스. 아직 낼 수 없으면 `null`이다.
   final Duration? currentPace;
@@ -48,6 +57,7 @@ class RunMetrics {
   RunMetrics copyWith({
     double? distanceMeters,
     Duration? elapsed,
+    Duration? clockElapsed,
     Duration? currentPace,
     int? calories,
     int? cadenceSpm,
@@ -55,6 +65,7 @@ class RunMetrics {
     return RunMetrics(
       distanceMeters: distanceMeters ?? this.distanceMeters,
       elapsed: elapsed ?? this.elapsed,
+      clockElapsed: clockElapsed ?? this.clockElapsed,
       // null로 되돌리는 경우가 없어 ?? 로 충분하다.
       currentPace: currentPace ?? this.currentPace,
       calories: calories ?? this.calories,

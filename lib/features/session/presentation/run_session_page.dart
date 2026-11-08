@@ -678,7 +678,7 @@ class _MetricsPage extends StatelessWidget {
               Expanded(
                 child: _Metric(
                   label: AppStrings.runElapsedLabel,
-                  value: _elapsedText(metrics.elapsed),
+                  value: _elapsedText(metrics.clockElapsed),
                 ),
               ),
               const SizedBox(width: AppSpacing.space3),
