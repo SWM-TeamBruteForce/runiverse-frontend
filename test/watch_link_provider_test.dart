@@ -18,6 +18,7 @@ import 'package:runiverse/features/session/domain/run_metrics.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/running_room.dart';
+import 'package:runiverse/features/session/domain/watch_photo_maker.dart';
 import 'package:runiverse/features/session/presentation/party_provider.dart';
 import 'package:runiverse/features/session/presentation/run_control_provider.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
@@ -41,6 +42,7 @@ void main() {
   late _Connection connection;
   late _Party party;
   late _Auth auth;
+  late _Photos photos;
 
   /// 세션·연결을 부른 순서.
   late List<String> calls;
@@ -50,11 +52,13 @@ void main() {
 
   ProviderContainer start({bool withWatch = true, BodyProfileStore? body}) {
     watch = _Watch();
+    photos = _Photos();
     details = {};
     calls = [];
     final container = ProviderContainer.test(
       overrides: [
         watchChannelProvider.overrideWithValue(withWatch ? watch : null),
+        watchPhotoMakerProvider.overrideWithValue(photos),
         runSessionControllerProvider.overrideWith(() => _Session(calls)),
         runningConnectionProvider.overrideWith(() => _Connection(calls)),
         partyProvider.overrideWith(_Party.new),
@@ -606,6 +610,125 @@ void main() {
     await tester.pump();
 
     expect(watch.sent.single.$2['birthday'], '1998-03-07');
+  });
+
+  group('파티원 사진', () {
+    const kong = 'https://s3/kong.jpg?X-Amz-Signature=1';
+    const roster = [
+      PartyMember(
+        userId: 'me',
+        nickname: '나',
+        profileImageUrl: 'https://s3/me.jpg',
+      ),
+      PartyMember(userId: 'u-1', nickname: '콩나물', profileImageUrl: kong),
+      // 사진을 올린 적이 없다.
+      PartyMember(userId: 'u-2', nickname: '두부'),
+    ];
+    final board = const PartyBoard().withRoster(roster, myUserId: 'me');
+
+    Future<List<Object?>> syncedPhotos(
+      WidgetTester tester,
+      String syncId,
+    ) async {
+      watch.receive('WATCH_SYNC', {'syncId': syncId});
+      await tester.pump();
+      final (event, data) = watch.sent.last;
+      expect(event, 'WATCH_SYNCED');
+      return data['photos']! as List<Object?>;
+    }
+
+    testWidgets('카운트다운에서 미리 만든 사진을 싣고 내 사진은 안 만든다', (tester) async {
+      final container = start();
+      container
+          .read(watchLinkProvider.notifier)
+          .prefetchPhotos(roster, myUserId: 'me');
+      await tester.pump();
+      // 명단이 들어오기 전에 받았다.
+      expect(photos.asked, [kong]);
+      party.set(board);
+      session.set(const RunRunning(metrics));
+
+      final photo = {'userId': 'u-1', 'jpegBase64': 'jpeg:$kong'};
+      expect(await syncedPhotos(tester, 's-1'), [photo]);
+      // 워치는 SYNCED 마다 사진을 통째로 바꾼다. 다음 답에도 다 실어야 한다.
+      expect(await syncedPhotos(tester, 's-2'), [photo]);
+      // 명단이 들어와도 만든 사람은 다시 받지 않는다.
+      expect(photos.asked, [kong]);
+    });
+
+    testWidgets('카운트다운 없이 이어 뛰면 명단이 올 때 만든다', (tester) async {
+      start();
+      session.set(const RunRunning(metrics));
+      party.set(board);
+      await tester.pump();
+
+      expect(await syncedPhotos(tester, 's-1'), [
+        {'userId': 'u-1', 'jpegBase64': 'jpeg:$kong'},
+      ]);
+    });
+
+    testWidgets('못 만든 사람은 빼고 보내고 다음 SYNCED 부터 싣는다', (tester) async {
+      start();
+      photos.failing.add(kong);
+      session.set(const RunRunning(metrics));
+      party.set(board);
+      await tester.pump();
+
+      expect(await syncedPhotos(tester, 's-1'), isEmpty);
+      expect(await syncedPhotos(tester, 's-2'), [
+        {'userId': 'u-1', 'jpegBase64': 'jpeg:$kong'},
+      ]);
+    });
+
+    testWidgets('러닝을 마치고 돌아오면 사진을 비운다', (tester) async {
+      start();
+      session.set(const RunRunning(metrics));
+      party.set(board);
+      await tester.pump();
+
+      session.set(const RunIdle());
+      party.set(const PartyBoard());
+      await tester.pump();
+
+      expect(await syncedPhotos(tester, 's-1'), isEmpty);
+      // 다음 러닝은 새 주소로 다시 만든다.
+      party.set(board);
+      await tester.pump();
+      expect(photos.asked, [kong, kong]);
+    });
+
+    testWidgets('비운 뒤에 끝난 지난 러닝의 받기는 담지 않는다', (tester) async {
+      start();
+      photos.holding.add(kong);
+      session.set(const RunRunning(metrics));
+      party.set(board);
+      await tester.pump();
+
+      session.set(const RunIdle());
+      party.set(const PartyBoard());
+      await tester.pump();
+      photos.held[kong]!.complete('jpeg:지난 러닝');
+      await tester.pump();
+
+      // 다음 러닝 명단이 오면 다시 받는다 — 지난 받기가 자리를 차지하지 않는다.
+      party.set(board);
+      await tester.pump();
+      expect(await syncedPhotos(tester, 's-1'), [
+        {'userId': 'u-1', 'jpegBase64': 'jpeg:$kong'},
+      ]);
+      expect(photos.asked, [kong, kong]);
+    });
+
+    testWidgets('통로가 없으면(테스트·iOS) 사진을 만들지 않는다', (tester) async {
+      final container = start(withWatch: false);
+      container
+          .read(watchLinkProvider.notifier)
+          .prefetchPhotos(roster, myUserId: 'me');
+      party.set(board);
+      await tester.pump();
+
+      expect(photos.asked, isEmpty);
+    });
   });
 
   testWidgets('syncId 가 없는 SYNC 에는 답하지 않는다', (tester) async {
@@ -1535,6 +1658,27 @@ class _Watch implements WatchChannel {
     return launchResults.isEmpty
         ? WatchLaunchResult.launched
         : launchResults.removeAt(0);
+  }
+}
+
+/// 주소를 그대로 담은 글자를 사진 대신 돌려준다.
+class _Photos implements WatchPhotoMaker {
+  /// 받으려 한 주소, 부른 순서대로.
+  final asked = <String>[];
+
+  /// 다음 한 번은 못 받는 주소.
+  final failing = <String>{};
+
+  /// 다음 한 번은 테스트가 끝낼 때까지 붙잡는 주소. 붙잡은 받기는 [held] 에 있다.
+  final holding = <String>{};
+  final held = <String, Completer<String>>{};
+
+  @override
+  Future<String> jpegBase64(String url) async {
+    asked.add(url);
+    if (failing.remove(url)) throw StateError('사진을 못 받았다');
+    if (holding.remove(url)) return (held[url] = Completer<String>()).future;
+    return 'jpeg:$url';
   }
 }
 

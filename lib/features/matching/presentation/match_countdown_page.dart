@@ -26,6 +26,7 @@ import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/presentation/party_provider.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
+import 'package:runiverse/features/session/presentation/watch_link_provider.dart';
 import 'package:runiverse/features/session/domain/party_color.dart';
 
 /// 출발 대기실 (S11, Figma `43:46` · `43:113`).
@@ -90,7 +91,10 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
       _tick();
     });
     // build 중에 provider를 건드리면 Riverpod이 막는다. 첫 프레임 뒤로 민다.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _prepare());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _prefetchWatchPhotos();
+      _prepare();
+    });
   }
 
   Future<void> _prepare() async {
@@ -165,15 +169,9 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
     // ⚠️ 명단은 **방 전원**이라 나도 들어 있다. 내 `userId`를 함께 넘겨 그 줄을
     // 내 레인으로 삼는다 — 안 그러면 서버가 내 진행을 보내지 않아 0m에 멈춘
     // 내 이름이 "나" 레인 옆에 또 뜬다.
-    final auth = ref.read(authControllerProvider);
-    ref.read(partyProvider.notifier).setRoster([
-      for (final player in room.players)
-        PartyMember(
-          userId: player.userId,
-          nickname: player.nickname,
-          profileImageUrl: player.profileImageUrl,
-        ),
-    ], myUserId: auth is AuthSignedIn ? auth.userId : PartyBoard.meId);
+    ref
+        .read(partyProvider.notifier)
+        .setRoster(_membersOf(room), myUserId: _myUserId);
 
     // ⚠️ 연결을 기다리지 않는다. 기다리면 출발이 그만큼 늦고, 늦게 붙어도
     // 좌표는 쌓였다가 한꺼번에 올라간다.
@@ -193,6 +191,31 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
 
     // `pushReplacement` — 달리는 중에 뒤로 가서 대기실이 나오면 안 된다.
     context.pushReplacement(AppRoutes.runSession);
+  }
+
+  /// 워치에 보낼 파티원 사진을 출발 전에 만들어 둔다. 워치는 출발하며 켜지자마자
+  /// 사진을 한 번만 받아 간다.
+  void _prefetchWatchPhotos() {
+    final room = ref.read(matchRoomProvider).room;
+    if (room == null) return;
+    ref
+        .read(watchLinkProvider.notifier)
+        .prefetchPhotos(_membersOf(room), myUserId: _myUserId);
+  }
+
+  /// 대기방 명단. **방 전원**이라 나도 들어 있다.
+  static List<PartyMember> _membersOf(RoomInfo room) => [
+    for (final player in room.players)
+      PartyMember(
+        userId: player.userId,
+        nickname: player.nickname,
+        profileImageUrl: player.profileImageUrl,
+      ),
+  ];
+
+  String get _myUserId {
+    final auth = ref.read(authControllerProvider);
+    return auth is AuthSignedIn ? auth.userId : PartyBoard.meId;
   }
 
   Future<void> _openSettings() =>
