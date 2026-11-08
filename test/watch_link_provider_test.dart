@@ -645,6 +645,8 @@ void main() {
       await tester.pump();
       // 명단이 들어오기 전에 받았다.
       expect(photos.asked, [kong]);
+      // 대기실은 미리 받은 직후 위치를 열며 준비 단계로 간다. 여기서 지우면 안 된다.
+      session.set(const RunPreparing());
       party.set(board);
       session.set(const RunRunning(metrics));
 
@@ -717,6 +719,29 @@ void main() {
         {'userId': 'u-1', 'jpegBase64': 'jpeg:$kong'},
       ]);
       expect(photos.asked, [kong, kong]);
+    });
+
+    testWidgets('지난 러닝의 받기가 끝나도 이번 러닝의 받는 중 표시는 남는다', (tester) async {
+      start();
+      photos.holding.add(kong);
+      session.set(const RunRunning(metrics));
+      party.set(board);
+      await tester.pump();
+      final previous = photos.held[kong]!;
+
+      session.set(const RunIdle());
+      party.set(const PartyBoard());
+      photos.holding.add(kong);
+      party.set(board);
+      await tester.pump();
+      previous.complete('jpeg:지난 러닝');
+      await tester.pump();
+
+      // 이번 러닝 받기가 아직 진행 중이라 SYNC 가 같은 사진을 또 받지 않는다.
+      watch.receive('WATCH_SYNC', {'syncId': 's-1'});
+      await tester.pump();
+      expect(photos.asked, [kong, kong]);
+      photos.held[kong]!.complete('jpeg:$kong');
     });
 
     testWidgets('통로가 없으면(테스트·iOS) 사진을 만들지 않는다', (tester) async {
