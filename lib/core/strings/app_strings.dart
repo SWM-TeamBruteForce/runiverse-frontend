@@ -1354,6 +1354,9 @@ abstract final class AppStrings {
   static const runSummaryUnitKm = 'km';
 
   /// 거리 아래 두 값의 라벨. 단위를 라벨에 붙여 수치를 숫자만 남긴다.
+  ///
+  /// ⚠️ 시간은 [runResultTime]과 같은 값이라 이름도 같다. 버튼 없이 멈춘 구간을
+  /// 빼서 러닝 화면 [runElapsedLabel]보다 짧다.
   static const runSummaryTotalTime = '움직인 시간';
   static const runSummaryAveragePaceUnit = '평균 페이스 /km';
 
