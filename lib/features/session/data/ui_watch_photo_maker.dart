@@ -104,8 +104,8 @@ class UiWatchPhotoMaker implements WatchPhotoMaker {
   ///
   /// ⚠️ `instantiateImageCodecWithSize` 를 쓰지 않는다. 형식을 못 읽으면 버퍼를
   /// 놓지 않고 던진다(Flutter 3.44.8 `painting.dart` — `ImageDescriptor.encoded`
-  /// 가 `try` 밖이다). 깨진 사진은 SYNC 마다 다시 받는다. 놓는 순서는 SDK
-  /// `decodeImageFromPixels` 와 같다 — 프레임을 꺼낸 뒤에 버퍼·설명자를 놓는다.
+  /// 가 `try` 밖이다). 깨진 사진은 SYNC 마다 다시 받는다. 버퍼·설명자는 프레임을
+  /// 꺼낸 뒤에 놓는다 — 설명자가 버퍼 메모리를 따로 잡아 둘의 순서는 상관없다.
   Future<ui.Image> _decoded(Uint8List bytes) async {
     final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
     try {
