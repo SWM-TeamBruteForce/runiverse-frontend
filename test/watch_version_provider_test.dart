@@ -86,6 +86,43 @@ void main() {
     expect(await store.minimum(), isNull);
   });
 
+  test('남겨 둔 값을 읽는 도중 버려져도 던지지 않는다', () async {
+    final held = Completer<AppVersion?>();
+    final container = ProviderContainer(
+      overrides: [
+        appVersionRepositoryProvider.overrideWithValue(_HeldWatchVersions()),
+        watchVersionStoreProvider.overrideWithValue(_HeldStore(held)),
+      ],
+    );
+    final pending = container.read(watchVersionProvider.notifier).minimum();
+
+    container.dispose();
+    held.complete(const AppVersion(1, 2, 0));
+
+    // 버려진 provider 의 state 를 읽거나 쓰면 여기서 던진다.
+    expect(await pending, isNull);
+  });
+
+  test('읽는 중에 다시 물어도 같은 읽기를 기다려 남겨 둔 값을 받는다', () async {
+    final held = Completer<AppVersion?>();
+    final container = ProviderContainer(
+      overrides: [
+        appVersionRepositoryProvider.overrideWithValue(_HeldWatchVersions()),
+        watchVersionStoreProvider.overrideWithValue(_HeldStore(held)),
+      ],
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(watchVersionProvider.notifier);
+
+    final first = controller.minimum();
+    final second = controller.minimum();
+    held.complete(const AppVersion(1, 2, 0));
+
+    expect(await first, const AppVersion(1, 2, 0));
+    // 따로 읽기 전이라고 `null` 을 받으면 저장값이 있는데도 답을 미룬다.
+    expect(await second, const AppVersion(1, 2, 0));
+  });
+
   test('남겨 둔 기준을 읽는다', () async {
     final container = start(stored: const AppVersion(1, 1, 0));
     addTearDown(container.dispose);
@@ -130,6 +167,19 @@ void main() {
 
     expect(versions.watchFetchCount, 1);
   });
+}
+
+/// 남겨 둔 값 읽기를 [_held] 가 끝날 때까지 잡아 둔다.
+class _HeldStore implements WatchVersionStore {
+  _HeldStore(this._held);
+
+  final Completer<AppVersion?> _held;
+
+  @override
+  Future<AppVersion?> minimum() => _held.future;
+
+  @override
+  Future<void> rememberMinimum(AppVersion minimum) async {}
 }
 
 /// [hold] 를 세우면 워치 기준 답을 그것이 끝날 때까지 잡아 둔다.

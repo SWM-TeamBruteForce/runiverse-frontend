@@ -30,16 +30,21 @@ class WatchVersionController extends Notifier<AppVersion?> {
   @override
   AppVersion? build() => null;
 
-  /// 저장소를 읽어 봤는가. 비어 있는 것과 아직 안 읽은 것을 가른다.
-  var _loaded = false;
+  /// 남겨 둔 값 읽기. 한 번만 읽고, 읽는 중에 온 SYNC 도 같은 읽기를 기다린다 —
+  /// 따로 `null` 을 돌려주면 저장값이 있는데도 "기준 모름"으로 답을 미룬다.
+  Future<AppVersion?>? _loading;
 
   /// 받는 중인 요청. 워치가 3초마다 SYNC 를 보내도 요청은 하나만 나간다.
   Future<void>? _inflight;
 
   /// 판정 기준. 메모리에 없으면 남겨 둔 값을 한 번 읽는다. 끝내 모르면 `null`.
-  Future<AppVersion?> minimum() async {
-    if (state != null || _loaded) return state;
-    _loaded = true;
+  Future<AppVersion?> minimum() {
+    final known = state;
+    if (known != null) return Future.value(known);
+    return _loading ??= _load();
+  }
+
+  Future<AppVersion?> _load() async {
     AppVersion? stored;
     try {
       stored = await ref.read(watchVersionStoreProvider).minimum();

@@ -836,6 +836,27 @@ void main() {
       expectSyncRejected('s-3');
     });
 
+    testWidgets('남겨 둔 값을 읽는 중에 붙어 온 SYNC 도 미루지 않고 답한다', (tester) async {
+      final store = _HeldWatchVersionStore();
+      start(watchVersions: store);
+
+      for (final syncId in ['s-1', 's-2']) {
+        watch.receive('WATCH_SYNC', {
+          'syncId': syncId,
+          'watchVersion': watchVersion,
+        });
+      }
+      await tester.pump();
+      store.held.complete(const AppVersion(1, 2, 0));
+      await tester.pump();
+
+      expect(
+        [for (final (event, data) in watch.sent) '$event ${data['syncId']}'],
+        ['WATCH_SYNCED s-1', 'WATCH_SYNCED s-2'],
+      );
+      expect(versions.watchFetchCount, 0);
+    });
+
     testWidgets('⚠️ 기준을 읽는 사이 이번 러닝에서 통과했으면 늦은 답도 거절하지 않는다', (tester) async {
       final store = _HeldWatchVersionStore();
       final container = start(watchVersions: store);
