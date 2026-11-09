@@ -27,11 +27,16 @@ class HttpAppVersionRepository implements AppVersionRepository {
   static const _timeout = Duration(seconds: 5);
 
   @override
-  Future<AppVersionPolicy> fetch() async {
+  Future<AppVersionPolicy> fetch() => _fetch(_platform);
+
+  @override
+  Future<AppVersionPolicy> fetchWatch() => _fetch(_watchPlatform);
+
+  Future<AppVersionPolicy> _fetch(String platform) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         _path,
-        queryParameters: {'platform': _platform},
+        queryParameters: {'platform': platform},
         options: Options(
           sendTimeout: _timeout,
           receiveTimeout: _timeout,
@@ -52,10 +57,15 @@ class HttpAppVersionRepository implements AppVersionRepository {
     }
   }
 
-  /// 서버가 받는 값은 `IOS` / `ANDROID` 둘뿐이다.
+  /// 폰 앱 값은 `IOS` / `ANDROID` 둘이다.
   ///
   /// ⚠️ **다른 플랫폼은 400이다.** 데스크톱·웹 빌드는 범위에 없지만, 테스트는
   /// 호스트(Windows)에서 돌아 `Platform.isIOS`가 늘 `false`다 — 그래서 기본을
   /// 안드로이드로 둔다. 판정이 틀려도 그쪽 최소 버전을 보게 될 뿐이다.
   static String get _platform => Platform.isIOS ? 'IOS' : 'ANDROID';
+
+  /// 아이폰엔 애플워치(`WATCH_IOS`), 안드로이드 폰엔 Wear OS 워치(`WATCH_ANDROID`)가
+  /// 붙는다. 기본을 안드로이드로 두는 이유는 [_platform] 과 같다.
+  static String get _watchPlatform =>
+      Platform.isIOS ? 'WATCH_IOS' : 'WATCH_ANDROID';
 }

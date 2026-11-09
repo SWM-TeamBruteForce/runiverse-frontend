@@ -35,4 +35,23 @@ class FakeAppVersionRepository implements AppVersionRepository {
 
     return AppVersionPolicy(minimum: minimum, latest: latest);
   }
+
+  /// 워치 앱 최소 버전. 워치는 최신 버전을 쓰지 않아 같은 값으로 돌려준다.
+  AppVersion watchMinimum = const AppVersion(1, 0, 0);
+
+  /// 세워두면 [fetchWatch] 가 이것을 던진다.
+  Object? watchFailure;
+
+  /// 워치 값을 몇 번 물었나.
+  int watchFetchCount = 0;
+
+  /// ⚠️ [latency] 를 따르지 않는다. 폰 판정은 이것을 기다리지 않아, 기다리게 하면
+  /// 테스트가 끝날 때 타이머가 남는다.
+  @override
+  Future<AppVersionPolicy> fetchWatch() async {
+    watchFetchCount++;
+    final error = watchFailure;
+    if (error != null) throw error;
+    return AppVersionPolicy(minimum: watchMinimum, latest: watchMinimum);
+  }
 }

@@ -44,6 +44,22 @@ void main() {
     expect(sent.queryParameters['platform'], anyOf('IOS', 'ANDROID'));
   });
 
+  test('워치 값은 워치 플랫폼으로 묻는다', () async {
+    final (repository, adapter) = repositoryAnswering(200, {
+      'minimumVersion': '1.2.0',
+      'latestVersion': '1.2.0',
+    });
+
+    final policy = await repository.fetchWatch();
+
+    expect(
+      adapter.sent!.queryParameters['platform'],
+      anyOf('WATCH_IOS', 'WATCH_ANDROID'),
+    );
+    expect(adapter.sent!.headers['Authorization'], isNull);
+    expect(policy.minimum, const AppVersion(1, 2, 0));
+  });
+
   test('⚠️ Authorization을 싣지 않는다', () async {
     final (repository, adapter) = repositoryAnswering(200, {
       'minimumVersion': '1.1.0',

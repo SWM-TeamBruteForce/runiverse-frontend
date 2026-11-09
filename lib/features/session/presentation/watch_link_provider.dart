@@ -5,7 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/version/app_version.dart';
 import 'package:runiverse/core/watch/watch_channel.dart';
+import 'package:runiverse/features/app_update/presentation/watch_version_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
@@ -121,6 +123,11 @@ class WatchLinkController extends Notifier<void> {
   /// 이번 러닝에서 워치 앱을 켰는가.
   var _launched = false;
 
+  /// 이번 러닝 중에 SYNC 가 버전 판정을 통과했는가. 통과한 워치는 러닝이 끝날 때까지
+  /// 다시 막지 않는다 — 워치 러닝은 운영자가 볼 수 없어 "러닝 없을 때 최소 버전을
+  /// 올린다"를 지킬 수 없다.
+  var _passedThisRun = false;
+
   /// 켜기를 "준비 안 됨"으로 끝까지 못 보냈는가. 받기를 다시 걸면 한 번 더 시도한다.
   var _launchGaveUp = false;
 
@@ -193,9 +200,7 @@ class WatchLinkController extends Notifier<void> {
     switch (message.event) {
       // syncId 가 없으면 돌려줄 수 없다 — 워치는 그 답을 못 읽고 버린다.
       case WatchEvents.watchSync when message.data['syncId'] is String:
-        unawaited(_sendSynced(message.data['syncId'] as String));
-        // 이번 답에 못 실은 사람은 다음 SYNCED 부터 실린다.
-        _fetchMissingPhotos();
+        unawaited(_onSync(message.data));
       case WatchEvents.watchVisibilityUpdate:
         _onVisibility(message.data['isVisible'] == true);
       // requestId 가 없으면 답할 수 없다 — 워치는 3초 뒤 SYNC 로 다시 맞춘다.
@@ -207,6 +212,64 @@ class WatchLinkController extends Notifier<void> {
       case _:
         break;
     }
+  }
+
+  /// 워치 앱 버전을 보고 SYNCED 로 답하거나 거절한다.
+  ///
+  /// `watchVersion` 이 없거나 형식이 틀리면 거절한다. 서버가 헤더 없는 요청을
+  /// 막는 것과 같다.
+  ///
+  /// ⚠️ **기준을 모르면 거절도 통과도 하지 않는다.** 답을 미루고 서버에 받으러
+  /// 간다 — 폰 스플래시가 판정 없이 들여보내지 않는 것과 같다. 워치는 화면이 켜져
+  /// 있으면 3초마다 SYNC 를 다시 보내, 받은 뒤 오는 SYNC 에서 판정된다.
+  Future<void> _onSync(Map<String, dynamic> data) async {
+    final syncId = data['syncId'] as String;
+    // 문자열이 아닌 값도 형식 오류다. 캐스트로 던지면 답이 안 나가 워치가 기다리기만 한다.
+    final raw = data['watchVersion'];
+    final version = AppVersion.parse(raw is String ? raw : null);
+    if (version == null) return _rejectSync(syncId);
+
+    if (!_passedThisRun) {
+      final versions = ref.read(watchVersionProvider.notifier);
+      final minimum = await versions.minimum();
+      // 기다리는 사이 provider 가 버려졌으면 ref 를 읽지 않는다.
+      if (_channel == null) return;
+      // 기다리는 사이 다른 SYNC 가 이번 러닝에서 통과했으면 이 답도 통과다. 늦게 끝난
+      // 거절은 `requestId` 와 상관없이 워치 운동을 끝낸다.
+      if (!_passedThisRun) {
+        if (minimum == null) {
+          debugPrint('[watch] 워치 기준을 몰라 SYNC 답을 미룬다');
+          unawaited(versions.refresh());
+          return;
+        }
+        if (version < minimum) return _rejectSync(syncId);
+      }
+    }
+
+    final session = ref.read(runSessionControllerProvider);
+    if (session is RunRunning ||
+        session is RunPaused ||
+        session is RunFinished) {
+      _passedThisRun = true;
+    }
+    unawaited(_sendSynced(syncId));
+    // 이번 답에 못 실은 사람은 다음 SYNCED 부터 실린다.
+    _fetchMissingPhotos();
+  }
+
+  /// `requestId` 에 `syncId` 를 싣는다. 워치는 이 코드를 보면 업데이트 화면을 띄운다.
+  Future<void> _rejectSync(String syncId) {
+    const rejection = _Rejection.watchUpdateRequired;
+    debugPrint('[watch] ${WatchEvents.watchSync} 거절 · ${rejection.code}');
+    return _send(
+      WatchEvents.error,
+      () => {
+        'code': rejection.code,
+        'message': rejection.message,
+        'sourceType': WatchEvents.watchSync,
+        'requestId': syncId,
+      },
+    );
   }
 
   /// 워치 명령을 폰 버튼과 같은 길로 처리한다. 답은 바뀐 상태다.
@@ -301,6 +364,7 @@ class WatchLinkController extends Notifier<void> {
       }
       _launched = false;
       _launchGaveUp = false;
+      _passedThisRun = false;
       _finishing = false;
       _room = null;
     }
@@ -671,14 +735,16 @@ enum _Stage {
   finished,
 }
 
-/// 워치 명령을 거절하는 이유. 워치는 `code` 를 읽지 않고 `requestId` 만 보지만,
-/// 디코더가 `code`·`message` 를 필수로 읽어 비우면 메시지를 통째로 버린다.
+/// 워치 명령·SYNC 를 거절하는 이유. 워치는 명령 거절이면 `code` 를 읽지 않고
+/// `requestId` 만 보고, [watchUpdateRequired] 만 `code` 로 가른다. 디코더가
+/// `code`·`message` 를 필수로 읽어 비우면 메시지를 통째로 버린다.
 enum _Rejection {
   noRun('NO_RUN', '진행 중인 러닝이 없다'),
   notRunOwner('NOT_RUN_OWNER', '러닝을 시작한 계정이 로그인돼 있지 않다'),
   otherPhoneInstance('OTHER_PHONE_INSTANCE', '폰 앱이 다시 켜졌다'),
   staleStatus('STALE_STATUS', '누른 뒤 러닝 단계가 바뀌었다'),
-  otherRoom('OTHER_ROOM', '다른 방의 명령이다');
+  otherRoom('OTHER_ROOM', '다른 방의 명령이다'),
+  watchUpdateRequired('WATCH_UPDATE_REQUIRED', '워치 앱 버전이 최소 버전보다 낮다');
 
   const _Rejection(this.code, this.message);
 
