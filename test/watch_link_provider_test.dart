@@ -7,7 +7,12 @@ import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/storage/body_profile_store.dart';
+import 'package:runiverse/core/storage/watch_version_store.dart';
+import 'package:runiverse/core/version/app_version.dart';
 import 'package:runiverse/core/watch/watch_channel.dart';
+import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
+import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
+import 'package:runiverse/features/app_update/presentation/watch_version_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
@@ -50,13 +55,29 @@ void main() {
   /// 방 번호 → 서버 기록 조회. 테스트가 끝낼 때를 정한다.
   late Map<int, Completer<RunDetail>> details;
 
-  ProviderContainer start({bool withWatch = true, BodyProfileStore? body}) {
+  /// 서버의 워치 기준. 남겨 둔 값이 없을 때 받으러 간다.
+  late FakeAppVersionRepository versions;
+
+  /// 워치 SYNC 가 싣는 버전. 남겨 둔 기준(1.2.0)과 같다.
+  const watchVersion = '1.2.0';
+
+  ProviderContainer start({
+    bool withWatch = true,
+    BodyProfileStore? body,
+    WatchVersionStore? watchVersions,
+  }) {
     watch = _Watch();
     photos = _Photos();
     details = {};
     calls = [];
+    versions = FakeAppVersionRepository()
+      ..watchMinimum = const AppVersion(1, 2, 0);
     final container = ProviderContainer.test(
       overrides: [
+        appVersionRepositoryProvider.overrideWithValue(versions),
+        watchVersionStoreProvider.overrideWithValue(
+          watchVersions ?? InMemoryWatchVersionStore(const AppVersion(1, 2, 0)),
+        ),
         watchChannelProvider.overrideWithValue(withWatch ? watch : null),
         watchPhotoMakerProvider.overrideWithValue(photos),
         runSessionControllerProvider.overrideWith(() => _Session(calls)),
@@ -588,7 +609,10 @@ void main() {
   testWidgets('SYNC 를 받으면 같은 syncId 로 SYNCED 를 보낸다', (tester) async {
     start();
 
-    watch.receive('WATCH_SYNC', {'syncId': 's-1'});
+    watch.receive('WATCH_SYNC', {
+      'syncId': 's-1',
+      'watchVersion': watchVersion,
+    });
     await tester.pump();
 
     final (event, data) = watch.sent.single;
@@ -606,7 +630,10 @@ void main() {
     container.read(bodyProfileProvider);
     await tester.pump();
 
-    watch.receive('WATCH_SYNC', {'syncId': 's-1'});
+    watch.receive('WATCH_SYNC', {
+      'syncId': 's-1',
+      'watchVersion': watchVersion,
+    });
     await tester.pump();
 
     expect(watch.sent.single.$2['birthday'], '1998-03-07');
@@ -630,7 +657,10 @@ void main() {
       WidgetTester tester,
       String syncId,
     ) async {
-      watch.receive('WATCH_SYNC', {'syncId': syncId});
+      watch.receive('WATCH_SYNC', {
+        'syncId': syncId,
+        'watchVersion': watchVersion,
+      });
       await tester.pump();
       final (event, data) = watch.sent.last;
       expect(event, 'WATCH_SYNCED');
@@ -738,7 +768,10 @@ void main() {
       await tester.pump();
 
       // 이번 러닝 받기가 아직 진행 중이라 SYNC 가 같은 사진을 또 받지 않는다.
-      watch.receive('WATCH_SYNC', {'syncId': 's-1'});
+      watch.receive('WATCH_SYNC', {
+        'syncId': 's-1',
+        'watchVersion': watchVersion,
+      });
       await tester.pump();
       expect(photos.asked, [kong, kong]);
       photos.held[kong]!.complete('jpeg:$kong');
@@ -764,6 +797,189 @@ void main() {
     await tester.pump();
 
     expect(watch.sent, isEmpty);
+  });
+
+  group('워치 버전', () {
+    void expectSyncRejected(String syncId) {
+      final (event, data) = watch.sent.single;
+      expect(event, 'ERROR');
+      expect(data['code'], 'WATCH_UPDATE_REQUIRED');
+      expect(data['sourceType'], 'WATCH_SYNC');
+      expect(data['requestId'], syncId);
+    }
+
+    testWidgets('최소 버전보다 낮으면 SYNCED 대신 거절한다', (tester) async {
+      start();
+
+      watch.receive('WATCH_SYNC', {'syncId': 's-1', 'watchVersion': '1.1.9'});
+      await tester.pump();
+
+      expectSyncRejected('s-1');
+    });
+
+    testWidgets('버전이 없거나 형식이 틀리면 거절한다', (tester) async {
+      start();
+
+      watch.receive('WATCH_SYNC', {'syncId': 's-1'});
+      await tester.pump();
+      expectSyncRejected('s-1');
+
+      watch.sent.clear();
+      watch.receive('WATCH_SYNC', {'syncId': 's-2', 'watchVersion': '1.2'});
+      await tester.pump();
+      expectSyncRejected('s-2');
+
+      // 문자열이 아니어도 거절한다 — 던지면 답이 안 나간다.
+      watch.sent.clear();
+      watch.receive('WATCH_SYNC', {'syncId': 's-3', 'watchVersion': 120});
+      await tester.pump();
+      expectSyncRejected('s-3');
+    });
+
+    testWidgets('⚠️ 기준을 읽는 사이 이번 러닝에서 통과했으면 늦은 답도 거절하지 않는다', (tester) async {
+      final store = _HeldWatchVersionStore();
+      final container = start(watchVersions: store);
+      session.set(const RunRunning(metrics));
+      await tester.pump();
+
+      // 첫 SYNC 는 남겨 둔 값을 읽느라 기다린다.
+      watch.receive('WATCH_SYNC', {
+        'syncId': 's-1',
+        'watchVersion': watchVersion,
+      });
+      await tester.pump();
+
+      // 그사이 서버 값이 와서 다음 SYNC 가 통과한다.
+      final versionsOf = container.read(watchVersionProvider.notifier);
+      await versionsOf.refresh();
+      watch.receive('WATCH_SYNC', {
+        'syncId': 's-2',
+        'watchVersion': watchVersion,
+      });
+      await tester.pump();
+      expect(watch.sent.last.$1, 'WATCH_SYNCED');
+
+      // 기준이 올라간 뒤에 첫 읽기가 끝난다.
+      versions.watchMinimum = const AppVersion(1, 3, 0);
+      await versionsOf.refresh();
+      store.held.complete(const AppVersion(1, 2, 0));
+      await tester.pump();
+
+      expect(watch.errors, isEmpty);
+      expect(watch.sent.last.$1, 'WATCH_SYNCED');
+      expect(watch.sent.last.$2['syncId'], 's-1');
+    });
+
+    testWidgets('남겨 둔 기준으로 서버에 묻지 않고 바로 답한다', (tester) async {
+      start();
+
+      watch.receive('WATCH_SYNC', {'syncId': 's-1', 'watchVersion': '1.3.0'});
+      await tester.pump();
+
+      expect(watch.sent.single.$1, 'WATCH_SYNCED');
+      expect(versions.watchFetchCount, 0);
+    });
+
+    testWidgets('⚠️ 기준을 모르면 답하지 않고 받으러 간다', (tester) async {
+      final store = InMemoryWatchVersionStore();
+      start(watchVersions: store);
+
+      watch.receive('WATCH_SYNC', {'syncId': 's-1', 'watchVersion': '1.1.0'});
+      await tester.pump();
+      // 모른다고 거절하면 업데이트할 필요 없는 워치가 업데이트 화면에 갇힌다.
+      expect(watch.sent, isEmpty);
+      expect(versions.watchFetchCount, 1);
+      expect(await store.minimum(), const AppVersion(1, 2, 0));
+
+      // 워치가 3초 뒤 다시 보낸 SYNC 는 받아 둔 기준으로 판정한다.
+      watch.receive('WATCH_SYNC', {'syncId': 's-2', 'watchVersion': '1.1.0'});
+      await tester.pump();
+      expectSyncRejected('s-2');
+    });
+
+    testWidgets('기준을 못 받으면 계속 답하지 않는다', (tester) async {
+      start(watchVersions: InMemoryWatchVersionStore());
+      versions.watchFailure = Exception('offline');
+
+      watch.receive('WATCH_SYNC', {
+        'syncId': 's-1',
+        'watchVersion': watchVersion,
+      });
+      await tester.pump();
+
+      expect(watch.sent, isEmpty);
+    });
+
+    testWidgets('러닝 중 통과한 워치는 기준이 올라가도 러닝이 끝날 때까지 막지 않는다', (tester) async {
+      final container = start();
+      session.set(const RunRunning(metrics));
+      await tester.pump();
+
+      watch.receive('WATCH_SYNC', {
+        'syncId': 's-1',
+        'watchVersion': watchVersion,
+      });
+      await tester.pump();
+      expect(watch.sent.last.$1, 'WATCH_SYNCED');
+
+      versions.watchMinimum = const AppVersion(1, 3, 0);
+      await container.read(watchVersionProvider.notifier).refresh();
+
+      watch.receive('WATCH_SYNC', {
+        'syncId': 's-2',
+        'watchVersion': watchVersion,
+      });
+      await tester.pump();
+      expect(watch.sent.last.$1, 'WATCH_SYNCED');
+
+      // 결과 화면까지가 그 러닝이다.
+      session.set(
+        RunFinished(
+          metrics: metrics,
+          startedAt: DateTime(2026, 11, 4, 8),
+          endedAt: DateTime(2026, 11, 4, 9),
+        ),
+      );
+      await tester.pump();
+      watch.receive('WATCH_SYNC', {
+        'syncId': 's-3',
+        'watchVersion': watchVersion,
+      });
+      await tester.pump();
+      expect(watch.sent.last.$1, 'WATCH_SYNCED');
+
+      session.set(const RunIdle());
+      await tester.pump();
+      watch.sent.clear();
+      watch.receive('WATCH_SYNC', {
+        'syncId': 's-4',
+        'watchVersion': watchVersion,
+      });
+      await tester.pump();
+      expectSyncRejected('s-4');
+    });
+
+    testWidgets('러닝 밖에서 통과한 워치는 기준이 올라가면 막는다', (tester) async {
+      final container = start();
+
+      watch.receive('WATCH_SYNC', {
+        'syncId': 's-1',
+        'watchVersion': watchVersion,
+      });
+      await tester.pump();
+      expect(watch.sent.single.$1, 'WATCH_SYNCED');
+
+      versions.watchMinimum = const AppVersion(1, 3, 0);
+      await container.read(watchVersionProvider.notifier).refresh();
+      watch.sent.clear();
+
+      watch.receive('WATCH_SYNC', {
+        'syncId': 's-2',
+        'watchVersion': watchVersion,
+      });
+      await tester.pump();
+      expectSyncRejected('s-2');
+    });
   });
 
   testWidgets('콤보가 오르거나 끊기면 화면이 꺼져 있어도 알린다', (tester) async {
@@ -963,7 +1179,10 @@ void main() {
         connection: WsConnectionState.connected,
       ),
     );
-    watch.receive('WATCH_SYNC', {'syncId': 's-2'});
+    watch.receive('WATCH_SYNC', {
+      'syncId': 's-2',
+      'watchVersion': watchVersion,
+    });
     await tester.pump();
     expect(runOf(watch.sent.last.$2)['runningRoomId'], 813);
 
@@ -1022,7 +1241,10 @@ void main() {
     expect(watch.listens, 2);
 
     // 다시 들은 뒤로는 워치가 보낸 것을 받는다.
-    watch.receive('WATCH_SYNC', {'syncId': 's-3'});
+    watch.receive('WATCH_SYNC', {
+      'syncId': 's-3',
+      'watchVersion': watchVersion,
+    });
     await tester.pump();
     expect(watch.sent.single.$1, 'WATCH_SYNCED');
   });
@@ -1623,6 +1845,17 @@ void main() {
       });
     });
   });
+}
+
+/// 남겨 둔 값 읽기를 [held] 가 끝날 때까지 잡아 둔다.
+class _HeldWatchVersionStore implements WatchVersionStore {
+  final held = Completer<AppVersion?>();
+
+  @override
+  Future<AppVersion?> minimum() => held.future;
+
+  @override
+  Future<void> rememberMinimum(AppVersion minimum) async {}
 }
 
 class _Watch implements WatchChannel {
