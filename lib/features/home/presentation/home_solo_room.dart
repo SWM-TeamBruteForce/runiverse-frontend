@@ -7,7 +7,6 @@ import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/fact_row.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
-import 'package:runiverse/features/matching/domain/target_distance.dart';
 
 /// 상대를 못 만나 **혼자 달리게 된 방** — 시안 `158:3029`의 자리.
 ///
@@ -131,10 +130,12 @@ class HomeSoloRoom extends StatelessWidget {
   }
 
   /// `5 km`. ⚠️ **모르면 지어내지 않는다.**
+  ///
+  /// ⚠️ `TargetDistance`를 거치지 않는다. 3/5/10km만 아는 enum이라 초대
+  /// 러닝의 자유 거리(7km·하프·풀)가 모르는 값이 된다.
   static String _distance(int? meters) {
-    final km = TargetDistance.fromMeters(meters)?.km;
-    return km == null
+    return meters == null
         ? AppStrings.homeMatchUnknownValue
-        : AppStrings.matchDistanceText(km);
+        : AppStrings.distanceKm(meters);
   }
 }

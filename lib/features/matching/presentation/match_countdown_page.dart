@@ -18,7 +18,6 @@ import 'package:runiverse/core/widgets/v2/surface_card.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
-import 'package:runiverse/features/matching/domain/target_distance.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/domain/party_board.dart';
@@ -384,7 +383,7 @@ class _SessionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final km = TargetDistance.fromMeters(room.targetDistanceMeters)?.km;
+    final meters = room.targetDistanceMeters;
 
     return Row(
       children: [
@@ -398,11 +397,14 @@ class _SessionBar extends StatelessWidget {
         Expanded(
           child: FactCard(
             label: AppStrings.matchDistanceLabel,
+            // ⚠️ `TargetDistance`를 거치지 않는다. 3/5/10km만 아는 enum이라
+            // 초대 러닝의 자유 거리(7km·하프·풀)가 `null`이 되어 `—`로 뜬다.
+            //
             // 거리를 모르면 그렇다고 적는다. 임의의 값을 넣으면 목표가
             // 달라 보인다.
-            value: km == null
+            value: meters == null
                 ? AppStrings.runUnavailable
-                : AppStrings.matchDistanceText(km),
+                : AppStrings.distanceKm(meters),
           ),
         ),
       ],

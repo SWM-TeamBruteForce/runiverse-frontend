@@ -36,11 +36,16 @@ void main() {
   );
 
   /// 같은 모양의 초대 방. `type`만 다르다.
-  RoomInfo inviteRoom(RoomStatus status, {int players = 1}) => RoomInfo(
+  RoomInfo inviteRoom(
+    RoomStatus status, {
+    int players = 1,
+    int? targetDistanceMeters,
+  }) => RoomInfo(
     runningRoomId: 130,
     type: RoomType.invite,
     status: status,
     scheduledStartAt: startAt,
+    targetDistanceMeters: targetDistanceMeters,
     players: [
       for (var i = 0; i < players; i++)
         RoomPlayer(userId: 'u-$i', nickname: '러너$i', isDeleted: false),
@@ -320,6 +325,48 @@ void main() {
       await pumpHero(tester, withRoom: room(RoomStatus.matched, players: 3));
 
       expect(find.text(AppStrings.homeMatchUnknownValue), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 초대 방의 자유 거리도 적는다', (tester) async {
+      // `TargetDistance`를 거치면 7000은 `null`이 되어 `-`로 뜬다.
+      await pumpHero(
+        tester,
+        withRoom: inviteRoom(
+          RoomStatus.matched,
+          players: 3,
+          targetDistanceMeters: 7000,
+        ),
+      );
+
+      expect(find.text('7 km'), findsOneWidget);
+      expect(find.text(AppStrings.homeMatchUnknownValue), findsNothing);
+    });
+
+    testWidgets('하프는 소수 자리가 남는다', (tester) async {
+      await pumpHero(
+        tester,
+        withRoom: inviteRoom(
+          RoomStatus.matched,
+          players: 3,
+          targetDistanceMeters: 21098,
+        ),
+      );
+
+      expect(find.text('21.098 km'), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 혼자 남은 방도 자유 거리를 적는다', (tester) async {
+      await pumpHero(
+        tester,
+        withRoom: inviteRoom(
+          RoomStatus.matched,
+          players: 1,
+          targetDistanceMeters: 7000,
+        ),
+        myUserId: 'u-0',
+      );
+
+      expect(find.text('7 km'), findsOneWidget);
     });
 
     testWidgets('⚠️ 나 혼자인 방은 혼자 달린다고 알린다', (tester) async {
