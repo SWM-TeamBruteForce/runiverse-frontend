@@ -231,6 +231,10 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   /// 답이 온다. 세션을 접고, 서버 상태를 다시 읽고, 홈으로 간다.
   Future<void> _leaveKickedOut() async {
     ref.read(runSessionControllerProvider.notifier).reset();
+    // ⚠️ **파티 보드는 여기서 비운다.** 연결이 방 번호를 남겨 두므로 보드가
+    // 방이 바뀌는 것을 못 보고 알아서 비우지 않는다 — 그대로 두면 다음 솔로에
+    // 지난 파티원이 남는다.
+    ref.read(partyProvider.notifier).clear();
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text(AppStrings.runNotRoomPlayer)));

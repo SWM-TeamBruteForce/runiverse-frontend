@@ -26,6 +26,7 @@ import 'package:runiverse/features/session/data/fake_step_repository.dart';
 import 'package:runiverse/features/session/data/fake_track_repository.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/domain/finish_outcome.dart';
+import 'package:runiverse/features/session/domain/party_board.dart';
 import 'package:runiverse/features/session/domain/run_numbers.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_snapshot.dart';
@@ -33,6 +34,7 @@ import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/session/domain/user_status_repository.dart';
+import 'package:runiverse/features/session/presentation/party_provider.dart';
 import 'package:runiverse/features/session/presentation/run_session_page.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
@@ -217,6 +219,25 @@ void main() {
     await leave(tester, container);
   });
 
+  testWidgets('⚠️ 참가자가 아니라는 답에 홈으로 돌아오면 파티 보드가 빈다', (tester) async {
+    // 연결은 방 번호를 남겨 둬서 보드가 알아서 비우지 못한다. 비우지 않으면
+    // 다음 솔로에 지난 파티원이 남는다.
+    final container = await pumpHome(tester);
+    await tester.tap(find.text(AppStrings.homeRunToSession));
+    await tester.pumpAndSettle();
+    container.read(partyProvider.notifier).setRoster(const [
+      PartyMember(userId: 'u-1', nickname: '나'),
+      PartyMember(userId: 'u-9', nickname: '김도윤'),
+    ], myUserId: 'u-1');
+
+    channel.errors_.add(WsErrorCode.notRoomPlayer);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(RunSessionPage), findsNothing);
+    expect(container.read(partyProvider).roster, isEmpty);
+    await leave(tester, container);
+  });
+
   testWidgets('⚠️ 달리는 중에 누른 푸시는 러닝 화면을 가리지 않는다', (tester) async {
     // 홈에서 들어간 러닝은 셸 위에 얹혀 셸이 살아 있다. 그대로 두면 친구
     // 프로필이 러닝 화면 위로 열린다. 알림함에는 남아 있다.
@@ -268,8 +289,11 @@ class _CountingChannel implements RunningChannel {
   @override
   WsConnectionState get state => WsConnectionState.connected;
 
+  /// 서버가 거절한 것을 손으로 흘려보낸다.
+  final errors_ = StreamController<WsErrorCode>.broadcast();
+
   @override
-  Stream<WsErrorCode> get errors => const Stream.empty();
+  Stream<WsErrorCode> get errors => errors_.stream;
 
   @override
   Stream<RunProgress> get progress => const Stream.empty();
