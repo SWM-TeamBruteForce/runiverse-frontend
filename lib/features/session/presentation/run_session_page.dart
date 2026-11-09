@@ -26,7 +26,6 @@ import 'package:runiverse/features/session/presentation/run_party_view.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 
 /// 러닝 진행 (S13).
 ///
@@ -49,8 +48,9 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 ///
 /// ## 화면을 켜 둔다
 ///
-/// 포그라운드에서만 추적하므로 화면이 꺼지면 기록이 멈춘다. 러닝을 벗어날 때
-/// 반드시 해제한다 — 안 하면 앱을 나가도 화면이 안 꺼진다.
+/// 포그라운드에서만 추적하므로 화면이 꺼지면 기록이 멈춘다. 켜고 끄는 것은
+/// 이 화면이 아니라 `LaunchGate`가 한다 — 대기실에서 넘어오며 켜 둔 것을
+/// 바꿔치기 순서 때문에 꺼 버리지 않게 한 곳에 모았다.
 class RunSessionPage extends ConsumerStatefulWidget {
   const RunSessionPage({super.key});
 
@@ -73,14 +73,7 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
   static const _initialPage = 1;
 
   @override
-  void initState() {
-    super.initState();
-    WakelockPlus.enable();
-  }
-
-  @override
   void dispose() {
-    WakelockPlus.disable();
     _pages.dispose();
     super.dispose();
   }
