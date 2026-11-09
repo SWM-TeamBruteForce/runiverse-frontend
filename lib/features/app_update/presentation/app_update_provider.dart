@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/version/installed_app_version.dart';
 import 'package:runiverse/features/app_update/domain/app_update_status.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
+import 'package:runiverse/features/app_update/presentation/watch_version_provider.dart';
 
 /// 업데이트가 필요한가. **아직 못 물어봤으면 [unknown]이다.**
 ///
@@ -65,6 +68,9 @@ class AppUpdateController extends Notifier<AppUpdateState> {
   }
 
   Future<void> _check() async {
+    // 워치 기준도 같은 때 받는다. 폰 판정은 이것을 기다리지 않는다 — 워치 값을 못
+    // 받았다고 폰 앱에 못 들어가면 안 된다.
+    unawaited(ref.read(watchVersionProvider.notifier).refresh());
     try {
       final policy = await ref.read(appVersionRepositoryProvider).fetch();
       final status = policy.statusFor(InstalledAppVersion.current);
