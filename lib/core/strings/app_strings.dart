@@ -745,7 +745,7 @@ abstract final class AppStrings {
   ///
   /// ## ⚠️ 숫자가 서버 설정값이다
   ///
-  /// `18:00~22:00` · `30분` · `10분 전`은 전부 운영에서 바뀔 수 있는 값이다.
+  /// `18:00~22:00` · `1시간` · `10분 전`은 전부 운영에서 바뀔 수 있는 값이다.
   /// **바뀌면 이 문구도 같이 고쳐야 한다** — 안 고치면 화면만 거짓말을 한다.
   /// 그래도 적는 이유는, "시작 직전에 마감돼요"로는 **언제까지 누르면 되는지**
   /// 알 수 없기 때문이다(2026-10-22 결정).
@@ -760,7 +760,7 @@ abstract final class AppStrings {
   static const matchPolicyClose = '확인';
 
   static const matchPolicyWhenAsk = '언제 뛰나요?';
-  static const matchPolicyWhenTell = '저녁 18:00부터 22:00까지, 30분 간격으로 고를 수 있어요';
+  static const matchPolicyWhenTell = '저녁 18:00부터 22:00까지, 1시간 간격으로 고를 수 있어요';
 
   static const matchPolicyDeadlineAsk = '언제까지 신청하나요?';
 
