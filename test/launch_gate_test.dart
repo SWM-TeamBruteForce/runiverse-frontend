@@ -1,6 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/app.dart';
+import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/network/ws_client.dart';
+import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
@@ -20,12 +24,25 @@ import 'package:runiverse/features/notification/data/fake_app_stream.dart';
 import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
 import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
+import 'package:runiverse/features/session/data/fake_location_repository.dart';
+import 'package:runiverse/features/session/data/fake_step_repository.dart';
+import 'package:runiverse/features/session/data/fake_track_repository.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/domain/finish_outcome.dart';
 import 'package:runiverse/features/session/domain/run_metrics.dart';
+import 'package:runiverse/features/session/domain/run_numbers.dart';
+import 'package:runiverse/features/session/domain/run_progress.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
+import 'package:runiverse/features/session/domain/run_snapshot.dart';
+import 'package:runiverse/features/session/domain/running_channel.dart';
+import 'package:runiverse/features/session/domain/track_point.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
+import 'package:runiverse/features/session/presentation/run_session_page.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
+import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:wakelock_plus_platform_interface/wakelock_plus_platform_interface.dart';
 
 /// 출발 시각이 오면 **어느 화면에 있든** 러닝으로 데려간다.
 ///
@@ -95,6 +112,16 @@ void main() {
           authRepositoryProvider.overrideWithValue(
             FakeAuthRepository(latency: Duration.zero)
               ..seedSession(accessToken: 'a-1', refreshToken: 'r-1'),
+          ),
+          // 출발해 러닝 화면까지 가는 테스트가 있다. 갈아 끼우지 않으면 위치·
+          // 걸음 센서·DB·소켓을 진짜로 열려다 죽는다.
+          locationRepositoryProvider.overrideWithValue(
+            FakeLocationRepository(),
+          ),
+          trackRepositoryProvider.overrideWithValue(FakeTrackRepository()),
+          stepRepositoryProvider.overrideWithValue(FakeStepRepository()),
+          runningChannelFactoryProvider.overrideWithValue(
+            (_) => _SilentChannel(),
           ),
         ],
         child: const RuniverseApp(),
@@ -225,6 +252,145 @@ void main() {
     expect(find.byType(HomePage), findsOneWidget);
     expect(find.text(AppStrings.matchLaunchNoticeTitle), findsNothing);
   });
+
+  /// 확정된 대기방·출발 대기실·러닝 화면에서만 화면을 켜 둔다.
+  ///
+  /// ⚠️ 러닝 화면은 더 이상 스스로 켜지 않는다. 여기가 깨지면 달리는 중에
+  /// 화면이 꺼져도 다른 테스트는 모두 통과한다.
+  group('화면 켜 두기', () {
+    late _FakeWakelock wakelock;
+
+    setUp(() {
+      wakelock = _FakeWakelock();
+      wakelockPlusPlatformInstance = wakelock;
+    });
+
+    tearDown(() {
+      wakelockPlusPlatformInstance = WakelockPlusPlatformInterface.instance;
+    });
+
+    testWidgets('⚠️ 대기실에서 러닝으로 넘어가도 켜 둔다', (tester) async {
+      // ⚠️ 러닝 화면은 스스로 켜지 않는다. 대기실이 켠 것이 바꿔치기
+      // (`pushReplacement`) 뒤에도 꺼지지 않아야 달리는 중에 화면이 산다.
+      final stream = await pumpHome(tester);
+
+      // 출발 시각이 이미 됐다. 게이트가 대기실로 보내면 대기실이 바로 쏜다.
+      await confirm(tester, stream, inSeconds: 0);
+      await tick(tester);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 350));
+
+      expect(find.byType(RunSessionPage), findsOneWidget);
+      expect(wakelock.calls, [true]);
+    });
+
+    testWidgets('⚠️ 모집 중인 대기방은 켜지 않다가 확정되는 순간 켠다', (tester) async {
+      final stream = await pumpHome(tester);
+      stream.emit(
+        MatchRoomUpdated(
+          room(
+            RoomStatus.matching,
+            at: DateTime.now().add(const Duration(minutes: 5)),
+          ),
+        ),
+      );
+      // 모집 중 히어로가 영원히 맴돌아 `pumpAndSettle`을 쓰지 못한다
+      // (위 「모집 중에는 아무 일도 하지 않는다」와 같다).
+      await tester.pump();
+      GoRouter.of(
+        tester.element(find.byType(HomePage)),
+      ).push(AppRoutes.matchRoom);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+
+      expect(find.byType(MatchRoomPage), findsOneWidget);
+      expect(wakelock.calls, isEmpty);
+
+      stream.emit(
+        MatchRoomUpdated(
+          room(
+            RoomStatus.matched,
+            at: DateTime.now().add(const Duration(minutes: 5)),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(wakelock.calls, [true]);
+    });
+
+    testWidgets('⚠️ 대기실에서 방이 사라지면 끈다', (tester) async {
+      // 출발할 방이 없어 대기실에 남는다. 켜 두면 앱을 끌 때까지 화면이 안
+      // 꺼진다.
+      final stream = await pumpHome(tester);
+      await confirm(tester, stream, inSeconds: 25);
+      await tick(tester);
+      expect(find.byType(MatchCountdownPage), findsOneWidget);
+
+      stream.emit(MatchRoomUpdated(room(RoomStatus.cancelled)));
+      await tester.pump();
+
+      expect(wakelock.calls, [true, false]);
+    });
+  });
+}
+
+/// 화면 켜짐을 기기에 보내는 대신 받은 순서대로 적는다. 테스트에는 플랫폼
+/// 채널이 없어 진짜를 두면 보낼 곳이 없다.
+class _FakeWakelock extends WakelockPlusPlatformInterface {
+  final calls = <bool>[];
+
+  @override
+  Future<void> toggle({required bool enable}) async => calls.add(enable);
+
+  @override
+  Future<bool> get enabled async => calls.isNotEmpty && calls.last;
+}
+
+/// 아무것도 보내지 않는 러닝 연결. 여기서는 러닝 화면에 닿는지만 본다.
+class _SilentChannel implements RunningChannel {
+  @override
+  Stream<WsConnectionState> get states => const Stream.empty();
+
+  @override
+  WsConnectionState get state => WsConnectionState.connected;
+
+  @override
+  Stream<WsErrorCode> get errors => const Stream.empty();
+
+  @override
+  Stream<RunProgress> get progress => const Stream.empty();
+
+  @override
+  Stream<RunCombo> get combos => const Stream.empty();
+
+  @override
+  Stream<void> get finished => const Stream.empty();
+
+  @override
+  Stream<RunSnapshot> get snapshots => const Stream.empty();
+
+  @override
+  Stream<RunNumbers> get serverNumbers => const Stream.empty();
+
+  @override
+  Future<void> start(int runningRoomId) async {}
+
+  @override
+  bool sendLocations(List<TrackPoint> points) => true;
+
+  @override
+  bool pause() => true;
+
+  @override
+  bool resume() => true;
+
+  @override
+  Future<FinishOutcome> finish({bool forced = false}) async =>
+      const FinishConfirmed();
+
+  @override
+  Future<void> close() async {}
 }
 
 /// 정해 둔 상태로 시작하는 러닝.
