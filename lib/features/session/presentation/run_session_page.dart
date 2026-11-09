@@ -48,9 +48,9 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 ///
 /// ## 화면을 켜 둔다
 ///
-/// 포그라운드에서만 추적하므로 화면이 꺼지면 기록이 멈춘다. 켜고 끄는 것은
-/// 이 화면이 아니라 `LaunchGate`가 한다 — 대기실에서 넘어오며 켜 둔 것을
-/// 바꿔치기 순서 때문에 꺼 버리지 않게 한 곳에 모았다.
+/// 위치는 포그라운드 서비스로 화면이 꺼져도 받는다. 화면을 켜 두는 것은
+/// 별개로 `LaunchGate`가 맡는다 — 대기실에서 넘어오며 켜 둔 것을 바꿔치기
+/// 순서 때문에 꺼 버리지 않게 한 곳에 모았다.
 class RunSessionPage extends ConsumerStatefulWidget {
   const RunSessionPage({super.key});
 
