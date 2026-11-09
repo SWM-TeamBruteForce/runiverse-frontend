@@ -132,8 +132,11 @@ class _LaunchGateState extends ConsumerState<LaunchGate> {
   void _syncWakelock() {
     final where = widget.router.state.matchedLocation;
     final room = ref.read(matchRoomProvider).room;
+    // ⚠️ 방이 사라진 카운트다운은 켜 두지 않는다. 출발할 방이 없어 그 화면에
+    // 남는데(`MatchCountdownPage._launch`), 켜 두면 앱을 끌 때까지 화면이 안
+    // 꺼진다.
     final awake =
-        where == AppRoutes.matchCountdown ||
+        (where == AppRoutes.matchCountdown && room != null) ||
         where == AppRoutes.runSession ||
         (where == AppRoutes.matchRoom &&
             room != null &&
