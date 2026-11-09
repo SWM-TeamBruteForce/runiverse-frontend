@@ -698,7 +698,7 @@ abstract final class AppStrings {
 
   static const matchDistanceLabel = '목표 거리';
 
-  /// `3 km` — 거리 칩과 요약 줄에 함께 쓴다.
+  /// `3 km` — 매칭 등록의 거리 칩에 쓴다.
   static String matchDistanceText(int km) => '$km km';
 
   /// `5 km` · `21.098 km` — **어떤 미터값이든** 적는다.

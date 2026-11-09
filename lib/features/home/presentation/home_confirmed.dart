@@ -139,10 +139,6 @@ class HomeConfirmed extends StatelessWidget {
 
   /// `5 km`. ⚠️ **모르면 지어내지 않는다.**
   ///
-  /// ⚠️ 시안은 `5 km`로 띄어 쓰는데 우리는 붙여 쓴다. 거리 칩·요약 줄이
-  /// 전부 같은 표기라 여기만 바꾸면 앱 안에서 두 표기가 생긴다
-  /// (스펙 13절의 미결 항목).
-  ///
   /// ⚠️ `TargetDistance`를 거치지 않는다. 3/5/10km만 아는 enum이라 초대
   /// 러닝의 자유 거리(7km·하프·풀)가 모르는 값이 된다.
   static String _distance(int? meters) {

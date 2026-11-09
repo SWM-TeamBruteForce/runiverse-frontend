@@ -398,7 +398,7 @@ class _SessionBar extends StatelessWidget {
           child: FactCard(
             label: AppStrings.matchDistanceLabel,
             // ⚠️ `TargetDistance`를 거치지 않는다. 3/5/10km만 아는 enum이라
-            // 초대 러닝의 자유 거리(7km·하프·풀)가 `null`이 되어 칸이 빈다.
+            // 초대 러닝의 자유 거리(7km·하프·풀)가 `null`이 되어 `—`로 뜬다.
             //
             // 거리를 모르면 그렇다고 적는다. 임의의 값을 넣으면 목표가
             // 달라 보인다.
