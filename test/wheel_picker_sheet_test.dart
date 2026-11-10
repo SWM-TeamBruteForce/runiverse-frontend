@@ -13,7 +13,8 @@ import 'package:runiverse/core/widgets/wheel_picker_sheet.dart';
 /// 통과가 아무것도 증명하지 않는 상태였다.
 ///
 /// 디자인 시스템에 없는 컴포넌트라 모양을 못 박지는 않는다. **고른 값이
-/// 그대로 돌아오는가**와 **옮긴 세대의 버튼을 쓰는가**만 본다.
+/// 그대로 돌아오는가**, **옮긴 세대의 버튼을 쓰는가**, **고른 숫자가 가운데 띠에
+/// 놓이는가**, **단위가 자기 휠 아래에 놓이는가**를 본다.
 void main() {
   /// 고른 값을 담아 두는 그릇. **시트가 닫힌 뒤에 읽어야 한다** —
   /// 여는 시점에 읽으면 아직 `null` 이라 아무것도 검증하지 못한다.
@@ -94,5 +95,25 @@ void main() {
       tester.getCenter(find.text('1991')).dy,
       moreOrLessEquals(tester.getCenter(band).dy, epsilon: 0.5),
     );
+  });
+
+  testWidgets('단위가 자기 휠 아래 가운데에 놓인다', (tester) async {
+    await open(tester, columns: columns());
+
+    final wheels = find.byType(ListWheelScrollView);
+    final units = ['년', '월'];
+    for (var i = 0; i < units.length; i++) {
+      final unit = find.text(units[i]);
+
+      expect(unit, findsOneWidget);
+      expect(
+        tester.getCenter(unit).dx,
+        moreOrLessEquals(tester.getCenter(wheels.at(i)).dx, epsilon: 0.5),
+      );
+      expect(
+        tester.getTopLeft(unit).dy,
+        greaterThanOrEqualTo(tester.getBottomLeft(wheels.at(i)).dy),
+      );
+    }
   });
 }
