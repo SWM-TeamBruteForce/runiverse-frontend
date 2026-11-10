@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
@@ -45,6 +46,17 @@ class HomeTopBar extends StatelessWidget {
   final bool badged;
 
   final VoidCallback onNotifications;
+
+  /// 날씨 앞 핀을 미리 읽어 둔다. 홈이 세워질 때 한 번 부른다.
+  ///
+  /// ⚠️ **안 읽어 두면 핀이 글자보다 늦게 붙는다.** 날씨는 홈이 그려지고 1~2초
+  /// 뒤에 오는데, 핀 그림은 그때서야 읽기 시작해 약 0.1초 뒤에 따로 뜬다
+  /// (에뮬레이터 녹화를 프레임으로 확인). 종은 첫 화면부터 그려져 상관없다.
+  ///
+  /// 화면에 그리는 것이 아니라 그림 파일을 [svg.cache]에 넣어 둘 뿐이다. 화면의
+  /// `SvgPicture.asset`이 같은 키로 찾아 바로 쓴다.
+  static Future<void> precacheIcons() =>
+      SvgAssetLoader(AppIcons.pathOf(AppIcons.pin)).loadBytes(null);
 
   @override
   Widget build(BuildContext context) {

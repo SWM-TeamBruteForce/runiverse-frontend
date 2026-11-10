@@ -49,6 +49,12 @@ class _HomePageState extends ConsumerState<HomePage> {
   var _leaving = false;
 
   @override
+  void initState() {
+    super.initState();
+    unawaited(HomeTopBar.precacheIcons());
+  }
+
+  @override
   void dispose() {
     _ticker?.cancel();
     super.dispose();
