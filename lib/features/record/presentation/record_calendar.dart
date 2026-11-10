@@ -154,7 +154,7 @@ class _RecordCalendarState extends State<RecordCalendar> {
             // 캘린더와 그날 기록을 한 카드로 묶는다 — 날짜를 고르는 것과
             // 그 결과가 떨어져 있으면 무엇이 바뀌었는지 눈이 못 따라간다.
             const SizedBox(height: AppSpacing.space5),
-            Divider(height: 1, color: colors.borderDefault),
+            Divider(height: 1, thickness: 0.6, color: colors.borderDefault),
             const SizedBox(height: AppSpacing.space5),
 
             RecordDayList(

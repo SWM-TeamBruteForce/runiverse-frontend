@@ -193,7 +193,7 @@ class _AchievementSilhouette extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Divider(color: colors.borderDefault, height: 1),
+          Divider(color: colors.borderDefault, height: 1, thickness: 0.6),
           const SizedBox(height: AppSpacing.space4),
           Text(
             AppStrings.friendAchievementTitle,
