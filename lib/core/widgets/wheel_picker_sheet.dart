@@ -194,8 +194,8 @@ class _WheelSheetState extends State<_WheelSheet> {
                     child: Container(
                       height: _itemExtent,
                       decoration: BoxDecoration(
-                        color: colors.primaryMuted,
-                        borderRadius: AppRadius.sm,
+                        color: colors.bgSurface,
+                        borderRadius: AppRadius.md,
                       ),
                     ),
                   ),
@@ -273,9 +273,8 @@ class _WheelSheetState extends State<_WheelSheet> {
             return Center(
               child: Text(
                 '$value',
-                style: AppTypographyV2.body07.copyWith(
-                  color: isOn ? colors.textPrimary : colors.textTertiary,
-                  fontWeight: isOn ? FontWeight.w600 : FontWeight.w400,
+                style: AppTypographyV2.body02.copyWith(
+                  color: isOn ? colors.textStrong : colors.textTertiary,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
