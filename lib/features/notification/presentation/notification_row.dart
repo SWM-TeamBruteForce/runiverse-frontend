@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/runner_avatar.dart';
@@ -239,7 +240,7 @@ class _Button extends StatelessWidget {
           vertical: AppSpacing.space2,
         ),
         decoration: BoxDecoration(
-          border: Border.all(color: border, width: 0.6),
+          border: Border.all(color: border, width: AppSizes.hairline),
           borderRadius: AppRadius.sm,
         ),
         child: Text(

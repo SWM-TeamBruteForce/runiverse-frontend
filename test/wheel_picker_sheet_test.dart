@@ -13,7 +13,8 @@ import 'package:runiverse/core/widgets/wheel_picker_sheet.dart';
 /// 통과가 아무것도 증명하지 않는 상태였다.
 ///
 /// 디자인 시스템에 없는 컴포넌트라 모양을 못 박지는 않는다. **고른 값이
-/// 그대로 돌아오는가**와 **옮긴 세대의 버튼을 쓰는가**만 본다.
+/// 그대로 돌아오는가**, **옮긴 세대의 버튼을 쓰는가**, **고른 숫자가 가운데 띠에
+/// 놓이는가**, **단위가 자기 휠 아래에 놓이는가**를 본다.
 void main() {
   /// 고른 값을 담아 두는 그릇. **시트가 닫힌 뒤에 읽어야 한다** —
   /// 여는 시점에 읽으면 아직 `null` 이라 아무것도 검증하지 못한다.
@@ -76,5 +77,50 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(result['picked'], isNull);
+  });
+
+  testWidgets('⚠️ 고른 숫자가 가운데 띠 한가운데에 놓인다', (tester) async {
+    // 휠이 띠를 품은 칸보다 짧으면 숫자만 위로 올라가 띠와 어긋난다.
+    // 칸이 아니라 띠 자체를 잰다 — 띠만 옮겨도 어긋남이 잡히게.
+    await open(tester, columns: columns());
+
+    final stack = find
+        .ancestor(
+          of: find.byType(ListWheelScrollView).first,
+          matching: find.byType(Stack),
+        )
+        .first;
+    // 띠는 Stack의 첫 자식이고, 눌림을 막으려 IgnorePointer로 감싸 있다.
+    final band = find
+        .descendant(
+          of: find.descendant(of: stack, matching: find.byType(IgnorePointer)),
+          matching: find.byType(Container),
+        )
+        .first;
+
+    expect(
+      tester.getCenter(find.text('1991')).dy,
+      moreOrLessEquals(tester.getCenter(band).dy, epsilon: 0.5),
+    );
+  });
+
+  testWidgets('단위가 자기 휠 아래 가운데에 놓인다', (tester) async {
+    await open(tester, columns: columns());
+
+    final wheels = find.byType(ListWheelScrollView);
+    final units = ['년', '월'];
+    for (var i = 0; i < units.length; i++) {
+      final unit = find.text(units[i]);
+
+      expect(unit, findsOneWidget);
+      expect(
+        tester.getCenter(unit).dx,
+        moreOrLessEquals(tester.getCenter(wheels.at(i)).dx, epsilon: 0.5),
+      );
+      expect(
+        tester.getTopLeft(unit).dy,
+        greaterThanOrEqualTo(tester.getBottomLeft(wheels.at(i)).dy),
+      );
+    }
   });
 }
