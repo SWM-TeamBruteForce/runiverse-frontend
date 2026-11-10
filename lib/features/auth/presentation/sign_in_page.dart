@@ -777,7 +777,13 @@ class _OrDivider extends StatelessWidget {
 
     return Row(
       children: [
-        Expanded(child: Divider(color: colors.borderStrong, height: 1)),
+        Expanded(
+          child: Divider(
+            color: colors.borderDefault,
+            height: 1,
+            thickness: 0.6,
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space3),
           child: Text(
@@ -785,7 +791,13 @@ class _OrDivider extends StatelessWidget {
             style: AppTypographyV2.body17.copyWith(color: colors.textSecondary),
           ),
         ),
-        Expanded(child: Divider(color: colors.borderStrong, height: 1)),
+        Expanded(
+          child: Divider(
+            color: colors.borderDefault,
+            height: 1,
+            thickness: 0.6,
+          ),
+        ),
       ],
     );
   }

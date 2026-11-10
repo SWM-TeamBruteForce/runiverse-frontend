@@ -381,7 +381,9 @@ class _Tabs extends ConsumerWidget {
     return Container(
       margin: const EdgeInsets.only(top: AppSpacing.space4),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.borderDefault)),
+        border: Border(
+          bottom: BorderSide(color: colors.borderDefault, width: 0.6),
+        ),
       ),
       child: Row(
         children: [
