@@ -113,7 +113,7 @@ void main() {
           // ⚠️ 준비 화면이 들어올 때 상태를 다시 읽는다. 갈아 끼우지
           // 않으면 진짜 HTTP를 열려다 주소가 없어 죽는다.
           userStatusRepositoryProvider.overrideWithValue(status),
-          // ⚠️ 셸이 알림 배지를 그리며 앱 스트림을 만들고, 로그인돼 있으면
+          // ⚠️ 셸이 앱 스트림을 만들고, 로그인돼 있으면
           // 첫 페이지도 받는다. 갈아 끼우지 않으면 진짜 HTTP를 열려다 주소가
           // 없어 죽는다.
           appStreamProvider.overrideWithValue(FakeAppStream()),
