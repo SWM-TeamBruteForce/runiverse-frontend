@@ -28,7 +28,7 @@ class FakeMatchRepository implements MatchRepository {
   /// 깨지게 한다.
   ///
   /// 대기 인원에 **0이 두 층으로 섞여 있다** — 한 칸이 0인 자리(10:00 × 10km)와
-  /// 시각 합계가 0인 자리(10:30)다. "0이면 안 그린다"를 시트와 버튼 양쪽에서
+  /// 모든 거리가 0인 시각(10:30)이다. "0이면 안 그린다"를 시트와 버튼 양쪽에서
   /// 따로 꾸미지 않고 바로 확인할 수 있다.
   ///
   /// | | 10:00 | 10:30 | 11:00 |
@@ -36,7 +36,7 @@ class FakeMatchRepository implements MatchRepository {
   /// | 3km | 3 | 0 | 4 |
   /// | 5km | 2 | 0 | 1 |
   /// | 10km | 0 | 0 | 1 |
-  /// | **합계** | **5** | **0** | **6** |
+  /// | 참고: 거리를 더하면(앱은 그리지 않는다) | 5 | 0 | 6 |
   static SlotBoard defaultBoard() => SlotBoard([
     DistanceSlots(
       meters: 3000,

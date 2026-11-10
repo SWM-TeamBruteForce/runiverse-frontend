@@ -34,7 +34,7 @@ SlotBoard slotBoardFromJson(Object? body) {
 
   final distances = <DistanceSlots>[];
   // ⚠️ **같은 거리가 두 번 오면 한 번만 남긴다.** 그대로 두면 칩이 두 개 서고,
-  // 시간 시트의 합계가 그 거리만 두 배가 된다.
+  // 어느 쪽 숫자가 시트에 설지 정해지지 않는다.
   final seenDistances = <int>{};
 
   for (final row in rows) {
@@ -48,8 +48,8 @@ SlotBoard slotBoardFromJson(Object? body) {
     if (!seenDistances.add(meters)) continue;
 
     // ⚠️ **시간대가 비어도 거리는 남긴다.** 서버가 내놓은 선택지를 앱이
-    // 감추지 않는다. 칩은 서고, 해당하는 칸이 없으니 등록 버튼이 저절로
-    // 막는다(`SlotBoard.at`이 `null`).
+    // 감추지 않는다. 칩은 서고, 그 거리의 시트가 비어 있다(`matchSlotEmpty`).
+    // 고를 시각이 없으니 등록 버튼도 열리지 않는다.
     distances.add(
       DistanceSlots(meters: meters, slots: _slotsFromJson(row['slots'])),
     );
@@ -63,8 +63,8 @@ List<MatchSlot> _slotsFromJson(Object? rows) {
   if (rows is! List) return const [];
 
   final slots = <MatchSlot>[];
-  // 한 거리 안에서 같은 시각이 두 번 오면 진짜 중복이다 — 그대로 두면 그
-  // 거리의 합계가 두 배가 된다.
+  // 한 거리 안에서 같은 시각이 두 번 오면 진짜 중복이다 — 그대로 두면 시트에
+  // 같은 시각이 두 줄 선다.
   final seen = <String>{};
 
   for (final row in rows) {
@@ -88,7 +88,7 @@ List<MatchSlot> _slotsFromJson(Object? rows) {
         // 다시 조립하면 화면에 그린 시각과 서버로 가는 시각이 갈린다.
         raw: raw,
         startAt: startAt,
-        // 음수는 0으로 본다. 그대로 두면 합계가 줄어 "사람이 적다"로 읽힌다.
+        // 음수는 0으로 본다. 그대로 두면 시트와 버튼에 `-1명 대기`가 선다.
         waitingCount: waiting is int && waiting > 0 ? waiting : 0,
         // 모르면 **막는 쪽**이다. 열어 두면 마감된 시각을 눌러 409를 맞는다.
         selectable: selectable is bool && selectable,
