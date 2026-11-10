@@ -574,9 +574,6 @@ abstract final class AppStrings {
       '${place == null ? '' : '$place, '}'
       '${sky == null ? '' : '$sky '}$temperature도, 날씨 출처 보기';
 
-  /// 권한이 없고 홈에서 아직 안 물었을 때. **기기당 한 번만** 뜬다.
-  static const homeWeatherAsk = '위치 켜고 날씨 보기';
-
   /// 날씨를 누르면 뜨는 시트. Open-Meteo 데이터가 CC BY 4.0이라 보여 주는
   /// 자리에서 출처로 가는 링크가 있어야 한다.
   static const homeWeatherSource = '날씨 정보는 Open-Meteo에서 받아요';

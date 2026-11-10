@@ -11,6 +11,7 @@ import 'package:runiverse/core/widgets/v2/app_tab_bar.dart';
 import 'package:runiverse/core/widgets/profile_prompt_sheet.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/home/presentation/home_permission_provider.dart';
 import 'package:runiverse/features/home/presentation/home_weather_provider.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 import 'package:runiverse/features/notification/domain/push_landing.dart';
@@ -55,8 +56,8 @@ class _AppShellState extends ConsumerState<AppShell> {
   /// `build`는 한 번만 불리는 자리가 아니다.
   bool _gateUp = false;
 
-  /// 알림 권한을 물으러 갔는가. [_gateUp]과 같은 이유로 둔다.
-  bool _pushAsked = false;
+  /// 권한을 물으러 갔는가. [_gateUp]과 같은 이유로 둔다.
+  bool _permissionsAsked = false;
 
   /// 포그라운드 복귀를 듣는다.
   ///
@@ -140,17 +141,31 @@ class _AppShellState extends ConsumerState<AppShell> {
     unawaited(ref.read(pushProvider.notifier).resume());
   }
 
-  /// 프로필을 채운 사람에게 알림 권한을 묻는다. 관문이 서 있는 동안은 아직
+  /// 프로필을 채운 사람에게 권한을 묻는다. 관문이 서 있는 동안은 아직
   /// 홈에 들어온 것이 아니다.
   ///
   /// `build` 중에 권한 창을 띄우지 않는다. 첫 프레임 뒤로 민다.
-  void _askPushIfNeeded() {
-    if (_pushAsked) return;
-    _pushAsked = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      unawaited(ref.read(pushProvider.notifier).askPermission());
-    });
+  void _askPermissionsIfNeeded() {
+    if (_permissionsAsked) return;
+    _permissionsAsked = true;
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => unawaited(_askPermissions()),
+    );
+  }
+
+  /// 알림, 위치, 신체 활동 순서로 묻는다.
+  ///
+  /// ⚠️ **하나가 닫힌 뒤에 다음을 띄운다.** 겹쳐 부르면 플랫폼이 "요청이 이미
+  /// 진행 중"으로 거절한다. 위치·신체 활동은 기기당 한 번이다
+  /// ([HomePermissionAsker]).
+  Future<void> _askPermissions() async {
+    if (!mounted) return;
+    await ref.read(pushProvider.notifier).askPermission();
+    if (!mounted) return;
+    await ref.read(homePermissionProvider).askOnce();
+    if (!mounted) return;
+    // 방금 위치를 허용했으면 날씨를 받는다.
+    _refreshWeather();
   }
 
   /// 눌린 푸시가 가리키는 화면을 연다.
@@ -265,7 +280,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     // 채운 사람도 잠깐 갇힌다.
     final auth = ref.watch(authControllerProvider);
     if (auth is AuthSignedIn) _gateIfNeeded(auth.isOnboarded);
-    if (auth is AuthSignedIn && auth.isOnboarded) _askPushIfNeeded();
+    if (auth is AuthSignedIn && auth.isOnboarded) _askPermissionsIfNeeded();
 
     // 뒤에 있던 앱에서 푸시를 눌렀다. 빌드 도중에 옮기지 않는다
     // ([_leaveForSignIn]과 같은 이유).

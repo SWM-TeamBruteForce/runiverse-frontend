@@ -24,16 +24,12 @@ class HomeTopBar extends StatelessWidget {
     required this.badged,
     required this.onNotifications,
     required this.weather,
-    required this.onAskLocation,
     required this.onWeatherSource,
     super.key,
   });
 
   /// 왼쪽 자리.
   final HomeWeatherState weather;
-
-  /// `위치 켜고 날씨 보기`를 눌렀다.
-  final VoidCallback onAskLocation;
 
   /// 날씨를 눌렀다. 출처 시트를 띄운다 — 라이선스 조건이다(`home_weather_sheet.dart`).
   /// 시트가 그 자리의 날씨 지도를 열도록 누른 날씨를 넘긴다.
@@ -69,13 +65,6 @@ class HomeTopBar extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: switch (weather) {
               HomeWeatherHidden() => const SizedBox.shrink(),
-              // ⚠️ 권하는 문구라 날씨보다 한 단계 흐리게 둔다 — 시안에 없는
-              // 상태다. 디자인 확인이 필요하다.
-              HomeWeatherAsk() => _WeatherButton(
-                text: AppStrings.homeWeatherAsk,
-                color: colors.textSecondary,
-                onTap: onAskLocation,
-              ),
               final HomeWeatherShown shown => _WeatherButton(
                 text: AppStrings.homeWeather(
                   shown.place,
