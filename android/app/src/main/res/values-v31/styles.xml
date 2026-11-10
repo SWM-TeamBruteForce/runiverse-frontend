@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  안드로이드 12 이상의 시스템 스플래시.
+
+  12부터는 OS가 모든 앱에 시스템 스플래시를 띄우고 `launch_background.xml`을
+  쓰지 않는다. 그냥 두면 앱 아이콘(남색 네모)이 화면 정가운데에 뜬 뒤 앱
+  스플래시로 넘어가는데, 앱 스플래시의 심볼은 위치·크기가 달라 넘어가는 순간
+  로고가 튄다. 그래서 아이콘을 비우고 바탕만 앱 스플래시와 같은 색으로 깐다.
+
+  ⚠️ `values-night-v31/styles.xml`과 짝이다. 다크 모드에선 `values-night`가
+  API 수준보다 먼저 골라져서, 이 파일만 두면 다크 모드 폰에 먹지 않는다.
+-->
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+    </style>
+</resources>

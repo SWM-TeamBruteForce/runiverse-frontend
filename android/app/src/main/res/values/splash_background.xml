@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  OS 시작 화면 바탕. 앱 스플래시(`splash_page.dart`)의 `bgBase`
+  (`AppPaletteV2.neutral950`)와 같은 값이다 — 다르면 앱이 뜨는 순간 색이 바뀐다.
+  바꾸면 iOS `LaunchScreen.storyboard`의 배경도 함께 바꾼다.
+-->
+<resources>
+    <color name="splash_background">#0A0A0A</color>
+</resources>
