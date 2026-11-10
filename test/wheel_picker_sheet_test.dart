@@ -77,4 +77,22 @@ void main() {
 
     expect(result['picked'], isNull);
   });
+
+  testWidgets('⚠️ 고른 숫자가 가운데 띠 한가운데에 놓인다', (tester) async {
+    // 띠는 휠을 감싼 Stack 정중앙에 그려진다. 휠이 Stack보다 짧으면
+    // 숫자만 위로 올라가 띠와 어긋난다.
+    await open(tester, columns: columns());
+
+    final band = find
+        .ancestor(
+          of: find.byType(ListWheelScrollView).first,
+          matching: find.byType(Stack),
+        )
+        .first;
+
+    expect(
+      tester.getCenter(find.text('1991')).dy,
+      moreOrLessEquals(tester.getCenter(band).dy, epsilon: 0.5),
+    );
+  });
 }

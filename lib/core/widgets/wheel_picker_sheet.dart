@@ -202,11 +202,30 @@ class _WheelSheetState extends State<_WheelSheet> {
                   Row(
                     children: [
                       for (var i = 0; i < widget.columns.length; i++)
-                        Expanded(child: _column(i)),
+                        Expanded(child: _wheel(i)),
                     ],
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: AppSpacing.space2),
+
+            // 단위는 휠 칸 밖에 둔다. 안에 넣으면 휠이 그만큼 짧아져
+            // 숫자가 가운데 띠보다 위에 찍힌다.
+            Row(
+              children: [
+                for (final column in widget.columns)
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        column.unit,
+                        style: AppTypographyV2.body21.copyWith(
+                          color: colors.textTertiary,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: AppSpacing.space5),
 
@@ -220,62 +239,50 @@ class _WheelSheetState extends State<_WheelSheet> {
     );
   }
 
-  Widget _column(int i) {
+  Widget _wheel(int i) {
     final colors = context.appColorsV2;
     final values = _values[i];
     final selected = _picked[i];
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Expanded(
-          // 위아래 끝을 흐린다. 안 하면 맨 끝 항목이 반쯤 잘린 채로 캡션과 붙어
-          // 렌더가 깨진 것처럼 보인다. 흐려지면 '더 있다'는 신호가 된다.
-          child: ShaderMask(
-            shaderCallback: (rect) => const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.transparent,
-                Colors.black,
-                Colors.black,
-                Colors.transparent,
-              ],
-              stops: [0, 0.24, 0.76, 1],
-            ).createShader(rect),
-            blendMode: BlendMode.dstIn,
-            child: ListWheelScrollView.useDelegate(
-              controller: _controllers[i],
-              itemExtent: _itemExtent,
-              physics: const FixedExtentScrollPhysics(),
-              diameterRatio: 2.2,
-              onSelectedItemChanged: (index) => _onChanged(i, index),
-              childDelegate: ListWheelChildBuilderDelegate(
-                childCount: values.length,
-                builder: (context, index) {
-                  final value = values[index];
-                  final isOn = value == selected;
-                  return Center(
-                    child: Text(
-                      '$value',
-                      style: AppTypographyV2.body07.copyWith(
-                        color: isOn ? colors.textPrimary : colors.textTertiary,
-                        fontWeight: isOn ? FontWeight.w600 : FontWeight.w400,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                  );
-                },
+    // 위아래 끝을 흐린다. 안 하면 맨 끝 항목이 반쯤 잘린 채로 캡션과 붙어
+    // 렌더가 깨진 것처럼 보인다. 흐려지면 '더 있다'는 신호가 된다.
+    return ShaderMask(
+      shaderCallback: (rect) => const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Colors.transparent,
+          Colors.black,
+          Colors.black,
+          Colors.transparent,
+        ],
+        stops: [0, 0.24, 0.76, 1],
+      ).createShader(rect),
+      blendMode: BlendMode.dstIn,
+      child: ListWheelScrollView.useDelegate(
+        controller: _controllers[i],
+        itemExtent: _itemExtent,
+        physics: const FixedExtentScrollPhysics(),
+        diameterRatio: 2.2,
+        onSelectedItemChanged: (index) => _onChanged(i, index),
+        childDelegate: ListWheelChildBuilderDelegate(
+          childCount: values.length,
+          builder: (context, index) {
+            final value = values[index];
+            final isOn = value == selected;
+            return Center(
+              child: Text(
+                '$value',
+                style: AppTypographyV2.body07.copyWith(
+                  color: isOn ? colors.textPrimary : colors.textTertiary,
+                  fontWeight: isOn ? FontWeight.w600 : FontWeight.w400,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
-        const SizedBox(height: AppSpacing.space2),
-        Text(
-          widget.columns[i].unit,
-          style: AppTypographyV2.body21.copyWith(color: colors.textTertiary),
-        ),
-      ],
+      ),
     );
   }
 }
