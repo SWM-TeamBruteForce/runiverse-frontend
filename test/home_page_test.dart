@@ -1,19 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/semantics.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/v2/action_tile.dart';
+import 'package:runiverse/core/widgets/v2/app_tab_bar.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
-import 'package:runiverse/core/storage/location_ask_store.dart';
 import 'package:runiverse/features/home/domain/place_repository.dart';
 import 'package:runiverse/features/home/domain/weather.dart';
 import 'package:runiverse/features/home/domain/weather_repository.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
+import 'package:runiverse/features/home/presentation/home_permission_provider.dart';
 import 'package:runiverse/features/home/presentation/home_weather_provider.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/presentation/invite_register_page.dart';
@@ -21,12 +25,15 @@ import 'package:runiverse/features/matching/presentation/match_register_page.dar
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/notification/data/fake_app_stream.dart';
 import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
+import 'package:runiverse/features/notification/domain/push_messaging.dart';
 import 'package:runiverse/features/notification/presentation/notification_page.dart';
 import 'package:runiverse/features/notification/presentation/notification_provider.dart';
+import 'package:runiverse/features/notification/presentation/push_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
+import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
@@ -37,10 +44,21 @@ void main() {
     AuthState? auth,
     _StubWeatherController? weather,
     bool realWeather = false,
+    _StubPermissionAsker? permissions,
+    FakeLocationRepository? location,
+    PushMessaging? pushMessaging,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          // 셸이 알림 권한을 먼저 묻는다. 기본값은 아무것도 하지 않는다.
+          if (pushMessaging != null)
+            pushMessagingProvider.overrideWithValue(pushMessaging),
+          // 셸이 홈에서 위치·신체 활동 권한을 묻는다. 진짜를 두면 플랫폼
+          // 채널을 부른다.
+          homePermissionProvider.overrideWith(
+            (ref) => permissions ?? _StubPermissionAsker(),
+          ),
           // 셸이 세워지면서 날씨를 받는다. 진짜를 두면 위치·저장소 플랫폼
           // 채널을 부른다. **위치 저장소를 통째로 갈지 않는다** — 1인 러닝
           // 준비 화면도 그것을 쓴다.
@@ -52,15 +70,12 @@ void main() {
           // 연결까지 본다.
           if (realWeather) ...[
             locationRepositoryProvider.overrideWithValue(
-              FakeLocationRepository()
+              (location ?? FakeLocationRepository())
                 ..position = GeoPoint(
                   latitude: 37.5665,
                   longitude: 126.978,
                   recordedAt: DateTime(2026, 11, 10, 9),
                 ),
-            ),
-            locationAskStoreProvider.overrideWithValue(
-              InMemoryLocationAskStore(),
             ),
             weatherRepositoryProvider.overrideWithValue(_ClearWeather()),
             placeRepositoryProvider.overrideWithValue(_JungGu()),
@@ -217,16 +232,6 @@ void main() {
       expect(find.text(AppStrings.homeWeatherSourceOpen), findsOneWidget);
     });
 
-    testWidgets('권한이 없으면 버튼을 그리고, 누르면 묻는다', (tester) async {
-      final weather = _StubWeatherController(const HomeWeatherAsk());
-      await pumpHome(tester, weather: weather);
-
-      await tester.tap(find.text(AppStrings.homeWeatherAsk));
-      await tester.pumpAndSettle();
-
-      expect(weather.asks, 1);
-    });
-
     testWidgets('⚠️ 셸이 세워지면 날씨를 받아 그린다', (tester) async {
       // 컨트롤러를 갈지 않는다. 셸의 첫 갱신 연결이 빠지면 여기서 걸린다.
       await pumpHome(tester, realWeather: true);
@@ -238,25 +243,184 @@ void main() {
       // 읽을 칸이 아래 `InkWell`의 동작을 지운다. 누름이 빠지면 "버튼"이라고
       // 읽히고도 눌리지 않는다.
       final semantics = tester.ensureSemantics();
-      final weather = _StubWeatherController(const HomeWeatherAsk());
-      await pumpHome(tester, weather: weather);
-
-      final node = tester.getSemantics(
-        find.bySemanticsLabel(AppStrings.homeWeatherAsk),
+      await pumpHome(
+        tester,
+        weather: _StubWeatherController(
+          const HomeWeatherShown(
+            Weather(sky: WeatherSky.clear, temperature: 18),
+            latitude: 37.4979,
+            longitude: 127.0276,
+            place: '서울 강남구',
+          ),
+        ),
       );
+      final label = AppStrings.homeWeatherSemantics('서울 강남구', '맑음', 18);
+
+      final node = tester.getSemantics(find.bySemanticsLabel(label));
       expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
 
-      tester.semantics.tap(find.semantics.byLabel(AppStrings.homeWeatherAsk));
+      tester.semantics.tap(find.semantics.byLabel(label));
       await tester.pumpAndSettle();
-      expect(weather.asks, 1);
+      expect(find.text(AppStrings.homeWeatherSource), findsOneWidget);
       semantics.dispose();
     });
 
     testWidgets('비어 있으면 아무것도 그리지 않는다', (tester) async {
       await pumpHome(tester);
 
-      expect(find.text(AppStrings.homeWeatherAsk), findsNothing);
       expect(find.textContaining('°'), findsNothing);
+    });
+  });
+
+  group('권한', () {
+    testWidgets('⚠️ 프로필을 채운 사람이 홈에 들어오면 한 번 묻는다', (tester) async {
+      final permissions = _StubPermissionAsker();
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: true),
+        permissions: permissions,
+      );
+
+      expect(permissions.asks, 1);
+    });
+
+    /// 탭 바의 홈을 누른다. 탭 바에는 글자가 없어 읽을 칸의 이름으로 찾는다.
+    Future<void> tapHomeTab(WidgetTester tester) async {
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AppTabBarV2),
+          matching: find.bySemanticsLabel(AppStrings.tabHome),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    /// 앱이 뒤로 갔다 돌아온다. 생명주기는 단계를 건너뛰지 못한다.
+    Future<void> leaveAndReturn(WidgetTester tester) async {
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('⚠️ 위치 기능이 꺼져 미뤘으면 앱으로 돌아올 때 다시 묻는다', (tester) async {
+      // 버튼이 없어서, 위치 기능을 켜고 돌아온 사람에게 물을 자리가 여기뿐이다.
+      final permissions = _StubPermissionAsker()..done = false;
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: true),
+        permissions: permissions,
+      );
+      expect(permissions.asks, 1);
+
+      permissions.done = true;
+      await leaveAndReturn(tester);
+      expect(permissions.asks, 2);
+
+      // 끝났으면 더 묻지 않는다.
+      await leaveAndReturn(tester);
+      expect(permissions.asks, 2);
+    });
+
+    testWidgets('⚠️ 출발 준비 화면에서 돌아오면 다시 묻지 않는다', (tester) async {
+      // 출발 준비도 복귀 때 위치를 다시 묻는다. 같은 순간에 둘이 물으면 늦은
+      // 쪽이 "요청이 이미 진행 중"으로 실패한다.
+      final permissions = _StubPermissionAsker()..done = false;
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: true),
+        permissions: permissions,
+      );
+      await tester.ensureVisible(find.text(AppStrings.homeSoloCta));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.homeSoloCta));
+      await tester.pumpAndSettle();
+
+      await leaveAndReturn(tester);
+
+      expect(permissions.asks, 1);
+    });
+
+    testWidgets('⚠️ 미뤘으면 홈 탭을 누를 때 다시 묻는다', (tester) async {
+      // 다른 탭에서 위치 기능을 켜고 돌아오면 복귀 때는 홈이 맨 위가 아니라
+      // 묻지 않는다. 홈 탭을 누르는 때가 다음 자리다.
+      final permissions = _StubPermissionAsker()..done = false;
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: true),
+        permissions: permissions,
+      );
+      expect(permissions.asks, 1);
+
+      permissions.done = true;
+      await tapHomeTab(tester);
+      expect(permissions.asks, 2);
+
+      // 끝났으면 더 묻지 않는다.
+      await tapHomeTab(tester);
+      expect(permissions.asks, 2);
+    });
+
+    testWidgets('⚠️ 홈에서 위치를 허용하면 바로 날씨를 받는다', (tester) async {
+      // 셸이 처음 받을 때는 아직 권한이 없다. 물은 뒤에 다시 받지 않으면
+      // 다음 복귀까지 날씨 자리가 비어 있다.
+      final location = FakeLocationRepository(access: LocationAccess.denied);
+      final permissions = _StubPermissionAsker()
+        ..onAsk = () => location.access = LocationAccess.granted;
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: true),
+        realWeather: true,
+        location: location,
+        permissions: permissions,
+      );
+
+      expect(find.text('서울 중구 · 맑음 18°'), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 알림 창이 닫힌 뒤에 위치를 묻는다', (tester) async {
+      // 겹쳐 부르면 플랫폼이 "요청이 이미 진행 중"으로 거절한다.
+      final push = _HeldPushMessaging();
+      final permissions = _StubPermissionAsker();
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: true),
+        permissions: permissions,
+        pushMessaging: push,
+      );
+      expect(permissions.asks, 0, reason: '알림 창이 떠 있다');
+
+      push.hold.complete();
+      await tester.pumpAndSettle();
+
+      expect(permissions.asks, 1);
+    });
+
+    testWidgets('물을 일이 끝났으면 앱으로 돌아와도 다시 묻지 않는다', (tester) async {
+      final permissions = _StubPermissionAsker();
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: true),
+        permissions: permissions,
+      );
+
+      await leaveAndReturn(tester);
+
+      expect(permissions.asks, 1);
+    });
+
+    testWidgets('⚠️ 관문이 서 있는 동안은 묻지 않는다', (tester) async {
+      final permissions = _StubPermissionAsker();
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: false),
+        permissions: permissions,
+      );
+
+      expect(permissions.asks, 0);
     });
   });
 
@@ -362,20 +526,43 @@ class _JungGu implements PlaceRepository {
   }) async => '서울 중구';
 }
 
-/// 날씨 자리를 고정한 컨트롤러. 받기·묻기는 부르기만 센다.
+/// 날씨 자리를 고정한 컨트롤러. 받지 않는다.
 class _StubWeatherController extends HomeWeatherController {
   _StubWeatherController([this.initial = const HomeWeatherHidden()]);
 
   final HomeWeatherState initial;
-
-  int asks = 0;
 
   @override
   HomeWeatherState build() => initial;
 
   @override
   Future<void> refresh() async {}
+}
+
+/// 권한 창을 띄우지 않고 부른 횟수만 센다.
+class _StubPermissionAsker implements HomePermissionAsker {
+  int asks = 0;
+
+  /// 물을 일이 끝났다고 답할 것인가. 거짓이면 위치 기능이 꺼져 미룬 것이다.
+  bool done = true;
+
+  /// 물을 때 부른다. 권한 창에서 허용을 누른 것을 흉내 낸다.
+  void Function()? onAsk;
 
   @override
-  Future<void> ask() async => asks++;
+  Future<bool> askOnce() async {
+    asks++;
+    onAsk?.call();
+    return done;
+  }
+}
+
+/// 알림 권한 창이 [hold]가 끝날 때까지 떠 있다.
+class _HeldPushMessaging extends NoopPushMessaging {
+  _HeldPushMessaging();
+
+  final hold = Completer<void>();
+
+  @override
+  Future<void> requestPermission() => hold.future;
 }

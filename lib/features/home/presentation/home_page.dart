@@ -151,8 +151,6 @@ class _HomePageState extends ConsumerState<HomePage> {
               onNotifications: () => context.push(AppRoutes.notifications),
               // 언제 다시 받을지는 셸이 정한다(`homeWeatherProvider` 주석).
               weather: ref.watch(homeWeatherProvider),
-              onAskLocation: () =>
-                  unawaited(ref.read(homeWeatherProvider.notifier).ask()),
               onWeatherSource: (shown) => unawaited(
                 showHomeWeatherSheet(
                   context,

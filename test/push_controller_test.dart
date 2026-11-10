@@ -198,9 +198,32 @@ void main() {
       await asking;
       // 한 번 실행에 한 번만 묻는다.
       await push(app.container).askPermission();
+      // 등록은 창이 닫힌 뒤 따로 돈다. 끝나기를 기다린다.
+      await settle();
 
       expect(app.devices.sent, ['device-1/fcm-1']);
       expect(app.messaging.permissionAsks, 1);
+    });
+
+    test('⚠️ 창이 닫히면 등록을 기다리지 않고 끝난다', () async {
+      // 셸이 이것을 기다린 뒤 위치를 묻는다. 등록(연결·응답 각 10초)까지
+      // 기다리면 그사이 출발 준비가 위치를 물어 두 요청이 겹친다.
+      final app = build();
+      app.messaging.currentToken = null;
+      app.auth.set(me);
+      await settle();
+      app.messaging.currentToken = 'fcm-1';
+      final hold = Completer<void>();
+      app.devices.hold = hold;
+
+      var done = false;
+      unawaited(push(app.container).askPermission().then((_) => done = true));
+      await settle();
+      await settle();
+
+      expect(app.devices.sent, ['device-1/fcm-1'], reason: '등록은 나가 있다');
+      expect(done, isTrue, reason: '서버 응답을 기다리지 않는다');
+      hold.complete();
     });
 
     test('⚠️ 나가 있던 등록이 로그아웃 뒤에 실패해도 다시 보내지 않는다', () async {

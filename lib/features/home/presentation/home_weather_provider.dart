@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:runiverse/core/storage/location_ask_store.dart';
 import 'package:runiverse/features/home/data/geocoding_place_repository.dart';
 import 'package:runiverse/features/home/data/open_meteo_weather_repository.dart';
 import 'package:runiverse/features/home/domain/place_repository.dart';
@@ -24,11 +23,6 @@ final placeRepositoryProvider = Provider<PlaceRepository>(
   (ref) => GeocodingPlaceRepository(),
 );
 
-/// 홈에서 위치를 물었는지 기억하는 곳.
-final locationAskStoreProvider = Provider<LocationAskStore>(
-  (ref) => SecureLocationAskStore(),
-);
-
 /// 지금 몇 시인가. 테스트가 30분을 넘기려고 갈아 끼운다.
 final weatherClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
@@ -40,18 +34,18 @@ final weatherClockProvider = Provider<DateTime Function()>(
 ///
 /// 셋 다 **빈 자리**([HomeWeatherHidden])다. 날씨는 있으면 좋은 정도라 도는
 /// 표시나 오류 문구로 위 줄을 채울 이유가 없다 — 비어 있다가 받으면 채워진다.
+///
+/// ## 권한은 여기서 묻지 않는다
+///
+/// 위치 권한은 셸이 홈에 처음 들어올 때 묻는다(`HomePermissionAsker`). 여기는
+/// 지금 상태만 읽고, 없으면 비워 둔다.
 sealed class HomeWeatherState {
   const HomeWeatherState();
 }
 
-/// 비워 둔다. 받는 중이거나, 못 받았거나, 권한이 없고 이미 물었다.
+/// 비워 둔다. 받는 중이거나, 못 받았거나, 권한이 없다.
 final class HomeWeatherHidden extends HomeWeatherState {
   const HomeWeatherHidden();
-}
-
-/// `위치 켜고 날씨 보기`. 권한이 없고 홈에서 아직 안 물었다.
-final class HomeWeatherAsk extends HomeWeatherState {
-  const HomeWeatherAsk();
 }
 
 /// `서울 중구 · 맑음 18°`. 동네 이름을 모르면 `맑음 18°`.
@@ -77,7 +71,7 @@ final class HomeWeatherShown extends HomeWeatherState {
 ///
 /// **셸에 붙인다** — `HomePage`가 아니다. 홈 탭은 다른 탭에 다녀와도 다시
 /// 세워지지 않아서, 화면에 붙이면 처음 한 번만 받는다. 셸이 세워질 때·앱이
-/// 돌아올 때·홈 탭을 누를 때 [refresh]를 부른다.
+/// 돌아올 때·홈 탭을 누를 때·홈에서 권한을 물은 뒤에 [refresh]를 부른다.
 final homeWeatherProvider =
     NotifierProvider<HomeWeatherController, HomeWeatherState>(
       HomeWeatherController.new,
@@ -95,19 +89,14 @@ class HomeWeatherController extends Notifier<HomeWeatherState> {
 
   /// 돌고 있는 [refresh]. 겹친 호출은 이것을 기다린다.
   ///
-  /// iOS는 권한 창이 떴다 닫히는 것만으로 앱이 `resumed`가 되어, 버튼의 갱신과
-  /// 셸의 복귀 갱신이 겹친다.
+  /// iOS는 권한 창이 떴다 닫히는 것만으로 앱이 `resumed`가 되어, 권한을 물은
+  /// 뒤의 갱신과 셸의 복귀 갱신이 겹친다.
   Future<void>? _running;
 
   /// 도는 중에 다시 불렸다. **끝난 뒤 한 번 더 본다** — 날씨를 받는 사이 위치를
-  /// 끄고 돌아왔다면, 먼저 시작한 갱신은 그 사실을 모른다.
+  /// 끄고 돌아왔다면, 먼저 시작한 갱신은 그 사실을 모른다. 권한 창이 닫히며
+  /// 시작된 복귀 갱신이 **허용 전에** 상태를 읽은 경우도 같다.
   var _again = false;
-
-  /// 이 실행에서 버튼을 눌렀다.
-  ///
-  /// ⚠️ 저장값을 읽는 사이에 눌리면 늦게 끝난 갱신이 버튼을 되살린다. 저장소보다
-  /// 먼저 이것을 본다.
-  var _askedNow = false;
 
   /// 동네 이름을 기다리는 한도. 넘으면 이름 없이 날씨만 그린다.
   ///
@@ -119,7 +108,6 @@ class HomeWeatherController extends Notifier<HomeWeatherState> {
   HomeWeatherState build() => const HomeWeatherHidden();
 
   LocationRepository get _location => ref.read(locationRepositoryProvider);
-  LocationAskStore get _askStore => ref.read(locationAskStoreProvider);
   WeatherRepository get _weather => ref.read(weatherRepositoryProvider);
   PlaceRepository get _place => ref.read(placeRepositoryProvider);
   DateTime _now() => ref.read(weatherClockProvider)();
@@ -147,18 +135,7 @@ class HomeWeatherController extends Notifier<HomeWeatherState> {
     try {
       final access = await _location.checkAccess();
       if (!access.isGranted) {
-        _fetchedAt = null;
-        // ⚠️ **`denied`일 때만 묻는다.** 위치 기능이 꺼졌으면(`serviceDisabled`)
-        // `ensureAccess`가 묻지도 않고 돌아와 한 번뿐인 기회만 쓰고, iOS의
-        // `deniedForever`는 물을 수 없다.
-        final askable =
-            access == LocationAccess.denied &&
-            !_askedNow &&
-            !await _askStore.asked();
-        // 저장값을 기다리는 사이 눌렸을 수 있다. 한 번 더 본다.
-        state = askable && !_askedNow
-            ? const HomeWeatherAsk()
-            : const HomeWeatherHidden();
+        _hide();
         return;
       }
 
@@ -189,8 +166,6 @@ class HomeWeatherController extends Notifier<HomeWeatherState> {
       );
       _fetchedAt = _now();
     } on Object catch (error) {
-      // 저장값을 못 읽은 경우도 여기로 온다 — **물었다고 본다.** 못 읽었다고
-      // 버튼을 띄우면 이미 물은 기기에서 두 번째 거절을 받을 수 있다.
       debugPrint('[weather] 날씨 자리를 비운다 · $error');
       _hide();
     }
@@ -212,30 +187,5 @@ class HomeWeatherController extends Notifier<HomeWeatherState> {
   void _hide() {
     _fetchedAt = null;
     state = const HomeWeatherHidden();
-  }
-
-  /// `위치 켜고 날씨 보기`를 눌렀다.
-  ///
-  /// ⚠️ **물었다는 것을 먼저 남긴다.** 권한 창이 떠 있는 동안 앱이 꺼지면 남길
-  /// 기회가 없다. 남기지 못하면 묻지 않는다 — 기기당 한 번을 지킬 수 없다.
-  Future<void> ask() async {
-    if (state is! HomeWeatherAsk) return;
-    _askedNow = true;
-    // 바로 감춘다. 권한 창이 뜨기 전에 한 번 더 눌리지 않게.
-    state = const HomeWeatherHidden();
-
-    final LocationAccess access;
-    try {
-      await _askStore.markAsked();
-      access = await _location.ensureAccess();
-    } on Object catch (error) {
-      debugPrint('[weather] 위치 권한을 묻지 못했다 · $error');
-      return;
-    }
-    if (!access.isGranted) return;
-
-    // 권한 창이 닫히며 시작된 복귀 갱신은 **허용 전에** 상태를 읽었을 수 있다.
-    // 도는 중이면 [refresh]가 끝난 뒤 한 번 더 보게 한다.
-    await refresh();
   }
 }

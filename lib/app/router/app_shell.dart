@@ -11,6 +11,7 @@ import 'package:runiverse/core/widgets/v2/app_tab_bar.dart';
 import 'package:runiverse/core/widgets/profile_prompt_sheet.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/home/presentation/home_permission_provider.dart';
 import 'package:runiverse/features/home/presentation/home_weather_provider.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 import 'package:runiverse/features/notification/domain/push_landing.dart';
@@ -55,8 +56,16 @@ class _AppShellState extends ConsumerState<AppShell> {
   /// `build`는 한 번만 불리는 자리가 아니다.
   bool _gateUp = false;
 
-  /// 알림 권한을 물으러 갔는가. [_gateUp]과 같은 이유로 둔다.
-  bool _pushAsked = false;
+  /// 권한을 물으러 갔는가. [_gateUp]과 같은 이유로 둔다.
+  bool _permissionsAsked = false;
+
+  /// 권한을 묻는 중인가. 권한 창이 닫힐 때도 앱은 `resumed`가 되므로, 없으면
+  /// 복귀 때의 재시도가 떠 있는 창과 겹친다.
+  bool _askingPermissions = false;
+
+  /// 기기의 위치 기능이 꺼져 있어 위치·신체 활동을 미뤘는가. 앱으로 돌아올 때
+  /// 다시 본다 — 켜고 돌아온 사람에게 물을 자리가 여기뿐이다.
+  bool _permissionsDeferred = false;
 
   /// 포그라운드 복귀를 듣는다.
   ///
@@ -138,19 +147,50 @@ class _AppShellState extends ConsumerState<AppShell> {
     unawaited(ref.read(notificationProvider.notifier).resume());
     // 앞선 기기 등록이 실패로 남았을 때만 다시 보낸다(명세 2-1).
     unawaited(ref.read(pushProvider.notifier).resume());
+    // ⚠️ **홈이 맨 위일 때만 다시 묻는다.** 출발 준비·카운트다운도 복귀 때 위치를
+    // 다시 묻는다 — 같은 순간에 둘이 물으면 늦은 쪽이 "요청이 이미 진행 중"으로
+    // 실패하고, 출발 준비가 지면 "위치 꺼짐" 안내에서 멈춘다.
+    if (_permissionsDeferred &&
+        GoRouter.of(context).state.matchedLocation == AppRoutes.home) {
+      unawaited(_askPermissions());
+    }
   }
 
-  /// 프로필을 채운 사람에게 알림 권한을 묻는다. 관문이 서 있는 동안은 아직
+  /// 프로필을 채운 사람에게 권한을 묻는다. 관문이 서 있는 동안은 아직
   /// 홈에 들어온 것이 아니다.
   ///
   /// `build` 중에 권한 창을 띄우지 않는다. 첫 프레임 뒤로 민다.
-  void _askPushIfNeeded() {
-    if (_pushAsked) return;
-    _pushAsked = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+  void _askPermissionsIfNeeded() {
+    if (_permissionsAsked) return;
+    _permissionsAsked = true;
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => unawaited(_askPermissions()),
+    );
+  }
+
+  /// 알림, 위치, 신체 활동 순서로 묻는다.
+  ///
+  /// ⚠️ **하나가 닫힌 뒤에 다음을 띄운다.** 겹쳐 부르면 플랫폼이 "요청이 이미
+  /// 진행 중"으로 거절한다. 위치·신체 활동은 기기당 한 번이다
+  /// ([HomePermissionAsker]).
+  Future<void> _askPermissions() async {
+    if (!mounted || _askingPermissions) return;
+    _askingPermissions = true;
+    try {
+      // 알림이 실패해도 위치·신체 활동은 묻는다.
+      try {
+        await ref.read(pushProvider.notifier).askPermission();
+      } on Object catch (error) {
+        debugPrint('[permission] 알림 권한을 묻지 못했다 · $error');
+      }
       if (!mounted) return;
-      unawaited(ref.read(pushProvider.notifier).askPermission());
-    });
+      _permissionsDeferred = !await ref.read(homePermissionProvider).askOnce();
+      if (!mounted) return;
+      // 방금 위치를 허용했으면 날씨를 받는다.
+      _refreshWeather();
+    } finally {
+      _askingPermissions = false;
+    }
   }
 
   /// 눌린 푸시가 가리키는 화면을 연다.
@@ -248,7 +288,12 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   void _onDestinationSelected(int index) {
     // 홈 탭은 다시 세워지지 않아 다녀와도 날씨가 그대로다. 누를 때 다시 본다.
-    if (index == 0) _refreshWeather();
+    if (index == 0) {
+      _refreshWeather();
+      // 다른 탭에서 위치 기능을 켜고 돌아왔으면 여기서 묻는다. 복귀 때는 홈이
+      // 맨 위가 아니라 묻지 않았다([_onResume]).
+      if (_permissionsDeferred) unawaited(_askPermissions());
+    }
     widget.navigationShell.goBranch(
       index,
       // 이미 열려 있는 탭을 다시 누르면 그 탭의 첫 화면으로 돌아간다.
@@ -265,7 +310,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     // 채운 사람도 잠깐 갇힌다.
     final auth = ref.watch(authControllerProvider);
     if (auth is AuthSignedIn) _gateIfNeeded(auth.isOnboarded);
-    if (auth is AuthSignedIn && auth.isOnboarded) _askPushIfNeeded();
+    if (auth is AuthSignedIn && auth.isOnboarded) _askPermissionsIfNeeded();
 
     // 뒤에 있던 앱에서 푸시를 눌렀다. 빌드 도중에 옮기지 않는다
     // ([_leaveForSignIn]과 같은 이유).

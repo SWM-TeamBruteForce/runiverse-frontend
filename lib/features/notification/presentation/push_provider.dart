@@ -141,13 +141,17 @@ class PushController extends Notifier<PushLanding?> {
   /// ⚠️ **안드로이드는 한 번 거절해도 다음 실행에 한 번 더 뜬다.** OS가 두 번째
   /// 거절부터 창을 막는다. 러닝 출발(`ensureRunNotification`)도 같은 권한을
   /// 같은 방식으로 묻는다.
+  ///
+  /// ⚠️ **창이 닫히면 끝난다 — 등록은 기다리지 않는다.** 셸이 이것을 기다린 뒤
+  /// 위치를 묻는데, 등록(연결·응답 각 10초)까지 기다리면 그사이 출발 준비가
+  /// 위치를 물어 두 요청이 겹친다.
   Future<void> askPermission() async {
     if (_askedPermission) return;
     _askedPermission = true;
     await _messaging.requestPermission();
     // iOS는 설치 직후 APNs 토큰이 늦게 올 수 있다. 창을 닫는 사이에 생겼으면
     // 지금 보낸다.
-    if (_failed && _userId != null) await _register();
+    if (_failed && _userId != null) unawaited(_register());
   }
 
   /// 셸이 옮길 자리를 꺼내 간다. 꺼내면 비운다 — 같은 푸시로 두 번 옮기지 않는다.
@@ -249,8 +253,9 @@ class PushController extends Notifier<PushLanding?> {
       if (attempt != _attempt) return;
       // 기기 저장소 같은 플랫폼 쪽 실패다. 복귀 때 다시 해 본다.
       //
-      // ⚠️ **던지지 않는다.** 셸은 [resume]·[askPermission]을 기다리지 않고
-      // 부르므로, 던지면 처리되지 않은 오류가 되어 Crashlytics에 치명 오류로 쌓인다.
+      // ⚠️ **던지지 않는다.** 셸은 [resume]을 기다리지 않고 부르고 [askPermission]은
+      // 이것을 기다리지 않으므로, 던지면 처리되지 않은 오류가 되어 Crashlytics에
+      // 치명 오류로 쌓인다.
       debugPrint('[push] 기기를 등록하지 못했다 · ${error.runtimeType}');
       _failed = true;
     }

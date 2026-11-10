@@ -163,9 +163,9 @@ abstract final class AppStrings {
   /// "마케팅 정보 수신"만으로는 무엇에 동의하는지 알 수 없다.
   static const termsMarketing = '매칭 소식과 이벤트 알림';
 
-  /// 위치 권한을 지금 묻지 않는 이유를 미리 알린다.
-  /// 권한 요청은 실제로 필요한 맥락(매칭 등록)에서 해야 수락률이 높다.
-  static const termsLocationNotice = '위치 권한은 매칭을\n시작할 때 여쭤봐요';
+  /// 위치 권한을 지금 묻지 않고 홈에서 묻는다는 것을 미리 알린다
+  /// (`HomePermissionAsker`).
+  static const termsLocationNotice = '위치 권한은 홈에서\n한 번 여쭤봐요';
 
   /// **필수** 3항목을 전부 동의해야 눌린다. 선택은 막지 않는다.
   static const termsCta = '동의하고 계속';
@@ -573,9 +573,6 @@ abstract final class AppStrings {
   ) =>
       '${place == null ? '' : '$place, '}'
       '${sky == null ? '' : '$sky '}$temperature도, 날씨 출처 보기';
-
-  /// 권한이 없고 홈에서 아직 안 물었을 때. **기기당 한 번만** 뜬다.
-  static const homeWeatherAsk = '위치 켜고 날씨 보기';
 
   /// 날씨를 누르면 뜨는 시트. Open-Meteo 데이터가 CC BY 4.0이라 보여 주는
   /// 자리에서 출처로 가는 링크가 있어야 한다.
