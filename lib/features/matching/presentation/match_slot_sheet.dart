@@ -6,21 +6,24 @@ import 'package:runiverse/core/theme/tokens/app_radius.dart';
 import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
-import 'package:runiverse/features/matching/domain/slot_board.dart';
+import 'package:runiverse/features/matching/domain/match_slot.dart';
 
-/// 시간대를 고르는 바텀시트. 고르면 그 시각을, 닫으면 `null`을 돌려준다.
+/// 시간대를 고르는 바텀시트. 고르면 그 칸을, 닫으면 `null`을 돌려준다.
 ///
-/// ## ⚠️ 거리와 무관하다
+/// ## ⚠️ 고른 거리 하나의 줄이다
 ///
-/// 한 줄이 [SlotTime]이다 — **그 시각의 모든 거리를 접은 것**이다. 숫자는
-/// 합계이고, 잠금은 거리 중 하나라도 열려 있으면 풀린다. 그래서 거리를 고르기
-/// 전에도 열 수 있다. 고른 거리 하나의 수는 등록 버튼이 말한다.
-Future<SlotTime?> showMatchSlotSheet(
+/// 한 줄이 그 거리의 [MatchSlot]이다. 숫자도 잠금도 **그 거리의 것**이라,
+/// 적힌 `1명 대기`가 곧 들어갔을 때 만나는 사람이다. 그래서 거리를 고르기
+/// 전에는 열리지 않는다.
+///
+/// 전에는 한 줄이 모든 거리를 접은 합계였다. 거리가 다르면 같은 방에 매칭되지
+/// 않으므로, 10km의 1명을 보고 5km로 들어가면 아무도 없었다.
+Future<MatchSlot?> showMatchSlotSheet(
   BuildContext context, {
-  required List<SlotTime> slots,
-  SlotTime? selected,
+  required List<MatchSlot> slots,
+  MatchSlot? selected,
 }) {
-  return showModalBottomSheet<SlotTime>(
+  return showModalBottomSheet<MatchSlot>(
     context: context,
     backgroundColor: Colors.transparent,
     barrierColor: context.appColors.bgScrim,
@@ -32,8 +35,8 @@ Future<SlotTime?> showMatchSlotSheet(
 class _SlotSheet extends StatelessWidget {
   const _SlotSheet({required this.slots, this.selected});
 
-  final List<SlotTime> slots;
-  final SlotTime? selected;
+  final List<MatchSlot> slots;
+  final MatchSlot? selected;
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +120,7 @@ class _SlotSheet extends StatelessWidget {
 class _SlotRow extends StatelessWidget {
   const _SlotRow({required this.slot, required this.isSelected});
 
-  final SlotTime slot;
+  final MatchSlot slot;
   final bool isSelected;
 
   @override
@@ -157,15 +160,14 @@ class _SlotRow extends StatelessWidget {
                       color: colors.textTertiary,
                     ),
                   )
-                else if (slot.waitingTotal > 0)
+                else if (slot.waitingCount > 0)
                   // 대기 인원은 강조색이다 — 사회적 증거로 슬롯을 유도한다.
                   // **0이면 아무것도 적지 않는다.** `0명 대기`는 비어 있다고
                   // 알리는 꼴이라 오히려 사람을 민다.
                   //
-                  // ⚠️ **모든 거리를 더한 수다**(`SlotTime.waitingTotal`).
-                  // 고른 거리 하나의 수는 등록 버튼이 말한다.
+                  // ⚠️ **고른 거리의 수다.** 등록 버튼의 숫자와 같다.
                   Text(
-                    AppStrings.matchWaitingCount(slot.waitingTotal),
+                    AppStrings.matchWaitingCount(slot.waitingCount),
                     style: AppTypography.caption.copyWith(
                       color: colors.matchWaiting,
                     ),

@@ -89,7 +89,7 @@ void main() {
   });
 
   test('⚠️ 한 거리 안에서 같은 시각이 두 번 오면 한 번만 남긴다', () {
-    // 이쪽은 진짜 중복이다. 그대로 두면 그 거리의 합계가 두 배가 된다.
+    // 이쪽은 진짜 중복이다. 그대로 두면 시트에 같은 시각이 두 줄 선다.
     final board = slotBoardFromJson({
       'distances': [
         {
@@ -216,7 +216,7 @@ void main() {
   });
 
   test('⚠️ 거리가 두 번 오면 한 번만 남긴다', () {
-    // 그대로 두면 칩이 두 개 서고, 시간 시트의 합계가 그 거리만 두 배가 된다.
+    // 그대로 두면 칩이 두 개 서고, 어느 쪽 숫자가 시트에 설지 정해지지 않는다.
     final board = slotBoardFromJson({
       'distances': [
         {
@@ -243,7 +243,7 @@ void main() {
     });
 
     expect(board.distances, hasLength(1));
-    expect(board.times.single.waitingTotal, 3, reason: '먼저 온 거리를 쓴다');
+    expect(board.slotsOf(3000).single.waitingCount, 3, reason: '먼저 온 거리를 쓴다');
   });
 
   test('시간대가 빈 거리도 남긴다', () {
@@ -272,7 +272,7 @@ void main() {
   });
 
   test('⚠️ 음수 대기 인원은 0으로 본다', () {
-    // 음수를 그대로 쓰면 합계가 줄어들어 "사람이 적다"로 잘못 읽힌다.
+    // 음수를 그대로 쓰면 시트와 버튼에 `-1명 대기`가 선다.
     final board = slotBoardFromJson({
       'distances': [
         {

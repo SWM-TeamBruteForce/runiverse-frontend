@@ -23,7 +23,7 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 
 /// 매칭 등록 (S08).
 ///
-/// 시간대와 목표 거리를 골라 서버에 신청한다. **페이스와 인원은 받지 않는다** —
+/// 목표 거리와 시간대를 골라 서버에 신청한다. **페이스와 인원은 받지 않는다** —
 /// 페이스는 서버가 보관한 평균을 쓰고, 인원은 서버가 2~4명으로 편성한다.
 ///
 /// ## 정본에서 뺀 것
@@ -107,10 +107,32 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                   AppSpacing.space6,
                 ),
                 children: [
-                  // ⚠️ **시간이 거리보다 위에 선다.** 2026-10-22에 뒤집은
-                  // 이유는 조회가 거리를 필수로 받아서였다 — 거리를 모르면
-                  // 시간 목록을 받을 수 없어 순서가 강제됐다. 그 제약이
-                  // 사라졌으므로 시안의 순서로 돌아간다.
+                  // ⚠️ **거리가 시간보다 위에 선다. 시안(`158:3181`)과
+                  // 반대다.** 거리가 다르면 같은 방에 매칭되지 않으므로, 시간
+                  // 시트의 숫자가 맞으려면 거리가 먼저 정해져 있어야 한다.
+                  // 시간을 먼저 두면 시트가 모든 거리를 더한 수를 그리게 되고,
+                  // 그 `1명 대기`를 보고 다른 거리로 들어가면 아무도 없다.
+                  _Label(AppStrings.matchDistanceLabel),
+                  const SizedBox(height: AppSpacing.space3),
+
+                  // ⚠️ **칩이 응답에서 선다.** 앱이 목록을 갖지 않는다 —
+                  // 명세가 못 박았고, 서버가 7km를 추가하면 앱을 다시 내지
+                  // 않아도 나타난다. 순서도 서버가 준 것을 그대로 쓴다.
+                  _DistanceChips(
+                    meters: [
+                      for (final d in state.board?.distances ?? const [])
+                        d.meters,
+                    ],
+                    selected: state.meters,
+                    // ⚠️ **어떤 상태에서도 잠그지 않는다.** 거리는 언제든
+                    // 바꿀 수 있고, 바꾸면 고른 시간은 새 거리의 칸으로
+                    // 갈아 끼워진다(마감이면 풀린다).
+                    onTap: (meters) => ref
+                        .read(matchRegisterProvider.notifier)
+                        .selectDistance(meters),
+                  ),
+                  const SizedBox(height: AppSpacing.space6),
+
                   _Label(AppStrings.matchTimeLabel),
                   const SizedBox(height: AppSpacing.space3),
 
@@ -118,13 +140,16 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                     label: time == null
                         ? AppStrings.matchTimePlaceholder
                         : AppStrings.matchSlotTime(time.startAt),
-                    // 고를 것이 없으면 열지 않는다. 아래 줄이 이유를 말한다.
-                    onTap: state.slotsReady ? _pickSlot : null,
+                    // 고를 것이 없거나 거리를 안 골랐으면 열지 않는다. 아래
+                    // 줄이 이유를 말한다.
+                    onTap: state.slotsReady && state.meters != null
+                        ? _pickSlot
+                        : null,
                   ),
 
                   // ⚠️ **잠긴 이유를 반드시 적는다.** 눌러도 아무 일이 없고
                   // 까닭도 없으면 고장난 화면으로 읽힌다.
-                  if (!state.slotsReady) ...[
+                  if (!state.slotsReady || state.meters == null) ...[
                     const SizedBox(height: AppSpacing.space2),
                     _SlotsLockedNote(
                       message: _lockedMessage(state),
@@ -133,9 +158,9 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                       // ⚠️ **세션 만료에는 안 붙인다.** 눌러 봐야 같은 답이고,
                       // 할 일은 다시 로그인하는 것이라 엉뚱한 길을 권하게 된다.
                       //
-                      // ⚠️ **거리를 다시 누르는 길이 없어졌다.** 전에는 그것이
-                      // 곧 재조회여서 이 버튼이 없어도 빠져나올 수 있었다.
-                      // 이제 부르는 곳은 `load()` 하나라 여기가 유일한 길이다.
+                      // ⚠️ **거리를 다시 누르는 것은 재조회가 아니다.** 판은
+                      // 한 번에 받고 거리는 거기서 꺼내 쓴다. 부르는 곳은
+                      // `load()` 하나라 여기가 유일한 길이다.
                       onRetry:
                           state.loadFailure != null &&
                               state.loadFailure !=
@@ -151,26 +176,6 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                     style: AppTypographyV2.body12.copyWith(
                       color: colors.textTertiary,
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.space6),
-
-                  _Label(AppStrings.matchDistanceLabel),
-                  const SizedBox(height: AppSpacing.space3),
-
-                  // ⚠️ **칩이 응답에서 선다.** 앱이 목록을 갖지 않는다 —
-                  // 명세가 못 박았고, 서버가 7km를 추가하면 앱을 다시 내지
-                  // 않아도 나타난다. 순서도 서버가 준 것을 그대로 쓴다.
-                  _DistanceChips(
-                    meters: [
-                      for (final d in state.board?.distances ?? const [])
-                        d.meters,
-                    ],
-                    selected: state.meters,
-                    // ⚠️ **어떤 상태에서도 잠그지 않는다.** 시간을 먼저 고르는
-                    // 흐름이지만 순서를 강제하지 않는다(설계 5-3).
-                    onTap: (meters) => ref
-                        .read(matchRegisterProvider.notifier)
-                        .selectDistance(meters),
                   ),
                   const SizedBox(height: AppSpacing.space6),
 
@@ -206,9 +211,9 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                 ),
               ),
 
-            // ⚠️ **등록 버튼 위의 대기 인원 줄이 없어졌다.** 거리만 골랐을 때
-            // 그 거리의 모든 시각 합을 보여주던 자리인데, 이제 거리를 먼저
-            // 고르는 흐름이 아니다. 숫자는 시트와 버튼 둘로 갈렸다.
+            // ⚠️ **등록 버튼 위의 대기 인원 줄은 없다.** 거리만 골랐을 때
+            // 그 거리의 모든 시각 합을 보여주던 자리인데, 그 합도 고른 시각에
+            // 만날 사람의 수가 아니다. 숫자는 시트와 버튼 둘에만 선다.
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.space4,
@@ -217,9 +222,7 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
                 AppSpacing.space4,
               ),
               child: AppButtonV2(
-                // ⚠️ **시트의 합계가 아니라 고른 조건의 수다.** 시트는 그
-                // 시각의 모든 거리를 더해 그리고, 여기는 고른 거리 하나의
-                // 수다 — 거리를 고르면 숫자가 좁혀지는 것이 정상이다.
+                // 고른 거리 × 고른 시각 칸의 수다. 시트와 같은 칸을 읽는다.
                 label: _ctaLabel(state.pickedWaiting),
                 // 둘 다 골라야 열린다. 보내는 중에도 잠근다 — 두 번 누르면
                 // 중복 신청이 된다. 제한 중이면 보낼 이유가 없다.
@@ -243,10 +246,11 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
   /// 시간 선택기가 왜 잠겼는지.
   ///
   /// **순서가 규칙이다.** 받는 중이 가장 구체적인 사정이고, 실패가 그다음,
-  /// 비었음이 마지막이다 — 뒤로 갈수록 "그래서 고를 수 없다"에 가깝다.
+  /// 거리를 안 고른 것이 그다음, 비었음이 마지막이다 — 뒤로 갈수록 "그래서
+  /// 고를 수 없다"에 가깝다.
   ///
-  /// ⚠️ **`거리를 먼저 골라주세요`가 죽었다.** 한 번에 다 받으므로 거리로
-  /// 잠글 이유가 없다(설계 5-3).
+  /// ⚠️ **거리 안내는 실패 뒤에 둔다.** 판을 못 받았으면 거리를 골라도 시간을
+  /// 고를 수 없다 — 그때 `거리를 먼저 골라주세요`를 띄우면 엉뚱한 길을 권한다.
   static String _lockedMessage(MatchRegisterState state) {
     if (state.loadingSlots) return AppStrings.matchSlotsLoading;
     // ⚠️ **세션 만료를 따로 말한다.** "불러오지 못했어요"로 묶으면 눌러도
@@ -256,6 +260,9 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
       return AppStrings.matchFailedExpired;
     }
     if (state.loadFailure != null) return AppStrings.matchSlotsLoadFailed;
+    if (state.slotsReady && state.meters == null) {
+      return AppStrings.matchSlotsLockedByDistance;
+    }
     return AppStrings.matchSlotsEmpty;
   }
 
@@ -362,11 +369,17 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
 
   Future<void> _pickSlot() async {
     final state = ref.read(matchRegisterProvider);
+    final meters = state.meters;
+    // 버튼이 거리를 고른 뒤에만 열린다. 그 사이 상태가 바뀌었으면 열지 않는다.
+    if (meters == null) return;
     final picked = await showMatchSlotSheet(
       context,
+      // ⚠️ **고른 거리의 줄만 넘긴다.** 숫자와 잠금이 그 거리의 것이어야
+      // 시트의 `1명 대기`가 들어갔을 때 만나는 사람이 된다.
+      //
       // ⚠️ **마감된 시각도 넘긴다.** 빼면 "10:00이 왜 없지"가 되고, 시간이
       // 흐르며 목록이 줄어드는 것도 이상하게 읽힌다. 시트가 잠근다.
-      slots: state.board?.times ?? const [],
+      slots: state.board?.slotsOf(meters) ?? const [],
       selected: state.time,
     );
     if (picked == null || !mounted) return;
@@ -435,7 +448,6 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
   }
 }
 
-/// 시간대를 고르는 트리거. 고른 뒤에는 시각과 대기 인원을 함께 보여준다.
 /// 화면 안의 작은 제목.
 class _Label extends StatelessWidget {
   const _Label(this.text);
@@ -461,7 +473,7 @@ class _SlotTrigger extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
-    final picked = onTap != null;
+    final enabled = onTap != null;
 
     return Material(
       type: MaterialType.transparency,
@@ -481,7 +493,9 @@ class _SlotTrigger extends StatelessWidget {
                 child: Text(
                   label,
                   style: AppTypographyV2.body04.copyWith(
-                    color: colors.textTertiary,
+                    // ⚠️ **잠기면 글자도 흐리다.** 화살표만 흐리면 열린 칸과
+                    // 거의 같아 보인다 — 들어올 때마다 처음은 잠긴 상태다.
+                    color: enabled ? colors.textTertiary : colors.textDisabled,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
@@ -489,7 +503,7 @@ class _SlotTrigger extends StatelessWidget {
               AppIcon(
                 AppIcons.right,
                 size: AppSpacing.space6,
-                color: picked ? colors.textTertiary : colors.textDisabled,
+                color: enabled ? colors.textTertiary : colors.textDisabled,
               ),
             ],
           ),
@@ -499,7 +513,6 @@ class _SlotTrigger extends StatelessWidget {
   }
 }
 
-/// 고른 시각에 몇 명이 기다리는지. 시안 `158:3186`.
 /// 시간 선택기가 잠긴 이유 한 줄. 실패했을 때만 다시 시도가 붙는다.
 class _SlotsLockedNote extends StatelessWidget {
   const _SlotsLockedNote({required this.message, this.onRetry});
