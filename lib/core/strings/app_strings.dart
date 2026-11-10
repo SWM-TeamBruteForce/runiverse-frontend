@@ -590,8 +590,9 @@ abstract final class AppStrings {
   /// 카드 제목. 시안 `158:2971`.
   static const homeMatchWaitingTitle = '매칭 대기 중';
 
-  /// 부제 둘째 줄. 두 경우가 같은 말로 끝난다.
-  static const homeMatchWaitingHint = '잠시만 기다려주세요';
+  /// 부제 둘째 줄. 두 경우가 같은 말로 끝난다. 기다리라고 하지 않는다 —
+  /// 화면을 지켜보다 취소하고 나가는 사람이 많다.
+  static const homeMatchWaitingHint = '앱을 꺼도 신청은 그대로예요';
 
   /// `3명의 러너가 함께 달릴 준비를 하고 있어요` — **나를 뺀 수**다.
   static String homeMatchWaitingOthers(int count) =>
@@ -930,10 +931,14 @@ abstract final class AppStrings {
   static String matchRoomJoined(int count) => '현재 $count명 모였어요';
 
   /// 확정된 뒤 대기실의 안내. 출발 30초 전에 앱이 스스로 출발 대기실로 옮긴다.
-  ///
-  /// ⚠️ 알림으로 알려주지 않는다. FCM이 아직 없어 "알림으로 알려줄게요"는
-  /// 지킬 수 없는 약속이다. 지금 할 수 있는 말만 적는다.
   static const matchRoomMatchedHint = '출발 30초 전에 출발 대기실로 옮겨요';
+
+  /// 모집 중인 매칭 방의 나가기 버튼 위 안내. 기다리지 않아도 된다고 말한다.
+  ///
+  /// ⚠️ `10분 전`은 서버 모집 마감(`match.close-offset`)이다. 확정 알림이 그때
+  /// 간다 — 서버 값이 바뀌면 이 문구도 바꾼다. "알아서 매칭돼 있을 거예요"는
+  /// 쓰지 않는다. 아무도 안 오면 혼자 달린다.
+  static const matchRoomWaitingHint = '앱을 꺼도 신청은 그대로예요. 출발 10분 전에 알려 드릴게요';
 
   static const matchRoomCloseLabel = '모집 마감까지';
   static const matchRoomStartLabel = '시작까지';

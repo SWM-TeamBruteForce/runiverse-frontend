@@ -38,8 +38,8 @@ import 'package:runiverse/features/matching/presentation/match_room_provider.dar
 ///
 /// ## 시안과 다르게 둔 것
 ///
-/// - **나가기 안내 한 줄을 남겼다.** 시안에는 없지만 20분 제재를 알리는
-///   유일한 자리다. 없애면 사람이 모르고 나간다
+/// - **나가기 버튼 바로 위에 안내 한 줄을 남겼다.** 시안에는 없지만 20분
+///   제재를 알리는 유일한 자리다. 없애면 사람이 모르고 나간다
 /// - **오른쪽 위 아이콘을 넣지 않았다.** 시안에 있지만 무엇을 하는지 정해진
 ///   바가 없고, 하단에 이미 나가기 버튼이 있다
 /// - **한 줄 소개를 뺐다.** 시안의 참여자 카드는 사진과 이름만 보여준다
@@ -159,12 +159,6 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
                       onPressed: () => _openInviteSheet(room),
                     ),
                   ],
-
-                  const SizedBox(height: AppSpacing.space5),
-                  if (_warnsAlone(room))
-                    _Notice(AppStrings.inviteRoomAloneWarning)
-                  else
-                    _Notice(_leaveNotice(room)),
                 ],
               ),
             ),
@@ -176,10 +170,19 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
                 AppSpacing.space4,
                 AppSpacing.space4,
               ),
-              child: AppButtonV2(
-                label: _leaveLabel(room),
-                variant: AppButtonV2Variant.secondary,
-                onPressed: _leaving ? null : () => _confirmLeave(room),
+              // ⚠️ **안내는 나가기 버튼에 붙여 둔다.** 목록 끝에 두면 파티원이
+              // 많은 방에서 스크롤 아래로 밀려, 나가기를 누르는 순간에 안 보인다.
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _Notice(_bottomNotice(room)),
+                  const SizedBox(height: AppSpacing.space3),
+                  AppButtonV2(
+                    label: _leaveLabel(room),
+                    variant: AppButtonV2Variant.secondary,
+                    onPressed: _leaving ? null : () => _confirmLeave(room),
+                  ),
+                ],
               ),
             ),
           ],
@@ -305,6 +308,24 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
     return closed && !room.isAlone
         ? AppStrings.matchRoomLeavePenalty
         : AppStrings.matchRoomLeaveFree;
+  }
+
+  /// 나가기 버튼 위의 안내. 나가기 확인 창은 [_leaveNotice]를 그대로 쓴다.
+  ///
+  /// ⚠️ **모집 중인 매칭 방에서는 나가도 된다고 말하지 않는다.** 화면을
+  /// 지켜보다 취소하고 나가는 사람이 많다 — 기다리지 않아도 된다고 말한다.
+  /// 나가도 제재가 없다는 말은 확인 창이 한다.
+  String _bottomNotice(RoomInfo room) {
+    if (_warnsAlone(room)) return AppStrings.inviteRoomAloneWarning;
+
+    final closeAt = room.closeAt;
+    final closed = closeAt != null && !_serverNow.isBefore(closeAt);
+    if (room.type != RoomType.invite &&
+        room.status == RoomStatus.matching &&
+        !closed) {
+      return AppStrings.matchRoomWaitingHint;
+    }
+    return _leaveNotice(room);
   }
 
   Future<void> _confirmLeave(RoomInfo room) async {
@@ -562,16 +583,17 @@ class _Notice extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 제재·연결 끊김처럼 놓치면 곤란한 말이 뜨는 줄이라 흐린 회색을 쓰지 않는다.
         AppIcon(
           AppIcons.guide,
           size: AppSpacing.space4,
-          color: colors.textTertiary,
+          color: colors.textSecondary,
         ),
         const SizedBox(width: AppSpacing.space2),
         Expanded(
           child: Text(
             text,
-            style: AppTypographyV2.body12.copyWith(color: colors.textTertiary),
+            style: AppTypographyV2.body12.copyWith(color: colors.textSecondary),
           ),
         ),
       ],
