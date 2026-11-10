@@ -327,9 +327,10 @@ void main() {
       // 0으로 뭉개면 고를 수 없는 자리를 `0명 대기`로 그려, 신청할 수 있는
       // 것처럼 말하게 된다.
       //
-      // ⚠️ **닿는 길은 하나다.** 거리를 바꾸거나 판을 다시 받으면 없는 칸의
-      // 시간은 풀린다. 남는 길은 시트를 연 채 판이 바뀌는 것 — 옛 판에서 고른
-      // 칸이 새 판에 없는 채로 들어온다.
+      // ⚠️ **닿는 길은 좁다.** 거리를 바꾸거나 판을 다시 받으면 없는 칸의
+      // 시간은 풀린다. 남는 길은 409 뒤 재조회를 기다리는 사이 시트를 열고,
+      // 새 판이 들어온 뒤 옛 판의 칸을 고르는 것이다. 여기서는 그 순서를
+      // 상태로 직접 만든다.
       await notifier().load();
       notifier().selectDistance(3000);
       final stale = timeAt('10:00');
@@ -381,6 +382,7 @@ void main() {
 
       expect(read().time, isNull);
       expect(read().meters, 3000, reason: '거리는 새 판에도 있다');
+      expect(read().canSubmit, isFalse);
     });
 
     test('다시 받은 판에서 고른 칸이 열려 있으면 그대로 둔다', () async {
@@ -394,12 +396,12 @@ void main() {
       expect(read().canSubmit, isTrue);
     });
 
-    test('⚠️ 다시 받은 판에서 고른 칸이 마감이면 잠긴다', () async {
-      // 고른 시간은 받은 시점의 사본이다. `다시 시도`로 판을 새로 받는 사이
-      // 그 칸이 마감될 수 있다 — 사본을 믿고 열어 두면 409를 맞는다.
+    test('⚠️ 고른 칸이 마감인 사본이 남아도 등록은 잠긴다', () async {
+      // 마지막 방어. 시간을 푸는 규칙이 어긋나 마감 칸의 사본이 남아도, 판에서
+      // 그 칸을 다시 읽으니 409로 가지 않는다.
       await notifier().load();
       notifier().selectDistance(3000);
-      notifier().selectTime(timeAt('10:00'));
+      final stale = timeAt('10:00');
 
       repo.board = SlotBoard([
         DistanceSlots(
@@ -408,6 +410,7 @@ void main() {
         ),
       ]);
       await notifier().load();
+      notifier().selectTime(stale);
 
       expect(read().canSubmit, isFalse);
     });
