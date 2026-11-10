@@ -54,8 +54,8 @@ bool handlesBottomInset(String source) {
 /// 없어야 한다. 줄이 하나라도 붙는 순간 목록에서 빼고 여백을 받아야 한다.
 const exempt = <String, String>{
   'lib/features/onboarding/presentation/splash_page.dart':
-      '워드마크와 태그라인이 화면 정중앙에 있고 바닥에 닿는 것이 없다. '
-      '사진처럼 꽉 채우는 배경만 아래까지 간다.',
+      '심볼·이름 묶음과 연결 실패 안내가 화면 가운데 근처에 있고 바닥에 닿는 '
+      '것이 없다. 단색 배경만 아래까지 간다.',
   'lib/features/record/presentation/record_detail_page.dart':
       '이 Scaffold 는 불러오는 중·실패일 때만 쓴다. 본문이 `Center` 하나라 '
       '바닥에 닿지 않는다. 기록 본문은 `RunResultView` 가 따로 그린다.',

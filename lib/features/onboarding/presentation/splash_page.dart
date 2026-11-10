@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
@@ -9,9 +10,7 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
-import 'package:runiverse/core/theme/v2/run_palette.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
-import 'package:runiverse/core/widgets/color/aura_orb.dart';
 import 'package:runiverse/features/app_update/presentation/app_update_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
@@ -23,9 +22,16 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 
 /// 스플래시 (S01).
 ///
-/// 로고 에셋이 없어 워드마크는 타입으로만 쓴다.
-/// 배경 아우라는 장식 그라디언트가 아니라 **컬러 시스템의 예고**다 —
-/// 여러 러닝 색이 섞여 하나가 되는 모습을 여기서 처음 보여준다.
+/// 러너 심볼과 앱 이름만 둔다. 심볼은 앱 아이콘·워치 앱과 같은 그림이다.
+///
+/// ## 배치
+///
+/// 심볼·이름 묶음은 **연결 실패 안내가 떠도 움직이지 않는다.** 안내는 묶음
+/// 아래 남은 자리에서만 자란다 — 한 `Column`에 넣고 가운데 정렬하면 안내가
+/// 생기는 순간 묶음 전체의 가운데가 바뀌어 로고가 위로 튄다.
+///
+/// 배경은 OS 시작 화면(안드로이드 `launch_background.xml`·`values-v31`,
+/// iOS `LaunchScreen.storyboard`)과 같은 색이다. 바꾸면 그쪽도 함께 바꾼다.
 ///
 /// ## 전환
 ///
@@ -62,14 +68,6 @@ class SplashPage extends ConsumerStatefulWidget {
 class _SplashPageState extends ConsumerState<SplashPage> {
   /// 와이어프레임이 정한 체류 시간.
   static const _dwell = Duration(milliseconds: 1600);
-
-  /// 아우라에 섞을 색. 서로 다른 러닝 특성 4개를 골라 대비를 만든다.
-  static const _auraHues = [
-    RunHue.speed,
-    RunHue.distance,
-    RunHue.cadence,
-    RunHue.endurance,
-  ];
 
   Timer? _timer;
 
@@ -239,83 +237,103 @@ class _SplashPageState extends ConsumerState<SplashPage> {
         // 일어나지 않아 고장난 것으로 읽힌다. 그때는 재시도 버튼이 유일한 길이다.
         behavior: HitTestBehavior.opaque,
         onTap: _offline ? null : _goNext,
-        child: Center(
-          child: SizedBox.square(
-            dimension: _auraSize,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                AuraOrb(
-                  colors: [
-                    for (final hue in _auraHues) RunPaletteV2.color(hue, 2),
-                  ],
-                  size: _auraSize,
-                  // 와이어프레임이 정한 값. 살짝 눌러 워드마크에 시선을 남긴다.
-                  vitality: 0.7,
-                ),
-
-                // 아우라 위 텍스트에는 스크림이 필수다(디자인 시스템 §1-4).
-                // 러닝 색은 채도가 높아 그냥 얹으면 대비 기준을 통과하지 못한다.
-                // 가운데만 덮고 가장자리 색은 살려둔다.
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        colors.bgScrim,
-                        colors.bgScrim.withValues(alpha: 0),
-                      ],
-                      stops: const [0.25, 0.75],
+        child: SizedBox.expand(
+          // 묶음 위아래에 남는 자리를 46:54로 나눈다. 시안은 묶음 가운데를
+          // 화면 높이 46%에 두는데, 이렇게 나누면 묶음 높이의 4%(약 5)만큼
+          // 아래다. 묶음 높이를 상수로 박지 않으려고 이쪽을 택했다.
+          //
+          // ⚠️ iOS `LaunchScreen.storyboard`가 같은 식으로 묶음을 놓는다.
+          // 비율을 바꾸면 그쪽 제약도 함께 바꾼다.
+          child: Column(
+            children: [
+              const Spacer(flex: 46),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: _markWidth,
+                    child: AspectRatio(
+                      aspectRatio: _markAspectRatio,
+                      // 흰 쪽만 글자색으로 칠하고 파란 쪽은 제 색을 지킨다.
+                      // 그래서 한 장이 아니라 두 장이다.
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          SvgPicture.asset(
+                            'assets/brand/runiverse_mark_neutral.svg',
+                            colorFilter: ColorFilter.mode(
+                              colors.textPrimary,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                          SvgPicture.asset(
+                            'assets/brand/runiverse_mark_blue.svg',
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  child: const SizedBox.square(dimension: _auraSize),
-                ),
-
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      AppStrings.brandName,
-                      style: AppTypographyV2.heading01.copyWith(
-                        color: colors.textPrimary,
-                      ),
+                  const SizedBox(height: AppSpacing.space6),
+                  Text(
+                    AppStrings.brandName,
+                    style: AppTypographyV2.heading02.copyWith(
+                      color: colors.textPrimary,
                     ),
-                    const SizedBox(height: AppSpacing.space2),
-                    Text(
-                      AppStrings.brandTagline,
-                      style: AppTypographyV2.body07.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                    ),
+                  ),
+                ],
+              ),
 
-                    if (_offline) ...[
-                      const SizedBox(height: AppSpacing.space6),
-                      Text(
-                        AppStrings.splashOffline,
-                        style: AppTypographyV2.body07.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.space1),
-                      Text(
-                        AppStrings.splashOfflineHint,
-                        textAlign: TextAlign.center,
-                        style: AppTypographyV2.body12.copyWith(
-                          color: colors.textTertiary,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.space4),
-                      AppButtonV2(
-                        label: AppStrings.splashRetry,
-                        variant: AppButtonV2Variant.secondary,
-                        expand: false,
-                        onPressed: _retry,
-                      ),
-                    ],
-                  ],
+              // 안내는 이 안에서만 자란다. 위의 묶음을 밀지 않는다.
+              Expanded(
+                flex: 54,
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  // ⚠️ 작은 화면에서 글자를 키우면 안내가 이 칸보다 길어진다.
+                  // 스크롤이 없으면 재시도 버튼이 화면 밖으로 밀려 갇힌다.
+                  child: _offline
+                      ? SingleChildScrollView(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              AppSpacing.space6,
+                              AppSpacing.space9,
+                              AppSpacing.space6,
+                              0,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  AppStrings.splashOffline,
+                                  style: AppTypographyV2.body05.copyWith(
+                                    color: colors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.space1),
+                                Text(
+                                  AppStrings.splashOfflineHint,
+                                  textAlign: TextAlign.center,
+                                  style: AppTypographyV2.body12.copyWith(
+                                    color: colors.textSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.space4),
+                                // 문구 바로 아래 붙는 버튼이라 compact 다.
+                                // regular(56)는 화면 하단 CTA 용이다.
+                                AppButtonV2(
+                                  label: AppStrings.splashRetry,
+                                  variant: AppButtonV2Variant.secondary,
+                                  size: AppButtonV2Size.compact,
+                                  expand: false,
+                                  onPressed: _retry,
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : null,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -323,5 +341,8 @@ class _SplashPageState extends ConsumerState<SplashPage> {
   }
 }
 
-/// 아우라 지름. 412 캔버스 기준 Figma 실측값이다.
-const _auraSize = 360.0;
+/// 심볼 폭. 412 캔버스 기준 시안 값이다.
+const _markWidth = 80.0;
+
+/// 심볼 가로세로 비. SVG `viewBox`(83.28 × 72.27)와 같다.
+const _markAspectRatio = 83.28 / 72.27;
