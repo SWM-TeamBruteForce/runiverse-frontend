@@ -82,7 +82,7 @@ void main() {
           userStatusRepositoryProvider.overrideWithValue(
             FakeUserStatusRepository(),
           ),
-          // 셸이 알림 배지를 그리며 앱 스트림을 만들고, 로그인돼 있으면 첫
+          // 셸이 앱 스트림을 만들고, 로그인돼 있으면 첫
           // 페이지도 받는다. 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
           appStreamProvider.overrideWithValue(FakeAppStream()),
           notificationRepositoryProvider.overrideWithValue(

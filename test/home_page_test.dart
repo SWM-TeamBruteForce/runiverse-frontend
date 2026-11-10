@@ -15,6 +15,7 @@ import 'package:runiverse/features/matching/presentation/match_register_page.dar
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/notification/data/fake_app_stream.dart';
 import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
+import 'package:runiverse/features/notification/presentation/notification_page.dart';
 import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
@@ -39,7 +40,7 @@ void main() {
           userStatusRepositoryProvider.overrideWithValue(
             FakeUserStatusRepository(),
           ),
-          // 셸이 알림 배지를 그리며 앱 스트림을 만들고, 로그인돼 있으면 첫
+          // 셸이 앱 스트림을 만들고, 로그인돼 있으면 첫
           // 페이지도 받는다. 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
           appStreamProvider.overrideWithValue(FakeAppStream()),
           notificationRepositoryProvider.overrideWithValue(
@@ -92,6 +93,10 @@ void main() {
       // 2026-10-29까지는 준비 중이라고 말했다. 이제 갈 곳이 있다.
       await pumpHome(tester);
 
+      // 테스트 화면(800×600)에서는 위 줄이 생긴 만큼 두 칸이 떠 있는 탭 바
+      // 밑으로 내려간다. 사람이 하듯 굴려서 올린 뒤 누른다.
+      await tester.ensureVisible(find.text(AppStrings.homeInviteRunCta));
+      await tester.pumpAndSettle();
       await tester.tap(find.text(AppStrings.homeInviteRunCta));
       await tester.pumpAndSettle();
 
@@ -113,10 +118,41 @@ void main() {
       // GPS 첫 신호를 기다릴 자리가 없어 초반 거리가 통째로 빠진다.
       await pumpHome(tester);
 
+      // 위와 같은 이유로 굴려서 올린다.
+      await tester.ensureVisible(find.text(AppStrings.homeSoloCta));
+      await tester.pumpAndSettle();
       await tester.tap(find.text(AppStrings.homeSoloCta));
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.runWaitingFix), findsOneWidget);
+    });
+  });
+
+  group('위 줄', () {
+    testWidgets('알림 종을 누르면 알림함으로 간다', (tester) async {
+      // 알림함의 유일한 입구다. 프로필 커버에서 이리로 옮겼다.
+      await pumpHome(tester);
+
+      await tester.tap(find.bySemanticsLabel(AppStrings.notificationTitle));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NotificationPage), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 누르는 칸의 오른쪽 끝도 눌린다', (tester) async {
+      // 종을 히어로 끝에 맞추려고 칸을 여백으로 밀어냈을 때, 밀려난 9는
+      // 그려지기만 하고 눌리지 않았다. 가운데만 누르는 위 테스트는 못 잡는다.
+      await pumpHome(tester);
+
+      final rect = tester.getRect(
+        find.bySemanticsLabel(AppStrings.notificationTitle),
+      );
+      expect(rect.width, greaterThanOrEqualTo(44), reason: '누르는 칸은 44 이상');
+
+      await tester.tapAt(rect.centerRight - const Offset(2, 0));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NotificationPage), findsOneWidget);
     });
   });
 

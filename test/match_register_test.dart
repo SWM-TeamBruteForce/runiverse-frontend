@@ -47,7 +47,7 @@ void main() {
           // 신청에 성공하면 곧바로 스트림에 붙는다. 진짜를 두면 dio가
           // 서버 주소를 찾다 죽는다.
           matchStreamProvider.overrideWithValue(FakeMatchStream()),
-          // 셸이 알림 배지를 그리며 앱 스트림을 만들고, 로그인돼 있으면 첫
+          // 셸이 앱 스트림을 만들고, 로그인돼 있으면 첫
           // 페이지도 받는다. 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
           appStreamProvider.overrideWithValue(FakeAppStream()),
           notificationRepositoryProvider.overrideWithValue(

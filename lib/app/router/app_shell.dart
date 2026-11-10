@@ -237,9 +237,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     AppTabSpec(icon: AppIcons.profile, label: AppStrings.tabProfile),
   ];
 
-  /// 프로필 탭의 자리. [_tabs] 순서와 함께 움직인다.
-  static const _profileTab = 3;
-
   void _onDestinationSelected(int index) {
     widget.navigationShell.goBranch(
       index,
@@ -296,7 +293,12 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     // 앱 스트림도 같은 이유로 여기다. **매칭 스트림과 동시에 유지한다** —
     // 한쪽을 열었다고 다른 쪽을 닫으면 방에 있는 동안 알림을 못 받는다.
-    final hasUnread = ref.watch(hasUnreadProvider);
+    //
+    // ⚠️ 배지는 이제 홈 위 줄이 그린다. 그래도 **여기서 계속 지켜본다** —
+    // Riverpod은 안 보이는 위젯의 구독을 멈춘다(`TickerMode`). 다른 탭에
+    // 있는 동안 홈의 구독은 멈춰 있어서, 거기만 남기면 알림 상태를 지켜보는
+    // 곳이 하나도 없는 구간이 생긴다.
+    ref.watch(hasUnreadProvider);
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -308,9 +310,6 @@ class _AppShellState extends ConsumerState<AppShell> {
       bottomNavigationBar: AppTabBarV2(
         tabs: _tabs,
         currentIndex: widget.navigationShell.currentIndex,
-        // 알림함이 프로필 탭 안에 있어서, 다른 탭에 있을 때 알려 줄 자리가
-        // 여기 하나뿐이다.
-        badges: hasUnread ? const {_profileTab} : const <int>{},
         onSelected: _onDestinationSelected,
       ),
     );
