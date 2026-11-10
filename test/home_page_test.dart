@@ -8,6 +8,7 @@ import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/v2/action_tile.dart';
+import 'package:runiverse/core/widgets/v2/app_tab_bar.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
@@ -283,6 +284,17 @@ void main() {
       expect(permissions.asks, 1);
     });
 
+    /// 탭 바의 홈을 누른다. 탭 바에는 글자가 없어 읽을 칸의 이름으로 찾는다.
+    Future<void> tapHomeTab(WidgetTester tester) async {
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AppTabBarV2),
+          matching: find.bySemanticsLabel(AppStrings.tabHome),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
     /// 앱이 뒤로 갔다 돌아온다. 생명주기는 단계를 건너뛰지 못한다.
     Future<void> leaveAndReturn(WidgetTester tester) async {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
@@ -330,6 +342,26 @@ void main() {
       await leaveAndReturn(tester);
 
       expect(permissions.asks, 1);
+    });
+
+    testWidgets('⚠️ 미뤘으면 홈 탭을 누를 때 다시 묻는다', (tester) async {
+      // 다른 탭에서 위치 기능을 켜고 돌아오면 복귀 때는 홈이 맨 위가 아니라
+      // 묻지 않는다. 홈 탭을 누르는 때가 다음 자리다.
+      final permissions = _StubPermissionAsker()..done = false;
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: true),
+        permissions: permissions,
+      );
+      expect(permissions.asks, 1);
+
+      permissions.done = true;
+      await tapHomeTab(tester);
+      expect(permissions.asks, 2);
+
+      // 끝났으면 더 묻지 않는다.
+      await tapHomeTab(tester);
+      expect(permissions.asks, 2);
     });
 
     testWidgets('⚠️ 홈에서 위치를 허용하면 바로 날씨를 받는다', (tester) async {

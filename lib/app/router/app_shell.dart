@@ -288,7 +288,12 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   void _onDestinationSelected(int index) {
     // 홈 탭은 다시 세워지지 않아 다녀와도 날씨가 그대로다. 누를 때 다시 본다.
-    if (index == 0) _refreshWeather();
+    if (index == 0) {
+      _refreshWeather();
+      // 다른 탭에서 위치 기능을 켜고 돌아왔으면 여기서 묻는다. 복귀 때는 홈이
+      // 맨 위가 아니라 묻지 않았다([_onResume]).
+      if (_permissionsDeferred) unawaited(_askPermissions());
+    }
     widget.navigationShell.goBranch(
       index,
       // 이미 열려 있는 탭을 다시 누르면 그 탭의 첫 화면으로 돌아간다.
