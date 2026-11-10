@@ -6,6 +6,7 @@ import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/empty_state.dart';
@@ -382,7 +383,10 @@ class _Tabs extends ConsumerWidget {
       margin: const EdgeInsets.only(top: AppSpacing.space4),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: colors.borderDefault, width: 0.6),
+          bottom: BorderSide(
+            color: colors.borderDefault,
+            width: AppSizes.hairline,
+          ),
         ),
       ),
       child: Row(

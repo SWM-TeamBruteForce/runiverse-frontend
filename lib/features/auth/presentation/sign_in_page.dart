@@ -781,7 +781,7 @@ class _OrDivider extends StatelessWidget {
           child: Divider(
             color: colors.borderDefault,
             height: 1,
-            thickness: 0.6,
+            thickness: AppSizes.hairline,
           ),
         ),
         Padding(
@@ -795,7 +795,7 @@ class _OrDivider extends StatelessWidget {
           child: Divider(
             color: colors.borderDefault,
             height: 1,
-            thickness: 0.6,
+            thickness: AppSizes.hairline,
           ),
         ),
       ],

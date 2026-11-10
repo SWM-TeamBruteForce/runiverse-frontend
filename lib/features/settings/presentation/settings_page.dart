@@ -565,7 +565,11 @@ class _Card extends StatelessWidget {
         children: [
           for (var i = 0; i < children.length; i++) ...[
             if (i > 0)
-              Divider(height: 1, thickness: 0.6, color: colors.borderDefault),
+              Divider(
+                height: 1,
+                thickness: AppSizes.hairline,
+                color: colors.borderDefault,
+              ),
             children[i],
           ],
         ],

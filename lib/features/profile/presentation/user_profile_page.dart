@@ -6,6 +6,7 @@ import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/runner_avatar.dart';
@@ -186,7 +187,7 @@ class _RelationAction extends ConsumerWidget {
             shape: const RoundedRectangleBorder(borderRadius: AppRadius.md),
             side: BorderSide(
               color: filled ? colors.primary : colors.borderStrong,
-              width: 0.6,
+              width: AppSizes.hairline,
             ),
           ),
           child: Text(
