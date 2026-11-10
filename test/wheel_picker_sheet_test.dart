@@ -80,14 +80,21 @@ void main() {
   });
 
   testWidgets('⚠️ 고른 숫자가 가운데 띠 한가운데에 놓인다', (tester) async {
-    // 띠는 휠을 감싼 Stack 정중앙에 그려진다. 휠이 Stack보다 짧으면
-    // 숫자만 위로 올라가 띠와 어긋난다.
+    // 휠이 띠를 품은 칸보다 짧으면 숫자만 위로 올라가 띠와 어긋난다.
+    // 칸이 아니라 띠 자체를 잰다 — 띠만 옮겨도 어긋남이 잡히게.
     await open(tester, columns: columns());
 
-    final band = find
+    final stack = find
         .ancestor(
           of: find.byType(ListWheelScrollView).first,
           matching: find.byType(Stack),
+        )
+        .first;
+    // 띠는 Stack의 첫 자식이고, 눌림을 막으려 IgnorePointer로 감싸 있다.
+    final band = find
+        .descendant(
+          of: find.descendant(of: stack, matching: find.byType(IgnorePointer)),
+          matching: find.byType(Container),
         )
         .first;
 
