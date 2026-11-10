@@ -33,8 +33,10 @@ final matchRepositoryProvider = Provider<MatchRepository>(
 ///
 /// 2026-10-26까지는 조회가 거리를 필수로 받아, 거리를 고를 때마다 목록이 새로
 /// 왔다. 그래서 **거리를 바꾸는 왕복 내내 새 거리 이름에 옛 거리 숫자가 붙는**
-/// 틈이 있었고, 그 틈을 막는 절차(목록 비우기·고른 시간 갈아 끼우기)가 상태의
-/// 절반이었다. 지금은 숫자가 한 판에서 같이 오므로 그 틈이 **구조적으로 없다.**
+/// 틈이 있었고, 그 틈을 막는 절차(목록 비우기)가 상태의 절반이었다. 지금은
+/// 숫자가 한 판에서 같이 오므로 그 틈이 **구조적으로 없다.** 고른 시간은 고른
+/// 거리의 칸이라, 거리를 바꾸면 받아 둔 판에서 갈아 끼운다
+/// ([MatchRegisterController.selectDistance]).
 class MatchRegisterState {
   const MatchRegisterState({
     this.board,
@@ -50,8 +52,12 @@ class MatchRegisterState {
   /// 받아 둔 거리 × 시간의 판. `null`이면 아직 못 받았다.
   final SlotBoard? board;
 
-  /// 고른 시간대. `null`이면 아직 고르지 않았다.
-  final SlotTime? time;
+  /// 고른 시간대. **고른 거리의 칸이다.** `null`이면 아직 고르지 않았다.
+  ///
+  /// ⚠️ **숫자와 잠금은 여기서 읽지 않는다.** 판을 다시 받으면 이 사본은
+  /// 낡는다 — 그건 [picked]가 판에서 꺼낸다. 여기서 쓰는 것은 시각(`raw`·
+  /// `startAt`)뿐이다.
+  final MatchSlot? time;
 
   /// 고른 거리(m). `null`이면 아직 고르지 않았다.
   ///
@@ -81,9 +87,9 @@ class MatchRegisterState {
   /// 오면 판은 차 있는데 고를 것이 없다. 그때 선택기를 열어 두면 시트에
   /// `마감`만 늘어서고 등록 버튼은 영영 잠긴 채라 고장난 화면으로 읽힌다.
   ///
-  /// ⚠️ **거리를 묻지 않는다.** 전에는 거리를 고른 뒤라야 참이었다 — 조회가
-  /// 거리별이어서 그 전에는 보여줄 숫자가 없었다. 지금은 시트의 숫자가
-  /// 거리와 무관한 합계라 거리를 고르기 전에도 열어도 된다(설계 5-3).
+  /// ⚠️ **거리를 묻지 않는다.** 판이 섰는지만 본다. 거리를 골랐는지는 화면이
+  /// 따로 묻고 따로 말한다(`거리를 먼저 골라주세요`) — 여기에 섞으면 잠긴
+  /// 이유가 "불러오는 중"인지 "거리를 안 골랐다"인지 갈리지 않는다.
   bool get slotsReady =>
       !loadingSlots && loadFailure == null && openTimes.isNotEmpty;
 
@@ -103,11 +109,8 @@ class MatchRegisterState {
     return MatchSlotPick(raw: raw, meters: meters, slot: slot);
   }
 
-  /// 등록 버튼에 붙는 숫자. **고른 조건의 수다.**
-  ///
-  /// ⚠️ **시간 시트의 숫자와 다르다.** 시트는 모든 거리를 더한 합계를 그리고
-  /// (`SlotTime.waitingTotal`), 여기는 고른 거리 하나의 수다. 거리를 고르면
-  /// 숫자가 좁혀지는 것이 그래서 정상이다.
+  /// 등록 버튼에 붙는 숫자. **고른 거리 × 고른 시각 칸의 수다.** 시간 시트도
+  /// 같은 칸을 읽는다 — 시간을 고른 뒤 거리를 바꾸면 새 거리 칸의 수로 바뀐다.
   ///
   /// ⚠️ **없는 조합은 `0`이 아니라 `null`이다.** 0으로 뭉개면 고를 수 없는
   /// 자리를 `0명 대기`로 그려, 신청할 수 있는 것처럼 말하게 된다.
@@ -132,9 +135,8 @@ class MatchRegisterState {
 
   /// 등록할 수 있는가. **둘 다 골라야, 그 칸이 열려 있어야 열린다.**
   ///
-  /// ⚠️ **칸의 `selectable`을 본다.** 시간 시트는 거리 중 하나라도 열려 있으면
-  /// 여는데(설계 5-5), 그 시각에 **고른 거리만** 마감일 수 있다. 그걸 누르면
-  /// 409를 맞는다.
+  /// ⚠️ **칸의 `selectable`을 본다.** 시트도 같은 칸을 잠그지만, 판을 다시
+  /// 받으면 고른 칸이 그사이 마감됐을 수 있다. 그걸 누르면 409를 맞는다.
   bool get canSubmit => !submitting && (picked?.slot.selectable ?? false);
 
   /// "안 바꾼다"를 뜻하는 표식.
@@ -150,7 +152,7 @@ class MatchRegisterState {
   MatchRegisterState copyWith({
     Object? board = _keep,
     Object? time = _keep,
-    int? meters,
+    Object? meters = _keep,
     bool? submitting,
     Object? failure = _keep,
     Object? cooldownUntil = _keep,
@@ -158,8 +160,8 @@ class MatchRegisterState {
     Object? loadFailure = _keep,
   }) => MatchRegisterState(
     board: identical(board, _keep) ? this.board : board as SlotBoard?,
-    time: identical(time, _keep) ? this.time : time as SlotTime?,
-    meters: meters ?? this.meters,
+    time: identical(time, _keep) ? this.time : time as MatchSlot?,
+    meters: identical(meters, _keep) ? this.meters : meters as int?,
     submitting: submitting ?? this.submitting,
     loadingSlots: loadingSlots ?? this.loadingSlots,
     loadFailure: identical(loadFailure, _keep)
@@ -202,18 +204,25 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
   @override
   MatchRegisterState build() => const MatchRegisterState();
 
-  /// 시간을 고른다. **서버를 부르지 않는다.**
-  void selectTime(SlotTime time) {
+  /// 시간을 고른다. **서버를 부르지 않는다.** 고른 거리의 시트에서 온 칸이다.
+  void selectTime(MatchSlot time) {
     state = state.copyWith(time: time, failure: null);
   }
 
   /// 거리를 고른다. **서버를 부르지 않는다.**
   ///
-  /// ⚠️ **고른 시간을 건드리지 않는다.** 전에는 거리마다 목록이 새로 와서
-  /// 같은 `raw`를 찾아 갈아 끼워야 했다(`_applySlots`). 판이 바뀌지 않으므로
-  /// 그 절차가 통째로 사라졌다 — 숫자는 `pickedWaiting`이 판에서 꺼낸다.
+  /// ⚠️ **고른 시간을 새 거리의 칸으로 갈아 끼운다.** 시간은 거리를 고른 뒤
+  /// 그 거리의 시트에서 고른 것이라, 거리를 바꾸면 옛 거리의 칸이 남는다.
+  /// 새 거리에 같은 시각이 없거나 마감이면 **시간을 푼다** — 남겨 두면 시간
+  /// 칸에는 시각이 적혀 있는데 등록 버튼만 까닭 없이 잠긴다.
   void selectDistance(int meters) {
-    state = state.copyWith(meters: meters, failure: null);
+    final raw = state.time?.raw;
+    final slot = raw == null ? null : state.board?.at(raw: raw, meters: meters);
+    state = state.copyWith(
+      meters: meters,
+      time: slot != null && slot.selectable ? slot : null,
+      failure: null,
+    );
   }
 
   /// 화면에 들어올 때 **지난번 흔적을 지운다.**
@@ -277,8 +286,34 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
     // ⚠️ **`copyWith`를 쓴다.** 생성자로 세우면 여기 안 적은 필드가 조용히
     // 초기화된다 — `submitting`이 그렇게 풀려서, 신청이 날아가는 중에 판이
     // 다시 오면 CTA가 열리고 같은 신청이 두 번 나갔다.
+    //
+    // ⚠️ **고른 거리가 새 판에 없으면 거리와 시간을 푼다.** 거리 목록은 서버가
+    // 정한다. 남겨 두면 켜진 칩은 없는데 시간 칸은 열려 있고, 누르면 빈 시트가
+    // 뜬다 — 화면이 "거리를 안 골랐다"와 "골랐다"를 동시에 말하게 된다.
+    //
+    // ⚠️ **고른 시간도 새 판의 칸으로 갈아 끼운다.** 거리를 바꿀 때와 같은
+    // 규칙이다([selectDistance]). 그 칸이 없거나 마감이면 시간만 푼다 —
+    // 남기면 시간 칸에는 시각이 적혀 있는데 등록 버튼만 까닭 없이 잠긴다.
+    final meters = state.meters;
+    final lost =
+        meters != null && !board.distances.any((d) => d.meters == meters);
+    if (lost) {
+      state = state.copyWith(
+        board: board,
+        meters: null,
+        time: null,
+        loadingSlots: false,
+        loadFailure: null,
+      );
+      return;
+    }
+    final raw = state.time?.raw;
+    final slot = raw == null || meters == null
+        ? null
+        : board.at(raw: raw, meters: meters);
     state = state.copyWith(
       board: board,
+      time: slot != null && slot.selectable ? slot : null,
       loadingSlots: false,
       loadFailure: null,
     );

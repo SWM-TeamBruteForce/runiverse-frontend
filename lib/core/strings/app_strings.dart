@@ -712,10 +712,8 @@ abstract final class AppStrings {
   static const matchRegisterCta = '매칭 등록하기';
 
   /// `매칭 등록하기 · 3명 대기` — **시간·거리를 둘 다 고른 뒤**의 등록 버튼.
-  ///
-  /// ⚠️ **시간 시트의 숫자와 다른 수다.** 시트는 그 시각의 모든 거리를 더한
-  /// 합계를 그리고([matchWaitingCount]), 여기는 고른 거리 하나의 수다. 거리를
-  /// 고르면 숫자가 좁혀지는 것이 정상이다.
+  /// 고른 거리 × 고른 시각 칸의 수로, 시간 시트([matchWaitingCount])와 같은
+  /// 칸을 읽는다.
   ///
   /// ⚠️ **0명이면 붙이지 않는다.** `0명 대기`는 비어 있다고 알리는 꼴이라
   /// 오히려 사람을 민다 — 그때는 [matchRegisterCta]로 남는다.
@@ -726,7 +724,10 @@ abstract final class AppStrings {
   static const matchTimePlaceholder = '시간 고르기';
 
   /// 대기 인원을 왜 보여주는지 설명한다. 숫자만 두면 무슨 뜻인지 모른다.
-  static const matchTimeHint = '같은 시간대 러너끼리 매칭돼요.\n대기 인원이 많을수록 빨리 만나요';
+  ///
+  /// ⚠️ **거리도 같아야 한다.** 거리가 다르면 같은 방에 매칭되지 않는다 — "같은
+  /// 시간대"만 적으면 다른 거리의 사람과도 만나는 것으로 읽힌다.
+  static const matchTimeHint = '같은 거리·시간대 러너끼리 매칭돼요.\n대기 인원이 많을수록 빨리 만나요';
 
   static const matchDistanceLabel = '목표 거리';
 
@@ -842,15 +843,15 @@ abstract final class AppStrings {
   static const matchSlotsRetry = '다시 시도';
   static const matchSlotsLoading = '시간대를 불러오는 중이에요';
 
+  /// 거리를 고르기 전에는 시간 선택기가 잠긴다. 시트의 숫자가 고른 거리의
+  /// 수라서, 거리를 모르면 그릴 숫자가 없다.
+  static const matchSlotsLockedByDistance = '거리를 먼저 골라주세요';
+
   /// `3명 대기` — 시간 시트의 한 줄에 붙는다. 사회적 증거다.
   ///
-  /// ⚠️ **그 시각의 모든 거리를 더한 수다.** 시트는 거리를 고르기 전에도
-  /// 열리므로 거리 하나의 수를 적으면 다른 거리를 고를 사람에게 거짓이 된다.
-  ///
-  /// ⚠️ **"함께"라는 말을 붙이지 않는다.** 명세가 거리가 다르면 같은 방에
-  /// 매칭되지 않는다고 못 박았다 — `5명`이 3km 3명과 10km 2명일 수 있고 그
-  /// 다섯이 서로 만나지는 않는다. 거리를 고르면 등록 버튼의 숫자가 진짜 그
-  /// 조건의 수로 바뀌면서 저절로 좁혀진다([matchRegisterCtaWaiting]).
+  /// ⚠️ **고른 거리의 수다.** 거리가 다르면 같은 방에 매칭되지 않으므로, 모든
+  /// 거리를 더하면 들어가 보니 아무도 없는 시각에 숫자가 선다. 등록 버튼의
+  /// 숫자([matchRegisterCtaWaiting])와 같다.
   ///
   /// 0명이면 붙이지 않는다.
   static String matchWaitingCount(int count) => '$count명 대기';
