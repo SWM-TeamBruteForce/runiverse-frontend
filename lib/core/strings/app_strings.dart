@@ -163,9 +163,9 @@ abstract final class AppStrings {
   /// "마케팅 정보 수신"만으로는 무엇에 동의하는지 알 수 없다.
   static const termsMarketing = '매칭 소식과 이벤트 알림';
 
-  /// 위치 권한을 지금 묻지 않는 이유를 미리 알린다.
-  /// 권한 요청은 실제로 필요한 맥락(매칭 등록)에서 해야 수락률이 높다.
-  static const termsLocationNotice = '위치 권한은 매칭을\n시작할 때 여쭤봐요';
+  /// 위치 권한을 지금 묻지 않고 홈에서 묻는다는 것을 미리 알린다
+  /// (`HomePermissionAsker`).
+  static const termsLocationNotice = '위치 권한은 홈에서\n한 번 여쭤봐요';
 
   /// **필수** 3항목을 전부 동의해야 눌린다. 선택은 막지 않는다.
   static const termsCta = '동의하고 계속';
