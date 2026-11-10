@@ -547,6 +547,41 @@ abstract final class AppStrings {
   /// 히어로 부제. 줄바꿈 위치를 고정해 두 줄로 읽히게 한다.
   static const homeHeroSubtitle = '나와 비슷한 러너를 만나\n같은 시간, 각자의 자리에서 함께 달려보세요.';
 
+  // 위 줄 날씨 — 외주 시안 `70:739`(`서울 강남구 · 맑음 18°`)
+
+  static const homeWeatherClear = '맑음';
+  static const homeWeatherPartlyCloudy = '구름 조금';
+  static const homeWeatherCloudy = '흐림';
+  static const homeWeatherFog = '안개';
+  static const homeWeatherRain = '비';
+  static const homeWeatherSnow = '눈';
+  static const homeWeatherThunder = '뇌우';
+
+  /// `서울 강남구 · 맑음 18°`. 동네를 모르면 그 앞부분을, 하늘을 모르면
+  /// 하늘을 뺀다.
+  static String homeWeather(String? place, String? sky, int temperature) {
+    final weather = sky == null ? '$temperature°' : '$sky $temperature°';
+    return place == null ? weather : '$place · $weather';
+  }
+
+  /// 스크린리더용. `°`를 읽지 못하는 리더가 있어 `도`로 쓰고, 누르면 출처가
+  /// 뜬다는 것까지 말한다.
+  static String homeWeatherSemantics(
+    String? place,
+    String? sky,
+    int temperature,
+  ) =>
+      '${place == null ? '' : '$place, '}'
+      '${sky == null ? '' : '$sky '}$temperature도, 날씨 출처 보기';
+
+  /// 권한이 없고 홈에서 아직 안 물었을 때. **기기당 한 번만** 뜬다.
+  static const homeWeatherAsk = '위치 켜고 날씨 보기';
+
+  /// 날씨를 누르면 뜨는 시트. Open-Meteo 데이터가 CC BY 4.0이라 보여 주는
+  /// 자리에서 출처로 가는 링크가 있어야 한다.
+  static const homeWeatherSource = '날씨 정보는 Open-Meteo에서 받아요';
+  static const homeWeatherSourceOpen = '날씨 지도 보기';
+
   /// 프로필을 아직 안 채운 사람에게 뜨는 안내.
   static const homeProfilePromptTitle = '매칭을 시작하려면 프로필을 완성해주세요';
   static const homeProfilePromptBody =

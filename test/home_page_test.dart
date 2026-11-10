@@ -1,3 +1,4 @@
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
@@ -8,7 +9,12 @@ import 'package:runiverse/features/app_update/data/fake_app_version_repository.d
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/core/storage/location_ask_store.dart';
+import 'package:runiverse/features/home/domain/place_repository.dart';
+import 'package:runiverse/features/home/domain/weather.dart';
+import 'package:runiverse/features/home/domain/weather_repository.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
+import 'package:runiverse/features/home/presentation/home_weather_provider.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/presentation/invite_register_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_page.dart';
@@ -18,15 +24,47 @@ import 'package:runiverse/features/notification/data/fake_notification_repositor
 import 'package:runiverse/features/notification/presentation/notification_page.dart';
 import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
+import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
+import 'package:runiverse/features/session/domain/geo_point.dart';
+import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
 /// 홈 (S05 상태 1) — 무엇이 보이고, 히어로의 두 버튼이 어디로 가는가.
 void main() {
-  Future<void> pumpHome(WidgetTester tester, {AuthState? auth}) async {
+  Future<void> pumpHome(
+    WidgetTester tester, {
+    AuthState? auth,
+    _StubWeatherController? weather,
+    bool realWeather = false,
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          // 셸이 세워지면서 날씨를 받는다. 진짜를 두면 위치·저장소 플랫폼
+          // 채널을 부른다. **위치 저장소를 통째로 갈지 않는다** — 1인 러닝
+          // 준비 화면도 그것을 쓴다.
+          if (!realWeather)
+            homeWeatherProvider.overrideWith(
+              () => weather ?? _StubWeatherController(),
+            ),
+          // 진짜 컨트롤러에 가짜 위치·날씨·동네를 물린다. 셸이 날씨를 부르는
+          // 연결까지 본다.
+          if (realWeather) ...[
+            locationRepositoryProvider.overrideWithValue(
+              FakeLocationRepository()
+                ..position = GeoPoint(
+                  latitude: 37.5665,
+                  longitude: 126.978,
+                  recordedAt: DateTime(2026, 11, 10, 9),
+                ),
+            ),
+            locationAskStoreProvider.overrideWithValue(
+              InMemoryLocationAskStore(),
+            ),
+            weatherRepositoryProvider.overrideWithValue(_ClearWeather()),
+            placeRepositoryProvider.overrideWithValue(_JungGu()),
+          ],
           // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
           // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
           appVersionRepositoryProvider.overrideWithValue(
@@ -154,6 +192,72 @@ void main() {
 
       expect(find.byType(NotificationPage), findsOneWidget);
     });
+
+    testWidgets('날씨를 그리고, 누르면 출처가 뜬다', (tester) async {
+      await pumpHome(
+        tester,
+        weather: _StubWeatherController(
+          const HomeWeatherShown(
+            Weather(sky: WeatherSky.clear, temperature: 18),
+            latitude: 37.4979,
+            longitude: 127.0276,
+            place: '서울 강남구',
+          ),
+        ),
+      );
+
+      // 시안 `70:739` 그대로다.
+      expect(find.text('서울 강남구 · 맑음 18°'), findsOneWidget);
+
+      // ⚠️ 라이선스 조건이다(CC BY 4.0) — 보여 주는 자리에서 출처로 가야 한다.
+      await tester.tap(find.text('서울 강남구 · 맑음 18°'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.homeWeatherSource), findsOneWidget);
+      expect(find.text(AppStrings.homeWeatherSourceOpen), findsOneWidget);
+    });
+
+    testWidgets('권한이 없으면 버튼을 그리고, 누르면 묻는다', (tester) async {
+      final weather = _StubWeatherController(const HomeWeatherAsk());
+      await pumpHome(tester, weather: weather);
+
+      await tester.tap(find.text(AppStrings.homeWeatherAsk));
+      await tester.pumpAndSettle();
+
+      expect(weather.asks, 1);
+    });
+
+    testWidgets('⚠️ 셸이 세워지면 날씨를 받아 그린다', (tester) async {
+      // 컨트롤러를 갈지 않는다. 셸의 첫 갱신 연결이 빠지면 여기서 걸린다.
+      await pumpHome(tester, realWeather: true);
+
+      expect(find.text('서울 중구 · 맑음 18°'), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 스크린리더로도 누를 수 있다', (tester) async {
+      // 읽을 칸이 아래 `InkWell`의 동작을 지운다. 누름이 빠지면 "버튼"이라고
+      // 읽히고도 눌리지 않는다.
+      final semantics = tester.ensureSemantics();
+      final weather = _StubWeatherController(const HomeWeatherAsk());
+      await pumpHome(tester, weather: weather);
+
+      final node = tester.getSemantics(
+        find.bySemanticsLabel(AppStrings.homeWeatherAsk),
+      );
+      expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+
+      tester.semantics.tap(find.semantics.byLabel(AppStrings.homeWeatherAsk));
+      await tester.pumpAndSettle();
+      expect(weather.asks, 1);
+      semantics.dispose();
+    });
+
+    testWidgets('비어 있으면 아무것도 그리지 않는다', (tester) async {
+      await pumpHome(tester);
+
+      expect(find.text(AppStrings.homeWeatherAsk), findsNothing);
+      expect(find.textContaining('°'), findsNothing);
+    });
   });
 
   group('⚠️ 시안에서 빠진 것', () {
@@ -240,4 +344,38 @@ class _StubAuthController extends AuthController {
 
   @override
   AuthState build() => initial;
+}
+
+class _ClearWeather implements WeatherRepository {
+  @override
+  Future<Weather> current({
+    required double latitude,
+    required double longitude,
+  }) async => const Weather(sky: WeatherSky.clear, temperature: 18);
+}
+
+class _JungGu implements PlaceRepository {
+  @override
+  Future<String?> nameOf({
+    required double latitude,
+    required double longitude,
+  }) async => '서울 중구';
+}
+
+/// 날씨 자리를 고정한 컨트롤러. 받기·묻기는 부르기만 센다.
+class _StubWeatherController extends HomeWeatherController {
+  _StubWeatherController([this.initial = const HomeWeatherHidden()]);
+
+  final HomeWeatherState initial;
+
+  int asks = 0;
+
+  @override
+  HomeWeatherState build() => initial;
+
+  @override
+  Future<void> refresh() async {}
+
+  @override
+  Future<void> ask() async => asks++;
 }

@@ -38,6 +38,9 @@ dependencies:
   go_router: ^17.3.0
   lucide_icons_flutter: ^3.1.15
   geolocator: ^14.0.3
+  # 홈 위 줄의 동네 이름(`서울 강남구`). 기기 지오코더를 부르므로 좌표가
+  # 구글(안드로이드)·Apple(iOS)로 간다 — 개인정보처리방침 고지 대상이다.
+  geocoding: ^5.0.0
   dio: ^5.11.0
   # 11.x로 올리지 않는다. 11.0.0은 compileSdk 37을 요구하는데 AGP가 찾는
   # `android-37`이 SDK에 없다 (설치된 것은 `android-37.0`뿐이라 인식되지 않는다).

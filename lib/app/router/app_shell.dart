@@ -11,6 +11,7 @@ import 'package:runiverse/core/widgets/v2/app_tab_bar.dart';
 import 'package:runiverse/core/widgets/profile_prompt_sheet.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/home/presentation/home_weather_provider.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 import 'package:runiverse/features/notification/domain/push_landing.dart';
 import 'package:runiverse/features/notification/presentation/notification_provider.dart';
@@ -87,6 +88,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (!mounted) return;
       _refreshStatus();
       _startNotifications();
+      _refreshWeather();
       // 꺼진 앱을 푸시로 열었으면 그 푸시는 셸이 서기 전에 이미 도착해 있다.
       unawaited(_openPushed());
     });
@@ -109,6 +111,12 @@ class _AppShellState extends ConsumerState<AppShell> {
     unawaited(ref.read(userStatusProvider.notifier).refresh());
   }
 
+  /// 홈 위 줄의 날씨를 다시 본다. 받은 지 30분이 안 됐으면 부르지 않는다.
+  ///
+  /// 로그인과 무관하다 — 서버가 아니라 Open-Meteo를 부른다.
+  void _refreshWeather() =>
+      unawaited(ref.read(homeWeatherProvider.notifier).refresh());
+
   /// 앱 스트림을 열고 알림 첫 페이지를 받는다.
   ///
   /// ⚠️ **순서가 규칙이다** — 스트림 먼저, 목록 나중. `start()`가 그 순서를
@@ -125,6 +133,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   /// 다시 붙고, 어느 쪽이든 목록을 재조회한다.
   void _onResume() {
     _refreshStatus();
+    _refreshWeather();
     if (ref.read(authControllerProvider) is! AuthSignedIn) return;
     unawaited(ref.read(notificationProvider.notifier).resume());
     // 앞선 기기 등록이 실패로 남았을 때만 다시 보낸다(명세 2-1).
@@ -238,6 +247,8 @@ class _AppShellState extends ConsumerState<AppShell> {
   ];
 
   void _onDestinationSelected(int index) {
+    // 홈 탭은 다시 세워지지 않아 다녀와도 날씨가 그대로다. 누를 때 다시 본다.
+    if (index == 0) _refreshWeather();
     widget.navigationShell.goBranch(
       index,
       // 이미 열려 있는 탭을 다시 누르면 그 탭의 첫 화면으로 돌아간다.
