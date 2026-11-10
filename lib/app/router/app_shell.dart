@@ -147,7 +147,13 @@ class _AppShellState extends ConsumerState<AppShell> {
     unawaited(ref.read(notificationProvider.notifier).resume());
     // 앞선 기기 등록이 실패로 남았을 때만 다시 보낸다(명세 2-1).
     unawaited(ref.read(pushProvider.notifier).resume());
-    if (_permissionsDeferred) unawaited(_askPermissions());
+    // ⚠️ **홈이 맨 위일 때만 다시 묻는다.** 출발 준비·카운트다운도 복귀 때 위치를
+    // 다시 묻는다 — 같은 순간에 둘이 물으면 늦은 쪽이 "요청이 이미 진행 중"으로
+    // 실패하고, 출발 준비가 지면 "위치 꺼짐" 안내에서 멈춘다.
+    if (_permissionsDeferred &&
+        GoRouter.of(context).state.matchedLocation == AppRoutes.home) {
+      unawaited(_askPermissions());
+    }
   }
 
   /// 프로필을 채운 사람에게 권한을 묻는다. 관문이 서 있는 동안은 아직
@@ -171,7 +177,12 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (!mounted || _askingPermissions) return;
     _askingPermissions = true;
     try {
-      await ref.read(pushProvider.notifier).askPermission();
+      // 알림이 실패해도 위치·신체 활동은 묻는다.
+      try {
+        await ref.read(pushProvider.notifier).askPermission();
+      } on Object catch (error) {
+        debugPrint('[permission] 알림 권한을 묻지 못했다 · $error');
+      }
       if (!mounted) return;
       _permissionsDeferred = !await ref.read(homePermissionProvider).askOnce();
       if (!mounted) return;

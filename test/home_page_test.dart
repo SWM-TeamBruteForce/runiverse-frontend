@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,12 +24,15 @@ import 'package:runiverse/features/matching/presentation/match_register_page.dar
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/notification/data/fake_app_stream.dart';
 import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
+import 'package:runiverse/features/notification/domain/push_messaging.dart';
 import 'package:runiverse/features/notification/presentation/notification_page.dart';
 import 'package:runiverse/features/notification/presentation/notification_provider.dart';
+import 'package:runiverse/features/notification/presentation/push_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
+import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
@@ -39,10 +44,15 @@ void main() {
     _StubWeatherController? weather,
     bool realWeather = false,
     _StubPermissionAsker? permissions,
+    FakeLocationRepository? location,
+    PushMessaging? pushMessaging,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          // 셸이 알림 권한을 먼저 묻는다. 기본값은 아무것도 하지 않는다.
+          if (pushMessaging != null)
+            pushMessagingProvider.overrideWithValue(pushMessaging),
           // 셸이 홈에서 위치·신체 활동 권한을 묻는다. 진짜를 두면 플랫폼
           // 채널을 부른다.
           homePermissionProvider.overrideWith(
@@ -59,7 +69,7 @@ void main() {
           // 연결까지 본다.
           if (realWeather) ...[
             locationRepositoryProvider.overrideWithValue(
-              FakeLocationRepository()
+              (location ?? FakeLocationRepository())
                 ..position = GeoPoint(
                   latitude: 37.5665,
                   longitude: 126.978,
@@ -303,6 +313,60 @@ void main() {
       expect(permissions.asks, 2);
     });
 
+    testWidgets('⚠️ 출발 준비 화면에서 돌아오면 다시 묻지 않는다', (tester) async {
+      // 출발 준비도 복귀 때 위치를 다시 묻는다. 같은 순간에 둘이 물으면 늦은
+      // 쪽이 "요청이 이미 진행 중"으로 실패한다.
+      final permissions = _StubPermissionAsker()..done = false;
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: true),
+        permissions: permissions,
+      );
+      await tester.ensureVisible(find.text(AppStrings.homeSoloCta));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.homeSoloCta));
+      await tester.pumpAndSettle();
+
+      await leaveAndReturn(tester);
+
+      expect(permissions.asks, 1);
+    });
+
+    testWidgets('⚠️ 홈에서 위치를 허용하면 바로 날씨를 받는다', (tester) async {
+      // 셸이 처음 받을 때는 아직 권한이 없다. 물은 뒤에 다시 받지 않으면
+      // 다음 복귀까지 날씨 자리가 비어 있다.
+      final location = FakeLocationRepository(access: LocationAccess.denied);
+      final permissions = _StubPermissionAsker()
+        ..onAsk = () => location.access = LocationAccess.granted;
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: true),
+        realWeather: true,
+        location: location,
+        permissions: permissions,
+      );
+
+      expect(find.text('서울 중구 · 맑음 18°'), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 알림 창이 닫힌 뒤에 위치를 묻는다', (tester) async {
+      // 겹쳐 부르면 플랫폼이 "요청이 이미 진행 중"으로 거절한다.
+      final push = _HeldPushMessaging();
+      final permissions = _StubPermissionAsker();
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: true),
+        permissions: permissions,
+        pushMessaging: push,
+      );
+      expect(permissions.asks, 0, reason: '알림 창이 떠 있다');
+
+      push.hold.complete();
+      await tester.pumpAndSettle();
+
+      expect(permissions.asks, 1);
+    });
+
     testWidgets('물을 일이 끝났으면 앱으로 돌아와도 다시 묻지 않는다', (tester) async {
       final permissions = _StubPermissionAsker();
       await pumpHome(
@@ -450,9 +514,23 @@ class _StubPermissionAsker implements HomePermissionAsker {
   /// 물을 일이 끝났다고 답할 것인가. 거짓이면 위치 기능이 꺼져 미룬 것이다.
   bool done = true;
 
+  /// 물을 때 부른다. 권한 창에서 허용을 누른 것을 흉내 낸다.
+  void Function()? onAsk;
+
   @override
   Future<bool> askOnce() async {
     asks++;
+    onAsk?.call();
     return done;
   }
+}
+
+/// 알림 권한 창이 [hold]가 끝날 때까지 떠 있다.
+class _HeldPushMessaging extends NoopPushMessaging {
+  _HeldPushMessaging();
+
+  final hold = Completer<void>();
+
+  @override
+  Future<void> requestPermission() => hold.future;
 }
