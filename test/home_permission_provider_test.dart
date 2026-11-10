@@ -37,8 +37,9 @@ void main() {
   test('처음이면 위치와 신체 활동을 묻는다', () async {
     final asker = start();
 
-    await asker.askOnce();
+    final done = await asker.askOnce();
 
+    expect(done, isTrue);
     expect(location.ensureAccessCount, 1);
     expect(steps.accessCalls, 1);
   });
@@ -76,14 +77,28 @@ void main() {
   });
 
   test('⚠️ 위치 기능이 꺼져 있으면 묻지 않고 기회도 쓰지 않는다', () async {
-    // 꺼져 있으면 `ensureAccess`가 묻지도 않고 돌아온다. 다음에 다시 본다.
+    // 꺼져 있으면 `ensureAccess`가 묻지도 않고 돌아온다. 미뤘다고 답해
+    // 셸이 앱으로 돌아올 때 다시 부르게 한다.
     final asker = start(access: LocationAccess.serviceDisabled);
 
-    await asker.askOnce();
+    final done = await asker.askOnce();
 
+    expect(done, isFalse);
     expect(location.ensureAccessCount, 0);
     expect(steps.accessCalls, 0);
     expect(asks.marks, 0);
+  });
+
+  test('⚠️ 위치 기능을 켠 뒤 다시 부르면 그때 묻는다', () async {
+    final asker = start(access: LocationAccess.serviceDisabled);
+    await asker.askOnce();
+    location.access = LocationAccess.denied;
+
+    final done = await asker.askOnce();
+
+    expect(done, isTrue);
+    expect(location.ensureAccessCount, 1);
+    expect(steps.accessCalls, 1);
   });
 
   test('위치를 이미 허용했거나 다시 물을 수 없으면 신체 활동만 묻는다', () async {

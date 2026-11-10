@@ -59,6 +59,14 @@ class _AppShellState extends ConsumerState<AppShell> {
   /// 권한을 물으러 갔는가. [_gateUp]과 같은 이유로 둔다.
   bool _permissionsAsked = false;
 
+  /// 권한을 묻는 중인가. 권한 창이 닫힐 때도 앱은 `resumed`가 되므로, 없으면
+  /// 복귀 때의 재시도가 떠 있는 창과 겹친다.
+  bool _askingPermissions = false;
+
+  /// 기기의 위치 기능이 꺼져 있어 위치·신체 활동을 미뤘는가. 앱으로 돌아올 때
+  /// 다시 본다 — 켜고 돌아온 사람에게 물을 자리가 여기뿐이다.
+  bool _permissionsDeferred = false;
+
   /// 포그라운드 복귀를 듣는다.
   ///
   /// ## ⚠️ 돌아올 때마다 서버에 다시 묻는다
@@ -139,6 +147,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     unawaited(ref.read(notificationProvider.notifier).resume());
     // 앞선 기기 등록이 실패로 남았을 때만 다시 보낸다(명세 2-1).
     unawaited(ref.read(pushProvider.notifier).resume());
+    if (_permissionsDeferred) unawaited(_askPermissions());
   }
 
   /// 프로필을 채운 사람에게 권한을 묻는다. 관문이 서 있는 동안은 아직
@@ -159,13 +168,18 @@ class _AppShellState extends ConsumerState<AppShell> {
   /// 진행 중"으로 거절한다. 위치·신체 활동은 기기당 한 번이다
   /// ([HomePermissionAsker]).
   Future<void> _askPermissions() async {
-    if (!mounted) return;
-    await ref.read(pushProvider.notifier).askPermission();
-    if (!mounted) return;
-    await ref.read(homePermissionProvider).askOnce();
-    if (!mounted) return;
-    // 방금 위치를 허용했으면 날씨를 받는다.
-    _refreshWeather();
+    if (!mounted || _askingPermissions) return;
+    _askingPermissions = true;
+    try {
+      await ref.read(pushProvider.notifier).askPermission();
+      if (!mounted) return;
+      _permissionsDeferred = !await ref.read(homePermissionProvider).askOnce();
+      if (!mounted) return;
+      // 방금 위치를 허용했으면 날씨를 받는다.
+      _refreshWeather();
+    } finally {
+      _askingPermissions = false;
+    }
   }
 
   /// 눌린 푸시가 가리키는 화면을 연다.

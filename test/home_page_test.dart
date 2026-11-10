@@ -1,4 +1,5 @@
 import 'package:flutter/semantics.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
@@ -272,6 +273,49 @@ void main() {
       expect(permissions.asks, 1);
     });
 
+    /// 앱이 뒤로 갔다 돌아온다. 생명주기는 단계를 건너뛰지 못한다.
+    Future<void> leaveAndReturn(WidgetTester tester) async {
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('⚠️ 위치 기능이 꺼져 미뤘으면 앱으로 돌아올 때 다시 묻는다', (tester) async {
+      // 버튼이 없어서, 위치 기능을 켜고 돌아온 사람에게 물을 자리가 여기뿐이다.
+      final permissions = _StubPermissionAsker()..done = false;
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: true),
+        permissions: permissions,
+      );
+      expect(permissions.asks, 1);
+
+      permissions.done = true;
+      await leaveAndReturn(tester);
+      expect(permissions.asks, 2);
+
+      // 끝났으면 더 묻지 않는다.
+      await leaveAndReturn(tester);
+      expect(permissions.asks, 2);
+    });
+
+    testWidgets('물을 일이 끝났으면 앱으로 돌아와도 다시 묻지 않는다', (tester) async {
+      final permissions = _StubPermissionAsker();
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: true),
+        permissions: permissions,
+      );
+
+      await leaveAndReturn(tester);
+
+      expect(permissions.asks, 1);
+    });
+
     testWidgets('⚠️ 관문이 서 있는 동안은 묻지 않는다', (tester) async {
       final permissions = _StubPermissionAsker();
       await pumpHome(
@@ -403,6 +447,12 @@ class _StubWeatherController extends HomeWeatherController {
 class _StubPermissionAsker implements HomePermissionAsker {
   int asks = 0;
 
+  /// 물을 일이 끝났다고 답할 것인가. 거짓이면 위치 기능이 꺼져 미룬 것이다.
+  bool done = true;
+
   @override
-  Future<void> askOnce() async => asks++;
+  Future<bool> askOnce() async {
+    asks++;
+    return done;
+  }
 }
