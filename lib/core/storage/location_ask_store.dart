@@ -9,6 +9,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 /// 물었음"과 "한 번 거절함"을 가를 수 없다(`LocationRepository.checkAccess`).
 /// 홈에서 두 번째 거절까지 받아 버리면 러닝 출발 때 물을 기회가 사라진다.
 ///
+/// **안드로이드만 쓴다.** iOS는 거절하면 곧바로 다시 물을 수 없는 상태가 되어
+/// 상태만으로 가를 수 있고, 이 값이 Keychain에 남아 앱을 지워도 살아남는다.
+///
 /// 로그아웃해도 남는다 — 계정이 아니라 기기의 권한 이력이다.
 abstract interface class LocationAskStore {
   /// 홈에서 이미 물었는가.
@@ -36,18 +39,4 @@ class SecureLocationAskStore implements LocationAskStore {
 
   @override
   Future<void> markAsked() => _storage.write(key: _keyAsked, value: '1');
-}
-
-/// 메모리에만 들고 있는 구현. 테스트가 쓴다 —
-/// 위젯 테스트는 플랫폼 채널을 부를 수 없다.
-class InMemoryLocationAskStore implements LocationAskStore {
-  InMemoryLocationAskStore([this._asked = false]);
-
-  bool _asked;
-
-  @override
-  Future<bool> asked() async => _asked;
-
-  @override
-  Future<void> markAsked() async => _asked = true;
 }

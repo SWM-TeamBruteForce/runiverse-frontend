@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/storage/location_ask_store.dart';
@@ -19,8 +20,11 @@ void main() {
   HomePermissionAsker start({
     LocationAccess access = LocationAccess.denied,
     bool asked = false,
+    bool failEnsure = false,
   }) {
-    location = FakeLocationRepository(access: access);
+    location = failEnsure
+        ? _FailingLocation(access: access)
+        : FakeLocationRepository(access: access);
     steps = FakeStepRepository();
     asks = _CountingAskStore(asked);
     final container = ProviderContainer(
@@ -119,8 +123,10 @@ void main() {
     final asker = start();
     asks.failWrite = true;
 
-    await asker.askOnce();
+    final done = await asker.askOnce();
 
+    // 미뤘다고 답하면 셸이 복귀할 때마다 다시 부른다.
+    expect(done, isTrue);
     expect(location.ensureAccessCount, 0);
     expect(steps.accessCalls, 0);
   });
@@ -129,11 +135,66 @@ void main() {
     final asker = start();
     asks.failRead = true;
 
-    await asker.askOnce();
+    final done = await asker.askOnce();
 
+    expect(done, isTrue);
     expect(location.ensureAccessCount, 0);
     expect(steps.accessCalls, 0);
   });
+
+  test('⚠️ 위치 요청이 실패해도 신체 활동은 묻는다', () async {
+    // 이미 물었다고 남긴 뒤라, 여기서 멈추면 신체 활동을 물을 기회가 사라진다.
+    final asker = start(failEnsure: true);
+
+    final done = await asker.askOnce();
+
+    expect(done, isTrue);
+    expect(steps.accessCalls, 1);
+  });
+
+  group('iOS', () {
+    // iOS는 거절하면 곧바로 `deniedForever`라 `denied`면 아직 안 물은 것이다.
+    // 저장값은 Keychain에 남아 앱을 지워도 살아남으므로 보지 않는다.
+    setUp(() => debugDefaultTargetPlatformOverride = TargetPlatform.iOS);
+    tearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    test('⚠️ 저장값이 남아 있어도 아직 안 물었으면 묻는다 — 다시 깐 기기', () async {
+      final asker = start(asked: true);
+
+      final done = await asker.askOnce();
+
+      expect(done, isTrue);
+      expect(location.ensureAccessCount, 1);
+      expect(steps.accessCalls, 1);
+      expect(asks.marks, 0, reason: 'iOS는 남기지 않는다');
+    });
+
+    test('이미 답했으면 묻지 않는다', () async {
+      for (final access in [
+        LocationAccess.granted,
+        LocationAccess.deniedForever,
+      ]) {
+        final asker = start(access: access);
+
+        final done = await asker.askOnce();
+
+        expect(done, isTrue, reason: '$access');
+        expect(location.ensureAccessCount, 0, reason: '$access');
+        expect(steps.accessCalls, 0, reason: '$access');
+      }
+    });
+  });
+}
+
+/// 위치 요청만 실패한다. 겹친 요청이 받는 "이미 진행 중" 오류를 흉내 낸다.
+class _FailingLocation extends FakeLocationRepository {
+  _FailingLocation({super.access});
+
+  @override
+  Future<LocationAccess> ensureAccess() async {
+    ensureAccessCount++;
+    throw Exception('요청이 이미 진행 중');
+  }
 }
 
 class _CountingAskStore implements LocationAskStore {
