@@ -85,6 +85,20 @@ void main() {
     expect(tester.getSize(avatar(0)), const Size(49, 49));
   });
 
+  testWidgets('⚠️ 간격 합보다 좁아도 칸 폭이 음수가 되지 않는다', (tester) async {
+    // 카드 안쪽 18 < 간격 20×3. 이 폭이면 카드의 다른 줄도 넘치므로 넘침 오류는
+    // 보지 않고, 칸 폭이 음수일 때만 나는 제약 오류가 없는지만 본다.
+    final errors = <FlutterErrorDetails>[];
+    final original = FlutterError.onError;
+    FlutterError.onError = errors.add;
+    addTearDown(() => FlutterError.onError = original);
+
+    await pump(tester, screen: 82);
+    FlutterError.onError = original;
+
+    expect(errors.where((e) => e.toString().contains('negative')), isEmpty);
+  });
+
   testWidgets('3명은 360dp에서도 줄지 않는다', (tester) async {
     await pump(tester, screen: 360, players: 3);
 

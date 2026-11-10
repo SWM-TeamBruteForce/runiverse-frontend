@@ -176,7 +176,8 @@ class _Party extends StatelessWidget {
         final gaps = (players.length - 1) * _gap;
         final cell = math.min(
           HomeConfirmed._avatarSize,
-          (constraints.maxWidth - gaps) / players.length,
+          // 간격 합보다 좁으면 음수가 된다 — 음수 폭은 제약 오류다.
+          math.max(0.0, (constraints.maxWidth - gaps) / players.length),
         );
 
         return Row(
