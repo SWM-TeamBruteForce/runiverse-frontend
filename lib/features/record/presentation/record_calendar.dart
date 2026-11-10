@@ -66,7 +66,6 @@ class _RecordCalendarState extends State<RecordCalendar> {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colors.bgSurface,
-        border: Border.all(color: colors.borderDefault),
         borderRadius: AppRadius.lg,
       ),
       child: Padding(

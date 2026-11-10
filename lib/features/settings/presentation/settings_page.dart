@@ -558,7 +558,6 @@ class _Card extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.bgSurface,
         borderRadius: AppRadius.lg,
-        border: Border.all(color: colors.borderDefault),
       ),
       // 카드가 둥근데 안쪽 잉크가 각지면 모서리로 색이 삐져나온다.
       clipBehavior: Clip.antiAlias,
@@ -838,7 +837,6 @@ class _ErrorCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.bgSurface,
         borderRadius: AppRadius.lg,
-        border: Border.all(color: colors.borderDefault),
       ),
       child: Column(
         children: [
