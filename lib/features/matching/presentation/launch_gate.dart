@@ -11,6 +11,9 @@ import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/domain/run_launch.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
+import 'package:runiverse/features/session/domain/run_session_state.dart';
+import 'package:runiverse/features/session/presentation/run_session_provider.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 /// 출발 시각이 오면 **어느 화면에 있든** 러닝으로 데려간다.
 ///
@@ -32,10 +35,19 @@ import 'package:runiverse/features/matching/presentation/match_room_provider.dar
 /// 위해서다. 그래도 못 옮겼으면(안내를 못 봤거나, 앱이 백그라운드였거나)
 /// 30초 전에 바로 카운트다운으로 보낸다 — 거기서 3·2·1이 돌고 정각에 쏜다.
 ///
-/// ## ⚠️ 로비에 있을 때는 손대지 않는다
+/// ## ⚠️ 로비에서는 자동 이동을 맡지 않는다
 ///
 /// 그 자리는 [MatchRoomPage]가 맡는다. 둘이 같이 밀면 카운트다운이 두 번
-/// 쌓인다. 여기는 **로비 밖**만 본다.
+/// 쌓인다. 이 게이트의 자동 이동은 **로비 밖**에서만 한다. 화면 켜짐은
+/// 로비에서도 여기서 맞춘다.
+///
+/// ## ⚠️ 화면 켜 두기도 여기 한 곳에서 한다
+///
+/// 화면이 꺼지면 삼성 폰이 앱을 얼려 30초 전 카운트다운 진입과 출발이 폰을
+/// 다시 열 때까지 밀린다. 그래서 확정된 대기방·출발 대기실·러닝 화면에서는
+/// 켜 둔다([_syncWakelock]). 켜짐은 앱 전체에 하나뿐이라 화면마다 켜고 끄면,
+/// 바꿔치기(`pushReplacement`)할 때 옛 화면의 `dispose`가 새 화면이 켠 것을
+/// 끄거나 같은 화면이 두 번 쌓였을 때 위 화면이 아래 화면 몫까지 끈다.
 class LaunchGate extends ConsumerStatefulWidget {
   const LaunchGate({required this.router, required this.child, super.key});
 
@@ -67,6 +79,11 @@ class _LaunchGateState extends ConsumerState<LaunchGate> {
   /// 안내가 이미 닫힌 뒤에 엉뚱한 화면이 닫힌다.
   DialogRoute<void>? _notice;
 
+  /// 마지막으로 보낸 화면 켜짐. 같은 값을 거듭 보내지 않는다.
+  ///
+  /// 앱은 꺼진 채로 시작한다. 켤 자리에 처음 닿을 때 처음 보낸다.
+  var _awake = false;
+
   /// ⚠️ **첫 프레임 뒤에 붙는다.** `build` 에서 `ref.watch` 로 보면 이 위젯이
   /// 트리의 꼭대기라 [matchRoomProvider] 가 **`AppShell` 보다 먼저** 생긴다.
   /// 그러면 그 provider 가 `userStatusProvider` 를 깨우는 시점이 당겨져 앱이
@@ -82,11 +99,16 @@ class _LaunchGateState extends ConsumerState<LaunchGate> {
         (_, next) => _watch(next),
         fireImmediately: true,
       );
+      widget.router.routerDelegate.addListener(_syncWakelock);
     });
   }
 
   @override
   void dispose() {
+    widget.router.routerDelegate.removeListener(_syncWakelock);
+    // ⚠️ 업데이트 차단 화면이 이 게이트를 통째로 치우면 끌 주인이 사라진다.
+    // 켜 둔 채 떠나지 않는다.
+    if (_awake) unawaited(WakelockPlus.disable());
     _rooms?.close();
     _ticker?.cancel();
     super.dispose();
@@ -96,8 +118,32 @@ class _LaunchGateState extends ConsumerState<LaunchGate> {
   Widget build(BuildContext context) => widget.child;
 
   /// 방이 확정돼 있는 동안만 시계를 돌린다. 매칭 전·러닝 후에는 멈춘다.
+  /// 방 상태가 바뀔 때마다 화면 켜짐도 다시 맞춘다([_syncWakelock]).
   void _watch(MatchRoomState state) {
     _run(state.room?.status == RoomStatus.matched && state.launch != null);
+    _syncWakelock();
+  }
+
+  /// 확정된 대기방·출발 대기실·러닝 화면에서만 화면을 켜 둔다.
+  ///
+  /// 모집 중인 대기방은 끈다. 매칭 모집은 수십 분, 초대는 출발 1분 전까지
+  /// 모집 중이라 배터리를 먹는다. 확정 뒤는 모집 마감부터 출발까지(매칭 방은
+  /// 현재 10분, 초대 방은 1분)뿐이다.
+  void _syncWakelock() {
+    final where = widget.router.state.matchedLocation;
+    final room = ref.read(matchRoomProvider).room;
+    // ⚠️ 방이 사라진 카운트다운은 켜 두지 않는다. 출발할 방이 없어 그 화면에
+    // 남는데(`MatchCountdownPage._launch`), 켜 두면 앱을 끌 때까지 화면이 안
+    // 꺼진다.
+    final awake =
+        (where == AppRoutes.matchCountdown && room != null) ||
+        where == AppRoutes.runSession ||
+        (where == AppRoutes.matchRoom &&
+            room != null &&
+            room.status != RoomStatus.matching);
+    if (awake == _awake) return;
+    _awake = awake;
+    unawaited(WakelockPlus.toggle(enable: awake));
   }
 
   void _run(bool pending) {
@@ -160,6 +206,10 @@ class _LaunchGateState extends ConsumerState<LaunchGate> {
     _dismiss();
     // 그 사이에 스스로 로비로 갔을 수 있다.
     if (widget.router.state.matchedLocation != AppRoutes.matchRoom) {
+      // 요약을 닫은 것과 같다. 끝난 러닝을 비워야 워치 결과도 같이 닫힌다.
+      if (ref.read(runSessionControllerProvider) is RunFinished) {
+        ref.read(runSessionControllerProvider.notifier).reset();
+      }
       widget.router.go(AppRoutes.matchRoom);
     }
   }

@@ -26,6 +26,7 @@ import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/run_snapshot.dart';
 import 'package:runiverse/features/session/domain/running_channel.dart';
 import 'package:runiverse/features/session/domain/track_point.dart';
+import 'package:runiverse/features/session/presentation/run_control_provider.dart';
 import 'package:runiverse/features/session/presentation/run_session_page.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
@@ -171,17 +172,20 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   }
 
+  /// ⚠️ **요약 화면이 기본 뷰포트(600×800)에서 2px 넘친다.** 이 PR 과 무관한
+  /// 레이아웃 문제인데, 렌더 예외는 테스트를 죽인다. 세로만 늘려 둔다.
+  void useTallView(WidgetTester tester) {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+  }
+
   /// 종료 버튼을 끝까지 길게 누른다.
   ///
   /// ⚠️ **1.1.0부터 종료는 사용자만 보낸다.** 예전에는 목표를 넘기면 앱이
   /// 알아서 보냈고 이 그물도 그것에 기댔다.
   Future<void> holdFinish(WidgetTester tester) async {
-    // ⚠️ **요약 화면이 기본 뷰포트(600×800)에서 2px 넘친다.** 이 PR 과 무관한
-    // 레이아웃 문제인데, 렌더 예외는 테스트를 죽인다. 세로만 늘려 둔다.
-    tester.view.physicalSize = const Size(1200, 2400);
-    tester.view.devicePixelRatio = 2;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+    useTallView(tester);
 
     final button = find.bySemanticsLabel(AppStrings.runFinishHold);
     final gesture = await tester.startGesture(tester.getCenter(button));
@@ -305,6 +309,23 @@ void main() {
 
       expect(channel.finishes, [true]);
       expect(find.byType(RunSessionPage, skipOffstage: false), findsNothing);
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 답을 기다리는 동안 종료 버튼이 로딩 원이다', (tester) async {
+      // 이때 눌린 종료는 보내지 않는다. 버튼이 그대로면 눌러도 무반응으로 보인다.
+      useTallView(tester);
+      final container = await pumpRunning(tester);
+      final answer = channel.answer = Completer<FinishOutcome>();
+
+      channel.errors_.add(WsErrorCode.pauseSegmentDecreased);
+      await settleFinish(tester);
+
+      expect(channel.finishes, [true]);
+      expect(find.bySemanticsLabel(AppStrings.runFinishHold), findsNothing);
+
+      answer.complete(const FinishConfirmed());
+      await tester.pumpAndSettle();
       await unmount(tester, container);
     });
 
@@ -433,6 +454,17 @@ void main() {
       expect(find.byType(RunSessionPage), findsOneWidget);
       expect(find.text(AppStrings.runFinishRejected), findsOneWidget);
       expect(container.read(runSessionControllerProvider), isA<RunRunning>());
+      await unmount(tester, container);
+    });
+
+    testWidgets('참가자가 아니라는 거절에는 알리지 않는다', (tester) async {
+      // 강퇴 안내가 따로 뜬다. 함께 띄우면 다시 누르라는 말이 겹친다.
+      final container = await pumpRunning(tester);
+      channel.outcome = const FinishRejected(WsErrorCode.notRoomPlayer);
+
+      await holdFinish(tester);
+
+      expect(find.text(AppStrings.runFinishRejected), findsNothing);
       await unmount(tester, container);
     });
 
@@ -585,6 +617,164 @@ void main() {
       expect(channel.finishes, [false], reason: '처음 보낸 하나뿐이어야 한다');
       await unmount(tester, container);
     });
+
+    testWidgets('⚠️ 뒤로가기로 창을 닫으면 보류가 풀린다', (tester) async {
+      // 창만 닫히고 보류가 남으면 워치는 계속 보류를 받고, 다음 워치 종료가 고른 적
+      // 없이 `forced=true` 로 확정된다.
+      final container = await pumpPending(tester);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog, skipOffstage: false), findsNothing);
+      expect(find.byType(RunSessionPage), findsOneWidget);
+      expect(container.read(runControlProvider).goalPendingMeters, isNull);
+      expect(channel.finishes, [false], reason: '고르지 않은 것을 보내면 안 된다');
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 서버가 끝낸 뒤 늦은 종료는 결과를 지우지 않는다', (tester) async {
+      // 또 보내면 연결을 닫으며 끝낸 방 번호가 사라져 상세로 가는 문이 잠긴다.
+      final container = await pumpPending(tester);
+      channel.finished_.add(null);
+      await tester.pumpAndSettle();
+      final finishedRoomId = container
+          .read(runningConnectionProvider)
+          .finishedRoomId;
+
+      await container.read(runControlProvider.notifier).finish(forced: true);
+
+      expect(finishedRoomId, isNotNull);
+      expect(
+        container.read(runningConnectionProvider).finishedRoomId,
+        finishedRoomId,
+      );
+      await unmount(tester, container);
+    });
+
+    testWidgets('창이 떠 있을 때 워치에서 다시 종료하면 창이 닫히고 요약으로 간다', (tester) async {
+      final container = await pumpPending(tester);
+
+      unawaited(
+        container
+            .read(runControlProvider.notifier)
+            .finishByWatch(forced: false),
+      );
+      await settleFinish(tester, count: 2);
+      await tester.pumpAndSettle();
+
+      expect(channel.finishes, [false, true]);
+      expect(find.byType(AlertDialog, skipOffstage: false), findsNothing);
+      expect(find.byType(RunSessionPage, skipOffstage: false), findsNothing);
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 다시 종료가 거절되면 창 없이 달리는 화면에 남는다', (tester) async {
+      // 러닝이 이어지니 요약으로 교체되며 걷힐 일이 없다. 안 닫으면 고를 것이 없는
+      // 창이 화면을 막는다.
+      final container = await pumpPending(tester);
+      channel.outcome = const FinishRejected(WsErrorCode.invalidRoomState);
+
+      unawaited(
+        container
+            .read(runControlProvider.notifier)
+            .finishByWatch(forced: false),
+      );
+      await settleFinish(tester, count: 2);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog, skipOffstage: false), findsNothing);
+      expect(find.byType(RunSessionPage), findsOneWidget);
+      expect(find.text(AppStrings.runFinishRejected), findsOneWidget);
+      await unmount(tester, container);
+    });
+  });
+
+  testWidgets('⚠️ 첫 좌표 전에 서버가 끝내도 요약으로 간다', (tester) async {
+    // 시작 전이라 세션이 안 접힌다(`RunSessionController.finish`). 세션만 보고
+    // 옮기면 이미 끝난 러닝의 화면에 남는다.
+    useTallView(tester);
+    final container = await makeContainer();
+    addTearDown(container.dispose);
+    await container
+        .read(runningConnectionProvider.notifier)
+        .openMatched(1, targetDistanceMeters: target);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const RuniverseApp(initialLocation: AppRoutes.runSession),
+      ),
+    );
+    await tester.pump();
+
+    channel.finished_.add(null);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(RunSessionPage, skipOffstage: false), findsNothing);
+    await unmount(tester, container);
+  });
+
+  group('워치 명령도 폰 버튼과 같은 길을 탄다', () {
+    testWidgets('일시정지하면 폰 버튼도 재개로 바뀐다', (tester) async {
+      final container = await pumpRunning(tester);
+
+      container.read(runControlProvider.notifier).pause();
+      await tester.pump();
+
+      expect(find.bySemanticsLabel(AppStrings.runResumeCta), findsOneWidget);
+      await unmount(tester, container);
+    });
+
+    testWidgets('보류면 폰에도 창이 뜬다', (tester) async {
+      final container = await pumpRunning(tester);
+      channel.outcome = const FinishGoalPending(40);
+
+      unawaited(
+        container
+            .read(runControlProvider.notifier)
+            .finishByWatch(forced: false),
+      );
+      await settleFinish(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runGoalPendingBody(40)), findsOneWidget);
+      await unmount(tester, container);
+    });
+
+    testWidgets('⚠️ 폰이 잠겨 창을 못 그린 사이 다시 종료해도 창이 남지 않는다', (tester) async {
+      // 잠긴 동안은 프레임이 안 돌아 창의 builder 가 불리지 않는다. 시간만 흘린다.
+      final container = await pumpRunning(tester);
+      final control = container.read(runControlProvider.notifier);
+      channel.outcome = const FinishGoalPending(40);
+      unawaited(control.finishByWatch(forced: false));
+      await tester.binding.delayed(const Duration(seconds: 2));
+      expect(container.read(runControlProvider).goalPendingMeters, 40);
+
+      channel.outcome = const FinishRejected(WsErrorCode.invalidRoomState);
+      unawaited(control.finishByWatch(forced: false));
+      await tester.binding.delayed(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+
+      expect(channel.finishes, [false, true]);
+      expect(find.byType(AlertDialog, skipOffstage: false), findsNothing);
+      await unmount(tester, container);
+    });
+
+    testWidgets('확정이면 폰도 요약으로 간다', (tester) async {
+      useTallView(tester);
+      final container = await pumpRunning(tester);
+
+      unawaited(
+        container
+            .read(runControlProvider.notifier)
+            .finishByWatch(forced: false),
+      );
+      await settleFinish(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RunSessionPage, skipOffstage: false), findsNothing);
+      await unmount(tester, container);
+    });
   });
 
   testWidgets('⚠️ 목표의 80%를 넘겨도 `forced=true` 다', (tester) async {
@@ -658,6 +848,9 @@ class _FinishChannel implements RunningChannel {
   /// 무엇으로 답할지. 보류를 흉내 내려면 [FinishGoalPending] 을 넣는다.
   FinishOutcome outcome = const FinishConfirmed();
 
+  /// 세워 두면 끝낼 때까지 답하지 않는다. 답을 기다리는 동안의 화면을 본다.
+  Completer<FinishOutcome>? answer;
+
   @override
   bool pause() => true;
 
@@ -667,7 +860,7 @@ class _FinishChannel implements RunningChannel {
   @override
   Future<FinishOutcome> finish({bool forced = false}) async {
     finishes.add(forced);
-    return outcome;
+    return answer?.future ?? outcome;
   }
 
   @override

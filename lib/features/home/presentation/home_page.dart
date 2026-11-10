@@ -14,8 +14,12 @@ import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
+import 'package:runiverse/features/home/presentation/home_top_bar.dart';
+import 'package:runiverse/features/home/presentation/home_weather_provider.dart';
+import 'package:runiverse/features/home/presentation/home_weather_sheet.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
+import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/session/domain/run_resume.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
@@ -43,6 +47,12 @@ class _HomePageState extends ConsumerState<HomePage> {
   var _now = DateTime.now();
 
   var _leaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(HomeTopBar.precacheIcons());
+  }
 
   @override
   void dispose() {
@@ -128,12 +138,28 @@ class _HomePageState extends ConsumerState<HomePage> {
         child: ListView(
           padding: EdgeInsets.fromLTRB(
             AppSpacing.space4,
-            AppSpacing.space4,
+            // 위 줄이 누르는 칸(44)만큼 높아서 여백을 줄인다. 시안은 상태바
+            // 아래 12에 글리프(26), 그 아래 20에 히어로다.
+            AppSpacing.space1,
             AppSpacing.space4,
             // 떠 있는 탭 바 높이. `Scaffold`가 `extendBody`라 여기 실려 온다.
             AppSpacing.space4 + MediaQuery.paddingOf(context).bottom,
           ),
           children: [
+            HomeTopBar(
+              badged: ref.watch(hasUnreadProvider),
+              onNotifications: () => context.push(AppRoutes.notifications),
+              // 언제 다시 받을지는 셸이 정한다(`homeWeatherProvider` 주석).
+              weather: ref.watch(homeWeatherProvider),
+              onWeatherSource: (shown) => unawaited(
+                showHomeWeatherSheet(
+                  context,
+                  latitude: shown.latitude,
+                  longitude: shown.longitude,
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.space3),
             HomeHero(
               name: signedIn?.user?.nickname,
               photoUrl: signedIn?.user?.profileImageUrl,

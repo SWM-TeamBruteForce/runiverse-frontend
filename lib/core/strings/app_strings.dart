@@ -60,10 +60,8 @@ abstract final class AppStrings {
 
   // ── 브랜드 ───────────────────────────────────────────────────
 
-  /// 워드마크. 로고 에셋이 없어 타입으로만 쓴다.
+  /// 앱 이름. 스플래시에서 러너 심볼 아래에 놓인다.
   static const brandName = 'Runiverse';
-
-  static const brandTagline = '혼자 뛰지만, 함께 뛰는 러닝';
 
   // ── 스플래시 (S01) ──────────────────────────────────────────
   //
@@ -163,9 +161,9 @@ abstract final class AppStrings {
   /// "마케팅 정보 수신"만으로는 무엇에 동의하는지 알 수 없다.
   static const termsMarketing = '매칭 소식과 이벤트 알림';
 
-  /// 위치 권한을 지금 묻지 않는 이유를 미리 알린다.
-  /// 권한 요청은 실제로 필요한 맥락(매칭 등록)에서 해야 수락률이 높다.
-  static const termsLocationNotice = '위치 권한은 매칭을\n시작할 때 여쭤봐요';
+  /// 위치 권한을 지금 묻지 않고 홈에서 묻는다는 것을 미리 알린다
+  /// (`HomePermissionAsker`).
+  static const termsLocationNotice = '위치 권한은 홈에서\n한 번 여쭤봐요';
 
   /// **필수** 3항목을 전부 동의해야 눌린다. 선택은 막지 않는다.
   static const termsCta = '동의하고 계속';
@@ -547,6 +545,38 @@ abstract final class AppStrings {
   /// 히어로 부제. 줄바꿈 위치를 고정해 두 줄로 읽히게 한다.
   static const homeHeroSubtitle = '나와 비슷한 러너를 만나\n같은 시간, 각자의 자리에서 함께 달려보세요.';
 
+  // 위 줄 날씨 — 외주 시안 `70:739`(`서울 강남구 · 맑음 18°`)
+
+  static const homeWeatherClear = '맑음';
+  static const homeWeatherPartlyCloudy = '구름 조금';
+  static const homeWeatherCloudy = '흐림';
+  static const homeWeatherFog = '안개';
+  static const homeWeatherRain = '비';
+  static const homeWeatherSnow = '눈';
+  static const homeWeatherThunder = '뇌우';
+
+  /// `서울 강남구 · 맑음 18°`. 동네를 모르면 그 앞부분을, 하늘을 모르면
+  /// 하늘을 뺀다.
+  static String homeWeather(String? place, String? sky, int temperature) {
+    final weather = sky == null ? '$temperature°' : '$sky $temperature°';
+    return place == null ? weather : '$place · $weather';
+  }
+
+  /// 스크린리더용. `°`를 읽지 못하는 리더가 있어 `도`로 쓰고, 누르면 출처가
+  /// 뜬다는 것까지 말한다.
+  static String homeWeatherSemantics(
+    String? place,
+    String? sky,
+    int temperature,
+  ) =>
+      '${place == null ? '' : '$place, '}'
+      '${sky == null ? '' : '$sky '}$temperature도, 날씨 출처 보기';
+
+  /// 날씨를 누르면 뜨는 시트. Open-Meteo 데이터가 CC BY 4.0이라 보여 주는
+  /// 자리에서 출처로 가는 링크가 있어야 한다.
+  static const homeWeatherSource = '날씨 정보는 Open-Meteo에서 받아요';
+  static const homeWeatherSourceOpen = '날씨 지도 보기';
+
   /// 프로필을 아직 안 채운 사람에게 뜨는 안내.
   static const homeProfilePromptTitle = '매칭을 시작하려면 프로필을 완성해주세요';
   static const homeProfilePromptBody =
@@ -560,8 +590,9 @@ abstract final class AppStrings {
   /// 카드 제목. 시안 `158:2971`.
   static const homeMatchWaitingTitle = '매칭 대기 중';
 
-  /// 부제 둘째 줄. 두 경우가 같은 말로 끝난다.
-  static const homeMatchWaitingHint = '잠시만 기다려주세요';
+  /// 부제 둘째 줄. 두 경우가 같은 말로 끝난다. 기다리라고 하지 않는다 —
+  /// 화면을 지켜보다 취소하고 나가는 사람이 많다.
+  static const homeMatchWaitingHint = '앱을 꺼도 신청은 그대로예요';
 
   /// `3명의 러너가 함께 달릴 준비를 하고 있어요` — **나를 뺀 수**다.
   static String homeMatchWaitingOthers(int count) =>
@@ -680,10 +711,8 @@ abstract final class AppStrings {
   static const matchRegisterCta = '매칭 등록하기';
 
   /// `매칭 등록하기 · 3명 대기` — **시간·거리를 둘 다 고른 뒤**의 등록 버튼.
-  ///
-  /// ⚠️ **시간 시트의 숫자와 다른 수다.** 시트는 그 시각의 모든 거리를 더한
-  /// 합계를 그리고([matchWaitingCount]), 여기는 고른 거리 하나의 수다. 거리를
-  /// 고르면 숫자가 좁혀지는 것이 정상이다.
+  /// 고른 거리 × 고른 시각 칸의 수로, 시간 시트([matchWaitingCount])와 같은
+  /// 칸을 읽는다.
   ///
   /// ⚠️ **0명이면 붙이지 않는다.** `0명 대기`는 비어 있다고 알리는 꼴이라
   /// 오히려 사람을 민다 — 그때는 [matchRegisterCta]로 남는다.
@@ -694,11 +723,14 @@ abstract final class AppStrings {
   static const matchTimePlaceholder = '시간 고르기';
 
   /// 대기 인원을 왜 보여주는지 설명한다. 숫자만 두면 무슨 뜻인지 모른다.
-  static const matchTimeHint = '같은 시간대 러너끼리 매칭돼요.\n대기 인원이 많을수록 빨리 만나요';
+  ///
+  /// ⚠️ **거리도 같아야 한다.** 거리가 다르면 같은 방에 매칭되지 않는다 — "같은
+  /// 시간대"만 적으면 다른 거리의 사람과도 만나는 것으로 읽힌다.
+  static const matchTimeHint = '같은 거리·시간대 러너끼리 매칭돼요.\n대기 인원이 많을수록 빨리 만나요';
 
   static const matchDistanceLabel = '목표 거리';
 
-  /// `3 km` — 거리 칩과 요약 줄에 함께 쓴다.
+  /// `3 km` — 매칭 등록의 거리 칩에 쓴다.
   static String matchDistanceText(int km) => '$km km';
 
   /// `5 km` · `21.098 km` — **어떤 미터값이든** 적는다.
@@ -745,7 +777,7 @@ abstract final class AppStrings {
   ///
   /// ## ⚠️ 숫자가 서버 설정값이다
   ///
-  /// `18:00~22:00` · `30분` · `10분 전`은 전부 운영에서 바뀔 수 있는 값이다.
+  /// `18:00~22:00` · `1시간` · `10분 전`은 전부 운영에서 바뀔 수 있는 값이다.
   /// **바뀌면 이 문구도 같이 고쳐야 한다** — 안 고치면 화면만 거짓말을 한다.
   /// 그래도 적는 이유는, "시작 직전에 마감돼요"로는 **언제까지 누르면 되는지**
   /// 알 수 없기 때문이다(2026-10-22 결정).
@@ -760,7 +792,7 @@ abstract final class AppStrings {
   static const matchPolicyClose = '확인';
 
   static const matchPolicyWhenAsk = '언제 뛰나요?';
-  static const matchPolicyWhenTell = '저녁 18:00부터 22:00까지, 30분 간격으로 고를 수 있어요';
+  static const matchPolicyWhenTell = '저녁 18:00부터 22:00까지, 1시간 간격으로 고를 수 있어요';
 
   static const matchPolicyDeadlineAsk = '언제까지 신청하나요?';
 
@@ -810,15 +842,15 @@ abstract final class AppStrings {
   static const matchSlotsRetry = '다시 시도';
   static const matchSlotsLoading = '시간대를 불러오는 중이에요';
 
+  /// 거리를 고르기 전에는 시간 선택기가 잠긴다. 시트의 숫자가 고른 거리의
+  /// 수라서, 거리를 모르면 그릴 숫자가 없다.
+  static const matchSlotsLockedByDistance = '거리를 먼저 골라주세요';
+
   /// `3명 대기` — 시간 시트의 한 줄에 붙는다. 사회적 증거다.
   ///
-  /// ⚠️ **그 시각의 모든 거리를 더한 수다.** 시트는 거리를 고르기 전에도
-  /// 열리므로 거리 하나의 수를 적으면 다른 거리를 고를 사람에게 거짓이 된다.
-  ///
-  /// ⚠️ **"함께"라는 말을 붙이지 않는다.** 명세가 거리가 다르면 같은 방에
-  /// 매칭되지 않는다고 못 박았다 — `5명`이 3km 3명과 10km 2명일 수 있고 그
-  /// 다섯이 서로 만나지는 않는다. 거리를 고르면 등록 버튼의 숫자가 진짜 그
-  /// 조건의 수로 바뀌면서 저절로 좁혀진다([matchRegisterCtaWaiting]).
+  /// ⚠️ **고른 거리의 수다.** 거리가 다르면 같은 방에 매칭되지 않으므로, 모든
+  /// 거리를 더하면 들어가 보니 아무도 없는 시각에 숫자가 선다. 등록 버튼의
+  /// 숫자([matchRegisterCtaWaiting])와 같다.
   ///
   /// 0명이면 붙이지 않는다.
   static String matchWaitingCount(int count) => '$count명 대기';
@@ -899,10 +931,14 @@ abstract final class AppStrings {
   static String matchRoomJoined(int count) => '현재 $count명 모였어요';
 
   /// 확정된 뒤 대기실의 안내. 출발 30초 전에 앱이 스스로 출발 대기실로 옮긴다.
-  ///
-  /// ⚠️ 알림으로 알려주지 않는다. FCM이 아직 없어 "알림으로 알려줄게요"는
-  /// 지킬 수 없는 약속이다. 지금 할 수 있는 말만 적는다.
   static const matchRoomMatchedHint = '출발 30초 전에 출발 대기실로 옮겨요';
+
+  /// 모집 중인 매칭 방의 나가기 버튼 위 안내. 기다리지 않아도 된다고 말한다.
+  ///
+  /// ⚠️ `10분 전`은 서버 모집 마감(`match.close-offset`)이다. 확정 알림이 그때
+  /// 간다 — 서버 값이 바뀌면 이 문구도 바꾼다. "알아서 매칭돼 있을 거예요"는
+  /// 쓰지 않는다. 아무도 안 오면 혼자 달린다.
+  static const matchRoomWaitingHint = '앱을 꺼도 신청은 그대로예요. 출발 10분 전에 알려 드릴게요';
 
   static const matchRoomCloseLabel = '모집 마감까지';
   static const matchRoomStartLabel = '시작까지';
@@ -1354,7 +1390,10 @@ abstract final class AppStrings {
   static const runSummaryUnitKm = 'km';
 
   /// 거리 아래 두 값의 라벨. 단위를 라벨에 붙여 수치를 숫자만 남긴다.
-  static const runSummaryTotalTime = '총 시간';
+  ///
+  /// ⚠️ 시간은 [runResultTime]과 같은 값이라 이름도 같다. 버튼 없이 멈춘 구간을
+  /// 빼서 러닝 화면 [runElapsedLabel]보다 짧다.
+  static const runSummaryTotalTime = '움직인 시간';
   static const runSummaryAveragePaceUnit = '평균 페이스 /km';
 
   /// 요약은 하단 버튼이 아니라 **우상단 X**로 닫는다(Figma S15).
@@ -2057,6 +2096,6 @@ abstract final class AppStrings {
   /// 방이 꽉 차서 수락하지 못했다. **초대는 PENDING으로 남는다.**
   static const inviteRoomFull = '방이 꽉 찼어요 · 자리가 생기면 다시 눌러보세요';
 
-  /// 탭 바와 벨이 읽히는 이름. **점을 그림으로만 두면 안 읽힌다.**
+  /// 홈 종에 점이 있을 때 덧붙여 읽히는 말. **점을 그림으로만 두면 안 읽힌다.**
   static const notificationUnreadSemantics = '읽지 않은 알림 있음';
 }

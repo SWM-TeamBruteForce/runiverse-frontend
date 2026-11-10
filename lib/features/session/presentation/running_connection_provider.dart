@@ -653,7 +653,15 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
     _restarts = 0;
     // 끝냈다는 표식도 지운다 — 이제 다시 달린다.
     _finishedRoomId = null;
-    state = state.copyWith(room: room, opening: false, failure: null);
+    // 구간 거부 표시도 지난 러닝의 것이다. 끝난 이유를 알리려고
+    // [_cleanUpAfterFinish]가 넘겨 둔 값이라, 남기면 이번 러닝의 거부를
+    // 건너뛴다([_finishOnRejectedTrack]).
+    state = state.copyWith(
+      room: room,
+      opening: false,
+      failure: null,
+      trackRejected: false,
+    );
 
     // ⚠️ **방을 알게 된 순간 좌표 기록기에 알린다.** 방이 늦게 생기는 동안
     // 쌓아 둔 좌표가 여기서 한꺼번에 저장된다 — 안 알리면 러닝 초반 좌표가

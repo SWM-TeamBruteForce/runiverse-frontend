@@ -92,7 +92,7 @@ void main() {
     final board = await repo.slots();
 
     expect(board.distances.map((d) => d.meters), [3000, 5000]);
-    expect(board.times.single.waitingTotal, 10, reason: '두 거리를 더한다');
+    expect(board.at(raw: '2026-07-25T18:30:00', meters: 3000)?.waitingCount, 3);
     expect(board.at(raw: '2026-07-25T18:30:00', meters: 5000)?.waitingCount, 7);
   });
 

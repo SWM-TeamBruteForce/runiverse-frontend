@@ -454,14 +454,19 @@ class _SignInPageState extends ConsumerState<SignInPage> {
 
 /// 화면 맨 위의 사진. 아래로 갈수록 배경색에 녹는다.
 ///
-/// 비율은 시안 그대로다(412×392). 가로에 맞춰 늘어나므로 폭이 다른 기기에서도
-/// 사진이 잘리지 않는다.
+/// 비율은 시안 그대로다(412×392). 가로에 맞춰 늘어나고, 높이가 천장에 걸리면
+/// 위아래가 잘린다(`BoxFit.cover`).
 ///
-/// ## ⚠️ 높이에 천장을 둔다
+/// ## ⚠️ 높이에 천장을 둔다 — 화면의 30%
 ///
-/// 비율만 지키면 넓은 화면에서 사진이 화면을 삼킨다 — 폭 800이면 높이가 761이라
-/// 로그인 칸이 접힌 곳 아래로 밀려난다. 시안에서 사진이 화면의 43%를 차지하므로
-/// 그 비율을 넘지 않게 막는다.
+/// 비율만 지키면 넓은 화면에서 사진이 화면을 삼킨다 — 폭 800이면 높이가 761이다.
+/// 시안의 43%도 높다. 흔한 폰(360×780)에서 간편 로그인 타일이 접힌 곳 아래로
+/// 밀려나 스크롤해야 보인다. 30%면 타일까지 한 화면에 들어온다.
+///
+/// ## 잘릴 때 위쪽을 남긴다
+///
+/// 사람의 몸통이 사진 위쪽에 있고, 보이는 칸의 아래 절반은 어차피 그라데이션에
+/// 덮여 흐리다. 가운데 기준으로 자르면 몸통이 잘리므로 기준을 위로 올린다.
 ///
 /// 그라데이션이 **아래 절반**에만 걸린다. 사진 전체를 덮으면 사진이 흐려지고,
 /// 경계에만 걸면 선이 보인다.
@@ -471,8 +476,11 @@ class _Hero extends StatelessWidget {
   /// 시안의 사진 크기 412×392.
   static const _ratio = 412 / 392;
 
-  /// 시안에서 사진이 차지하는 세로 비율 (392 / 917).
-  static const _maxHeightRatio = 392 / 917;
+  /// 사진이 차지할 수 있는 세로 비율의 상한. 시안은 43%(392 / 917)다.
+  static const _maxHeightRatio = 0.30;
+
+  /// 잘릴 때의 기준점. 0이 정가운데, -1이 맨 위다.
+  static const _focus = Alignment(0, -0.6);
 
   @override
   Widget build(BuildContext context) {
@@ -485,7 +493,11 @@ class _Hero extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset('assets/images/sign_in_hero.png', fit: BoxFit.cover),
+          Image.asset(
+            'assets/images/sign_in_hero.png',
+            fit: BoxFit.cover,
+            alignment: _focus,
+          ),
           DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -777,7 +789,13 @@ class _OrDivider extends StatelessWidget {
 
     return Row(
       children: [
-        Expanded(child: Divider(color: colors.borderStrong, height: 1)),
+        Expanded(
+          child: Divider(
+            color: colors.borderDefault,
+            height: 1,
+            thickness: AppSizes.hairline,
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space3),
           child: Text(
@@ -785,7 +803,13 @@ class _OrDivider extends StatelessWidget {
             style: AppTypographyV2.body17.copyWith(color: colors.textSecondary),
           ),
         ),
-        Expanded(child: Divider(color: colors.borderStrong, height: 1)),
+        Expanded(
+          child: Divider(
+            color: colors.borderDefault,
+            height: 1,
+            thickness: AppSizes.hairline,
+          ),
+        ),
       ],
     );
   }

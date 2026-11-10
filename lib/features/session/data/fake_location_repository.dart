@@ -34,11 +34,21 @@ class FakeLocationRepository implements LocationRepository {
   /// 설정 화면을 열라고 요청받은 횟수. 테스트가 확인한다.
   int openSettingsCount = 0;
 
+  /// [approximatePosition]이 돌려줄 값. `null`이면 위치를 못 구한 것이다.
+  GeoPoint? position;
+
   @override
   Future<LocationAccess> ensureAccess() async {
     ensureAccessCount++;
     return access;
   }
+
+  /// 묻지 않으므로 [ensureAccessCount]를 세지 않는다.
+  @override
+  Future<LocationAccess> checkAccess() async => access;
+
+  @override
+  Future<GeoPoint?> approximatePosition() async => position;
 
   @override
   Future<PermissionAccess?> ensureRunNotification() async => notification;

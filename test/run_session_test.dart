@@ -177,7 +177,7 @@ void main() {
         final state = container.read(runSessionControllerProvider);
         expect(state, isA<RunRunning>());
         expect(
-          (state as RunRunning).metrics.elapsed,
+          (state as RunRunning).metrics.clockElapsed,
           const Duration(minutes: 5),
         );
       });

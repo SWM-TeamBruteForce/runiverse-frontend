@@ -28,4 +28,8 @@ abstract final class AppSizes {
   /// 56 — 러닝 중 화면(S11~S13)의 최소 터치 타깃.
   /// 달리면서 조작하므로 조준 정확도가 떨어진다.
   static const touchRunning = 56.0;
+
+  /// 0.6 — 시안의 선 굵기. 구분선(`Divider.thickness`), 버튼 테두리
+  /// (`BorderSide.width`), 그래프 격자선(`Paint.strokeWidth`)이 같이 쓴다.
+  static const hairline = 0.6;
 }

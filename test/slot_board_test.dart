@@ -2,13 +2,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/matching/domain/match_slot.dart';
 import 'package:runiverse/features/matching/domain/slot_board.dart';
 
-/// 거리 × 시간의 판(명세 No 16) — **시간 선택기가 읽는 가로줄을 어떻게 만드나.**
+/// 거리 × 시간의 판(명세 No 16) — **한 칸을 어떻게 집고, 시각을 어떻게 접나.**
 ///
-/// ## ⚠️ 거리마다 따로 온 것을 시각 하나로 접는다
+/// ## ⚠️ 시간 선택기는 고른 거리의 줄을 읽는다
 ///
-/// 서버는 거리별로 시간대 목록을 준다. 시간 선택기는 그 반대 방향으로 읽는다 —
-/// `18:30`이라는 한 줄에 **모든 거리의 대기 인원을 더해** 세운다. 그 접는 일이
-/// 여기서 한 번만 일어나고, 화면은 결과만 본다.
+/// 서버는 거리별로 시간대 목록을 준다. 시간 선택기는 그중 고른 거리의 줄을
+/// 그대로 그린다(`slotsOf`). 거리를 접어 시각 하나로 만드는 `times`는 "오늘
+/// 아직 열린 시각이 있나"를 가릴 때만 쓰고, 인원을 더하지 않는다.
 void main() {
   MatchSlot slot(String raw, {int waiting = 0, bool selectable = true}) =>
       MatchSlot(
@@ -35,7 +35,9 @@ void main() {
     ]);
   });
 
-  test('시각별 대기 인원은 모든 거리를 더한다', () {
+  test('⚠️ 시간 시트의 줄은 그 거리의 칸이다', () {
+    // 거리가 다르면 같은 방에 매칭되지 않는다. 다른 거리의 3명이 섞이면
+    // 10km 시트에 `5명 대기`가 서고, 들어가 보면 2명이다.
     final board = SlotBoard([
       DistanceSlots(
         meters: 3000,
@@ -47,7 +49,31 @@ void main() {
       ),
     ]);
 
-    expect(board.times.single.waitingTotal, 5);
+    expect(board.slotsOf(10000).single.waitingCount, 2);
+  });
+
+  test('⚠️ 시간 시트의 줄은 시각 순이다', () {
+    // 명세는 오름차순으로 준다고 했지만 믿지 않는다. 전에는 시트가 `times`를
+    // 읽어 여기서 정렬됐는데, 거리의 줄을 그대로 넘기면 그 방어가 사라진다.
+    final board = SlotBoard([
+      DistanceSlots(
+        meters: 3000,
+        slots: [slot('2026-07-25T19:00:00'), slot('2026-07-25T18:00:00')],
+      ),
+    ]);
+
+    expect(board.slotsOf(3000).map((s) => s.raw), [
+      '2026-07-25T18:00:00',
+      '2026-07-25T19:00:00',
+    ]);
+  });
+
+  test('없는 거리의 줄은 비어 있다', () {
+    final board = SlotBoard([
+      DistanceSlots(meters: 3000, slots: [slot('2026-07-25T18:30:00')]),
+    ]);
+
+    expect(board.slotsOf(9999), isEmpty);
   });
 
   test('⚠️ 하나라도 고를 수 있으면 그 시각은 열려 있다', () {

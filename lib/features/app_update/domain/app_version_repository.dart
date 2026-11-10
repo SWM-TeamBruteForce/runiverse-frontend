@@ -8,6 +8,10 @@ abstract interface class AppVersionRepository {
   /// "통과"로 눌러 버리면 구버전 앱이 그대로 들어간다. 받지 못한 것과 괜찮은
   /// 것을 섞지 않는다.
   Future<AppVersionPolicy> fetch();
+
+  /// 이 폰에 붙는 워치 앱의 최소·최신 버전. 워치는 서버에 직접 붙지 않아 폰이
+  /// 대신 묻는다(명세 2-3). 실패는 [fetch] 처럼 예외로 올린다.
+  Future<AppVersionPolicy> fetchWatch();
 }
 
 /// 버전 기준을 못 받았다.

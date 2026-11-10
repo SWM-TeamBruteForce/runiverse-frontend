@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/storage/match_room_store.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
+import 'package:runiverse/features/matching/domain/match_slot.dart';
 import 'package:runiverse/features/matching/domain/slot_board.dart';
 import 'package:runiverse/features/matching/domain/slot_load_failure.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
@@ -42,10 +43,12 @@ void main() {
 
   setUp(() => container = build());
 
-  /// 가짜의 기본 판을 가진 시각 하나. 10:00은 세 거리 합이 5다.
-  SlotTime timeAt(String hhmm) => read().board!.times.firstWhere(
-    (t) => t.raw == FakeMatchRepository.slotAt(hhmm).raw,
-  );
+  /// 가짜의 기본 판에서 한 거리의 칸 하나 — 시간 시트가 돌려주는 값이다.
+  /// 10:00은 3km 3명 · 5km 2명 · 10km 0명이다.
+  MatchSlot timeAt(String hhmm, {int meters = 3000}) => read().board!.at(
+    raw: FakeMatchRepository.slotAt(hhmm).raw,
+    meters: meters,
+  )!;
 
   group('조회', () {
     test('들어올 때 한 번 부르면 판이 선다', () async {
@@ -68,34 +71,96 @@ void main() {
 
     test('⚠️ 시간을 고르는 것으로도 부르지 않는다', () async {
       await notifier().load();
+      notifier().selectDistance(3000);
 
       notifier().selectTime(timeAt('10:00'));
 
       expect(repo.slotsCalls, 1);
     });
+  });
 
-    test('⚠️ 거리를 바꿔도 고른 시간이 그대로 남는다', () async {
-      // 판이 바뀌지 않으므로 갈아 끼울 일이 없다. 전에는 거리마다 목록이 새로
-      // 와서 같은 `raw`를 찾아 교체해야 했다.
+  group('거리를 바꾸면', () {
+    test('⚠️ 고른 시간이 새 거리의 칸으로 바뀐다', () async {
+      // 시간은 고른 거리의 시트에서 온 칸이다. 옛 거리의 칸이 남으면 그 거리의
+      // 숫자가 시각에 붙어 다닌다.
       await notifier().load();
+      notifier().selectDistance(3000);
       notifier().selectTime(timeAt('11:00'));
 
-      notifier().selectDistance(3000);
       notifier().selectDistance(10000);
 
-      expect(read().time, timeAt('11:00'));
-      expect(read().meters, 10000);
+      expect(read().time, timeAt('11:00', meters: 10000));
+      expect(read().pickedWaiting, 1);
     });
 
-    test('⚠️ 거리를 먼저 골라도 된다 — 잠그지 않는다', () async {
-      // 한 번에 다 받으므로 순서를 강제할 이유가 없다. 등록 버튼만 둘 다
-      // 골라야 열린다.
+    test('⚠️ 새 거리에서 그 시각이 마감이면 시간을 푼다', () async {
+      // 남겨 두면 시간 칸에는 시각이 적혀 있는데 등록 버튼만 까닭 없이 잠긴다.
+      repo.board = SlotBoard([
+        DistanceSlots(
+          meters: 3000,
+          slots: [FakeMatchRepository.slotAt('10:00')],
+        ),
+        DistanceSlots(
+          meters: 5000,
+          slots: [FakeMatchRepository.slotAt('10:00', selectable: false)],
+        ),
+      ]);
       await notifier().load();
+      notifier().selectDistance(3000);
+      notifier().selectTime(timeAt('10:00'));
 
       notifier().selectDistance(5000);
 
+      expect(read().time, isNull);
+      expect(read().canSubmit, isFalse);
+    });
+
+    test('⚠️ 다시 받은 판에 고른 거리가 없으면 거리와 시간을 푼다', () async {
+      // 거리 목록은 서버가 정한다. 남겨 두면 칩은 하나도 안 켜져 있는데 시간
+      // 칸은 열려 있고, 누르면 빈 시트가 뜬다.
+      await notifier().load();
+      notifier().selectDistance(5000);
+      notifier().selectTime(timeAt('10:00', meters: 5000));
+
+      repo.board = SlotBoard([
+        DistanceSlots(
+          meters: 3000,
+          slots: [FakeMatchRepository.slotAt('10:00')],
+        ),
+      ]);
+      await notifier().load();
+
+      expect(read().meters, isNull);
+      expect(read().time, isNull);
+    });
+
+    test('다시 받은 판에 고른 거리가 남아 있으면 그대로 둔다', () async {
+      await notifier().load();
+      notifier().selectDistance(5000);
+
+      await notifier().load();
+
       expect(read().meters, 5000);
-      expect(read().canSubmit, isFalse, reason: '시간을 아직 안 골랐다');
+    });
+
+    test('⚠️ 새 거리에 그 시각이 없으면 시간을 푼다', () async {
+      repo.board = SlotBoard([
+        DistanceSlots(
+          meters: 3000,
+          slots: [FakeMatchRepository.slotAt('10:00')],
+        ),
+        DistanceSlots(
+          meters: 5000,
+          slots: [FakeMatchRepository.slotAt('10:30')],
+        ),
+      ]);
+      await notifier().load();
+      notifier().selectDistance(3000);
+      notifier().selectTime(timeAt('10:00'));
+
+      notifier().selectDistance(5000);
+
+      expect(read().time, isNull);
     });
   });
 
@@ -224,44 +289,62 @@ void main() {
 
   group('등록 버튼의 숫자', () {
     test('고른 시각 × 고른 거리의 수다', () async {
-      // 기본 판에서 10:00 × 3km는 3명, 10:00 × 5km는 2명이다. 시트의 합계
-      // 5명과 다른 숫자라는 것이 요점이다.
+      // 기본 판에서 10:00 × 3km는 3명, 10:00 × 5km는 2명이다.
       await notifier().load();
-      notifier().selectTime(timeAt('10:00'));
-
       notifier().selectDistance(3000);
+      notifier().selectTime(timeAt('10:00'));
       expect(read().pickedWaiting, 3);
 
       notifier().selectDistance(5000);
       expect(read().pickedWaiting, 2);
     });
 
-    test('⚠️ 시트의 합계와 다른 숫자다', () async {
+    test('⚠️ 시트에서 보고 고른 숫자와 같다', () async {
+      // 시트의 `3명 대기`를 보고 골랐는데 버튼이 다른 숫자를 말하면, 어느
+      // 쪽이 들어갔을 때 만날 사람인지 알 수 없다.
       await notifier().load();
-      notifier().selectTime(timeAt('10:00'));
       notifier().selectDistance(3000);
+      notifier().selectTime(timeAt('10:00'));
 
-      expect(read().time?.waitingTotal, 5, reason: '세 거리를 더한 수');
-      expect(read().pickedWaiting, 3, reason: '고른 조건의 수');
+      // 시트가 그리는 줄(`slotsOf`)에서 같은 시각을 찾아 그 숫자와 비교한다.
+      final sheetRow = read().board!
+          .slotsOf(3000)
+          .firstWhere((s) => s.raw == read().time!.raw);
+      expect(read().pickedWaiting, sheetRow.waitingCount);
     });
 
     test('하나만 골랐으면 없다', () async {
       await notifier().load();
 
-      notifier().selectTime(timeAt('10:00'));
+      notifier().selectDistance(3000);
       expect(read().pickedWaiting, isNull);
 
-      notifier().selectDistance(3000);
+      notifier().selectTime(timeAt('10:00'));
       expect(read().pickedWaiting, isNotNull);
     });
 
     test('⚠️ 없는 조합은 0이 아니라 없음이다', () async {
       // 0으로 뭉개면 고를 수 없는 자리를 `0명 대기`로 그려, 신청할 수 있는
       // 것처럼 말하게 된다.
+      //
+      // ⚠️ **닿는 길은 좁다.** 거리를 바꾸거나 판을 다시 받으면 없는 칸의
+      // 시간은 풀린다. 남는 길은 409 뒤 재조회를 기다리는 사이 시트를 열고,
+      // 새 판이 들어온 뒤 옛 판의 칸을 고르는 것이다. 여기서는 그 순서를
+      // 상태로 직접 만든다.
       await notifier().load();
-      notifier().selectTime(timeAt('10:00'));
-      notifier().selectDistance(9999);
+      notifier().selectDistance(3000);
+      final stale = timeAt('10:00');
 
+      repo.board = SlotBoard([
+        DistanceSlots(
+          meters: 3000,
+          slots: [FakeMatchRepository.slotAt('11:00', waiting: 4)],
+        ),
+      ]);
+      await notifier().load();
+      notifier().selectTime(stale);
+
+      expect(read().time, isNotNull);
       expect(read().pickedWaiting, isNull);
       expect(read().canSubmit, isFalse);
     });
@@ -272,55 +355,85 @@ void main() {
       await notifier().load();
       expect(read().canSubmit, isFalse);
 
-      notifier().selectTime(timeAt('10:00'));
+      notifier().selectDistance(3000);
       expect(read().canSubmit, isFalse);
 
-      notifier().selectDistance(3000);
+      notifier().selectTime(timeAt('10:00'));
       expect(read().canSubmit, isTrue);
     });
 
-    test('⚠️ 고른 칸이 마감이면 잠긴다', () async {
-      // 시간 시트는 **하나라도** 열려 있으면 연다. 그래서 열린 시각을 고른
-      // 뒤에도 그 거리만 마감일 수 있다 — 그걸 누르면 409를 맞는다.
+    test('⚠️ 다시 받은 판에서 고른 칸이 마감이면 시간을 푼다', () async {
+      // 거리를 바꿀 때와 같은 규칙이다. 남겨 두면 시간 칸에는 시각이 적혀
+      // 있는데 등록 버튼만 까닭 없이 잠긴다.
+      await notifier().load();
+      notifier().selectDistance(3000);
+      notifier().selectTime(timeAt('10:00'));
+
+      repo.board = SlotBoard([
+        DistanceSlots(
+          meters: 3000,
+          slots: [
+            FakeMatchRepository.slotAt('10:00', selectable: false),
+            FakeMatchRepository.slotAt('11:00'),
+          ],
+        ),
+      ]);
+      await notifier().load();
+
+      expect(read().time, isNull);
+      expect(read().meters, 3000, reason: '거리는 새 판에도 있다');
+      expect(read().canSubmit, isFalse);
+    });
+
+    test('다시 받은 판에서 고른 칸이 열려 있으면 그대로 둔다', () async {
+      await notifier().load();
+      notifier().selectDistance(3000);
+      notifier().selectTime(timeAt('10:00'));
+
+      await notifier().load();
+
+      expect(read().time?.raw, FakeMatchRepository.slotAt('10:00').raw);
+      expect(read().canSubmit, isTrue);
+    });
+
+    test('⚠️ 고른 칸이 마감인 사본이 남아도 등록은 잠긴다', () async {
+      // 마지막 방어. 시간을 푸는 규칙이 어긋나 마감 칸의 사본이 남아도, 판에서
+      // 그 칸을 다시 읽으니 409로 가지 않는다.
+      await notifier().load();
+      notifier().selectDistance(3000);
+      final stale = timeAt('10:00');
+
       repo.board = SlotBoard([
         DistanceSlots(
           meters: 3000,
           slots: [FakeMatchRepository.slotAt('10:00', selectable: false)],
         ),
-        DistanceSlots(
-          meters: 5000,
-          slots: [FakeMatchRepository.slotAt('10:00')],
-        ),
       ]);
       await notifier().load();
-      notifier().selectTime(timeAt('10:00'));
+      notifier().selectTime(stale);
 
-      notifier().selectDistance(3000);
-      expect(read().canSubmit, isFalse, reason: '3km는 마감이다');
-
-      notifier().selectDistance(5000);
-      expect(read().canSubmit, isTrue);
+      expect(read().canSubmit, isFalse);
     });
   });
 
   group('신청', () {
     test('⚠️ 서버가 준 문자열·미터값을 그대로 보낸다', () async {
       await notifier().load();
-      notifier().selectTime(timeAt('11:00'));
       notifier().selectDistance(10000);
+      notifier().selectTime(timeAt('11:00', meters: 10000));
 
       final roomId = await notifier().submit();
 
       expect(roomId, repo.roomId);
-      expect(repo.appliedSlotRaw, timeAt('11:00').raw);
+      expect(repo.appliedSlotRaw, timeAt('11:00', meters: 10000).raw);
       expect(repo.appliedMeters, 10000);
     });
 
     test('⚠️ 신청 중에 거리를 바꿔도 submitting이 풀리지 않는다', () async {
       // 풀리면 CTA가 다시 열려 **같은 신청이 두 번 나간다.**
       await notifier().load();
-      notifier().selectTime(timeAt('10:00'));
       notifier().selectDistance(3000);
+      notifier().selectTime(timeAt('10:00'));
 
       repo.latency = const Duration(milliseconds: 100);
       final sending = notifier().submit();
@@ -333,14 +446,36 @@ void main() {
       await sending;
     });
 
+    test('⚠️ 409 뒤 다시 받은 판에 고른 거리가 없으면 거리와 시간을 푼다', () async {
+      // 409 뒤 재조회는 `load()`가 아니라 따로 판을 받는다. 같은 규칙을 타는지
+      // 그 길에서도 본다.
+      repo.applyFailure = MatchFailure.slotClosed;
+      await notifier().load();
+      notifier().selectDistance(5000);
+      notifier().selectTime(timeAt('10:00', meters: 5000));
+
+      repo.board = SlotBoard([
+        DistanceSlots(
+          meters: 3000,
+          slots: [FakeMatchRepository.slotAt('10:00')],
+        ),
+      ]);
+      await notifier().submit();
+
+      expect(read().failure, MatchFailure.slotClosed);
+      expect(read().meters, isNull);
+      expect(read().time, isNull);
+      expect(repo.slotsCalls, 2);
+    });
+
     test('⚠️ 409를 맞으면 판을 다시 받고 선택을 푼다', () async {
       // 서버가 준 `selectable`은 **받은 시점의 사진**이라, 화면을 열어 둔
       // 사이 마감이 지날 수 있다. 한 줄만 잠그는 것보다 다시 받는 쪽이
       // 정확하다 — 그사이 마감된 다른 시각도 함께 온다.
       repo.applyFailure = MatchFailure.slotClosed;
       await notifier().load();
-      notifier().selectTime(timeAt('10:00'));
       notifier().selectDistance(3000);
+      notifier().selectTime(timeAt('10:00'));
 
       await notifier().submit();
 
@@ -353,8 +488,8 @@ void main() {
       // 되살리면 사라졌던 스낵바가 다시 나타나고 타이머가 처음부터 돈다.
       repo.applyFailure = MatchFailure.slotClosed;
       await notifier().load();
-      notifier().selectTime(timeAt('10:00'));
       notifier().selectDistance(3000);
+      notifier().selectTime(timeAt('10:00'));
 
       await notifier().submit();
       notifier().clearFailure();
@@ -369,8 +504,8 @@ void main() {
       // 상태가 화면을 나가도 죽지 않는다. 남겨두면 **지난번에 누른 거리가
       // 기본값처럼** 선택돼 있고, 그 거리의 낡은 숫자까지 그대로 선다.
       await notifier().load();
-      notifier().selectTime(timeAt('10:00'));
       notifier().selectDistance(10000);
+      notifier().selectTime(timeAt('10:00', meters: 10000));
 
       notifier().reset();
 

@@ -113,7 +113,7 @@ void main() {
           // ⚠️ 준비 화면이 들어올 때 상태를 다시 읽는다. 갈아 끼우지
           // 않으면 진짜 HTTP를 열려다 주소가 없어 죽는다.
           userStatusRepositoryProvider.overrideWithValue(status),
-          // ⚠️ 셸이 알림 배지를 그리며 앱 스트림을 만들고, 로그인돼 있으면
+          // ⚠️ 셸이 앱 스트림을 만들고, 로그인돼 있으면
           // 첫 페이지도 받는다. 갈아 끼우지 않으면 진짜 HTTP를 열려다 주소가
           // 없어 죽는다.
           appStreamProvider.overrideWithValue(FakeAppStream()),
@@ -616,6 +616,20 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.runSummaryTitle), findsNothing);
+    });
+
+    testWidgets('뒤로가기도 닫기와 같은 길로 나가 러닝을 비운다', (tester) async {
+      // 그냥 pop되면 러닝이 끝난 채로 남아 워치 결과 화면이 닫히지 않는다.
+      await finish(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.text(AppStrings.runSummaryTitle)),
+      );
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runSummaryTitle), findsNothing);
+      expect(container.read(runSessionControllerProvider), isA<RunIdle>());
     });
 
     /// 서버가 확정한 값 — 앱이 잰 값과 일부러 다르게 둔다.

@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_sizes.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/empty_state.dart';
@@ -134,8 +135,11 @@ class _NotificationPageState extends ConsumerState<NotificationPage> {
       controller: _scroll,
       padding: const EdgeInsets.only(bottom: AppSpacing.space6),
       itemCount: rows.length,
-      separatorBuilder: (_, _) =>
-          Divider(height: 1, thickness: 0.6, color: colors.borderDefault),
+      separatorBuilder: (_, _) => Divider(
+        height: 1,
+        thickness: AppSizes.hairline,
+        color: colors.borderDefault,
+      ),
       itemBuilder: (context, index) {
         final one = rows[index];
         return NotificationRow(

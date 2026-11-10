@@ -11,6 +11,8 @@ import 'package:runiverse/core/widgets/v2/app_tab_bar.dart';
 import 'package:runiverse/core/widgets/profile_prompt_sheet.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/home/presentation/home_permission_provider.dart';
+import 'package:runiverse/features/home/presentation/home_weather_provider.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 import 'package:runiverse/features/notification/domain/push_landing.dart';
 import 'package:runiverse/features/notification/presentation/notification_provider.dart';
@@ -54,8 +56,16 @@ class _AppShellState extends ConsumerState<AppShell> {
   /// `build`는 한 번만 불리는 자리가 아니다.
   bool _gateUp = false;
 
-  /// 알림 권한을 물으러 갔는가. [_gateUp]과 같은 이유로 둔다.
-  bool _pushAsked = false;
+  /// 권한을 물으러 갔는가. [_gateUp]과 같은 이유로 둔다.
+  bool _permissionsAsked = false;
+
+  /// 권한을 묻는 중인가. 권한 창이 닫힐 때도 앱은 `resumed`가 되므로, 없으면
+  /// 복귀 때의 재시도가 떠 있는 창과 겹친다.
+  bool _askingPermissions = false;
+
+  /// 기기의 위치 기능이 꺼져 있어 위치·신체 활동을 미뤘는가. 앱으로 돌아올 때
+  /// 다시 본다 — 켜고 돌아온 사람에게 물을 자리가 여기뿐이다.
+  bool _permissionsDeferred = false;
 
   /// 포그라운드 복귀를 듣는다.
   ///
@@ -87,6 +97,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (!mounted) return;
       _refreshStatus();
       _startNotifications();
+      _refreshWeather();
       // 꺼진 앱을 푸시로 열었으면 그 푸시는 셸이 서기 전에 이미 도착해 있다.
       unawaited(_openPushed());
     });
@@ -109,6 +120,12 @@ class _AppShellState extends ConsumerState<AppShell> {
     unawaited(ref.read(userStatusProvider.notifier).refresh());
   }
 
+  /// 홈 위 줄의 날씨를 다시 본다. 받은 지 30분이 안 됐으면 부르지 않는다.
+  ///
+  /// 로그인과 무관하다 — 서버가 아니라 Open-Meteo를 부른다.
+  void _refreshWeather() =>
+      unawaited(ref.read(homeWeatherProvider.notifier).refresh());
+
   /// 앱 스트림을 열고 알림 첫 페이지를 받는다.
   ///
   /// ⚠️ **순서가 규칙이다** — 스트림 먼저, 목록 나중. `start()`가 그 순서를
@@ -125,23 +142,55 @@ class _AppShellState extends ConsumerState<AppShell> {
   /// 다시 붙고, 어느 쪽이든 목록을 재조회한다.
   void _onResume() {
     _refreshStatus();
+    _refreshWeather();
     if (ref.read(authControllerProvider) is! AuthSignedIn) return;
     unawaited(ref.read(notificationProvider.notifier).resume());
     // 앞선 기기 등록이 실패로 남았을 때만 다시 보낸다(명세 2-1).
     unawaited(ref.read(pushProvider.notifier).resume());
+    // ⚠️ **홈이 맨 위일 때만 다시 묻는다.** 출발 준비·카운트다운도 복귀 때 위치를
+    // 다시 묻는다 — 같은 순간에 둘이 물으면 늦은 쪽이 "요청이 이미 진행 중"으로
+    // 실패하고, 출발 준비가 지면 "위치 꺼짐" 안내에서 멈춘다.
+    if (_permissionsDeferred &&
+        GoRouter.of(context).state.matchedLocation == AppRoutes.home) {
+      unawaited(_askPermissions());
+    }
   }
 
-  /// 프로필을 채운 사람에게 알림 권한을 묻는다. 관문이 서 있는 동안은 아직
+  /// 프로필을 채운 사람에게 권한을 묻는다. 관문이 서 있는 동안은 아직
   /// 홈에 들어온 것이 아니다.
   ///
   /// `build` 중에 권한 창을 띄우지 않는다. 첫 프레임 뒤로 민다.
-  void _askPushIfNeeded() {
-    if (_pushAsked) return;
-    _pushAsked = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+  void _askPermissionsIfNeeded() {
+    if (_permissionsAsked) return;
+    _permissionsAsked = true;
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => unawaited(_askPermissions()),
+    );
+  }
+
+  /// 알림, 위치, 신체 활동 순서로 묻는다.
+  ///
+  /// ⚠️ **하나가 닫힌 뒤에 다음을 띄운다.** 겹쳐 부르면 플랫폼이 "요청이 이미
+  /// 진행 중"으로 거절한다. 위치·신체 활동은 기기당 한 번이다
+  /// ([HomePermissionAsker]).
+  Future<void> _askPermissions() async {
+    if (!mounted || _askingPermissions) return;
+    _askingPermissions = true;
+    try {
+      // 알림이 실패해도 위치·신체 활동은 묻는다.
+      try {
+        await ref.read(pushProvider.notifier).askPermission();
+      } on Object catch (error) {
+        debugPrint('[permission] 알림 권한을 묻지 못했다 · $error');
+      }
       if (!mounted) return;
-      unawaited(ref.read(pushProvider.notifier).askPermission());
-    });
+      _permissionsDeferred = !await ref.read(homePermissionProvider).askOnce();
+      if (!mounted) return;
+      // 방금 위치를 허용했으면 날씨를 받는다.
+      _refreshWeather();
+    } finally {
+      _askingPermissions = false;
+    }
   }
 
   /// 눌린 푸시가 가리키는 화면을 연다.
@@ -237,10 +286,14 @@ class _AppShellState extends ConsumerState<AppShell> {
     AppTabSpec(icon: AppIcons.profile, label: AppStrings.tabProfile),
   ];
 
-  /// 프로필 탭의 자리. [_tabs] 순서와 함께 움직인다.
-  static const _profileTab = 3;
-
   void _onDestinationSelected(int index) {
+    // 홈 탭은 다시 세워지지 않아 다녀와도 날씨가 그대로다. 누를 때 다시 본다.
+    if (index == 0) {
+      _refreshWeather();
+      // 다른 탭에서 위치 기능을 켜고 돌아왔으면 여기서 묻는다. 복귀 때는 홈이
+      // 맨 위가 아니라 묻지 않았다([_onResume]).
+      if (_permissionsDeferred) unawaited(_askPermissions());
+    }
     widget.navigationShell.goBranch(
       index,
       // 이미 열려 있는 탭을 다시 누르면 그 탭의 첫 화면으로 돌아간다.
@@ -257,7 +310,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     // 채운 사람도 잠깐 갇힌다.
     final auth = ref.watch(authControllerProvider);
     if (auth is AuthSignedIn) _gateIfNeeded(auth.isOnboarded);
-    if (auth is AuthSignedIn && auth.isOnboarded) _askPushIfNeeded();
+    if (auth is AuthSignedIn && auth.isOnboarded) _askPermissionsIfNeeded();
 
     // 뒤에 있던 앱에서 푸시를 눌렀다. 빌드 도중에 옮기지 않는다
     // ([_leaveForSignIn]과 같은 이유).
@@ -296,7 +349,12 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     // 앱 스트림도 같은 이유로 여기다. **매칭 스트림과 동시에 유지한다** —
     // 한쪽을 열었다고 다른 쪽을 닫으면 방에 있는 동안 알림을 못 받는다.
-    final hasUnread = ref.watch(hasUnreadProvider);
+    //
+    // ⚠️ 배지는 이제 홈 위 줄이 그린다. 그래도 **여기서 계속 지켜본다** —
+    // Riverpod은 안 보이는 위젯의 구독을 멈춘다(`TickerMode`). 다른 탭에
+    // 있는 동안 홈의 구독은 멈춰 있어서, 거기만 남기면 알림 상태를 지켜보는
+    // 곳이 하나도 없는 구간이 생긴다.
+    ref.watch(hasUnreadProvider);
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -308,9 +366,6 @@ class _AppShellState extends ConsumerState<AppShell> {
       bottomNavigationBar: AppTabBarV2(
         tabs: _tabs,
         currentIndex: widget.navigationShell.currentIndex,
-        // 알림함이 프로필 탭 안에 있어서, 다른 탭에 있을 때 알려 줄 자리가
-        // 여기 하나뿐이다.
-        badges: hasUnread ? const {_profileTab} : const <int>{},
         onSelected: _onDestinationSelected,
       ),
     );

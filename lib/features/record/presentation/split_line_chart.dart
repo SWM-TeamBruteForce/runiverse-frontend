@@ -253,7 +253,6 @@ class _SplitLineChartState extends State<SplitLineChart> {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colors.bgSurface,
-        border: Border.all(color: colors.borderDefault),
         borderRadius: AppRadius.lg,
       ),
       child: Padding(

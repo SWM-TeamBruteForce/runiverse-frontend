@@ -11,6 +11,7 @@ import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/app_update/presentation/app_update_gate.dart';
 import 'package:runiverse/features/matching/presentation/launch_gate.dart';
 import 'package:runiverse/features/notification/presentation/push_provider.dart';
+import 'package:runiverse/features/session/presentation/watch_link_provider.dart';
 
 /// 앱 루트 — 테마와 라우터를 [MaterialApp]에 꽂는다.
 ///
@@ -80,6 +81,10 @@ class _RuniverseAppState extends ConsumerState<RuniverseApp> {
     // 푸시 기기 등록도 같은 이유로 여기서 시작한다. 셸에서 시작하면 가입한
     // 사람은 프로필 입력을 마칠 때까지 등록이 미뤄진다.
     ref.read(pushProvider.notifier).start();
+
+    // 워치 받기도 여기서 건다. 러닝을 시작하며 워치 앱을 켤 때 등록이 끝나 있어야
+    // 켜자마자 오는 `WATCH_SYNC` 를 받는다.
+    ref.read(watchLinkProvider.notifier).start();
   }
 
   void _onAuthChanged(AuthState auth) {

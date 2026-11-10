@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
@@ -9,7 +11,6 @@ import 'package:runiverse/core/widgets/v2/fact_row.dart';
 import 'package:runiverse/core/widgets/v2/runner_avatar.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
-import 'package:runiverse/features/matching/domain/target_distance.dart';
 
 /// 매칭이 확정됐다 — 시안 `158:3102`.
 ///
@@ -140,62 +141,77 @@ class HomeConfirmed extends StatelessWidget {
 
   /// `5 km`. ⚠️ **모르면 지어내지 않는다.**
   ///
-  /// ⚠️ 시안은 `5 km`로 띄어 쓰는데 우리는 붙여 쓴다. 거리 칩·요약 줄이
-  /// 전부 같은 표기라 여기만 바꾸면 앱 안에서 두 표기가 생긴다
-  /// (스펙 13절의 미결 항목).
+  /// ⚠️ `TargetDistance`를 거치지 않는다. 3/5/10km만 아는 enum이라 초대
+  /// 러닝의 자유 거리(7km·하프·풀)가 모르는 값이 된다.
   static String _distance(int? meters) {
-    final km = TargetDistance.fromMeters(meters)?.km;
-    return km == null
+    return meters == null
         ? AppStrings.homeMatchUnknownValue
-        : AppStrings.matchDistanceText(km);
+        : AppStrings.distanceKm(meters);
   }
 }
 
 /// 참여자 줄. 동그라미와 이름을 세로로 묶어 가운데 모은다.
+///
+/// 시안 `158:3102`은 아바타 60·간격 20이다. 이름 칸도 아바타 폭과 같다.
+///
+/// ⚠️ **안 들어가면 칸이 줄어든다.** 4명이면 60×4 + 20×3 = 300이라
+/// 360dp 폰(카드 안쪽 296)에서 모자란다. 간격은 두고 칸(아바타·이름 폭)을
+/// 남은 폭으로 나눈다 — `PartyChipRow`와 같은 원리다.
 class _Party extends StatelessWidget {
   const _Party({required this.players});
 
   final List<RoomPlayer> players;
 
+  static const _gap = AppSpacing.space5;
+
   @override
   Widget build(BuildContext context) {
+    // 아래에서 인원수로 나눈다.
+    if (players.isEmpty) return const SizedBox.shrink();
+
     final colors = context.appColorsV2;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        for (final player in players)
-          Padding(
-            padding: EdgeInsets.only(
-              right: player == players.last ? 0 : AppSpacing.space5,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                RunnerAvatarV2(
-                  nickname: player.nickname,
-                  imageUrl: player.profileImageUrl,
-                  size: HomeConfirmed._avatarSize,
-                ),
-                const SizedBox(height: AppSpacing.space2),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final gaps = (players.length - 1) * _gap;
+        final cell = math.min(
+          HomeConfirmed._avatarSize,
+          // 간격 합보다 좁으면 음수가 된다 — 음수 폭은 제약 오류다.
+          math.max(0.0, (constraints.maxWidth - gaps) / players.length),
+        );
 
-                // ⚠️ **이름이 길면 줄인다.** 네 명이 들어오면 화면을 넘긴다.
-                SizedBox(
-                  width: HomeConfirmed._avatarSize + AppSpacing.space3,
-                  child: Text(
-                    player.nickname,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: AppTypographyV2.body11.copyWith(
-                      color: colors.textStrong,
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < players.length; i++) ...[
+              if (i > 0) const SizedBox(width: _gap),
+              SizedBox(
+                width: cell,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RunnerAvatarV2(
+                      nickname: players[i].nickname,
+                      imageUrl: players[i].profileImageUrl,
+                      size: cell,
                     ),
-                  ),
+                    const SizedBox(height: AppSpacing.space2),
+                    Text(
+                      players[i].nickname,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: AppTypographyV2.body11.copyWith(
+                        color: colors.textStrong,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-      ],
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }

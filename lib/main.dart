@@ -17,9 +17,11 @@ import 'package:runiverse/core/analytics/firebase_analytics_service.dart';
 import 'package:runiverse/core/config/app_config.dart';
 import 'package:runiverse/core/version/installed_app_version.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
+import 'package:runiverse/core/watch/watch_channel.dart';
 import 'package:runiverse/features/notification/data/firebase_push_messaging.dart';
 import 'package:runiverse/features/notification/presentation/push_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
+import 'package:runiverse/features/session/presentation/watch_link_provider.dart';
 
 /// 앱 진입점. Riverpod 스코프를 열고, 앱 루트를 띄운다.
 ///
@@ -134,6 +136,11 @@ void main() async {
         // `NoopPushMessaging`이라 서버에 기기를 올리지 않는다. 분석과 같은
         // 이유로 진짜는 여기서만 끼운다.
         pushMessagingProvider.overrideWithValue(FirebasePushMessaging()),
+        // ⚠️ **이것을 지우면 워치 연동이 조용히 멈춘다.** 기본값은 `null`(끔)이다.
+        // 통로의 네이티브 쪽이 안드로이드에만 있어 iOS에서는 끈 채로 둔다.
+        watchChannelProvider.overrideWithValue(
+          Platform.isAndroid ? const WatchChannel() : null,
+        ),
       ],
       child: const RuniverseApp(),
     ),

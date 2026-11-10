@@ -113,7 +113,7 @@ void main() {
               ),
             ),
           ),
-          // 홈으로 나가면 셸이 알림 배지를 그리며 앱 스트림을 만들고,
+          // 홈으로 나가면 셸이 앱 스트림을 만들고,
           // 로그인돼 있으면 첫 페이지도 받는다. 진짜를 두면 dio가 서버 주소를
           // 찾다 죽는다.
           appStreamProvider.overrideWithValue(FakeAppStream()),
@@ -319,16 +319,23 @@ void main() {
   });
 
   group('나가기', () {
-    testWidgets('모집 중에는 겁주지 않는다', (tester) async {
-      // 마감 전에 나가는 것은 제재 대상이 아니다.
+    testWidgets('모집 중에는 겁주지 않고, 기다리지 않아도 된다고 말한다', (tester) async {
+      // 마감 전에 나가는 것은 제재 대상이 아니다. 그래도 화면에서 "나가도
+      // 된다"고 하지 않는다 — 지켜보다 나가는 사람이 많다.
       await pumpRoom(
         tester,
         snapshot: room(status: RoomStatus.matching, closeAt: closeAtSoon),
       );
-      await revealBottom(tester);
+
+      expect(find.text(AppStrings.matchRoomWaitingHint), findsOneWidget);
+      expect(find.text(AppStrings.matchRoomLeaveFree), findsNothing);
+      expect(find.text(AppStrings.matchRoomLeavePenalty), findsNothing);
+
+      // 나가도 제재가 없다는 말은 확인 창이 한다.
+      await tester.tap(find.text(AppStrings.matchRoomCancel));
+      await tick(tester);
 
       expect(find.text(AppStrings.matchRoomLeaveFree), findsOneWidget);
-      expect(find.text(AppStrings.matchRoomLeavePenalty), findsNothing);
     });
 
     testWidgets('⚠️ 마감이 지났으면 20분 제한을 미리 알린다', (tester) async {
@@ -340,6 +347,17 @@ void main() {
       await revealBottom(tester);
 
       expect(find.text(AppStrings.matchRoomLeavePenalty), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 마감이 지났는데 방이 아직 모집 중이어도 기다리라고 하지 않는다', (tester) async {
+      // 서버가 방을 닫기 전의 틈이다. 이때 나가면 이미 제재가 걸린다.
+      await pumpRoom(
+        tester,
+        snapshot: room(status: RoomStatus.matching, closeAt: closedAlready),
+      );
+
+      expect(find.text(AppStrings.matchRoomLeavePenalty), findsOneWidget);
+      expect(find.text(AppStrings.matchRoomWaitingHint), findsNothing);
     });
 
     testWidgets('⚠️ 혼자 남은 방은 마감이 지나도 면제다', (tester) async {

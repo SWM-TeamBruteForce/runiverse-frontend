@@ -508,7 +508,6 @@ class _PartyCard extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colors.bgSurface,
-        border: Border.all(color: colors.borderDefault),
         borderRadius: AppRadius.lg,
       ),
       child: Padding(
@@ -729,7 +728,6 @@ class _SplitTableState extends State<_SplitTable> {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colors.bgSurface,
-        border: Border.all(color: colors.borderDefault),
         borderRadius: AppRadius.lg,
       ),
       child: Column(
@@ -925,7 +923,6 @@ class _NoCadence extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colors.bgSurface,
-        border: Border.all(color: colors.borderDefault),
         borderRadius: AppRadius.lg,
       ),
       child: Padding(

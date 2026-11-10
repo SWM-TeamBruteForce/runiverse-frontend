@@ -35,11 +35,12 @@ void main() {
   ///
   /// 실제로 그렇게 깨졌다(2026-10-20에 쓰고 하루 뒤 빨개졌다). **지금으로부터
   /// 떨어진 시각**으로 둬야 날짜가 바뀌어도 같은 뜻이다.
-  MatchRoomState waiting() => MatchRoomState(
+  MatchRoomState waiting({int? targetDistanceMeters}) => MatchRoomState(
     room: RoomInfo(
       runningRoomId: 7,
       status: RoomStatus.matched,
       scheduledStartAt: DateTime.now().add(const Duration(hours: 1)),
+      targetDistanceMeters: targetDistanceMeters,
       players: const [
         RoomPlayer(userId: 'u-1', nickname: '나', isDeleted: false),
       ],
@@ -49,6 +50,7 @@ void main() {
   Future<void> pumpCountdown(
     WidgetTester tester, {
     required LocationAccess access,
+    int? targetDistanceMeters,
   }) async {
     location = FakeLocationRepository(access: access);
 
@@ -58,7 +60,9 @@ void main() {
           locationRepositoryProvider.overrideWithValue(location),
           // 진짜 컨트롤러는 매칭 스트림에 붙는다. `build`만 갈아 끼워 방
           // 하나를 세운다 — 서버도 타이머도 필요 없다.
-          matchRoomProvider.overrideWith(() => _Waiting(waiting())),
+          matchRoomProvider.overrideWith(
+            () => _Waiting(waiting(targetDistanceMeters: targetDistanceMeters)),
+          ),
         ],
         child: MaterialApp(
           theme: AppTheme.dark(),
@@ -116,6 +120,22 @@ void main() {
 
     expect(location.ensureAccessCount, 1);
     await leave(tester);
+  });
+
+  /// ⚠️ **자유 거리가 칸을 `—`로 그리던 자리다.**
+  group('목표 거리', () {
+    testWidgets('⚠️ 3/5/10km가 아닌 거리도 적는다', (tester) async {
+      // `TargetDistance`를 거치면 7000은 `null`이 되어 `—`로 뜬다.
+      await pumpCountdown(
+        tester,
+        access: LocationAccess.granted,
+        targetDistanceMeters: 7000,
+      );
+
+      expect(find.text('7 km'), findsOneWidget);
+      expect(find.text(AppStrings.runUnavailable), findsNothing);
+      await leave(tester);
+    });
   });
 }
 

@@ -214,6 +214,22 @@ void main() {
       expect(channel.finished_, hasLength(1));
     });
 
+    test('⚠️ 다음 러닝에서 또 거부되면 그 러닝도 끝낸다', () async {
+      final container = await makeContainer();
+      final connection = container.read(runningConnectionProvider.notifier);
+      await connection.openMatched(125, targetDistanceMeters: 3000);
+      channel.errors_.add(WsErrorCode.pauseSegmentDecreased);
+      await resent();
+
+      // 요약을 닫고 다음 러닝에 붙는다. 연결은 끝난 방과 거부 표시를 들고 있다.
+      channel = _ErrorChannel();
+      await connection.openMatched(126, targetDistanceMeters: 3000);
+      channel.errors_.add(WsErrorCode.pauseSegmentDecreased);
+      await resent();
+
+      expect(channel.finished_, [true]);
+    });
+
     test('⚠️ 남은 좌표를 다시 보내지 않는다', () async {
       // 전부 같은 이유로 거부된다. 그대로 흘리면 트랙 전체가 공짜로 한 번 더
       // 나가고 종료만 늦어진다.
