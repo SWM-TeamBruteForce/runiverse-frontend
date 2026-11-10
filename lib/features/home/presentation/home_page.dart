@@ -15,6 +15,8 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
 import 'package:runiverse/features/home/presentation/home_top_bar.dart';
+import 'package:runiverse/features/home/presentation/home_weather_provider.dart';
+import 'package:runiverse/features/home/presentation/home_weather_sheet.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 import 'package:runiverse/features/notification/presentation/notification_provider.dart';
@@ -141,6 +143,17 @@ class _HomePageState extends ConsumerState<HomePage> {
             HomeTopBar(
               badged: ref.watch(hasUnreadProvider),
               onNotifications: () => context.push(AppRoutes.notifications),
+              // 언제 다시 받을지는 셸이 정한다(`homeWeatherProvider` 주석).
+              weather: ref.watch(homeWeatherProvider),
+              onAskLocation: () =>
+                  unawaited(ref.read(homeWeatherProvider.notifier).ask()),
+              onWeatherSource: (shown) => unawaited(
+                showHomeWeatherSheet(
+                  context,
+                  latitude: shown.latitude,
+                  longitude: shown.longitude,
+                ),
+              ),
             ),
             const SizedBox(height: AppSpacing.space3),
             HomeHero(

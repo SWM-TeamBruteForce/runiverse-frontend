@@ -9,7 +9,8 @@ enum LocationAccess {
   /// 쓸 수 있다.
   granted,
 
-  /// 이번에 거절했다. 다시 물을 수 있다.
+  /// 허용하지 않았다. 다시 물을 수 있다. [LocationRepository.checkAccess]는
+  /// 아직 묻지 않은 경우도 이 값이다.
   denied,
 
   /// 다시 묻지 않기로 했다. **앱에서 물을 방법이 없다** — 설정으로 보내야 한다.
@@ -47,6 +48,21 @@ abstract interface class LocationRepository {
   ///
   /// 이미 허용돼 있으면 묻지 않고 바로 [LocationAccess.granted]를 돌려준다.
   Future<LocationAccess> ensureAccess();
+
+  /// 권한을 **묻지 않고** 지금 상태만 읽는다. 홈 날씨가 쓴다.
+  ///
+  /// ⚠️ **안드로이드는 "아직 안 물었음"과 "거절함"을 가르지 못한다.** 둘 다
+  /// [LocationAccess.denied]다 — geolocator가 거절 이력을 보지 않는다
+  /// (`PermissionManager.checkPermissionStatus`). iOS는 거절하면 곧바로
+  /// [LocationAccess.deniedForever]라 `denied`면 아직 안 물은 것이다.
+  Future<LocationAccess> checkAccess();
+
+  /// 대강의 현재 위치. 권한을 묻지 않고, 못 구하면 `null`이다. 홈 날씨가 쓴다.
+  ///
+  /// 기기가 기억하는 마지막 위치를 먼저 쓴다 — GPS를 새로 켜지 않는다. 그 값이
+  /// 없거나 오래됐으면 낮은 정확도로 한 번 새로 잡는다. 어제 서울에서 잡힌
+  /// 위치로 오늘 부산의 날씨를 보여 주면 안 된다.
+  Future<GeoPoint?> approximatePosition();
 
   /// 러닝 중 알림을 띄울 권한을 묻는다. 위치를 허용받은 뒤에 부른다.
   ///

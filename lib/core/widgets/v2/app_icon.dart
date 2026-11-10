@@ -41,6 +41,10 @@ abstract final class AppIcons {
   /// 뷰박스가 20 이라 24 로 늘려 쓴다.
   static const people2 = 'people_2';
   static const photo = 'photo';
+
+  /// 홈 위 줄의 날씨 앞 핀. 외주 시안(`70:741`)에서 내보냈다 — 디자인
+  /// 시스템 33개에 없다. 뷰박스가 26 이라 시안 크기 그대로 쓴다.
+  static const pin = 'pin';
   static const profile = 'profile';
   static const right = 'right';
   static const running = 'running';
@@ -79,6 +83,7 @@ abstract final class AppIcons {
     people,
     people2,
     photo,
+    pin,
     profile,
     right,
     running,

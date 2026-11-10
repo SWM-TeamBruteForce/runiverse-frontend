@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_sizes.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
+import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/features/home/domain/weather.dart';
+import 'package:runiverse/features/home/presentation/home_weather_provider.dart';
 
 /// 홈 맨 위 줄 — 시안 `70:739`(외주 3차).
 ///
-/// 지금은 오른쪽 알림 종만 있다. 시안 왼쪽의 `서울 강남구 · 맑음 18°`는
-/// 날씨를 붙일 때 이 줄에 들어온다.
+/// 왼쪽은 동네와 날씨(`서울 강남구 · 맑음 18°`), 오른쪽은 알림 종이다. 날씨는
+/// 비어 있을 수 있다([HomeWeatherState]).
 ///
 /// ## ⚠️ 알림함의 유일한 입구다
 ///
@@ -17,8 +22,21 @@ class HomeTopBar extends StatelessWidget {
   const HomeTopBar({
     required this.badged,
     required this.onNotifications,
+    required this.weather,
+    required this.onAskLocation,
+    required this.onWeatherSource,
     super.key,
   });
+
+  /// 왼쪽 자리.
+  final HomeWeatherState weather;
+
+  /// `위치 켜고 날씨 보기`를 눌렀다.
+  final VoidCallback onAskLocation;
+
+  /// 날씨를 눌렀다. 출처 시트를 띄운다 — 라이선스 조건이다(`home_weather_sheet.dart`).
+  /// 시트가 그 자리의 날씨 지도를 열도록 누른 날씨를 넘긴다.
+  final ValueChanged<HomeWeatherShown> onWeatherSource;
 
   /// 읽지 않은 알림이 있는가.
   ///
@@ -30,11 +48,111 @@ class HomeTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
     return Row(
       children: [
-        const Spacer(),
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: switch (weather) {
+              HomeWeatherHidden() => const SizedBox.shrink(),
+              // ⚠️ 권하는 문구라 날씨보다 한 단계 흐리게 둔다 — 시안에 없는
+              // 상태다. 디자인 확인이 필요하다.
+              HomeWeatherAsk() => _WeatherButton(
+                text: AppStrings.homeWeatherAsk,
+                color: colors.textSecondary,
+                onTap: onAskLocation,
+              ),
+              final HomeWeatherShown shown => _WeatherButton(
+                text: AppStrings.homeWeather(
+                  shown.place,
+                  _skyLabel(shown.weather.sky),
+                  shown.weather.temperature,
+                ),
+                semantics: AppStrings.homeWeatherSemantics(
+                  shown.place,
+                  _skyLabel(shown.weather.sky),
+                  shown.weather.temperature,
+                ),
+                color: colors.textPrimary,
+                onTap: () => onWeatherSource(shown),
+              ),
+            },
+          ),
+        ),
         _NotificationButton(badged: badged, onTap: onNotifications),
       ],
+    );
+  }
+
+  static String? _skyLabel(WeatherSky? sky) => switch (sky) {
+    null => null,
+    WeatherSky.clear => AppStrings.homeWeatherClear,
+    WeatherSky.partlyCloudy => AppStrings.homeWeatherPartlyCloudy,
+    WeatherSky.cloudy => AppStrings.homeWeatherCloudy,
+    WeatherSky.fog => AppStrings.homeWeatherFog,
+    WeatherSky.rain => AppStrings.homeWeatherRain,
+    WeatherSky.snow => AppStrings.homeWeatherSnow,
+    WeatherSky.thunder => AppStrings.homeWeatherThunder,
+  };
+}
+
+/// 핀 + 글자. 시안 `70:740` — 핀 26, 6 띄우고 SUIT Medium 16.
+class _WeatherButton extends StatelessWidget {
+  const _WeatherButton({
+    required this.text,
+    required this.color,
+    required this.onTap,
+    this.semantics,
+  });
+
+  final String text;
+  final Color color;
+  final VoidCallback onTap;
+
+  /// 없으면 [text]를 읽는다.
+  final String? semantics;
+
+  /// 시안의 글리프 크기. 종과 같다.
+  static const _glyph = 26.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: semantics ?? text,
+      button: true,
+      // ⚠️ **누름 동작을 여기에도 단다.** `excludeSemantics`가 아래 `InkWell`의
+      // 동작까지 지워서, 없으면 스크린리더가 버튼이라고 읽고도 누르지 못한다.
+      onTap: onTap,
+      excludeSemantics: true,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadius.md,
+          child: ConstrainedBox(
+            // 44 미만은 손가락이 빗나간다(`AppSizes` 주석).
+            constraints: const BoxConstraints(minHeight: AppSizes.touchDefault),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppIcon(AppIcons.pin, size: _glyph, color: color),
+                // 시안 6. 간격 토큰에 6이 없어 2 + 4로 낸다.
+                const SizedBox(width: AppSpacing.space0 + AppSpacing.space1),
+                Flexible(
+                  child: Text(
+                    text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypographyV2.body06.copyWith(color: color),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

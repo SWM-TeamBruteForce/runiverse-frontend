@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
@@ -118,6 +119,51 @@ class GeolocatorLocationRepository implements LocationRepository {
       LocationPermission.denied ||
       LocationPermission.unableToDetermine => LocationAccess.denied,
     };
+  }
+
+  @override
+  Future<LocationAccess> checkAccess() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      return LocationAccess.serviceDisabled;
+    }
+
+    // [ensureAccess]와 같은 대응이다. 다른 점은 `requestPermission`을 부르지 않는 것뿐이다.
+    return switch (await Geolocator.checkPermission()) {
+      LocationPermission.always ||
+      LocationPermission.whileInUse => LocationAccess.granted,
+      LocationPermission.deniedForever => LocationAccess.deniedForever,
+      LocationPermission.denied ||
+      LocationPermission.unableToDetermine => LocationAccess.denied,
+    };
+  }
+
+  /// 마지막 위치를 그대로 믿는 한도. 넘으면 새로 잡는다.
+  ///
+  /// 날씨는 몇 km 안에서 같아서 정확할 필요는 없지만, 하루 전 위치는 다른
+  /// 도시일 수 있다.
+  static const _staleAfter = Duration(hours: 1);
+
+  @override
+  Future<GeoPoint?> approximatePosition() async {
+    try {
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null &&
+          DateTime.now().difference(last.timestamp) < _staleAfter) {
+        return _toPoint(last);
+      }
+      final fresh = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          // 날씨에는 기지국·와이파이 수준이면 된다. GPS 칩을 오래 켜지 않는다.
+          accuracy: LocationAccuracy.low,
+          // 기본값은 무제한 대기다. 실내에서 못 잡으면 날씨 자리를 비워 둔다.
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      return _toPoint(fresh);
+    } on Object catch (error) {
+      debugPrint('[location] 대강의 위치를 못 구했다 · $error');
+      return null;
+    }
   }
 
   @override
