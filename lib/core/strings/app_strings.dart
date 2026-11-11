@@ -617,9 +617,6 @@ abstract final class AppStrings {
   /// 닉네임 뒤에 붙는 고정 부분. **잘리지 않는 쪽**이다.
   static const homeMatchSuccessSuffix = '님과 매칭성공!';
 
-  /// 잠긴 CTA. 누를 수 없고, 지금 무엇을 하는 중인지만 말한다.
-  static const homeMatchWaitingCta = '매칭 대기중';
-
   static const homeMatchWaiting = '매칭 중';
 
   /// ⚠️ 서버는 매칭 중이라는데 방 정보가 아직 안 온 구간.
@@ -653,7 +650,8 @@ abstract final class AppStrings {
   /// 평소의 취소·나가기는 로비가 맡는다 — 두 곳에 두면 문구가 갈린다.
   static const homeMatchCancel = '취소하기';
 
-  /// 모집 중에 들어가는 문.
+  /// 모집 중에 들어가는 문. 매칭·초대 방이 같이 쓴다 — 무엇을 기다리는지는
+  /// 카드 제목이 가른다.
   static const homeMatchToLobby = '로비로 가기';
 
   // 히어로 — 매칭 확정 (S05 상태 3) · 시안 158:3102
@@ -2009,10 +2007,6 @@ abstract final class AppStrings {
   /// ⚠️ **초대 방에서 나가는 것은 "매칭 취소"가 아니다.** 매칭을 신청한 적이
   /// 없고, 제재도 없다.
   static const inviteRoomLeave = '나가기';
-
-  /// 홈 히어로의 버튼. 매칭의 `매칭 대기중`은 초대 방에서 거짓이다 — 매칭하고
-  /// 있지 않고 출발을 기다린다.
-  static const homeInviteWaitingCta = '출발 대기중';
 
   // ── 홈 히어로 · 초대 방 ──────────────────────────────────────────────
 

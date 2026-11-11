@@ -256,7 +256,7 @@ void main() {
       await pumpHero(tester, withRoom: room(RoomStatus.matching));
 
       expect(find.text(AppStrings.homeMatchCta), findsNothing);
-      expect(find.text(AppStrings.homeMatchWaitingCta), findsOneWidget);
+      expect(find.text(AppStrings.homeMatchToLobby), findsOneWidget);
     });
 
     testWidgets('⚠️ 취소는 히어로에 두지 않는다', (tester) async {
@@ -613,14 +613,13 @@ void main() {
     testWidgets('⚠️ 버튼이 매칭 대기중이라고 하지 않는다', (tester) async {
       await pumpHero(tester, withRoom: inviteRoom(RoomStatus.matching));
 
-      expect(find.text(AppStrings.homeMatchWaitingCta), findsNothing);
-      expect(find.text(AppStrings.homeInviteWaitingCta), findsOneWidget);
+      expect(find.text(AppStrings.homeMatchToLobby), findsOneWidget);
     });
 
-    testWidgets('매칭 방의 버튼은 그대로다', (tester) async {
+    testWidgets('매칭 방도 같은 버튼이다', (tester) async {
       await pumpHero(tester, withRoom: room(RoomStatus.matching));
 
-      expect(find.text(AppStrings.homeMatchWaitingCta), findsOneWidget);
+      expect(find.text(AppStrings.homeMatchToLobby), findsOneWidget);
     });
 
     testWidgets('매칭 방은 기존 문구를 그대로 쓴다', (tester) async {
