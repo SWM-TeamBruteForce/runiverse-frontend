@@ -24,9 +24,12 @@ void main() {
     LocationAccess access = LocationAccess.denied,
     bool asked = false,
     bool failEnsure = false,
+    bool grantOnAsk = false,
   }) {
     location = failEnsure
         ? _FailingLocation(access: access)
+        : grantOnAsk
+        ? _GrantOnAsk()
         : FakeLocationRepository(access: access);
     steps = FakeStepRepository();
     asks = _CountingAskStore(asked);
@@ -173,6 +176,15 @@ void main() {
       expect(logged(), ['location:denied:home', 'activity:granted:home']);
     });
 
+    test('⚠️ 묻기 전 상태가 아니라 물은 결과를 남긴다', () async {
+      // 묻기 전엔 거절, 창에서 허용했다. 묻기 전 값을 남기면 denied가 된다.
+      final asker = start(grantOnAsk: true);
+
+      await asker.askOnce();
+
+      expect(logged(), ['location:granted:home', 'activity:granted:home']);
+    });
+
     test('위치를 묻지 않았으면 신체 활동만 남는다', () async {
       final asker = start(access: LocationAccess.granted);
 
@@ -240,6 +252,17 @@ class _FailingLocation extends FakeLocationRepository {
   Future<LocationAccess> ensureAccess() async {
     ensureAccessCount++;
     throw Exception('요청이 이미 진행 중');
+  }
+}
+
+/// 물으면 허용으로 바뀐다. 묻기 전 상태와 물은 결과를 가르는 데 쓴다.
+class _GrantOnAsk extends FakeLocationRepository {
+  _GrantOnAsk() : super(access: LocationAccess.denied);
+
+  @override
+  Future<LocationAccess> ensureAccess() async {
+    ensureAccessCount++;
+    return access = LocationAccess.granted;
   }
 }
 
