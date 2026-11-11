@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/widgets/v2/surface_card.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/chat/domain/chat_message.dart';
@@ -159,17 +160,22 @@ void main() {
       expect(find.byKey(MatchRoomPage.chatKey), findsNothing);
     });
 
-    testWidgets('⚠️ 떠 있는 버튼이 목록 끝 안내를 가리지 않는다', (tester) async {
-      // 목록 맨 끝의 안내는 나가기 조건을 알리는 유일한 자리다. 버튼이 그 위에
-      // 떠 있으므로 목록이 버튼만큼 아래 여백을 둬야 한다.
+    testWidgets('⚠️ 떠 있는 버튼이 목록 맨 끝 줄을 가리지 않는다', (tester) async {
+      // ⚠️ **겨냥하는 것이 2026-11-11에 바뀌었다.** 전에는 목록 맨 끝에 나가기
+      // 안내가 있어 그것을 봤는데, 팀이 그 안내를 목록 밖(나가기 버튼 위)으로
+      // 옮겼다. 안내는 이제 `Stack` 밖이라 버튼에 가려질 수가 없고, 그대로 두면
+      // **늘 통과하는 테스트**가 된다.
+      //
+      // 지금 목록 맨 끝은 파티 카드다. 버튼이 그 위에 떠 있으므로 목록이
+      // 버튼만큼 아래 여백을 둬야 카드의 끝 줄이 가려지지 않는다.
       await pumpRoom(tester, snapshot: room());
       await tester.drag(find.byType(ListView), const Offset(0, -2000));
       await tick(tester);
 
-      final notice = tester.getRect(find.text(AppStrings.matchRoomLeaveFree));
+      final party = tester.getRect(find.byType(SurfaceCard).last);
       final button = tester.getRect(find.byKey(MatchRoomPage.chatKey));
 
-      expect(notice.overlaps(button), isFalse);
+      expect(party.overlaps(button), isFalse);
     });
 
     testWidgets('나가기 버튼이 가려지지 않는다', (tester) async {
