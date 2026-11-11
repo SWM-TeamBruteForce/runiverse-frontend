@@ -853,35 +853,28 @@ class _SplitRow extends StatelessWidget {
     // 순위가 아니라 거리다 — 음수면 내가 빨랐다.
     final pace = split.pace;
     final gap = (base == null || pace == null) ? null : pace - base!;
+    // 값은 한 크기(16)로 두고 강약은 색·굵기로만 준다 — 위 파티원 비교 카드와 같은
+    // 방식이다. 페이스가 주인공이라 흰색 Medium, 구간·소모는 회색이다.
+    final value = AppTypographyV2.body06.copyWith(color: colors.textPrimary);
+    final aside = AppTypographyV2.body07.copyWith(color: colors.textSecondary);
 
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.space4,
         vertical: AppSpacing.space3,
       ),
-      // 글자 크기가 칸마다 달라 가운데로 맞추면 바닥선이 들쭉날쭉해진다.
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
         children: [
           Expanded(
             child: Text(
               split.isPartialOf(SplitAggregator.tableMeters)
                   ? AppStrings.runResultPartialLabel(totalKm)
                   : AppStrings.runResultSplitLabel(split.index),
-              style: AppTypographyV2.body07.copyWith(
-                color: colors.textSecondary,
-              ),
+              style: aside,
             ),
           ),
           Expanded(
-            child: Text(
-              PaceCalculator.format(split.pace),
-              style: AppTypographyV2.body07.copyWith(
-                color: colors.textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            child: Text(PaceCalculator.format(split.pace), style: value),
           ),
           if (comparing)
             Expanded(
@@ -894,7 +887,7 @@ class _SplitRow extends StatelessWidget {
                       // ⚠️ **0은 어느 쪽도 아니다.** `isNegative`만 보면 0이
                       // 느린 쪽으로 빨갛게 칠해진다 — 평균과 같은 구간을
                       // 나무라는 셈이다.
-                      style: AppTypographyV2.body18.copyWith(
+                      style: value.copyWith(
                         color: switch (gap.inSeconds) {
                           < 0 => colors.success,
                           > 0 => colors.error,
@@ -906,9 +899,7 @@ class _SplitRow extends StatelessWidget {
           Expanded(
             child: Text(
               '$burned ${AppStrings.runResultUnitKcal}',
-              style: AppTypographyV2.body15.copyWith(
-                color: colors.textSecondary,
-              ),
+              style: aside,
             ),
           ),
         ],
