@@ -457,7 +457,7 @@ void main() {
       expect(find.text(AppStrings.matchRegisterTitle), findsOneWidget);
     });
 
-    testWidgets('⚠️ 이탈 제재는 규칙과 해제 시각을 함께 말한다', (tester) async {
+    testWidgets('⚠️ 이탈 제재는 이유와 해제 시각을 함께 말한다', (tester) async {
       final until = DateTime(2026, 7, 26, 7, 30);
       final matches = FakeMatchRepository(
         applyFailure: MatchFailure.cooldown,
@@ -471,11 +471,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.matchCooldownTitle), findsOneWidget);
-      // ⚠️ 같은 문구가 화면 아래 안내에도 있다. **팝업 안에서** 찾는다.
       expect(
         find.descendant(
           of: find.byType(AlertDialog),
-          matching: find.text(AppStrings.matchCooldownRule),
+          matching: find.text(AppStrings.matchCooldownReason),
         ),
         findsOneWidget,
       );
@@ -660,7 +659,7 @@ void main() {
     });
 
     testWidgets('신청이 되면 홈으로 돌아간다', (tester) async {
-      // 모집 중에는 갈 화면이 따로 없다. 홈 히어로가 그 상태를 보여준다.
+      // 모집 중의 상태는 홈 히어로가 보여 주고, 로비는 거기서 들어간다.
       await pumpRegister(tester);
 
       await pickDistance(tester, 5);

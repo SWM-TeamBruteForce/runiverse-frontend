@@ -350,7 +350,7 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const _PolicyTell(AppStrings.matchCooldownRule),
+            const _PolicyTell(AppStrings.matchCooldownReason),
             // ⚠️ 서버가 해제 시각을 빠뜨릴 수 있다. 없으면 줄을 만들지 않는다.
             if (when.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.space2),
@@ -418,9 +418,8 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
     await ref.read(userStatusProvider.notifier).refresh();
     if (!mounted) return;
 
-    // 등록 화면을 닫고 홈으로 돌아간다. **모집 중에는 갈 화면이 따로 없다** —
-    // 홈 히어로가 몇 명 모였는지와 마감까지를 보여주고, 방으로 가는 문은
-    // 확정된 뒤에야 열린다(정본 S05).
+    // 등록 화면을 닫고 홈으로 돌아간다 — 모집 중의 상태는 홈 히어로가 보여
+    // 주고(정본 S05), 로비는 거기서 `로비로 가기`로 들어간다.
     context.pop();
   }
 
@@ -645,22 +644,24 @@ class _Note extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
+    final style = AppTypographyV2.body12.copyWith(color: colors.textTertiary);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppIcon(
-          AppIcons.guide,
-          size: AppSpacing.space4,
-          color: colors.textTertiary,
-        ),
-        const SizedBox(width: AppSpacing.space2),
-        Expanded(
-          child: Text(
-            text,
-            style: AppTypographyV2.body12.copyWith(color: colors.textTertiary),
+        // 아이콘은 첫 줄 높이의 가운데에 둔다 — 줄 맨 위에 붙이면 글자보다 떠 보인다.
+        SizedBox(
+          height: style.height! * style.fontSize!,
+          child: Center(
+            child: AppIcon(
+              AppIcons.guide,
+              size: AppSpacing.space4,
+              color: colors.textTertiary,
+            ),
           ),
         ),
+        const SizedBox(width: AppSpacing.space2),
+        Expanded(child: Text(text, style: style)),
       ],
     );
   }
@@ -668,7 +669,7 @@ class _Note extends StatelessWidget {
 
 /// 팝업 셋이 함께 쓰는 **시간 규칙** 두 묶음.
 ///
-/// ⚠️ `18:00~22:00` · `1시간` · `10분 전`은 전부 서버 설정값이다. 운영에서
+/// ⚠️ `18:00~22:00` · `매시 정각` · `10분 전`은 전부 서버 설정값이다. 운영에서
 /// 바뀌면 이 문구도 같이 고쳐야 한다 — 테스트가 그 짝을 묶어 둔다.
 class _TimePolicy extends StatelessWidget {
   const _TimePolicy();

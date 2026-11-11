@@ -142,8 +142,15 @@ void main() {
 
   testWidgets('⚠️ 친구 삭제는 확인을 묻는다', (tester) async {
     // 되돌릴 수 없다. 한 번의 탭으로 끝나면 안 된다.
+    // 아이디와 닉네임을 가른다. 같으면 제목에 아이디를 넣어도 통과한다.
     final fake = FakeFriendRepository(
-      friendEntries: [e('친한', FriendRelation.friend)],
+      friendEntries: [
+        const FriendEntry(
+          userId: 'u-1',
+          nickname: '친한',
+          relation: FriendRelation.friend,
+        ),
+      ],
     );
     await pump(tester, fake);
 
@@ -152,7 +159,10 @@ void main() {
     await tester.tap(find.text(AppStrings.friendRemove));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.friendRemoveConfirmTitle), findsOneWidget);
+    expect(
+      find.text(AppStrings.friendRemoveConfirmTitle('친한')),
+      findsOneWidget,
+    );
     expect(fake.removed, isEmpty, reason: '아직 안 끊었다');
   });
 
