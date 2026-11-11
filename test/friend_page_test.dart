@@ -152,7 +152,10 @@ void main() {
     await tester.tap(find.text(AppStrings.friendRemove));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.friendRemoveConfirmTitle), findsOneWidget);
+    expect(
+      find.text(AppStrings.friendRemoveConfirmTitle('친한')),
+      findsOneWidget,
+    );
     expect(fake.removed, isEmpty, reason: '아직 안 끊었다');
   });
 

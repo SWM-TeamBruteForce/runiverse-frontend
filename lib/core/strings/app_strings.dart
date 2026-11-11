@@ -1778,7 +1778,9 @@ abstract final class AppStrings {
   static const friendRemove = '친구 삭제';
 
   /// 되돌릴 수 없어서 한 번 묻는다.
-  static const friendRemoveConfirmTitle = '친구를 끊을까요?';
+  /// 누구를 끊는지 창에서 확인할 수 있게 닉네임을 부른다.
+  static String friendRemoveConfirmTitle(String nickname) =>
+      '$nickname님과 친구를 끊을까요?';
   static const friendRemoveConfirmBody = '다시 친구가 되려면 요청을 보내야 해요';
   static const friendRemoveConfirmYes = '끊기';
   static const friendRemoveConfirmNo = '그대로 두기';
