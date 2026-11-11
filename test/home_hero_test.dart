@@ -259,6 +259,22 @@ void main() {
       expect(find.text(AppStrings.homeMatchToLobby), findsOneWidget);
     });
 
+    testWidgets('⚠️ 로비로 가기가 실제로 열린다', (tester) async {
+      // 글자만 보면 문을 막아도 초록이다. 확정 카드의 같은 테스트와 짝이다.
+      var entered = 0;
+      await pumpHero(
+        tester,
+        withRoom: room(RoomStatus.matching),
+        onLobby: () => entered++,
+      );
+
+      await tester.tap(find.text(AppStrings.homeMatchToLobby));
+      // 둘레 원이 계속 돌아 `pumpAndSettle`이 끝나지 않는다.
+      await tester.pump();
+
+      expect(entered, 1, reason: '로비로 가는 문이 안 열린다');
+    });
+
     testWidgets('⚠️ 취소는 히어로에 두지 않는다', (tester) async {
       // 제재 여부는 로비가 문구로 알려준다. 두 곳에 두면 한쪽만 고쳐진다.
       await pumpHero(tester, withRoom: room(RoomStatus.matching));
@@ -610,7 +626,7 @@ void main() {
       expect(find.text(AppStrings.homeInviteConfirmedTitle), findsOneWidget);
     });
 
-    testWidgets('⚠️ 버튼이 매칭 대기중이라고 하지 않는다', (tester) async {
+    testWidgets('초대 방 버튼도 로비로 가기다', (tester) async {
       await pumpHero(tester, withRoom: inviteRoom(RoomStatus.matching));
 
       expect(find.text(AppStrings.homeMatchToLobby), findsOneWidget);
@@ -627,6 +643,10 @@ void main() {
 
       expect(find.text(AppStrings.homeMatchWaitingTitle), findsOneWidget);
       expect(find.text(AppStrings.homeInviteWaitingTitle), findsNothing);
+      expect(
+        find.textContaining(AppStrings.homeMatchWaitingHint),
+        findsOneWidget,
+      );
     });
 
     testWidgets('매칭 방의 확정 문구도 그대로다', (tester) async {

@@ -457,7 +457,7 @@ void main() {
       expect(find.text(AppStrings.matchRegisterTitle), findsOneWidget);
     });
 
-    testWidgets('⚠️ 이탈 제재는 규칙과 해제 시각을 함께 말한다', (tester) async {
+    testWidgets('⚠️ 이탈 제재는 이유와 해제 시각을 함께 말한다', (tester) async {
       final until = DateTime(2026, 7, 26, 7, 30);
       final matches = FakeMatchRepository(
         applyFailure: MatchFailure.cooldown,
