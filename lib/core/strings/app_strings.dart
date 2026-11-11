@@ -860,6 +860,10 @@ abstract final class AppStrings {
   /// 마감된 슬롯에 붙는다. 목록에서 빼지 않고 잠그기 때문에 이유가 필요하다.
   static const matchSlotClosed = '마감';
 
+  /// 고른 거리에 아무도 없을 때 평소 가장 많이 모이는 시각 한 줄에 붙는다.
+  /// 신청을 한 시각으로 모으려는 것이다.
+  static const matchSlotRecommended = '추천';
+
   static const matchSlotEmpty = '오늘은 고를 수 있는 시간대가 없어요';
 
   /// 페이스를 입력받지 않는 이유를 밝힌다. 없으면 빠뜨린 항목으로 읽힌다.
