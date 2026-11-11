@@ -603,9 +603,25 @@ class RunSessionController extends Notifier<RunSessionState> {
   }
 
   /// 1초마다 화면의 시간을 밀어준다. 좌표가 안 와도 시계는 흘러야 한다.
+  ///
+  /// 틱마다 러닝 시간의 초가 바뀌는 순간까지 남은 만큼만 기다린다. 부른 순간부터
+  /// 1초씩 돌면 재개·복구 뒤에 초가 바뀌기 직전에 걸릴 수 있고, 그러면 타이머가
+  /// 조금만 늦어도 같은 초를 두 번 그린 뒤 2초를 건너뛴다.
   void _startTicker() {
     _ticker?.cancel();
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+    final intoSecond =
+        _clockElapsed(_now()).inMicroseconds % Duration.microsecondsPerSecond;
+    // 타이머는 밀리초 단위라 올린다. 내리면 초가 바뀌기 직전에 울린다.
+    final untilNextSecond = Duration(
+      milliseconds:
+          ((Duration.microsecondsPerSecond - intoSecond) /
+                  Duration.microsecondsPerMillisecond)
+              .ceil(),
+    );
+    _ticker = Timer(untilNextSecond, () {
+      // ⚠️ **먼저 다시 건다.** 화면을 민 자리에서 누가 멈추면 그 멈춤이 이
+      // 타이머도 끊어야 한다 — 거꾸로면 멈춘 세션에 타이머가 남는다.
+      _startTicker();
       if (state is RunRunning) state = RunRunning(_metrics());
     });
   }
