@@ -154,7 +154,7 @@ class PushController extends Notifier<PushLanding?> {
     if (_askedPermission) return;
     _askedPermission = true;
     final access = await _messaging.requestPermission();
-    if (access != null) {
+    if (access != null && ref.mounted) {
       unawaited(
         ref
             .read(analyticsProvider)
