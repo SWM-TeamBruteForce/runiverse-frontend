@@ -299,6 +299,11 @@ class _HomeWaitingState extends State<HomeWaiting>
         : AppStrings.homeMatchWaitingOthers(others);
   }
 
+  /// 그 아래 줄. **초대 방은 "신청"이라고 하지 않는다** — 신청한 적이 없다.
+  String get _waitingHint => widget.room.type == RoomType.invite
+      ? AppStrings.homeInviteWaitingHint
+      : AppStrings.homeMatchWaitingHint;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
@@ -431,8 +436,7 @@ class _HomeWaitingState extends State<HomeWaiting>
                   Text(
                     // ⚠️ 신청 직후에는 아직 나뿐이다. 그때 `0명의 러너가`라고
                     // 적으면 말이 안 된다 — 시안에 없는 구간이다.
-                    '${_waitingBody(others.length)}'
-                    '\n${AppStrings.homeMatchWaitingHint}',
+                    '${_waitingBody(others.length)}\n$_waitingHint',
                     textAlign: TextAlign.center,
                     style: AppTypographyV2.body07.copyWith(
                       color: colors.textSecondary,

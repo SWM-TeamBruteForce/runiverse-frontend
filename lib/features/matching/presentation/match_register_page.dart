@@ -350,7 +350,7 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const _PolicyTell(AppStrings.matchCooldownRule),
+            const _PolicyTell(AppStrings.matchCooldownReason),
             // ⚠️ 서버가 해제 시각을 빠뜨릴 수 있다. 없으면 줄을 만들지 않는다.
             if (when.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.space2),
@@ -670,7 +670,7 @@ class _Note extends StatelessWidget {
 
 /// 팝업 셋이 함께 쓰는 **시간 규칙** 두 묶음.
 ///
-/// ⚠️ `18:00~22:00` · `1시간` · `10분 전`은 전부 서버 설정값이다. 운영에서
+/// ⚠️ `18:00~22:00` · `매시 정각` · `10분 전`은 전부 서버 설정값이다. 운영에서
 /// 바뀌면 이 문구도 같이 고쳐야 한다 — 테스트가 그 짝을 묶어 둔다.
 class _TimePolicy extends StatelessWidget {
   const _TimePolicy();

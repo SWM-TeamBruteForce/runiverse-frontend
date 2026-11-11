@@ -577,6 +577,19 @@ void main() {
       );
     });
 
+    testWidgets('⚠️ 신청했다고 하지 않는다 — 신청한 적이 없다', (tester) async {
+      await pumpHero(tester, withRoom: inviteRoom(RoomStatus.matching));
+
+      expect(
+        find.textContaining(AppStrings.homeMatchWaitingHint),
+        findsNothing,
+      );
+      expect(
+        find.textContaining(AppStrings.homeInviteWaitingHint),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('사람이 들어오면 몇 명이 함께 뛰는지 적는다', (tester) async {
       await pumpHero(
         tester,

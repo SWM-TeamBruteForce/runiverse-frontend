@@ -471,11 +471,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.matchCooldownTitle), findsOneWidget);
-      // ⚠️ 같은 문구가 화면 아래 안내에도 있다. **팝업 안에서** 찾는다.
       expect(
         find.descendant(
           of: find.byType(AlertDialog),
-          matching: find.text(AppStrings.matchCooldownRule),
+          matching: find.text(AppStrings.matchCooldownReason),
         ),
         findsOneWidget,
       );
