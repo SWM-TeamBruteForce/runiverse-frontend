@@ -208,6 +208,7 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
   /// 시간을 고른다. **서버를 부르지 않는다.** 고른 거리의 시트에서 온 칸이다.
   void selectTime(MatchSlot time) {
     state = state.copyWith(time: time, failure: null);
+    unawaited(ref.read(analyticsProvider).matchSlotSelect());
   }
 
   /// 거리를 고른다. **서버를 부르지 않는다.**
@@ -223,6 +224,9 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
       meters: meters,
       time: slot != null && slot.selectable ? slot : null,
       failure: null,
+    );
+    unawaited(
+      ref.read(analyticsProvider).matchDistanceSelect(distanceMeters: meters),
     );
   }
 
@@ -338,6 +342,9 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
   Future<int?> submit() async {
     final pick = state.picked;
     if (pick == null || state.submitting) return null;
+    // 누른 순간 들고 있던 판으로 센다. 시트는 고른 거리만 그려서, 다른
+    // 거리의 숫자는 그 사람이 못 봤을 수 있다.
+    final (otherWaiting, otherWaitingSameTime) = _otherDistanceWaiting(pick);
 
     state = state.copyWith(submitting: true, failure: null);
     try {
@@ -349,7 +356,13 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
       // 이어진다. 메모리에만 두면 앱이 죽는 순간 그 고리가 끊긴다.
       await ref.read(matchRoomStoreProvider).save(roomId);
       unawaited(
-        ref.read(analyticsProvider).matchApply(distanceMeters: pick.meters),
+        ref
+            .read(analyticsProvider)
+            .matchApply(
+              distanceMeters: pick.meters,
+              otherDistanceWaiting: otherWaiting,
+              otherDistanceWaitingSameTime: otherWaitingSameTime,
+            ),
       );
 
       state = state.copyWith(submitting: false);
@@ -380,6 +393,24 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
       }
       return null;
     }
+  }
+
+  /// [pick] 말고 **다른 거리**의 아직 열린 칸에 신청해 둔 사람. `(합, 그중 같은
+  /// 시각)`이다. 거리 슬롯을 줄일지 가리는 기록에만 쓴다.
+  ///
+  /// ⚠️ **마감된 칸은 세지 않는다.** 이제 들어갈 수 없는 사람이다.
+  (int, int) _otherDistanceWaiting(MatchSlotPick pick) {
+    var all = 0;
+    var sameTime = 0;
+    for (final distance in state.board?.distances ?? const <DistanceSlots>[]) {
+      if (distance.meters == pick.meters) continue;
+      for (final slot in distance.slots) {
+        if (!slot.selectable) continue;
+        all += slot.waitingCount;
+        if (slot.raw == pick.raw) sameTime += slot.waitingCount;
+      }
+    }
+    return (all, sameTime);
   }
 
   /// 409 뒤에 판을 다시 받는다.

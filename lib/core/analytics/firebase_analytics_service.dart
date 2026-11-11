@@ -38,11 +38,32 @@ class FirebaseAnalyticsService implements Analytics {
       _send('login', {'method': method});
 
   @override
+  Future<void> loginAttempt({required String method}) =>
+      _send('login_attempt', {'method': method});
+
+  @override
   Future<void> onboardingComplete() => _send('onboarding_complete', null);
 
   @override
-  Future<void> matchApply({required int distanceMeters}) =>
-      _send('match_apply', {'distance_m': distanceMeters});
+  Future<void> matchDistanceSelect({required int distanceMeters}) =>
+      _send('match_distance_select', {'distance_m': distanceMeters});
+
+  @override
+  Future<void> matchSlotSheetOpen() => _send('match_slot_sheet_open', null);
+
+  @override
+  Future<void> matchSlotSelect() => _send('match_slot_select', null);
+
+  @override
+  Future<void> matchApply({
+    required int distanceMeters,
+    required int otherDistanceWaiting,
+    required int otherDistanceWaitingSameTime,
+  }) => _send('match_apply', {
+    'distance_m': distanceMeters,
+    'other_distance_waiting': otherDistanceWaiting,
+    'other_distance_waiting_same_time': otherDistanceWaitingSameTime,
+  });
 
   @override
   Future<void> matchConfirmed({int? distanceMeters}) => _send(

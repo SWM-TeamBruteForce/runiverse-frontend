@@ -8,7 +8,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// ## ⚠️ 버튼을 누른 때가 아니라 **성공한 때** 남긴다
 ///
 /// 탭으로 세면 실패한 시도까지 섞여 전환율이 부풀려진다. 그래서 이 인터페이스의
-/// 메서드는 전부 **결과가 확정된 자리**에서 불린다.
+/// 성공 기록은 전부 **결과가 확정된 자리**에서 불린다.
+///
+/// ## 누름·단계 기록은 이름을 따로 둔다
+///
+/// 어디서 멈추는지 보려면 누른 순간도 있어야 한다. 그 기록은 성공 기록과
+/// 이름을 따로 둔다(`login_attempt`와 `login`). 섞이지 않으니 성공 수는 부풀지
+/// 않는다.
 ///
 /// ## 화면은 왜 따로 잡아야 하나
 ///
@@ -46,11 +52,40 @@ abstract interface class Analytics {
   /// 대시보드의 분류를 손봐야 한다는 뜻이다.
   Future<void> login({required String method});
 
+  /// 로그인을 **시작했다.** [method] 는 [login] 과 같은 값이다.
+  ///
+  /// 성공이 아니라 시도다 — 제공자 창에서 취소하거나 비밀번호가 틀려도 남는다.
+  /// [login] 과 견주면 버튼을 누르고도 못 들어간 사람이 보인다. 이메일 가입도
+  /// [login] 을 남기므로 가입 버튼도 여기서 센다 — 빼면 이메일만 성공이 시도보다
+  /// 많아진다.
+  Future<void> loginAttempt({required String method});
+
   /// 프로필 설정 저장 성공. **가입 완료로 센다.**
   Future<void> onboardingComplete();
 
+  /// 매칭 등록 화면에서 거리 칩을 눌렀다. [distanceMeters] 는 [matchApply] 와
+  /// 같은 이름으로 나간다.
+  Future<void> matchDistanceSelect({required int distanceMeters});
+
+  /// 시간 칸을 눌러 시간 시트를 열었다. 시트는 주소를 바꾸지 않아
+  /// [screenView] 가 남지 않는다.
+  Future<void> matchSlotSheetOpen();
+
+  /// 시간 시트에서 시각을 골랐다.
+  Future<void> matchSlotSelect();
+
   /// 매칭 신청 성공. [distanceMeters] 는 3000 · 5000 · 10000.
-  Future<void> matchApply({required int distanceMeters});
+  ///
+  /// [otherDistanceWaiting] 은 신청한 순간 **다른 거리**의 아직 열린 칸에
+  /// 신청해 둔 사람의 합, [otherDistanceWaitingSameTime] 은 그중 신청한 시각의
+  /// 수다. 거리를 합쳤다면 만났을 사람이 얼마나 되는지 — 거리 슬롯을 줄일지
+  /// 가린다. 누른 순간 화면이 들고 있던 판의 값이다. 시트는 고른 거리만
+  /// 그려서, 다른 거리의 숫자는 그 사람이 못 봤을 수 있다.
+  Future<void> matchApply({
+    required int distanceMeters,
+    required int otherDistanceWaiting,
+    required int otherDistanceWaitingSameTime,
+  });
 
   /// 방이 **확정됐다** — 사람이 모여 같이 뛸 수 있게 된 순간.
   ///
@@ -121,10 +156,26 @@ class NoopAnalytics implements Analytics {
   Future<void> login({required String method}) async {}
 
   @override
+  Future<void> loginAttempt({required String method}) async {}
+
+  @override
   Future<void> onboardingComplete() async {}
 
   @override
-  Future<void> matchApply({required int distanceMeters}) async {}
+  Future<void> matchDistanceSelect({required int distanceMeters}) async {}
+
+  @override
+  Future<void> matchSlotSheetOpen() async {}
+
+  @override
+  Future<void> matchSlotSelect() async {}
+
+  @override
+  Future<void> matchApply({
+    required int distanceMeters,
+    required int otherDistanceWaiting,
+    required int otherDistanceWaitingSameTime,
+  }) async {}
 
   @override
   Future<void> matchConfirmed({int? distanceMeters}) async {}

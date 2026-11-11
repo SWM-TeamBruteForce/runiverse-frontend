@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
@@ -372,6 +373,7 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
     final meters = state.meters;
     // 버튼이 거리를 고른 뒤에만 열린다. 그 사이 상태가 바뀌었으면 열지 않는다.
     if (meters == null) return;
+    unawaited(ref.read(analyticsProvider).matchSlotSheetOpen());
     final picked = await showMatchSlotSheet(
       context,
       // ⚠️ **고른 거리의 줄만 넘긴다.** 숫자와 잠금이 그 거리의 것이어야
