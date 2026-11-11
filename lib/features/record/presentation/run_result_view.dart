@@ -724,6 +724,12 @@ class _SplitTableState extends State<_SplitTable> {
     // ⚠️ 빈 목록은 고르지 않은 것과 같다. 상대가 방에는 있는데 서버가 구간을
     // 하나도 안 준 경우가 있고, 그때는 잴 것이 하나도 없다.
     final comparing = widget.compareTo?.isNotEmpty ?? false;
+    // 머리줄 아래부터 줄마다 위에 긋는다. 외주 시안 `70:1571`도 표 끝에서 끝까지다.
+    final rule = Divider(
+      height: 1,
+      thickness: AppSizes.hairline,
+      color: colors.borderDefault,
+    );
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -735,7 +741,8 @@ class _SplitTableState extends State<_SplitTable> {
           _SplitHead(
             basis: comparing ? AppStrings.runResultGapBaseParty : null,
           ),
-          for (final (i, split) in shown.indexed)
+          for (final (i, split) in shown.indexed) ...[
+            rule,
             _SplitRow(
               split: split,
               totalKm: widget.detail.distanceKm,
@@ -751,7 +758,9 @@ class _SplitTableState extends State<_SplitTable> {
                   ? null
                   : widget.compareTo![i].pace,
             ),
-          if (collapsed)
+          ],
+          if (collapsed) ...[
+            rule,
             InkWell(
               onTap: () => setState(() => _expanded = true),
               child: SizedBox(
@@ -766,6 +775,7 @@ class _SplitTableState extends State<_SplitTable> {
                 ),
               ),
             ),
+          ],
         ],
       ),
     );
