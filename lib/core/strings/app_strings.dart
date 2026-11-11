@@ -1720,7 +1720,7 @@ abstract final class AppStrings {
   /// 애플만 적었다 — 나머지도 같은 안내가 필요하다.
   static const withdrawAppleNotice =
       '애플 ID 설정 > 암호 및 보안 > Apple로 로그인에서\n'
-      '이 앱의 연결을 직접 해제해주세요.';
+      '이 앱의 연결을 직접 해제해주세요';
 
   static const withdrawConfirm = '탈퇴하기';
 
@@ -1960,7 +1960,7 @@ abstract final class AppStrings {
   /// 개설 실패. 서버가 문구를 주면 그것을 쓴다.
   static const inviteRegisterOutOfRange = '고를 수 있는 시각이 아니에요';
   static const inviteRegisterAlreadyInProgress = '이미 참여 중인 러닝이 있어요';
-  static const inviteRegisterOnboarding = '프로필을 먼저 완성해 주세요';
+  static const inviteRegisterOnboarding = '프로필을 먼저 완성해주세요';
   static const inviteRegisterFailed = '방을 만들지 못했어요';
 
   // ── 초대 모달 ────────────────────────────────────────────────────────
