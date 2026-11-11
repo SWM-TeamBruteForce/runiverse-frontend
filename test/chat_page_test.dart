@@ -186,6 +186,37 @@ void main() {
         expect(tester.takeException(), isNull);
       }
     });
+
+    testWidgets('⚠️ 비속어는 가려서 그린다', (tester) async {
+      // ## 왜 보내는 쪽이 아니라 그리는 쪽인가
+      //
+      // 보내는 쪽에서 막으면 **클라이언트를 고친 사람에게 효력이 없다.** 그리는
+      // 쪽에서 가리면 상대가 무슨 앱을 쓰든 **보는 사람이** 보호된다. 그래서
+      // 들어온 메시지를 그릴 때 가린다.
+      await pumpChat(
+        tester,
+        state: ChatState(
+          seed: seed,
+          messages: [message('m9', 'u1', text: '시발 늦었네')],
+        ),
+      );
+
+      expect(find.text('시발 늦었네'), findsNothing);
+      expect(find.text('** 늦었네'), findsOne);
+    });
+
+    testWidgets('⚠️ 정상인 말은 한 글자도 안 바꾼다', (tester) async {
+      // 오탐이 미탐보다 나쁘다. '시간'·'출발'이 가려지면 기능을 못 쓴다.
+      await pumpChat(
+        tester,
+        state: ChatState(
+          seed: seed,
+          messages: [message('m10', 'u1', text: '시간 맞춰 출발해요')],
+        ),
+      );
+
+      expect(find.text('시간 맞춰 출발해요'), findsOne);
+    });
   });
 
   group('열고 닫기', () {

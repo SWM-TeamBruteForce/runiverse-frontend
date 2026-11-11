@@ -5,6 +5,7 @@ import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/theme/v2/run_palette.dart';
+import 'package:runiverse/core/utils/profanity_filter.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
@@ -176,7 +177,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         }
 
         return ChatBubble(
-          text: message.text ?? '',
+          // ⚠️ **가리는 것은 여기뿐이다.** 보내는 쪽에서 막으면 클라이언트를
+          // 고친 사람에게 효력이 없고, 그리는 쪽에서 가리면 상대가 무슨 앱을
+          // 쓰든 보는 사람이 보호된다. 원문은 상태에 그대로 남는다 — 신고
+          // 기능이 붙을 때 넘길 것이 있어야 한다.
+          text: maskProfanity(message.text ?? ''),
           time: AppStrings.matchSlotTime(message.sentAt),
           mine: message.senderUserId == myUserId,
           nickname: nickname,
