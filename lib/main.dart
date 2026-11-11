@@ -137,10 +137,8 @@ void main() async {
         // 이유로 진짜는 여기서만 끼운다.
         pushMessagingProvider.overrideWithValue(FirebasePushMessaging()),
         // ⚠️ **이것을 지우면 워치 연동이 조용히 멈춘다.** 기본값은 `null`(끔)이다.
-        // 통로의 네이티브 쪽이 안드로이드에만 있어 iOS에서는 끈 채로 둔다.
-        watchChannelProvider.overrideWithValue(
-          Platform.isAndroid ? const WatchChannel() : null,
-        ),
+        // 테스트에서 받기를 걸지 않도록 진짜는 여기서만 끼운다.
+        watchChannelProvider.overrideWithValue(const WatchChannel()),
       ],
       child: const RuniverseApp(),
     ),

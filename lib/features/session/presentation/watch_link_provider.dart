@@ -25,8 +25,8 @@ import 'package:runiverse/features/session/presentation/running_connection_provi
 
 /// 워치 통로. `null` 이면 워치와 주고받지 않는다.
 ///
-/// 네이티브 쪽이 안드로이드에만 있어 기본은 `null` 이고 `main.dart` 가 안드로이드에서만
-/// 끼운다 — 테스트·iOS에서 받기를 걸면 멈추거나 `MissingPluginException` 이 난다.
+/// 기본은 `null` 이고 `main.dart` 가 끼운다 — 테스트에서 받기를 걸면 멈추거나
+/// `MissingPluginException` 이 난다.
 final watchChannelProvider = Provider<WatchChannel?>((ref) => null);
 
 /// 워치에 보낼 파티원 사진을 만든다.
@@ -53,8 +53,9 @@ class WatchLinkController extends Notifier<void> {
 
   /// 워치 앱 켜기가 "아직 받을 준비 안 됨"이면 이 간격으로 이만큼 더 시도한다.
   ///
-  /// 폰 앱을 켤 때 워치에 닿지 못했으면 받기 등록이 러닝을 시작하는 그 순간에야
-  /// 다시 걸려, 첫 켜기는 늘 등록이 끝나기 전에 닿는다.
+  /// 안드로이드는 폰 앱을 켤 때 워치에 닿지 못했으면 받기 등록이 러닝을 시작하는 그
+  /// 순간에야 다시 걸려, 첫 켜기는 늘 등록이 끝나기 전에 닿는다. iOS는 세션이 켜지기
+  /// 전이면 이렇게 답한다.
   static const _launchRetryGap = Duration(seconds: 1);
   static const _launchRetries = 3;
 
