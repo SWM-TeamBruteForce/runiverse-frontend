@@ -11,7 +11,7 @@ import 'package:runiverse/features/session/domain/watch_photo_maker.dart';
 /// `dart:ui`로 자르는 [WatchPhotoMaker]. 순서는 `UiImageCropper`와 같다.
 ///
 /// ```
-/// 받기 → 짧은 변 128로 풀기 → 가운데 정사각 → PNG → JPEG → base64
+/// 받기 → 짧은 변 64로 풀기 → 가운데 정사각 → PNG → JPEG → base64
 /// ```
 ///
 /// 폰 사진 원이 `BoxFit.cover`로 가운데를 보여 주니 워치도 가운데를 자른다.
@@ -24,7 +24,10 @@ class UiWatchPhotoMaker implements WatchPhotoMaker {
   UiWatchPhotoMaker({Dio? dio}) : _dio = dio ?? Dio(_options);
 
   /// 워치가 받는 한 변. 정본은 워치 레포 `docs/phone-communication.md`의 `photos`다.
-  static const side = 128;
+  ///
+  /// 워치 화면의 사진(지름 약 50px)보다 조금 크게 잡는다. 128이면 사진 셋이 실린
+  /// SYNCED가 애플워치 한 메시지 한도(64KB)를 넘을 수 있다.
+  static const side = 64;
 
   /// `dio`의 기본값은 무제한 대기다. 카운트다운 30초 안에 끝나야 쓸모가 있다.
   static BaseOptions get _options => BaseOptions(
