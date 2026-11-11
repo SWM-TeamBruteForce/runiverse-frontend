@@ -118,13 +118,24 @@ abstract interface class Analytics {
   /// 탈퇴 성공.
   Future<void> withdraw();
 
-  /// 권한을 확인한 결과. 이미 허용돼 창이 안 떴어도 남긴다.
+  /// 권한을 확인한 결과.
   ///
   /// [permission] 은 `location` · `activity` · `notification` · `tracking`(iOS
   /// 추적 허용), [result] 는 `granted` · `denied` · `denied_forever` ·
   /// `service_disabled`(위치만). [askedFrom] 은 물은 자리다 — 러닝 준비는
-  /// `run`, 홈은 `home`, 앱을 켤 때는 `launch`(추적 허용). 홈의 위치·신체
-  /// 활동은 기기당 처음 물을 때만, 알림과 추적 허용은 앱을 켤 때마다 남는다.
+  /// `run`, 홈은 `home`, 앱을 켤 때는 `launch`(추적 허용).
+  ///
+  /// 러닝 준비·홈 알림·추적 허용은 이미 허용돼 창이 안 떴어도 남긴다 — 홈 알림과
+  /// 추적 허용은 앱을 켤 때마다다. 홈의 위치·신체 활동은 그 기기에 처음 물을
+  /// 때만 남고, 위치는 묻기 전이 `denied`(물을 수 있음)일 때만 남는다.
+  ///
+  /// `tracking` 의 `denied` 는 사용자가 거절한 것이 아니다 — 창이 안 떴거나
+  /// 기기가 막아 둔 경우(보호자 통제 등)다. 거절하면 `denied_forever` 로 온다.
+  ///
+  /// ⚠️ `notification` 은 `granted` 인지만 믿는다. 안드로이드는 홈(FCM)과 러닝
+  /// 준비(permission_handler)가 거절 이력을 따로 기억해, 같은 기기가 자리마다
+  /// `denied` · `denied_forever` 로 갈릴 수 있다. 안드로이드 12 이하는 묻는
+  /// 창이 없어, 설정에서 알림을 끈 기기도 두 자리 다 `denied` 다.
   ///
   /// ⚠️ 이 값을 더하기 전 앱은 빼고 보냈다. 비어 있으면 러닝 준비다.
   Future<void> permissionResult({

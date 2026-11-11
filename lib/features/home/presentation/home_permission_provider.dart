@@ -89,7 +89,7 @@ class HomePermissionAsker {
     }
   }
 
-  /// 물은 결과를 GA 에 남긴다. 러닝 준비도 같은 권한을 남기므로 자리는 `home` 이다.
+  /// 물은 결과를 GA에 남긴다. 러닝 준비도 같은 권한을 남기므로 자리는 `home`이다.
   void _log(String permission, String result) => unawaited(
     _ref
         .read(analyticsProvider)
