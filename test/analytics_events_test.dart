@@ -6,6 +6,7 @@ import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/analytics/fake_analytics.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/storage/body_profile_store.dart';
+import 'package:runiverse/core/storage/match_room_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
@@ -19,6 +20,7 @@ import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
+import 'package:runiverse/features/matching/domain/slot_board.dart';
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/notification/data/fake_app_stream.dart';
 import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
@@ -33,7 +35,7 @@ import 'package:runiverse/features/session/domain/permission_access.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
-/// GA 이벤트 — **성공한 시점에만 남는가.**
+/// GA 이벤트 — **성공 기록은 성공한 시점에만 남는가.**
 ///
 /// ## 왜 이것만 따로 보나
 ///
@@ -42,7 +44,8 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 /// 그래서 적어 두고 세는 수밖에 없다([FakeAnalytics]).
 ///
 /// 노션 GA 도입 문서가 못 박은 규칙이 하나다 — **버튼 탭이 아니라 성공한
-/// 시점.** 탭으로 세면 실패한 시도까지 섞여 전환율이 부풀려진다.
+/// 시점.** 탭으로 세면 실패한 시도까지 섞여 전환율이 부풀려진다. 누름 기록
+/// (`login_attempt` 등)은 이름을 따로 두어 이 규칙 밖에 있다.
 void main() {
   late FakeAnalytics analytics;
 
@@ -97,7 +100,7 @@ void main() {
           .read(authControllerProvider.notifier)
           .signInWithOauth(OauthProvider.kakao);
 
-      expect(analytics.events, isEmpty);
+      expect(analytics.countOf('login'), 0);
     });
 
     test('⚠️ 서버가 거절하면 남지 않는다', () async {
@@ -109,7 +112,7 @@ void main() {
           .read(authControllerProvider.notifier)
           .signInWithOauth(OauthProvider.kakao);
 
-      expect(analytics.events, isEmpty);
+      expect(analytics.countOf('login'), 0);
     });
 
     test('⚠️ 비밀번호가 틀리면 남지 않는다', () async {
@@ -128,7 +131,7 @@ void main() {
           .read(authControllerProvider.notifier)
           .signIn(email: 'a@b.com', password: 'wrong123!');
 
-      expect(analytics.events, isEmpty);
+      expect(analytics.countOf('login'), 0);
     });
 
     test('이메일 로그인은 수단이 email이다', () async {
@@ -142,6 +145,141 @@ void main() {
           .signIn(email: 'a@b.com', password: 'runi123!');
 
       expect(analytics.paramsOf('login'), {'method': 'email'});
+    });
+  });
+
+  group('login_attempt', () {
+    // 성공이 아니라 시도다. `login`과 이름이 달라 성공 수는 그대로다.
+    test('⚠️ 인가를 취소해도 남는다', () async {
+      // 버튼을 누르고 못 들어간 사람을 세려는 기록이다. 취소한 사람이 빠지면
+      // `login`과 견줄 수 없다.
+      final container = makeContainer(
+        codeSource: FakeOauthCodeSource(failure: AuthFailure.oauthCancelled),
+      );
+
+      await container
+          .read(authControllerProvider.notifier)
+          .signInWithOauth(OauthProvider.kakao);
+
+      expect(analytics.countOf('login_attempt'), 1);
+      expect(analytics.paramsOf('login_attempt'), {'method': 'kakao'});
+    });
+
+    test('⚠️ 비밀번호가 틀려도 남는다', () async {
+      final container = makeContainer();
+      final repository =
+          container.read(authRepositoryProvider) as FakeAuthRepository;
+      repository.seedAccount(email: 'a@b.com', password: 'runi123!');
+
+      await container
+          .read(authControllerProvider.notifier)
+          .signIn(email: 'a@b.com', password: 'wrong123!');
+
+      expect(analytics.paramsOf('login_attempt'), {'method': 'email'});
+    });
+
+    test('⚠️ 이메일 가입도 시도로 센다', () async {
+      // 가입도 성공하면 `login`을 남긴다. 시도에서 빠지면 이메일만 성공이
+      // 시도보다 많아진다.
+      final container = makeContainer();
+      final repository =
+          container.read(authRepositoryProvider) as FakeAuthRepository;
+      final ticket = repository.issueTicket('a@b.com');
+
+      await container
+          .read(authControllerProvider.notifier)
+          .signUp(verificationTicket: ticket, password: 'runi123!');
+
+      expect(analytics.countOf('login_attempt'), 1);
+      expect(analytics.countOf('login'), 1);
+    });
+  });
+
+  group('매칭 등록', () {
+    ProviderContainer makeMatchContainer(SlotBoard board) {
+      analytics = FakeAnalytics();
+      return ProviderContainer.test(
+        overrides: [
+          analyticsProvider.overrideWithValue(analytics),
+          matchRepositoryProvider.overrideWithValue(
+            FakeMatchRepository(board: board),
+          ),
+          // 신청이 방 번호를 남긴다. 진짜는 플랫폼 채널을 탄다.
+          matchRoomStoreProvider.overrideWithValue(InMemoryMatchRoomStore()),
+        ],
+      );
+    }
+
+    /// 판을 받고 3km 10:00을 고른다.
+    Future<MatchRegisterController> pick3km10(
+      ProviderContainer container,
+    ) async {
+      final controller = container.read(matchRegisterProvider.notifier);
+      await controller.load();
+      controller.selectDistance(3000);
+      final slot = container
+          .read(matchRegisterProvider)
+          .board!
+          .at(raw: FakeMatchRepository.slotAt('10:00').raw, meters: 3000)!;
+      controller.selectTime(slot);
+      return controller;
+    }
+
+    test('거리와 시각을 고르면 각각 남는다', () async {
+      await pick3km10(makeMatchContainer(FakeMatchRepository.defaultBoard()));
+
+      expect(analytics.paramsOf('match_distance_select'), {'distance_m': 3000});
+      expect(analytics.countOf('match_slot_select'), 1);
+    });
+
+    test('⚠️ 신청 기록에 다른 거리 대기자를 함께 남긴다', () async {
+      // 기본 판에서 3km 말고는 5km(10:00 2명·11:00 1명)와 10km(11:00 1명)다.
+      // 합은 4명이고, 그중 신청한 10:00은 5km의 2명이다.
+      final controller = await pick3km10(
+        makeMatchContainer(FakeMatchRepository.defaultBoard()),
+      );
+
+      await controller.submit();
+
+      expect(analytics.paramsOf('match_apply'), {
+        'distance_m': 3000,
+        'other_distance_waiting': 4,
+        'other_distance_waiting_same_time': 2,
+      });
+    });
+
+    test('⚠️ 마감된 칸의 대기자는 세지 않는다', () async {
+      // 이제 들어갈 수 없는 사람이다. 세면 거리를 합쳤을 때 만날 수 있었던
+      // 사람이 부풀려진다.
+      final controller = await pick3km10(
+        makeMatchContainer(
+          SlotBoard([
+            DistanceSlots(
+              meters: 3000,
+              slots: [FakeMatchRepository.slotAt('10:00')],
+            ),
+            DistanceSlots(
+              meters: 5000,
+              slots: [
+                FakeMatchRepository.slotAt(
+                  '09:00',
+                  waiting: 2,
+                  selectable: false,
+                ),
+                FakeMatchRepository.slotAt('10:00', waiting: 1),
+              ],
+            ),
+          ]),
+        ),
+      );
+
+      await controller.submit();
+
+      expect(analytics.paramsOf('match_apply'), {
+        'distance_m': 3000,
+        'other_distance_waiting': 1,
+        'other_distance_waiting_same_time': 1,
+      });
     });
   });
 
