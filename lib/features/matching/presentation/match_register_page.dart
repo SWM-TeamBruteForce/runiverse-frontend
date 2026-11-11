@@ -645,22 +645,24 @@ class _Note extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
+    final style = AppTypographyV2.body12.copyWith(color: colors.textTertiary);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppIcon(
-          AppIcons.guide,
-          size: AppSpacing.space4,
-          color: colors.textTertiary,
-        ),
-        const SizedBox(width: AppSpacing.space2),
-        Expanded(
-          child: Text(
-            text,
-            style: AppTypographyV2.body12.copyWith(color: colors.textTertiary),
+        // 아이콘은 첫 줄 높이의 가운데에 둔다 — 줄 맨 위에 붙이면 글자보다 떠 보인다.
+        SizedBox(
+          height: style.height! * style.fontSize!,
+          child: Center(
+            child: AppIcon(
+              AppIcons.guide,
+              size: AppSpacing.space4,
+              color: colors.textTertiary,
+            ),
           ),
         ),
+        const SizedBox(width: AppSpacing.space2),
+        Expanded(child: Text(text, style: style)),
       ],
     );
   }

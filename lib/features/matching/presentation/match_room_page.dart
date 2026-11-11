@@ -579,23 +579,25 @@ class _Notice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
+    final style = AppTypographyV2.body12.copyWith(color: colors.textSecondary);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 제재·연결 끊김처럼 놓치면 곤란한 말이 뜨는 줄이라 흐린 회색을 쓰지 않는다.
-        AppIcon(
-          AppIcons.guide,
-          size: AppSpacing.space4,
-          color: colors.textSecondary,
-        ),
-        const SizedBox(width: AppSpacing.space2),
-        Expanded(
-          child: Text(
-            text,
-            style: AppTypographyV2.body12.copyWith(color: colors.textSecondary),
+        // 아이콘은 첫 줄 높이의 가운데에 둔다 — 줄 맨 위에 붙이면 글자보다 떠 보인다.
+        SizedBox(
+          height: style.height! * style.fontSize!,
+          child: Center(
+            child: AppIcon(
+              AppIcons.guide,
+              size: AppSpacing.space4,
+              color: colors.textSecondary,
+            ),
           ),
         ),
+        const SizedBox(width: AppSpacing.space2),
+        Expanded(child: Text(text, style: style)),
       ],
     );
   }
