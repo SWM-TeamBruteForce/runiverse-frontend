@@ -88,8 +88,8 @@ class _WithdrawSheet extends StatelessWidget {
             AppStrings.withdrawBody,
             style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
           ),
-          // 애플 쪽에 남는 연결. ⚠️ **본문과 섞지 않는다** — 본문은 "사라지는
-          // 것"을 말하고 이 줄은 "남는 것, 직접 끊어야 하는 것"을 말한다.
+          // 애플 쪽에 남는 연결. ⚠️ **본문과 섞지 않는다** — 본문은 우리 서버에서
+          // 지워지고 남는 것을, 이 줄은 애플 쪽에서 직접 끊어야 하는 것을 말한다.
           if (loginType == LoginType.apple) ...[
             const SizedBox(height: AppSpacing.space3),
             Text(
