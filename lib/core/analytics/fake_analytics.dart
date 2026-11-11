@@ -90,9 +90,10 @@ class FakeAnalytics implements Analytics {
   Future<void> permissionResult({
     required String permission,
     required String result,
+    required String askedFrom,
   }) async => events.add((
     'permission_result',
-    {'permission': permission, 'result': result},
+    {'permission': permission, 'result': result, 'asked_from': askedFrom},
   ));
 
   /// 회원 ID 를 건 순서. [events] 와 따로 둔다 — 이벤트가 아니라서 섞으면

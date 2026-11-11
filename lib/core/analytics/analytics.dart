@@ -120,9 +120,13 @@ abstract interface class Analytics {
   ///
   /// [permission] 은 `location` · `activity` · `notification`, [result] 는
   /// `granted` · `denied` · `denied_forever` · `service_disabled`(위치만).
+  /// [askedFrom] 은 물은 자리다 — 러닝 준비는 `run`.
+  ///
+  /// ⚠️ 이 값을 더하기 전 앱은 빼고 보냈다. 비어 있으면 러닝 준비다.
   Future<void> permissionResult({
     required String permission,
     required String result,
+    required String askedFrom,
   });
 
   /// 이후 기록에 회원 ID 를 붙인다. 로그아웃·탈퇴하면 `null` 로 뗀다.
@@ -199,6 +203,7 @@ class NoopAnalytics implements Analytics {
   Future<void> permissionResult({
     required String permission,
     required String result,
+    required String askedFrom,
   }) async {}
 
   @override

@@ -91,8 +91,12 @@ class FirebaseAnalyticsService implements Analytics {
   Future<void> permissionResult({
     required String permission,
     required String result,
-  }) =>
-      _send('permission_result', {'permission': permission, 'result': result});
+    required String askedFrom,
+  }) => _send('permission_result', {
+    'permission': permission,
+    'result': result,
+    'asked_from': askedFrom,
+  });
 
   @override
   Future<void> setUserId(String? userId) async {

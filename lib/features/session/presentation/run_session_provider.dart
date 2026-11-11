@@ -753,7 +753,11 @@ class RunSessionController extends Notifier<RunSessionState> {
   void _logPermission(String permission, String result) => unawaited(
     ref
         .read(analyticsProvider)
-        .permissionResult(permission: permission, result: result),
+        .permissionResult(
+          permission: permission,
+          result: result,
+          askedFrom: 'run',
+        ),
   );
 
   static String _name(PermissionAccess access) => switch (access) {
