@@ -2,8 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// 사용자 행동을 남긴다 — 앱에서의 GA4(Firebase Analytics).
 ///
-/// 보려는 것은 **가입부터 매칭·러닝까지 어디서 멈추는가**다. 광고 식별자는
-/// 수집하지 않는다(매니페스트에서 권한 셋을 빼고 `adid_collection` 을 껐다).
+/// 보려는 것은 **가입부터 매칭·러닝까지 어디서 멈추는가**다. Firebase 는
+/// 안드로이드에서 광고 식별자를 읽지 않는다(`adid_collection` 을 껐다). iOS 는
+/// 추적을 허용하면 읽는다. 광고 식별자는 Meta SDK 가 따로 모은다
+/// (`AndroidManifest.xml` 주석).
 ///
 /// ## ⚠️ 버튼을 누른 때가 아니라 **성공한 때** 남긴다
 ///
