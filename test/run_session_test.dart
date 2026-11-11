@@ -271,6 +271,28 @@ void main() {
       final state = container.read(runSessionControllerProvider) as RunRunning;
       expect(state.metrics.elapsed, const Duration(minutes: 3));
     });
+
+    test('폰 시각을 돌렸다 되돌리면 멈췄다 간 러닝도 경과 시간이 돌아온다', () async {
+      final container = await running();
+      final controller = container.read(runSessionControllerProvider.notifier);
+      advance(const Duration(minutes: 10));
+
+      // 폰 시각을 한 시간 전으로 돌린 채 1분 뒤에 멈추고, 1분 뒤에 다시 간다.
+      // 음수를 계산에서 0으로 막으면 멈출 때 0이 저장돼 60분으로 찍힌다.
+      clock = clock.subtract(const Duration(hours: 1));
+      advance(const Duration(minutes: 1));
+      controller.pause();
+      advance(const Duration(minutes: 1));
+      controller.resume();
+
+      // 폰 시각을 원래대로 돌려놓았다.
+      advance(const Duration(hours: 1));
+      location.emit(point(37.5, 127));
+      await settle();
+
+      final state = container.read(runSessionControllerProvider) as RunRunning;
+      expect(state.metrics.clockElapsed, const Duration(minutes: 11));
+    });
   });
 
   group('일시정지', () {

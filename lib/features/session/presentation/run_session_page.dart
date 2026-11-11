@@ -721,8 +721,13 @@ class _MetricsPage extends StatelessWidget {
   }
 
   static String _elapsedText(Duration elapsed) {
-    final minutes = elapsed.inMinutes.toString().padLeft(2, '0');
-    final seconds = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
+    // ⚠️ **음수는 계산이 아니라 보여 줄 때 막는다.** 폰 시각을 출발 전으로
+    // 돌리면 경과 시간이 음수가 된다. 계산에서 0으로 막으면 일시정지가 0을
+    // 저장해 시각을 되돌려도 시간이 안 돌아오고, 초가 안 바뀌어 워치 전송이
+    // 멈춘다. 워치로 보내는 값도 같은 이유로 `WatchPayload`에서 막는다.
+    final shown = elapsed.isNegative ? Duration.zero : elapsed;
+    final minutes = shown.inMinutes.toString().padLeft(2, '0');
+    final seconds = (shown.inSeconds % 60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
   }
 }
