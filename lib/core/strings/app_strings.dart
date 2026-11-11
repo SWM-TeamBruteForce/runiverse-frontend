@@ -169,15 +169,6 @@ abstract final class AppStrings {
   static const termsCta = '동의하고 계속';
 
   // ── 프로필 등록 (S04) ────────────────────────────────────────
-  //
-  // 질문을 한 번에 하나씩 던진다. 답하면 다음이 아래에 붙고, 답한 것은 위에 쌓인다.
-  // 그래서 문구가 라벨(`닉네임`)과 질문(`뭐라고 부를까요`) 두 벌로 나뉜다 —
-  // 질문은 묻는 동안, 라벨은 쌓인 뒤에 쓴다.
-
-  static const profileTitle = '프로필을 만들어요';
-
-  /// 답한 줄을 눌러 되돌아갈 수 있다는 것을 스크린리더에 알린다.
-  static const profileEditHint = '고치기';
 
   static const profileNext = '다음';
 
@@ -219,8 +210,6 @@ abstract final class AppStrings {
 
   // 닉네임
   static const profileNicknameLabel = '닉네임';
-  static const profileNicknameQuestion = '뭐라고 부를까요';
-  static const profileNicknameWhy = '함께 달리는 러너에게 보이는 이름이에요.';
   static const profileNicknameHint = '러너42';
   static const profileNicknameGuide = '2~16자로 지어주세요';
   static const profileNicknameTooShort = '2자 이상이어야 해요';
@@ -263,8 +252,6 @@ abstract final class AppStrings {
 
   // 생년월일
   static const profileBirthLabel = '생년월일';
-  static const profileBirthQuestion = '언제 태어났나요';
-  static const profileBirthWhy = '기록을 계산하는 데만 써요. 다른 러너에게 보이지 않아요.';
 
   /// 만 14세 미만을 막을 때. **왜 막혔는지 말해야 한다** — 서버도 400으로
   /// 거절하지만 그 메시지는 화면에 닿지 않아, 앱이 말하지 않으면 사용자는
@@ -276,8 +263,6 @@ abstract final class AppStrings {
 
   // 성별
   static const profileGenderLabel = '성별';
-  static const profileGenderQuestion = '성별을 알려주세요';
-  static const profileGenderWhy = '기록 계산에만 써요.';
   // 남성·여성 둘뿐이다. 칼로리·페이스 계산식이 이분법을 전제해서인데,
   // 그 계산이 필요 없는 곳(프로필 공개 정보 등)까지 이 값을 끌어다 쓰면 안 된다.
   static const profileGenderMale = '남성';
@@ -285,8 +270,6 @@ abstract final class AppStrings {
 
   // 키·몸무게
   static const profileBodyLabel = '키 · 몸무게';
-  static const profileBodyQuestion = '키와 몸무게는요';
-  static const profileBodyWhy = '칼로리를 셈하는 데만 써요.';
   static const profileUnitHeight = 'cm';
   static const profileUnitWeight = 'kg';
 
@@ -295,8 +278,6 @@ abstract final class AppStrings {
   // 등급을 고르게 하지 않고 숫자를 받는다. '중급'이 무엇인지는 사람마다 다르지만
   // "1km를 6분에 뛴다"는 누구에게나 같은 값이다.
   static const profilePaceLabel = '페이스';
-  static const profilePaceQuestion = '5km를 뛰면 어느 정도인가요';
-  static const profilePaceWhy = '1km를 몇 분에 뛰는지 알려주세요. 비슷한 러너를 찾는 데 써요.';
   static const profilePaceSheetTitle = '1km당 페이스';
   static const profileUnitMinute = '분';
   static const profileUnitSecond = '초';
@@ -316,9 +297,6 @@ abstract final class AppStrings {
 
   /// 미측정 상태로 쌓인 줄에 보이는 값.
   static const profilePaceUnmeasured = '측정 전';
-
-  /// 시트를 열기 전 자리 표시.
-  static const profileTapToPick = '탭해서 고르기';
 
   // ── 로그인 (S02.5) ───────────────────────────────────────────
   //
@@ -437,12 +415,10 @@ abstract final class AppStrings {
   static const authPasswordDisallowedChar = '영문·숫자·특수문자만 쓸 수 있어요';
   static const authPasswordOk = '쓸 수 있는 비밀번호예요';
 
-  /// 두 화면을 오가는 링크. 물음표로 끝내 조사 문제를 피한다.
+  /// 가입 화면으로 가는 링크. 물음표로 끝내 조사 문제를 피한다.
   static const authToSignUp = '계정이 없나요? 가입하기';
-  static const authToSignIn = '이미 계정이 있나요? 로그인';
 
   /// **인증번호를 받기 전에** 나온다. 서버가 발송 단계에서 중복을 막기 때문이다.
-  /// 바로 아래의 [authToSignIn]이 갈 곳을 알려준다.
   /// 이미 그 이메일로 계정이 있다. 서버 `EMAIL_ALREADY_EXISTS` (409).
   ///
   /// ⚠️ **어느 방법으로 가입했는지 말하지 않는다.** 로컬 가입과 소셜 로그인이
@@ -626,26 +602,6 @@ abstract final class AppStrings {
   /// 다시 누르고, 서버는 409로 막는다.
   static const homeMatchPending = '매칭 정보를 불러오는 중이에요';
 
-  /// `현재 2명 매칭됨` — 숫자만 강조색으로 그린다(정본).
-  ///
-  /// 문장을 셋으로 쪼개 두는 이유는 가운데만 색을 달리하기 위해서다.
-  /// 조사가 붙지 않아 쪼개도 어색해지지 않는다.
-  static const homeMatchJoinedPrefix = '현재';
-  static String homeMatchJoinedCount(int count) => '$count명';
-  static const homeMatchJoinedSuffix = '매칭됨';
-
-  /// `19:00 슬롯 · 마감까지 12분`
-  static String homeMatchSlotLine(DateTime startAt, Duration untilClose) =>
-      '${matchSlotTime(startAt)} 슬롯 · 마감까지 ${_minutesText(untilClose)}';
-
-  /// 마감까지 남은 시간. 분 단위로 담담하게 적는다 — 초까지 세면 조급해진다.
-  static String _minutesText(Duration left) {
-    if (left.inMinutes < 1) return '곧';
-    if (left.inHours < 1) return '${left.inMinutes}분';
-    final minutes = left.inMinutes % 60;
-    return minutes == 0 ? '${left.inHours}시간' : '${left.inHours}시간 $minutes분';
-  }
-
   /// ⚠️ 방 정보를 못 받아 로비로 들어갈 수 없을 때만 히어로에 둔다.
   /// 평소의 취소·나가기는 로비가 맡는다 — 두 곳에 두면 문구가 갈린다.
   static const homeMatchCancel = '취소하기';
@@ -811,9 +767,6 @@ abstract final class AppStrings {
   static String matchCooldownUntil(DateTime? until) =>
       until == null ? '' : '${matchSlotTime(until)}에 다시 신청할 수 있어요';
 
-  static const matchPolicyCancel = '다음에';
-  static const matchPolicyConfirm = '매칭 등록하러 가기';
-
   /// 오늘 고를 수 있는 시간대가 **하나도 안 남았을 때** 뜨는 팝업.
   ///
   /// ⚠️ **빈손으로 돌려보내지 않는다.** "내일 오세요"만 말하면 지금 뛰려고
@@ -824,14 +777,6 @@ abstract final class AppStrings {
   /// 들어온 사람이 할 수 있는 일이 사라진다 — 혼자 뛰기는 마감과 무관하다.
   static const matchClosedSolo = '혼자 연습하기는 지금도 할 수 있어요';
   static const matchClosedGoHome = '홈으로';
-
-  /// 마감이 임박했다. 남은 시간대를 적어 **미리** 알린다.
-  ///
-  /// ⚠️ **앱이 마감 시각을 세지 않는다.** "시작 10분 전"은 운영값이라 앱이
-  /// 그 숫자를 가지면 설정이 바뀌는 날 조용히 어긋난다. 대신 서버가 준
-  /// `selectable`이 몇 개 남았는지로 임박을 가른다.
-  static String matchClosingSoon(String times) =>
-      '오늘 남은 시간대는 $times뿐이에요. 모집은 시작 직전에 마감돼요';
 
   /// 고를 수 있는 시간이 하나도 없다. 22시가 지났거나 전부 마감이다.
   ///
@@ -911,23 +856,11 @@ abstract final class AppStrings {
   /// 중복 신청이 된다.
   static const matchFailedNetwork = '등록됐는지 확인하지 못했어요. 홈에서 다시 확인해주세요';
 
-  // 위치 권한 시트 — 알림은 묻지 않는다. 받아도 보낼 채널이 아직 없다.
-
-  static const matchLocationTitle = '위치를 쓸 수 있게 해주세요';
-  static const matchLocationBody = '달리는 동안 경로와 거리를 재는 데만 써요.\n파티원에게는 보이지 않아요';
-  static const matchLocationAllow = '허용하고 계속하기';
-
-  /// 거부해도 등록은 진행한다. 위치가 필요한 시점은 달리기 시작할 때다.
-  static const matchLocationLater = '나중에 할게요';
-
   // ── 대기방 (S10) ─────────────────────────────────────────────
 
-  /// 화면 이름. **같은 화면인데 단계에 따라 부르는 말이 다르다.**
-  ///
-  /// 모집 중에는 아직 누구와 뛸지 정해지지 않아 `로비`이고, 확정된 뒤에는
-  /// 출발을 기다리는 `대기실`이다.
+  /// 첫 스냅샷이 오기 전의 화면 이름. 그 뒤로는 제목이 단계를 말한다
+  /// ([matchRoomWaiting] · [matchRoomMatched]).
   static const matchRoomTitleLobby = '로비';
-  static const matchRoomTitleWaiting = '대기실';
 
   static const matchRoomWaiting = '매칭 중';
   static const matchRoomMatched = '매칭 완료!';
@@ -1074,11 +1007,6 @@ abstract final class AppStrings {
   // 쓴다.** 같은 규칙을 두 벌로 적으면 한쪽만 고쳐지고, 사용자는 화면마다
   // 다른 말을 듣는다.
 
-  /// 시트 제목이자 연필 배지의 접근성 라벨. **버튼과 같은 말을 쓴다** —
-  /// 여는 곳과 끝내는 곳의 이름이 다르면 같은 일인지 알기 어렵다.
-  static const profileNicknameChangeTitle = '닉네임 변경';
-  static const profileNicknameChangeSubmit = '변경';
-
   /// 지금 쓰는 이름 그대로다.
   ///
   /// ⚠️ **중복확인을 보내지 않는다.** 보내면 서버가 "이미 사용 중"이라고
@@ -1196,8 +1124,6 @@ abstract final class AppStrings {
   /// 없는 것이라 "다시 해보세요"라고 하지 않는다.
   static const runTrackRejected = '더 저장할 수 없어 러닝을 끝냈어요. 여기까지는 저장됐어요';
 
-  static const runOfflineWhy = '기록은 계속 재고 있어요. 연결되면 자동으로 올라가요.';
-
   /// 위치 권한이 없을 때. 설정 앱으로 보낸다.
   static const runPermissionTitle = '위치 권한이 필요해요';
   static const runPermissionBody = '달린 거리와 경로를 재려면 위치를 알아야 해요';
@@ -1301,9 +1227,6 @@ abstract final class AppStrings {
   /// ⚠️ 이름을 모르는 파티원. 러닝 중 앱을 재시작하면 명단이 사라진다.
   static const runPartyUnknown = '함께 달리는 사람';
 
-  /// `2.32 km` — 막대 옆 숫자.
-  static String runPartyDistance(int meters) => '${kmFloor(meters)} km';
-
   /// 파티원이 **뛰고 있지 않을 때** 격차 자리에 대신 넣는 말.
   ///
   /// ⚠️ 멈춘 사람과의 격차는 벌어지기만 한다. 그것을 계속 보이면 **따라잡히는
@@ -1344,12 +1267,8 @@ abstract final class AppStrings {
   }
 
   static const runPaceLabel = '페이스';
-  static const runTimeLabel = '시간';
 
   /// 실시간 기록 장의 시간 칸 — 시안 `158:3493`.
-  ///
-  /// 중지 시트는 [runTimeLabel](`시간`)을 그대로 쓴다. 거기는 요약이라 칸이
-  /// 좁고, 여기는 카드라 넉넉하다.
   static const runElapsedLabel = '경과 시간';
   static const runDistanceLabel = '거리';
   static const runCadenceLabel = '케이던스';
@@ -1359,8 +1278,6 @@ abstract final class AppStrings {
   /// 러닝 기록은 사용자가 믿고 보는 숫자다.
   static const runUnavailable = '--';
 
-  static const runStopCta = '중지';
-  static const runPausedTitle = '일시정지됨';
   static const runResumeCta = '계속 달리기';
 
   /// 하단 일시정지 버튼의 읽을 이름.
@@ -1398,12 +1315,11 @@ abstract final class AppStrings {
   static const runSummaryTotalDistance = '총 거리';
   static const runSummaryUnitKm = 'km';
 
-  /// 거리 아래 두 값의 라벨. 단위를 라벨에 붙여 수치를 숫자만 남긴다.
+  /// 거리 아래 시간 칸의 라벨.
   ///
   /// ⚠️ 시간은 [runResultTime]과 같은 값이라 이름도 같다. 버튼 없이 멈춘 구간을
   /// 빼서 러닝 화면 [runElapsedLabel]보다 짧다.
   static const runSummaryTotalTime = '움직인 시간';
-  static const runSummaryAveragePaceUnit = '평균 페이스 /km';
 
   /// 요약은 하단 버튼이 아니라 **우상단 X**로 닫는다(Figma S15).
   static const runSummaryClose = '닫기';
@@ -1446,19 +1362,12 @@ abstract final class AppStrings {
   /// 사라지고, 단위만 적으면 위쪽 1km 그래프와 구분되지 않는다.
   static const runResultPaceDetailUnit = '/km · 50m마다';
 
-  static const runResultCadenceChart = '구간별 케이던스';
-  static const runResultCadenceUnit = 'spm';
-
   /// 케이던스도 50m 표본이다. 페이스 상세와 같은 형식으로 적는다.
   static const runResultCadenceDetailChart = '케이던스 상세';
   static const runResultCadenceDetailUnit = 'spm · 50m마다';
 
   /// 누른 채 밀 수 있다는 것을 아무도 스스로 알아채지 못한다.
   static const runResultChartHint = '그래프를 누른 채 좌우로 밀면 구간 기록이 보여요';
-
-  /// ⚠️ **지어낸 값에 붙인다.** 케이던스 구간 기록이 아직 남지 않아
-  /// 고정값을 그리고 있다 — 이 꼬리표가 그 사실을 화면에서 밝힌다.
-  static const runResultSample = '예시';
 
   static const runResultSplitColumn = '구간';
   static const runResultBurnedColumn = '소모';
@@ -1519,15 +1428,12 @@ abstract final class AppStrings {
   ///
   /// ⚠️ 시안(`158:3797`)이 첫 칸만 `주간 누적 거리`로 길게 쓴다 — 나머지
   /// 둘에는 `주간`이 없다. 그 줄만 읽으면 어느 기간인지 모르기 때문이다.
-  static const recordWeekTitle = '이번 주';
   static const recordWeekDistance = '주간 누적 거리';
   static const recordWeekTime = '누적 시간';
   static const recordWeekElevation = '누적 경사';
 
-  /// 월 요약 줄. 러닝 횟수 · 누적 거리 · 누적 시간.
+  /// 월 요약 줄의 러닝 횟수 칸.
   static const recordMonthCount = '러닝';
-  static const recordMonthDistance = '누적 거리';
-  static const recordMonthTime = '누적 시간';
 
   /// 캘린더 카드 제목. 시안 `158:3882`.
   static const recordCalendarTitle = '기록 캘린더';
@@ -1607,30 +1513,6 @@ abstract final class AppStrings {
   /// `42 m`
   static String recordElevationText(int? meters) =>
       meters == null ? recordUnknown : '$meters m';
-
-  /// `아침 07:10` · `저녁 20:05`
-  ///
-  /// **오전/오후가 아니라 때 이름 + 24시각이다**(Figma S21). 12시간제로 적으면
-  /// `오후 8:05`가 되는데, 정본은 하루 중 언제였는지를 먼저 읽히게 한다.
-  ///
-  /// ⚠️ **경계는 확인이 필요하다.** Figma에 `07:10 → 아침`, `20:05 → 저녁`
-  /// 두 예시뿐이라 나머지는 정하고 들어갔다. 디자인 확인 대상이다.
-  static String recordTimeOfDay(DateTime time) {
-    final hour = time.hour;
-    final label = switch (hour) {
-      < 6 => '새벽',
-      < 12 => '아침',
-      < 18 => '오후',
-      _ => '저녁',
-    };
-    final hh = hour.toString().padLeft(2, '0');
-    final mm = time.minute.toString().padLeft(2, '0');
-    return '$label $hh:$mm';
-  }
-
-  /// `아침 07:10 · 5.02 km` — 목록 행의 첫 줄 앞부분.
-  static String recordRunLabel(DateTime startedAt, double km) =>
-      '${recordTimeOfDay(startedAt)} · ${recordDistanceText(km)}';
 
   /// 러닝 하나의 총 시간. `27:28` · `1:05:12`
   ///
@@ -1965,7 +1847,6 @@ abstract final class AppStrings {
   static const notificationDecline = '거절';
 
   /// `invitation.status`별 안내. **버튼이 없는 상태들이다.**
-  static const notificationInviteAccepted = '수락했어요';
   static const notificationInviteDeclined = '거절했어요';
   static const notificationInviteLeft = '방에서 나갔어요';
   static const notificationInviteExpired = '모집이 마감됐어요';
@@ -1976,8 +1857,6 @@ abstract final class AppStrings {
   static const notificationRetry = '다시 시도';
 
   // ── 초대 방 ──────────────────────────────────────────────────────────
-
-  static const inviteRoomTitle = '초대 러닝';
 
   /// 모집 중. 매칭 방의 `매칭 대기 중`과 다른 말을 쓴다 — 매칭하고 있지 않다.
   static const inviteRoomWaiting = '러너 모으는 중';
