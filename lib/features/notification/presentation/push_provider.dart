@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/storage/device_id_store.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
@@ -9,6 +10,7 @@ import 'package:runiverse/features/notification/data/http_device_repository.dart
 import 'package:runiverse/features/notification/domain/device_repository.dart';
 import 'package:runiverse/features/notification/domain/push_landing.dart';
 import 'package:runiverse/features/notification/domain/push_messaging.dart';
+import 'package:runiverse/features/session/presentation/permission_result_names.dart';
 
 /// 푸시 SDK. 기본은 [NoopPushMessaging]이고, 진짜는 `main.dart`가 끼운다.
 ///
@@ -145,10 +147,24 @@ class PushController extends Notifier<PushLanding?> {
   /// ⚠️ **창이 닫히면 끝난다 — 등록은 기다리지 않는다.** 셸이 이것을 기다린 뒤
   /// 위치를 묻는데, 등록(연결·응답 각 10초)까지 기다리면 그사이 출발 준비가
   /// 위치를 물어 두 요청이 겹친다.
+  ///
+  /// 결과는 GA에 자리 `home`으로 남긴다. 실행마다 물으니 앱을 켤 때마다 하나씩
+  /// 쌓인다 — 러닝 준비의 기록(이미 허용돼도 남긴다)과 같은 방식이다.
   Future<void> askPermission() async {
     if (_askedPermission) return;
     _askedPermission = true;
-    await _messaging.requestPermission();
+    final access = await _messaging.requestPermission();
+    if (access != null) {
+      unawaited(
+        ref
+            .read(analyticsProvider)
+            .permissionResult(
+              permission: 'notification',
+              result: permissionResultName(access),
+              askedFrom: 'home',
+            ),
+      );
+    }
     // iOS는 설치 직후 APNs 토큰이 늦게 올 수 있다. 창을 닫는 사이에 생겼으면
     // 지금 보낸다.
     if (_failed && _userId != null) unawaited(_register());

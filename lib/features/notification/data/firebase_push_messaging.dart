@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:runiverse/features/notification/domain/push_messaging.dart';
+import 'package:runiverse/features/session/domain/permission_access.dart';
 
 /// FCM에 닿는 [PushMessaging]. `main.dart`가 끼운다.
 ///
@@ -24,11 +25,25 @@ class FirebasePushMessaging implements PushMessaging {
   /// ⚠️ **던지지 않는다.** 셸이 기다리지 않고 부르므로, 던지면 처리되지 않은
   /// 오류가 되어 Crashlytics에 치명 오류로 쌓인다.
   @override
-  Future<void> requestPermission() async {
+  Future<PermissionAccess?> requestPermission() async {
     try {
-      await _messaging.requestPermission();
+      final settings = await _messaging.requestPermission();
+      return switch (settings.authorizationStatus) {
+        AuthorizationStatus.authorized ||
+        AuthorizationStatus.provisional => PermissionAccess.granted,
+        AuthorizationStatus.deniedPermanently => PermissionAccess.deniedForever,
+        // ⚠️ **iOS는 다시 물을 수 없어도 `denied`로 온다**(패키지 문서). 다시 물을
+        // 수 있는 `denied`는 안드로이드뿐이다.
+        AuthorizationStatus.denied =>
+          Platform.isIOS
+              ? PermissionAccess.deniedForever
+              : PermissionAccess.denied,
+        // 물은 뒤라 오지 않아야 한다. 오면 허용받지 못한 것으로 친다.
+        AuthorizationStatus.notDetermined => PermissionAccess.denied,
+      };
     } on FirebaseException catch (error) {
       debugPrint('[push] 알림 권한을 묻지 못했다 · ${error.code}');
+      return null;
     }
   }
 
