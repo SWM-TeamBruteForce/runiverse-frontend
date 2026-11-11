@@ -116,11 +116,12 @@ abstract interface class Analytics {
   /// 탈퇴 성공.
   Future<void> withdraw();
 
-  /// 러닝 준비 중 권한을 확인한 결과. 이미 허용돼 창이 안 떴어도 남긴다.
+  /// 권한을 확인한 결과. 이미 허용돼 창이 안 떴어도 남긴다.
   ///
   /// [permission] 은 `location` · `activity` · `notification`, [result] 는
   /// `granted` · `denied` · `denied_forever` · `service_disabled`(위치만).
-  /// [askedFrom] 은 물은 자리다 — 러닝 준비는 `run`.
+  /// [askedFrom] 은 물은 자리다 — 러닝 준비는 `run`, 홈은 `home`. 홈의
+  /// 위치·신체 활동은 기기당 처음 물을 때만 남는다.
   ///
   /// ⚠️ 이 값을 더하기 전 앱은 빼고 보냈다. 비어 있으면 러닝 준비다.
   Future<void> permissionResult({

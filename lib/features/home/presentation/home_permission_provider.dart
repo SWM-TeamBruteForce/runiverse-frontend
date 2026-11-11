@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/storage/location_ask_store.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
+import 'package:runiverse/features/session/presentation/permission_result_names.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 
 /// 홈에서 권한을 물었는지 기억하는 곳.
@@ -69,12 +73,14 @@ class HomePermissionAsker {
       if (access == LocationAccess.denied) {
         // 위치가 실패해도 신체 활동은 묻는다. 이미 물었다고 남겼다.
         try {
-          await location.ensureAccess();
+          final asked = await location.ensureAccess();
+          _log('location', locationResultName(asked));
         } on Object catch (error) {
           debugPrint('[permission] 위치 권한을 묻지 못했다 · $error');
         }
       }
-      await _ref.read(stepRepositoryProvider).ensureAccess();
+      final activity = await _ref.read(stepRepositoryProvider).ensureAccess();
+      _log('activity', permissionResultName(activity));
       return true;
     } on Object catch (error) {
       // 저장값을 못 읽은 경우도 여기로 온다 — **물었다고 본다.**
@@ -82,4 +88,15 @@ class HomePermissionAsker {
       return true;
     }
   }
+
+  /// 물은 결과를 GA 에 남긴다. 러닝 준비도 같은 권한을 남기므로 자리는 `home` 이다.
+  void _log(String permission, String result) => unawaited(
+    _ref
+        .read(analyticsProvider)
+        .permissionResult(
+          permission: permission,
+          result: result,
+          askedFrom: 'home',
+        ),
+  );
 }

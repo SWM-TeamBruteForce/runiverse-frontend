@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
+import 'package:runiverse/core/analytics/fake_analytics.dart';
 import 'package:runiverse/core/storage/location_ask_store.dart';
 import 'package:runiverse/features/home/presentation/home_permission_provider.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
@@ -16,6 +18,7 @@ void main() {
   late FakeLocationRepository location;
   late FakeStepRepository steps;
   late _CountingAskStore asks;
+  late FakeAnalytics analytics;
 
   HomePermissionAsker start({
     LocationAccess access = LocationAccess.denied,
@@ -27,11 +30,13 @@ void main() {
         : FakeLocationRepository(access: access);
     steps = FakeStepRepository();
     asks = _CountingAskStore(asked);
+    analytics = FakeAnalytics();
     final container = ProviderContainer(
       overrides: [
         locationRepositoryProvider.overrideWithValue(location),
         stepRepositoryProvider.overrideWithValue(steps),
         locationAskStoreProvider.overrideWithValue(asks),
+        analyticsProvider.overrideWithValue(analytics),
       ],
     );
     addTearDown(container.dispose);
@@ -150,6 +155,47 @@ void main() {
 
     expect(done, isTrue);
     expect(steps.accessCalls, 1);
+  });
+
+  group('permission_result', () {
+    // 남은 순서대로 `권한:결과:자리`.
+    List<String> logged() => [
+      for (final e in analytics.events)
+        if (e.$1 == 'permission_result')
+          '${e.$2!['permission']}:${e.$2!['result']}:${e.$2!['asked_from']}',
+    ];
+
+    test('물은 결과를 자리 home으로 남긴다', () async {
+      final asker = start();
+
+      await asker.askOnce();
+
+      expect(logged(), ['location:denied:home', 'activity:granted:home']);
+    });
+
+    test('위치를 묻지 않았으면 신체 활동만 남는다', () async {
+      final asker = start(access: LocationAccess.granted);
+
+      await asker.askOnce();
+
+      expect(logged(), ['activity:granted:home']);
+    });
+
+    test('⚠️ 이미 물었으면 아무것도 남지 않는다', () async {
+      final asker = start(asked: true);
+
+      await asker.askOnce();
+
+      expect(logged(), isEmpty);
+    });
+
+    test('위치 요청이 실패하면 신체 활동만 남는다', () async {
+      final asker = start(failEnsure: true);
+
+      await asker.askOnce();
+
+      expect(logged(), ['activity:granted:home']);
+    });
   });
 
   group('iOS', () {
