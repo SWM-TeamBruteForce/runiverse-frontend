@@ -659,7 +659,7 @@ void main() {
     });
 
     testWidgets('신청이 되면 홈으로 돌아간다', (tester) async {
-      // 모집 중에는 갈 화면이 따로 없다. 홈 히어로가 그 상태를 보여준다.
+      // 모집 중의 상태는 홈 히어로가 보여 주고, 로비는 거기서 들어간다.
       await pumpRegister(tester);
 
       await pickDistance(tester, 5);

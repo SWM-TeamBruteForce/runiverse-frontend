@@ -560,8 +560,9 @@ abstract final class AppStrings {
 
   // 히어로 — 매칭 대기 (S05 상태 2)
   //
-  // ⚠️ **정본은 히어로가 매칭 상태를 전담한다.** 모집 중에는 갈 화면이 따로
-  // 없고, 여기가 그 상태를 보여주는 유일한 자리다.
+  // ⚠️ **정본은 히어로가 매칭 상태를 전담한다.** 등록하면 홈으로 돌아오고,
+  // 모집 중의 상태는 여기서 보여 준다. 로비로 가는 문([homeMatchToLobby])도
+  // 여기 있다.
 
   /// 카드 제목. 시안 `158:2971`.
   static const homeMatchWaitingTitle = '매칭 대기 중';
@@ -638,7 +639,7 @@ abstract final class AppStrings {
   static const homeMatchSoloTitle = '혼자 달리게 됐어요';
 
   /// ⚠️ **예약이 그대로라는 것**을 말한다. 이 줄이 없으면 신청이 날아간 줄
-  /// 안다. 왜 혼자인지는 제목([homeMatchSoloTitle])이 말한다.
+  /// 안다. 혼자가 됐다는 것은 제목([homeMatchSoloTitle])이 말한다.
   static const homeMatchSoloBody = '예약한 시간에 그대로 달려요';
 
   /// 확정된 방으로 들어가는 문.
@@ -859,7 +860,8 @@ abstract final class AppStrings {
   // ── 대기방 (S10) ─────────────────────────────────────────────
 
   /// 첫 스냅샷이 오기 전의 화면 이름. 그 뒤로는 제목이 단계를 말한다
-  /// ([matchRoomWaiting] · [matchRoomMatched]).
+  /// ([matchRoomWaiting] · [matchRoomMatched], 초대 방은 [inviteRoomWaiting] ·
+  /// [inviteRoomClosed]).
   static const matchRoomTitleLobby = '로비';
 
   static const matchRoomWaiting = '매칭 중';

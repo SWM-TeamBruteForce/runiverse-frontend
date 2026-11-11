@@ -418,9 +418,8 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
     await ref.read(userStatusProvider.notifier).refresh();
     if (!mounted) return;
 
-    // 등록 화면을 닫고 홈으로 돌아간다. **모집 중에는 갈 화면이 따로 없다** —
-    // 홈 히어로가 몇 명 모였는지와 마감까지를 보여주고, 방으로 가는 문은
-    // 확정된 뒤에야 열린다(정본 S05).
+    // 등록 화면을 닫고 홈으로 돌아간다 — 모집 중의 상태는 홈 히어로가 보여
+    // 주고(정본 S05), 로비는 거기서 `로비로 가기`로 들어간다.
     context.pop();
   }
 
