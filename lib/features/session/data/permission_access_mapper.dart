@@ -1,7 +1,8 @@
 import 'package:permission_handler/permission_handler.dart';
 import 'package:runiverse/features/session/domain/permission_access.dart';
 
-/// `permission_handler`의 결과를 도메인 값으로 옮긴다. 걸음·알림이 함께 쓴다.
+/// `permission_handler`의 결과를 도메인 값으로 옮긴다. 걸음·알림과 iOS 추적
+/// 허용(`main.dart`)이 함께 쓴다.
 PermissionAccess toPermissionAccess(PermissionStatus status) =>
     switch (status) {
       // iOS의 부분 허용·임시 허용도 쓸 수는 있다.

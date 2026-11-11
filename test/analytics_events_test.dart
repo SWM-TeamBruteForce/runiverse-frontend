@@ -530,5 +530,17 @@ void main() {
         'activity:granted',
       ]);
     });
+
+    test('⚠️ 러닝 준비가 물은 것은 자리가 run이다', () async {
+      // 홈도 같은 권한을 같은 이름으로 남긴다. 자리가 없으면 둘이 섞인다.
+      await prepare();
+      expect(
+        [
+          for (final e in analytics.events)
+            if (e.$1 == 'permission_result') e.$2!['asked_from'],
+        ],
+        ['run', 'run', 'run'],
+      );
+    });
   });
 }

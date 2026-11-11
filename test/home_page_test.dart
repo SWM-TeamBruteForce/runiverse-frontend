@@ -34,6 +34,7 @@ import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 import 'package:runiverse/features/session/domain/location_repository.dart';
+import 'package:runiverse/features/session/domain/permission_access.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
@@ -564,5 +565,8 @@ class _HeldPushMessaging extends NoopPushMessaging {
   final hold = Completer<void>();
 
   @override
-  Future<void> requestPermission() => hold.future;
+  Future<PermissionAccess?> requestPermission() async {
+    await hold.future;
+    return null;
+  }
 }

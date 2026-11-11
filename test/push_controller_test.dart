@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
+import 'package:runiverse/core/analytics/fake_analytics.dart';
 import 'package:runiverse/core/storage/device_id_store.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
@@ -9,6 +11,7 @@ import 'package:runiverse/features/notification/domain/device_repository.dart';
 import 'package:runiverse/features/notification/domain/push_landing.dart';
 import 'package:runiverse/features/notification/domain/push_messaging.dart';
 import 'package:runiverse/features/notification/presentation/push_provider.dart';
+import 'package:runiverse/features/session/domain/permission_access.dart';
 
 /// 푸시 기기 등록과 눌린 푸시.
 ///
@@ -25,6 +28,7 @@ void main() {
     _FakeMessaging messaging,
     _FakeDevices devices,
     _Auth auth,
+    FakeAnalytics analytics,
   })
   build({
     AuthState initial = const AuthUnknown(),
@@ -33,12 +37,14 @@ void main() {
   }) {
     final messaging = _FakeMessaging()..initial = initialOpened;
     final devices = _FakeDevices();
+    final analytics = FakeAnalytics();
     final container = ProviderContainer(
       overrides: [
         pushMessagingProvider.overrideWithValue(messaging),
         deviceRepositoryProvider.overrideWithValue(devices),
         deviceIdStoreProvider.overrideWithValue(deviceIds),
         authControllerProvider.overrideWith(() => _Auth(initial)),
+        analyticsProvider.overrideWithValue(analytics),
       ],
     );
     addTearDown(container.dispose);
@@ -48,6 +54,7 @@ void main() {
       messaging: messaging,
       devices: devices,
       auth: container.read(authControllerProvider.notifier) as _Auth,
+      analytics: analytics,
     );
   }
 
@@ -243,6 +250,41 @@ void main() {
     });
   });
 
+  group('permission_result', () {
+    List<String> logged(FakeAnalytics analytics) => [
+      for (final e in analytics.events)
+        if (e.$1 == 'permission_result')
+          '${e.$2!['permission']}:${e.$2!['result']}:${e.$2!['asked_from']}',
+    ];
+
+    test('알림 권한 결과를 자리 home으로 남긴다', () async {
+      final app = build();
+      app.messaging.permission = PermissionAccess.deniedForever;
+
+      await push(app.container).askPermission();
+
+      expect(logged(app.analytics), ['notification:denied_forever:home']);
+    });
+
+    test('한 번 실행에 한 번만 남긴다', () async {
+      final app = build();
+
+      await push(app.container).askPermission();
+      await push(app.container).askPermission();
+
+      expect(logged(app.analytics), ['notification:granted:home']);
+    });
+
+    test('묻지 못했으면 남지 않는다', () async {
+      final app = build();
+      app.messaging.permission = null;
+
+      await push(app.container).askPermission();
+
+      expect(logged(app.analytics), isEmpty);
+    });
+  });
+
   group('눌린 푸시', () {
     const friendRequest = OpenedPush(
       messageId: 'm-1',
@@ -387,15 +429,19 @@ class _FakeMessaging implements PushMessaging {
   OpenedPush? initial;
   var permissionAsks = 0;
 
+  /// [requestPermission]이 돌려줄 값. `null`이면 묻지 못한 것이다.
+  PermissionAccess? permission = PermissionAccess.granted;
+
   /// 채우면 권한 창이 떠 있는 것처럼 [requestPermission]이 여기서 기다린다.
   Completer<void>? permissionHold;
   final refreshes = StreamController<String>.broadcast();
   final taps = StreamController<OpenedPush>.broadcast();
 
   @override
-  Future<void> requestPermission() async {
+  Future<PermissionAccess?> requestPermission() async {
     permissionAsks++;
     await permissionHold?.future;
+    return permission;
   }
 
   @override
