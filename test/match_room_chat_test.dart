@@ -7,8 +7,8 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/v2/surface_card.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
-import 'package:runiverse/features/chat/domain/chat_message.dart';
-import 'package:runiverse/features/chat/domain/chat_repository.dart';
+import 'package:runiverse/features/chat/data/fake_chat_repository.dart';
+import 'package:runiverse/features/chat/domain/chat.dart';
 import 'package:runiverse/features/chat/presentation/chat_page.dart';
 import 'package:runiverse/features/chat/presentation/chat_provider.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
@@ -60,19 +60,15 @@ void main() {
   );
 
   ChatState unreadState(int unread) => ChatState(
-    seed: const ChatRoomSeed(
-      runningRoomId: 125,
-      partyUserIds: ['u-0', 'u-1', 'u-2'],
-      myUserId: 'u-0',
-    ),
+    runningRoomId: 125,
     messages: [
       for (var i = 0; i < unread; i++)
-        ChatMessage(
-          messageId: 'm$i',
-          senderUserId: 'u-1',
-          kind: ChatMessageKind.text,
-          sentAt: DateTime.now(),
-          text: '안녕하세요',
+        Chat(
+          chatId: 1000 + i,
+          runningRoomId: 125,
+          sender: const ChatSender(userId: 'u-1', nickname: '러너1'),
+          content: '안녕하세요',
+          createdAt: DateTime.now(),
           isRead: false,
         ),
     ],
@@ -97,6 +93,9 @@ void main() {
             FakeAppVersionRepository(),
           ),
           matchStreamProvider.overrideWithValue(stream),
+          // 채팅 버튼이 보이는 순간 chatProvider가 서고, 그것이 진짜 저장소를
+          // 세운다 — 서버 주소가 없는 테스트에서는 거기서 죽는다.
+          chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
           matchRepositoryProvider.overrideWithValue(FakeMatchRepository()),
           userStatusRepositoryProvider.overrideWithValue(
             FakeUserStatusRepository(
@@ -201,8 +200,11 @@ void main() {
 
       expect(find.byKey(MatchRoomPage.chatBadgeKey), findsOne);
       expect(find.text('2'), findsOne);
-      // 배지는 채팅을 열기 전부터 숫자를 보여야 하므로 방 화면이 붙인다.
-      expect(app.chat.connects, greaterThan(0));
+      // ⚠️ **붙이는 일은 이 화면이 하지 않는다.** 방 번호를 넣어 주던 때는
+      // 아무도 보지 않는 사이에 채팅이 버려지면 다시 붙지 않았다 — 혼자
+      // 있다가 사람이 들어온 방의 채팅이 빈 목록으로 남았다. 지금은
+      // `chatProvider`가 방을 직접 듣는다(`chat_provider_test`가 덮는다).
+      expect(app.chat.connects, 0);
     });
 
     testWidgets('⚠️ 0이면 배지가 없다', (tester) async {
@@ -269,12 +271,16 @@ class _StubChat extends ChatController {
   final ChatState initial;
 
   var connects = 0;
+  var reloads = 0;
 
   @override
   ChatState build() => initial;
 
   @override
-  Future<void> connect(ChatRoomSeed seed) async => connects++;
+  Future<void> connect(int runningRoomId, {int limit = 50}) async => connects++;
+
+  @override
+  Future<void> reload() async => reloads++;
 
   @override
   void open() {}

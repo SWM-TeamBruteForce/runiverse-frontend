@@ -7,6 +7,8 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/v2/party_chip.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
+import 'package:runiverse/features/chat/data/fake_chat_repository.dart';
+import 'package:runiverse/features/chat/presentation/chat_provider.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/data/fake_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
@@ -100,6 +102,9 @@ void main() {
             FakeAppVersionRepository(),
           ),
           matchStreamProvider.overrideWithValue(stream),
+          // 채팅 버튼이 보이는 순간 chatProvider가 서고, 그것이 진짜 저장소를
+          // 세운다 — 서버 주소가 없는 테스트에서는 거기서 죽는다.
+          chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
           matchRepositoryProvider.overrideWithValue(matches),
           userStatusRepositoryProvider.overrideWithValue(
             // ⚠️ 대기로 답하게 둔다. 끊긴 뒤 재연결이 이 값을 실제로 읽는데,
@@ -166,6 +171,7 @@ void main() {
               FakeAppVersionRepository(),
             ),
             matchStreamProvider.overrideWithValue(FakeMatchStream()),
+            chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
             matchRepositoryProvider.overrideWithValue(FakeMatchRepository()),
             userStatusRepositoryProvider.overrideWithValue(
               FakeUserStatusRepository(),

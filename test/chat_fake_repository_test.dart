@@ -1,158 +1,252 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/chat/data/fake_chat_repository.dart';
-import 'package:runiverse/features/chat/domain/chat_message.dart';
-import 'package:runiverse/features/chat/domain/chat_repository.dart';
+import 'package:runiverse/features/chat/domain/chat_failure.dart';
 
-/// 가짜 채팅 저장소. 서버가 없는 동안 화면이 기대는 **유일한 구현**이다.
+/// 가짜 저장소 — **화면을 서버 없이 세워 두는 것이 일이다.**
 ///
-/// ## ⚠️ 여기서 보는 것은 "그럴듯한 대화"가 아니다
-///
-/// 화면이 그릴 수 있는 **모양**을 본다. 발신자가 명단 안에 있어야 이름이 붙고,
-/// 뒤쪽 두 개가 안 읽음이어야 배지에 숫자가 보이고, 실패할 수 있어야 error
-/// 3분기를 한 번이라도 그려볼 수 있다.
+/// 여기서 거짓말을 하면 화면 테스트가 전부 거짓이 된다. 특히 `chatId`가
+/// 생성 순서대로 커지는 것, 지운 메시지가 자리를 지키는 것, 수정이 다음
+/// 조회에 보이는 것은 **서버 계약이라 가짜도 지켜야 한다.**
 void main() {
-  DateTime fixedNow() => DateTime(2026, 11, 4, 19, 18);
+  DateTime fixedNow() => DateTime(2026, 11, 12, 19, 18);
 
-  const seed = ChatRoomSeed(
-    runningRoomId: 130,
-    partyUserIds: ['me', 'u1', 'u2'],
-    myUserId: 'me',
-  );
-
-  FakeChatRepository repo({bool fails = false}) =>
+  FakeChatRepository fake({bool fails = false}) =>
       FakeChatRepository(fails: fails, now: fixedNow);
 
-  group('과거 메시지', () {
-    test('열 개 안쪽을 시간 순으로 준다', () async {
-      final messages = await repo().history(seed);
+  group('지난 대화', () {
+    test('한 번에 다 주고 커서를 남기지 않는다', () async {
+      final repo = fake();
 
-      expect(messages, isNotEmpty);
-      expect(messages.length, lessThanOrEqualTo(10));
-      for (var i = 1; i < messages.length; i++) {
-        expect(
-          messages[i].sentAt.isBefore(messages[i - 1].sentAt),
-          isFalse,
-          reason: '$i번째가 앞의 것보다 이르다',
-        );
+      final page = await repo.history(130, limit: 50);
+
+      expect(page.items, isNotEmpty);
+      expect(page.nextCursor, isNull);
+    });
+
+    test('⚠️ chatId가 생성 순서대로 커진다 — 화면이 이것으로 정렬한다', () async {
+      final repo = fake();
+
+      final page = await repo.history(130, limit: 50);
+      // 서버는 최신순으로 준다.
+      final ids = page.items.map((one) => one.chatId).toList();
+
+      expect(ids, [...ids]..sort((a, b) => b.compareTo(a)));
+    });
+
+    test('⚠️ 내 말이 섞여 있다 — 수정·삭제 자리를 볼 수 있어야 한다', () async {
+      // 전부 남의 말이면 수정·삭제 버튼이 한 번도 안 보여서, 그 자리를 눈으로
+      // 확인할 수 없다.
+      final repo = FakeChatRepository(myUserId: 'me', now: fixedNow);
+
+      final page = await repo.history(130, limit: 50);
+
+      expect(page.items.any((one) => one.sender.userId == 'me'), isTrue);
+      expect(page.items.any((one) => one.sender.userId != 'me'), isTrue);
+    });
+
+    test('⚠️ 방마다 따로 들고 있다', () async {
+      // 한 통에 담으면 방을 옮겨도 전 방의 말이 남아 있는 것처럼 보인다.
+      final repo = fake();
+      await repo.send(130, '130번 방의 말');
+
+      final other = await repo.history(131, limit: 50);
+
+      expect(other.items.any((one) => one.content == '130번 방의 말'), isFalse);
+      expect(other.items.every((one) => one.runningRoomId == 131), isTrue);
+    });
+
+    test('limit만큼만 주고 남으면 커서를 준다', () async {
+      final repo = fake();
+
+      final first = await repo.history(130, limit: 2);
+
+      expect(first.items, hasLength(2));
+      expect(first.nextCursor, isNotNull);
+    });
+
+    test('커서로 이어 받으면 더 이전 것이 온다', () async {
+      final repo = fake();
+      final first = await repo.history(130, limit: 2);
+
+      final second = await repo.history(
+        130,
+        cursor: first.nextCursor,
+        limit: 2,
+      );
+
+      final firstIds = first.items.map((one) => one.chatId).toSet();
+      final secondIds = second.items.map((one) => one.chatId).toSet();
+      expect(firstIds.intersection(secondIds), isEmpty);
+      expect(secondIds.every((id) => id < firstIds.reduce((a, b) => a < b ? a : b)), isTrue);
+    });
+
+    test('끝까지 받으면 커서가 사라진다', () async {
+      final repo = fake();
+
+      var cursor = (await repo.history(130, limit: 2)).nextCursor;
+      var guard = 0;
+      while (cursor != null && guard++ < 10) {
+        cursor = (await repo.history(130, cursor: cursor, limit: 2)).nextCursor;
       }
+
+      expect(cursor, isNull);
+      expect(guard, lessThan(10), reason: '끝이 있어야 한다');
     });
 
-    test('⚠️ 뒤쪽 두 개만 안 읽음이다', () async {
-      // 배지에 숫자가 처음부터 보이게 하는 자리다.
-      final messages = await repo().history(seed);
-      final unread = messages.where((m) => !m.isRead).toList();
+    test('몇 번 불렸는지 센다', () async {
+      final repo = fake();
 
-      expect(unread.length, 2);
-      expect(unread, [messages[messages.length - 2], messages.last]);
+      await repo.history(130, limit: 50);
+      await repo.history(130, limit: 50);
+
+      expect(repo.historyCalls, 2);
+    });
+  });
+
+  group('보내기', () {
+    test('보낸 것이 다음 조회에 보인다', () async {
+      final repo = fake();
+      await repo.history(130, limit: 50);
+
+      final sent = await repo.send(130, '곧 나갈게요');
+      final page = await repo.history(130, limit: 50);
+
+      expect(sent.content, '곧 나갈게요');
+      expect(page.items.any((one) => one.chatId == sent.chatId), isTrue);
     });
 
-    test('⚠️ 발신자가 전부 파티원이다', () async {
-      // 명단 밖 id가 섞이면 화면이 전부 '탈퇴한 사용자'로 그린다.
-      final messages = await repo().history(seed);
+    test('⚠️ 새 chatId가 기존 것보다 크다', () async {
+      final repo = fake();
+      final before = await repo.history(130, limit: 50);
+      final largest = before.items
+          .map((one) => one.chatId)
+          .reduce((a, b) => a > b ? a : b);
+
+      final sent = await repo.send(130, '곧 나갈게요');
+
+      expect(sent.chatId, greaterThan(largest));
+    });
+
+    test('⚠️ 보낸 것은 고친 적이 없다', () async {
+      final repo = fake();
+
+      final sent = await repo.send(130, '곧 나갈게요');
+
+      expect(sent.editedAt, isNull);
+      expect(sent.isEdited, isFalse);
+      expect(sent.isDeleted, isFalse);
+    });
+  });
+
+  group('수정', () {
+    test('내용이 바뀌고 editedAt이 채워진다', () async {
+      final repo = fake();
+      final sent = await repo.send(130, '곧 나갈게요');
+
+      final edited = await repo.edit(130, chatId: sent.chatId, content: '조금 늦어요');
+
+      expect(edited.content, '조금 늦어요');
+      expect(edited.editedAt, isNotNull);
+      expect(edited.isEdited, isTrue);
+      // 자리를 가르는 값은 그대로다.
+      expect(edited.chatId, sent.chatId);
+      expect(edited.createdAt, sent.createdAt);
+    });
+
+    test('고친 것이 다음 조회에 보인다', () async {
+      final repo = fake();
+      final sent = await repo.send(130, '곧 나갈게요');
+      await repo.edit(130, chatId: sent.chatId, content: '조금 늦어요');
+
+      final page = await repo.history(130, limit: 50);
 
       expect(
-        messages.every((m) => seed.partyUserIds.contains(m.senderUserId)),
-        isTrue,
+        page.items.firstWhere((one) => one.chatId == sent.chatId).content,
+        '조금 늦어요',
       );
     });
 
-    test('입장 알림이 하나 있고 글이 없다', () async {
-      final messages = await repo().history(seed);
-      final joined = messages
-          .where((m) => m.kind == ChatMessageKind.joined)
-          .toList();
+    test('없는 메시지는 404다', () async {
+      final repo = fake();
 
-      expect(joined.length, 1);
-      expect(joined.single.text, isNull);
-    });
-
-    test('글 메시지는 text가 비어 있지 않다', () async {
-      final messages = await repo().history(seed);
-      final texts = messages.where((m) => m.kind == ChatMessageKind.text);
-
-      expect(texts, isNotEmpty);
-      for (final message in texts) {
-        expect(message.text, isNotNull);
-        expect(message.text!.trim(), isNotEmpty);
-      }
-    });
-
-    test('⚠️ 같은 seed와 같은 now면 결과가 같다', () async {
-      // 그리는 순서가 흔들리면 안 된다 — 난수를 쓰면 여기서 깨진다.
-      final once = await repo().history(seed);
-      final twice = await repo().history(seed);
-
-      expect(
-        twice.map((m) => m.messageId).toList(),
-        once.map((m) => m.messageId).toList(),
-      );
-    });
-
-    test('⚠️ fails면 history가 ChatException을 던진다', () async {
       await expectLater(
-        repo(fails: true).history(seed),
+        repo.edit(130, chatId: 999999, content: '고쳤어요'),
+        throwsA(
+          isA<ChatException>().having(
+            (error) => error.failure,
+            'failure',
+            ChatFailure.notFound,
+          ),
+        ),
+      );
+    });
+  });
+
+  group('삭제', () {
+    test('⚠️ 자리를 지키고 내용만 비운다', () async {
+      final repo = fake();
+      final sent = await repo.send(130, '곧 나갈게요');
+      final before = (await repo.history(130, limit: 50)).items.length;
+
+      await repo.delete(130, sent.chatId);
+      final page = await repo.history(130, limit: 50);
+
+      expect(page.items, hasLength(before));
+      final deleted = page.items.firstWhere((one) => one.chatId == sent.chatId);
+      expect(deleted.isDeleted, isTrue);
+      expect(deleted.content, isNull);
+    });
+
+    test('⚠️ 이미 지운 것은 다시 지우거나 고칠 수 없다 — 404다', () async {
+      final repo = fake();
+      final sent = await repo.send(130, '곧 나갈게요');
+      await repo.delete(130, sent.chatId);
+
+      await expectLater(
+        repo.delete(130, sent.chatId),
+        throwsA(isA<ChatException>()),
+      );
+      await expectLater(
+        repo.edit(130, chatId: sent.chatId, content: '고쳤어요'),
         throwsA(isA<ChatException>()),
       );
     });
+  });
 
-    test('⚠️ 파티원이 나 하나뿐이어도 터지지 않는다', () async {
-      const alone = ChatRoomSeed(
-        runningRoomId: 130,
-        partyUserIds: ['me'],
-        myUserId: 'me',
+  group('실패를 만들 수 있다', () {
+    test('fails면 모든 길이 던진다', () async {
+      final repo = fake(fails: true);
+
+      await expectLater(repo.history(130, limit: 50), throwsA(isA<ChatException>()));
+      await expectLater(repo.send(130, '어'), throwsA(isA<ChatException>()));
+    });
+
+    test('⚠️ 어느 갈래인지 고를 수 있다 — 409와 404는 할 일이 다르다', () async {
+      final repo = FakeChatRepository(
+        fails: true,
+        failure: ChatFailure.closed,
+        now: fixedNow,
       );
 
-      expect(await repo().history(alone), isNotEmpty);
-    });
-  });
-
-  group('전송', () {
-    test('send가 보낸 것을 즉시 incoming으로 흘린다', () async {
-      final fake = repo();
-      final received = <ChatMessage>[];
-      final subscription = fake.incoming(seed).listen(received.add);
-      addTearDown(subscription.cancel);
-
-      await fake.send(seed, '안녕');
-      await Future<void>.delayed(Duration.zero);
-
-      expect(received.single.text, '안녕');
+      await expectLater(
+        repo.history(130, limit: 50),
+        throwsA(
+          isA<ChatException>().having(
+            (error) => error.failure,
+            'failure',
+            ChatFailure.closed,
+          ),
+        ),
+      );
     });
 
-    test('send한 것은 읽은 것이다', () async {
-      final fake = repo();
-      final received = <ChatMessage>[];
-      final subscription = fake.incoming(seed).listen(received.add);
-      addTearDown(subscription.cancel);
+    test('실패를 끄면 다시 산다', () async {
+      final repo = fake(fails: true);
+      await expectLater(repo.history(130, limit: 50), throwsA(isA<ChatException>()));
 
-      await fake.send(seed, '안녕');
-      await Future<void>.delayed(Duration.zero);
+      repo.fails = false;
 
-      expect(received.single.isRead, isTrue);
-      expect(received.single.senderUserId, 'me');
+      expect((await repo.history(130, limit: 50)).items, isNotEmpty);
     });
-  });
-
-  test('부른 횟수와 구독 여부를 들여다볼 수 있다', () async {
-    // Task 3의 테스트가 이것에 기댄다 — 같은 방에 두 번 붙지 않는지,
-    // 공백 전송이 저장소까지 가지 않는지는 상태만으로 확인할 수 없다.
-    final fake = repo();
-    expect(fake.historyCalls, 0);
-    expect(fake.sendCalls, 0);
-    expect(fake.hasListener, isFalse);
-
-    await fake.history(seed);
-    expect(fake.historyCalls, 1);
-    await fake.history(seed);
-    expect(fake.historyCalls, 2);
-
-    final subscription = fake.incoming(seed).listen((_) {});
-    expect(fake.hasListener, isTrue);
-
-    await fake.send(seed, '하나');
-    expect(fake.sendCalls, 1);
-
-    await subscription.cancel();
-    expect(fake.hasListener, isFalse);
   });
 }

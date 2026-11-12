@@ -7,6 +7,7 @@ import 'package:runiverse/core/config/app_config.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/auth/domain/token_refresher.dart';
+import 'package:runiverse/features/chat/data/chat_dto.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
 import 'package:runiverse/core/network/dio_client.dart';
 import 'package:runiverse/core/version/app_version_headers.dart';
@@ -340,6 +341,17 @@ class SseMatchStream implements MatchStream {
       case 'INVITE_ROOM_UPDATED':
         final room = roomOf(decoded);
         return room == null ? null : InviteRoomUpdated(room);
+      // ⚠️ **셋이 같은 모양을 싣는다.** 합치는 규칙도 같지만 이벤트를 나눠
+      // 받는다 — 배지에 셀지가 갈린다(새 메시지만 안 읽음으로 쌓는다).
+      case 'ROOM_CHAT_SENT':
+        final chat = chatFromJson(decoded);
+        return chat == null ? null : RoomChatSent(chat);
+      case 'ROOM_CHAT_EDITED':
+        final chat = chatFromJson(decoded);
+        return chat == null ? null : RoomChatEdited(chat);
+      case 'ROOM_CHAT_DELETED':
+        final chat = chatFromJson(decoded);
+        return chat == null ? null : RoomChatDeleted(chat);
       case 'RUNNING_READY':
         return readyOf(decoded);
       default:

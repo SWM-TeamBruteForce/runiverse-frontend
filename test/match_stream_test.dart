@@ -196,6 +196,98 @@ void main() {
     });
   });
 
+  group('채팅 이벤트', () {
+    /// 명세의 `data`를 그대로 옮긴 한 건. 세 이벤트가 **같은 모양**을 싣는다.
+    const chat = {
+      'chatId': 3021,
+      'runningRoomId': 125,
+      'sender': {
+        'userId': '01a0f2d4-6180-7000-8000-446655440013',
+        'nickname': '철수',
+        'profileImageUrl': null,
+        'isDeleted': false,
+      },
+      'content': '곧 출발해요',
+      'isDeleted': false,
+      'editedAt': null,
+      'createdAt': '2026-07-25T18:52:10',
+    };
+
+    test('ROOM_CHAT_SENT은 보낸 메시지를 싣는다', () {
+      final event = SseMatchStream.eventOf('ROOM_CHAT_SENT', jsonEncode(chat));
+
+      expect(event, isA<RoomChatSent>());
+      final sent = event! as RoomChatSent;
+      expect(sent.chat.chatId, 3021);
+      expect(sent.chat.content, '곧 출발해요');
+      expect(sent.chat.sender.nickname, '철수');
+    });
+
+    test('ROOM_CHAT_EDITED은 고친 뒤 메시지를 싣는다', () {
+      final event = SseMatchStream.eventOf(
+        'ROOM_CHAT_EDITED',
+        jsonEncode({...chat, 'content': '조금 늦어요', 'editedAt': '2026-07-25T18:54:00'}),
+      );
+
+      expect(event, isA<RoomChatEdited>());
+      final edited = event! as RoomChatEdited;
+      expect(edited.chat.content, '조금 늦어요');
+      expect(edited.chat.isEdited, isTrue);
+    });
+
+    test('ROOM_CHAT_DELETED은 비운 메시지를 싣는다', () {
+      final event = SseMatchStream.eventOf(
+        'ROOM_CHAT_DELETED',
+        jsonEncode({...chat, 'content': null, 'isDeleted': true}),
+      );
+
+      expect(event, isA<RoomChatDeleted>());
+      final deleted = event! as RoomChatDeleted;
+      expect(deleted.chat.isDeleted, isTrue);
+      expect(deleted.chat.content, isNull);
+    });
+
+    test('⚠️ 셋을 서로 다른 이벤트로 받는다', () {
+      // 모양이 같고 합치는 규칙도 같지만, **배지에 셀지가 갈린다** — 새 메시지만
+      // 안 읽음으로 쌓고 수정·삭제는 세지 않는다.
+      expect(
+        SseMatchStream.eventOf('ROOM_CHAT_SENT', jsonEncode(chat)),
+        isNot(isA<RoomChatEdited>()),
+      );
+      expect(
+        SseMatchStream.eventOf('ROOM_CHAT_EDITED', jsonEncode(chat)),
+        isNot(isA<RoomChatSent>()),
+      );
+    });
+
+    test('메시지를 못 읽으면 이벤트도 버린다', () {
+      // 던지지 않는다 — 채팅 한 건이 이상하다고 스트림을 끊으면 그 뒤에 올
+      // 확정 통지까지 놓친다.
+      expect(
+        SseMatchStream.eventOf(
+          'ROOM_CHAT_SENT',
+          jsonEncode({...chat, 'chatId': 'not-a-number'}),
+        ),
+        isNull,
+      );
+    });
+
+    test('⚠️ 방 이벤트와 섞여 와도 가려 읽는다', () async {
+      // 한 스트림이 방 상태와 채팅을 함께 나른다.
+      final events = await decode([
+        frame('MATCH_ROOM_ENTRANCE', room),
+        frame('ROOM_CHAT_SENT', chat),
+        frame('MATCH_ROOM_UPDATED', room),
+      ]);
+
+      expect(events.map((one) => one.runtimeType.toString()), [
+        'MatchRoomEntrance',
+        'RoomChatSent',
+        'MatchRoomUpdated',
+      ]);
+    });
+  });
+
   group('매칭 방 입장', () {
     test('MATCH_ROOM_ENTRANCE가 입장 스냅샷으로 읽힌다', () {
       // 2026-11-11 백엔드 변경 — 매칭 방도 초대 방처럼 **최초 입장과 이후

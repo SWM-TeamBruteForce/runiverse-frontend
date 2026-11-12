@@ -14,6 +14,8 @@ import 'package:runiverse/features/app_update/presentation/app_version_provider.
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
+import 'package:runiverse/features/chat/data/fake_chat_repository.dart';
+import 'package:runiverse/features/chat/presentation/chat_provider.dart';
 import 'package:runiverse/features/matching/data/fake_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
@@ -103,6 +105,9 @@ void main() {
             ),
           ),
           matchStreamProvider.overrideWithValue(stream),
+          // 채팅 버튼이 보이는 순간 chatProvider가 서고, 그것이 진짜 저장소를
+          // 세운다 — 서버 주소가 없는 테스트에서는 거기서 죽는다.
+          chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
           // 셸이 앱 스트림을 만들고, 로그인돼 있으면 첫
           // 페이지도 받는다. 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
           appStreamProvider.overrideWithValue(FakeAppStream()),

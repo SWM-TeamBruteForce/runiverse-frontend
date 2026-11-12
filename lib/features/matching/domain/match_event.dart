@@ -1,3 +1,4 @@
+import 'package:runiverse/features/chat/domain/chat.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 
 /// 매칭 스트림이 올려보내는 것.
@@ -15,6 +16,15 @@ import 'package:runiverse/features/matching/domain/room_info.dart';
 ///
 /// 둘은 같은 스트림에서 온다. **받는 쪽이 방 종류를 미리 알지 못해도 된다** —
 /// 어느 이벤트가 오는지가 그것을 말해 준다.
+///
+/// ## ⚠️ 채팅도 이 스트림으로 온다
+///
+/// [RoomChatSent]·[RoomChatEdited]·[RoomChatDeleted]는 **매칭 방과 초대 방이
+/// 같은 것을 쓴다.** 채팅이 따로 연결을 열 수 없어서다 — 대기방 스트림은
+/// 사용자당 하나만 유지되고, 새로 열면 서버가 기존 연결을 닫는다.
+///
+/// 그래서 `sealed`인 이 자리에 채팅이 함께 산다. Dart는 봉인된 타입의 하위
+/// 타입을 **같은 파일**에만 둘 수 있다.
 sealed class MatchEvent {
   const MatchEvent();
 }
@@ -108,6 +118,45 @@ class InviteRoomUpdated extends MatchEvent {
   const InviteRoomUpdated(this.room);
 
   final RoomInfo room;
+}
+
+/// 같은 방의 **다른 참가자가** 채팅을 보냈다.
+///
+/// ## ⚠️ 내가 보낸 것은 오지 않는다
+///
+/// 보낸 사람의 화면은 **보내기 응답(201 `Chat`)으로** 그린다. 여기로 올 것을
+/// 기다리면 내가 한 말이 영영 안 보인다.
+///
+/// ## ⚠️ 놓친 것은 다시 오지 않는다
+///
+/// 방 상태 이벤트는 전체 상태를 다시 나르지만 채팅은 **변경분**이다. 끊겼다
+/// 다시 붙으면 채팅 목록을 다시 받아 맞춘다.
+class RoomChatSent extends MatchEvent {
+  const RoomChatSent(this.chat);
+
+  final Chat chat;
+}
+
+/// 다른 참가자가 자기 메시지를 고쳤다. [chat]은 **고친 뒤**의 것이다.
+///
+/// ⚠️ **자리는 바뀌지 않는다.** `chatId`가 그대로이므로 목록에서 같은 자리에
+/// 머문다 — 맨 아래로 내려가면 대화의 맥락이 끊긴다.
+class RoomChatEdited extends MatchEvent {
+  const RoomChatEdited(this.chat);
+
+  final Chat chat;
+}
+
+/// 다른 참가자가 자기 메시지를 지웠다. [chat]은 `content: null`,
+/// `isDeleted: true`다.
+///
+/// ⚠️ **아직 불러오지 않은 메시지일 수 있다.** 위로 긁어 오기 전의 과거
+/// 메시지가 지워지면 그렇다. 버리지 않고 들여 둬야 이전 페이지를 받을 때
+/// 되살아나지 않는다(`mergeChats`).
+class RoomChatDeleted extends MatchEvent {
+  const RoomChatDeleted(this.chat);
+
+  final Chat chat;
 }
 
 /// 곧 시작한다. 발사 타이머를 걸 시점이다.

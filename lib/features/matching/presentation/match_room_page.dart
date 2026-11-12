@@ -14,9 +14,6 @@ import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/core/widgets/v2/fact_card.dart';
 import 'package:runiverse/core/widgets/v2/party_chip.dart';
 import 'package:runiverse/core/widgets/v2/surface_card.dart';
-import 'package:runiverse/features/auth/presentation/auth_provider.dart';
-import 'package:runiverse/features/auth/presentation/auth_state.dart';
-import 'package:runiverse/features/chat/domain/chat_repository.dart';
 import 'package:runiverse/features/chat/presentation/chat_provider.dart';
 import 'package:runiverse/features/matching/domain/invite_limits.dart';
 import 'package:runiverse/features/matching/domain/room_invitation.dart';
@@ -71,9 +68,6 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
   /// 출발 대기실로 넘어가는 중. 타이머가 두 번 밀지 않게 막는다.
   var _entering = false;
 
-  /// 채팅을 붙여 둔 방. 같은 방에 두 번 붙지 않게 막는다.
-  int? _chatRoomId;
-
   @override
   void initState() {
     super.initState();
@@ -113,14 +107,6 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
         appBar: _appBar(colors, AppStrings.matchRoomTitleLobby),
         body: const Center(child: CircularProgressIndicator()),
       );
-    }
-
-    // 방이 들어왔다. **채팅을 미리 붙여 둔다** — 배지는 채팅을 열기 전부터
-    // 숫자를 보여야 한다. build 중에 provider를 건드릴 수 없어 프레임 뒤로 민다.
-    if (_chatRoomId != room.runningRoomId) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _syncChat(room);
-      });
     }
 
     return Scaffold(
@@ -468,29 +454,6 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
       !room.isAlone &&
       (room.status == RoomStatus.matching || room.status == RoomStatus.matched);
 
-  /// 채팅을 방에 붙인다. **배지는 채팅을 열기 전부터 숫자를 보여야 한다.**
-  ///
-  /// `chatProvider`가 `matchRoomProvider`를 듣지 않으므로(서로 들으면
-  /// `CircularDependencyError`다) 방 번호와 명단을 이 화면이 넣어 준다.
-  void _syncChat(RoomInfo room) {
-    if (_chatRoomId == room.runningRoomId) return;
-    _chatRoomId = room.runningRoomId;
-
-    final auth = ref.read(authControllerProvider);
-    unawaited(
-      ref
-          .read(chatProvider.notifier)
-          .connect(
-            ChatRoomSeed(
-              runningRoomId: room.runningRoomId,
-              partyUserIds: [for (final player in room.players) player.userId],
-              // 로그인 없이 이 화면에 올 수 없다. 그래도 빈 값이면 아무 메시지도
-              // 내 것으로 그려지지 않을 뿐이라 화면이 깨지지는 않는다.
-              myUserId: auth is AuthSignedIn ? auth.userId : '',
-            ),
-          ),
-    );
-  }
 }
 
 /// 대기방의 채팅 버튼 — 원형 `primary` 면에 말풍선을 흰색으로 얹는다.

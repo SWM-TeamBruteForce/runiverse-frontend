@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/matching/data/sse_match_stream.dart';
+import 'package:runiverse/features/chat/domain/chat.dart';
+import 'package:runiverse/features/chat/domain/chat_event_bus.dart';
+import 'package:runiverse/features/chat/presentation/chat_provider.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
 import 'package:runiverse/features/matching/domain/match_failure.dart';
 import 'package:runiverse/features/app_update/presentation/app_update_provider.dart';
@@ -349,6 +352,15 @@ class MatchRoomController extends Notifier<MatchRoomState> {
         _applyRoom(room);
       case InviteRoomUpdated(:final room):
         _applyRoom(room);
+      // ⚠️ **채팅은 들고 있지 않고 흘려보낸다.** 이 provider가 채팅까지 들면
+      // 방을 떠난 뒤에도 지난 방의 메시지를 들고 있게 된다. 듣는 쪽이 없으면
+      // (홈에 있는 동안) 그냥 버려진다 — [ChatEventBus] 참고.
+      case RoomChatSent(:final chat):
+        _emitChat(ChatChangeKind.sent, chat);
+      case RoomChatEdited(:final chat):
+        _emitChat(ChatChangeKind.edited, chat);
+      case RoomChatDeleted(:final chat):
+        _emitChat(ChatChangeKind.deleted, chat);
       case RunningReady():
         // ⚠️ **내 방의 통지인지 먼저 본다.**
         //
@@ -379,6 +391,12 @@ class MatchRoomController extends Notifier<MatchRoomState> {
         );
     }
   }
+
+  /// 받은 채팅을 채팅 화면으로 흘린다. **어느 방 것인지는 거기서 가린다** —
+  /// 방을 옮기는 사이에 지난 방의 채팅이 올라올 수 있는데, 지금 무엇을 그리고
+  /// 있는지는 채팅 쪽이 안다.
+  void _emitChat(ChatChangeKind kind, Chat chat) =>
+      ref.read(chatEventBusProvider).emit(ChatChange(kind, chat));
 
   /// 방 정보를 들인다. **어느 이벤트로 왔든 같게 다룬다.**
   ///
