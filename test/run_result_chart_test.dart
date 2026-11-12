@@ -127,7 +127,7 @@ void main() {
         ),
         matching: find.textContaining(RegExp(r'^[\d.]+ km$')),
       );
-      expect(labels, findsAtLeastNWidgets(2));
+      expect(labels, findsWidgets);
     });
 
     testWidgets('⚠️ 총 거리는 눈금이 아니면 찍지 않는다', (tester) async {

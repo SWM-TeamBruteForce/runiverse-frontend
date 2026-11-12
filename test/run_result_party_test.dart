@@ -180,10 +180,11 @@ void main() {
     });
   });
 
-  /// 칸 정렬 — **머리줄 글자와 값이 같은 선에서 시작하는가.**
+  /// 칸 정렬 — **머리줄 글자와 값이 같은 칸에 서는가.**
   ///
   /// 전에는 소모가 오른쪽 끝에 붙고 `파티원 대비`가 머리줄 `페이스` 뒤에 붙어,
-  /// 머리와 값의 시작선이 칸마다 달랐다.
+  /// 머리와 값의 시작선이 칸마다 달랐다. 글자 상자는 칸 폭을 꽉 채우므로
+  /// 여기서 재는 것은 칸의 자리다.
   group('칸 정렬', () {
     /// 구간 표 안에서만 찾는다 — `페이스`는 위 지표 칸에도 있다.
     Finder inTable(Finder finder) => find.descendant(
@@ -199,7 +200,7 @@ void main() {
     double left(WidgetTester tester, String text) =>
         tester.getTopLeft(inTable(find.text(text)).first).dx;
 
-    testWidgets('⚠️ 혼자 볼 때 머리와 값이 같은 선에서 시작한다', (tester) async {
+    testWidgets('⚠️ 혼자 볼 때 머리와 값이 같은 칸에 선다', (tester) async {
       await pump(tester, detail());
 
       expect(
@@ -213,7 +214,7 @@ void main() {
       );
     });
 
-    testWidgets('⚠️ 파티원을 고르면 차이도 제 칸에서 시작한다', (tester) async {
+    testWidgets('⚠️ 파티원을 고르면 차이도 제 칸에 선다', (tester) async {
       await pump(tester, detail());
 
       await tester.tap(find.text('이서연').last);

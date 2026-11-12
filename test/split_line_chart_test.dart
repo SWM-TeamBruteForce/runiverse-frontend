@@ -144,6 +144,7 @@ void main() {
       if (total % 50 != 0) total,
     ];
 
+    /// [meters]마다 점 하나. 라벨은 닿은 거리다.
     Future<void> pumpRun(WidgetTester tester, List<int> meters) => pump(
       tester,
       values: [for (final _ in meters) 300],
@@ -153,6 +154,7 @@ void main() {
       axisMeters: meters,
     );
 
+    /// 폰 폭(360).
     void narrow(WidgetTester tester) {
       tester.view.physicalSize = const Size(360, 640);
       tester.view.devicePixelRatio = 1;
@@ -188,6 +190,7 @@ void main() {
       expect(labels.last.km + step, greaterThan(totalKm));
     }
 
+    /// 라벨끼리 16 이상 떨어져 있다.
     void expectApart(List<({double km, Rect rect})> labels) {
       for (var k = 1; k < labels.length; k++) {
         expect(
@@ -198,7 +201,9 @@ void main() {
     }
 
     testWidgets('⚠️ 딱 떨어지는 거리에 고른 간격으로 찍는다', (tester) async {
-      // 5km에서 `4 km`가 빠져 `1 · 2 · 3 · 5 km`가 되던 자리다.
+      // 5km에서 `4 km`가 빠져 `1 · 2 · 3 · 5 km`가 되던 자리다. 기본 폭(800)은
+      // 점 사이가 넓어 예전 규칙으로도 안 빠지므로 폰 폭으로 줄인다.
+      narrow(tester);
       await pumpRun(tester, samplesTo(5000));
 
       expectEvenSteps(shown(tester), totalKm: 5);
@@ -212,7 +217,7 @@ void main() {
       expect(find.text('3 km'), findsOneWidget);
     });
 
-    testWidgets('⚠️ 좁아도 라벨끼리 닿지 않는다', (tester) async {
+    testWidgets('⚠️ 좁아도 라벨끼리 16 이상 떨어진다', (tester) async {
       narrow(tester);
       await pumpRun(tester, samplesTo(20000));
 
