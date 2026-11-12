@@ -37,8 +37,8 @@ import 'package:runiverse/features/session/domain/party_color.dart';
 ///
 /// 매칭 러닝이면 지표 아래에 **파티원 비교 카드**가 붙고, 구간 표 위의 러너
 /// 칩으로 **한 명**을 골라 겹쳐 본다(정본은 두 명 — 첫 버전은 한 명). 고르면
-/// 표의 격차가 내 평균 대비에서 **그 사람 대비**로 바뀌고 두 페이스 그래프에
-/// 그 사람의 선이 겹친다. 색은 러닝 화면의 레인과 같다 — 서버가 준 순서다.
+/// 표에 `파티원 대비` 칸이 생기고 세 그래프에 그 사람의 선이 겹친다. 색은
+/// 러닝 화면의 레인과 같다 — 서버가 준 순서다.
 /// - **구간별 경사** — `GeoPoint.altitude`가 "경사를 내는 데 쓰지 않는다"고
 ///   못 박고 있다. GPS 고도 오차가 ±10~20m다
 class RunResultView extends StatefulWidget {
@@ -817,7 +817,8 @@ class _SplitRow extends StatelessWidget {
     final pace = split.pace;
     final gap = (base == null || pace == null) ? null : pace - base!;
     // 값은 한 크기(16)로 두고 강약은 색·굵기로만 준다 — 위 파티원 비교 카드와 같은
-    // 방식이다. 페이스가 주인공이라 흰색 Medium, 구간·소모는 회색이다.
+    // 방식이다. 페이스가 주인공이라 `textPrimary` Medium, 구간·소모는
+    // `textSecondary`다. 차이는 페이스와 같은 굵기에 색만 바꾼다.
     final valueStyle = AppTypographyV2.body06.copyWith(
       color: colors.textPrimary,
       fontFeatures: const [FontFeature.tabularFigures()],
