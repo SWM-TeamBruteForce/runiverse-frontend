@@ -306,35 +306,65 @@ void main() {
       );
     });
 
-    test('⚠️ 확정 연출은 상태 전이로 판정한다', () async {
-      // 연동 가이드가 "SSE에 연결하면 MATCH_CONFIRMED를 전송한다"고 정했다 —
-      // 이벤트 종류로 판정하면 앱을 켤 때마다 다시 축하하게 된다.
+    test('⚠️ 확정 연출은 MATCH_CONFIRMED만 띄운다', () async {
+      // ## 2026-11-11 백엔드 변경
+      //
+      // 입장 스냅샷이 `MATCH_ROOM_ENTRANCE`로 갈라져 나왔다. 그 전에는 스냅샷과
+      // 갱신이 같은 이름이라 **상태 전이로** 확정을 추정했는데, 이제는 서버가
+      // 확정 순간을 따로 알려 준다 — 추정할 이유가 없어졌다.
       final app = build();
       app.container.read(matchRoomProvider.notifier).connect();
       await Future<void>.delayed(Duration.zero);
 
-      // 연결 직후 스냅샷. 아직 모집 중이니 축하할 것이 없다.
-      app.stream.emit(MatchStarted(room(RoomStatus.matching)));
+      // 입장 스냅샷. 아직 모집 중이니 축하할 것이 없다.
+      app.stream.emit(MatchRoomEntrance(room(RoomStatus.matching)));
       await Future<void>.delayed(Duration.zero);
       expect(app.container.read(matchRoomProvider).justMatched, isFalse);
 
-      // 모집 중 → 확정으로 넘어간 그 순간이다.
+      // 갱신으로 온 MATCHED도 아니다. 마감은 아래 이벤트가 알린다.
       app.stream.emit(MatchRoomUpdated(room(RoomStatus.matched)));
+      await Future<void>.delayed(Duration.zero);
+      expect(app.container.read(matchRoomProvider).justMatched, isFalse);
+
+      // 모집 마감 — 확정된 그 순간이다.
+      app.stream.emit(MatchStarted(room(RoomStatus.matched)));
       await Future<void>.delayed(Duration.zero);
       expect(app.container.read(matchRoomProvider).justMatched, isTrue);
     });
 
-    test('⚠️ 확정된 방으로 다시 붙어도 축하하지 않는다', () async {
-      // 재연결 스냅샷은 같은 MATCHED를 실어 온다. 전이가 아니므로 조용하다.
+    test('⚠️ 확정된 방에 입장해도 축하하지 않는다', () async {
+      // 연동 가이드가 못박은 것이 이것이다 — "입장 이벤트의 status가 MATCHED여도
+      // 확정 연출을 실행하지 않는다."
+      //
+      // 들고 있는 방이 **없는 상태로** 들어오는 것이 앱을 새로 켠 경우다. 상태
+      // 전이로 판정하던 때는 `null → matched`가 전이로 보여서, 확정된 방에 붙을
+      // 때마다 다시 축하했다.
       final app = build();
       app.container.read(matchRoomProvider.notifier).connect();
       await Future<void>.delayed(Duration.zero);
 
-      app.stream.emit(MatchStarted(room(RoomStatus.matched)));
+      app.stream.emit(MatchRoomEntrance(room(RoomStatus.matched)));
       await Future<void>.delayed(Duration.zero);
-      app.container.read(matchRoomProvider.notifier).consumeMatched();
+      expect(app.container.read(matchRoomProvider).justMatched, isFalse);
 
-      app.stream.emit(MatchStarted(room(RoomStatus.matched)));
+      // 재연결로 같은 것이 또 와도 마찬가지다.
+      app.stream.emit(MatchRoomEntrance(room(RoomStatus.matched)));
+      await Future<void>.delayed(Duration.zero);
+      expect(app.container.read(matchRoomProvider).justMatched, isFalse);
+      // 방은 들고 있다 — 연출만 없다.
+      expect(
+        app.container.read(matchRoomProvider).room?.status,
+        RoomStatus.matched,
+      );
+    });
+
+    test('⚠️ 확정 이벤트가 모집 중인 방을 실어 오면 축하하지 않는다', () async {
+      // 이름만 믿지 않는다. 축하할 것은 확정된 방뿐이다.
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      app.stream.emit(MatchStarted(room(RoomStatus.matching)));
       await Future<void>.delayed(Duration.zero);
 
       expect(app.container.read(matchRoomProvider).justMatched, isFalse);

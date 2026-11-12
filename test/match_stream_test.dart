@@ -196,6 +196,39 @@ void main() {
     });
   });
 
+  group('매칭 방 입장', () {
+    test('MATCH_ROOM_ENTRANCE가 입장 스냅샷으로 읽힌다', () {
+      // 2026-11-11 백엔드 변경 — 매칭 방도 초대 방처럼 **최초 입장과 이후
+      // 갱신을 다른 이름으로** 보낸다. `data`는 기존과 같은 `RoomInfo`다.
+      final event = SseMatchStream.eventOf('MATCH_ROOM_ENTRANCE', jsonEncode(room));
+
+      expect(event, isA<MatchRoomEntrance>());
+      expect((event! as MatchRoomEntrance).room.runningRoomId, 125);
+    });
+
+    test('⚠️ 입장과 갱신이 서로 다른 이벤트다', () {
+      // 둘을 한 종류로 뭉개면 "방금 확정됐는가"를 다시 알 수 없게 된다.
+      expect(
+        SseMatchStream.eventOf('MATCH_ROOM_UPDATED', jsonEncode(room)),
+        isA<MatchRoomUpdated>(),
+      );
+      expect(
+        SseMatchStream.eventOf('MATCH_ROOM_ENTRANCE', jsonEncode(room)),
+        isNot(isA<MatchRoomUpdated>()),
+      );
+    });
+
+    test('방을 못 읽으면 입장 이벤트도 버린다', () {
+      expect(
+        SseMatchStream.eventOf(
+          'MATCH_ROOM_ENTRANCE',
+          jsonEncode({...room, 'status': 'SOMETHING_NEW'}),
+        ),
+        isNull,
+      );
+    });
+  });
+
   group('시작 통지', () {
     RunningReady ready(int startsInMs) => SseMatchStream.readyOf({
       'runningRoomId': 125,

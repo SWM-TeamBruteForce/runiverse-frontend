@@ -9,7 +9,7 @@ import 'package:runiverse/features/matching/domain/room_info.dart';
 ///
 /// | | 매칭 방 | 초대 방 |
 /// |---|---|---|
-/// | 연결 직후 스냅샷 | [MatchRoomUpdated] | [InviteRoomEntrance] |
+/// | 연결 직후 스냅샷 | [MatchRoomEntrance] | [InviteRoomEntrance] |
 /// | 갱신 | [MatchRoomUpdated] | [InviteRoomUpdated] |
 /// | 확정 연출 | [MatchStarted] | **없다** |
 ///
@@ -19,13 +19,13 @@ sealed class MatchEvent {
   const MatchEvent();
 }
 
-/// 매칭이 확정된 **그 순간**.
+/// 매칭이 확정된 **그 순간**. 확정 연출을 띄울 유일한 근거다.
 ///
-/// ## ⚠️ [MatchRoomUpdated]와 나누는 이유
+/// ## ⚠️ `status == matched`로는 알 수 없다
 ///
-/// `status == matched`는 재연결 스냅샷으로도 온다. 그것만 보고 확정 연출을
-/// 띄우면 앱을 껐다 켤 때마다 다시 축하하게 된다. **전이는 이 이벤트가,
-/// 그 밖의 모든 갱신은 [MatchRoomUpdated]가 맡는다.**
+/// 같은 값이 [MatchRoomEntrance]로도 온다 — 확정된 방에 다시 붙으면 늘 온다.
+/// 그것을 확정으로 읽으면 앱을 껐다 켤 때마다 다시 축하하게 된다. **확정은
+/// 이 이벤트가, 그 밖의 모든 갱신은 나머지가 맡는다.**
 ///
 /// 모집 마감 시각에 딱 한 번 온다. 자리가 다 차도 앞당겨 오지 않는다.
 class MatchStarted extends MatchEvent {
@@ -34,10 +34,30 @@ class MatchStarted extends MatchEvent {
   final RoomInfo room;
 }
 
-/// 방 정보가 갱신됐다.
+/// 매칭 방에 들어왔다. **연결 직후 한 번** 온다.
 ///
-/// 모집 중 인원 변동, 방 취소, 그리고 **연결 직후 스냅샷**이 전부 이것이다.
-/// 받으면 무조건 [room]으로 화면을 다시 그린다.
+/// 신청한 직후, 그리고 **재연결**마다 온다. 초대 방의 [InviteRoomEntrance]와
+/// 같은 자리다 — 2026-11-11 백엔드 변경으로 매칭 방도 최초 입장과 이후 갱신을
+/// 서로 다른 이름으로 보낸다(그 전에는 둘 다 [MatchRoomUpdated]였다).
+///
+/// ## ⚠️ 이것으로는 축하하지 않는다
+///
+/// 이름이 "입장"이라고 모집 중인 방이라 단정해서도 안 된다. 확정된 방에 다시
+/// 붙으면 `status: matched`를 그대로 실어 온다 — 그래서 **화면은 이벤트 이름이
+/// 아니라 `room.status`로 정하고, 확정 연출만은 [MatchStarted]로 정한다.**
+///
+/// [InviteRoomEntrance]와 달리 `startsInMs`가 없다. 매칭 방은 그 값을 받을 길이
+/// 없어, 남은 시간을 `room.scheduledStartAt`으로 그린다.
+class MatchRoomEntrance extends MatchEvent {
+  const MatchRoomEntrance(this.room);
+
+  final RoomInfo room;
+}
+
+/// 매칭 방 정보가 갱신됐다. **입장 이후의 변화만 온다.**
+///
+/// 모집 중 인원 변동과 방 취소가 이것이다. 받으면 무조건 [room]으로 화면을
+/// 다시 그린다. 연결 직후 스냅샷은 [MatchRoomEntrance]가 맡는다.
 class MatchRoomUpdated extends MatchEvent {
   const MatchRoomUpdated(this.room);
 
@@ -47,7 +67,7 @@ class MatchRoomUpdated extends MatchEvent {
 /// 초대 방에 들어왔다. **연결 직후 한 번** 온다.
 ///
 /// 방을 개설한 직후, 초대를 수락한 직후, 그리고 **재연결**마다 온다. 매칭 방의
-/// 스냅샷이 [MatchRoomUpdated]인 자리를 초대 방에서는 이것이 맡는다.
+/// [MatchRoomEntrance]와 같은 자리이고, 이쪽에만 [startsInMs]가 붙는다.
 ///
 /// ## ⚠️ 화면은 이벤트 이름이 아니라 `status`로 정한다
 ///

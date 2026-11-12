@@ -44,8 +44,13 @@ class MatchRoomState {
 
   /// 방금 확정됐는가. **연출을 한 번만 띄우기 위한 것이다.**
   ///
-  /// ⚠️ `status == matched`로는 알 수 없다. 재연결 스냅샷도 같은 값을 실어
-  /// 와서, 앱을 껐다 켤 때마다 다시 축하하게 된다.
+  /// ⚠️ `status == matched`로는 알 수 없다. 입장 스냅샷도 같은 값을 실어 와서,
+  /// 앱을 껐다 켤 때마다 다시 축하하게 된다. `MATCH_CONFIRMED`를 받은
+  /// 경우만이다([MatchStarted]).
+  ///
+  /// ⚠️ **그래서 놓칠 수 있다.** 모집 마감 순간에 스트림이 끊겨 있었으면 그
+  /// 이벤트가 오지 않고, 다시 붙어서 받는 것은 입장 스냅샷이다. 연출은 없고
+  /// 화면은 확정된 방으로 그려진다 — 연동 가이드가 정한 동작이다.
   final bool justMatched;
 
   /// 마지막으로 받은 시작 통지.
@@ -74,9 +79,9 @@ class MatchRoomState {
   /// 그것과 기기 시각의 차를 들고 있다가 남은 시간을 셀 때 더한다 —
   /// `RunningReady.serverNow`와 같은 계산이다.
   ///
-  /// ⚠️ **매칭 방은 이 값을 받을 길이 없다.** `MATCH_ROOM_UPDATED`에 그런
-  /// 필드가 없어서 0으로 남는다(지금까지와 같다). 고치려면 서버가 스냅샷에
-  /// 기준 시각을 실어 줘야 한다.
+  /// ⚠️ **매칭 방은 이 값을 받을 길이 없다.** 입장 스냅샷
+  /// (`MATCH_ROOM_ENTRANCE`)에 그런 필드가 없어서 0으로 남는다(지금까지와
+  /// 같다). 고치려면 서버가 그 이벤트에 기준 시각을 실어 줘야 한다.
   final Duration serverOffset;
 
   /// 서버가 말하는 지금. 남은 시간은 **이 값에서** 센다.
@@ -290,15 +295,14 @@ class MatchRoomController extends Notifier<MatchRoomState> {
     // 하루 종일 기다리는 동안 재연결이 점점 늦어진다.
     _retryStep = 0;
     switch (event) {
-      // ⚠️ **두 이벤트를 같게 다룬다.** 서버 코드가 정본이다 — 연결하면
-      // `MATCH_ROOM_UPDATED`가 스냅샷으로 오고(`OpenMatchStreamHandler`),
-      // `MATCH_CONFIRMED`는 **모집 마감에 단 한 번** 나온다
+      // ⚠️ **확정 연출을 띄울 유일한 이벤트다.** 모집 마감에 단 한 번 온다
       // (`CloseMatchingHandler`, 인원과 무관하게 1인도 확정이다).
-      //
-      // 연동 가이드는 "SSE에 연결하면 서버가 `MATCH_CONFIRMED`를 전송한다"고
-      // 적었지만 실제 동작은 위와 같다. 어느 쪽이든 **이벤트 종류로 확정을
-      // 판정하지 않는다** — 그 판정은 [_applyRoom]이 상태 전이로 한다.
-      case MatchStarted(:final room) || MatchRoomUpdated(:final room):
+      case MatchStarted(:final room):
+        _applyRoom(room, confirmed: true);
+      // ⚠️ **입장과 갱신은 축하하지 않는다.** 둘 다 `status: matched`를 실어
+      // 올 수 있다 — 확정된 방에 다시 붙으면 입장 스냅샷이 늘 그렇다. 이름이
+      // 갈려 있을 뿐 들고 오는 것은 같은 `RoomInfo`라 받는 자리도 같다.
+      case MatchRoomEntrance(:final room) || MatchRoomUpdated(:final room):
         _applyRoom(room);
       // ⚠️ **초대 방도 같은 자리로 들어온다.** 이벤트 이름이 둘로 갈려 있을
       // 뿐, 싣고 오는 것은 같은 `RoomInfo`다.
@@ -350,10 +354,10 @@ class MatchRoomController extends Notifier<MatchRoomState> {
 
   /// 방 정보를 들인다. **어느 이벤트로 왔든 같게 다룬다.**
   ///
-  /// 확정 판정은 이벤트 종류가 아니라 **상태 전이**로 한다 — 모집 중이던 방이
-  /// 확정으로 넘어간 그 순간만 연출을 띄운다. 재연결로 같은 `MATCHED`가 다시
-  /// 와도 전이가 아니므로 조용하다.
-  void _applyRoom(RoomInfo room) {
+  /// [confirmed]만 다르다 — `MATCH_CONFIRMED`로 왔다는 뜻이고, 확정 연출은
+  /// 그때만 띄운다. 확정된 방에 다시 붙으면 입장 스냅샷이 같은 `MATCHED`를
+  /// 실어 오므로, **상태만 보고 판정하면 앱을 켤 때마다 다시 축하한다.**
+  void _applyRoom(RoomInfo room, {bool confirmed = false}) {
     // 서버는 **방 평균 페이스 ±30초** 안에 드는 사람만 같은 방에 넣는다
     // (`MatchRoomAssigner.ranked`). 혼자 남는 이유가 대개 이 값이라, 방이
     // 바뀔 때마다 남긴다 — 없으면 "왜 나만 있나"를 로그로 답할 수 없다.
@@ -401,18 +405,23 @@ class MatchRoomController extends Notifier<MatchRoomState> {
     final movedRoom =
         state.room != null && state.room!.runningRoomId != room.runningRoomId;
 
-    // ⚠️ **초대 방은 확정 연출이 없다.** 모집 마감이 `status: matched`로 오는데
-    // (별도 마감 이벤트가 없다) 전이만 보고 판정하면 **마감에 축하가 터진다** —
-    // 매칭이 성사된 것이 아니라 더 들어올 자리가 닫힌 것뿐이다.
+    // ⚠️ **초대 방은 확정 연출도, 집계도 없다.** 모집 마감이 `status: matched`로
+    // 오는데(별도 마감 이벤트가 없다) 그것을 확정으로 읽으면 **마감에 축하가
+    // 터진다** — 매칭이 성사된 것이 아니라 더 들어올 자리가 닫힌 것뿐이다.
     final celebrates = room.type != RoomType.invite;
-    final justMatched =
-        celebrates &&
-        state.room?.status != RoomStatus.matched &&
-        room.status == RoomStatus.matched;
 
-    // ⚠️ **방마다 한 번만 남긴다.** 위의 `justMatched` 는 화면 연출용이라
-    // 상태가 비워진 뒤 다시 들어오면 또 켜진다 — 재연결이나 provider 재생성이
-    // 그렇다. 그대로 쓰면 한 번의 성사가 여러 번으로 세어진다.
+    // ⚠️ **`status`도 함께 본다.** 이름만 믿지 않는다 — 축하할 것은 확정된
+    // 방뿐이다.
+    final justMatched =
+        celebrates && confirmed && room.status == RoomStatus.matched;
+
+    // ⚠️ **집계는 `justMatched`를 따르지 않는다.** 그쪽은 확정 이벤트를 받은
+    // 경우만인데, 앱이 백그라운드였으면 그 이벤트가 오지 않는다 — 연출은 못
+    // 띄워도 성사는 성사라, 확정된 방을 **어느 이벤트로 알았든** 센다.
+    //
+    // 대신 **방마다 한 번만** 남긴다. 확정된 방은 입장·갱신 통지를 계속 받고,
+    // 올 때마다 남기면 한 번의 성사가 여러 번으로 세어진다.
+    //
     // ⚠️ **초대 방은 집계하지 않는다.** 매칭 퍼널 지표라, 직접 골라 모은 방이
     // 섞이면 성사율이 거짓이 된다.
     if (celebrates &&

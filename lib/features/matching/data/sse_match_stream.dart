@@ -319,6 +319,11 @@ class SseMatchStream implements MatchStream {
       case 'MATCH_CONFIRMED':
         final room = roomOf(decoded);
         return room == null ? null : MatchStarted(room);
+      case 'MATCH_ROOM_ENTRANCE':
+        final room = roomOf(decoded);
+        // ⚠️ **갱신과 나눠서 받는다.** `data`는 기존과 같은 `RoomInfo`라 파서는
+        // 그대로지만, 확정 연출을 띄울지가 이 이름으로 갈린다.
+        return room == null ? null : MatchRoomEntrance(room);
       case 'MATCH_ROOM_UPDATED':
         final room = roomOf(decoded);
         return room == null ? null : MatchRoomUpdated(room);
