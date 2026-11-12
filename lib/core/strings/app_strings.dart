@@ -56,7 +56,7 @@ abstract final class AppStrings {
   // ── 준비 중 화면 ─────────────────────────────────────────────
 
   static const comingSoonTitle = '준비 중이에요';
-  static const comingSoonBody = '다음 업데이트에서 만날 수 있어요.';
+  static const comingSoonBody = '다음 업데이트에서 만날 수 있어요';
 
   // ── 브랜드 ───────────────────────────────────────────────────
 
@@ -131,7 +131,7 @@ abstract final class AppStrings {
   // ⚠️ 선택 항목은 **서버로 가지 않는다** — 받을 API가 아직 없다.
 
   static const termsTitle = '약관에\n동의해주세요';
-  static const termsSubtitle = '매칭과 기록 분석에 필요한\n최소 정보만 받아요';
+  static const termsSubtitle = '매칭과 기록 분석에 필요한 최소 정보만 받아요';
 
   /// 카드형 일괄 토글. 3번 탭할 것을 1번으로 줄인다.
   static const termsAgreeAll = '전체 동의';
@@ -163,21 +163,12 @@ abstract final class AppStrings {
 
   /// 위치 권한을 지금 묻지 않고 홈에서 묻는다는 것을 미리 알린다
   /// (`HomePermissionAsker`).
-  static const termsLocationNotice = '위치 권한은 홈에서\n한 번 여쭤봐요';
+  static const termsLocationNotice = '위치 권한은 홈에서 한 번 여쭤봐요';
 
   /// **필수** 3항목을 전부 동의해야 눌린다. 선택은 막지 않는다.
   static const termsCta = '동의하고 계속';
 
   // ── 프로필 등록 (S04) ────────────────────────────────────────
-  //
-  // 질문을 한 번에 하나씩 던진다. 답하면 다음이 아래에 붙고, 답한 것은 위에 쌓인다.
-  // 그래서 문구가 라벨(`닉네임`)과 질문(`뭐라고 부를까요`) 두 벌로 나뉜다 —
-  // 질문은 묻는 동안, 라벨은 쌓인 뒤에 쓴다.
-
-  static const profileTitle = '프로필을 만들어요';
-
-  /// 답한 줄을 눌러 되돌아갈 수 있다는 것을 스크린리더에 알린다.
-  static const profileEditHint = '고치기';
 
   static const profileNext = '다음';
 
@@ -219,8 +210,6 @@ abstract final class AppStrings {
 
   // 닉네임
   static const profileNicknameLabel = '닉네임';
-  static const profileNicknameQuestion = '뭐라고 부를까요';
-  static const profileNicknameWhy = '함께 달리는 러너에게 보이는 이름이에요.';
   static const profileNicknameHint = '러너42';
   static const profileNicknameGuide = '2~16자로 지어주세요';
   static const profileNicknameTooShort = '2자 이상이어야 해요';
@@ -263,8 +252,6 @@ abstract final class AppStrings {
 
   // 생년월일
   static const profileBirthLabel = '생년월일';
-  static const profileBirthQuestion = '언제 태어났나요';
-  static const profileBirthWhy = '기록을 계산하는 데만 써요. 다른 러너에게 보이지 않아요.';
 
   /// 만 14세 미만을 막을 때. **왜 막혔는지 말해야 한다** — 서버도 400으로
   /// 거절하지만 그 메시지는 화면에 닿지 않아, 앱이 말하지 않으면 사용자는
@@ -276,8 +263,6 @@ abstract final class AppStrings {
 
   // 성별
   static const profileGenderLabel = '성별';
-  static const profileGenderQuestion = '성별을 알려주세요';
-  static const profileGenderWhy = '기록 계산에만 써요.';
   // 남성·여성 둘뿐이다. 칼로리·페이스 계산식이 이분법을 전제해서인데,
   // 그 계산이 필요 없는 곳(프로필 공개 정보 등)까지 이 값을 끌어다 쓰면 안 된다.
   static const profileGenderMale = '남성';
@@ -285,8 +270,6 @@ abstract final class AppStrings {
 
   // 키·몸무게
   static const profileBodyLabel = '키 · 몸무게';
-  static const profileBodyQuestion = '키와 몸무게는요';
-  static const profileBodyWhy = '칼로리를 셈하는 데만 써요.';
   static const profileUnitHeight = 'cm';
   static const profileUnitWeight = 'kg';
 
@@ -295,8 +278,6 @@ abstract final class AppStrings {
   // 등급을 고르게 하지 않고 숫자를 받는다. '중급'이 무엇인지는 사람마다 다르지만
   // "1km를 6분에 뛴다"는 누구에게나 같은 값이다.
   static const profilePaceLabel = '페이스';
-  static const profilePaceQuestion = '5km를 뛰면 어느 정도인가요';
-  static const profilePaceWhy = '1km를 몇 분에 뛰는지 알려주세요. 비슷한 러너를 찾는 데 써요.';
   static const profilePaceSheetTitle = '1km당 페이스';
   static const profileUnitMinute = '분';
   static const profileUnitSecond = '초';
@@ -312,13 +293,10 @@ abstract final class AppStrings {
   static const profilePaceSkip = '건너뛰기';
 
   /// 버튼 아래 안내. 측정이 어디서 이뤄지는지 미리 알린다.
-  static const profilePaceSkipWhy = '홈에서 혼자 연습하며 재보면 그때 채워져요.';
+  static const profilePaceSkipWhy = '홈에서 혼자 연습하며 재보면 그때 채워져요';
 
   /// 미측정 상태로 쌓인 줄에 보이는 값.
   static const profilePaceUnmeasured = '측정 전';
-
-  /// 시트를 열기 전 자리 표시.
-  static const profileTapToPick = '탭해서 고르기';
 
   // ── 로그인 (S02.5) ───────────────────────────────────────────
   //
@@ -400,7 +378,7 @@ abstract final class AppStrings {
 
   /// ⚠️ **"실패했어요"라고 말하지 않는다.** 응답을 못 받았을 뿐 서버는 이미
   /// 처리했을 수 있다. 실패라고 단정하면 사용자가 같은 일을 또 하게 된다.
-  static const authFailedTimeout = '응답이 늦어요. 잠시 뒤 다시 확인해주세요';
+  static const authFailedTimeout = '응답이 늦어요. 잠시 후 다시 확인해주세요';
   static const authFailedServer = '잠시 후 다시 시도해주세요';
   static const authFailedUnknown = '로그인하지 못했어요. 다시 시도해주세요';
 
@@ -437,12 +415,10 @@ abstract final class AppStrings {
   static const authPasswordDisallowedChar = '영문·숫자·특수문자만 쓸 수 있어요';
   static const authPasswordOk = '쓸 수 있는 비밀번호예요';
 
-  /// 두 화면을 오가는 링크. 물음표로 끝내 조사 문제를 피한다.
+  /// 가입 화면으로 가는 링크. 물음표로 끝내 조사 문제를 피한다.
   static const authToSignUp = '계정이 없나요? 가입하기';
-  static const authToSignIn = '이미 계정이 있나요? 로그인';
 
   /// **인증번호를 받기 전에** 나온다. 서버가 발송 단계에서 중복을 막기 때문이다.
-  /// 바로 아래의 [authToSignIn]이 갈 곳을 알려준다.
   /// 이미 그 이메일로 계정이 있다. 서버 `EMAIL_ALREADY_EXISTS` (409).
   ///
   /// ⚠️ **어느 방법으로 가입했는지 말하지 않는다.** 로컬 가입과 소셜 로그인이
@@ -483,10 +459,12 @@ abstract final class AppStrings {
   /// 티켓은 1회용이라 인증 단계로 돌아가야 한다.
   static const authFailedNotVerified = '인증이 만료됐어요. 인증번호를 다시 받아주세요';
 
-  /// ⚠️ 아래 둘은 **서버 문구를 그대로 쓴다**(요청받은 값).
-  /// 다른 문구가 해요체인 것과 달리 습니다체다 — 톤을 맞출지는 리뷰에서 정한다.
-  static const authFailedSendCooldown = '인증 메일을 방금 보냈습니다. 잠시 후 다시 시도해 주세요.';
-  static const authFailedSendDailyLimit = '하루 인증 메일 발송 횟수를 초과했습니다.';
+  /// 아래 둘은 서버 문구의 뜻을 앱 말투(해요체)로 옮겼다.
+  ///
+  /// ⚠️ 발송 한도는 **첫 발송부터 24시간**이다. "오늘은"이라고 쓰면 자정에
+  /// 풀리는 것처럼 읽힌다.
+  static const authFailedSendCooldown = '인증 메일을 방금 보냈어요. 잠시 후 다시 시도해주세요';
+  static const authFailedSendDailyLimit = '하루 인증 메일 발송 횟수를 초과했어요';
 
   // ── 소셜 로그인 ──────────────────────────────────────────────
   //
@@ -511,8 +489,7 @@ abstract final class AppStrings {
   ///
   /// 둘 다 결과는 같다 — 쓸 수 있는 이메일을 못 받았다. 그래서 사실을 먼저 적고,
   /// 사용자가 해볼 수 있는 쪽(동의)을 뒤에 둔다.
-  static const authFailedOauthEmail =
-      '이메일을 받지 못해 로그인할 수 없어요. 이메일 제공에 동의했는지 확인해주세요';
+  static const authFailedOauthEmail = '이메일을 받지 못했어요. 이메일 제공 동의를 확인해주세요';
 
   // ── 홈 (S05) ─────────────────────────────────────────────────
 
@@ -579,19 +556,20 @@ abstract final class AppStrings {
 
   /// 프로필을 아직 안 채운 사람에게 뜨는 안내.
   static const homeProfilePromptTitle = '매칭을 시작하려면 프로필을 완성해주세요';
-  static const homeProfilePromptBody =
-      '러닝 수준과 기본 정보를 입력하면 나와 잘 맞는 러너를 찾을 수 있어요.';
+  static const homeProfilePromptBody = '나와 잘 맞는 러너를 찾는 데 써요';
 
   // 히어로 — 매칭 대기 (S05 상태 2)
   //
-  // ⚠️ **정본은 히어로가 매칭 상태를 전담한다.** 모집 중에는 갈 화면이 따로
-  // 없고, 여기가 그 상태를 보여주는 유일한 자리다.
+  // ⚠️ **정본은 히어로가 매칭 상태를 전담한다.** 등록하면 홈으로 돌아오고,
+  // 모집 중의 상태는 여기서 보여 준다. 로비로 가는 문([homeMatchToLobby])도
+  // 여기 있다.
 
   /// 카드 제목. 시안 `158:2971`.
   static const homeMatchWaitingTitle = '매칭 대기 중';
 
-  /// 부제 둘째 줄. 두 경우가 같은 말로 끝난다. 기다리라고 하지 않는다 —
-  /// 화면을 지켜보다 취소하고 나가는 사람이 많다.
+  /// 매칭 방 부제 둘째 줄. 혼자일 때와 둘레에 사람이 있을 때가 같은 말로
+  /// 끝난다. 기다리라고 하지 않는다 — 화면을 지켜보다 취소하고 나가는 사람이 많다.
+  /// 초대 방은 [homeInviteWaitingHint]를 쓴다.
   static const homeMatchWaitingHint = '앱을 꺼도 신청은 그대로예요';
 
   /// `3명의 러너가 함께 달릴 준비를 하고 있어요` — **나를 뺀 수**다.
@@ -602,22 +580,22 @@ abstract final class AppStrings {
   /// 그때 `0명의 러너가 준비를 하고 있어요`라고 적으면 말이 안 된다.
   static const homeMatchWaitingAlone = '아직 함께 달릴 러너를 찾고 있어요';
 
-  /// `민수님과 매칭성공!` — 파티원이 **늘어난 순간** 히어로 한가운데 뜬다.
+  /// `민수님이 합류했어요` — 파티원이 **늘어난 순간** 히어로 한가운데 뜬다.
+  ///
+  /// ⚠️ **매칭 방과 초대 방이 함께 쓴다.** 초대 방에 "매칭 성공"이라고 띄우면
+  /// 틀린 말이다 — 매칭이 아니라 수락이다.
   ///
   /// ⚠️ **머릿수의 문구가 아니라 사건의 문구다.** 화면에 들어올 때마다
   /// 띄우면 축하가 아니라 머릿수 안내가 된다.
   ///
   /// ⚠️ **긴 닉네임은 이 문자열로 자르지 않는다.** 16자까지 받으므로
-  /// 문장을 통째로 줄이면 정작 알려야 할 `매칭성공!`이 먼저 잘린다. 화면이
-  /// 닉네임과 [homeMatchSuccessSuffix]를 따로 세우고 **닉네임만** 줄인다.
-  static String homeMatchSuccess(String nickname) =>
-      '$nickname$homeMatchSuccessSuffix';
+  /// 문장을 통째로 줄이면 정작 알려야 할 `합류했어요`가 먼저 잘린다. 화면이
+  /// 닉네임과 [homePlayerJoinedSuffix]를 따로 세우고 **닉네임만** 줄인다.
+  static String homePlayerJoined(String nickname) =>
+      '$nickname$homePlayerJoinedSuffix';
 
   /// 닉네임 뒤에 붙는 고정 부분. **잘리지 않는 쪽**이다.
-  static const homeMatchSuccessSuffix = '님과 매칭성공!';
-
-  /// 잠긴 CTA. 누를 수 없고, 지금 무엇을 하는 중인지만 말한다.
-  static const homeMatchWaitingCta = '매칭 대기중';
+  static const homePlayerJoinedSuffix = '님이 합류했어요';
 
   static const homeMatchWaiting = '매칭 중';
 
@@ -628,31 +606,12 @@ abstract final class AppStrings {
   /// 다시 누르고, 서버는 409로 막는다.
   static const homeMatchPending = '매칭 정보를 불러오는 중이에요';
 
-  /// `현재 2명 매칭됨` — 숫자만 강조색으로 그린다(정본).
-  ///
-  /// 문장을 셋으로 쪼개 두는 이유는 가운데만 색을 달리하기 위해서다.
-  /// 조사가 붙지 않아 쪼개도 어색해지지 않는다.
-  static const homeMatchJoinedPrefix = '현재';
-  static String homeMatchJoinedCount(int count) => '$count명';
-  static const homeMatchJoinedSuffix = '매칭됨';
-
-  /// `19:00 슬롯 · 마감까지 12분`
-  static String homeMatchSlotLine(DateTime startAt, Duration untilClose) =>
-      '${matchSlotTime(startAt)} 슬롯 · 마감까지 ${_minutesText(untilClose)}';
-
-  /// 마감까지 남은 시간. 분 단위로 담담하게 적는다 — 초까지 세면 조급해진다.
-  static String _minutesText(Duration left) {
-    if (left.inMinutes < 1) return '곧';
-    if (left.inHours < 1) return '${left.inMinutes}분';
-    final minutes = left.inMinutes % 60;
-    return minutes == 0 ? '${left.inHours}시간' : '${left.inHours}시간 $minutes분';
-  }
-
   /// ⚠️ 방 정보를 못 받아 로비로 들어갈 수 없을 때만 히어로에 둔다.
   /// 평소의 취소·나가기는 로비가 맡는다 — 두 곳에 두면 문구가 갈린다.
   static const homeMatchCancel = '취소하기';
 
-  /// 모집 중에 들어가는 문.
+  /// 모집 중에 들어가는 문. 매칭·초대 방이 같이 쓴다 — 무엇을 기다리는지는
+  /// 카드 제목이 가른다.
   static const homeMatchToLobby = '로비로 가기';
 
   // 히어로 — 매칭 확정 (S05 상태 3) · 시안 158:3102
@@ -682,11 +641,9 @@ abstract final class AppStrings {
 
   static const homeMatchSoloTitle = '혼자 달리게 됐어요';
 
-  /// ⚠️ 두 줄이 각각 할 일을 한다. 첫 줄은 **왜 혼자인지**, 둘째 줄은
-  /// **그래서 어떻게 되는지**다. 둘째 줄이 없으면 신청이 날아간 줄 안다.
-  static const homeMatchSoloBody =
-      '시간 안에 함께 달릴 러너를 만나지 못했어요'
-      '\n예약한 시간에 혼자 달려요';
+  /// ⚠️ **예약이 그대로라는 것**을 말한다. 이 줄이 없으면 신청이 날아간 줄
+  /// 안다. 혼자가 됐다는 것은 제목([homeMatchSoloTitle])이 말한다.
+  static const homeMatchSoloBody = '예약한 시간에 그대로 달려요';
 
   /// 확정된 방으로 들어가는 문.
   ///
@@ -726,7 +683,7 @@ abstract final class AppStrings {
   ///
   /// ⚠️ **거리도 같아야 한다.** 거리가 다르면 같은 방에 매칭되지 않는다 — "같은
   /// 시간대"만 적으면 다른 거리의 사람과도 만나는 것으로 읽힌다.
-  static const matchTimeHint = '같은 거리·시간대 러너끼리 매칭돼요.\n대기 인원이 많을수록 빨리 만나요';
+  static const matchTimeHint = '같은 거리·시간대 러너끼리 매칭돼요\n대기 인원이 많을수록 빨리 만나요';
 
   static const matchDistanceLabel = '목표 거리';
 
@@ -777,31 +734,35 @@ abstract final class AppStrings {
   ///
   /// ## ⚠️ 숫자가 서버 설정값이다
   ///
-  /// `18:00~22:00` · `1시간` · `10분 전`은 전부 운영에서 바뀔 수 있는 값이다.
+  /// `18:00~22:00` · `매시 정각`(1시간 간격) · `10분 전`은 전부 운영에서 바뀔 수 있는 값이다.
   /// **바뀌면 이 문구도 같이 고쳐야 한다** — 안 고치면 화면만 거짓말을 한다.
   /// 그래도 적는 이유는, "시작 직전에 마감돼요"로는 **언제까지 누르면 되는지**
   /// 알 수 없기 때문이다(2026-10-22 결정).
   /// 등록을 눌렀는데 그사이 그 시간대가 마감됐다(409 `MATCH_SLOT_CLOSED`).
   /// **다른 시각이 아직 남아 있으므로 화면에 남는다.**
-  static const matchSlotClosedTitle = '모집이 마감된 시간대입니다';
+  static const matchSlotClosedTitle = '이 시간대는 마감됐어요';
 
   /// 이탈 제재 중이다(409 `MATCH_COOLDOWN`).
-  static const matchCooldownTitle = '이탈 패널티로 지금은 신청할 수 없어요';
+  static const matchCooldownTitle = '지금은 매칭을 신청할 수 없어요';
 
   /// 두 팝업 모두 **화면에 남는다** — 고칠 자리가 이 화면 안에 있다.
   static const matchPolicyClose = '확인';
 
   static const matchPolicyWhenAsk = '언제 뛰나요?';
-  static const matchPolicyWhenTell = '저녁 18:00부터 22:00까지, 1시간 간격으로 고를 수 있어요';
+  static const matchPolicyWhenTell = '18:00부터 22:00까지 매시 정각이에요';
 
   static const matchPolicyDeadlineAsk = '언제까지 신청하나요?';
 
   /// ⚠️ **예시를 함께 적는다.** "10분 전"만 적으면 머릿속에서 빼야 한다.
   static const matchPolicyDeadlineTell =
-      '시작 10분 전까지예요. 19:00에 뛰려면 18:50까지 신청하면 돼요';
+      '시작 10분 전까지예요\n19:00에 뛰려면 18:50까지 신청해요';
 
-  /// 이탈 제재 팝업의 본문. **규칙을 먼저 말하고** 해제 시각을 뒤에 붙인다.
-  static const matchCooldownRule = '매칭이 확정된 뒤에 나가면 20분 동안 다시 신청할 수 없어요';
+  /// 이탈 제재 팝업의 본문. **왜 막혔는지만** 말하고, 언제 풀리는지는 아래
+  /// [matchCooldownUntil]이 말한다.
+  ///
+  /// ⚠️ 확정 뒤 이탈만 적으면 러닝을 일찍 끝내서 걸린 사람에게 틀린 이유가
+  /// 된다. 화면 아래 안내([matchFailedCooldown])와 같은 말을 쓴다.
+  static const matchCooldownReason = '중간에 그만둔 매칭·러닝이 있어요';
 
   /// `08:30에 다시 신청할 수 있어요` — 서버가 준 해제 시각.
   ///
@@ -809,9 +770,6 @@ abstract final class AppStrings {
   /// 있는데, 없는 시각을 지어내면 그때까지 기다린 사람이 또 막힌다.
   static String matchCooldownUntil(DateTime? until) =>
       until == null ? '' : '${matchSlotTime(until)}에 다시 신청할 수 있어요';
-
-  static const matchPolicyCancel = '다음에';
-  static const matchPolicyConfirm = '매칭 등록하러 가기';
 
   /// 오늘 고를 수 있는 시간대가 **하나도 안 남았을 때** 뜨는 팝업.
   ///
@@ -821,16 +779,8 @@ abstract final class AppStrings {
 
   /// ⚠️ **빈손으로 돌려보내지 않는다.** 시간 규칙만 적고 끝내면 지금 뛰려고
   /// 들어온 사람이 할 수 있는 일이 사라진다 — 혼자 뛰기는 마감과 무관하다.
-  static const matchClosedSolo = '지금은 홈에서 혼자 연습하기로 달릴 수 있어요';
+  static const matchClosedSolo = '혼자 연습하기는 지금도 할 수 있어요';
   static const matchClosedGoHome = '홈으로';
-
-  /// 마감이 임박했다. 남은 시간대를 적어 **미리** 알린다.
-  ///
-  /// ⚠️ **앱이 마감 시각을 세지 않는다.** "시작 10분 전"은 운영값이라 앱이
-  /// 그 숫자를 가지면 설정이 바뀌는 날 조용히 어긋난다. 대신 서버가 준
-  /// `selectable`이 몇 개 남았는지로 임박을 가른다.
-  static String matchClosingSoon(String times) =>
-      '오늘 남은 시간대는 $times뿐이에요. 모집은 시작 직전에 마감돼요';
 
   /// 고를 수 있는 시간이 하나도 없다. 22시가 지났거나 전부 마감이다.
   ///
@@ -860,16 +810,20 @@ abstract final class AppStrings {
   /// 마감된 슬롯에 붙는다. 목록에서 빼지 않고 잠그기 때문에 이유가 필요하다.
   static const matchSlotClosed = '마감';
 
+  /// 고른 거리에 아무도 없을 때 평소 가장 많이 모이는 시각 한 줄에 붙는다.
+  /// 신청을 한 시각으로 모으려는 것이다.
+  static const matchSlotRecommended = '추천';
+
   static const matchSlotEmpty = '오늘은 고를 수 있는 시간대가 없어요';
 
   /// 페이스를 입력받지 않는 이유를 밝힌다. 없으면 빠뜨린 항목으로 읽힌다.
-  static const matchPaceAuto = '페이스는 프로필 기록으로 자동으로 맞춰드려요';
+  static const matchPaceAuto = '페이스는 프로필 기록으로 맞춰드려요';
 
   static const matchPlayerCountInfo = '2~4명이 함께 달려요';
 
   /// ⚠️ 등록 전에 알린다. 확정 뒤에 나가면 제재가 붙는다는 사실을
   /// 나갈 때 처음 알리면 속았다고 느낀다.
-  static const matchCancelPolicy = '매칭이 확정된 뒤에 나가면 20분 동안 다시 신청할 수 없어요';
+  static const matchCancelPolicy = '매칭이 확정된 뒤 나가면 20분 동안 신청할 수 없어요';
 
   // 실패 — 서버가 준 문장을 그대로 띄우지 않는다. 앱이 무엇을 할 수 있는지가
   // 문구에 들어가야 한다.
@@ -883,13 +837,13 @@ abstract final class AppStrings {
   /// 사용자가 모르던 것이라, **지금 무슨 일이 일어났는지**를 먼저 말한다.
   static const matchFailedAlreadyStarted = '러닝이 이미 시작됐어요. 러닝 화면으로 옮길게요';
 
-  static const matchFailedOnboarding = '프로필을 먼저 채워야 매칭 조건을 만들 수 있어요';
+  static const matchFailedOnboarding = '프로필을 먼저 완성해주세요';
 
   /// ⚠️ 쿨다운은 확정 후 이탈과 러닝 중 조기 종료 **둘 다**에서 걸린다.
   /// "이탈"만 말하면 러닝을 중간에 끝낸 사람이 이유를 모른다.
   static String matchFailedCooldown(DateTime? until) {
-    if (until == null) return '매칭이나 러닝을 중간에 그만둬서 잠시 신청할 수 없어요';
-    return '매칭이나 러닝을 중간에 그만둬서 ${matchSlotTime(until)}까지 신청할 수 없어요';
+    if (until == null) return '매칭·러닝을 중간에 그만둬서 잠시 신청할 수 없어요';
+    return '매칭·러닝을 중간에 그만둬서 ${matchSlotTime(until)}까지 신청할 수 없어요';
   }
 
   /// ⚠️ 앱의 선택지가 서버 규칙과 어긋났다는 신호다. 정상 경로에서는 안 나온다.
@@ -906,23 +860,12 @@ abstract final class AppStrings {
   /// 중복 신청이 된다.
   static const matchFailedNetwork = '등록됐는지 확인하지 못했어요. 홈에서 다시 확인해주세요';
 
-  // 위치 권한 시트 — 알림은 묻지 않는다. 받아도 보낼 채널이 아직 없다.
-
-  static const matchLocationTitle = '위치를 쓸 수 있게 해주세요';
-  static const matchLocationBody = '달리는 동안 경로와 거리를 재는 데만 써요.\n파티원에게는 보이지 않아요';
-  static const matchLocationAllow = '허용하고 계속하기';
-
-  /// 거부해도 등록은 진행한다. 위치가 필요한 시점은 달리기 시작할 때다.
-  static const matchLocationLater = '나중에 할게요';
-
   // ── 대기방 (S10) ─────────────────────────────────────────────
 
-  /// 화면 이름. **같은 화면인데 단계에 따라 부르는 말이 다르다.**
-  ///
-  /// 모집 중에는 아직 누구와 뛸지 정해지지 않아 `로비`이고, 확정된 뒤에는
-  /// 출발을 기다리는 `대기실`이다.
+  /// 첫 스냅샷이 오기 전의 화면 이름. 그 뒤로는 제목이 단계를 말한다
+  /// ([matchRoomWaiting] · [matchRoomMatched], 초대 방은 [inviteRoomWaiting] ·
+  /// [inviteRoomClosed]).
   static const matchRoomTitleLobby = '로비';
-  static const matchRoomTitleWaiting = '대기실';
 
   static const matchRoomWaiting = '매칭 중';
   static const matchRoomMatched = '매칭 완료!';
@@ -935,10 +878,10 @@ abstract final class AppStrings {
 
   /// 모집 중인 매칭 방의 나가기 버튼 위 안내. 기다리지 않아도 된다고 말한다.
   ///
-  /// ⚠️ `10분 전`은 서버 모집 마감(`match.close-offset`)이다. 확정 알림이 그때
-  /// 간다 — 서버 값이 바뀌면 이 문구도 바꾼다. "알아서 매칭돼 있을 거예요"는
-  /// 쓰지 않는다. 아무도 안 오면 혼자 달린다.
-  static const matchRoomWaitingHint = '앱을 꺼도 신청은 그대로예요. 출발 10분 전에 알려 드릴게요';
+  /// ⚠️ 확정 알림은 서버 모집 마감(`match.close-offset`) 때 간다. 화면 위
+  /// 배지가 그 시각까지 세고 있어 문구에는 시각을 적지 않는다. "알아서 매칭돼
+  /// 있을 거예요"는 쓰지 않는다. 아무도 안 오면 혼자 달린다.
+  static const matchRoomWaitingHint = '앱을 꺼도 신청은 그대로예요. 마감되면 알려드릴게요';
 
   static const matchRoomCloseLabel = '모집 마감까지';
   static const matchRoomStartLabel = '시작까지';
@@ -961,12 +904,15 @@ abstract final class AppStrings {
   }
 
   static const matchRoomCancel = '매칭 취소하기';
-  static const matchRoomLeave = '나가기';
+
+  /// 무엇을 떠나는지 적는다. 그냥 `나가기`면 화면만 닫는 뒤로가기와 같은
+  /// 말로 읽힌다 — 뒤로가기는 방을 둔 채 홈으로 간다.
+  static const matchRoomLeave = '매칭 나가기';
 
   static const matchRoomLeaveTitle = '정말 나갈까요?';
 
   /// ⚠️ 나가기 전에 알린다. 나간 뒤에 알리면 속았다고 느낀다.
-  static const matchRoomLeavePenalty = '지금 나가면 20분 동안 다시 신청할 수 없어요';
+  static const matchRoomLeavePenalty = '지금 나가면 20분 동안 신청할 수 없어요';
 
   /// 혼자 남은 방은 제재가 없다. 있는 것처럼 겁주지 않는다.
   static const matchRoomLeaveFree = '지금 나가도 다시 신청할 수 있어요';
@@ -974,10 +920,10 @@ abstract final class AppStrings {
   static const matchRoomLeaveConfirm = '나갈게요';
   static const matchRoomStay = '남아 있을게요';
 
-  static const matchRoomLeaveFailed = '나가지 못했어요. 잠시 뒤 다시 시도해주세요';
+  static const matchRoomLeaveFailed = '나가지 못했어요. 잠시 후 다시 시도해주세요';
 
   /// ⚠️ 끊겨도 방은 그대로 둔다. 무엇이 멈춘 것인지만 알린다.
-  static const matchRoomDisconnected = '실시간 연결이 끊겼어요. 인원이 바뀌어도 바로 보이지 않아요';
+  static const matchRoomDisconnected = '실시간 연결이 끊겨 인원이 바뀌어도 바로 보이지 않아요';
 
   static const matchRoomStarted = '러닝이 시작됐어요';
 
@@ -990,13 +936,13 @@ abstract final class AppStrings {
   static const matchLaunchNoticeTitle = '곧 러닝이 시작돼요';
 
   /// 무엇이 일어날지 먼저 말한다. 화면이 갑자기 바뀌면 사용자는 앱이 튄 줄 안다.
-  static const matchLaunchNoticeBody = '로비로 이동합니다';
+  static const matchLaunchNoticeBody = '로비로 이동해요';
 
   static const matchCountdownTitle = '출발 대기실';
 
   /// 여기서 나갈 수 없다는 사실을 미리 말한다. 뒤로가기가 안 먹는 것을
   /// 고장으로 오해하지 않게 한다.
-  static const matchCountdownHint = '곧 함께 출발해요.\n이제부터는 취소할 수 없어요';
+  static const matchCountdownHint = '이제 취소할 수 없어요';
 
   /// 준비 완료 버튼 자리의 안내. 서버가 시각으로 시작하므로 누를 것이 없다.
   static const matchCountdownAuto = '출발 시각에 자동으로 시작해요';
@@ -1069,11 +1015,6 @@ abstract final class AppStrings {
   // 쓴다.** 같은 규칙을 두 벌로 적으면 한쪽만 고쳐지고, 사용자는 화면마다
   // 다른 말을 듣는다.
 
-  /// 시트 제목이자 연필 배지의 접근성 라벨. **버튼과 같은 말을 쓴다** —
-  /// 여는 곳과 끝내는 곳의 이름이 다르면 같은 일인지 알기 어렵다.
-  static const profileNicknameChangeTitle = '닉네임 변경';
-  static const profileNicknameChangeSubmit = '변경';
-
   /// 지금 쓰는 이름 그대로다.
   ///
   /// ⚠️ **중복확인을 보내지 않는다.** 보내면 서버가 "이미 사용 중"이라고
@@ -1109,11 +1050,11 @@ abstract final class AppStrings {
   /// 모르는 채로 선택기를 열면 기본값(172cm·63kg)이 뜨고, 키만 고치려던
   /// 사람이 **몸무게를 63으로 덮어쓴다.** 잠근 이유를 적지 않으면 왜 안
   /// 눌리는지 알 수 없다(정본 C9 — 색만으로 알리지 않는다).
-  static const profileBodyLoadFailed = '신체 정보를 불러오지 못했어요. 잠시 뒤에 다시 열어주세요.';
+  static const profileBodyLoadFailed = '신체 정보를 불러오지 못했어요. 잠시 후 다시 열어주세요';
 
   /// 저장하지 않고 나가려 할 때.
   static const profileEditDiscardTitle = '바꾼 내용을 버릴까요';
-  static const profileEditDiscardBody = '저장하지 않으면 방금 고친 값이 사라져요.';
+  static const profileEditDiscardBody = '저장하지 않은 내용은 사라져요';
   static const profileEditDiscardLeave = '나가기';
   static const profileEditDiscardStay = '계속 편집';
 
@@ -1153,7 +1094,7 @@ abstract final class AppStrings {
   /// 사용자가 이전 러닝을 정리해야 풀린다.
   static const runAlreadyInProgress = '이전 러닝이 아직 끝나지 않았어요';
 
-  static const runAlreadyInProgressWhy = '앱이 갑자기 꺼졌다면 그때 러닝이 남아 있을 수 있어요.';
+  static const runAlreadyInProgressWhy = '앱이 갑자기 꺼졌다면 러닝이 남아 있을 수 있어요';
 
   /// 매칭을 신청해 둔 사람이 혼자 뛰기를 누른 경우.
   ///
@@ -1163,7 +1104,7 @@ abstract final class AppStrings {
   /// 러닝을 찾게 된다.
   static const runBlockedByMatch = '등록된 매칭이 있어요';
 
-  static const runBlockedByMatchWhy = '매칭을 취소한 뒤에 다시 시도해주세요.';
+  static const runBlockedByMatchWhy = '매칭을 취소하면 뛸 수 있어요';
 
   /// 매칭이 **확정된** 사람이 혼자 뛰기를 누른 경우.
   ///
@@ -1171,7 +1112,7 @@ abstract final class AppStrings {
   /// (`matchRoomLeavePenalty`) "취소하세요"라고만 하면 모르고 당한다.
   static const runBlockedByMatched = '매칭이 확정됐어요';
 
-  static const runBlockedByMatchedWhy = '취소하면 바로 뛸 수 있지만, 20분 동안 다시 신청할 수 없어요.';
+  static const runBlockedByMatchedWhy = '취소하면 뛸 수 있지만 20분 동안 신청할 수 없어요';
 
   static const runBackToHome = '홈으로';
 
@@ -1189,13 +1130,11 @@ abstract final class AppStrings {
   /// ⚠️ **더 달려도 안 남는다는 것을 말해 줘야 한다.** 앱이 러닝을 끝내는데,
   /// 이유를 알리지 않으면 저절로 끝난 것처럼 보인다. 원인은 사용자가 어쩔 수
   /// 없는 것이라 "다시 해보세요"라고 하지 않는다.
-  static const runTrackRejected = '기록을 더 저장할 수 없어 러닝을 종료했어요. 여기까지는 저장됐어요';
-
-  static const runOfflineWhy = '기록은 계속 재고 있어요. 연결되면 자동으로 올라가요.';
+  static const runTrackRejected = '더 저장할 수 없어 러닝을 끝냈어요. 여기까지는 저장됐어요';
 
   /// 위치 권한이 없을 때. 설정 앱으로 보낸다.
   static const runPermissionTitle = '위치 권한이 필요해요';
-  static const runPermissionBody = '달린 거리와 경로를 재려면 위치를 알아야 해요.';
+  static const runPermissionBody = '달린 거리와 경로를 재려면 위치를 알아야 해요';
   static const runPermissionOpenSettings = '설정 열기';
   static const runServiceDisabled = '기기의 위치 기능이 꺼져 있어요';
 
@@ -1222,9 +1161,11 @@ abstract final class AppStrings {
   /// ⚠️ **받은 값을 그대로 보여 준다.** 그 뒤에 달린 만큼을 빼서 줄이면
   /// 추정값이 되고, 0m가 떠도 종료는 `RUNNING_FINISHED`를 받아야 한다 —
   /// 가이드 3.3이 그 혼동을 경계한다.
+  ///
+  /// "목표까지"는 창 제목이, "계속 달려도 되고 끝내도 된다"는 두 버튼이 말한다.
   static String runGoalPendingBody(int remainingMeters) =>
-      '서버에서 확인한 거리로는 목표까지 약 ${remainingMeters}m 남았어요. '
-      '계속 달려도 되고 지금 끝내도 돼요. 지금 끝내면 완주로 기록되지 않을 수 있어요.';
+      '서버 기준으로는 약 ${remainingMeters}m 남았어요\n'
+      '끝내면 완주로 기록되지 않을 수 있어요';
 
   static const runGoalPendingKeep = '계속 달리기';
   static const runGoalPendingFinish = '종료하기';
@@ -1294,9 +1235,6 @@ abstract final class AppStrings {
   /// ⚠️ 이름을 모르는 파티원. 러닝 중 앱을 재시작하면 명단이 사라진다.
   static const runPartyUnknown = '함께 달리는 사람';
 
-  /// `2.32 km` — 막대 옆 숫자.
-  static String runPartyDistance(int meters) => '${kmFloor(meters)} km';
-
   /// 파티원이 **뛰고 있지 않을 때** 격차 자리에 대신 넣는 말.
   ///
   /// ⚠️ 멈춘 사람과의 격차는 벌어지기만 한다. 그것을 계속 보이면 **따라잡히는
@@ -1314,11 +1252,13 @@ abstract final class AppStrings {
   /// ⚠️ 목표를 채우지 못한 채 끝내려 할 때. **끝내기 전에 알린다** —
   /// 끝낸 뒤에 알리면 되돌릴 수 없다.
   ///
-  /// ⚠️ **"서버에서 확인한 거리"를 문구에 박아 둔다.** 80% 판정은 정지
-  /// 구간과 오염 좌표를 뺀 서버 확정 거리로 한다(가이드 3.4). 화면에서 넘겼어도
-  /// 서버 기준으로는 모자랄 수 있어 "없다"고 단정하지 않는다.
-  static const runFinishPenaltyNotice =
-      '서버에서 확인한 거리가 목표의 80%에 미달하면 20분 동안 매칭을 신청할 수 없어요';
+  /// ⚠️ **"서버 기준"을 문구에 박아 둔다.** 80% 판정은 정지 구간과 오염
+  /// 좌표를 뺀 서버 확정 거리로 한다(가이드 3.4). 화면에서 넘겼어도 서버
+  /// 기준으로는 모자랄 수 있어 "없다"고 단정하지 않는다. 바로 아래
+  /// [runFinishRemaining]의 "화면 기준"과 짝이다.
+  ///
+  /// 누르는 1~2초 동안만 뜬다 — 한 줄에 들어가야 읽힌다.
+  static const runFinishPenaltyNotice = '서버 기준 80%를 못 채우면 20분 동안 신청할 수 없어요';
 
   /// `4.00km` — 화면 기준으로 얼마나 더 가야 80%에 닿는지.
   ///
@@ -1335,12 +1275,8 @@ abstract final class AppStrings {
   }
 
   static const runPaceLabel = '페이스';
-  static const runTimeLabel = '시간';
 
   /// 실시간 기록 장의 시간 칸 — 시안 `158:3493`.
-  ///
-  /// 중지 시트는 [runTimeLabel](`시간`)을 그대로 쓴다. 거기는 요약이라 칸이
-  /// 좁고, 여기는 카드라 넉넉하다.
   static const runElapsedLabel = '경과 시간';
   static const runDistanceLabel = '거리';
   static const runCadenceLabel = '케이던스';
@@ -1350,8 +1286,6 @@ abstract final class AppStrings {
   /// 러닝 기록은 사용자가 믿고 보는 숫자다.
   static const runUnavailable = '--';
 
-  static const runStopCta = '중지';
-  static const runPausedTitle = '일시정지됨';
   static const runResumeCta = '계속 달리기';
 
   /// 하단 일시정지 버튼의 읽을 이름.
@@ -1363,7 +1297,7 @@ abstract final class AppStrings {
   static const runFinishHold = '길게 눌러 종료';
 
   /// 서버가 종료를 거절했다. 러닝은 이어진다.
-  static const runFinishRejected = '종료하지 못했어요. 다시 길게 눌러 주세요';
+  static const runFinishRejected = '종료하지 못했어요. 다시 길게 눌러주세요';
 
   /// 지도 페이지에 키가 없을 때. 나머지 기능은 그대로 돈다.
   static const runMapUnavailable = '지도를 불러올 수 없어요';
@@ -1389,12 +1323,11 @@ abstract final class AppStrings {
   static const runSummaryTotalDistance = '총 거리';
   static const runSummaryUnitKm = 'km';
 
-  /// 거리 아래 두 값의 라벨. 단위를 라벨에 붙여 수치를 숫자만 남긴다.
+  /// 거리 아래 시간 칸의 라벨.
   ///
   /// ⚠️ 시간은 [runResultTime]과 같은 값이라 이름도 같다. 버튼 없이 멈춘 구간을
   /// 빼서 러닝 화면 [runElapsedLabel]보다 짧다.
   static const runSummaryTotalTime = '움직인 시간';
-  static const runSummaryAveragePaceUnit = '평균 페이스 /km';
 
   /// 요약은 하단 버튼이 아니라 **우상단 X**로 닫는다(Figma S15).
   static const runSummaryClose = '닫기';
@@ -1437,19 +1370,12 @@ abstract final class AppStrings {
   /// 사라지고, 단위만 적으면 위쪽 1km 그래프와 구분되지 않는다.
   static const runResultPaceDetailUnit = '/km · 50m마다';
 
-  static const runResultCadenceChart = '구간별 케이던스';
-  static const runResultCadenceUnit = 'spm';
-
   /// 케이던스도 50m 표본이다. 페이스 상세와 같은 형식으로 적는다.
   static const runResultCadenceDetailChart = '케이던스 상세';
   static const runResultCadenceDetailUnit = 'spm · 50m마다';
 
   /// 누른 채 밀 수 있다는 것을 아무도 스스로 알아채지 못한다.
-  static const runResultChartHint = '그래프를 누른 채 좌우로 밀어 구간별 기록을 확인하세요';
-
-  /// ⚠️ **지어낸 값에 붙인다.** 케이던스 구간 기록이 아직 남지 않아
-  /// 고정값을 그리고 있다 — 이 꼬리표가 그 사실을 화면에서 밝힌다.
-  static const runResultSample = '예시';
+  static const runResultChartHint = '그래프를 누른 채 좌우로 밀면 구간 기록이 보여요';
 
   static const runResultSplitColumn = '구간';
   static const runResultBurnedColumn = '소모';
@@ -1510,15 +1436,12 @@ abstract final class AppStrings {
   ///
   /// ⚠️ 시안(`158:3797`)이 첫 칸만 `주간 누적 거리`로 길게 쓴다 — 나머지
   /// 둘에는 `주간`이 없다. 그 줄만 읽으면 어느 기간인지 모르기 때문이다.
-  static const recordWeekTitle = '이번 주';
   static const recordWeekDistance = '주간 누적 거리';
   static const recordWeekTime = '누적 시간';
   static const recordWeekElevation = '누적 경사';
 
-  /// 월 요약 줄. 러닝 횟수 · 누적 거리 · 누적 시간.
+  /// 월 요약 줄의 러닝 횟수 칸.
   static const recordMonthCount = '러닝';
-  static const recordMonthDistance = '누적 거리';
-  static const recordMonthTime = '누적 시간';
 
   /// 캘린더 카드 제목. 시안 `158:3882`.
   static const recordCalendarTitle = '기록 캘린더';
@@ -1599,30 +1522,6 @@ abstract final class AppStrings {
   static String recordElevationText(int? meters) =>
       meters == null ? recordUnknown : '$meters m';
 
-  /// `아침 07:10` · `저녁 20:05`
-  ///
-  /// **오전/오후가 아니라 때 이름 + 24시각이다**(Figma S21). 12시간제로 적으면
-  /// `오후 8:05`가 되는데, 정본은 하루 중 언제였는지를 먼저 읽히게 한다.
-  ///
-  /// ⚠️ **경계는 확인이 필요하다.** Figma에 `07:10 → 아침`, `20:05 → 저녁`
-  /// 두 예시뿐이라 나머지는 정하고 들어갔다. 디자인 확인 대상이다.
-  static String recordTimeOfDay(DateTime time) {
-    final hour = time.hour;
-    final label = switch (hour) {
-      < 6 => '새벽',
-      < 12 => '아침',
-      < 18 => '오후',
-      _ => '저녁',
-    };
-    final hh = hour.toString().padLeft(2, '0');
-    final mm = time.minute.toString().padLeft(2, '0');
-    return '$label $hh:$mm';
-  }
-
-  /// `아침 07:10 · 5.02 km` — 목록 행의 첫 줄 앞부분.
-  static String recordRunLabel(DateTime startedAt, double km) =>
-      '${recordTimeOfDay(startedAt)} · ${recordDistanceText(km)}';
-
   /// 러닝 하나의 총 시간. `27:28` · `1:05:12`
   ///
   /// 누적 시간([recordDurationText])과 다르다 — 이쪽은 한 번의 러닝이라
@@ -1656,9 +1555,9 @@ abstract final class AppStrings {
   /// **막아선 이유를 먼저 말한다.** "완성해주세요"는 미룰 이유밖에 안 준다.
   static const profileSheetTitle = '프로필이 있어야\n달릴 수 있어요';
 
-  /// 무엇이 열리는지와 **왜 필수인지**를 함께 든다.
-  static const profileSheetBody =
-      '닉네임과 페이스로 상대를 찾고 기록을 계산해요.\n비워두면 매칭을 시작할 수 없어요';
+  /// 프로필을 **어디에 쓰는지** 든다. 왜 필수인지는 제목([profileSheetTitle])이
+  /// 말한다.
+  static const profileSheetBody = '닉네임과 페이스로 상대를 찾고 기록을 계산해요';
 
   static const profileSheetCta = '프로필 입력하기';
 
@@ -1753,7 +1652,7 @@ abstract final class AppStrings {
 
   static const settingsSignOutTitle = '로그아웃할까요';
 
-  static const settingsSignOutBody = '기록은 그대로 남아 있어요.';
+  static const settingsSignOutBody = '기록은 그대로 남아 있어요';
 
   static const settingsCancel = '취소';
 
@@ -1807,11 +1706,10 @@ abstract final class AppStrings {
 
   static const withdrawTitle = '정말 탈퇴할까요';
 
-  /// 서버의 데이터 정책을 그대로 옮겼다. 기록·색은 지워지고, 이미 올린 글은
-  /// 작성자만 가려진 채 남는다.
-  static const withdrawBody =
-      '기록과 색이 모두 사라져요. 되돌릴 수 없어요.\n'
-      '이미 올린 피드는 작성자가 가려진 채 남아요.';
+  /// 되돌릴 수 없다는 것만 말한다. 무엇이 지워지고 남는지와 기간은 설정의
+  /// [settingsAccountDeletion](공개 삭제 안내 `account-deletion.html`)이 맡는다 —
+  /// 팝업에 옮겨 적으면 정책이 바뀔 때 두 곳이 갈린다.
+  static const withdrawBody = '되돌릴 수 없어요';
 
   /// 애플 계정으로 가입한 사람에게만 덧붙인다.
   ///
@@ -1825,7 +1723,7 @@ abstract final class AppStrings {
   /// 애플만 적었다 — 나머지도 같은 안내가 필요하다.
   static const withdrawAppleNotice =
       '애플 ID 설정 > 암호 및 보안 > Apple로 로그인에서\n'
-      '이 앱의 연결을 직접 해제해주세요.';
+      '이 앱의 연결을 직접 해제해주세요';
 
   static const withdrawConfirm = '탈퇴하기';
 
@@ -1838,9 +1736,7 @@ abstract final class AppStrings {
 
   /// ⚠️ **왜 막혔는지 말한다.** "업데이트하세요"만 두면 지금 앱이 왜 안 되는지
   /// 알 수 없어, 버튼을 안 누르고 앱을 지우는 쪽으로 간다.
-  static const updateRequiredBody =
-      '지금 버전으로는 서버와 연결할 수 없어요.\n'
-      '스토어에서 최신 버전을 받아주세요.';
+  static const updateRequiredBody = '지금 버전으로는 더 이상 쓸 수 없어요';
 
   /// 쓸 수는 있는데 새 버전이 나와 있다. 닫을 수 있다.
   static const updateAvailableTitle = '새 버전이 나왔어요';
@@ -1885,9 +1781,10 @@ abstract final class AppStrings {
   static const friendRemove = '친구 삭제';
 
   /// 되돌릴 수 없어서 한 번 묻는다.
-  static const friendRemoveConfirmTitle = '친구를 끊을까요?';
-  static String friendRemoveConfirmBody(String nickname) =>
-      '$nickname님과 친구가 아니게 돼요. 다시 맺으려면 요청해야 해요.';
+  /// 누구를 끊는지 창에서 확인할 수 있게 닉네임을 부른다.
+  static String friendRemoveConfirmTitle(String nickname) =>
+      '$nickname님과 친구를 끊을까요?';
+  static const friendRemoveConfirmBody = '다시 친구가 되려면 요청을 보내야 해요';
   static const friendRemoveConfirmYes = '끊기';
   static const friendRemoveConfirmNo = '그대로 두기';
 
@@ -1956,7 +1853,6 @@ abstract final class AppStrings {
   static const notificationDecline = '거절';
 
   /// `invitation.status`별 안내. **버튼이 없는 상태들이다.**
-  static const notificationInviteAccepted = '수락했어요';
   static const notificationInviteDeclined = '거절했어요';
   static const notificationInviteLeft = '방에서 나갔어요';
   static const notificationInviteExpired = '모집이 마감됐어요';
@@ -1967,8 +1863,6 @@ abstract final class AppStrings {
   static const notificationRetry = '다시 시도';
 
   // ── 초대 방 ──────────────────────────────────────────────────────────
-
-  static const inviteRoomTitle = '초대 러닝';
 
   /// 모집 중. 매칭 방의 `매칭 대기 중`과 다른 말을 쓴다 — 매칭하고 있지 않다.
   static const inviteRoomWaiting = '러너 모으는 중';
@@ -1982,8 +1876,8 @@ abstract final class AppStrings {
   /// 남은 자리.
   static String inviteRoomSeatsLeft(int count) => '남은 자리 $count';
 
-  /// ⚠️ **초대 방은 제재가 없다.** 매칭 방의 "20분 동안 다시 신청할 수
-  /// 없어요"를 쓰면 거짓이다.
+  /// ⚠️ **초대 방은 제재가 없다.** 매칭 방의 "20분 동안 신청할 수 없어요"를
+  /// 쓰면 거짓이다.
   static const inviteRoomLeaveFree = '언제든 나갈 수 있어요';
 
   /// 마지막 사람일 때. 나가면 방이 사라지고 받은 초대도 함께 없어진다.
@@ -1991,17 +1885,13 @@ abstract final class AppStrings {
 
   /// ⚠️ **마감 전 유일한 경고다.** 초대 취소도 `CANCELLED`도 없어서, 마감
   /// 뒤에는 혼자 출발하는 것 말고 길이 없다.
-  static const inviteRoomAloneWarning = '곧 모집이 닫혀요 · 혼자 달리게 됩니다';
+  static const inviteRoomAloneWarning = '곧 마감돼요. 이대로면 혼자 달려요';
 
   static const inviteRoomInviteCta = '러너 초대';
 
   /// ⚠️ **초대 방에서 나가는 것은 "매칭 취소"가 아니다.** 매칭을 신청한 적이
-  /// 없고, 제재도 없다.
-  static const inviteRoomLeave = '나가기';
-
-  /// 홈 히어로의 버튼. 매칭의 `매칭 대기중`은 초대 방에서 거짓이다 — 매칭하고
-  /// 있지 않고 출발을 기다린다.
-  static const homeInviteWaitingCta = '출발 대기중';
+  /// 없고, 제재도 없다. `방`을 붙이는 이유는 [matchRoomLeave]와 같다.
+  static const inviteRoomLeave = '방 나가기';
 
   // ── 홈 히어로 · 초대 방 ──────────────────────────────────────────────
 
@@ -2014,8 +1904,12 @@ abstract final class AppStrings {
   /// 뜻이라 초대에 맞지 않는다.
   static const homeInviteWaitingAlone = '초대한 러너의 답을 기다리고 있어요';
 
-  /// 사람이 들어왔을 때. 매칭의 `님과 매칭성공!`은 매칭이 아니라 수락이다.
+  /// 사람이 들어왔을 때. 초대 방은 매칭이 아니라 수락이라 매칭 문구를 쓰지 않는다.
   static String homeInviteJoined(int count) => '$count명이 함께 뛰어요';
+
+  /// 부제 둘째 줄. 매칭의 [homeMatchWaitingHint]는 "신청"이라 맞지 않는다 —
+  /// 초대 방은 신청한 것이 아니라 방을 만들었거나 초대를 받아 들어왔다.
+  static const homeInviteWaitingHint = '앱을 꺼도 방은 그대로예요';
 
   /// 모집 마감 뒤. `매칭 완료`가 아니다.
   static const homeInviteConfirmedTitle = '출발 준비 완료';
@@ -2048,9 +1942,9 @@ abstract final class AppStrings {
       '${at.hour.toString().padLeft(2, '0')}:'
       '${at.minute.toString().padLeft(2, '0')}';
 
-  /// 거리 안내. 매칭(`matchTimeHint`)처럼 **왜 그런지**까지 적는다.
-  static const inviteRegisterDistanceRange =
-      '1km부터 42.195km까지 정할 수 있어요.\n자주 쓰는 거리는 아래에서 고르세요';
+  /// 거리 안내. 고를 수 있는 범위만 적는다 — 자주 쓰는 거리는 바로 위 칩이
+  /// 보여 준다.
+  static const inviteRegisterDistanceRange = '1km부터 42.195km까지 정할 수 있어요';
 
   static const inviteRegisterDistancePlaceholder = '거리 입력';
 
@@ -2069,7 +1963,7 @@ abstract final class AppStrings {
   /// 개설 실패. 서버가 문구를 주면 그것을 쓴다.
   static const inviteRegisterOutOfRange = '고를 수 있는 시각이 아니에요';
   static const inviteRegisterAlreadyInProgress = '이미 참여 중인 러닝이 있어요';
-  static const inviteRegisterOnboarding = '프로필을 먼저 완성해 주세요';
+  static const inviteRegisterOnboarding = '프로필을 먼저 완성해주세요';
   static const inviteRegisterFailed = '방을 만들지 못했어요';
 
   // ── 초대 모달 ────────────────────────────────────────────────────────
@@ -2094,7 +1988,7 @@ abstract final class AppStrings {
   static const inviteSheetFailed = '초대하지 못했어요';
 
   /// 방이 꽉 차서 수락하지 못했다. **초대는 PENDING으로 남는다.**
-  static const inviteRoomFull = '방이 꽉 찼어요 · 자리가 생기면 다시 눌러보세요';
+  static const inviteRoomFull = '방이 꽉 찼어요. 자리가 생기면 다시 눌러보세요';
 
   /// 홈 종에 점이 있을 때 덧붙여 읽히는 말. **점을 그림으로만 두면 안 읽힌다.**
   static const notificationUnreadSemantics = '읽지 않은 알림 있음';

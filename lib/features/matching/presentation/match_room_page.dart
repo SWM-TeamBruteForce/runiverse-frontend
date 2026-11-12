@@ -207,8 +207,10 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _Notice(_bottomNotice(room)),
-                  const SizedBox(height: AppSpacing.space3),
+                  if (_bottomNotice(room) case final notice?) ...[
+                    _Notice(notice),
+                    const SizedBox(height: AppSpacing.space3),
+                  ],
                   AppButtonV2(
                     label: _leaveLabel(room),
                     variant: AppButtonV2Variant.secondary,
@@ -331,7 +333,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
   /// 혼자 남은 방은 마감이 지났어도 면제다.
   String _leaveNotice(RoomInfo room) {
     // ⚠️ **초대 방은 제재가 없다.** 매칭 방의 문구를 그대로 쓰면 "20분 동안
-    // 다시 신청할 수 없어요"라고 거짓말을 한다.
+    // 신청할 수 없어요"라고 거짓말을 한다.
     if (room.type == RoomType.invite) {
       return room.isAlone
           ? AppStrings.inviteRoomLeaveLast
@@ -345,19 +347,23 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
         : AppStrings.matchRoomLeaveFree;
   }
 
-  /// 나가기 버튼 위의 안내. 나가기 확인 창은 [_leaveNotice]를 그대로 쓴다.
+  /// 나가기 버튼 위의 안내. `null`이면 줄을 두지 않는다. 나가기 확인 창은
+  /// [_leaveNotice]를 그대로 쓴다.
   ///
   /// ⚠️ **모집 중인 매칭 방에서는 나가도 된다고 말하지 않는다.** 화면을
   /// 지켜보다 취소하고 나가는 사람이 많다 — 기다리지 않아도 된다고 말한다.
   /// 나가도 제재가 없다는 말은 확인 창이 한다.
-  String _bottomNotice(RoomInfo room) {
+  ///
+  /// ⚠️ **초대 방은 마감 직전 혼자일 때만 말한다.** 제재가 없어 미리 알릴
+  /// 것이 없고, 줄이 `러너 초대`와 나가기 사이에 끼어 어느 버튼 얘기인지
+  /// 흐려진다. 나가면 어떻게 되는지는 확인 창이 말한다.
+  String? _bottomNotice(RoomInfo room) {
     if (_warnsAlone(room)) return AppStrings.inviteRoomAloneWarning;
+    if (room.type == RoomType.invite) return null;
 
     final closeAt = room.closeAt;
     final closed = closeAt != null && !_serverNow.isBefore(closeAt);
-    if (room.type != RoomType.invite &&
-        room.status == RoomStatus.matching &&
-        !closed) {
+    if (room.status == RoomStatus.matching && !closed) {
       return AppStrings.matchRoomWaitingHint;
     }
     return _leaveNotice(room);
@@ -375,7 +381,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
         ),
         content: Text(
           _leaveNotice(room),
-          style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
+          style: AppTypographyV2.body12.copyWith(color: colors.textSecondary),
         ),
         actions: [
           TextButton(
@@ -733,23 +739,25 @@ class _Notice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
+    final style = AppTypographyV2.body12.copyWith(color: colors.textSecondary);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 제재·연결 끊김처럼 놓치면 곤란한 말이 뜨는 줄이라 흐린 회색을 쓰지 않는다.
-        AppIcon(
-          AppIcons.guide,
-          size: AppSpacing.space4,
-          color: colors.textSecondary,
-        ),
-        const SizedBox(width: AppSpacing.space2),
-        Expanded(
-          child: Text(
-            text,
-            style: AppTypographyV2.body12.copyWith(color: colors.textSecondary),
+        // 아이콘은 첫 줄 높이의 가운데에 둔다 — 줄 맨 위에 붙이면 글자보다 떠 보인다.
+        SizedBox(
+          height: style.height! * style.fontSize!,
+          child: Center(
+            child: AppIcon(
+              AppIcons.guide,
+              size: AppSpacing.space4,
+              color: colors.textSecondary,
+            ),
           ),
         ),
+        const SizedBox(width: AppSpacing.space2),
+        Expanded(child: Text(text, style: style)),
       ],
     );
   }

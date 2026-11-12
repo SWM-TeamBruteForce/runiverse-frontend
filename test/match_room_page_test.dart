@@ -461,20 +461,61 @@ void main() {
           closeAt: closedAlready,
         ),
       );
-      await revealBottom(tester);
+      expect(find.text(AppStrings.inviteRoomLeaveFree), findsNothing);
+
+      // 나가면 어떻게 되는지는 확인 창이 말한다.
+      await tester.tap(find.text(AppStrings.inviteRoomLeave));
+      await tick(tester);
 
       expect(find.text(AppStrings.matchRoomLeavePenalty), findsNothing);
       expect(find.text(AppStrings.inviteRoomLeaveFree), findsOneWidget);
     });
 
-    testWidgets('마지막 사람이면 방이 사라진다고 알린다', (tester) async {
+    testWidgets('마지막 사람이면 나갈 때 방이 사라진다고 알린다', (tester) async {
       await pumpRoom(
         tester,
         snapshot: inviteRoom(status: RoomStatus.matched, players: 1),
       );
-      await revealBottom(tester);
+      expect(find.text(AppStrings.inviteRoomLeaveLast), findsNothing);
+
+      await tester.tap(find.text(AppStrings.inviteRoomLeave));
+      await tick(tester);
 
       expect(find.text(AppStrings.inviteRoomLeaveLast), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 러너 초대와 나가기 사이에 안내 줄을 두지 않는다', (tester) async {
+      // 줄이 두 버튼 사이에 끼어 어느 버튼 얘기인지 흐려진다. 제재가 없어
+      // 미리 알릴 것도 없다.
+      await pumpRoom(
+        tester,
+        snapshot: inviteRoom(
+          status: RoomStatus.matching,
+          players: 1,
+          closeAt: closeAtSoon,
+        ),
+      );
+      await revealBottom(tester);
+
+      expect(find.text(AppStrings.inviteRoomInviteCta), findsOneWidget);
+      expect(find.text(AppStrings.inviteRoomLeaveLast), findsNothing);
+      expect(find.text(AppStrings.inviteRoomAloneWarning), findsNothing);
+    });
+
+    testWidgets('둘 이상 모인 방도 안내 줄을 두지 않는다', (tester) async {
+      await pumpRoom(
+        tester,
+        snapshot: inviteRoom(
+          status: RoomStatus.matching,
+          players: 2,
+          invited: ['민수'],
+          closeAt: closeAtSoon,
+        ),
+      );
+      await revealBottom(tester);
+
+      expect(find.text(AppStrings.inviteRoomInviteCta), findsOneWidget);
+      expect(find.text(AppStrings.inviteRoomLeaveFree), findsNothing);
     });
 
     testWidgets('⚠️ 답을 기다리는 초대가 자리에 선다', (tester) async {

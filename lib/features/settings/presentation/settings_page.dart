@@ -277,8 +277,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: context.appColorsV2.bgElevated,
-        title: const Text(AppStrings.settingsSignOutTitle),
-        content: const Text(AppStrings.settingsSignOutBody),
+        title: Text(
+          AppStrings.settingsSignOutTitle,
+          style: AppTypographyV2.heading06.copyWith(
+            color: context.appColorsV2.textPrimary,
+          ),
+        ),
+        content: Text(
+          AppStrings.settingsSignOutBody,
+          style: AppTypographyV2.body12.copyWith(
+            color: context.appColorsV2.textSecondary,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),

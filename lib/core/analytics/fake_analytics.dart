@@ -2,7 +2,7 @@ import 'package:runiverse/core/analytics/analytics.dart';
 
 /// 무엇이 몇 번 남았는지 적어 두는 [Analytics]. 테스트가 쓴다.
 ///
-/// 이벤트는 **성공한 자리에서만** 남아야 한다. 그 규칙은 눈으로 볼 수 없어서
+/// 성공 기록은 **성공한 자리에서만** 남아야 한다. 그 규칙은 눈으로 볼 수 없어서
 /// — 화면도 서버 요청도 달라지지 않는다 — 적어 두고 세는 수밖에 없다.
 class FakeAnalytics implements Analytics {
   /// 남은 이벤트를 **순서대로** 담는다. `('login', {'method': 'kakao'})` 꼴이다.
@@ -27,12 +27,38 @@ class FakeAnalytics implements Analytics {
       events.add(('login', {'method': method}));
 
   @override
+  Future<void> loginAttempt({required String method}) async =>
+      events.add(('login_attempt', {'method': method}));
+
+  @override
   Future<void> onboardingComplete() async =>
       events.add(('onboarding_complete', null));
 
   @override
-  Future<void> matchApply({required int distanceMeters}) async =>
-      events.add(('match_apply', {'distance_m': distanceMeters}));
+  Future<void> matchDistanceSelect({required int distanceMeters}) async =>
+      events.add(('match_distance_select', {'distance_m': distanceMeters}));
+
+  @override
+  Future<void> matchSlotSheetOpen() async =>
+      events.add(('match_slot_sheet_open', null));
+
+  @override
+  Future<void> matchSlotSelect() async =>
+      events.add(('match_slot_select', null));
+
+  @override
+  Future<void> matchApply({
+    required int distanceMeters,
+    required int otherDistanceWaiting,
+    required int otherDistanceWaitingSameTime,
+  }) async => events.add((
+    'match_apply',
+    {
+      'distance_m': distanceMeters,
+      'other_distance_waiting': otherDistanceWaiting,
+      'other_distance_waiting_same_time': otherDistanceWaitingSameTime,
+    },
+  ));
 
   @override
   Future<void> matchConfirmed({int? distanceMeters}) async => events.add((
@@ -64,9 +90,10 @@ class FakeAnalytics implements Analytics {
   Future<void> permissionResult({
     required String permission,
     required String result,
+    required String askedFrom,
   }) async => events.add((
     'permission_result',
-    {'permission': permission, 'result': result},
+    {'permission': permission, 'result': result, 'asked_from': askedFrom},
   ));
 
   /// 회원 ID 를 건 순서. [events] 와 따로 둔다 — 이벤트가 아니라서 섞으면
