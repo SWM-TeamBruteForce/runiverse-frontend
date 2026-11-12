@@ -175,8 +175,10 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _Notice(_bottomNotice(room)),
-                  const SizedBox(height: AppSpacing.space3),
+                  if (_bottomNotice(room) case final notice?) ...[
+                    _Notice(notice),
+                    const SizedBox(height: AppSpacing.space3),
+                  ],
                   AppButtonV2(
                     label: _leaveLabel(room),
                     variant: AppButtonV2Variant.secondary,
@@ -310,19 +312,23 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
         : AppStrings.matchRoomLeaveFree;
   }
 
-  /// 나가기 버튼 위의 안내. 나가기 확인 창은 [_leaveNotice]를 그대로 쓴다.
+  /// 나가기 버튼 위의 안내. `null`이면 줄을 두지 않는다. 나가기 확인 창은
+  /// [_leaveNotice]를 그대로 쓴다.
   ///
   /// ⚠️ **모집 중인 매칭 방에서는 나가도 된다고 말하지 않는다.** 화면을
   /// 지켜보다 취소하고 나가는 사람이 많다 — 기다리지 않아도 된다고 말한다.
   /// 나가도 제재가 없다는 말은 확인 창이 한다.
-  String _bottomNotice(RoomInfo room) {
+  ///
+  /// ⚠️ **초대 방은 마감 직전 혼자일 때만 말한다.** 제재가 없어 미리 알릴
+  /// 것이 없고, 줄이 `러너 초대`와 나가기 사이에 끼어 어느 버튼 얘기인지
+  /// 흐려진다. 나가면 어떻게 되는지는 확인 창이 말한다.
+  String? _bottomNotice(RoomInfo room) {
     if (_warnsAlone(room)) return AppStrings.inviteRoomAloneWarning;
+    if (room.type == RoomType.invite) return null;
 
     final closeAt = room.closeAt;
     final closed = closeAt != null && !_serverNow.isBefore(closeAt);
-    if (room.type != RoomType.invite &&
-        room.status == RoomStatus.matching &&
-        !closed) {
+    if (room.status == RoomStatus.matching && !closed) {
       return AppStrings.matchRoomWaitingHint;
     }
     return _leaveNotice(room);
