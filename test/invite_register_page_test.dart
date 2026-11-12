@@ -110,6 +110,29 @@ void main() {
     });
   });
 
+  group('⚠️ 키보드가 올라오면', () {
+    testWidgets('칩과 범위 안내까지 버튼 위에 보인다', (tester) async {
+      // 입력란만 보이게 두면 칩이 버튼 바로 위에서 반쯤 잘려 버튼과 겹쳐
+      // 보인다(갤럭시 S23+). 화면은 S23+ 크기(384x832), 키보드는 380이다.
+      tester.view.physicalSize = const Size(1080, 2340);
+      tester.view.devicePixelRatio = 2.8125;
+      addTearDown(tester.view.reset);
+      await pump(tester);
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      tester.view.viewInsets = const FakeViewPadding(bottom: 380 * 2.8125);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .getRect(find.text(AppStrings.inviteRegisterDistanceRange))
+            .bottom,
+        lessThanOrEqualTo(tester.getRect(find.byType(AppButtonV2)).top),
+      );
+    });
+  });
+
   group('보내기 버튼', () {
     testWidgets('시각을 안 고르면 잠겨 있다', (tester) async {
       await pump(tester);
