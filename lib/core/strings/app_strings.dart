@@ -580,19 +580,22 @@ abstract final class AppStrings {
   /// 그때 `0명의 러너가 준비를 하고 있어요`라고 적으면 말이 안 된다.
   static const homeMatchWaitingAlone = '아직 함께 달릴 러너를 찾고 있어요';
 
-  /// `민수님과 매칭성공!` — 파티원이 **늘어난 순간** 히어로 한가운데 뜬다.
+  /// `민수님이 합류했어요` — 파티원이 **늘어난 순간** 히어로 한가운데 뜬다.
+  ///
+  /// ⚠️ **매칭 방과 초대 방이 함께 쓴다.** 초대 방에 "매칭 성공"이라고 띄우면
+  /// 틀린 말이다 — 매칭이 아니라 수락이다.
   ///
   /// ⚠️ **머릿수의 문구가 아니라 사건의 문구다.** 화면에 들어올 때마다
   /// 띄우면 축하가 아니라 머릿수 안내가 된다.
   ///
   /// ⚠️ **긴 닉네임은 이 문자열로 자르지 않는다.** 16자까지 받으므로
-  /// 문장을 통째로 줄이면 정작 알려야 할 `매칭성공!`이 먼저 잘린다. 화면이
-  /// 닉네임과 [homeMatchSuccessSuffix]를 따로 세우고 **닉네임만** 줄인다.
-  static String homeMatchSuccess(String nickname) =>
-      '$nickname$homeMatchSuccessSuffix';
+  /// 문장을 통째로 줄이면 정작 알려야 할 `합류했어요`가 먼저 잘린다. 화면이
+  /// 닉네임과 [homePlayerJoinedSuffix]를 따로 세우고 **닉네임만** 줄인다.
+  static String homePlayerJoined(String nickname) =>
+      '$nickname$homePlayerJoinedSuffix';
 
   /// 닉네임 뒤에 붙는 고정 부분. **잘리지 않는 쪽**이다.
-  static const homeMatchSuccessSuffix = '님과 매칭성공!';
+  static const homePlayerJoinedSuffix = '님이 합류했어요';
 
   static const homeMatchWaiting = '매칭 중';
 
@@ -1898,7 +1901,7 @@ abstract final class AppStrings {
   /// 뜻이라 초대에 맞지 않는다.
   static const homeInviteWaitingAlone = '초대한 러너의 답을 기다리고 있어요';
 
-  /// 사람이 들어왔을 때. 매칭의 `님과 매칭성공!`은 매칭이 아니라 수락이다.
+  /// 사람이 들어왔을 때. 초대 방은 매칭이 아니라 수락이라 매칭 문구를 쓰지 않는다.
   static String homeInviteJoined(int count) => '$count명이 함께 뛰어요';
 
   /// 부제 둘째 줄. 매칭의 [homeMatchWaitingHint]는 "신청"이라 맞지 않는다 —
