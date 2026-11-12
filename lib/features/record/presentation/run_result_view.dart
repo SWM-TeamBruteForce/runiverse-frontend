@@ -820,9 +820,11 @@ class _SplitRow extends StatelessWidget {
     // 방식이다. 페이스가 주인공이라 흰색 Medium, 구간·소모는 회색이다.
     final valueStyle = AppTypographyV2.body06.copyWith(
       color: colors.textPrimary,
+      fontFeatures: const [FontFeature.tabularFigures()],
     );
     final asideStyle = AppTypographyV2.body07.copyWith(
       color: colors.textSecondary,
+      fontFeatures: const [FontFeature.tabularFigures()],
     );
 
     return Padding(
