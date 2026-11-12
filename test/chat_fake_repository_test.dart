@@ -77,7 +77,10 @@ void main() {
       final firstIds = first.items.map((one) => one.chatId).toSet();
       final secondIds = second.items.map((one) => one.chatId).toSet();
       expect(firstIds.intersection(secondIds), isEmpty);
-      expect(secondIds.every((id) => id < firstIds.reduce((a, b) => a < b ? a : b)), isTrue);
+      expect(
+        secondIds.every((id) => id < firstIds.reduce((a, b) => a < b ? a : b)),
+        isTrue,
+      );
     });
 
     test('끝까지 받으면 커서가 사라진다', () async {
@@ -143,7 +146,11 @@ void main() {
       final repo = fake();
       final sent = await repo.send(130, '곧 나갈게요');
 
-      final edited = await repo.edit(130, chatId: sent.chatId, content: '조금 늦어요');
+      final edited = await repo.edit(
+        130,
+        chatId: sent.chatId,
+        content: '조금 늦어요',
+      );
 
       expect(edited.content, '조금 늦어요');
       expect(edited.editedAt, isNotNull);
@@ -217,7 +224,10 @@ void main() {
     test('fails면 모든 길이 던진다', () async {
       final repo = fake(fails: true);
 
-      await expectLater(repo.history(130, limit: 50), throwsA(isA<ChatException>()));
+      await expectLater(
+        repo.history(130, limit: 50),
+        throwsA(isA<ChatException>()),
+      );
       await expectLater(repo.send(130, '어'), throwsA(isA<ChatException>()));
     });
 
@@ -242,7 +252,10 @@ void main() {
 
     test('실패를 끄면 다시 산다', () async {
       final repo = fake(fails: true);
-      await expectLater(repo.history(130, limit: 50), throwsA(isA<ChatException>()));
+      await expectLater(
+        repo.history(130, limit: 50),
+        throwsA(isA<ChatException>()),
+      );
 
       repo.fails = false;
 

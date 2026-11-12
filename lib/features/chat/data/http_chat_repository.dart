@@ -118,7 +118,8 @@ class HttpChatRepository implements ChatRepository {
 
     return ChatException(switch (code) {
       'ROOM_CHAT_CLOSED' => ChatFailure.closed,
-      'INVALID_REQUEST' || 'MALFORMED_REQUEST_BODY' => ChatFailure.invalidRequest,
+      'INVALID_REQUEST' ||
+      'MALFORMED_REQUEST_BODY' => ChatFailure.invalidRequest,
       // 409는 코드가 없어도 닫힌 것으로 읽는다 — 그 상태에서 재시도를
       // 되풀이하면 러닝 중에 계속 서버를 때린다.
       _ when status == 409 => ChatFailure.closed,

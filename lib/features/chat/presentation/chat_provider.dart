@@ -447,7 +447,10 @@ class ChatController extends Notifier<ChatState> {
   /// 서버는 **방 밖·없는 메시지·이미 지운 것·남의 메시지**를 모두 404로 답하고
   /// 가르지 않는다. 그것만으로 방을 떠나면 멀쩡한 방에서 쫓겨난다. 먼저 목록을
   /// 다시 받아 화면을 맞춘다 — 정말 방 밖이면 그 조회가 다시 404를 준다.
-  Future<void> _afterChangeFailed(int runningRoomId, ChatFailure failure) async {
+  Future<void> _afterChangeFailed(
+    int runningRoomId,
+    ChatFailure failure,
+  ) async {
     if (!_current(runningRoomId)) return;
 
     if (failure == ChatFailure.closed) {

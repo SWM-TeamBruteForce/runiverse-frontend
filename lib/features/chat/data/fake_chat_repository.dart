@@ -69,13 +69,9 @@ class FakeChatRepository implements ChatRepository {
     ].take(limit).toList();
 
     final last = page.isEmpty ? null : page.last.chatId;
-    final hasMore =
-        last != null && newestFirst.any((one) => one.chatId < last);
+    final hasMore = last != null && newestFirst.any((one) => one.chatId < last);
 
-    return ChatHistory(
-      items: page,
-      nextCursor: hasMore ? '$last' : null,
-    );
+    return ChatHistory(items: page, nextCursor: hasMore ? '$last' : null);
   }
 
   @override

@@ -214,7 +214,11 @@ void main() {
   group('수정', () {
     test('메시지 번호가 경로에 들어간다', () async {
       final repo = await repositoryReturning(
-        chatJson(chatId: 3021, content: '조금 늦어요', editedAt: '2026-07-25T18:54:00'),
+        chatJson(
+          chatId: 3021,
+          content: '조금 늦어요',
+          editedAt: '2026-07-25T18:54:00',
+        ),
       );
 
       await repo.edit(125, chatId: 3021, content: '조금 늦어요');
@@ -226,7 +230,11 @@ void main() {
 
     test('고친 뒤 Chat을 읽는다 — editedAt이 채워진다', () async {
       final repo = await repositoryReturning(
-        chatJson(chatId: 3021, content: '조금 늦어요', editedAt: '2026-07-25T18:54:00'),
+        chatJson(
+          chatId: 3021,
+          content: '조금 늦어요',
+          editedAt: '2026-07-25T18:54:00',
+        ),
       );
 
       final edited = await repo.edit(125, chatId: 3021, content: '조금 늦어요');
@@ -314,10 +322,9 @@ void main() {
     test('⚠️ 커서를 실어 보낸 400은 커서가 깨진 것이다', () async {
       // 할 일이 다르다 — "입력을 확인하라"가 아니라 **커서를 버리고 첫
       // 페이지부터 다시 받는 것**이다. 서버 응답만으로는 가를 수 없다.
-      final repo = await repositoryReturning(
-        {'code': 'INVALID_REQUEST'},
-        status: 400,
-      );
+      final repo = await repositoryReturning({
+        'code': 'INVALID_REQUEST',
+      }, status: 400);
 
       await expectLater(
         repo.history(125, cursor: '깨진커서', limit: 50),
@@ -332,10 +339,9 @@ void main() {
     });
 
     test('커서 없는 400은 그대로 입력 오류다', () async {
-      final repo = await repositoryReturning(
-        {'code': 'INVALID_REQUEST'},
-        status: 400,
-      );
+      final repo = await repositoryReturning({
+        'code': 'INVALID_REQUEST',
+      }, status: 400);
 
       await expectLater(
         repo.history(125, limit: 50),
@@ -350,10 +356,9 @@ void main() {
     });
 
     test('409는 목록 조회에서도 올라온다', () async {
-      final repo = await repositoryReturning(
-        {'code': 'ROOM_CHAT_CLOSED'},
-        status: 409,
-      );
+      final repo = await repositoryReturning({
+        'code': 'ROOM_CHAT_CLOSED',
+      }, status: 409);
 
       await expectLater(
         repo.history(125, limit: 50),

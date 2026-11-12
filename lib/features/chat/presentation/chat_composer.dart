@@ -85,7 +85,8 @@ class _ChatComposerState extends State<ChatComposer> {
   bool get _typed => _controller.text.trim().isNotEmpty;
 
   /// 서버가 받는 길이를 넘겼는가. **자르지 않고 보내기만 잠근다.**
-  bool get _tooLong => _controller.text.trim().length > ChatController.maxLength;
+  bool get _tooLong =>
+      _controller.text.trim().length > ChatController.maxLength;
 
   /// [fromInput]이면 보낸 뒤 입력칸을 비운다.
   ///

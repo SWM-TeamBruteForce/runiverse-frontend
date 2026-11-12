@@ -293,15 +293,15 @@ void main() {
     test('고치면 내용이 바뀌고 수정됨이 붙는다', () async {
       final app = setUpChat();
       await chat(app.container).connect(roomId);
-      final mine = stateOf(app.container).messages.firstWhere(
-        (one) => one.sender.userId == 'me',
-      );
+      final mine = stateOf(
+        app.container,
+      ).messages.firstWhere((one) => one.sender.userId == 'me');
 
       await chat(app.container).edit(mine.chatId, '조금 늦어요');
 
-      final edited = stateOf(app.container).messages.firstWhere(
-        (one) => one.chatId == mine.chatId,
-      );
+      final edited = stateOf(
+        app.container,
+      ).messages.firstWhere((one) => one.chatId == mine.chatId);
       expect(edited.content, '조금 늦어요');
       expect(edited.isEdited, isTrue);
     });
@@ -309,9 +309,9 @@ void main() {
     test('⚠️ 자리는 바뀌지 않는다', () async {
       final app = setUpChat();
       await chat(app.container).connect(roomId);
-      final before = stateOf(app.container).messages
-          .map((one) => one.chatId)
-          .toList();
+      final before = stateOf(
+        app.container,
+      ).messages.map((one) => one.chatId).toList();
       final mine = stateOf(app.container).messages.first;
 
       await chat(app.container).edit(mine.chatId, '고쳤어요');
@@ -402,9 +402,9 @@ void main() {
 
       await chat(app.container).remove(mine.chatId);
 
-      final deleted = stateOf(app.container).messages.firstWhere(
-        (one) => one.chatId == mine.chatId,
-      );
+      final deleted = stateOf(
+        app.container,
+      ).messages.firstWhere((one) => one.chatId == mine.chatId);
       expect(deleted.isDeleted, isTrue);
       expect(deleted.content, isNull);
     });
@@ -414,7 +414,9 @@ void main() {
       await chat(app.container).connect(roomId);
       final before = stateOf(app.container).messages.length;
 
-      await chat(app.container).remove(stateOf(app.container).messages.first.chatId);
+      await chat(
+        app.container,
+      ).remove(stateOf(app.container).messages.first.chatId);
 
       expect(stateOf(app.container).messages, hasLength(before));
     });
@@ -425,9 +427,7 @@ void main() {
       final app = setUpChat();
       await chat(app.container).connect(roomId);
 
-      chat(app.container).received(
-        ChatChange(ChatChangeKind.sent, incoming()),
-      );
+      chat(app.container).received(ChatChange(ChatChangeKind.sent, incoming()));
 
       expect(stateOf(app.container).messages.last.chatId, 9001);
     });
@@ -436,9 +436,7 @@ void main() {
       final app = setUpChat();
       await chat(app.container).connect(roomId);
 
-      chat(app.container).received(
-        ChatChange(ChatChangeKind.sent, incoming()),
-      );
+      chat(app.container).received(ChatChange(ChatChangeKind.sent, incoming()));
 
       expect(stateOf(app.container).unread, 1);
     });
@@ -448,9 +446,7 @@ void main() {
       await chat(app.container).connect(roomId);
       chat(app.container).open();
 
-      chat(app.container).received(
-        ChatChange(ChatChangeKind.sent, incoming()),
-      );
+      chat(app.container).received(ChatChange(ChatChangeKind.sent, incoming()));
 
       expect(stateOf(app.container).unread, 0);
     });
@@ -462,7 +458,10 @@ void main() {
       await chat(app.container).connect(roomId);
 
       chat(app.container).received(
-        ChatChange(ChatChangeKind.deleted, incoming(chatId: 500, isDeleted: true)),
+        ChatChange(
+          ChatChangeKind.deleted,
+          incoming(chatId: 500, isDeleted: true),
+        ),
       );
       chat(app.container).received(
         ChatChange(
@@ -479,9 +478,9 @@ void main() {
       await chat(app.container).connect(roomId);
       final before = stateOf(app.container).messages.length;
 
-      chat(app.container).received(
-        ChatChange(ChatChangeKind.sent, incoming(room: otherRoomId)),
-      );
+      chat(
+        app.container,
+      ).received(ChatChange(ChatChangeKind.sent, incoming(room: otherRoomId)));
 
       expect(stateOf(app.container).messages, hasLength(before));
     });
@@ -502,15 +501,21 @@ void main() {
       await chat(app.container).connect(roomId);
 
       chat(app.container).received(
-        ChatChange(ChatChangeKind.deleted, incoming(chatId: 9001, isDeleted: true)),
+        ChatChange(
+          ChatChangeKind.deleted,
+          incoming(chatId: 9001, isDeleted: true),
+        ),
       );
       chat(app.container).received(
-        ChatChange(ChatChangeKind.sent, incoming(chatId: 9001, content: '되살아남')),
+        ChatChange(
+          ChatChangeKind.sent,
+          incoming(chatId: 9001, content: '되살아남'),
+        ),
       );
 
-      final one = stateOf(app.container).messages.firstWhere(
-        (one) => one.chatId == 9001,
-      );
+      final one = stateOf(
+        app.container,
+      ).messages.firstWhere((one) => one.chatId == 9001);
       expect(one.isDeleted, isTrue);
       expect(one.content, isNull);
     });
@@ -536,9 +541,9 @@ void main() {
 
       // 스트림이 다시 붙고, 목록보다 이벤트가 먼저 닿았다.
       final reloading = chat(app.container).reload();
-      chat(app.container).received(
-        ChatChange(ChatChangeKind.sent, incoming(chatId: 9001)),
-      );
+      chat(
+        app.container,
+      ).received(ChatChange(ChatChangeKind.sent, incoming(chatId: 9001)));
       await reloading;
 
       expect(
@@ -552,9 +557,7 @@ void main() {
     test('화면이 뜨면 들고 있던 것이 전부 읽음이 된다', () async {
       final app = setUpChat();
       await chat(app.container).connect(roomId);
-      chat(app.container).received(
-        ChatChange(ChatChangeKind.sent, incoming()),
-      );
+      chat(app.container).received(ChatChange(ChatChangeKind.sent, incoming()));
       expect(stateOf(app.container).unread, 1);
 
       chat(app.container).open();
@@ -568,9 +571,7 @@ void main() {
       chat(app.container).open();
       chat(app.container).close();
 
-      chat(app.container).received(
-        ChatChange(ChatChangeKind.sent, incoming()),
-      );
+      chat(app.container).received(ChatChange(ChatChangeKind.sent, incoming()));
 
       expect(stateOf(app.container).unread, 1);
     });

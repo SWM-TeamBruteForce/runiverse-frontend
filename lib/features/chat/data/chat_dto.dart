@@ -46,7 +46,9 @@ ChatSender? _senderOf(Object? wire) {
   return ChatSender(
     userId: userId,
     nickname: nickname,
-    profileImageUrl: imageUrl is String && imageUrl.isNotEmpty ? imageUrl : null,
+    profileImageUrl: imageUrl is String && imageUrl.isNotEmpty
+        ? imageUrl
+        : null,
     isDeleted: wire['isDeleted'] == true,
   );
 }
@@ -59,7 +61,9 @@ ChatHistory chatHistoryFromJson(Map<String, dynamic>? body) {
   final cursor = body?['nextCursor'];
 
   return ChatHistory(
-    items: items is List ? [for (final one in items) ?chatFromJson(one)] : const [],
+    items: items is List
+        ? [for (final one in items) ?chatFromJson(one)]
+        : const [],
     // 빈 문자열을 커서로 쓰면 400이다. 없는 것과 같게 다룬다.
     nextCursor: cursor is String && cursor.isNotEmpty ? cursor : null,
   );

@@ -59,8 +59,14 @@ void main() {
     });
 
     test('2. 둘 다 살아 있으면 editedAt이 늦은 쪽', () {
-      final early = chat(content: '곧 출발', editedAt: DateTime(2026, 11, 12, 19, 30));
-      final late = chat(content: '조금 늦어요', editedAt: DateTime(2026, 11, 12, 19, 40));
+      final early = chat(
+        content: '곧 출발',
+        editedAt: DateTime(2026, 11, 12, 19, 30),
+      );
+      final late = chat(
+        content: '조금 늦어요',
+        editedAt: DateTime(2026, 11, 12, 19, 40),
+      );
 
       expect(mergeChat(early, late).content, '조금 늦어요');
       expect(mergeChat(late, early).content, '조금 늦어요');
@@ -69,7 +75,10 @@ void main() {
     test('⚠️ 2. editedAt이 null이면 가장 이른 것으로 본다', () {
       // 목록 응답이 늦게 도착해도 수정 전 내용으로 돌아가지 않는다.
       final never = chat(content: '곧 출발');
-      final edited = chat(content: '조금 늦어요', editedAt: DateTime(2026, 11, 12, 19, 40));
+      final edited = chat(
+        content: '조금 늦어요',
+        editedAt: DateTime(2026, 11, 12, 19, 40),
+      );
 
       expect(mergeChat(never, edited).content, '조금 늦어요');
       expect(mergeChat(edited, never).content, '조금 늦어요');
@@ -96,7 +105,11 @@ void main() {
       // 수정 이벤트가 **안 읽음으로** 들어온다고 이미 읽은 말이 다시 배지에
       // 세어지면, 보고 있는 화면에서 숫자가 늘어난다.
       final read = chat(isRead: true);
-      final unread = chat(content: '고친 내용', isRead: false, editedAt: DateTime(2026, 11, 12, 19, 40));
+      final unread = chat(
+        content: '고친 내용',
+        isRead: false,
+        editedAt: DateTime(2026, 11, 12, 19, 40),
+      );
 
       expect(mergeChat(read, unread).isRead, isTrue);
       expect(mergeChat(read, unread).content, '고친 내용');
@@ -146,7 +159,13 @@ void main() {
       // 고친 메시지가 맨 아래로 내려가면 대화의 맥락이 끊긴다.
       final merged = mergeChats(
         [chat(chatId: 10), chat(chatId: 11), chat(chatId: 12)],
-        [chat(chatId: 10, content: '고쳤다', editedAt: DateTime(2026, 11, 12, 20))],
+        [
+          chat(
+            chatId: 10,
+            content: '고쳤다',
+            editedAt: DateTime(2026, 11, 12, 20),
+          ),
+        ],
       );
 
       expect(merged.map((one) => one.chatId), [10, 11, 12]);
@@ -155,10 +174,10 @@ void main() {
 
     test('한 번에 들어온 같은 chatId도 규칙으로 합친다', () {
       // 목록과 이벤트를 한 묶음으로 넘길 때가 있다.
-      final merged = mergeChats(
-        const [],
-        [chat(chatId: 10), chat(chatId: 10, isDeleted: true)],
-      );
+      final merged = mergeChats(const [], [
+        chat(chatId: 10),
+        chat(chatId: 10, isDeleted: true),
+      ]);
 
       expect(merged, hasLength(1));
       expect(merged.single.isDeleted, isTrue);

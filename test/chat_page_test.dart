@@ -216,7 +216,9 @@ void main() {
         tester,
         state: ChatState(
           runningRoomId: 130,
-          messages: [chat(1001, younghee, content: '조금 늦어요', editedAt: createdAt)],
+          messages: [
+            chat(1001, younghee, content: '조금 늦어요', editedAt: createdAt),
+          ],
         ),
       );
 
@@ -229,7 +231,9 @@ void main() {
         tester,
         state: ChatState(
           runningRoomId: 130,
-          messages: [chat(1001, younghee, isDeleted: true, editedAt: createdAt)],
+          messages: [
+            chat(1001, younghee, isDeleted: true, editedAt: createdAt),
+          ],
         ),
       );
 
@@ -294,9 +298,7 @@ void main() {
         tester,
         state: const ChatState(
           runningRoomId: 130,
-          pending: [
-            PendingChat(localId: -1, content: '곧 나갈게요', failed: true),
-          ],
+          pending: [PendingChat(localId: -1, content: '곧 나갈게요', failed: true)],
         ),
       );
 
@@ -324,9 +326,7 @@ void main() {
         tester,
         state: const ChatState(
           runningRoomId: 130,
-          pending: [
-            PendingChat(localId: -1, content: '곧 나갈게요', failed: true),
-          ],
+          pending: [PendingChat(localId: -1, content: '곧 나갈게요', failed: true)],
         ),
       );
 
@@ -658,7 +658,8 @@ class _StubChat extends ChatController {
   }
 
   @override
-  Future<void> edit(int chatId, String text) async => edited.add((chatId, text));
+  Future<void> edit(int chatId, String text) async =>
+      edited.add((chatId, text));
 
   @override
   Future<void> remove(int chatId) async => removed.add(chatId);

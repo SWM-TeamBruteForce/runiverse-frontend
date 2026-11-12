@@ -211,7 +211,9 @@ class ChatPendingBubble extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             // 보내는 중에는 흐리게 둔다 — 멈춘 것이 아니라 가는 중이다.
-            Flexible(child: Opacity(opacity: failed ? 1 : 0.5, child: bubble)),
+            Flexible(
+              child: Opacity(opacity: failed ? 1 : 0.5, child: bubble),
+            ),
           ],
         ),
         if (failed) ...[

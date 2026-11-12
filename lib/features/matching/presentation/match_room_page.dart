@@ -459,7 +459,6 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
   bool _chatting(RoomInfo room) =>
       !room.isAlone &&
       (room.status == RoomStatus.matching || room.status == RoomStatus.matched);
-
 }
 
 /// 대기방의 채팅 버튼 — 원형 `primary` 면에 말풍선을 흰색으로 얹는다.

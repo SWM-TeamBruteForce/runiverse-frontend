@@ -226,7 +226,11 @@ void main() {
     test('ROOM_CHAT_EDITED은 고친 뒤 메시지를 싣는다', () {
       final event = SseMatchStream.eventOf(
         'ROOM_CHAT_EDITED',
-        jsonEncode({...chat, 'content': '조금 늦어요', 'editedAt': '2026-07-25T18:54:00'}),
+        jsonEncode({
+          ...chat,
+          'content': '조금 늦어요',
+          'editedAt': '2026-07-25T18:54:00',
+        }),
       );
 
       expect(event, isA<RoomChatEdited>());
@@ -292,7 +296,10 @@ void main() {
     test('MATCH_ROOM_ENTRANCE가 입장 스냅샷으로 읽힌다', () {
       // 2026-11-11 백엔드 변경 — 매칭 방도 초대 방처럼 **최초 입장과 이후
       // 갱신을 다른 이름으로** 보낸다. `data`는 기존과 같은 `RoomInfo`다.
-      final event = SseMatchStream.eventOf('MATCH_ROOM_ENTRANCE', jsonEncode(room));
+      final event = SseMatchStream.eventOf(
+        'MATCH_ROOM_ENTRANCE',
+        jsonEncode(room),
+      );
 
       expect(event, isA<MatchRoomEntrance>());
       expect((event! as MatchRoomEntrance).room.runningRoomId, 125);

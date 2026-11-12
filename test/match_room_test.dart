@@ -591,8 +591,8 @@ void main() {
   group('재연결 백오프', () {
     /// 대기 중인 상태로 붙여 둔다. 재연결은 상태 조회를 거치므로, 그쪽이
     /// `WAITING`이라고 답해야 다시 붙는다.
-    Future<({ProviderContainer container, FakeMatchStream stream})> waiting()
-    async {
+    Future<({ProviderContainer container, FakeMatchStream stream})>
+    waiting() async {
       final app = build();
       app.statuses.status = UserStatusWaiting(
         runningRoomId: 125,
