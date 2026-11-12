@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/features/session/domain/pace_calculator.dart';
 import 'package:runiverse/features/record/presentation/split_line_chart.dart';
 
@@ -21,7 +22,7 @@ void main() {
     bool inverted = true,
     bool showPoints = true,
     List<String>? labels,
-    List<int>? axisTicks,
+    List<int>? axisMeters,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -33,7 +34,9 @@ void main() {
             values: values,
             labels:
                 labels ?? [for (var i = 1; i <= values.length; i++) '$i km'],
-            axisTicks: axisTicks,
+            axisMeters:
+                axisMeters ??
+                [for (var i = 1; i <= values.length; i++) i * 1000],
             format: pace,
             color: const Color(0xFF3B82F6),
             hint: '그래프를 누른 채 좌우로 밀어 구간별 기록을 확인하세요',
@@ -127,63 +130,134 @@ void main() {
     });
   });
 
-  /// x축 라벨 — **거리로 고른 자리에 찍는가.**
+  /// x축 라벨 — **딱 떨어지는 거리에, 고른 간격으로 찍는가.**
   ///
-  /// 점 개수로 솎으면 50m 표본에서 `0.05 · 0.65 · 1.25 km`가 나온다.
-  /// 읽는 사람이 쓰는 자는 거리지 점 번호가 아니다.
+  /// 점 개수로 솎으면 50m 표본에서 `0.05 · 0.65 · 1.25 km`가 나온다. 총 거리를
+  /// 끝에 따로 붙이면 앞 눈금과 붙어 하나를 버리게 되어 간격이 들쭉날쭉해진다.
+  ///
+  /// 테스트 글꼴은 글자 폭이 실제와 달라 어떤 간격이 뽑히는지는 보지 않는다.
+  /// 뽑힌 간격이 고른지, 서로 닿지 않는지를 본다.
   group('가로 라벨', () {
-    /// 50m씩 스무 점(1km). 라벨은 닿은 거리를 적는다.
-    List<String> sampleLabels() => [
-      for (var i = 1; i <= 20; i++) AppStrings.runResultSampleLabel(i * 0.05),
+    /// [total]m까지 50m씩 닿은 거리. 50의 배수가 아니면 마지막이 짧다.
+    List<int> samplesTo(int total) => [
+      for (var m = 50; m <= total; m += 50) m,
+      if (total % 50 != 0) total,
     ];
 
-    testWidgets('⚠️ 찍을 자리를 주면 거기에만 찍는다', (tester) async {
-      await pump(
-        tester,
-        values: [for (var i = 0; i < 20; i++) 300],
-        labels: sampleLabels(),
-        // 0.5km(아홉 번째)와 1km(마지막).
-        axisTicks: const [9, 19],
-      );
+    /// [meters]마다 점 하나. 라벨은 닿은 거리다.
+    Future<void> pumpRun(WidgetTester tester, List<int> meters) => pump(
+      tester,
+      values: [for (final _ in meters) 300],
+      labels: [
+        for (final m in meters) AppStrings.runResultSampleLabel(m / 1000),
+      ],
+      axisMeters: meters,
+    );
 
-      expect(find.text('0.5 km'), findsOneWidget);
-      expect(find.text('1 km'), findsOneWidget);
-      // 개수로 솎던 시절에 나오던 자리.
-      expect(find.text('0.05 km'), findsNothing);
-      expect(find.text('0.25 km'), findsNothing);
+    /// 폰 폭(360).
+    void narrow(WidgetTester tester) {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+    }
+
+    /// 찍힌 x축 라벨, 왼쪽부터.
+    List<({double km, Rect rect})> shown(WidgetTester tester) {
+      final found = find.textContaining(RegExp(r'^[\d.]+ km$'));
+      final count = found.evaluate().length;
+      return [
+        for (var i = 0; i < count; i++)
+          (
+            km: double.parse(
+              tester.widget<Text>(found.at(i)).data!.split(' ').first,
+            ),
+            rect: tester.getRect(found.at(i)),
+          ),
+      ]..sort((a, b) => a.rect.left.compareTo(b.rect.left));
+    }
+
+    /// 첫 라벨이 간격이고, 그 뒤로 한 간격씩 늘어나 [totalKm] 앞까지 간다.
+    void expectEvenSteps(
+      List<({double km, Rect rect})> labels, {
+      required double totalKm,
+    }) {
+      expect(labels, isNotEmpty);
+      final step = labels.first.km;
+      for (var k = 0; k < labels.length; k++) {
+        expect(labels[k].km, closeTo(step * (k + 1), 1e-9));
+      }
+      // 끝 눈금이 빠지면 한 간격을 더해도 총 거리에 못 미친다.
+      expect(labels.last.km + step, greaterThan(totalKm));
+    }
+
+    /// 라벨끼리 16 이상 떨어져 있다.
+    void expectApart(List<({double km, Rect rect})> labels) {
+      for (var k = 1; k < labels.length; k++) {
+        expect(
+          labels[k].rect.left - labels[k - 1].rect.right,
+          greaterThanOrEqualTo(AppSpacing.space4),
+        );
+      }
+    }
+
+    testWidgets('⚠️ 딱 떨어지는 거리에 고른 간격으로 찍는다', (tester) async {
+      // 5km에서 `4 km`가 빠져 `1 · 2 · 3 · 5 km`가 되던 자리다. 기본 폭(800)은
+      // 점 사이가 넓어 예전 규칙으로도 안 빠지므로 폰 폭으로 줄인다.
+      narrow(tester);
+      await pumpRun(tester, samplesTo(5000));
+
+      expectEvenSteps(shown(tester), totalKm: 5);
     });
 
-    testWidgets('⚠️ 마지막 점은 자리에 없어도 찍는다', (tester) async {
-      // 총 거리를 읽는 자리다. 비워 두면 얼마나 뛰었는지가 그래프에서 사라진다.
-      await pump(
-        tester,
-        values: [for (var i = 0; i < 20; i++) 300],
-        labels: sampleLabels(),
-        axisTicks: const [],
-      );
+    testWidgets('⚠️ 총 거리는 눈금이 아니면 찍지 않는다', (tester) async {
+      // 끝에 붙이면 `3 km`와 붙어 둘 중 하나를 버려야 한다.
+      await pumpRun(tester, samplesTo(3020));
 
-      expect(find.text('1 km'), findsOneWidget);
+      expect(find.text('3.02 km'), findsNothing);
+      expect(find.text('3 km'), findsOneWidget);
     });
 
-    testWidgets('⚠️ 마지막과 붙는 자리는 버린다', (tester) async {
-      // 3.02km를 뛰면 3km 라벨이 마지막 라벨 바로 옆에 포개진다.
-      await pump(
-        tester,
-        values: [for (var i = 0; i < 20; i++) 300],
-        labels: sampleLabels(),
-        axisTicks: const [18],
-      );
+    testWidgets('⚠️ 좁아도 라벨끼리 16 이상 떨어진다', (tester) async {
+      narrow(tester);
+      await pumpRun(tester, samplesTo(20000));
 
-      expect(find.text('0.95 km'), findsNothing);
-      expect(find.text('1 km'), findsOneWidget);
+      final labels = shown(tester);
+      expectEvenSteps(labels, totalKm: 20);
+      expectApart(labels);
     });
 
-    testWidgets('자리를 주지 않으면 개수로 솎는다', (tester) async {
-      // 1km 그래프는 구간 번호가 곧 거리라 이대로가 맞다.
-      await pump(tester, values: [300, 310, 320, 330, 340, 350]);
+    testWidgets('⚠️ 긴 러닝은 글자를 키워도 축이 비지 않는다', (tester) async {
+      // 간격 후보가 10km에서 끝나면 맞는 간격이 없어 라벨이 하나도 안 남는다.
+      narrow(tester);
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pumpRun(tester, samplesTo(50000));
 
-      expect(find.text('1 km'), findsOneWidget);
-      expect(find.text('6 km'), findsOneWidget);
+      final labels = shown(tester);
+      expectEvenSteps(labels, totalKm: 50);
+      expectApart(labels);
+    });
+
+    testWidgets('1km 그래프도 같은 규칙으로 솎는다', (tester) async {
+      // 구간 번호를 개수로 솎으면 20km에서 `1 · 5 · 9 · 13 · 20 km`가 됐다.
+      narrow(tester);
+      await pump(tester, values: [for (var i = 0; i < 20; i++) 300]);
+
+      expectEvenSteps(shown(tester), totalKm: 20);
+    });
+
+    testWidgets('⚠️ 1km 그래프의 자투리 끝은 눈금이 아니다', (tester) async {
+      // 2.5km도 50m의 배수라, 이어짐을 보지 않으면 50m 간격에 같이 뽑혀
+      // 총 거리가 찍힌다.
+      await pump(
+        tester,
+        values: [300, 310, 320],
+        labels: const ['1 km', '2 km', '2.50 km'],
+        axisMeters: const [1000, 2000, 2500],
+      );
+
+      expect(find.text('2.50 km'), findsNothing);
+      expect(find.text('2 km'), findsOneWidget);
     });
   });
 

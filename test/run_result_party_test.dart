@@ -180,6 +180,73 @@ void main() {
     });
   });
 
+  /// 칸 정렬 — **머리줄 글자와 값이 같은 칸에 서는가.**
+  ///
+  /// 전에는 소모가 오른쪽 끝에 붙고 `파티원 대비`가 머리줄 `페이스` 뒤에 붙어,
+  /// 머리와 값의 시작선이 칸마다 달랐다. 글자 상자는 칸 폭을 꽉 채우므로
+  /// 여기서 재는 것은 칸의 자리다.
+  group('칸 정렬', () {
+    /// 구간 표 안에서만 찾는다 — `페이스`는 위 지표 칸에도 있다.
+    Finder inTable(Finder finder) => find.descendant(
+      of: find
+          .ancestor(
+            of: find.text(AppStrings.runResultSplitColumn),
+            matching: find.byType(Column),
+          )
+          .first,
+      matching: finder,
+    );
+
+    double left(WidgetTester tester, String text) =>
+        tester.getTopLeft(inTable(find.text(text)).first).dx;
+
+    testWidgets('⚠️ 혼자 볼 때 머리와 값이 같은 칸에 선다', (tester) async {
+      await pump(tester, detail());
+
+      expect(
+        left(tester, AppStrings.runResultSplitLabel(1)),
+        left(tester, AppStrings.runResultSplitColumn),
+      );
+      expect(left(tester, "5'00\""), left(tester, AppStrings.runResultPace));
+      expect(
+        left(tester, '100 kcal'),
+        left(tester, AppStrings.runResultBurnedColumn),
+      );
+    });
+
+    testWidgets('⚠️ 파티원을 고르면 차이도 제 칸에 선다', (tester) async {
+      await pump(tester, detail());
+
+      await tester.tap(find.text('이서연').last);
+      await tester.pump();
+
+      expect(left(tester, "5'00\""), left(tester, AppStrings.runResultPace));
+      expect(
+        left(tester, '-100s'),
+        left(tester, AppStrings.runResultGapBaseParty),
+      );
+      expect(
+        left(tester, '100 kcal'),
+        left(tester, AppStrings.runResultBurnedColumn),
+      );
+    });
+
+    testWidgets('⚠️ 먼저 끝난 사람의 빈 구간도 소모는 제 칸에 선다', (tester) async {
+      // 차이가 없는 줄에서 칸까지 빼면 그 줄만 소모가 왼쪽으로 당겨진다.
+      await pump(tester, detail(shortParty: true));
+
+      await tester.tap(find.text('이서연').last);
+      await tester.pump();
+
+      final head = left(tester, AppStrings.runResultBurnedColumn);
+      final burned = inTable(find.text('100 kcal'));
+      expect(burned, findsNWidgets(2));
+      for (var i = 0; i < 2; i++) {
+        expect(tester.getTopLeft(burned.at(i)).dx, head);
+      }
+    });
+  });
+
   /// 참가자 색 — **나는 파랑 고정인가.**
   ///
   /// `lane(0)`(브랜드 파랑)은 내 자리다. 전에는 명단 자리 번호를 그대로 써서

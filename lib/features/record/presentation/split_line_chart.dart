@@ -108,6 +108,7 @@ class SplitLineChart extends StatefulWidget {
     required this.unit,
     required this.values,
     required this.labels,
+    required this.axisMeters,
     required this.format,
     required this.color,
     required this.hint,
@@ -117,27 +118,30 @@ class SplitLineChart extends StatefulWidget {
     this.showPoints = false,
     this.secondary,
     this.secondaryColor,
-    this.axisTicks,
     this.legend,
     super.key,
-  });
+  }) : assert(axisMeters.length == labels.length, '점마다 거리가 하나씩 있어야 한다');
 
   /// 두 선의 이름표. **비교 중일 때만 넘긴다** — 혼자면 설명할 것이 없다.
   final ChartLegend? legend;
 
-  /// x축에 라벨을 찍을 자리. `null`이면 **개수로 솎는다**(전체의 1/5마다).
+  /// 점마다 닿은 누적 거리(m). [labels]와 같은 길이다. x축에 라벨을 찍을
+  /// 점을 이 거리로 고른다.
   ///
-  /// ## ⚠️ 개수로 솎으면 어중간한 거리가 나온다
+  /// ## 딱 떨어지는 거리에, 고른 간격으로만 찍는다
   ///
-  /// 50m 표본은 3km가 점 60개라 12개마다 찍히는데, 그러면 첫 점부터 세어
-  /// `0.05 · 0.65 · 1.25 km`가 된다. 읽는 사람이 쓰는 자는 **거리**지 점 번호가
-  /// 아니다. 그래서 부르는 쪽이 `0.5 km`처럼 딱 떨어지는 자리를 골라 넘긴다.
+  /// 50m부터 50km까지의 간격 중 **라벨끼리 16 이상 떨어지는 가장 촘촘한
+  /// 것**을 글자 폭으로 재서 고르고, 그 배수에 닿은 점에만 찍는다. 점 개수로
+  /// 솎으면 `0.05 · 0.65 · 1.25 km`처럼 어중간한 거리가 나온다.
   ///
-  /// 구간 번호가 곧 거리인 1km 그래프(`1 km` `2 km` …)는 넘기지 않는다 —
-  /// 개수로 솎아도 어차피 딱 떨어진다.
+  /// 눈금은 간격의 1배·2배·3배…로 빈틈없이 이어져야 한다. 1km 그래프는 자투리
+  /// 구간 끝(`1.3 km`)도 50m의 배수라, 이 조건이 없으면 50m 간격에 같이 뽑혀
+  /// 총 거리가 찍힌다.
   ///
-  /// **마지막 점은 여기에 없어도 늘 찍힌다** — 총 거리를 읽는 자리다.
-  final List<int>? axisTicks;
+  /// ⚠️ **총 거리는 따로 찍지 않는다.** 총 거리를 늘 끝에 찍으면 앞 눈금과 붙어
+  /// 하나를 버려야 하고, 그러면 간격이 들쭉날쭉해진다 — 5km를 뛰면 `4 km`가,
+  /// 3.02km를 뛰면 `3 km`가 빠졌다. 총 거리는 결과 화면 맨 위 지표에 있다.
+  final List<int> axisMeters;
 
   /// 겹쳐 그릴 두 번째 선(파티원). [values]와 같은 자리가 같은 구간이다.
   /// 더 짧으면 거기까지만 그린다 — 먼저 끝난 사람은 뒤 구간이 없다.
@@ -362,7 +366,7 @@ class _SplitLineChartState extends State<SplitLineChart> {
                           height: AppSpacing.space4,
                           child: _Labels(
                             labels: widget.labels,
-                            ticks: widget.axisTicks,
+                            meters: widget.axisMeters,
                             inset: _inset,
                             color: colors.textTertiary,
                           ),
@@ -572,33 +576,49 @@ class _YLabels extends StatelessWidget {
 
 /// x축 라벨. 점 위치에 가운데를 맞춰 놓는다.
 ///
-/// 구간이 많아지면 **일부만 남긴다.** 10km를 달리면 라벨 10개가 356px 안에
-/// 겹쳐 붙어 아무것도 못 읽는다.
+/// 어느 점에 찍을지는 [SplitLineChart.axisMeters] 참조 — 딱 떨어지는 거리에
+/// 고른 간격으로만 찍는다.
 class _Labels extends StatelessWidget {
   const _Labels({
     required this.labels,
-    required this.ticks,
+    required this.meters,
     required this.inset,
     required this.color,
   });
 
   final List<String> labels;
-
-  /// 찍을 자리. `null`이면 개수로 솎는다. [SplitLineChart.axisTicks] 참조.
-  final List<int>? ticks;
-
+  final List<int> meters;
   final double inset;
   final Color color;
 
-  /// 라벨 한 칸의 너비. 50m 표본은 `12.34 km`처럼 소수 둘까지 적으므로
-  /// `10 km` 시절보다 넓어야 한다.
-  static const _slot = 56.0;
+  /// 라벨 사이로 둘 수 있는 거리 — **촘촘한 것부터** 본다.
+  ///
+  /// ⚠️ **0.5km부터 시작하면 짧은 러닝에 찍을 자리가 없다.** 220m를 뛰면
+  /// 0.5km에 닿은 점이 하나도 없다. 50m 표본은 마지막 하나를 빼면 끝이 50의
+  /// 배수라 여기도 50부터 둔다.
+  ///
+  /// ⚠️ **10km에서 끝내면 긴 러닝의 축이 빈다.** 맞는 간격이 하나도 없으면
+  /// 라벨을 하나도 찍지 않는데, 긴 러닝에서 글자를 키우면 10km 간격도 닿는다.
+  static const _stepsMeters = [
+    50,
+    100,
+    200,
+    500,
+    1000,
+    2000,
+    5000,
+    10000,
+    20000,
+    50000,
+  ];
+
+  /// 라벨끼리 이만큼은 떨어뜨린다.
+  static const _gap = AppSpacing.space4;
 
   @override
   Widget build(BuildContext context) {
-    final at = ticks;
-    // 다섯 개쯤으로 솎되 마지막 구간은 항상 남긴다 — 총 거리를 읽는 자리다.
-    final step = (labels.length / 5).ceil().clamp(1, labels.length);
+    final style = AppTypographyV2.body18.copyWith(color: color);
+    final scaler = MediaQuery.textScalerOf(context);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -606,36 +626,62 @@ class _Labels extends StatelessWidget {
         final span = width - inset * 2;
         final last = labels.length - 1;
 
-        double centerOf(int i) =>
-            inset + (last == 0 ? span / 2 : span * i / last);
+        final widths = <int, double>{};
+        double widthOf(int i) => widths[i] ??= () {
+          final painter = TextPainter(
+            text: TextSpan(text: labels[i], style: style),
+            textDirection: TextDirection.ltr,
+            textScaler: scaler,
+          )..layout();
+          final measured = painter.width;
+          painter.dispose();
+          return measured;
+        }();
 
-        bool picked(int i) => at == null ? i % step == 0 : at.contains(i);
+        // ⚠️ 양 끝에서 잘리지 않게 **글자 폭만큼만** 가둔다. 넉넉한 칸 폭으로
+        // 가두면 짧은 `5 km`도 끝점에서 왼쪽으로 밀려 간격이 어긋난다.
+        double leftOf(int i) {
+          final w = widthOf(i);
+          final center = inset + (last == 0 ? span / 2 : span * i / last);
+          final right = width - w;
+          return right <= 0 ? 0 : (center - w / 2).clamp(0.0, right);
+        }
 
-        // ⚠️ **고른 라벨이 마지막과 붙는 일이 있다.** 11점이면 3칸씩 골라
-        // 0·3·6·9가 되는데 마지막 10을 항상 남기므로 9와 10이 겹쳐 찍힌다.
-        // 거리로 골라도 마찬가지다 — 3.02km를 뛰면 3km와 3.02km가 붙는다.
-        // 마지막에서 한 칸 안에 든 것은 버린다 — 총 거리를 읽는 쪽이 우선이다.
-        final shown = [
-          for (var i = 0; i < labels.length; i++)
-            if (i == last ||
-                (picked(i) && centerOf(last) - centerOf(i) >= _slot))
-              i,
-        ];
+        bool evenSteps(List<int> picked, int step) {
+          for (var k = 0; k < picked.length; k++) {
+            if (meters[picked[k]] != step * (k + 1)) return false;
+          }
+          return true;
+        }
+
+        bool apart(List<int> picked) {
+          for (var k = 1; k < picked.length; k++) {
+            final before = picked[k - 1];
+            final room = leftOf(picked[k]) - (leftOf(before) + widthOf(before));
+            if (room < _gap) return false;
+          }
+          return true;
+        }
+
+        var shown = const <int>[];
+        for (final step in _stepsMeters) {
+          final picked = [
+            for (var i = 0; i < meters.length; i++)
+              if (meters[i] % step == 0) i,
+          ];
+          if (picked.isNotEmpty && evenSteps(picked, step) && apart(picked)) {
+            shown = picked;
+            break;
+          }
+        }
 
         return Stack(
           children: [
             for (final i in shown)
               Positioned(
-                // ⚠️ 양 끝에서 잘리지 않게 가둔다. 첫 라벨은 중심이 `inset`이라
-                // 폭의 절반이 화면 밖으로 나간다.
-                left: (centerOf(i) - _slot / 2).clamp(0.0, width - _slot),
+                left: leftOf(i),
                 top: AppSpacing.space0,
-                width: _slot,
-                child: Text(
-                  labels[i],
-                  textAlign: TextAlign.center,
-                  style: AppTypographyV2.body18.copyWith(color: color),
-                ),
+                child: Text(labels[i], style: style),
               ),
           ],
         );
