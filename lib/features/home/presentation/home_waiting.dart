@@ -546,7 +546,6 @@ class _Celebration extends StatelessWidget {
             decoration: BoxDecoration(
               color: colors.primaryMuted,
               borderRadius: AppRadius.card,
-              border: Border.all(color: colors.primary),
             ),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(
@@ -558,7 +557,7 @@ class _Celebration extends StatelessWidget {
               // ⚠️ **읽을 때는 한 문장이다.** 말줄임 때문에 닉네임과 뒷말을
               // 따로 세웠는데, 그대로 두면 스크린리더가 토막으로 읽는다.
               child: Semantics(
-                label: AppStrings.homeMatchSuccess(player.nickname),
+                label: AppStrings.homePlayerJoined(player.nickname),
                 excludeSemantics: true,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -579,7 +578,7 @@ class _Celebration extends StatelessWidget {
                     ),
                     const SizedBox(width: AppSpacing.space3),
                     // ⚠️ **닉네임만 줄인다.** 문장을 통째로 줄이면 정작
-                    // 알려야 할 `매칭성공!`이 먼저 잘린다. 닉네임은 16자까지
+                    // 알려야 할 `합류했어요`가 먼저 잘린다. 닉네임은 16자까지
                     // 온다.
                     //
                     // ⚠️ `Expanded`가 아니라 `Flexible`이다. 짧은 이름일 때
@@ -595,7 +594,7 @@ class _Celebration extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      AppStrings.homeMatchSuccessSuffix,
+                      AppStrings.homePlayerJoinedSuffix,
                       style: AppTypographyV2.body05.copyWith(
                         color: colors.textStrong,
                       ),

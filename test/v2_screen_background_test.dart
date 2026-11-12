@@ -19,25 +19,27 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 /// ## 판정 방법
 ///
-/// 소스를 읽어 `Scaffold(` 마다 뒤따르는 `backgroundColor:`를 찾는다. 위젯을
-/// 띄워 재는 쪽이 정확하지만, 화면마다 provider 를 세우는 값이 이 한 줄을
-/// 지키는 값보다 크다. **빠뜨림을 잡는 것이 목적**이고 빠뜨림은 소스에 드러난다.
+/// 소스를 읽어 `Scaffold(`·`AlertDialog(` 마다 뒤따르는 `backgroundColor:`를
+/// 찾는다. 위젯을 띄워 재는 쪽이 정확하지만, 화면마다 provider 를 세우는 값이
+/// 이 한 줄을 지키는 값보다 크다. **빠뜨림을 잡는 것이 목적**이고 빠뜨림은
+/// 소스에 드러난다.
 bool usesNewGeneration(String source) =>
     source.contains('core/theme/v2/app_colors.dart');
 
-/// `Scaffold(` 중 `backgroundColor:`를 받지 않은 것의 개수.
+/// [opener](`Scaffold(`·`AlertDialog(`) 중 `backgroundColor:`를 받지 않은 것의
+/// 개수.
 ///
-/// 여는 괄호부터 짝이 맞는 닫는 괄호까지를 그 `Scaffold`의 범위로 본다.
-/// 중첩된 `Scaffold`는 각각 따로 센다.
-int scaffoldsWithoutBackground(String source) {
+/// 여는 괄호부터 짝이 맞는 닫는 괄호까지를 그 위젯의 범위로 본다.
+/// 중첩된 것은 각각 따로 센다.
+int withoutBackground(String source, String opener) {
   var missing = 0;
   var from = 0;
 
   while (true) {
-    final start = source.indexOf('Scaffold(', from);
+    final start = source.indexOf(opener, from);
     if (start < 0) return missing;
 
-    final open = start + 'Scaffold('.length;
+    final open = start + opener.length;
     var depth = 1;
     var i = open;
     while (i < source.length && depth > 0) {
@@ -51,16 +53,23 @@ int scaffoldsWithoutBackground(String source) {
     }
 
     final body = source.substring(open, i);
-    // 중첩된 Scaffold 의 인자는 그쪽 차례에 다시 본다. 여기서는 이 Scaffold 가
+    // 중첩된 같은 위젯의 인자는 그쪽 차례에 다시 본다. 여기서는 이 위젯이
     // 직접 받은 것만 봐야 하는데, 안쪽 것이 깔아 둔 값을 바깥 것의 것으로
     // 세지 않도록 안쪽 범위를 지운다.
-    final inner = body.indexOf('Scaffold(');
+    final inner = body.indexOf(opener);
     final own = inner < 0 ? body : body.substring(0, inner);
     if (!own.contains('backgroundColor:')) missing++;
 
     from = open;
   }
 }
+
+int scaffoldsWithoutBackground(String source) =>
+    withoutBackground(source, 'Scaffold(');
+
+/// 팝업도 같다 — 바탕을 안 주면 옛 테마의 남색이 뜬다.
+int dialogsWithoutBackground(String source) =>
+    withoutBackground(source, 'AlertDialog(');
 
 void main() {
   group('판정', () {
@@ -90,6 +99,14 @@ Widget b() => Scaffold(body: Text('b'));
 ''';
       expect(scaffoldsWithoutBackground(source), 1);
     });
+
+    test('⚠️ 팝업도 빠뜨리면 잡는다', () {
+      const source = '''
+AlertDialog(backgroundColor: c.bgElevated, title: Text('a'));
+AlertDialog(title: Text('b'));
+''';
+      expect(dialogsWithoutBackground(source), 1);
+    });
   });
 
   test('⚠️ 옮긴 화면은 모두 자기 배경을 깐다', () {
@@ -100,7 +117,8 @@ Widget b() => Scaffold(body: Text('b'));
       final source = entity.readAsStringSync();
       if (!usesNewGeneration(source)) continue;
 
-      final missing = scaffoldsWithoutBackground(source);
+      final missing =
+          scaffoldsWithoutBackground(source) + dialogsWithoutBackground(source);
       if (missing > 0) {
         offenders.add('${entity.path.replaceAll(r'\', '/')} ($missing개)');
       }
@@ -110,8 +128,9 @@ Widget b() => Scaffold(body: Text('b'));
       offenders,
       isEmpty,
       reason:
-          '앱 테마가 아직 옛 세대라 Scaffold 기본 배경이 푸른 회색이다. '
-          '옮긴 화면은 `backgroundColor: colors.bgBase` 를 직접 깐다. '
+          '앱 테마가 아직 옛 세대라 Scaffold 기본 배경이 푸른 회색, 팝업 기본 '
+          '배경이 남색이다. 옮긴 화면은 `backgroundColor: colors.bgBase`, '
+          '팝업은 `backgroundColor: colors.bgElevated` 를 직접 깐다. '
           '전역 테마를 바꾸는 것은 마지막 화면이 넘어온 뒤의 일이다.',
     );
   });

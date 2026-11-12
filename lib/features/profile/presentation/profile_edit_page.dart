@@ -274,7 +274,7 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
         ),
         content: Text(
           AppStrings.profileEditDiscardBody,
-          style: AppTypographyV2.body07.copyWith(
+          style: AppTypographyV2.body12.copyWith(
             color: context.appColorsV2.textSecondary,
           ),
         ),

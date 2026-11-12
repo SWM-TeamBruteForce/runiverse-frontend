@@ -296,7 +296,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
   /// 혼자 남은 방은 마감이 지났어도 면제다.
   String _leaveNotice(RoomInfo room) {
     // ⚠️ **초대 방은 제재가 없다.** 매칭 방의 문구를 그대로 쓰면 "20분 동안
-    // 다시 신청할 수 없어요"라고 거짓말을 한다.
+    // 신청할 수 없어요"라고 거짓말을 한다.
     if (room.type == RoomType.invite) {
       return room.isAlone
           ? AppStrings.inviteRoomLeaveLast
@@ -340,7 +340,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
         ),
         content: Text(
           _leaveNotice(room),
-          style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
+          style: AppTypographyV2.body12.copyWith(color: colors.textSecondary),
         ),
         actions: [
           TextButton(

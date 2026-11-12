@@ -240,8 +240,14 @@ class _FriendPageState extends ConsumerState<FriendPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: colors.bgElevated,
-        title: Text(AppStrings.friendRemoveConfirmTitle(entry.nickname)),
-        content: Text(AppStrings.friendRemoveConfirmBody),
+        title: Text(
+          AppStrings.friendRemoveConfirmTitle(entry.nickname),
+          style: AppTypographyV2.heading06.copyWith(color: colors.textPrimary),
+        ),
+        content: Text(
+          AppStrings.friendRemoveConfirmBody,
+          style: AppTypographyV2.body12.copyWith(color: colors.textSecondary),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
