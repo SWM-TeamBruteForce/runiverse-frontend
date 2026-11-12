@@ -141,12 +141,29 @@ class MatchRoomController extends Notifier<MatchRoomState> {
   /// 예약된 재연결. 없으면 `null`.
   Timer? _retry;
 
-  /// 연달아 실패한 횟수. 붙는 데 성공하면 0으로 돌아간다.
+  /// 연달아 실패한 횟수. **오래 살아 있던 연결이 닫히면** 0으로 돌아간다.
   int _retryStep = 0;
 
   /// 간격 상한을 32초로 둔다(`1 << 5`). 모집 대기는 몇 시간짜리라 더 벌리면
   /// 확정 통지를 받기까지 그만큼 늦어진다.
   static const _maxRetryStep = 5;
+
+  /// 마지막으로 붙은 시각. [_scheduleRetry]가 한 번 읽고 비운다.
+  DateTime? _connectedAt;
+
+  /// 이만큼 살았으면 **멀쩡했던 연결**로 본다 — 닫힌 이유가 우리 쪽 문제가
+  /// 아니므로 간격을 되돌린다.
+  ///
+  /// ## ⚠️ "이벤트를 받았으니 살아 있다"로 세지 않는다
+  ///
+  /// 같은 계정은 스트림을 **하나만** 유지한다. 다른 기기에서 붙으면 서버가
+  /// 기존 연결을 닫는데, 닫히기 전에 입장 이벤트는 이미 받은 상태다. 그것으로
+  /// 간격을 되돌리면 **두 기기가 서로를 닫으며 네트워크 속도로 되풀이한다** —
+  /// 한 바퀴마다 상태 조회와 스트림 열기가 양쪽에서 나간다.
+  ///
+  /// 30분 만료(`match-stream.timeout`)보다 한참 짧게 둔다. 정상 만료는 늘 이
+  /// 선을 넘으므로 지금까지처럼 곧바로 다시 붙는다.
+  static const _healthyConnection = Duration(minutes: 1);
 
   @override
   MatchRoomState build() {
@@ -207,6 +224,8 @@ class MatchRoomController extends Notifier<MatchRoomState> {
     _stream = stream;
 
     state = state.copyWith(connected: true, failure: null);
+    // 얼마나 살았는지로 재연결 간격을 정한다. [_healthyConnection] 참고.
+    _connectedAt = DateTime.now();
     _subscription = stream.connect().listen(
       _onEvent,
       onError: (Object error) {
@@ -259,6 +278,19 @@ class MatchRoomController extends Notifier<MatchRoomState> {
     // 이미 예약돼 있으면 둔다. `_stop()`과 `onDone`이 겹쳐 두 번 들어올 수 있다.
     if (_retry != null) return;
 
+    // ⚠️ **오래 살았던 연결이 닫힌 것이면 간격을 되돌린다.** 30분 만료가 그
+    // 경우다 — 하루 종일 기다리는 동안 간격이 누적되면 재연결이 점점 늦어진다.
+    // 반대로 붙자마자 닫힌 것은 되돌리지 않는다([_healthyConnection]).
+    //
+    // **한 번만 읽는다.** 상태 조회가 실패해 여기로 다시 들어올 때(아래 타이머
+    // 안) 같은 연결로 또 되돌리면 간격이 영영 벌어지지 않는다.
+    final connectedAt = _connectedAt;
+    _connectedAt = null;
+    if (connectedAt != null &&
+        DateTime.now().difference(connectedAt) >= _healthyConnection) {
+      _retryStep = 0;
+    }
+
     // ⚠️ **첫 번은 기다리지 않는다.** 침묵으로 끊김을 판정한 시점에 이미 30초를
     // 쓴 뒤라, 여기서 더 재는 시간은 그대로 갱신 지연에 더해진다. 진짜로 망가진
     // 경우에만 2·4·8초로 간격이 벌어진다.
@@ -290,10 +322,6 @@ class MatchRoomController extends Notifier<MatchRoomState> {
   }
 
   void _onEvent(MatchEvent event) {
-    // 이벤트가 왔다는 것은 연결이 실제로 살아 있다는 뜻이다. 다음에 끊기면
-    // 다시 처음 간격부터 시작한다 — 30분마다 닫히는 연결에 간격이 누적되면
-    // 하루 종일 기다리는 동안 재연결이 점점 늦어진다.
-    _retryStep = 0;
     switch (event) {
       // ⚠️ **확정 연출을 띄울 유일한 이벤트다.** 모집 마감에 단 한 번 온다
       // (`CloseMatchingHandler`, 인원과 무관하게 1인도 확정이다).

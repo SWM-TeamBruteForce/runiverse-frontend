@@ -587,6 +587,72 @@ void main() {
     });
   });
 
+  /// 끊긴 뒤 다시 붙는 간격. **"즉시"가 반복되면 핫루프가 된다.**
+  group('재연결 백오프', () {
+    /// 대기 중인 상태로 붙여 둔다. 재연결은 상태 조회를 거치므로, 그쪽이
+    /// `WAITING`이라고 답해야 다시 붙는다.
+    Future<({ProviderContainer container, FakeMatchStream stream})> waiting()
+    async {
+      final app = build();
+      app.statuses.status = UserStatusWaiting(
+        runningRoomId: 125,
+        type: RoomType.match,
+        scheduledStartAt: startAt,
+      );
+      await app.container.read(userStatusProvider.notifier).refresh();
+      await Future<void>.delayed(Duration.zero);
+      return (container: app.container, stream: app.stream);
+    }
+
+    /// 서버가 닫은 것처럼 만들고, 예약된 재연결이 돌 틈을 준다.
+    ///
+    /// 재연결은 타이머 → 상태 조회 → 한 틱 미룬 `connect()` 순서라 마이크로
+    /// 태스크 하나로는 모자란다. 간격이 0일 때만 이 안에 붙는다.
+    Future<void> breakAndSettle(FakeMatchStream stream) async {
+      stream.breakDown();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+
+    test('처음 끊기면 곧바로 다시 붙는다', () async {
+      // 30분 만료가 정상 경로다 — 이미 30분을 쓴 뒤라 여기서 더 기다리면
+      // 그만큼 갱신이 늦어진다.
+      final app = await waiting();
+      expect(app.stream.connects, 1);
+
+      app.stream.emit(MatchRoomEntrance(room(RoomStatus.matching)));
+      await Future<void>.delayed(Duration.zero);
+      await breakAndSettle(app.stream);
+
+      expect(app.stream.connects, 2);
+    });
+
+    test('⚠️ 서버가 곧바로 닫으면 간격이 벌어진다', () async {
+      // ## 같은 계정은 스트림을 하나만 유지한다
+      //
+      // 다른 기기에서 붙으면 서버가 **기존 연결을 닫는다.** 두 기기가 서로를
+      // 닫으며 재접속하면, 즉시 재시도는 네트워크 속도로 도는 핫루프가 된다 —
+      // 한 바퀴마다 상태 조회와 스트림 열기가 양쪽에서 나간다.
+      //
+      // 붙자마자 닫힌 연결을 "살아 있었다"로 세지 않아야 간격이 벌어진다.
+      final app = await waiting();
+
+      // 1회차: 붙고, 입장 이벤트를 받고, 곧바로 닫힌다 → 즉시 재연결.
+      app.stream.emit(MatchRoomEntrance(room(RoomStatus.matching)));
+      await Future<void>.delayed(Duration.zero);
+      await breakAndSettle(app.stream);
+      expect(app.stream.connects, 2);
+
+      // 2회차: 같은 일이 반복된다. 이번에는 **기다려야 한다.**
+      app.stream.emit(MatchRoomEntrance(room(RoomStatus.matching)));
+      await Future<void>.delayed(Duration.zero);
+      await breakAndSettle(app.stream);
+
+      // 간격이 0이면 여기서 3이 된다. 입장 이벤트를 받았다는 것만으로
+      // 간격을 되돌리면 두 기기가 영원히 서로를 닫는다.
+      expect(app.stream.connects, 2);
+    });
+  });
+
   /// 스냅샷이 없을 때 상태 조회만으로 세우는 대타 방.
   group('RoomInfo.fromStatus', () {
     final startAt = DateTime(2026, 9, 18, 19);
