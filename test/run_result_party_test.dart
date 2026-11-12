@@ -83,6 +83,60 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  /// 페이스 자릿수가 다른 두 사람(`5'06"`·`10'05"`). 10분/km를 넘으면 페이스가
+  /// 한 자리 길어진다.
+  RunDetail mixedPaces() => RunDetail(
+    runningRoomId: 125,
+    distanceMeters: 2000,
+    duration: const Duration(minutes: 11),
+    averagePace: const Duration(minutes: 5, seconds: 30),
+    rawSplits: splitsOf(200, 3),
+    players: const [
+      me,
+      RunPlayerResult(
+        userId: 'u-1',
+        nickname: '이서연',
+        isMe: false,
+        distanceMeters: 2000,
+        duration: Duration(minutes: 10, seconds: 12),
+        averagePace: Duration(minutes: 5, seconds: 6),
+      ),
+      RunPlayerResult(
+        userId: 'u-2',
+        nickname: '박지훈',
+        isMe: false,
+        distanceMeters: 2000,
+        duration: Duration(minutes: 20, seconds: 10),
+        averagePace: Duration(minutes: 10, seconds: 5),
+      ),
+    ],
+    splitsByPlayer: const {},
+  );
+
+  void expectTimeColumnAligned(WidgetTester tester) => expect(
+    tester.getRect(find.text('10:12')).right,
+    moreOrLessEquals(tester.getRect(find.text('20:10')).right),
+  );
+
+  testWidgets('⚠️ 페이스 자릿수가 달라도 시간 열이 맞는다', (tester) async {
+    // 페이스를 글자 폭대로 두던 때는 긴 쪽 줄만 시간이 왼쪽으로 밀렸다.
+    await pump(tester, mixedPaces());
+
+    expect(find.text("5'06\""), findsOneWidget);
+    expect(find.text("10'05\""), findsOneWidget);
+    expectTimeColumnAligned(tester);
+  });
+
+  testWidgets('⚠️ 글자를 키워도 시간 열이 맞는다', (tester) async {
+    // 페이스 칸 폭을 잴 때 글자 배율을 빼먹으면 배율만큼 다시 어긋난다.
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    await pump(tester, mixedPaces());
+
+    expectTimeColumnAligned(tester);
+  });
+
   testWidgets('솔로는 카드도 칩도 없다', (tester) async {
     await pump(tester, detail(solo: true));
 
