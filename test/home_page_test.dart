@@ -25,6 +25,7 @@ import 'package:runiverse/features/matching/presentation/match_register_page.dar
 import 'package:runiverse/features/matching/presentation/match_register_provider.dart';
 import 'package:runiverse/features/notification/data/fake_app_stream.dart';
 import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
+import 'package:runiverse/features/notification/domain/notification_page_result.dart';
 import 'package:runiverse/features/notification/domain/push_messaging.dart';
 import 'package:runiverse/features/notification/presentation/notification_page.dart';
 import 'package:runiverse/features/notification/presentation/notification_provider.dart';
@@ -48,6 +49,7 @@ void main() {
     _StubPermissionAsker? permissions,
     FakeLocationRepository? location,
     PushMessaging? pushMessaging,
+    FakeNotificationRepository? notifications,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -98,7 +100,7 @@ void main() {
           // 페이지도 받는다. 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
           appStreamProvider.overrideWithValue(FakeAppStream()),
           notificationRepositoryProvider.overrideWithValue(
-            FakeNotificationRepository(),
+            notifications ?? FakeNotificationRepository(),
           ),
           if (auth != null)
             authControllerProvider.overrideWith(
@@ -179,6 +181,37 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.runWaitingFix), findsOneWidget);
+    });
+  });
+
+  group('하단 탭 알림 점', () {
+    testWidgets('안 읽은 알림이 있으면 홈 탭에만 점이 선다', (tester) async {
+      // 앱이 켜져 있으면 배너가 안 떠서, 종이 안 보이는 탭에서는 이 점이
+      // 유일한 신호다. 종이 있는 홈 탭 하나에만 단다.
+      final notifications = FakeNotificationRepository()
+        ..pages[null] = const NotificationPageResult(items: [], unreadCount: 1);
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: true),
+        notifications: notifications,
+      );
+
+      expect(find.byKey(const ValueKey('tab-badge-0')), findsOneWidget);
+      for (var i = 1; i < 4; i++) {
+        expect(find.byKey(ValueKey('tab-badge-$i')), findsNothing);
+      }
+    });
+
+    testWidgets('안 읽은 알림이 없으면 홈 탭에도 점이 없다', (tester) async {
+      // 셸이 늘 점을 넘기는 실수는 위 테스트가 못 잡는다.
+      await pumpHome(
+        tester,
+        auth: const AuthSignedIn('u-1', isOnboarded: true),
+      );
+
+      for (var i = 0; i < 4; i++) {
+        expect(find.byKey(ValueKey('tab-badge-$i')), findsNothing);
+      }
     });
   });
 

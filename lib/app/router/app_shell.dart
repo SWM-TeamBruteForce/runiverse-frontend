@@ -286,6 +286,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     AppTabSpec(icon: AppIcons.profile, label: AppStrings.tabProfile),
   ];
 
+  /// 홈 탭의 자리. [_tabs] 순서와 함께 움직인다.
+  static const _homeTab = 0;
+
   void _onDestinationSelected(int index) {
     // 홈 탭은 다시 세워지지 않아 다녀와도 날씨가 그대로다. 누를 때 다시 본다.
     if (index == 0) {
@@ -349,12 +352,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     // 앱 스트림도 같은 이유로 여기다. **매칭 스트림과 동시에 유지한다** —
     // 한쪽을 열었다고 다른 쪽을 닫으면 방에 있는 동안 알림을 못 받는다.
-    //
-    // ⚠️ 배지는 이제 홈 위 줄이 그린다. 그래도 **여기서 계속 지켜본다** —
-    // Riverpod은 안 보이는 위젯의 구독을 멈춘다(`TickerMode`). 다른 탭에
-    // 있는 동안 홈의 구독은 멈춰 있어서, 거기만 남기면 알림 상태를 지켜보는
-    // 곳이 하나도 없는 구간이 생긴다.
-    ref.watch(hasUnreadProvider);
+    final hasUnread = ref.watch(hasUnreadProvider);
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -366,6 +364,11 @@ class _AppShellState extends ConsumerState<AppShell> {
       bottomNavigationBar: AppTabBarV2(
         tabs: _tabs,
         currentIndex: widget.navigationShell.currentIndex,
+        // 앱이 켜져 있으면 배너를 띄우지 않아서(`firebase_push_messaging.dart`)
+        // 다른 탭에 있을 때 새 알림을 알려 줄 자리가 여기뿐이다. 종이 있는
+        // 홈 탭 하나에만 단다. 홈에 있어도 끄지 않는다 — 끄면 읽지 않았는데
+        // 탭을 옮길 때마다 꺼졌다 켜진다.
+        badges: hasUnread ? const {_homeTab} : const <int>{},
         onSelected: _onDestinationSelected,
       ),
     );

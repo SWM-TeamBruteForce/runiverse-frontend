@@ -1997,6 +1997,6 @@ abstract final class AppStrings {
   /// 방이 꽉 차서 수락하지 못했다. **초대는 PENDING으로 남는다.**
   static const inviteRoomFull = '방이 꽉 찼어요. 자리가 생기면 다시 눌러보세요';
 
-  /// 홈 종에 점이 있을 때 덧붙여 읽히는 말. **점을 그림으로만 두면 안 읽힌다.**
+  /// 홈 종·하단 홈 탭에 점이 있을 때 덧붙여 읽히는 말. **점을 그림으로만 두면 안 읽힌다.**
   static const notificationUnreadSemantics = '읽지 않은 알림 있음';
 }
