@@ -694,7 +694,7 @@ class _SplitTableState extends State<_SplitTable> {
     // 하나도 안 준 경우가 있고, 그때는 잴 것이 하나도 없다.
     final comparing = widget.compareTo?.isNotEmpty ?? false;
     // 머리줄 아래부터 줄마다 위에 긋는다. 외주 시안 `70:1571`도 표 끝에서 끝까지다.
-    final rule = Divider(
+    final divider = Divider(
       height: 1,
       thickness: AppSizes.hairline,
       color: colors.borderDefault,
@@ -711,7 +711,7 @@ class _SplitTableState extends State<_SplitTable> {
             basis: comparing ? AppStrings.runResultGapBaseParty : null,
           ),
           for (final (i, split) in shown.indexed) ...[
-            rule,
+            divider,
             _SplitRow(
               split: split,
               totalKm: widget.detail.distanceKm,
@@ -730,7 +730,7 @@ class _SplitTableState extends State<_SplitTable> {
             ),
           ],
           if (collapsed) ...[
-            rule,
+            divider,
             InkWell(
               onTap: () => setState(() => _expanded = true),
               child: SizedBox(
@@ -818,8 +818,12 @@ class _SplitRow extends StatelessWidget {
     final gap = (base == null || pace == null) ? null : pace - base!;
     // 값은 한 크기(16)로 두고 강약은 색·굵기로만 준다 — 위 파티원 비교 카드와 같은
     // 방식이다. 페이스가 주인공이라 흰색 Medium, 구간·소모는 회색이다.
-    final value = AppTypographyV2.body06.copyWith(color: colors.textPrimary);
-    final aside = AppTypographyV2.body07.copyWith(color: colors.textSecondary);
+    final valueStyle = AppTypographyV2.body06.copyWith(
+      color: colors.textPrimary,
+    );
+    final asideStyle = AppTypographyV2.body07.copyWith(
+      color: colors.textSecondary,
+    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -833,11 +837,11 @@ class _SplitRow extends StatelessWidget {
               split.isPartialOf(SplitAggregator.tableMeters)
                   ? AppStrings.runResultPartialLabel(totalKm)
                   : AppStrings.runResultSplitLabel(split.index),
-              style: aside,
+              style: asideStyle,
             ),
           ),
           Expanded(
-            child: Text(PaceCalculator.format(split.pace), style: value),
+            child: Text(PaceCalculator.format(split.pace), style: valueStyle),
           ),
           if (comparing)
             Expanded(
@@ -850,7 +854,7 @@ class _SplitRow extends StatelessWidget {
                       // ⚠️ **0은 어느 쪽도 아니다.** `isNegative`만 보면 0이
                       // 느린 쪽으로 빨갛게 칠해진다 — 평균과 같은 구간을
                       // 나무라는 셈이다.
-                      style: value.copyWith(
+                      style: valueStyle.copyWith(
                         color: switch (gap.inSeconds) {
                           < 0 => colors.success,
                           > 0 => colors.error,
@@ -862,7 +866,7 @@ class _SplitRow extends StatelessWidget {
           Expanded(
             child: Text(
               '$burned ${AppStrings.runResultUnitKcal}',
-              style: aside,
+              style: asideStyle,
             ),
           ),
         ],

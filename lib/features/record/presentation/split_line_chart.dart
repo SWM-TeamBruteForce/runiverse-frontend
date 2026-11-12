@@ -120,7 +120,7 @@ class SplitLineChart extends StatefulWidget {
     this.secondaryColor,
     this.legend,
     super.key,
-  }) : assert(axisMeters.length == labels.length);
+  }) : assert(axisMeters.length == labels.length, '점마다 거리가 하나씩 있어야 한다');
 
   /// 두 선의 이름표. **비교 중일 때만 넘긴다** — 혼자면 설명할 것이 없다.
   final ChartLegend? legend;
@@ -612,6 +612,9 @@ class _Labels extends StatelessWidget {
     50000,
   ];
 
+  /// 라벨끼리 이만큼은 떨어뜨린다.
+  static const _gap = AppSpacing.space4;
+
   @override
   Widget build(BuildContext context) {
     final style = AppTypographyV2.body18.copyWith(color: color);
@@ -644,7 +647,7 @@ class _Labels extends StatelessWidget {
           return right <= 0 ? 0 : (center - w / 2).clamp(0.0, right);
         }
 
-        bool regular(List<int> picked, int step) {
+        bool evenSteps(List<int> picked, int step) {
           for (var k = 0; k < picked.length; k++) {
             if (meters[picked[k]] != step * (k + 1)) return false;
           }
@@ -655,7 +658,7 @@ class _Labels extends StatelessWidget {
           for (var k = 1; k < picked.length; k++) {
             final before = picked[k - 1];
             final room = leftOf(picked[k]) - (leftOf(before) + widthOf(before));
-            if (room < AppSpacing.space4) return false;
+            if (room < _gap) return false;
           }
           return true;
         }
@@ -666,7 +669,7 @@ class _Labels extends StatelessWidget {
             for (var i = 0; i < meters.length; i++)
               if (meters[i] % step == 0) i,
           ];
-          if (picked.isNotEmpty && regular(picked, step) && apart(picked)) {
+          if (picked.isNotEmpty && evenSteps(picked, step) && apart(picked)) {
             shown = picked;
             break;
           }
