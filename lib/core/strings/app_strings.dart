@@ -904,7 +904,10 @@ abstract final class AppStrings {
   }
 
   static const matchRoomCancel = '매칭 취소하기';
-  static const matchRoomLeave = '나가기';
+
+  /// 무엇을 떠나는지 적는다. 그냥 `나가기`면 화면만 닫는 뒤로가기와 같은
+  /// 말로 읽힌다 — 뒤로가기는 방을 둔 채 홈으로 간다.
+  static const matchRoomLeave = '매칭 나가기';
 
   static const matchRoomLeaveTitle = '정말 나갈까요?';
 
@@ -1887,8 +1890,8 @@ abstract final class AppStrings {
   static const inviteRoomInviteCta = '러너 초대';
 
   /// ⚠️ **초대 방에서 나가는 것은 "매칭 취소"가 아니다.** 매칭을 신청한 적이
-  /// 없고, 제재도 없다.
-  static const inviteRoomLeave = '나가기';
+  /// 없고, 제재도 없다. `방`을 붙이는 이유는 [matchRoomLeave]와 같다.
+  static const inviteRoomLeave = '방 나가기';
 
   // ── 홈 히어로 · 초대 방 ──────────────────────────────────────────────
 
