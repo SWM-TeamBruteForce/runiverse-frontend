@@ -365,8 +365,8 @@ class _AppShellState extends ConsumerState<AppShell> {
         tabs: _tabs,
         currentIndex: widget.navigationShell.currentIndex,
         // 앱이 켜져 있으면 배너를 띄우지 않아서(`firebase_push_messaging.dart`)
-        // 다른 탭에 있을 때 새 알림을 알려 줄 자리가 여기뿐이다. 종이 있는
-        // 홈 탭 하나에만 단다. 홈에 있어도 끄지 않는다 — 끄면 읽지 않았는데
+        // 종·벨이 안 보이는 탭에서 새 알림을 알려 줄 자리가 여기뿐이다. 홈
+        // 탭 하나에만 단다. 홈에 있어도 끄지 않는다 — 끄면 읽지 않았는데
         // 탭을 옮길 때마다 꺼졌다 켜진다.
         badges: hasUnread ? const {_homeTab} : const <int>{},
         onSelected: _onDestinationSelected,

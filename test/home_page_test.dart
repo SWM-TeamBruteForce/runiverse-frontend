@@ -186,8 +186,8 @@ void main() {
 
   group('하단 탭 알림 점', () {
     testWidgets('안 읽은 알림이 있으면 홈 탭에만 점이 선다', (tester) async {
-      // 앱이 켜져 있으면 배너가 안 떠서, 종이 안 보이는 탭에서는 이 점이
-      // 유일한 신호다. 종이 있는 홈 탭 하나에만 단다.
+      // 앱이 켜져 있으면 배너가 안 떠서, 종·벨이 안 보이는 탭에서는 이 점이
+      // 유일한 신호다. 홈 탭 하나에만 단다.
       final notifications = FakeNotificationRepository()
         ..pages[null] = const NotificationPageResult(items: [], unreadCount: 1);
       await pumpHome(
@@ -217,7 +217,7 @@ void main() {
 
   group('위 줄', () {
     testWidgets('알림 종을 누르면 알림함으로 간다', (tester) async {
-      // 알림함의 유일한 입구다. 프로필 커버에서 이리로 옮겼다.
+      // 알림함 입구 둘 중 하나다. 다른 하나는 프로필 커버의 벨이다.
       await pumpHome(tester);
 
       await tester.tap(find.bySemanticsLabel(AppStrings.notificationTitle));

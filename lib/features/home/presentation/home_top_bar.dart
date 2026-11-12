@@ -15,10 +15,10 @@ import 'package:runiverse/features/home/presentation/home_weather_provider.dart'
 /// 왼쪽은 동네와 날씨(`서울 강남구 · 맑음 18°`), 오른쪽은 알림 종이다. 날씨는
 /// 비어 있을 수 있다([HomeWeatherState]).
 ///
-/// ## ⚠️ 알림함의 유일한 입구다
+/// ## 알림함 입구는 여기와 프로필 커버의 벨, 둘이다
 ///
-/// 하단 탭이 넷으로 고정이라 탭을 더할 자리가 없다. 예전에는 프로필 커버 위에
-/// 있었고 그래서 프로필 탭에 점을 얹었는데, 입구를 홈으로 옮기면서 둘 다 뺐다.
+/// 하단 탭이 넷으로 고정이라 탭을 더할 자리가 없다. 하단 탭의 점은 이 종이
+/// 있는 홈 탭에만 단다(`app_shell.dart`).
 class HomeTopBar extends StatelessWidget {
   const HomeTopBar({
     required this.badged,
