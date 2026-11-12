@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
@@ -315,26 +317,40 @@ class _Grid extends StatelessWidget {
     // 일요일 시작이므로 `weekday % 7`이 곧 앞의 빈 칸 수다(일=7→0).
     final leading = DateTime(month.year, month.month).weekday % 7;
 
-    return GridView.count(
-      crossAxisCount: 7,
-      shrinkWrap: true,
-      // Figma는 칸이 47×47 정사각이다(`52:177` 이하). 기본값 1.0이 곧 그것이라
-      // 따로 지정하지 않는다. 납작하게 만들었다가 정본과 어긋나 되돌렸다.
-      // 카드 안에 통째로 펼친다. 캘린더가 따로 스크롤되면 안 된다.
-      physics: const NeverScrollableScrollPhysics(),
-      children: [
-        for (var i = 0; i < leading; i++) const SizedBox.shrink(),
-        for (var day = 1; day <= lastDay; day++)
-          _DayCell(
-            date: DateTime(month.year, month.month, day),
-            hasRecord: data.byDay.containsKey(
-              DateTime(month.year, month.month, day),
-            ),
-            selected:
-                data.selectedDay == DateTime(month.year, month.month, day),
-            onTap: onSelect,
-          ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cell = constraints.maxWidth / 7;
+        return GridView.count(
+          crossAxisCount: 7,
+          shrinkWrap: true,
+          // Figma는 칸이 47×47 정사각이다(`52:177` 이하). 납작하게 만들었다가
+          // 정본과 어긋나 되돌렸다.
+          //
+          // ⚠️ 칸은 폰 폭을 따라 줄지만 원·점은 안 준다. 칸이 그 높이보다
+          // 낮아지면 점이 아랫줄로 넘쳐 아랫날 원 안에 들어간다(360dp에서 5.9).
+          // 그때만 세로로 늘리고, 넓은 폰은 정사각 그대로다.
+          mainAxisExtent: math.max(cell, _DayCell._contentHeight),
+          // Figma는 원이 칸 위로 삐져나가 있어(원 끝 y=29) 점 아래가 10쯤 빈다.
+          // 원을 칸 안에 넣으며 사라진 그 틈을 줄 사이로 둔다 — 없으면 점이
+          // 아랫날 원에 붙는다.
+          mainAxisSpacing: AppSpacing.space2,
+          // 카드 안에 통째로 펼친다. 캘린더가 따로 스크롤되면 안 된다.
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            for (var i = 0; i < leading; i++) const SizedBox.shrink(),
+            for (var day = 1; day <= lastDay; day++)
+              _DayCell(
+                date: DateTime(month.year, month.month, day),
+                hasRecord: data.byDay.containsKey(
+                  DateTime(month.year, month.month, day),
+                ),
+                selected:
+                    data.selectedDay == DateTime(month.year, month.month, day),
+                onTap: onSelect,
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -355,6 +371,9 @@ class _DayCell extends StatelessWidget {
   /// Figma 실측. 선택 원 40, 러닝한 날의 점 5.
   static const _selectionSize = 40.0;
   static const _dotSize = 5.0;
+
+  /// 원·간격·점을 쌓은 높이. 칸이 이보다 낮으면 점이 칸 밖으로 넘친다.
+  static const _contentHeight = _selectionSize + AppSpacing.space0 + _dotSize;
 
   @override
   Widget build(BuildContext context) {
