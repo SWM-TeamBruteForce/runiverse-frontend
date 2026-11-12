@@ -26,8 +26,8 @@ import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 /// 빼고 보면 남는 것이 아바타 · 닉네임 · 소개뿐이다. **화면이 비는 것은
 /// 알고 둔 것이다** — 그 자리에 도감이 들어온다.
 ///
-/// 시안의 **알림 벨**(`158:3935`)도 여기 없다. 알림함 입구는 홈 위 줄 한
-/// 곳에만 둔다(`HomeTopBar`).
+/// 시안의 **알림 벨**(`158:3935`)도 여기 없다. 커버의 설정 버튼 왼쪽에
+/// 선다(`ProfilePage`).
 ///
 /// 데이터가 없어 못 넣은 것도 둘이다.
 ///
@@ -134,7 +134,7 @@ class ProfileHeader extends ConsumerWidget {
               // 칸 짧아지면서 **아래 닉네임·소개글도 함께 올라온다** — 그게
               // 옮긴 이유다.
               //
-              // 벨(`158:3935`)은 위 ⚠️ 참조 — 홈 위 줄에 있다.
+              // 벨(`158:3935`)은 위 ⚠️ 참조 — 커버의 설정 왼쪽에 있다.
               AppButtonV2(
                 label: AppStrings.profileEditOpen,
                 // ⚠️ **아바타 옆에 서는 인라인 액션이다.** 기본 크기(56)로 두면
