@@ -906,7 +906,7 @@ abstract final class AppStrings {
   static const matchRoomLeaveTitle = '정말 나갈까요?';
 
   /// ⚠️ 나가기 전에 알린다. 나간 뒤에 알리면 속았다고 느낀다.
-  static const matchRoomLeavePenalty = '지금 나가면 20분 동안 다시 신청할 수 없어요';
+  static const matchRoomLeavePenalty = '지금 나가면 20분 동안 신청할 수 없어요';
 
   /// 혼자 남은 방은 제재가 없다. 있는 것처럼 겁주지 않는다.
   static const matchRoomLeaveFree = '지금 나가도 다시 신청할 수 있어요';
@@ -1870,8 +1870,8 @@ abstract final class AppStrings {
   /// 남은 자리.
   static String inviteRoomSeatsLeft(int count) => '남은 자리 $count';
 
-  /// ⚠️ **초대 방은 제재가 없다.** 매칭 방의 "20분 동안 다시 신청할 수
-  /// 없어요"를 쓰면 거짓이다.
+  /// ⚠️ **초대 방은 제재가 없다.** 매칭 방의 "20분 동안 신청할 수 없어요"를
+  /// 쓰면 거짓이다.
   static const inviteRoomLeaveFree = '언제든 나갈 수 있어요';
 
   /// 마지막 사람일 때. 나가면 방이 사라지고 받은 초대도 함께 없어진다.

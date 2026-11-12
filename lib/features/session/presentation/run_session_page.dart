@@ -183,8 +183,19 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
       // 바깥을 눌러 넘기지 못한다. 고를 것이 둘 다 뚜렷하다.
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text(AppStrings.runGoalPendingTitle),
-        content: Text(AppStrings.runGoalPendingBody(remainingMeters)),
+        backgroundColor: context.appColorsV2.bgElevated,
+        title: Text(
+          AppStrings.runGoalPendingTitle,
+          style: AppTypographyV2.heading06.copyWith(
+            color: context.appColorsV2.textPrimary,
+          ),
+        ),
+        content: Text(
+          AppStrings.runGoalPendingBody(remainingMeters),
+          style: AppTypographyV2.body12.copyWith(
+            color: context.appColorsV2.textSecondary,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),

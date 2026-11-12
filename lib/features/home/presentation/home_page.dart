@@ -242,11 +242,11 @@ class _HomePageState extends ConsumerState<HomePage> {
         backgroundColor: colors.bgElevated,
         title: Text(
           AppStrings.matchRoomLeaveTitle,
-          style: AppTypographyV2.heading06.copyWith(color: colors.textStrong),
+          style: AppTypographyV2.heading06.copyWith(color: colors.textPrimary),
         ),
         content: Text(
           AppStrings.matchRoomLeaveFree,
-          style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
+          style: AppTypographyV2.body12.copyWith(color: colors.textSecondary),
         ),
         actions: [
           TextButton(

@@ -296,7 +296,13 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
       // 남아, 왜 아무것도 못 고르는지 모른 채 서 있게 된다.
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text(AppStrings.matchClosedTitle),
+        backgroundColor: context.appColorsV2.bgElevated,
+        title: Text(
+          AppStrings.matchClosedTitle,
+          style: AppTypographyV2.heading06.copyWith(
+            color: context.appColorsV2.textPrimary,
+          ),
+        ),
         content: const SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -328,7 +334,13 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
   Future<void> _tellSlotClosed() => showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text(AppStrings.matchSlotClosedTitle),
+      backgroundColor: context.appColorsV2.bgElevated,
+      title: Text(
+        AppStrings.matchSlotClosedTitle,
+        style: AppTypographyV2.heading06.copyWith(
+          color: context.appColorsV2.textPrimary,
+        ),
+      ),
       content: const SingleChildScrollView(child: _TimePolicy()),
       actions: [
         TextButton(
@@ -345,7 +357,13 @@ class _MatchRegisterPageState extends ConsumerState<MatchRegisterPage> {
     return showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text(AppStrings.matchCooldownTitle),
+        backgroundColor: context.appColorsV2.bgElevated,
+        title: Text(
+          AppStrings.matchCooldownTitle,
+          style: AppTypographyV2.heading06.copyWith(
+            color: context.appColorsV2.textPrimary,
+          ),
+        ),
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
