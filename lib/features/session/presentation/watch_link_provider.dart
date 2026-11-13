@@ -497,6 +497,8 @@ class WatchLinkController extends Notifier<void> {
         ),
       );
     }
+    // 워치는 파티원 자리의 콤보 숫자·고리를 상태로 그린다. 다음 1초 전송을 기다리면 옛 숫자로 튄다.
+    if (moments.isNotEmpty && _visible) unawaited(_sendState());
   }
 
   /// 일시정지·재개·종료 단계가 바뀌었으면 번호를 올리고 바로 보낸다.
