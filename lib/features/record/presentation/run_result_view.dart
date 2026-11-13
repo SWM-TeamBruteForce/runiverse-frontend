@@ -467,6 +467,34 @@ class _PartyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
+    final paceStyle = AppTypographyV2.body07.copyWith(
+      color: colors.textSecondary,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+
+    // ⚠️ 페이스 칸을 이 카드에서 가장 긴 페이스 폭에 맞춘다. 글자 폭대로
+    // 두면 자릿수가 다른 사람(`5'06"`·`10'05"`)이 섞일 때 그 줄만 시간이
+    // 왼쪽으로 밀려 시간 열이 어긋난다. `tabularFigures`는 숫자 하나의 폭만
+    // 맞추고 자릿수는 못 맞춘다.
+    final scaler = MediaQuery.textScalerOf(context);
+    // `Text`는 굵은 글꼴 설정이면 bold를 얹어 그린다 — 잴 때도 얹는다.
+    final measureStyle = MediaQuery.boldTextOf(context)
+        ? paceStyle.merge(const TextStyle(fontWeight: FontWeight.bold))
+        : paceStyle;
+    var paceWidth = 0.0;
+    for (final player in detail.party) {
+      if (!player.hasRecord) continue;
+      final painter = TextPainter(
+        text: TextSpan(
+          text: PaceCalculator.format(player.averagePace),
+          style: measureStyle,
+        ),
+        textDirection: TextDirection.ltr,
+        textScaler: scaler,
+      )..layout();
+      if (painter.width > paceWidth) paceWidth = painter.width;
+      painter.dispose();
+    }
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -524,11 +552,12 @@ class _PartyCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.space4),
-                      Text(
-                        PaceCalculator.format(player.averagePace),
-                        style: AppTypographyV2.body07.copyWith(
-                          color: colors.textSecondary,
-                          fontFeatures: const [FontFeature.tabularFigures()],
+                      ConstrainedBox(
+                        constraints: BoxConstraints(minWidth: paceWidth),
+                        child: Text(
+                          PaceCalculator.format(player.averagePace),
+                          textAlign: TextAlign.right,
+                          style: paceStyle,
                         ),
                       ),
                     ] else
