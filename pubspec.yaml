@@ -117,6 +117,7 @@ dependencies:
   # `facebook-android-sdk:[18.0,19.0)`를 범위로 잡아서, 빌드마다 18.x 안에서
   # 버전이 달라질 수 있다.
   facebook_app_events: ^0.31.0
+  korean_profanity: ^0.1.0
 
 dev_dependencies:
   flutter_test:

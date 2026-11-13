@@ -172,6 +172,10 @@ abstract final class AppRoutes {
   /// **셸 밖이다.** 매칭 상태는 탭이 아니라 그 자체로 하나의 흐름이다.
   static const matchRoom = '/match/room';
 
+  /// 대기방 채팅. **[matchRoom]의 자식이다** — 열어 둔 동안 대기방이 그대로
+  /// 살아 있고, 그 화면의 자동 이동 두 개가 이 라우트를 먼저 닫고 움직인다.
+  static const matchRoomChat = '/match/room/chat';
+
   /// 출발 대기실 (S11). **취소 불가 구간이다** — 뒤로가기가 막힌다.
   static const matchCountdown = '/match/countdown';
 

@@ -1999,4 +1999,93 @@ abstract final class AppStrings {
 
   /// 홈 종·프로필 벨·하단 홈 탭에 점이 있을 때 덧붙여 읽히는 말. **점을 그림으로만 두면 안 읽힌다.**
   static const notificationUnreadSemantics = '읽지 않은 알림 있음';
+
+  // ── 대기방 채팅 ──────────────────────────────────────────────
+
+  /// 채팅 제목 윗줄 `19:30 - 5 km 러닝`. 거리를 모르면 `19:30 러닝`.
+  ///
+  /// ⚠️ 거리만 뺀다. `19:30 - 러닝`처럼 하이픈이 떠 있으면 빠뜨린 것처럼 보인다.
+  static String chatTitleRun(String time, String? distance) =>
+      distance == null ? '$time 러닝' : '$time - $distance 러닝';
+
+  /// 채팅 제목 아랫줄 `영희님 외 2명`.
+  ///
+  /// ⚠️ [others]가 0이면 `영희님과 함께`다. `외 1명`은 나를 가리키는 말이라
+  /// 둘뿐인 방에서 읽기 이상하다.
+  static String chatTitleParty(String leader, int others) =>
+      others == 0 ? '$leader님과 함께' : '$leader님 외 $others명';
+
+  /// 빠른 답장. 입력창 바로 위에 수평으로 늘어놓고 **누르면 바로 보낸다.**
+  ///
+  /// ⚠️ **초안이다 — 디자인 확인이 필요하다.**
+  ///
+  /// 이모지를 넣지 않고(`implementation-notes.md` 7-2), 위치 관련 문구도 넣지
+  /// 않는다 — 좌표·경로를 파티원에게 노출하지 않는다는 규칙이 말로도 적용된다.
+  static const chatQuickReplies = [
+    '곧 도착해요',
+    '조금 늦어요',
+    '출발 준비 됐어요',
+    '화이팅!',
+    '잠시만요',
+  ];
+
+  /// 아직 아무도 말하지 않았다. **이때도 칩과 입력창은 보인다.**
+  static const chatEmpty = '아직 대화가 없어요. 먼저 인사해 보세요.';
+
+  static const chatHint = '메시지 입력';
+
+  static const chatFailed = '대화를 불러오지 못했어요';
+  static const chatRetry = '다시 시도';
+
+  /// 보낸 사람이 지운 자리. **목록에서 빼지 않고 이 문구로 바꾼다** — 빼면
+  /// 그 자리에서 대화가 끊겨 보인다.
+  static const chatDeleted = '삭제된 메시지';
+
+  /// 방을 떠난 사람의 말을 블러로 가릴 때, **스크린리더가 대신 읽는 말.**
+  ///
+  /// ⚠️ **화면에는 글자로 나오지 않는다.** 블러는 눈으로만 가리므로 원문
+  /// semantics를 빼고 이 말로 바꾼다 — 안 그러면 TalkBack이 가린 내용을
+  /// 소리내어 읽어 가린 의미가 없어진다.
+  static const chatBlinded = '방을 떠난 사람의 메시지';
+
+  /// 고친 메시지에 붙는 꼬리말.
+  static const chatEdited = '수정됨';
+
+  /// 러닝이 시작돼 채팅이 닫혔다(409). **"다시 시도"를 띄우지 않는다** —
+  /// 되돌아오지 않는 상태다.
+  static const chatClosed = '러닝이 시작돼 대화를 닫았어요';
+
+  /// 보내지 못한 말에 붙는다. **자동으로 다시 보내지 않는다** — 서버에는 이미
+  /// 저장됐을 수 있어서, 자동 재전송은 같은 말을 두 번 남긴다.
+  static const chatSendFailed = '보내지 못했어요';
+  static const chatResend = '다시 보내기';
+  static const chatDiscard = '지우기';
+
+  /// 위로 긁어 이전 메시지를 받는 중.
+  static const chatLoadingMore = '이전 메시지를 불러오는 중';
+
+  /// 내 말을 길게 눌렀을 때 나오는 것.
+  static const chatEditAction = '수정';
+  static const chatDeleteAction = '삭제';
+
+  /// 수정 중인 입력창 위에 뜨는 안내.
+  static const chatEditing = '메시지 수정 중';
+  static const chatEditCancel = '수정 취소';
+
+  /// 삭제는 되돌릴 수 없어서 묻는다.
+  static const chatDeleteConfirmTitle = '이 메시지를 지울까요?';
+  static const chatDeleteConfirmBody = '지운 메시지는 되돌릴 수 없어요.';
+
+  /// 글자 수를 넘겼다. 서버도 400으로 막지만 보내기 전에 알려 준다.
+  static const chatTooLong = '200자까지 보낼 수 있어요';
+
+  /// 전송 버튼이 읽히는 이름. **아이콘만 있는 버튼이라 라벨이 없다.**
+  static const chatSendSemantics = '보내기';
+
+  /// 대기방 채팅 버튼이 읽히는 이름.
+  ///
+  /// ⚠️ **글자 라벨이 없는 버튼이다.** 안 붙이면 스크린리더가 읽을 것이 없고,
+  /// 안 읽은 수는 배지의 숫자로만 보이므로 여기서 함께 읽어 준다.
+  static String chatButtonSemantics(int unread) =>
+      unread == 0 ? '채팅' : '채팅 · 안 읽은 메시지 $unread개';
 }
