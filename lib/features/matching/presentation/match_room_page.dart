@@ -453,12 +453,15 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
 
   /// 채팅 버튼을 보여줄 때인가.
   ///
-  /// 출발 전(`matching`·`matched`)이고 **혼자가 아닐 때**만 보인다. 혼자 쓰는
-  /// 채팅방은 보여줄 것이 없고(사람이 들어오면 나타난다), 답을 기다리는 초대는
-  /// 파티원으로 세지 않는다 — 수락 전에는 채팅에 들어올 수 없다.
+  /// 출발 전(`matching`·`matched`)이면 **파티원이 몇이든** 보인다.
+  ///
+  /// ⚠️ **혼자면 숨기던 것을 2026-11-13에 걷어냈다.** 둘이 대화하다 한 명이
+  /// 나가면 남은 사람 화면에서 버튼이 사라져, **방금 나눈 대화에 들어갈 문이
+  /// 없어졌다** — 대화는 살아 있는데 보이지 않는 상태다. 채팅 연결과 목록은
+  /// 원래 인원수를 보지 않으므로(`chat_provider._syncRoom`), 숨기던 것은
+  /// 버튼뿐이었다.
   bool _chatting(RoomInfo room) =>
-      !room.isAlone &&
-      (room.status == RoomStatus.matching || room.status == RoomStatus.matched);
+      room.status == RoomStatus.matching || room.status == RoomStatus.matched;
 }
 
 /// 대기방의 채팅 버튼 — 원형 `primary` 면에 말풍선을 흰색으로 얹는다.

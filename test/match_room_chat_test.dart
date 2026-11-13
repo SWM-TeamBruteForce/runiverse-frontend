@@ -146,11 +146,13 @@ void main() {
       expect(find.byKey(MatchRoomPage.chatKey), findsOne);
     });
 
-    testWidgets('⚠️ 나 혼자면 숨는다', (tester) async {
-      // 혼자 쓰는 채팅방은 보여줄 것이 없다. 사람이 들어오면 나타난다.
+    testWidgets('⚠️ 나 혼자여도 보인다', (tester) async {
+      // ⚠️ **2026-11-13에 뒤집었다.** 전에는 혼자면 숨겼는데, 둘이 대화하다
+      // 한 명이 나가면 남은 사람이 **방금 나눈 대화에 들어갈 문을 잃었다.**
+      // 대화는 살아 있는데 버튼만 사라지는 상태였다. 출발 전이면 늘 연다.
       await pumpRoom(tester, snapshot: room(players: 1));
 
-      expect(find.byKey(MatchRoomPage.chatKey), findsNothing);
+      expect(find.byKey(MatchRoomPage.chatKey), findsOne);
     });
 
     testWidgets('출발한 방(started)에서는 숨는다', (tester) async {
