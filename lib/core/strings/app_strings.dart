@@ -2034,6 +2034,13 @@ abstract final class AppStrings {
   /// 그 자리에서 대화가 끊겨 보인다.
   static const chatDeleted = '삭제된 메시지';
 
+  /// 방을 떠난 사람의 말을 블러로 가릴 때, **스크린리더가 대신 읽는 말.**
+  ///
+  /// ⚠️ **화면에는 글자로 나오지 않는다.** 블러는 눈으로만 가리므로 원문
+  /// semantics를 빼고 이 말로 바꾼다 — 안 그러면 TalkBack이 가린 내용을
+  /// 소리내어 읽어 가린 의미가 없어진다.
+  static const chatBlinded = '방을 떠난 사람의 메시지';
+
   /// 고친 메시지에 붙는 꼬리말.
   static const chatEdited = '수정됨';
 

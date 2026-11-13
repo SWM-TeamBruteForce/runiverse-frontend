@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
@@ -27,9 +29,14 @@ class ChatBubble extends StatelessWidget {
     this.imageUrl,
     this.deleted = false,
     this.edited = false,
+    this.blinded = false,
     this.onLongPress,
     super.key,
   });
+
+  /// 블러 세기. **디자인 확인이 필요한 값이다** — 글자 모양은 남고 내용은
+  /// 못 읽는 정도로 잡았다.
+  static const _blurSigma = 4.0;
 
   /// 보여 줄 본문. [deleted]면 쓰지 않는다.
   final String text;
@@ -52,6 +59,15 @@ class ChatBubble extends StatelessWidget {
 
   /// 고친 적이 있다. 시각 옆에 "수정됨"을 붙인다.
   final bool edited;
+
+  /// 보낸 사람이 **방을 떠났다.** 본문을 블러로 가린다.
+  ///
+  /// 자리는 지킨다 — 빼면 그 자리에서 대화가 끊겨 보인다. 이름·시각은 가리지
+  /// 않는다. 누가 남긴 말인지는 보이는 편이 맥락에 낫다.
+  ///
+  /// ⚠️ **[deleted]와 겹치면 지운 쪽이 이긴다.** 이미 문구가 `삭제된 메시지`로
+  /// 바뀌어 가릴 내용이 없는데, 블러까지 걸면 그 문구를 못 읽는다.
+  final bool blinded;
 
   /// 길게 누르면 할 일. **내 메시지이고 안 지워졌을 때만 넘어온다** —
   /// 남의 말이나 지운 말에는 수정·삭제가 없다.
@@ -78,6 +94,32 @@ class ChatBubble extends StatelessWidget {
             ),
           );
 
+    // ⚠️ **지운 쪽이 이긴다.** 지운 자리는 이미 `삭제된 메시지`로 바뀌어
+    // 가릴 내용이 없는데, 블러까지 걸면 그 문구를 못 읽는다.
+    final shown = blinded && !deleted
+        // ⚠️ **semantics를 빼고 대신 읽을 말을 준다.** 블러는 눈으로만 가린다
+        // — 그대로 두면 TalkBack이 가린 원문을 소리내어 읽는다.
+        ? Semantics(
+            label: AppStrings.chatBlinded,
+            // ⚠️ **`container`가 없으면 라벨이 자기 노드를 못 만든다** —
+            // 조상에 얹히기만 해서 아무것도 읽히지 않는다
+            // (`runner_avatar.dart:41-46`·`match_room_page.dart`가 같은
+            // 함정을 적어 뒀다).
+            container: true,
+            child: ExcludeSemantics(
+              child: ImageFiltered(
+                imageFilter: ImageFilter.blur(
+                  sigmaX: _blurSigma,
+                  sigmaY: _blurSigma,
+                  // ⚠️ `decal`이 없으면 흐려진 글자가 버블 밖으로 번진다.
+                  tileMode: TileMode.decal,
+                ),
+                child: body,
+              ),
+            ),
+          )
+        : body;
+
     final bubble = GestureDetector(
       onLongPress: onLongPress,
       child: Container(
@@ -91,7 +133,7 @@ class ChatBubble extends StatelessWidget {
               : (mine ? colors.primary : colors.bgSurface),
           borderRadius: AppRadius.lg,
         ),
-        child: body,
+        child: shown,
       ),
     );
 

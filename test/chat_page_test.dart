@@ -74,6 +74,7 @@ void main() {
     ChatState state = const ChatState(runningRoomId: 130),
     Completer<void>? gate,
     bool light = false,
+    RoomInfo? roomInfo,
   }) async {
     final chatStub = _StubChat(state, gate: gate);
 
@@ -82,7 +83,9 @@ void main() {
         overrides: [
           chatProvider.overrideWith(() => chatStub),
           matchRoomProvider.overrideWith(
-            () => _StubRoom(MatchRoomState(room: room, connected: true)),
+            () => _StubRoom(
+              MatchRoomState(room: roomInfo ?? room, connected: true),
+            ),
           ),
           authControllerProvider.overrideWith(
             () => _StubAuth(const AuthSignedIn('me', isOnboarded: true)),
@@ -190,6 +193,97 @@ void main() {
 
       expect(find.text('탈퇴한 사용자'), findsOne);
       expect(find.text('다녀왔습니다'), findsOne);
+    });
+
+    testWidgets('⚠️ 방을 떠난 사람의 말은 블러로 가린다', (tester) async {
+      // 자리는 지킨다 — 빼면 그 자리에서 대화가 끊겨 보인다. 명단에 없다는
+      // 것이 떠났다는 뜻이다.
+      await pumpChat(
+        tester,
+        state: ChatState(
+          runningRoomId: 130,
+          messages: [chat(1004, withdrawn, content: '먼저 가볼게요')],
+        ),
+      );
+
+      expect(find.byType(ImageFiltered), findsOne);
+    });
+
+    testWidgets('명단에 있는 사람의 말은 가리지 않는다', (tester) async {
+      await pumpChat(
+        tester,
+        state: ChatState(
+          runningRoomId: 130,
+          messages: [chat(1005, younghee, content: '곧 갈게요')],
+        ),
+      );
+
+      expect(find.byType(ImageFiltered), findsNothing);
+    });
+
+    testWidgets('⚠️ 내 말은 명단과 상관없이 가리지 않는다', (tester) async {
+      // 명단이 한 박자 늦게 오는 사이 내가 쓴 말이 흐려지면, 보낸 사람이
+      // 자기 말을 못 읽는다.
+      await pumpChat(
+        tester,
+        state: ChatState(
+          runningRoomId: 130,
+          messages: [chat(1006, me, content: '저도 곧 출발해요')],
+        ),
+        // 명단에 내가 **없는** 방이다. 그래도 내 말은 흐려지지 않아야 한다.
+        roomInfo: RoomInfo(
+          runningRoomId: 130,
+          status: RoomStatus.matched,
+          scheduledStartAt: startAt,
+          players: const [
+            RoomPlayer(userId: 'u1', nickname: '영희', isDeleted: false),
+          ],
+        ),
+      );
+
+      expect(find.byType(ImageFiltered), findsNothing);
+    });
+
+    testWidgets('⚠️ 명단이 비면 아무것도 가리지 않는다', (tester) async {
+      // 모집 마감·재연결 사이에 명단이 빈 채로 올 수 있다. 그때 가리면
+      // **멀쩡한 대화가 통째로 흐려진다.** 못 믿을 때는 가리지 않는다.
+      await pumpChat(
+        tester,
+        state: ChatState(
+          runningRoomId: 130,
+          messages: [chat(1007, younghee, content: '곧 갈게요')],
+        ),
+        roomInfo: RoomInfo(
+          runningRoomId: 130,
+          status: RoomStatus.matched,
+          scheduledStartAt: startAt,
+          players: const [],
+        ),
+      );
+
+      expect(find.byType(ImageFiltered), findsNothing);
+    });
+
+    testWidgets('⚠️ 스크린리더가 가린 원문을 읽지 않는다', (tester) async {
+      // 블러는 눈으로만 가린다. semantics를 그대로 두면 TalkBack이 원문을
+      // 소리내어 읽어 **가린 의미가 없어진다.**
+      final handle = tester.ensureSemantics();
+      await pumpChat(
+        tester,
+        state: ChatState(
+          runningRoomId: 130,
+          messages: [chat(1008, withdrawn, content: '먼저 가볼게요')],
+        ),
+      );
+
+      expect(
+        find.bySemanticsLabel('먼저 가볼게요'),
+        findsNothing,
+        reason: '원문이 읽히면 안 된다',
+      );
+      expect(find.bySemanticsLabel(AppStrings.chatBlinded), findsOne);
+
+      handle.dispose();
     });
 
     testWidgets('⚠️ 지운 메시지는 자리를 지키고 문구만 바뀐다', (tester) async {

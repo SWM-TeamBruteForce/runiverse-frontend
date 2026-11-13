@@ -256,6 +256,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           nickname: message.sender.nickname,
           deleted: message.isDeleted,
           edited: message.isEdited,
+          // ⚠️ **명단에 없으면 방을 떠난 것이다.** 자리는 두고 본문만 가린다.
+          //
+          // 명단이 비었을 때는 **가리지 않는다.** 모집 마감이나 재연결 사이에
+          // 빈 채로 올 수 있고, 그때 가리면 멀쩡한 대화가 통째로 흐려진다 —
+          // 못 믿을 때는 가리지 않는 쪽이 안전하다.
+          //
+          // 내 말은 절대 가리지 않는다. 명단이 한 박자 늦게 오는 사이 내가 쓴
+          // 말이 흐려지면 보낸 사람이 자기 말을 못 읽는다.
+          blinded:
+              !mine &&
+              order.isNotEmpty &&
+              !order.contains(message.sender.userId),
           // ⚠️ **내 것이고 안 지워졌을 때만** 수정·삭제가 있다. 남의 말은
           // 서버가 404로 막지만, 누를 수 있게 두면 안 되는 것을 눌러 보게 된다.
           onLongPress: mine && !message.isDeleted
