@@ -604,37 +604,53 @@ void main() {
       );
     }
 
-    test('⚠️ 더 읽는 사이 바뀌면 앞 사람 다음 장을 붙이지 않고, 새 계정의 더 읽기를 막지도 풀지도 않는다', () async {
-      final container = await signedIn();
-      final notifier = container.read(friendProvider.notifier);
-      await notifier.load();
-      final heldOld = friends.hold = Completer<void>();
-      final stale = notifier.loadMoreFriends();
-      await pumpEventQueue();
-      friends.hold = null;
+    for (final fails in [false, true]) {
+      test(
+        '⚠️ 더 읽는 사이 바뀌면 앞 사람 ${fails ? '실패를 띄우지' : '다음 장을 붙이지'} 않고, 새 계정의 더 읽기를 막지도 풀지도 않는다',
+        () async {
+          final container = await signedIn();
+          final notifier = container.read(friendProvider.notifier);
+          await notifier.load();
+          final heldOld = friends.hold = Completer<void>();
+          final stale = notifier.loadMoreFriends();
+          await pumpEventQueue();
+          friends.hold = null;
 
-      await switchTo('u-2');
-      await notifier.load();
-      // 앞 사람의 더 읽기가 아직 붙잡혀 있어도 새 계정은 더 읽을 수 있다.
-      final heldNew = friends.hold = Completer<void>();
-      final mine = notifier.loadMoreFriends();
-      await pumpEventQueue();
-      friends.hold = null;
-      expect(friends.friendsCalls, 4, reason: '앞 사람 첫 장·더 읽기, 새 계정 첫 장·더 읽기');
+          await switchTo('u-2');
+          await notifier.load();
+          // 앞 사람의 더 읽기가 아직 붙잡혀 있어도 새 계정은 더 읽을 수 있다.
+          final heldNew = friends.hold = Completer<void>();
+          final mine = notifier.loadMoreFriends();
+          await pumpEventQueue();
+          friends.hold = null;
+          expect(
+            friends.friendsCalls,
+            4,
+            reason: '앞 사람 첫 장·더 읽기, 새 계정 첫 장·더 읽기',
+          );
 
-      // 앞 사람 것이 끝나도 새 계정이 다녀오는 중이라는 표시는 그대로다.
-      heldOld.complete();
-      await stale;
-      await notifier.loadMoreFriends();
-      expect(friends.friendsCalls, 4, reason: '앞 사람의 더 읽기가 새 계정의 표시를 풀었다');
+          // 앞 사람 것이 끝나도 새 계정이 다녀오는 중이라는 표시는 그대로다.
+          friends.fails = fails;
+          heldOld.complete();
+          await stale;
+          expect(
+            container.read(friendProvider).actionFailure,
+            isNull,
+            reason: '앞 사람의 더 읽기 실패가 새 계정 화면에 떴다',
+          );
+          await notifier.loadMoreFriends();
+          expect(friends.friendsCalls, 4, reason: '앞 사람의 더 읽기가 새 계정의 표시를 풀었다');
 
-      heldNew.complete();
-      await mine;
-      expect(idsOf(container.read(friendProvider).friends), [
-        'u-2-friend',
-        'u-2-friend-2',
-      ]);
-    });
+          friends.fails = false;
+          heldNew.complete();
+          await mine;
+          expect(idsOf(container.read(friendProvider).friends), [
+            'u-2-friend',
+            'u-2-friend-2',
+          ]);
+        },
+      );
+    }
 
     for (final fails in [false, true]) {
       test(
@@ -716,7 +732,8 @@ class _Auth extends AuthController {
   void set(AuthState next) => state = next;
 }
 
-/// 계정마다 다른 답을 주는 저장소. 요청이 떠날 때의 [owner]가 답에 실린다.
+/// 계정마다 다른 답을 주는 저장소. 친구 목록은 넘겨받은 번호로, 추천·검색은
+/// 요청이 떠날 때의 [owner]로 답한다.
 class _AccountFriends implements FriendRepository {
   /// 지금 로그인한 사람.
   var owner = 'u-1';
@@ -755,11 +772,16 @@ class _AccountFriends implements FriendRepository {
     int limit = 20,
   }) async {
     friendsCalls++;
-    final who = await _leave();
+    await _leave();
+    // 진짜처럼 **넘겨받은 번호**의 목록을 준다 — 컨트롤러가 앞 사람 번호로
+    // 물으면 그 사람 목록이 와서 단언이 깨진다.
     // 첫 장은 다음 장이 있다고 답한다 — 이어 읽기를 부를 수 있게.
     return cursor == null
-        ? FriendList(items: [_entry('$who-friend')], nextCursor: '$who-c1')
-        : FriendList(items: [_entry('$who-friend-2')]);
+        ? FriendList(
+            items: [_entry('$userId-friend')],
+            nextCursor: '$userId-c1',
+          )
+        : FriendList(items: [_entry('$userId-friend-2')]);
   }
 
   @override
