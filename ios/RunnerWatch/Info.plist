@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSHealthShareUsageDescription</key>
+	<string>러닝 중 워치에 보여 주려면 심박을 알아야 해요.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>러닝을 건강 앱에 남기려면 운동을 저장해야 해요.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
+	<key>WKBackgroundModes</key>
+	<array>
+		<string>workout-processing</string>
+	</array>
+	<key>WKCompanionAppBundleIdentifier</key>
+	<string>$(PHONE_BUNDLE_IDENTIFIER)</string>
+</dict>
+</plist>
