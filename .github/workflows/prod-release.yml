@@ -270,6 +270,7 @@ jobs:
           DIST_CERT_BASE64: ${{ secrets.IOS_DIST_CERT_BASE64 }}
           DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
           PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+          WATCH_PROFILE_BASE64: ${{ secrets.IOS_WATCH_PROFILE_BASE64 }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
@@ -283,7 +284,7 @@ jobs:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
         run: |
           set -euo pipefail
-          for name in DIST_CERT_BASE64 DIST_CERT_PASSWORD PROFILE_BASE64 ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 KAKAO_NATIVE_APP_KEY NAVER_MAP_CLIENT_ID GOOGLE_SERVER_CLIENT_ID GOOGLE_IOS_CLIENT_ID GOOGLE_SERVICE_INFO_PLIST META_APP_ID META_CLIENT_TOKEN API_BASE_URL; do
+          for name in DIST_CERT_BASE64 DIST_CERT_PASSWORD PROFILE_BASE64 WATCH_PROFILE_BASE64 ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 KAKAO_NATIVE_APP_KEY NAVER_MAP_CLIENT_ID GOOGLE_SERVER_CLIENT_ID GOOGLE_IOS_CLIENT_ID GOOGLE_SERVICE_INFO_PLIST META_APP_ID META_CLIENT_TOKEN API_BASE_URL; do
             if [ -z "${!name}" ]; then echo "::error::$name이 비어 있다"; exit 1; fi
           done
           [ "$API_BASE_URL" = "$PROD_API_BASE_URL" ] || { echo "::error::API_BASE_URL이 운영 주소가 아니다 ($API_BASE_URL)"; exit 1; }
@@ -321,18 +322,21 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
           security list-keychains -d user -s "$KEYCHAIN" "$HOME/Library/Keychains/login.keychain-db"
 
-          # 운영 앱 App Store 배포 프로파일. Xcode가 찾는 두 자리(Xcode 16 전후)에 다 둔다
-          PROFILE="$RUNNER_TEMP/prod.mobileprovision"
-          echo "$PROFILE_BASE64" | base64 -d > "$PROFILE"
-          security cms -D -i "$PROFILE" > "$RUNNER_TEMP/profile.plist"
-          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")
-          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/profile.plist")
-          for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
-            mkdir -p "$dir"
-            cp "$PROFILE" "$dir/$PROFILE_UUID.mobileprovision"
+          # 운영 앱·워치 앱 App Store 배포 프로파일. Xcode가 찾는 두 자리(Xcode 16 전후)에 다 둔다
+          echo "$PROFILE_BASE64" | base64 -d > "$RUNNER_TEMP/prod.mobileprovision"
+          echo "$WATCH_PROFILE_BASE64" | base64 -d > "$RUNNER_TEMP/prod-watch.mobileprovision"
+          for app in prod prod-watch; do
+            security cms -D -i "$RUNNER_TEMP/$app.mobileprovision" > "$RUNNER_TEMP/$app.plist"
+            PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/$app.plist")
+            for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+              mkdir -p "$dir"
+              cp "$RUNNER_TEMP/$app.mobileprovision" "$dir/$PROFILE_UUID.mobileprovision"
+            done
           done
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/prod.plist")
+          WATCH_PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/prod-watch.plist")
 
-          # 프로젝트는 로컬용 자동 서명이다. Runner만 읽는 xcconfig에 덧붙여 배포 인증서·프로파일로 바꾼다
+          # 프로젝트는 로컬용 자동 서명이다. Runner·RunnerWatch만 읽는 xcconfig에 덧붙여 배포 인증서·프로파일로 바꾼다
           # (명령줄로 넘기면 SPM 패키지 대상까지 수동 서명이 걸려 빌드가 멈춘다)
           cat >> ios/Flutter/Release.xcconfig <<EOF
 
@@ -340,6 +344,7 @@ jobs:
           CODE_SIGN_IDENTITY = Apple Distribution
           CODE_SIGN_IDENTITY[sdk=iphoneos*] = Apple Distribution
           PROVISIONING_PROFILE_SPECIFIER = $PROFILE_NAME
+          PROVISIONING_PROFILE_SPECIFIER[sdk=watchos*] = $WATCH_PROFILE_NAME
           EOF
 
           printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
@@ -357,7 +362,10 @@ jobs:
             <key>signingStyle</key><string>manual</string>
             <key>signingCertificate</key><string>Apple Distribution</string>
             <key>provisioningProfiles</key>
-            <dict><key>$PACKAGE_NAME</key><string>$PROFILE_NAME</string></dict>
+            <dict>
+              <key>$PACKAGE_NAME</key><string>$PROFILE_NAME</string>
+              <key>$PACKAGE_NAME.watchkitapp</key><string>$WATCH_PROFILE_NAME</string>
+            </dict>
             <key>uploadSymbols</key><true/>
             <key>manageAppVersionAndBuildNumber</key><false/>
           </dict>
@@ -393,6 +401,13 @@ jobs:
           # 푸시 권한이 production이 아니면 빌드는 성공해도 설치한 아이폰에 푸시가 오지 않으니 여기서 멈춘다
           APS=$($PB -c 'Print :aps-environment' "$RUNNER_TEMP/entitlements.plist" 2>/dev/null || true)
           [ "$APS" = "production" ] || { echo "::error::푸시 권한이 production이 아니다 (${APS:-없음})"; exit 1; }
+
+          # 워치 앱이 빠져도 폰 앱만으로 빌드·업로드는 된다. 워치 없이 나가지 않게 여기서 멈춘다
+          WATCH_APP="$APP/Watch/RunnerWatch.app"
+          WATCH_BUNDLE_ID=$($PB -c 'Print :CFBundleIdentifier' "$WATCH_APP/Info.plist" 2>/dev/null || true)
+          [ "$WATCH_BUNDLE_ID" = "$PACKAGE_NAME.watchkitapp" ] || { echo "::error::워치 앱이 없거나 번들 ID가 $PACKAGE_NAME.watchkitapp이 아니다 (${WATCH_BUNDLE_ID:-없음})"; exit 1; }
+          codesign -d --entitlements - --xml "$WATCH_APP" > "$RUNNER_TEMP/watch-entitlements.plist" 2>/dev/null
+          if grep -q '<key>get-task-allow</key><true/>' "$RUNNER_TEMP/watch-entitlements.plist"; then echo "::error::워치 앱이 개발 서명이다"; exit 1; fi
 
           # 복귀 스킴이 없으면 빌드 단계는 경고만 남긴다. 그 로그인이 안 되니 여기서 멈춘다
           SCHEMES=$($PB -c 'Print :CFBundleURLTypes' "$INFO")
