@@ -453,7 +453,8 @@ abstract final class AppStrings {
   /// 가입에 실패해 인증이 풀렸을 때. 비밀번호 칸이 왜 사라졌는지 밝힌다.
   ///
   /// 실패 이유는 아래 실패 안내가 따로 말한다. 인증 뒤엔 이메일 칸이 잠겨
-  /// 이메일이 바뀌어 풀리는 일은 없다.
+  /// 이메일이 바뀌어 풀리는 일은 없다. 이미 가입된 이메일로 실패했을 땐 띄우지
+  /// 않는다 — 같은 이메일로는 다시 인증할 수 없다.
   static const authVerifyReset = '인증을 다시 받아야 해요';
 
   static const authFailedInvalidCode = '인증번호가 맞지 않아요';

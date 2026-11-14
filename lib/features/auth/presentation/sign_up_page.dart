@@ -95,6 +95,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
   ///
   /// 가입에 실패해 인증이 풀려도 **비우지 않는다.** [_verificationReset]이 이 값을
   /// 보고 "왜 풀렸는지"를 말한다. 「변경」은 비운다 — 스스로 푼 것이라 알릴 것이 없다.
+  /// 이미 가입된 이메일로 실패했을 때도 비운다 — 다시 인증할 수 없는 이메일이다.
   String? _verifiedEmail;
 
   /// 인증을 마치고 받은 티켓. **가입 요청에 이것을 보낸다.**
@@ -328,6 +329,9 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
       if (failure != null) {
         _ticket = null;
         _forgetCode();
+        // 이미 가입된 이메일이면 같은 이메일로 다시 인증할 수 없다 — 서버가 발송
+        // 단계에서 막는다. "인증을 다시 받아야 해요"는 틀린 안내라 실패 안내만 남긴다.
+        if (failure == AuthFailure.emailAlreadyExists) _verifiedEmail = null;
       }
     });
 

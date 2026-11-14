@@ -11,6 +11,8 @@ import 'package:runiverse/core/widgets/v2/field_action.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
+import 'package:runiverse/features/auth/domain/auth_failure.dart';
+import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
@@ -363,11 +365,29 @@ void main() {
     // 인증 단계로 되돌려 처음부터 하게 한다.
     expect(find.text(AppStrings.authVerifyDone), findsNothing);
     expect(find.text(AppStrings.authPasswordLabel), findsNothing);
-    expect(find.text(AppStrings.authVerifyReset), findsOneWidget);
-    // 티켓이 없으니 잠금도 풀린다 — 이메일을 고치거나 같은 이메일로 다시 받는다.
+    // 같은 이메일로는 다시 인증할 수 없다(서버가 발송 단계에서 막는다).
+    // 다시 받으라고 하면 틀린 안내다.
+    expect(find.text(AppStrings.authVerifyReset), findsNothing);
+    // 티켓이 없으니 잠금도 풀린다 — 다른 이메일로 고칠 수 있다.
     expect(emailEnabled(tester), isTrue);
     // 쓴 번호는 서버가 지웠다. 그 칸이 다시 열리면 「확인」이 "만료됐어요"로 끝난다.
     expect(find.text(AppStrings.authVerifyLabel), findsNothing);
+  });
+
+  testWidgets('연결이 끊겨 가입에 실패하면 인증을 다시 받으라고 한다', (tester) async {
+    // 서버는 티켓을 먼저 소비한다. 같은 이메일로 다시 인증하면 가입할 수 있다.
+    repository = _SignUpFailsOnce(AuthFailure.network);
+    await pumpSignUp(tester);
+    await verifyEmail(tester);
+
+    await enterPassword(tester, 'runi123!');
+    await tester.tap(find.text(AppStrings.authSignUpCta));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.authFailedNetwork), findsOneWidget);
+    // 비밀번호 칸이 왜 사라졌는지 밝힌다.
+    expect(find.text(AppStrings.authVerifyReset), findsOneWidget);
+    expect(enabled(tester, AppStrings.authVerifySend), isTrue);
   });
 
   testWidgets('가입에 성공하면 프로필 등록으로 간다', (tester) async {
@@ -381,4 +401,30 @@ void main() {
     // 약관은 앞에서 받았다. 남은 것은 프로필뿐이다.
     expect(find.byType(ProfileSetupPage), findsOneWidget);
   });
+}
+
+/// 가입이 한 번은 [failure]로 실패하는 가짜.
+///
+/// 서버처럼 티켓을 **먼저** 소비하고 실패한다.
+class _SignUpFailsOnce extends FakeAuthRepository {
+  _SignUpFailsOnce(this.failure) : super(latency: Duration.zero);
+
+  final AuthFailure failure;
+  bool _failed = false;
+
+  @override
+  Future<AuthSession> signUp({
+    required String verificationTicket,
+    required String password,
+  }) async {
+    if (!_failed) {
+      _failed = true;
+      consumeTicket(verificationTicket);
+      throw AuthException(failure);
+    }
+    return super.signUp(
+      verificationTicket: verificationTicket,
+      password: password,
+    );
+  }
 }
