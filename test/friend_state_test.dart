@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/storage/token_store.dart';
+import 'package:runiverse/features/auth/domain/current_user.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/friend/data/fake_friend_repository.dart';
 import 'package:runiverse/features/friend/domain/friend_entry.dart';
+import 'package:runiverse/features/friend/domain/friend_list.dart';
 import 'package:runiverse/features/friend/domain/friend_recommendation.dart';
 import 'package:runiverse/features/friend/domain/friend_relation.dart';
 import 'package:runiverse/features/friend/domain/friend_repository.dart';
@@ -459,4 +464,330 @@ void main() {
       expect(container.read(friendProvider).changed, isFalse);
     });
   });
+
+  group('⚠️ 앱을 끄지 않고 계정을 바꾸면', () {
+    // 이 provider는 로그아웃해도 살아 있다. 추천은 처음 열 때만 받으므로 그대로
+    // 두면 다음 사람에게 앞 사람의 추천(이유 문구까지)이 보이고, 그 사람 자신이
+    // 섞이면 요청이 거절된다.
+    late _AccountFriends friends;
+    late _Auth auth;
+
+    /// u-1로 로그인한 상태. 친구 provider를 세워 계정을 듣게 한다.
+    Future<ProviderContainer> signedIn() async {
+      await tokens.saveSession(
+        userId: 'u-1',
+        accessToken: 'a-1',
+        refreshToken: 'r-1',
+        isOnboarded: true,
+      );
+      friends = _AccountFriends();
+      final container = ProviderContainer.test(
+        overrides: [
+          tokenStoreProvider.overrideWithValue(tokens),
+          friendRepositoryProvider.overrideWithValue(friends),
+          authControllerProvider.overrideWith(
+            () => _Auth(const AuthSignedIn('u-1', isOnboarded: true)),
+          ),
+        ],
+      );
+      auth = container.read(authControllerProvider.notifier) as _Auth;
+      container.read(friendProvider);
+      return container;
+    }
+
+    /// 로그아웃하고 [userId]로 들어온다.
+    Future<void> switchTo(String userId) async {
+      auth.set(const AuthSignedOut(returning: true));
+      friends.owner = userId;
+      await tokens.saveSession(
+        userId: userId,
+        accessToken: 'a-$userId',
+        refreshToken: 'r-$userId',
+        isOnboarded: true,
+      );
+      auth.set(AuthSignedIn(userId, isOnboarded: true));
+    }
+
+    List<String> idsOf(Iterable<FriendEntry> entries) => [
+      for (final entry in entries) entry.userId,
+    ];
+
+    List<String> recommendedIds(ProviderContainer container) => idsOf(
+      container.read(friendProvider).recommendations.map((item) => item.entry),
+    );
+
+    test('받아 둔 친구·추천을 버리고, 추천 탭을 다시 열면 새로 받는다', () async {
+      final container = await signedIn();
+      final notifier = container.read(friendProvider.notifier);
+      await notifier.load();
+      await notifier.selectTab(FriendTab.recommendations);
+
+      await switchTo('u-2');
+
+      final cleared = container.read(friendProvider);
+      expect(cleared.friends, isEmpty);
+      expect(cleared.recommendations, isEmpty, reason: '앞 사람의 추천이 남았다');
+      expect(cleared.tab, FriendTab.friends);
+
+      await notifier.load();
+      await notifier.selectTab(FriendTab.recommendations);
+
+      expect(idsOf(container.read(friendProvider).friends), ['u-2-friend']);
+      expect(recommendedIds(container), ['u-2-pick']);
+      expect(friends.recommendationsCalls, 2);
+    });
+
+    for (final fails in [false, true]) {
+      test(
+        '⚠️ 바꾸기 전에 떠난 조회가 늦게 ${fails ? '실패해도' : '와도'} 새 계정 화면을 덮지 않는다',
+        () async {
+          final container = await signedIn();
+          final notifier = container.read(friendProvider.notifier);
+          final held = friends.hold = Completer<void>();
+          final stale = [
+            notifier.load(),
+            notifier.selectTab(FriendTab.recommendations),
+          ];
+          await pumpEventQueue();
+          friends.hold = null;
+
+          await switchTo('u-2');
+          await notifier.load();
+          await notifier.selectTab(FriendTab.recommendations);
+          friends.fails = fails;
+          held.complete();
+          await Future.wait(stale);
+
+          final state = container.read(friendProvider);
+          expect(idsOf(state.friends), ['u-2-friend']);
+          expect(recommendedIds(container), ['u-2-pick']);
+          expect(state.failure, isNull, reason: '앞 사람의 실패가 새 계정 화면에 떴다');
+          expect(state.loading, isFalse);
+        },
+      );
+    }
+
+    test('검색을 미루는 사이 바뀌면 그 검색은 나가지 않는다', () async {
+      final container = await signedIn();
+      container.read(friendProvider.notifier).onQuery('김');
+
+      await switchTo('u-2');
+      await settleSearch();
+
+      expect(friends.searchQueries, isEmpty);
+      expect(container.read(friendProvider).query, isEmpty);
+    });
+
+    for (final fails in [false, true]) {
+      test(
+        '⚠️ 검색이 다녀오는 사이 바뀌면, 새 계정이 같은 말로 찾아도 앞 사람 ${fails ? '실패를' : '결과를'} 버린다',
+        () async {
+          // 검색어만 비교해서는 못 거른다 — 둘 다 '김'이다.
+          final container = await signedIn();
+          final notifier = container.read(friendProvider.notifier);
+          final held = friends.hold = Completer<void>();
+          notifier.onQuery('김');
+          await settleSearch();
+          friends.hold = null;
+
+          await switchTo('u-2');
+          notifier.onQuery('김');
+          await settleSearch();
+          friends.fails = fails;
+          held.complete();
+          await pumpEventQueue();
+
+          final state = container.read(friendProvider);
+          expect(idsOf(state.results), ['u-2-김']);
+          expect(state.failure, isNull, reason: '앞 사람의 검색 실패가 새 계정 화면에 떴다');
+        },
+      );
+    }
+
+    test('⚠️ 더 읽는 사이 바뀌면 앞 사람 다음 장을 붙이지 않고, 새 계정의 더 읽기를 막지도 풀지도 않는다', () async {
+      final container = await signedIn();
+      final notifier = container.read(friendProvider.notifier);
+      await notifier.load();
+      final heldOld = friends.hold = Completer<void>();
+      final stale = notifier.loadMoreFriends();
+      await pumpEventQueue();
+      friends.hold = null;
+
+      await switchTo('u-2');
+      await notifier.load();
+      // 앞 사람의 더 읽기가 아직 붙잡혀 있어도 새 계정은 더 읽을 수 있다.
+      final heldNew = friends.hold = Completer<void>();
+      final mine = notifier.loadMoreFriends();
+      await pumpEventQueue();
+      friends.hold = null;
+      expect(friends.friendsCalls, 4, reason: '앞 사람 첫 장·더 읽기, 새 계정 첫 장·더 읽기');
+
+      // 앞 사람 것이 끝나도 새 계정이 다녀오는 중이라는 표시는 그대로다.
+      heldOld.complete();
+      await stale;
+      await notifier.loadMoreFriends();
+      expect(friends.friendsCalls, 4, reason: '앞 사람의 더 읽기가 새 계정의 표시를 풀었다');
+
+      heldNew.complete();
+      await mine;
+      expect(idsOf(container.read(friendProvider).friends), [
+        'u-2-friend',
+        'u-2-friend-2',
+      ]);
+    });
+
+    for (final fails in [false, true]) {
+      test(
+        '⚠️ 바꾸기 전에 누른 버튼의 응답이 늦게 ${fails ? '실패해도' : '와도'} 새 계정 화면을 바꾸지 않는다',
+        () async {
+          final container = await signedIn();
+          final notifier = container.read(friendProvider.notifier);
+          final heldOld = friends.hold = Completer<void>();
+          final stale = notifier.request('u-9');
+          await pumpEventQueue();
+          friends.hold = null;
+
+          await switchTo('u-2');
+          // 새 계정도 같은 사람에게 요청을 보내 다녀오는 중이다.
+          final heldNew = friends.hold = Completer<void>();
+          final mine = notifier.request('u-9');
+          await pumpEventQueue();
+          friends.hold = null;
+
+          friends.fails = fails;
+          heldOld.complete();
+          await stale;
+
+          final state = container.read(friendProvider);
+          expect(state.pending, {'u-9'}, reason: '앞 사람 응답이 새 계정이 누른 줄을 풀었다');
+          expect(state.changed, isFalse);
+          expect(state.actionFailure, isNull);
+
+          friends.fails = false;
+          heldNew.complete();
+          await mine;
+          expect(container.read(friendProvider).changed, isTrue);
+        },
+      );
+    }
+
+    test('같은 계정으로 다시 들어와도 추천을 다시 받는다', () async {
+      final container = await signedIn();
+      final notifier = container.read(friendProvider.notifier);
+      await notifier.selectTab(FriendTab.recommendations);
+
+      await switchTo('u-1');
+      await notifier.selectTab(FriendTab.recommendations);
+
+      expect(friends.recommendationsCalls, 2);
+      expect(recommendedIds(container), ['u-1-pick']);
+    });
+
+    test('같은 계정의 프로필만 바뀌면 비우지 않는다', () async {
+      // `/me`가 닉네임을 채워 오는 것처럼 같은 사람 안에서 상태만 바뀐다.
+      final container = await signedIn();
+      final notifier = container.read(friendProvider.notifier);
+      await notifier.load();
+      await notifier.selectTab(FriendTab.recommendations);
+      final shown = container.read(friendProvider);
+
+      auth.set(
+        const AuthSignedIn(
+          'u-1',
+          isOnboarded: true,
+          user: CurrentUser(userId: 'u-1', isOnboarded: true, nickname: '애플찬'),
+        ),
+      );
+
+      expect(container.read(friendProvider), same(shown));
+    });
+  });
+}
+
+/// 테스트가 로그인 상태를 바꿔 끼우는 컨트롤러.
+class _Auth extends AuthController {
+  _Auth(this.initial);
+
+  final AuthState initial;
+
+  @override
+  AuthState build() => initial;
+
+  void set(AuthState next) => state = next;
+}
+
+/// 계정마다 다른 답을 주는 저장소. 요청이 떠날 때의 [owner]가 답에 실린다.
+class _AccountFriends implements FriendRepository {
+  /// 지금 로그인한 사람.
+  var owner = 'u-1';
+
+  /// 있으면 그때 떠난 요청이 이것을 기다린다.
+  Completer<void>? hold;
+
+  /// 붙잡혔던 요청이 풀릴 때 실패로 끝내는가.
+  var fails = false;
+
+  var friendsCalls = 0;
+  var recommendationsCalls = 0;
+  final searchQueries = <String>[];
+
+  /// 요청이 떠난다. 그때 로그인해 있던 사람을 돌려준다.
+  Future<String> _leave() async {
+    final who = owner;
+    final gate = hold;
+    if (gate != null) {
+      await gate.future;
+      if (fails) throw const FriendException(FriendFailure.network);
+    }
+    return who;
+  }
+
+  FriendEntry _entry(String userId) => FriendEntry(
+    userId: userId,
+    nickname: userId,
+    relation: FriendRelation.none,
+  );
+
+  @override
+  Future<FriendList> friends({
+    required String userId,
+    String? cursor,
+    int limit = 20,
+  }) async {
+    friendsCalls++;
+    final who = await _leave();
+    // 첫 장은 다음 장이 있다고 답한다 — 이어 읽기를 부를 수 있게.
+    return cursor == null
+        ? FriendList(items: [_entry('$who-friend')], nextCursor: '$who-c1')
+        : FriendList(items: [_entry('$who-friend-2')]);
+  }
+
+  @override
+  Future<List<FriendRecommendation>> recommendations() async {
+    recommendationsCalls++;
+    final who = await _leave();
+    return [FriendRecommendation(entry: _entry('$who-pick'))];
+  }
+
+  @override
+  Future<FriendList> search({required String query, int limit = 20}) async {
+    searchQueries.add(query);
+    final who = await _leave();
+    return FriendList(items: [_entry('$who-$query')]);
+  }
+
+  @override
+  Future<FriendRelation> request(String userId) async {
+    await _leave();
+    return FriendRelation.requestSent;
+  }
+
+  @override
+  Future<FriendRelation> accept(String userId) => throw UnimplementedError();
+
+  @override
+  Future<void> cancel(String userId) => throw UnimplementedError();
+
+  @override
+  Future<void> remove(String userId) => throw UnimplementedError();
 }

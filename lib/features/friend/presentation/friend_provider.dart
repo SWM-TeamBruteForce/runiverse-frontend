@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/friend/data/http_friend_repository.dart';
 import 'package:runiverse/features/friend/domain/friend_entry.dart';
 import 'package:runiverse/features/friend/domain/friend_group.dart';
@@ -144,6 +145,11 @@ class FriendController extends Notifier<FriendState> {
   /// 전에 또 들어온다. `searchLimit`은 응답이 와야 바뀌므로 막지 못한다.
   var _loadingMore = false;
 
+  /// 계정 차수. 계정이 바뀔 때마다 올라간다 — 그 전에 떠난 요청의 답을 가린다.
+  ///
+  /// ⚠️ 답을 받아 [state]나 [_loadingMore]를 바꾸는 곳은 모두 이것부터 본다.
+  var _accountEpoch = 0;
+
   /// 검색을 미루는 시간. 닉네임 중복 확인(`nickname_field.dart`)과 같은 값이다.
   static const _searchDebounce = Duration(milliseconds: 500);
 
@@ -154,6 +160,21 @@ class FriendController extends Notifier<FriendState> {
   @override
   FriendState build() {
     ref.onDispose(() => _debounce?.cancel());
+
+    // ⚠️ **계정이 바뀌면 받아 둔 것을 모두 버린다.** 이 provider는 로그아웃해도
+    // 살아 있어서, 앱을 끄지 않고 다른 계정으로 들어오면 앞 사람의 추천(이유 문구까지)이
+    // 남는다 — 추천은 처음 열 때만 받으므로 다시 받지도 않는다([selectTab]).
+    ref.listen(
+      authControllerProvider.select(
+        (auth) => auth is AuthSignedIn ? auth.userId : null,
+      ),
+      (_, _) {
+        _accountEpoch++;
+        _debounce?.cancel();
+        _loadingMore = false;
+        state = const FriendState();
+      },
+    );
     return const FriendState();
   }
 
@@ -161,9 +182,11 @@ class FriendController extends Notifier<FriendState> {
 
   /// 내 친구 목록을 받는다. 화면에 들어올 때 한 번.
   Future<void> load() async {
+    final epoch = _accountEpoch;
     state = state.copyWith(loading: true);
     try {
       final me = await _myUserId();
+      if (epoch != _accountEpoch) return;
       if (me == null) {
         state = state.copyWith(
           loading: false,
@@ -172,12 +195,14 @@ class FriendController extends Notifier<FriendState> {
         return;
       }
       final page = await _repo.friends(userId: me);
+      if (epoch != _accountEpoch) return;
       state = state.copyWith(
         friends: page.items,
         friendCursor: page.nextCursor,
         loading: false,
       );
     } on FriendException catch (error) {
+      if (epoch != _accountEpoch) return;
       state = state.copyWith(loading: false, failure: error.failure);
     }
   }
@@ -188,11 +213,14 @@ class FriendController extends Notifier<FriendState> {
     if (tab != FriendTab.recommendations) return;
     if (state.recommendations.isNotEmpty) return;
 
+    final epoch = _accountEpoch;
     state = state.copyWith(loading: true);
     try {
       final list = await _repo.recommendations();
+      if (epoch != _accountEpoch) return;
       state = state.copyWith(recommendations: list, loading: false);
     } on FriendException catch (error) {
+      if (epoch != _accountEpoch) return;
       state = state.copyWith(loading: false, failure: error.failure);
     }
   }
@@ -222,10 +250,12 @@ class FriendController extends Notifier<FriendState> {
     if (cursor == null) return;
 
     _loadingMore = true;
+    final epoch = _accountEpoch;
     try {
       final me = await _myUserId();
-      if (me == null) return;
+      if (me == null || epoch != _accountEpoch) return;
       final page = await _repo.friends(userId: me, cursor: cursor);
+      if (epoch != _accountEpoch) return;
       state = state.copyWith(
         friends: [...state.friends, ...page.items],
         // ⚠️ 마지막 장이면 `null`로 **지워야** 한다. 남겨 두면 같은 커서로
@@ -234,9 +264,11 @@ class FriendController extends Notifier<FriendState> {
         clearFriendCursor: page.nextCursor == null,
       );
     } on FriendException catch (error) {
+      if (epoch != _accountEpoch) return;
       state = state.copyWith(actionFailure: error.failure);
     } finally {
-      _loadingMore = false;
+      // 계정이 바뀌었으면 [build]에서 건 리스너가 이미 풀었다. 새 계정의 더 읽기를 풀지 않는다.
+      if (epoch == _accountEpoch) _loadingMore = false;
     }
   }
 
@@ -260,10 +292,11 @@ class FriendController extends Notifier<FriendState> {
     if (state.searchLimit >= _searchMax) return;
     if (state.results.length < state.searchLimit) return;
     _loadingMore = true;
+    final epoch = _accountEpoch;
     try {
       await _search(_searchMax);
     } finally {
-      _loadingMore = false;
+      if (epoch == _accountEpoch) _loadingMore = false;
     }
   }
 
@@ -271,12 +304,14 @@ class FriendController extends Notifier<FriendState> {
     final query = state.query;
     if (query.isEmpty) return;
 
+    final epoch = _accountEpoch;
     try {
       final page = await _repo.search(query: query, limit: limit);
-      // 기다리는 사이 검색어가 바뀌었으면 늦게 온 결과다. 버린다.
-      if (state.query != query) return;
+      // 기다리는 사이 계정이나 검색어가 바뀌었으면 늦게 온 결과다. 버린다.
+      if (epoch != _accountEpoch || state.query != query) return;
       state = state.copyWith(results: page.items, searchLimit: limit);
     } on FriendException catch (error) {
+      if (epoch != _accountEpoch) return;
       state = state.copyWith(failure: error.failure);
     }
   }
@@ -310,13 +345,16 @@ class FriendController extends Notifier<FriendState> {
     bool toTop = false,
   }) async {
     if (state.pending.contains(userId)) return;
+    final epoch = _accountEpoch;
     state = state.copyWith(pending: {...state.pending, userId});
 
     try {
       final relation = await call();
+      if (epoch != _accountEpoch) return;
       _replace(userId, relation, toTop: toTop);
       state = state.copyWith(changed: true);
     } on FriendException catch (error) {
+      if (epoch != _accountEpoch) return;
       // ⚠️ **404면 그 줄을 관계 없음으로 되돌린다.** 이미 처리된 요청이다 —
       // 내가 누르는 사이 상대가 취소했거나, 연결이 끊겨 두 번 나갔다. 그대로
       // 두면 눌러도 계속 404다.
@@ -328,11 +366,15 @@ class FriendController extends Notifier<FriendState> {
       // ⚠️ **실패를 함께 넘긴다.** `copyWith`의 `failure`는 `??`가 아니라
       // 넘기지 않으면 지워진다(성공했을 때 지우려고 그렇게 뒀다). 여기서
       // 빠뜨리면 방금 담은 404가 조용히 사라져 화면이 아무 말도 못 한다.
-      state = state.copyWith(
-        pending: {...state.pending}..remove(userId),
-        failure: state.failure,
-        actionFailure: state.actionFailure,
-      );
+      //
+      // 계정이 바뀌었으면 [build]에서 건 리스너가 이미 비웠다. 새 계정이 누른 같은 사람을 풀지 않는다.
+      if (epoch == _accountEpoch) {
+        state = state.copyWith(
+          pending: {...state.pending}..remove(userId),
+          failure: state.failure,
+          actionFailure: state.actionFailure,
+        );
+      }
     }
   }
 
