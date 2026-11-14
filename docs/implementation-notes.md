@@ -234,6 +234,7 @@
 | `PasswordRule`의 규칙 | `FakeAuthRepository.seedPassword` — 씨앗 계정이 자기 규칙에 걸리면 로그인 시험을 못 한다 |
 | **`GeoPoint`의 필드** | `LocationSmoother.smooth()` — 새 `GeoPoint`를 만들어 돌려주므로 빠뜨린 필드가 조용히 `null`이 된다 (11-2) |
 | **워치와의 약속** (`WatchBridge.kt`의 경로 `/running`·capability `runiverse_running`·워치를 켜는 주소 `runiverse://`, `WatchBridge.swift`의 답 없는 `sendMessageData`, 앱 식별자, `watch_payload.dart`의 필드, `ui_watch_photo_maker.dart`의 사진 크기, `watch_channel.dart` `WatchEvents`의 이벤트 이름, `watch_link_provider.dart`의 키) | 두 워치 레포의 `docs/phone-communication.md`, 갤럭시 `PhoneChannel.kt`(경로)·`res/values/wear.xml`(capability)·`AndroidManifest.xml`(켜는 주소)·`PhoneMessage.kt`(필드), 애플 `PhoneChannel.swift`(받는 함수)·`PhoneMessage.swift`(필드) — 어긋나도 빌드는 되고, 메시지가 안 가거나 워치 앱이 안 켜지거나 워치가 메시지를 버린다. 사진을 키우면 애플 한 메시지 한도(64KB)를 넘어 SYNCED가 안 간다 |
+| 애플워치 코드(워치 레포) | `project.pbxproj`의 `RuniverseWatch` `exactVersion` — 워치 레포에 새 태그를 단 뒤 그 번호로 올린다. 안 올리면 빌드는 되고 iOS 앱에 옛 워치 코드가 실린다 |
 
 `lib/` 밖에서 앱이 쓰는 것은 `assets/fonts/`(Pretendard) 하나다.
 
