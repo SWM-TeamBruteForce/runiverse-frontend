@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/profile/data/fake_profile_image_repository.dart';
 import 'package:runiverse/features/profile/domain/cover_crop.dart';
 import 'package:runiverse/features/profile/domain/image_cropper.dart';
@@ -273,6 +277,182 @@ void main() {
       expect(repository.fetchCalls, 1);
     });
   });
+
+  group('⚠️ 앱을 끄지 않고 계정을 바꾸면', () {
+    // 이 provider는 로그아웃해도 살아 있다. 다음 사람이 프로필 탭을 열면 첫
+    // 화면에 앞 사람의 배경이 뜨고, 앞 사람이 띄운 요청이 늦게 오면 그 배경이
+    // 다음 사람 커버에 남는다.
+    const firstUrl = 'https://cdn.test/u-1.jpg';
+    const nextUrl = 'https://cdn.test/u-2.jpg';
+    late _HeldRepository held;
+    late ProviderContainer container;
+    late _Auth auth;
+
+    setUp(() {
+      held = _HeldRepository()..url = firstUrl;
+      container = ProviderContainer.test(
+        overrides: [
+          backgroundImageRepositoryProvider.overrideWithValue(held),
+          imageCropperProvider.overrideWithValue(_FakeCropper()),
+          authControllerProvider.overrideWith(
+            () => _Auth(const AuthSignedIn('u-1', isOnboarded: true)),
+          ),
+        ],
+      );
+      auth = container.read(authControllerProvider.notifier) as _Auth;
+    });
+
+    /// 로그아웃하고 u-2로 들어온다. 그 뒤 떠난 조회는 u-2의 배경을 받는다.
+    void switchToNext() {
+      auth.set(const AuthSignedOut(returning: true));
+      auth.set(const AuthSignedIn('u-2', isOnboarded: true));
+      held.url = nextUrl;
+    }
+
+    test('커버가 내려간 뒤 계정을 떠나도 받아 둔 배경을 비운다', () async {
+      // 로그아웃하면 탭 화면이 통째로 내려가 이 provider를 지켜보는 곳이 없다.
+      // 그래도 계정이 바뀐 것은 받아야 다음 사람의 첫 화면이 비어 있다.
+      final cover = container.listen(
+        backgroundImageControllerProvider,
+        (_, _) {},
+      );
+      await controllerOf(container).load();
+      cover.close();
+
+      switchToNext();
+
+      expect(stateOf(container), isA<ProfileImageLoading>());
+    });
+
+    for (final fails in [false, true]) {
+      test(
+        '⚠️ 바꾸기 전에 떠난 조회가 늦게 ${fails ? '실패해도' : '와도'} 다음 사람 커버에 넣지 않는다',
+        () async {
+          final hold = held.hold = Completer<void>();
+          held.fails = fails;
+          final stale = controllerOf(container).load();
+
+          switchToNext();
+          hold.complete();
+          await stale;
+
+          expect(stateOf(container), isA<ProfileImageLoading>());
+        },
+      );
+    }
+
+    test('⚠️ 다음 사람 배경을 먼저 받은 뒤 앞 사람 답이 와도 덮지 않는다', () async {
+      final hold = held.hold = Completer<void>();
+      final stale = controllerOf(container).load();
+      switchToNext();
+      held.hold = null;
+      await controllerOf(container).load();
+
+      hold.complete();
+      await stale;
+
+      expect(
+        stateOf(container),
+        isA<ProfileImageReady>().having((s) => s.url, 'url', nextUrl),
+      );
+    });
+
+    for (final fails in [false, true]) {
+      test(
+        '⚠️ 바꾸기 전에 보낸 사진 바꾸기가 늦게 ${fails ? '실패해도' : '와도'} 다음 사람 커버에 넣지 않는다',
+        () async {
+          await controllerOf(container).load();
+          final hold = held.hold = Completer<void>();
+          held.fails = fails;
+          final stale = controllerOf(container).apply(PhotoPicked(image()));
+          // 자르기가 끝나 올리기가 실제로 떠난 뒤에 바꾼다.
+          await pumpEventQueue();
+
+          switchToNext();
+          hold.complete();
+          final failure = await stale;
+
+          // 서버가 받아 줬으면 성공이다. 실패는 그대로 알린다.
+          expect(failure, fails ? ProfileImageFailure.network : isNull);
+          expect(stateOf(container), isA<ProfileImageLoading>());
+        },
+      );
+    }
+
+    test('같은 계정의 프로필만 바뀌면 배경을 비우지 않는다', () async {
+      await controllerOf(container).load();
+      final shown = stateOf(container);
+
+      auth.set(const AuthSignedIn('u-1', isOnboarded: false));
+
+      expect(stateOf(container), same(shown));
+    });
+
+    test('배경을 읽은 뒤에 로그인 상태가 들어와도 비우지 않는다', () async {
+      // 스플래시를 건너뛴 화면 테스트가 이 순서다 — 탭이 먼저 읽고 `restore()`가
+      // 뒤에 온다. 들어오는 것은 계정을 떠난 것이 아니다.
+      auth.set(const AuthUnknown());
+      await controllerOf(container).load();
+      final shown = stateOf(container);
+
+      auth.set(const AuthSignedIn('u-1', isOnboarded: true));
+
+      expect(stateOf(container), same(shown));
+      expect(
+        shown,
+        isA<ProfileImageReady>().having((s) => s.url, 'url', firstUrl),
+      );
+    });
+  });
+}
+
+/// 테스트가 로그인 상태를 바꿔 끼우는 컨트롤러.
+class _Auth extends AuthController {
+  _Auth(this.initial);
+
+  final AuthState initial;
+
+  @override
+  AuthState build() => initial;
+
+  void set(AuthState next) => state = next;
+}
+
+/// 답을 붙잡아 둘 수 있는 저장소.
+///
+/// 붙잡기·실패·돌려줄 주소는 **요청이 떠날 때** 정해진다. 그래야 앞 사람
+/// 요청을 붙잡아 둔 채 다음 사람 요청을 먼저 끝낼 수 있다.
+class _HeldRepository implements ProfileImageRepository {
+  /// 조회가 돌려줄 주소.
+  String? url;
+
+  /// 있으면 그때 떠난 요청이 이것을 기다린다.
+  Completer<void>? hold;
+
+  /// 참이면 그때 떠난 요청이 기다린 뒤 실패한다.
+  var fails = false;
+
+  Future<void> _wait() async {
+    final waitFor = hold;
+    final failing = fails;
+    if (waitFor != null) await waitFor.future;
+    if (failing) {
+      throw const ProfileImageException(ProfileImageFailure.network);
+    }
+  }
+
+  @override
+  Future<String?> fetchUrl() async {
+    final answer = url;
+    await _wait();
+    return answer;
+  }
+
+  @override
+  Future<void> upload(PickedImage image) => _wait();
+
+  @override
+  Future<void> remove() => _wait();
 }
 
 /// 자르지 않고 **받은 값만 기록하는** 가짜.
