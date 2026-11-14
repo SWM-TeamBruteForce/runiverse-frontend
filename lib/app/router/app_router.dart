@@ -13,6 +13,7 @@ import 'package:runiverse/features/profile/presentation/user_profile_page.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/matching/presentation/match_countdown_page.dart';
 import 'package:runiverse/features/matching/presentation/match_register_page.dart';
+import 'package:runiverse/features/chat/presentation/chat_page.dart';
 import 'package:runiverse/features/matching/presentation/match_room_page.dart';
 import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
@@ -160,6 +161,15 @@ GoRouter createAppRouter({String? initialLocation}) {
         path: AppRoutes.matchRoom,
         name: 'match_room',
         builder: (context, state) => const MatchRoomPage(),
+        routes: [
+          // ⚠️ **자식으로 둔다.** 대기방이 아래에 남아 있어야 뒤로가기가 방으로
+          // 돌아가고, 방이 죽을 때 이 페이지를 먼저 닫을 수 있다.
+          GoRoute(
+            path: 'chat',
+            name: 'match_room_chat',
+            builder: (context, state) => const ChatPage(),
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.matchCountdown,

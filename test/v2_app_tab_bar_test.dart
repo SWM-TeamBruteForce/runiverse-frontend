@@ -4,6 +4,7 @@ import 'dart:ui' show Tristate;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
@@ -28,6 +29,7 @@ void main() {
     WidgetTester tester, {
     int current = 0,
     double? width,
+    Set<int> badges = const {},
   }) async {
     if (width != null) {
       tester.view.physicalSize = Size(width * 3, 2400);
@@ -44,6 +46,7 @@ void main() {
           bottomNavigationBar: AppTabBarV2(
             tabs: tabs,
             currentIndex: current,
+            badges: badges,
             onSelected: taps.add,
           ),
         ),
@@ -209,5 +212,51 @@ void main() {
     expect(bar.bottom, lessThan(screen.bottom), reason: '바닥에 붙어 있다');
     expect(bar.left, greaterThan(screen.left), reason: '좌우가 안 비었다');
     expect(bar.height, 60, reason: '시안은 60이다');
+  });
+
+  /// 알림 점 — 종·벨이 안 보이는 탭에서 **읽지 않은 알림이 있다는 유일한
+  /// 신호다.**
+  ///
+  /// 앱이 켜져 있으면 배너를 띄우지 않아서, 그 탭에서는 이 점 말고 알려 줄
+  /// 것이 없다.
+  group('알림 점', () {
+    testWidgets('badges에 든 탭에만 점이 선다', (tester) async {
+      await pump(tester, badges: {0});
+
+      // 점은 글자가 아니라 그림이다. 키로 찾는다.
+      expect(find.byKey(const ValueKey('tab-badge-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tab-badge-3')), findsNothing);
+    });
+
+    testWidgets('비어 있으면 아무 점도 없다', (tester) async {
+      await pump(tester);
+
+      for (var i = 0; i < tabs.length; i++) {
+        expect(find.byKey(ValueKey('tab-badge-$i')), findsNothing);
+      }
+    });
+
+    testWidgets('⚠️ 점이 있으면 읽히는 이름이 바뀐다', (tester) async {
+      // **점을 그림으로만 두면 스크린리더가 읽을 것이 없다.** 이 바에는
+      // 글자가 하나도 없어서 `Semantics(label:)`이 전부다.
+      final handle = tester.ensureSemantics();
+      await pump(tester, badges: {0});
+
+      expect(
+        find.bySemanticsLabel('홈, ${AppStrings.notificationUnreadSemantics}'),
+        findsOneWidget,
+      );
+      // 점이 없는 탭의 이름은 그대로다.
+      expect(find.bySemanticsLabel('프로필'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('점이 없으면 이름은 그대로다', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester);
+
+      expect(find.bySemanticsLabel('홈'), findsOneWidget);
+      handle.dispose();
+    });
   });
 }

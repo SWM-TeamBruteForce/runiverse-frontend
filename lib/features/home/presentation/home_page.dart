@@ -29,8 +29,8 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 /// 홈 (S05).
 ///
 /// 상단 히어로 + 하단 카드 스택 구조다. **히어로가 매칭 상태를 전담한다** —
-/// 모집 중에는 갈 화면이 따로 없고 여기가 그 상태를 보여주는 유일한 자리다.
-/// 확정되면 히어로의 `로비로 이동`이 방으로 가는 유일한 문이 된다.
+/// 등록하면 홈으로 돌아오고, 모집 중의 상태는 여기서 보여 준다. 방으로 가는
+/// 문도 히어로에 있다(모집 중 `로비로 가기`, 확정 뒤 `로비 이동`).
 ///
 /// 그래서 홈에서는 글로벌 스티키 배너를 띄우지 않는다 — 중복이다.
 class HomePage extends ConsumerStatefulWidget {
@@ -242,11 +242,11 @@ class _HomePageState extends ConsumerState<HomePage> {
         backgroundColor: colors.bgElevated,
         title: Text(
           AppStrings.matchRoomLeaveTitle,
-          style: AppTypographyV2.heading06.copyWith(color: colors.textStrong),
+          style: AppTypographyV2.heading06.copyWith(color: colors.textPrimary),
         ),
         content: Text(
           AppStrings.matchRoomLeaveFree,
-          style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
+          style: AppTypographyV2.body12.copyWith(color: colors.textSecondary),
         ),
         actions: [
           TextButton(

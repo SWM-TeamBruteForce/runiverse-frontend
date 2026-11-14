@@ -150,7 +150,10 @@ abstract final class WatchPayload {
       'isPenaltyApplicable': target != null && (room?.canPenalize ?? true),
       'me': {
         'distanceMeters': distance,
-        'elapsedSeconds': metrics.clockElapsed.inSeconds,
+        // 폰 시각이 출발 전으로 돌아가면 음수다. 폰 화면처럼 0으로 보낸다.
+        'elapsedSeconds': metrics.clockElapsed.isNegative
+            ? 0
+            : metrics.clockElapsed.inSeconds,
         'currentPaceSecondsPerKm': metrics.currentPace?.inSeconds,
         'caloriesKcal': metrics.calories,
         'cadenceSpm': metrics.cadenceSpm,

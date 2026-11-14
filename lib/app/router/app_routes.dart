@@ -119,10 +119,10 @@ abstract final class AppRoutes {
 
   /// 알림함 — 친구 요청·수락과 러닝 초대가 한 목록에 모인다.
   ///
-  /// **홈 위 줄의 종으로 들어온다**(`HomeTopBar`). 하단 탭이 넷으로 고정이라
-  /// 탭을 더할 자리가 없다.
+  /// **홈 위 줄의 종**(`HomeTopBar`)과 **프로필 커버의 벨**(`ProfilePage`)로
+  /// 들어온다. 하단 탭이 넷으로 고정이라 탭을 더할 자리가 없다.
   ///
-  /// 주소가 `/profile/`로 시작하는 것은 입구가 프로필에 있던 때의 이름이다.
+  /// 주소가 `/profile/`로 시작하는 것은 입구가 프로필에만 있던 때의 이름이다.
   /// 푸시를 누르면 이 주소로 들어와서(`AppShell`) 바꾸지 않았다.
   ///
   /// [friends]와 같은 이유로 **탭 셸 밖**이다 — 목록을 보다 다른 탭으로 새면
@@ -171,6 +171,10 @@ abstract final class AppRoutes {
   ///
   /// **셸 밖이다.** 매칭 상태는 탭이 아니라 그 자체로 하나의 흐름이다.
   static const matchRoom = '/match/room';
+
+  /// 대기방 채팅. **[matchRoom]의 자식이다** — 열어 둔 동안 대기방이 그대로
+  /// 살아 있고, 그 화면의 자동 이동 두 개가 이 라우트를 먼저 닫고 움직인다.
+  static const matchRoomChat = '/match/room/chat';
 
   /// 출발 대기실 (S11). **취소 불가 구간이다** — 뒤로가기가 막힌다.
   static const matchCountdown = '/match/countdown';

@@ -7,6 +7,8 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/v2/party_chip.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
+import 'package:runiverse/features/chat/data/fake_chat_repository.dart';
+import 'package:runiverse/features/chat/presentation/chat_provider.dart';
 import 'package:runiverse/features/matching/data/fake_match_repository.dart';
 import 'package:runiverse/features/matching/data/fake_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
@@ -100,6 +102,9 @@ void main() {
             FakeAppVersionRepository(),
           ),
           matchStreamProvider.overrideWithValue(stream),
+          // 채팅 버튼이 보이는 순간 chatProvider가 서고, 그것이 진짜 저장소를
+          // 세운다 — 서버 주소가 없는 테스트에서는 거기서 죽는다.
+          chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
           matchRepositoryProvider.overrideWithValue(matches),
           userStatusRepositoryProvider.overrideWithValue(
             // ⚠️ 대기로 답하게 둔다. 끊긴 뒤 재연결이 이 값을 실제로 읽는데,
@@ -166,6 +171,7 @@ void main() {
               FakeAppVersionRepository(),
             ),
             matchStreamProvider.overrideWithValue(FakeMatchStream()),
+            chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
             matchRepositoryProvider.overrideWithValue(FakeMatchRepository()),
             userStatusRepositoryProvider.overrideWithValue(
               FakeUserStatusRepository(),
@@ -455,20 +461,61 @@ void main() {
           closeAt: closedAlready,
         ),
       );
-      await revealBottom(tester);
+      expect(find.text(AppStrings.inviteRoomLeaveFree), findsNothing);
+
+      // 나가면 어떻게 되는지는 확인 창이 말한다.
+      await tester.tap(find.text(AppStrings.inviteRoomLeave));
+      await tick(tester);
 
       expect(find.text(AppStrings.matchRoomLeavePenalty), findsNothing);
       expect(find.text(AppStrings.inviteRoomLeaveFree), findsOneWidget);
     });
 
-    testWidgets('마지막 사람이면 방이 사라진다고 알린다', (tester) async {
+    testWidgets('마지막 사람이면 나갈 때 방이 사라진다고 알린다', (tester) async {
       await pumpRoom(
         tester,
         snapshot: inviteRoom(status: RoomStatus.matched, players: 1),
       );
-      await revealBottom(tester);
+      expect(find.text(AppStrings.inviteRoomLeaveLast), findsNothing);
+
+      await tester.tap(find.text(AppStrings.inviteRoomLeave));
+      await tick(tester);
 
       expect(find.text(AppStrings.inviteRoomLeaveLast), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 러너 초대와 나가기 사이에 안내 줄을 두지 않는다', (tester) async {
+      // 줄이 두 버튼 사이에 끼어 어느 버튼 얘기인지 흐려진다. 제재가 없어
+      // 미리 알릴 것도 없다.
+      await pumpRoom(
+        tester,
+        snapshot: inviteRoom(
+          status: RoomStatus.matching,
+          players: 1,
+          closeAt: closeAtSoon,
+        ),
+      );
+      await revealBottom(tester);
+
+      expect(find.text(AppStrings.inviteRoomInviteCta), findsOneWidget);
+      expect(find.text(AppStrings.inviteRoomLeaveLast), findsNothing);
+      expect(find.text(AppStrings.inviteRoomAloneWarning), findsNothing);
+    });
+
+    testWidgets('둘 이상 모인 방도 안내 줄을 두지 않는다', (tester) async {
+      await pumpRoom(
+        tester,
+        snapshot: inviteRoom(
+          status: RoomStatus.matching,
+          players: 2,
+          invited: ['민수'],
+          closeAt: closeAtSoon,
+        ),
+      );
+      await revealBottom(tester);
+
+      expect(find.text(AppStrings.inviteRoomInviteCta), findsOneWidget);
+      expect(find.text(AppStrings.inviteRoomLeaveFree), findsNothing);
     });
 
     testWidgets('⚠️ 답을 기다리는 초대가 자리에 선다', (tester) async {

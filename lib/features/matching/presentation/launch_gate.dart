@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
-import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/domain/run_launch.dart';
@@ -231,14 +230,14 @@ class _Notice extends StatelessWidget {
     final colors = context.appColorsV2;
 
     return AlertDialog(
-      backgroundColor: colors.bgSurface,
-      title: const Text(AppStrings.matchLaunchNoticeTitle),
-      content: Padding(
-        padding: const EdgeInsets.only(top: AppSpacing.space2),
-        child: Text(
-          AppStrings.matchLaunchNoticeBody,
-          style: AppTypographyV2.body15.copyWith(color: colors.textSecondary),
-        ),
+      backgroundColor: colors.bgElevated,
+      title: Text(
+        AppStrings.matchLaunchNoticeTitle,
+        style: AppTypographyV2.heading06.copyWith(color: colors.textPrimary),
+      ),
+      content: Text(
+        AppStrings.matchLaunchNoticeBody,
+        style: AppTypographyV2.body12.copyWith(color: colors.textSecondary),
       ),
     );
   }

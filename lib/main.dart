@@ -21,6 +21,8 @@ import 'package:runiverse/core/watch/watch_channel.dart';
 import 'package:runiverse/features/notification/data/firebase_push_messaging.dart';
 import 'package:runiverse/features/notification/presentation/push_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
+import 'package:runiverse/features/session/data/permission_access_mapper.dart';
+import 'package:runiverse/features/session/presentation/permission_result_names.dart';
 import 'package:runiverse/features/session/presentation/watch_link_provider.dart';
 
 /// 앱 진입점. Riverpod 스코프를 열고, 앱 루트를 띄운다.
@@ -119,13 +121,16 @@ void main() async {
     );
   }
 
+  // 추적 허용 결과도 이것으로 남긴다([_startMeta]). Meta는 provider 밖에서 돈다.
+  final analytics = FirebaseAnalyticsService();
+
   // ⚠️ **이 override 를 지우면 분석이 조용히 멈춘다.** 기본값은
   // [NoopAnalytics] 다 — 위젯 테스트에 플랫폼 채널이 없어서 그렇게 뒀다.
   // 진짜를 끼우는 곳은 조립하는 자리인 여기뿐이다.
   runApp(
     ProviderScope(
       overrides: [
-        analyticsProvider.overrideWithValue(FirebaseAnalyticsService()),
+        analyticsProvider.overrideWithValue(analytics),
         // ⚠️ **이것을 지우면 러닝 중 칼로리가 `--`로 돌아간다.** 기본값은
         // `null`(묻지 않는다)이고, 서버에서 몸무게를 읽는 길은 이 한 줄뿐이다.
         // 포트가 `core`에 있는 이유는 `BodyProfileRemote` 주석에 있다.
@@ -137,10 +142,8 @@ void main() async {
         // 이유로 진짜는 여기서만 끼운다.
         pushMessagingProvider.overrideWithValue(FirebasePushMessaging()),
         // ⚠️ **이것을 지우면 워치 연동이 조용히 멈춘다.** 기본값은 `null`(끔)이다.
-        // 통로의 네이티브 쪽이 안드로이드에만 있어 iOS에서는 끈 채로 둔다.
-        watchChannelProvider.overrideWithValue(
-          Platform.isAndroid ? const WatchChannel() : null,
-        ),
+        // 테스트에서 받기를 걸지 않도록 진짜는 여기서만 끼운다.
+        watchChannelProvider.overrideWithValue(const WatchChannel()),
       ],
       child: const RuniverseApp(),
     ),
@@ -148,7 +151,9 @@ void main() async {
 
   // Meta는 **첫 화면이 그려진 뒤에** 시작한다. 기다리지 않는다 — 창이 떠 있는
   // 동안에도 스플래시는 제 할 일을 한다.
-  WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_startMeta()));
+  WidgetsBinding.instance.addPostFrameCallback(
+    (_) => unawaited(_startMeta(analytics)),
+  );
 }
 
 /// Meta 광고로 들어온 설치를 Meta가 셀 수 있게 설치·실행 신호를 보낸다.
@@ -160,11 +165,13 @@ void main() async {
 /// 나중에 띄우면 사용자가 허용해도 설치 신호는 이미 "허용 안 함"으로 나간
 /// 뒤다. 두 번째 실행부터는 iOS가 창을 다시 띄우지 않고 저장된 답을 돌려준다.
 ///
-/// 거절해도 Meta 시작과 실행 기록은 그대로 한다.
+/// 거절해도 Meta 시작과 실행 기록은 그대로 한다. 답은 GA에 `tracking`·자리
+/// `launch`로 남긴다 — 앱을 켤 때마다 하나씩이다.
 ///
 /// ## 키가 없으면 아무것도 하지 않는다
 ///
-/// 창도 띄우지 않고 앱은 그대로 돈다([AppConfig.hasMetaAppId]).
+/// 창도 띄우지 않고 앱은 그대로 돈다([AppConfig.hasMetaAppId]). GA에도 남지
+/// 않는다.
 ///
 /// ## 실패해도 앱은 멈추지 않는다
 ///
@@ -173,11 +180,18 @@ void main() async {
 ///
 /// ⚠️ 안드로이드에서 `config/*.json`에만 키를 넣고 `-P META_APP_ID`를
 /// 빼먹으면 여기서 실패한다. 매니페스트는 json을 읽지 못한다(build.gradle.kts).
-Future<void> _startMeta() async {
+Future<void> _startMeta(Analytics analytics) async {
   if (!AppConfig.hasMetaAppId) return;
   try {
     if (Platform.isIOS) {
-      await _askTracking();
+      final access = toPermissionAccess(await _askTracking());
+      unawaited(
+        analytics.permissionResult(
+          permission: 'tracking',
+          result: permissionResultName(access),
+          askedFrom: 'launch',
+        ),
+      );
     }
     final meta = FacebookAppEvents();
     await meta.initializeSdk();
@@ -188,19 +202,19 @@ Future<void> _startMeta() async {
   }
 }
 
-/// iOS 추적 허용 창을 띄운다.
+/// iOS 추적 허용 창을 띄우고 답을 돌려준다.
 ///
 /// ⚠️ 이 창은 앱이 활성일 때만 뜬다. 첫 화면이 그려진 직후는 활성이 보장되지
 /// 않아서, 실기기에서 창이 뜰 때도 있고 안 뜰 때도 있었다. 활성
 /// ([AppLifecycleState.resumed])이 될 때까지 기다렸다가 묻는다.
-Future<void> _askTracking() async {
+Future<PermissionStatus> _askTracking() async {
   if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
     final resumed = Completer<void>();
     final listener = AppLifecycleListener(onResume: resumed.complete);
     await resumed.future;
     listener.dispose();
   }
-  await Permission.appTrackingTransparency.request();
+  return Permission.appTrackingTransparency.request();
 }
 
 /// 릴리스 빌드에 [name]이 빠졌으면 멈춘다. 개발 빌드는 그냥 지나간다.

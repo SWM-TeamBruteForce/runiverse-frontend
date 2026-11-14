@@ -9,8 +9,8 @@ import 'package:runiverse/features/session/domain/user_status.dart';
 
 /// 홈 히어로가 **매칭 상태를 전담한다** (S05).
 ///
-/// 모집 중에는 갈 화면이 따로 없어서, 여기가 틀리면 사용자는 자기가 신청했는지
-/// 조차 알 수 없다. 확정 뒤의 `로비로 이동`은 방으로 가는 유일한 문이다.
+/// 여기가 틀리면 사용자는 자기가 신청했는지조차 알 수 없다. 모집 중의
+/// `로비로 가기`와 확정 뒤의 `로비 이동`이 방으로 가는 문이다.
 void main() {
   final startAt = DateTime(2026, 9, 16, 19);
 
@@ -256,7 +256,23 @@ void main() {
       await pumpHero(tester, withRoom: room(RoomStatus.matching));
 
       expect(find.text(AppStrings.homeMatchCta), findsNothing);
-      expect(find.text(AppStrings.homeMatchWaitingCta), findsOneWidget);
+      expect(find.text(AppStrings.homeMatchToLobby), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 로비로 가기가 실제로 열린다', (tester) async {
+      // 글자만 보면 문을 막아도 초록이다. 확정 카드의 같은 테스트와 짝이다.
+      var entered = 0;
+      await pumpHero(
+        tester,
+        withRoom: room(RoomStatus.matching),
+        onLobby: () => entered++,
+      );
+
+      await tester.tap(find.text(AppStrings.homeMatchToLobby));
+      // 둘레 원이 계속 돌아 `pumpAndSettle`이 끝나지 않는다.
+      await tester.pump();
+
+      expect(entered, 1, reason: '로비로 가는 문이 안 열린다');
     });
 
     testWidgets('⚠️ 취소는 히어로에 두지 않는다', (tester) async {
@@ -577,6 +593,19 @@ void main() {
       );
     });
 
+    testWidgets('⚠️ 신청했다고 하지 않는다 — 신청한 적이 없다', (tester) async {
+      await pumpHero(tester, withRoom: inviteRoom(RoomStatus.matching));
+
+      expect(
+        find.textContaining(AppStrings.homeMatchWaitingHint),
+        findsNothing,
+      );
+      expect(
+        find.textContaining(AppStrings.homeInviteWaitingHint),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('사람이 들어오면 몇 명이 함께 뛰는지 적는다', (tester) async {
       await pumpHero(
         tester,
@@ -597,17 +626,16 @@ void main() {
       expect(find.text(AppStrings.homeInviteConfirmedTitle), findsOneWidget);
     });
 
-    testWidgets('⚠️ 버튼이 매칭 대기중이라고 하지 않는다', (tester) async {
+    testWidgets('초대 방 버튼도 로비로 가기다', (tester) async {
       await pumpHero(tester, withRoom: inviteRoom(RoomStatus.matching));
 
-      expect(find.text(AppStrings.homeMatchWaitingCta), findsNothing);
-      expect(find.text(AppStrings.homeInviteWaitingCta), findsOneWidget);
+      expect(find.text(AppStrings.homeMatchToLobby), findsOneWidget);
     });
 
-    testWidgets('매칭 방의 버튼은 그대로다', (tester) async {
+    testWidgets('매칭 방도 같은 버튼이다', (tester) async {
       await pumpHero(tester, withRoom: room(RoomStatus.matching));
 
-      expect(find.text(AppStrings.homeMatchWaitingCta), findsOneWidget);
+      expect(find.text(AppStrings.homeMatchToLobby), findsOneWidget);
     });
 
     testWidgets('매칭 방은 기존 문구를 그대로 쓴다', (tester) async {
@@ -615,6 +643,10 @@ void main() {
 
       expect(find.text(AppStrings.homeMatchWaitingTitle), findsOneWidget);
       expect(find.text(AppStrings.homeInviteWaitingTitle), findsNothing);
+      expect(
+        find.textContaining(AppStrings.homeMatchWaitingHint),
+        findsOneWidget,
+      );
     });
 
     testWidgets('매칭 방의 확정 문구도 그대로다', (tester) async {

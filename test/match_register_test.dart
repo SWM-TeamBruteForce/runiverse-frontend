@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
+import 'package:runiverse/core/analytics/fake_analytics.dart';
 import 'package:runiverse/core/storage/match_room_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
@@ -31,12 +33,14 @@ void main() {
   Future<FakeMatchRepository> pumpApp(
     WidgetTester tester, {
     FakeMatchRepository? repository,
+    Analytics analytics = const NoopAnalytics(),
   }) async {
     final matches = repository ?? FakeMatchRepository();
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          analyticsProvider.overrideWithValue(analytics),
           // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
           // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
           appVersionRepositoryProvider.overrideWithValue(
@@ -79,8 +83,13 @@ void main() {
   Future<FakeMatchRepository> pumpRegister(
     WidgetTester tester, {
     FakeMatchRepository? repository,
+    Analytics analytics = const NoopAnalytics(),
   }) async {
-    final matches = await pumpApp(tester, repository: repository);
+    final matches = await pumpApp(
+      tester,
+      repository: repository,
+      analytics: analytics,
+    );
     await openRegister(tester);
     return matches;
   }
@@ -448,7 +457,7 @@ void main() {
       expect(find.text(AppStrings.matchRegisterTitle), findsOneWidget);
     });
 
-    testWidgets('⚠️ 이탈 제재는 규칙과 해제 시각을 함께 말한다', (tester) async {
+    testWidgets('⚠️ 이탈 제재는 이유와 해제 시각을 함께 말한다', (tester) async {
       final until = DateTime(2026, 7, 26, 7, 30);
       final matches = FakeMatchRepository(
         applyFailure: MatchFailure.cooldown,
@@ -462,11 +471,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.matchCooldownTitle), findsOneWidget);
-      // ⚠️ 같은 문구가 화면 아래 안내에도 있다. **팝업 안에서** 찾는다.
       expect(
         find.descendant(
           of: find.byType(AlertDialog),
-          matching: find.text(AppStrings.matchCooldownRule),
+          matching: find.text(AppStrings.matchCooldownReason),
         ),
         findsOneWidget,
       );
@@ -651,7 +659,7 @@ void main() {
     });
 
     testWidgets('신청이 되면 홈으로 돌아간다', (tester) async {
-      // 모집 중에는 갈 화면이 따로 없다. 홈 히어로가 그 상태를 보여준다.
+      // 모집 중의 상태는 홈 히어로가 보여 주고, 로비는 거기서 들어간다.
       await pumpRegister(tester);
 
       await pickDistance(tester, 5);
@@ -769,6 +777,26 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.matchFailedNetwork), findsOneWidget);
+    });
+  });
+
+  group('GA', () {
+    testWidgets('⚠️ 시간 시트를 열면 바로 남고, 그냥 닫으면 고르기는 안 남는다', (tester) async {
+      // 열기와 고르기의 차이가 이 단계의 이탈이다. 열기 기록이 시트가 닫힌
+      // 뒤로 옮겨 가면 그냥 닫은 사람이 빠져 그 차이가 사라진다.
+      final analytics = FakeAnalytics();
+      await pumpRegister(tester, analytics: analytics);
+      await pickDistance(tester, 3);
+
+      await tester.tap(find.text(AppStrings.matchTimePlaceholder));
+      await tester.pumpAndSettle();
+      expect(analytics.countOf('match_slot_sheet_open'), 1);
+
+      // 시트 바깥을 눌러 고르지 않고 닫는다.
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.matchSlotSheetTitle), findsNothing);
+      expect(analytics.countOf('match_slot_select'), 0);
     });
   });
 }

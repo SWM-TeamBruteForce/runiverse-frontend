@@ -105,6 +105,17 @@ void main() {
     expect((finished['result']! as Map)['elapsedSeconds'], 20);
   });
 
+  test('폰 시각이 출발 전으로 돌아가 경과 시간이 음수면 0을 보낸다', () {
+    const rewound = RunMetrics(
+      distanceMeters: 3421.9,
+      elapsed: Duration.zero,
+      clockElapsed: Duration(minutes: -57),
+    );
+
+    final running = runOf(stateOf(const RunRunning(rewound)));
+    expect((running['me']! as Map)['elapsedSeconds'], 0);
+  });
+
   test('파티원은 나를 빼고 색 번호·격차·콤보를 싣는다', () {
     final board = const PartyBoard()
         .withRoster(members, myUserId: 'me')

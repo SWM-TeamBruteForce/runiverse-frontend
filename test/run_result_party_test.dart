@@ -83,6 +83,60 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  /// 페이스 자릿수가 다른 두 사람(`5'06"`·`10'05"`). 10분/km를 넘으면 페이스가
+  /// 한 자리 길어진다.
+  RunDetail mixedPaces() => RunDetail(
+    runningRoomId: 125,
+    distanceMeters: 2000,
+    duration: const Duration(minutes: 11),
+    averagePace: const Duration(minutes: 5, seconds: 30),
+    rawSplits: splitsOf(200, 3),
+    players: const [
+      me,
+      RunPlayerResult(
+        userId: 'u-1',
+        nickname: '이서연',
+        isMe: false,
+        distanceMeters: 2000,
+        duration: Duration(minutes: 10, seconds: 12),
+        averagePace: Duration(minutes: 5, seconds: 6),
+      ),
+      RunPlayerResult(
+        userId: 'u-2',
+        nickname: '박지훈',
+        isMe: false,
+        distanceMeters: 2000,
+        duration: Duration(minutes: 20, seconds: 10),
+        averagePace: Duration(minutes: 10, seconds: 5),
+      ),
+    ],
+    splitsByPlayer: const {},
+  );
+
+  void expectTimeColumnAligned(WidgetTester tester) => expect(
+    tester.getRect(find.text('10:12')).right,
+    moreOrLessEquals(tester.getRect(find.text('20:10')).right),
+  );
+
+  testWidgets('⚠️ 페이스 자릿수가 달라도 시간 열이 맞는다', (tester) async {
+    // 페이스를 글자 폭대로 두던 때는 긴 쪽 줄만 시간이 왼쪽으로 밀렸다.
+    await pump(tester, mixedPaces());
+
+    expect(find.text("5'06\""), findsOneWidget);
+    expect(find.text("10'05\""), findsOneWidget);
+    expectTimeColumnAligned(tester);
+  });
+
+  testWidgets('⚠️ 글자를 키워도 시간 열이 맞는다', (tester) async {
+    // 페이스 칸 폭을 잴 때 글자 배율을 빼먹으면 배율만큼 다시 어긋난다.
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    await pump(tester, mixedPaces());
+
+    expectTimeColumnAligned(tester);
+  });
+
   testWidgets('솔로는 카드도 칩도 없다', (tester) async {
     await pump(tester, detail(solo: true));
 
@@ -177,6 +231,73 @@ void main() {
 
       // 카드와 칩에 한 번씩 — 머리줄에는 늘지 않았다.
       expect(find.text('이서연'), findsNWidgets(2));
+    });
+  });
+
+  /// 칸 정렬 — **머리줄 글자와 값이 같은 칸에 서는가.**
+  ///
+  /// 전에는 소모가 오른쪽 끝에 붙고 `파티원 대비`가 머리줄 `페이스` 뒤에 붙어,
+  /// 머리와 값의 시작선이 칸마다 달랐다. 글자 상자는 칸 폭을 꽉 채우므로
+  /// 여기서 재는 것은 칸의 자리다.
+  group('칸 정렬', () {
+    /// 구간 표 안에서만 찾는다 — `페이스`는 위 지표 칸에도 있다.
+    Finder inTable(Finder finder) => find.descendant(
+      of: find
+          .ancestor(
+            of: find.text(AppStrings.runResultSplitColumn),
+            matching: find.byType(Column),
+          )
+          .first,
+      matching: finder,
+    );
+
+    double left(WidgetTester tester, String text) =>
+        tester.getTopLeft(inTable(find.text(text)).first).dx;
+
+    testWidgets('⚠️ 혼자 볼 때 머리와 값이 같은 칸에 선다', (tester) async {
+      await pump(tester, detail());
+
+      expect(
+        left(tester, AppStrings.runResultSplitLabel(1)),
+        left(tester, AppStrings.runResultSplitColumn),
+      );
+      expect(left(tester, "5'00\""), left(tester, AppStrings.runResultPace));
+      expect(
+        left(tester, '100 kcal'),
+        left(tester, AppStrings.runResultBurnedColumn),
+      );
+    });
+
+    testWidgets('⚠️ 파티원을 고르면 차이도 제 칸에 선다', (tester) async {
+      await pump(tester, detail());
+
+      await tester.tap(find.text('이서연').last);
+      await tester.pump();
+
+      expect(left(tester, "5'00\""), left(tester, AppStrings.runResultPace));
+      expect(
+        left(tester, '-100s'),
+        left(tester, AppStrings.runResultGapBaseParty),
+      );
+      expect(
+        left(tester, '100 kcal'),
+        left(tester, AppStrings.runResultBurnedColumn),
+      );
+    });
+
+    testWidgets('⚠️ 먼저 끝난 사람의 빈 구간도 소모는 제 칸에 선다', (tester) async {
+      // 차이가 없는 줄에서 칸까지 빼면 그 줄만 소모가 왼쪽으로 당겨진다.
+      await pump(tester, detail(shortParty: true));
+
+      await tester.tap(find.text('이서연').last);
+      await tester.pump();
+
+      final head = left(tester, AppStrings.runResultBurnedColumn);
+      final burned = inTable(find.text('100 kcal'));
+      expect(burned, findsNWidgets(2));
+      for (var i = 0; i < 2; i++) {
+        expect(tester.getTopLeft(burned.at(i)).dx, head);
+      }
     });
   });
 

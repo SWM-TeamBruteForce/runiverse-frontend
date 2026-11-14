@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 
 /// [WatchChannel.send] 의 결과.
 enum WatchSendResult {
-  /// 우리 앱이 깔린 워치가 가까이 연결돼 있지 않다. 워치 앱이 없는 폰도 여기다.
+  /// 우리 앱이 깔린 워치가 없다(안드로이드는 가까이 연결된 것만 센다). 워치 앱이 없는 폰도 여기다.
   noWatch,
 
   /// 연결된 워치를 묻거나 보내다가 실패했다.
@@ -15,7 +15,7 @@ enum WatchSendResult {
   /// 워치가 3초 감시와 `WATCH_SYNC` 로 다시 맞춘다.
   sent;
 
-  /// `WatchBridge.kt` 가 준 값에서 되살린다. 모르는 값이면 [failed].
+  /// 네이티브 `WatchBridge` 가 준 값에서 되살린다. 모르는 값이면 [failed].
   static WatchSendResult fromWire(Object? value) => switch (value) {
     'NO_WATCH' => WatchSendResult.noWatch,
     'SENT' => WatchSendResult.sent,
@@ -25,10 +25,11 @@ enum WatchSendResult {
 
 /// [WatchChannel.launchApp] 의 결과.
 enum WatchLaunchResult {
-  /// 우리 앱이 깔린 워치가 가까이 연결돼 있지 않다. 워치 앱이 없는 폰도 여기다.
+  /// 우리 앱이 깔린 워치가 없다(안드로이드는 가까이 연결된 것만 센다). 워치 앱이 없는 폰도 여기다.
   noWatch,
 
-  /// [WatchChannel.messages] 구독 전이거나 받기 등록이 아직 안 끝났다.
+  /// [WatchChannel.messages] 구독 전이거나 받을 준비(안드로이드는 받기 등록, iOS는
+  /// 세션 켜기)가 아직 안 끝났다.
   /// 켜자마자 워치가 보내는 `WATCH_SYNC` 를 놓치므로 켜지 않았다.
   notListening,
 
@@ -38,7 +39,7 @@ enum WatchLaunchResult {
   /// 실행 요청이 넘어갔다. **화면이 떴다는 뜻은 아니다.**
   launched;
 
-  /// `WatchBridge.kt` 가 준 값에서 되살린다. 모르는 값이면 [failed].
+  /// 네이티브 `WatchBridge` 가 준 값에서 되살린다. 모르는 값이면 [failed].
   static WatchLaunchResult fromWire(Object? value) => switch (value) {
     'NO_WATCH' => WatchLaunchResult.noWatch,
     'NOT_LISTENING' => WatchLaunchResult.notListening,
@@ -72,15 +73,14 @@ abstract final class WatchEvents {
   static const error = 'ERROR';
 }
 
-/// 폰 ↔ 워치 통로. 안드로이드는 `WatchBridge.kt` 가 갤럭시워치와 잇는다.
+/// 폰 ↔ 워치 통로. 안드로이드는 `WatchBridge.kt` 가 갤럭시워치와, iOS는
+/// `WatchBridge.swift` 가 애플워치와 잇는다.
 ///
 /// 메시지 종류와 보내는 규칙은 워치 레포 `docs/phone-communication.md` 가
 /// 정본이다. 이 클래스는 봉투를 싸고 푸는 일만 한다.
 ///
-/// ## ⚠️ 아직 안드로이드만 있다
-///
-/// iOS(애플워치)는 같은 채널 이름으로 나중에 붙인다. 그 전에 iOS에서 부르면
-/// [MissingPluginException] 이 난다.
+/// iOS는 워치에 닿는지(`isReachable`)를 보지 않아, 짝지은 워치에 우리 앱이 있으면
+/// [WatchSendResult.sent] 로 답한다.
 class WatchChannel {
   const WatchChannel();
 
@@ -91,7 +91,7 @@ class WatchChannel {
   ///
   /// 해석하지 못한 메시지는 버린다 — 다음 상태가 곧 다시 온다.
   ///
-  /// 받기 등록이 실패하면 [PlatformException](`LISTEN_FAILED`)이 흐른다.
+  /// 안드로이드는 받기 등록이 실패하면 [PlatformException](`LISTEN_FAILED`)이 흐른다.
   /// 워치 앱이 없는 폰은 실패가 아니라 아무것도 오지 않는다(워치가 보이면 다시 등록한다).
   Stream<WatchMessage> get messages => _messages;
 

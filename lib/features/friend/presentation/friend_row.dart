@@ -139,6 +139,8 @@ class FriendRow extends StatelessWidget {
         ),
         tooltip: AppStrings.friendRemove,
         enabled: !busy,
+        // 앱 테마가 아직 옛 세대라 비워 두면 메뉴가 옛 남색으로 뜬다.
+        color: context.appColorsV2.bgElevated,
         // ⚠️ **값을 `null`로 두면 안 된다.** Flutter는 `null` 선택을 취소로
         // 읽어 `onSelected`를 아예 부르지 않는다.
         onSelected: (_) => onRemove?.call(),
