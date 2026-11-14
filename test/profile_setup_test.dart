@@ -144,7 +144,7 @@ void main() {
     await type(tester, weightField, '65');
   }
 
-  /// 페이스 칸의 '건너뛰기'를 누른다.
+  /// 페이스 칸의 '페이스 건너뛰기'를 누른다.
   ///
   /// ⚠️ **먼저 끌어올린다.** 폼 맨 아래라 600px 짜리 테스트 화면에서는
   /// y=691 — 화면 밖이다. 바로 누르면 "닿지 않는다"고 경고하고 실패한다.
@@ -178,18 +178,9 @@ void main() {
     testWidgets('⚠️ 채우지 않고 나가는 문이 없다', (tester) async {
       // 프로필을 비워두면 매칭도 기록도 설 자리가 없다.
       // 시안에는 뒤로가기와 건너뛰기가 있지만 넣지 않았다.
-      //
-      // ⚠️ **`onboardingSkip` 과 `profilePaceSkip` 은 글자가 똑같다**(`건너뛰기`).
-      // 그래서 "없다"로는 볼 수 없다 — 페이스 버튼이 걸린다. 대신 **개수**로 본다:
-      // 이 화면의 건너뛰기는 페이스 칸의 것 하나뿐이다. 폼을 빠져나가는 문이
-      // 생기면 둘이 되어 여기서 걸린다 — 그것이 어떤 위젯이든.
       await pumpPage(tester);
 
-      expect(find.text(AppStrings.onboardingSkip), findsOneWidget);
-      expect(
-        find.widgetWithText(AppButtonV2, AppStrings.profilePaceSkip),
-        findsOneWidget,
-      );
+      expect(find.text(AppStrings.onboardingSkip), findsNothing);
       expect(find.byType(BackButton), findsNothing);
     });
 
