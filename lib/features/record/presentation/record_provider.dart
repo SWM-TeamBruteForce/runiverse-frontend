@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/record/data/http_run_record_repository.dart';
 import 'package:runiverse/features/record/domain/record_summary.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
@@ -69,12 +70,34 @@ final recordControllerProvider =
 /// 앱을 껐다 켜야 보였다 — 2026-10-04 에뮬레이터에서 1인 러닝 1.22km 를
 /// 끝내고 확인했다. 기록이 바뀌는 순간을 직접 듣는다([_watchRunFinish]).
 class RecordController extends Notifier<RecordState> {
+  /// 계정 차수. 계정이 바뀔 때마다 올라간다 — 그 전에 떠난 조회의 답을 가린다.
+  var _accountEpoch = 0;
+
   @override
   RecordState build() {
     _watchRunFinish();
+    _watchAccount();
     // build 안에서 await하지 않는다. 먼저 loading을 내보내고 뒤에서 읽는다.
     Future.microtask(load);
     return const RecordLoading();
+  }
+
+  /// 계정이 바뀌면 들고 있던 기록을 버리고, 로그인 상태면 새 계정으로 다시 읽는다.
+  ///
+  /// ⚠️ 이 provider는 로그아웃해도 살아 있고 [build]가 다시 돌지 않는다. 앱을 끄지
+  /// 않고 다른 계정으로 들어오면 앞 사람의 차트·달력·목록이 그대로 보이고, 그 기록을
+  /// 누르면 서버가 403으로 막는다.
+  void _watchAccount() {
+    ref.listen(
+      authControllerProvider.select(
+        (auth) => auth is AuthSignedIn ? auth.userId : null,
+      ),
+      (_, userId) {
+        _accountEpoch++;
+        state = const RecordLoading();
+        if (userId != null) unawaited(load());
+      },
+    );
   }
 
   /// 러닝이 **서버에 확정되면** 목록을 다시 읽는다.
@@ -120,11 +143,12 @@ class RecordController extends Notifier<RecordState> {
   /// 한 달 넘길 때마다 다시 펴야 했다.
   ///
   /// 그래서 **이미 읽은 것이 있으면 그대로 두고** 새 값이 오면 갈아 끼운다.
-  /// 첫 진입과 오류 뒤에만 로딩을 보여준다 — 그때는 보여줄 것이 없다.
+  /// 첫 진입·오류 뒤·계정이 바뀐 뒤에만 로딩을 보여준다 — 그때는 보여줄 것이 없다.
   ///
   /// ⚠️ 이 사이에는 **지난달 화면이 잠깐 그대로 보인다.** 달 이름이
   /// 늦게 바뀌는 셈인데, 통째로 깜빡이며 읽던 자리를 잃는 것보다 낫다고 봤다.
   Future<void> load({DateTime? month, DateTime? select}) async {
+    final epoch = _accountEpoch;
     final now = ref.read(recordClockProvider)();
     final target = month == null
         ? DateTime(now.year, now.month)
@@ -161,6 +185,8 @@ class RecordController extends Notifier<RecordState> {
         _repository.byDateRange(from: days.first, to: days.last),
         _repository.byDateRange(from: strip.first, to: strip.last),
       ]);
+      // 기다리는 사이 계정이 바뀌었으면 앞 사람의 기록이다. 버린다.
+      if (epoch != _accountEpoch) return;
 
       state = RecordData(
         month: target,
@@ -176,6 +202,7 @@ class RecordController extends Notifier<RecordState> {
         stripDays: strip,
       );
     } on RunRecordException catch (error) {
+      if (epoch != _accountEpoch) return;
       debugPrint('[record] 기록을 못 읽었다 · ${error.failure}');
       state = RecordError(error.failure);
     }
@@ -226,14 +253,17 @@ class RecordController extends Notifier<RecordState> {
   /// 고른 날의 목록은 이미 보이고 있고, 여기서 오류 화면으로 갈아타면
   /// 사용자가 보던 것을 잃는다.
   Future<void> _fillStrip(List<DateTime> strip) async {
+    final epoch = _accountEpoch;
     try {
       final extra = await _repository.byDateRange(
         from: strip.first,
         to: strip.last,
       );
       final current = state;
-      // 그 사이 사용자가 다른 날·다른 달로 옮겼으면 버린다.
-      if (current is! RecordData || current.stripDays.first != strip.first) {
+      // 그 사이 계정이 바뀌었거나 사용자가 다른 날·다른 달로 옮겼으면 버린다.
+      if (epoch != _accountEpoch ||
+          current is! RecordData ||
+          current.stripDays.first != strip.first) {
         return;
       }
       state = current.copyWith(
