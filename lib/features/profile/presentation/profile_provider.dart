@@ -4,6 +4,7 @@ import 'package:runiverse/features/friend/presentation/friend_provider.dart';
 import 'package:runiverse/core/storage/body_profile_provider.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/profile/data/http_profile_repository.dart';
 import 'package:runiverse/features/profile/domain/nickname_change_failure.dart';
 import 'package:runiverse/features/profile/domain/profile_edit_failure.dart';
@@ -74,11 +75,37 @@ final profileSummaryControllerProvider =
 /// 오는데, 그때 화면을 비우면 **어제까지 보이던 닉네임이 사라진다.**
 /// `/users/me`가 남긴 캐시가 그 자리를 지킨다.
 class ProfileSummaryController extends Notifier<ProfileSummaryState> {
+  /// 계정 차수. 계정을 떠날 때마다 올라간다 — 그 전에 떠난 요청의 답을 가린다.
+  ///
+  /// ⚠️ 답을 받아 [state]나 기기 저장값을 바꾸는 곳은 모두 이것부터 본다.
+  var _accountEpoch = 0;
+
   @override
-  ProfileSummaryState build() => const ProfileSummaryState();
+  ProfileSummaryState build() {
+    // ⚠️ **계정을 떠나면 차수를 올리고 들고 있던 요약을 버린다.** 이 provider는
+    // 로그아웃해도 살아 있어서, 앞 사람이 띄운 조회가 다음 사람 로그인 뒤에 오면
+    // 그 요약을 기기에 남기며 저장된 내 번호까지 앞 사람으로 덮는다 — 프로필·친구
+    // 목록을 그 번호로 받아 오고, 파티원 보드가 그 번호로 나를 가려낸다.
+    //
+    // 들어올 때(로그아웃 → 계정)는 비우지 않는다. 떠날 때 이미 비웠다.
+    ref.listen(
+      authControllerProvider.select(
+        (auth) => auth is AuthSignedIn ? auth.userId : null,
+      ),
+      (previous, _) {
+        if (previous == null) return;
+        _accountEpoch++;
+        state = const ProfileSummaryState();
+      },
+    );
+    return const ProfileSummaryState();
+  }
 
   Future<void> load() async {
+    final epoch = _accountEpoch;
     final stored = await ref.read(tokenStoreProvider).read();
+    // 읽는 사이 계정을 떠났으면 앞 사람의 캐시일 수 있다.
+    if (epoch != _accountEpoch) return;
     final userId = stored.userId;
     if (userId == null) return;
 
@@ -88,12 +115,16 @@ class ProfileSummaryController extends Notifier<ProfileSummaryState> {
 
     try {
       final summary = await ref.read(profileRepositoryProvider).fetch(userId);
+      // ⚠️ 기다리는 사이 계정을 떠났으면 앞 사람의 요약이다. 화면에도 기기에도
+      // 남기지 않는다.
+      if (epoch != _accountEpoch) return;
       state = ProfileSummaryState(summary: summary);
 
       // ⚠️ **받아온 값을 기기에 남긴다.** 편집 화면이 이 값으로 그리고,
       // 앱을 껐다 켠 뒤에도 서버를 기다리는 동안 화면이 비지 않는다.
       await _remember(userId, stored.isOnboarded, summary);
     } on ProfileException catch (error) {
+      if (epoch != _accountEpoch) return;
       state = ProfileSummaryState(summary: cached, failure: error.failure);
     }
   }
@@ -130,6 +161,7 @@ class ProfileSummaryController extends Notifier<ProfileSummaryState> {
   /// 사진은 서버만 아는 주소가 새로 생기므로 받아온 쪽이 다시 물어야 하지만,
   /// 이름은 손에 들어온 것이 곧 답이라 부를 이유가 없다.
   Future<NicknameChangeFailure?> changeNickname(String nickname) async {
+    final epoch = _accountEpoch;
     final String changed;
     try {
       changed = await ref
@@ -143,6 +175,9 @@ class ProfileSummaryController extends Notifier<ProfileSummaryState> {
     // 돌아온다** — 캐시가 화면의 첫 출처라서.
     final store = ref.read(tokenStoreProvider);
     final stored = await store.read();
+    // 기다리는 사이 계정을 떠났으면 바뀐 것은 앞 사람 이름이다. 다음 사람의
+    // 저장값·홈·요약에 얹지 않는다. 서버는 받아 줬으니 성공으로 돌려준다.
+    if (epoch != _accountEpoch) return null;
     final userId = stored.userId;
     if (userId != null) {
       await store.saveCurrentUser(
@@ -154,6 +189,7 @@ class ProfileSummaryController extends Notifier<ProfileSummaryState> {
         introduction: stored.introduction,
       );
     }
+    if (epoch != _accountEpoch) return null;
 
     // ⚠️ **홈이 부르는 이름은 아래 요약이 아니다.** 홈은 `AuthSignedIn.user`를
     // 읽어서(`home_page.dart`), 여기서 같이 고치지 않으면 프로필 탭만 바뀌고
@@ -182,7 +218,7 @@ class ProfileSummaryController extends Notifier<ProfileSummaryState> {
 
   /// 소개글·신체 정보를 한 번에 저장한다. 실패하면 그 이유를 준다.
   ///
-  /// 성공하면 소개글은 화면·저장값에, 신체 정보는 [profileBodyProvider]에
+  /// 성공하면 소개글은 화면·저장값에, 신체 정보는 [bodyProfileProvider]에
   /// 남긴다. **51번 응답은 보낸 필드만 돌려주므로** 요약을 다시 받을 일이 없다.
   Future<ProfileEditFailure?> saveProfile({
     String? introduction,
@@ -190,6 +226,7 @@ class ProfileSummaryController extends Notifier<ProfileSummaryState> {
     int? heightCm,
     int? weightKg,
   }) async {
+    final epoch = _accountEpoch;
     try {
       await ref
           .read(profileRepositoryProvider)
@@ -203,22 +240,29 @@ class ProfileSummaryController extends Notifier<ProfileSummaryState> {
       return error.failure;
     }
 
+    // 기다리는 사이 계정을 떠났으면 앞 사람의 값이다. 다음 사람의 신체 정보·
+    // 소개글로 남기지 않는다 — 신체 정보는 러닝 칼로리에 쓰인다.
+    if (epoch != _accountEpoch) return null;
+
     // ⚠️ **서버가 받아준 뒤에 남긴다.** 이 셋을 돌려주는 조회 API가 없어
     // (`BodyProfileStore` 참조) 기기에 남기지 않으면 앱을 껐다 켰을 때 모른다.
     await ref
         .read(bodyProfileProvider.notifier)
         .remember(birthday: birthday, heightCm: heightCm, weightKg: weightKg);
 
-    if (introduction != null) await _applyIntroduction(introduction);
+    if (introduction != null) await _applyIntroduction(introduction, epoch);
     return null;
   }
 
   /// 소개글을 화면과 저장값에 반영한다. **빈 문자열은 지운 것**이다.
-  Future<void> _applyIntroduction(String introduction) async {
+  ///
+  /// [epoch]는 저장을 보낼 때의 계정 차수다.
+  Future<void> _applyIntroduction(String introduction, int epoch) async {
     final saved = introduction.isEmpty ? null : introduction;
 
     final store = ref.read(tokenStoreProvider);
     final stored = await store.read();
+    if (epoch != _accountEpoch) return;
     final userId = stored.userId;
     if (userId != null) {
       await store.saveCurrentUser(
@@ -229,6 +273,7 @@ class ProfileSummaryController extends Notifier<ProfileSummaryState> {
         introduction: saved,
       );
     }
+    if (epoch != _accountEpoch) return;
 
     final summary = state.summary;
     if (summary == null) return;
