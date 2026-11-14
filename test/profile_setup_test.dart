@@ -9,6 +9,7 @@ import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/field_action.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
@@ -269,6 +270,68 @@ void main() {
       await tester.tap(find.text(AppStrings.profileGenderFemale));
       await tester.pumpAndSettle();
       expect(nextEnabled(tester), isTrue);
+    });
+  });
+
+  group('⚠️ 키보드가 올라오면', () {
+    // 갤럭시 S23+ 크기(384x832)에 키보드 380.
+    const keyboard = 380.0;
+    const keyboardTop = 832.0 - keyboard;
+
+    Future<void> pumpPhone(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2340);
+      tester.view.devicePixelRatio = 2.8125;
+      addTearDown(tester.view.reset);
+      await pumpPage(tester);
+    }
+
+    Future<void> raiseKeyboard(WidgetTester tester) async {
+      await tester.tap(find.byType(TextField).at(nicknameField));
+      await tester.pumpAndSettle();
+      tester.view.viewInsets = const FakeViewPadding(bottom: keyboard * 2.8125);
+      await tester.pumpAndSettle();
+    }
+
+    Rect next(WidgetTester tester) => tester.getRect(
+      find.widgetWithText(AppButtonV2, AppStrings.profileNext),
+    );
+
+    /// 목록 끝과 「다음」 사이.
+    double gap(WidgetTester tester) =>
+        next(tester).top -
+        tester.getRect(find.byType(SingleChildScrollView).first).bottom;
+
+    testWidgets('⚠️ 목록과 「다음」 사이를 띄운다', (tester) async {
+      // 붙어 있으면 목록 끝에서 잘린 칸이 같은 회색의 「다음」에 맞붙어
+      // 깨진 것처럼 보였다. 초대 등록이 버튼 위에 남기는 목록 끝 여백과 같다.
+      await pumpPhone(tester);
+      await raiseKeyboard(tester);
+
+      expect(gap(tester), moreOrLessEquals(AppSpacing.space6));
+    });
+
+    testWidgets('키보드가 오르내리는 중에는 올라온 높이만큼만 띄운다', (tester) async {
+      // 간격이 한 번에 24로 생기거나 사라지면 키보드가 움직이는 동안 목록이 툭 뛴다.
+      await pumpPhone(tester);
+      await raiseKeyboard(tester);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 10 * 2.8125);
+      await tester.pumpAndSettle();
+
+      expect(gap(tester), moreOrLessEquals(10));
+    });
+
+    testWidgets('「다음」은 키보드 위에 그대로 보인다', (tester) async {
+      // 키보드가 덮으면 아이폰 숫자 패드에 완료 키가 없어 내릴 길이 없다.
+      await pumpPhone(tester);
+      await raiseKeyboard(tester);
+
+      expect(next(tester).bottom, lessThanOrEqualTo(keyboardTop));
+    });
+
+    testWidgets('키보드가 없으면 전처럼 붙어 있다', (tester) async {
+      await pumpPhone(tester);
+
+      expect(gap(tester), moreOrLessEquals(0));
     });
   });
 
