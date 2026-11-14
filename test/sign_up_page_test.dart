@@ -327,6 +327,11 @@ void main() {
     // 인증 단계로 되돌려 처음부터 하게 한다.
     expect(find.text(AppStrings.authVerifyDone), findsNothing);
     expect(find.text(AppStrings.authPasswordLabel), findsNothing);
+    expect(find.text(AppStrings.authVerifyReset), findsOneWidget);
+    // 티켓이 없으니 잠금도 풀린다 — 이메일을 고치거나 같은 이메일로 다시 받는다.
+    expect(emailEnabled(tester), isTrue);
+    // 쓴 번호는 서버가 지웠다. 그 칸이 다시 열리면 「확인」이 "만료됐어요"로 끝난다.
+    expect(find.text(AppStrings.authVerifyLabel), findsNothing);
   });
 
   testWidgets('가입에 성공하면 프로필 등록으로 간다', (tester) async {

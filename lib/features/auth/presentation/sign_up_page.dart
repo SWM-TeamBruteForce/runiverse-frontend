@@ -316,7 +316,10 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
       // `emailNotVerified`가 나고, 같은 조작에 이유가 바뀌는 것만 보게 된다.
       //
       // `_verifiedEmail`은 남긴다 — 왜 인증이 풀렸는지 알려야 한다.
-      if (failure != null) _ticket = null;
+      if (failure != null) {
+        _ticket = null;
+        _forgetCode();
+      }
     });
 
     if (failure == null) {
