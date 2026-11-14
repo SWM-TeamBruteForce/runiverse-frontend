@@ -415,6 +415,8 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                       // 인증을 마치면 잠근다(클래스 주석). 「확인」 응답을 기다리는
                       // 동안에도 잠근다 — 그사이 고치면 응답이 예전 이메일로
                       // 인증을 세워, 가입 실패가 없었는데도 풀렸다고 뜬다.
+                      // 「인증번호 받기」 중에는 잠그지 않는다 — 잠그면 치던 칸에서
+                      // 포커스가 빠져 키보드가 닫힌다.
                       enabled: !_verified && !_verifying,
                       suffix: _verified
                           ? FieldActionV2(

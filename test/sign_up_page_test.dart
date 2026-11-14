@@ -306,7 +306,7 @@ void main() {
     expect(enabled(tester, AppStrings.authSignUpCta), isTrue);
   });
 
-  testWidgets('⚠️ 요청이 가는 동안에는 이메일 칸과 「변경」이 잠긴다', (tester) async {
+  testWidgets('⚠️ 「확인」·가입 요청이 가는 동안에는 이메일 칸과 「변경」이 잠긴다', (tester) async {
     // 「확인」 응답을 기다리는 사이 이메일을 고치면, 응답이 예전 이메일로
     // 인증을 세워 가입 실패가 없었는데도 인증이 풀렸다는 안내가 뜬다.
     const latency = Duration(milliseconds: 100);
@@ -328,7 +328,8 @@ void main() {
     await enterPassword(tester, 'runi123!');
     await tester.tap(find.text(AppStrings.authSignUpCta));
     await tester.pump();
-    // 가입 요청 중에 티켓을 버리면 응답이 와도 이을 수 없다.
+    // 가입 요청은 이미 티켓을 들고 갔다. 그사이 「변경」을 받으면 성공 응답에
+    // 예전 이메일로 계정이 생기고 프로필로 넘어가, 바꾸려던 이메일이 무시된다.
     expect(enabled(tester, AppStrings.authEmailChange), isFalse);
 
     await tester.pumpAndSettle();
