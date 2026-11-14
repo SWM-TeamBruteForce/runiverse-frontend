@@ -85,6 +85,12 @@ void main() {
   bool emailEnabled(WidgetTester tester) =>
       tester.widget<TextField>(find.byType(TextField).at(0)).enabled ?? true;
 
+  /// 이메일 칸에 커서가 있는가.
+  bool emailFocused(WidgetTester tester) => tester
+      .widget<EditableText>(find.byType(EditableText).at(0))
+      .focusNode
+      .hasFocus;
+
   /// 인증을 마친 뒤 비밀번호와 확인을 함께 채운다.
   ///
   /// ⚠️ **확인 칸이 생겼다**(2026-09-30). 비밀번호만 치면 CTA 가 열리지 않는다 —
@@ -274,6 +280,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(emailEnabled(tester), isTrue);
+    // 잠긴 칸과 풀린 칸이 똑같이 생겨, 커서가 안 가면 칸을 한 번 더 눌러야 한다.
+    expect(emailFocused(tester), isTrue);
     expect(find.text('new@example.com'), findsOneWidget);
     expect(find.text(AppStrings.authVerifyDone), findsNothing);
     expect(find.text(AppStrings.authPasswordLabel), findsNothing);
@@ -284,19 +292,46 @@ void main() {
     expect(find.text(AppStrings.authVerifyReset), findsNothing);
   });
 
-  testWidgets('「변경」 뒤 이메일을 되돌려도 인증은 풀린 채로 남는다', (tester) async {
+  testWidgets('「변경」 뒤 다시 인증하면 친 비밀번호가 남는다', (tester) async {
     await pumpSignUp(tester);
     await verifyEmail(tester);
+    await enterPassword(tester, 'runi123!');
 
-    // A로 인증받고 B로 가입하는 구멍을 막는다. 고쳤다가 원래대로 되돌려도
-    // 다시 인증하기 전에는 비밀번호 칸이 열리지 않는다.
+    // 「변경」은 인증만 처음부터 다시 받게 한다. 비밀번호까지 지우면 같은 일을
+    // 두 번 하게 된다.
     await tester.tap(find.text(AppStrings.authEmailChange));
     await tester.pumpAndSettle();
-    await enterEmail(tester, 'other@example.com');
-    await enterEmail(tester, 'new@example.com');
+    await verifyEmail(tester);
 
-    expect(find.text(AppStrings.authVerifyDone), findsNothing);
-    expect(find.text(AppStrings.authPasswordLabel), findsNothing);
+    expect(enabled(tester, AppStrings.authSignUpCta), isTrue);
+  });
+
+  testWidgets('⚠️ 요청이 가는 동안에는 이메일 칸과 「변경」이 잠긴다', (tester) async {
+    // 「확인」 응답을 기다리는 사이 이메일을 고치면, 응답이 예전 이메일로
+    // 인증을 세워 가입 실패가 없었는데도 인증이 풀렸다는 안내가 뜬다.
+    const latency = Duration(milliseconds: 100);
+    repository = FakeAuthRepository(latency: latency);
+    await pumpSignUp(tester);
+    await enterEmail(tester, 'new@example.com');
+    await tester.tap(find.text(AppStrings.authVerifySend));
+    await tester.pump(latency);
+    await tick(tester);
+    await tester.enterText(find.byType(TextField).at(1), repository.lastCode!);
+    await tick(tester);
+
+    await tester.tap(find.text(AppStrings.authVerifyConfirm));
+    await tester.pump();
+    expect(emailEnabled(tester), isFalse);
+
+    await tester.pump(latency);
+    await tick(tester);
+    await enterPassword(tester, 'runi123!');
+    await tester.tap(find.text(AppStrings.authSignUpCta));
+    await tester.pump();
+    // 가입 요청 중에 티켓을 버리면 응답이 와도 이을 수 없다.
+    expect(enabled(tester, AppStrings.authEmailChange), isFalse);
+
+    await tester.pumpAndSettle();
   });
 
   testWidgets('이미 가입한 이메일은 번호를 받는 단계에서 막힌다', (tester) async {

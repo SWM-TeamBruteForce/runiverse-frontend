@@ -85,6 +85,9 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
   final _password = TextEditingController();
   final _passwordConfirm = TextEditingController();
 
+  /// 「변경」을 누르면 이메일 칸으로 커서를 옮기려고 든다.
+  final _emailFocus = FocusNode();
+
   /// 인증번호를 보낸 이메일. 현재 입력과 다르면 보낸 적 없는 것으로 친다.
   String? _codeSentTo;
 
@@ -120,6 +123,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
     _code.dispose();
     _password.dispose();
     _passwordConfirm.dispose();
+    _emailFocus.dispose();
     super.dispose();
   }
 
@@ -218,6 +222,11 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
       _verifiedEmail = null;
       _failure = null;
       _forgetCode();
+    });
+    // 잠긴 칸과 풀린 칸이 똑같이 생겨, 커서가 안 가면 한 번 더 눌러야 한다.
+    // 칸은 다음 그림에서야 풀린다 — 지금 부르면 잠긴 칸이라 무시된다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _emailFocus.requestFocus();
     });
   }
 
@@ -395,6 +404,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                     // 칸 밖에 두면 이메일과 그 이메일로 할 일이 떨어져 보인다.
                     AppInputV2(
                       controller: _email,
+                      focusNode: _emailFocus,
                       label: AppStrings.authEmailLabel,
                       hint: AppStrings.authEmailHint,
                       keyboardType: TextInputType.emailAddress,
@@ -402,8 +412,10 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                       onChanged: _onEmailChanged,
                       tone: _emailTone(emailStatus),
                       helper: _emailHelper(emailStatus),
-                      // 인증을 마치면 잠근다(클래스 주석).
-                      enabled: !_verified,
+                      // 인증을 마치면 잠근다(클래스 주석). 「확인」 응답을 기다리는
+                      // 동안에도 잠근다 — 그사이 고치면 응답이 예전 이메일로
+                      // 인증을 세워, 가입 실패가 없었는데도 풀렸다고 뜬다.
+                      enabled: !_verified && !_verifying,
                       suffix: _verified
                           ? FieldActionV2(
                               label: AppStrings.authEmailChange,
@@ -535,7 +547,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
 
   String? _emailHelper(EmailStatus status) {
     if (status == EmailStatus.invalid) return AppStrings.authEmailInvalid;
-    // 인증을 마친 뒤 이메일을 고쳤다. **왜 인증이 풀렸는지** 밝히지 않으면
+    // 가입에 실패해 인증이 풀렸다. **왜 비밀번호 칸이 사라졌는지** 밝히지 않으면
     // 사용자는 방금 한 인증이 사라진 것을 모른 채 가입 버튼만 쳐다본다.
     if (_verificationReset) return AppStrings.authVerifyReset;
     return null;
