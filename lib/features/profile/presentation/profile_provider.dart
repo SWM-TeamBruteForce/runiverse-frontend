@@ -218,7 +218,7 @@ class ProfileSummaryController extends Notifier<ProfileSummaryState> {
 
   /// 소개글·신체 정보를 한 번에 저장한다. 실패하면 그 이유를 준다.
   ///
-  /// 성공하면 소개글은 화면·저장값에, 신체 정보는 [profileBodyProvider]에
+  /// 성공하면 소개글은 화면·저장값에, 신체 정보는 [bodyProfileProvider]에
   /// 남긴다. **51번 응답은 보낸 필드만 돌려주므로** 요약을 다시 받을 일이 없다.
   Future<ProfileEditFailure?> saveProfile({
     String? introduction,
