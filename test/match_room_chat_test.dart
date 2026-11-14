@@ -140,6 +140,13 @@ void main() {
   }
 
   group('언제 보이는가', () {
+    // TODO(되살리기): 방 채팅을 되살리면 이 테스트를 지운다.
+    testWidgets('채팅을 숨긴 동안은 출발 전 방에도 버튼이 없다', (tester) async {
+      await pumpRoom(tester, snapshot: room());
+
+      expect(find.byKey(MatchRoomPage.chatKey), findsNothing);
+    });
+
     // TODO(되살리기): 방 채팅을 되살리면 skip을 지운다.
     testWidgets('파티원이 둘 이상이면 채팅 버튼이 보인다', (tester) async {
       await pumpRoom(tester, snapshot: room());
