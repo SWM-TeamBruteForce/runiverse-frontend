@@ -290,7 +290,7 @@ abstract final class AppStrings {
   static const profilePaceSkipEyebrow = '러닝이 처음이라면';
 
   /// 아직 재본 적 없는 사람의 출구. 이걸 막으면 입문자가 아무 값이나 찍고 넘어간다.
-  static const profilePaceSkip = '건너뛰기';
+  static const profilePaceSkip = '페이스 건너뛰기';
 
   /// 버튼 아래 안내. 측정이 어디서 이뤄지는지 미리 알린다.
   static const profilePaceSkipWhy = '홈에서 혼자 연습하며 재보면 그때 채워져요';
