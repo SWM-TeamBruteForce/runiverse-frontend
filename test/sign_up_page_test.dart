@@ -70,7 +70,7 @@ void main() {
   /// 버튼이 눌리는 상태인가.
   ///
   /// ⚠️ **두 종류가 섞여 있다.** 큰 버튼은 [AppButtonV2], 입력 칸 **안**의 작은
-  /// 버튼은 [FieldActionV2]다(`인증번호 받기` `다시 받기`). 둘 다 `onPressed`가
+  /// 버튼은 [FieldActionV2]다(`인증번호 받기` `다시 받기` `변경`). 둘 다 `onPressed`가
   /// null이면 잠긴 것이라, 어느 쪽인지 찾아서 같은 것을 본다.
   bool enabled(WidgetTester tester, String label) {
     final big = find.widgetWithText(AppButtonV2, label);
@@ -80,6 +80,10 @@ void main() {
     final small = find.widgetWithText(FieldActionV2, label);
     return tester.widget<FieldActionV2>(small).onPressed != null;
   }
+
+  /// 이메일 칸을 고칠 수 있는가. 인증을 마치면 잠긴다.
+  bool emailEnabled(WidgetTester tester) =>
+      tester.widget<TextField>(find.byType(TextField).at(0)).enabled ?? true;
 
   /// 인증을 마친 뒤 비밀번호와 확인을 함께 채운다.
   ///
@@ -252,26 +256,42 @@ void main() {
     expect(find.text(AppStrings.authPasswordDisallowedChar), findsOneWidget);
   });
 
-  testWidgets('인증한 뒤 이메일을 고치면 인증이 풀린다', (tester) async {
+  testWidgets('인증하면 이메일 칸이 잠기고 「변경」이 생긴다', (tester) async {
     await pumpSignUp(tester);
     await verifyEmail(tester);
-    expect(find.text(AppStrings.authVerifyDone), findsOneWidget);
 
-    // A로 인증받고 B로 가입하는 구멍을 막는다.
-    await enterEmail(tester, 'other@example.com');
-
-    expect(find.text(AppStrings.authVerifyDone), findsNothing);
-    expect(find.text(AppStrings.authPasswordLabel), findsNothing);
-    // 왜 풀렸는지 밝히지 않으면 사용자는 가입 버튼만 쳐다본다.
-    expect(find.text(AppStrings.authVerifyReset), findsOneWidget);
+    // 잠그지 않으면 한 글자만 고쳐도 인증이 조용히 풀려 비밀번호 칸이 사라진다.
+    expect(emailEnabled(tester), isFalse);
+    expect(enabled(tester, AppStrings.authEmailChange), isTrue);
+    expect(find.text(AppStrings.authPasswordLabel), findsOneWidget);
   });
 
-  testWidgets('이메일을 되돌려도 인증은 풀린 채로 남는다', (tester) async {
+  testWidgets('「변경」을 누르면 인증을 처음부터 다시 받는다', (tester) async {
     await pumpSignUp(tester);
     await verifyEmail(tester);
 
-    // 고쳤다가 원래대로 되돌린다. 이메일 비교만으로 판정하면 여기서 통과해
-    // **티켓 없이 가입 버튼이 열린다** — 눌러도 아무 일이 없다.
+    await tester.tap(find.text(AppStrings.authEmailChange));
+    await tester.pumpAndSettle();
+
+    expect(emailEnabled(tester), isTrue);
+    expect(find.text('new@example.com'), findsOneWidget);
+    expect(find.text(AppStrings.authVerifyDone), findsNothing);
+    expect(find.text(AppStrings.authPasswordLabel), findsNothing);
+    // 지난 인증번호 칸이 다시 열리면 서버가 이미 지운 번호를 눌러 보게 된다.
+    expect(find.text(AppStrings.authVerifyLabel), findsNothing);
+    expect(enabled(tester, AppStrings.authVerifySend), isTrue);
+    // 스스로 누른 것이라 빨간 안내로 알릴 것이 없다.
+    expect(find.text(AppStrings.authVerifyReset), findsNothing);
+  });
+
+  testWidgets('「변경」 뒤 이메일을 되돌려도 인증은 풀린 채로 남는다', (tester) async {
+    await pumpSignUp(tester);
+    await verifyEmail(tester);
+
+    // A로 인증받고 B로 가입하는 구멍을 막는다. 고쳤다가 원래대로 되돌려도
+    // 다시 인증하기 전에는 비밀번호 칸이 열리지 않는다.
+    await tester.tap(find.text(AppStrings.authEmailChange));
+    await tester.pumpAndSettle();
     await enterEmail(tester, 'other@example.com');
     await enterEmail(tester, 'new@example.com');
 

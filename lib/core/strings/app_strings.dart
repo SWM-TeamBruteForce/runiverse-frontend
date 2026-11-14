@@ -435,6 +435,9 @@ abstract final class AppStrings {
   static const authVerifySend = '인증번호 받기';
   static const authVerifyResend = '다시 받기';
 
+  /// 인증을 마치면 이메일 칸이 잠기고 그 안에 뜬다. 누르면 인증을 처음부터 다시 받는다.
+  static const authEmailChange = '변경';
+
   static const authVerifyLabel = '인증번호';
   static const authVerifyHint = '메일로 보낸 6자리 숫자';
   static const authVerifyConfirm = '확인';

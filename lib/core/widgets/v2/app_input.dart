@@ -59,6 +59,7 @@ class AppInputV2 extends StatefulWidget {
     this.focusNode,
     this.maxLines = 1,
     this.minLines,
+    this.enabled = true,
     super.key,
   });
 
@@ -111,6 +112,11 @@ class AppInputV2 extends StatefulWidget {
 
   /// 처음부터 확보할 줄 수. 대개는 주지 않는다.
   final int? minLines;
+
+  /// `false`면 칸이 잠긴다 — 눌러도 키보드가 뜨지 않고 글자를 고칠 수 없다.
+  /// **모양은 그대로다.** 왜 잠겼는지는 화면이 [suffix]·주변 안내로 말한다.
+  /// 회원가입이 인증을 마친 이메일을 잠그려고 쓴다.
+  final bool enabled;
 
   @override
   State<AppInputV2> createState() => _AppInputV2State();
@@ -218,6 +224,7 @@ class _AppInputV2State extends State<AppInputV2> {
                         TextField(
                           controller: widget.controller,
                           focusNode: _focus,
+                          enabled: widget.enabled,
                           autofocus: widget.autofocus,
                           keyboardType: widget.keyboardType,
                           inputFormatters: widget.inputFormatters,
