@@ -140,12 +140,14 @@ void main() {
   }
 
   group('언제 보이는가', () {
+    // TODO(되살리기): 방 채팅을 되살리면 skip을 지운다.
     testWidgets('파티원이 둘 이상이면 채팅 버튼이 보인다', (tester) async {
       await pumpRoom(tester, snapshot: room());
 
       expect(find.byKey(MatchRoomPage.chatKey), findsOne);
-    });
+    }, skip: true);
 
+    // TODO(되살리기): 방 채팅을 되살리면 skip을 지운다.
     testWidgets('⚠️ 나 혼자여도 보인다', (tester) async {
       // ⚠️ **2026-11-13에 뒤집었다.** 전에는 혼자면 숨겼는데, 둘이 대화하다
       // 한 명이 나가면 남은 사람이 **방금 나눈 대화에 들어갈 문을 잃었다.**
@@ -153,7 +155,7 @@ void main() {
       await pumpRoom(tester, snapshot: room(players: 1));
 
       expect(find.byKey(MatchRoomPage.chatKey), findsOne);
-    });
+    }, skip: true);
 
     testWidgets('출발한 방(started)에서는 숨는다', (tester) async {
       await pumpRoom(tester, snapshot: room(status: RoomStatus.started));
@@ -161,6 +163,7 @@ void main() {
       expect(find.byKey(MatchRoomPage.chatKey), findsNothing);
     });
 
+    // TODO(되살리기): 방 채팅을 되살리면 skip을 지운다.
     testWidgets('⚠️ 떠 있는 버튼이 목록 맨 끝 줄을 가리지 않는다', (tester) async {
       // ⚠️ **겨냥하는 것이 2026-11-11에 바뀌었다.** 전에는 목록 맨 끝에 나가기
       // 안내가 있어 그것을 봤는데, 팀이 그 안내를 목록 밖(나가기 버튼 위)으로
@@ -177,7 +180,7 @@ void main() {
       final button = tester.getRect(find.byKey(MatchRoomPage.chatKey));
 
       expect(party.overlaps(button), isFalse);
-    });
+    }, skip: true);
 
     testWidgets('나가기 버튼이 가려지지 않는다', (tester) async {
       // A안(Scaffold FAB)이 깨진 이유다 — `나가기`가 body 안에 있다.
@@ -193,6 +196,7 @@ void main() {
   });
 
   group('배지', () {
+    // TODO(되살리기): 방 채팅을 되살리면 skip을 지운다.
     testWidgets('안 읽은 수가 배지에 뜬다', (tester) async {
       final app = await pumpRoom(
         tester,
@@ -207,7 +211,7 @@ void main() {
       // 있다가 사람이 들어온 방의 채팅이 빈 목록으로 남았다. 지금은
       // `chatProvider`가 방을 직접 듣는다(`chat_provider_test`가 덮는다).
       expect(app.chat.connects, 0);
-    });
+    }, skip: true);
 
     testWidgets('⚠️ 0이면 배지가 없다', (tester) async {
       await pumpRoom(tester, snapshot: room(), chatState: unreadState(0));
@@ -215,6 +219,7 @@ void main() {
       expect(find.byKey(MatchRoomPage.chatBadgeKey), findsNothing);
     });
 
+    // TODO(되살리기): 방 채팅을 되살리면 skip을 지운다.
     testWidgets('Semantics가 안 읽은 수까지 읽는다', (tester) async {
       // 글자 라벨이 없는 버튼이다 — 안 붙이면 스크린리더가 읽을 것이 없다.
       final semantics = tester.ensureSemantics();
@@ -227,10 +232,11 @@ void main() {
 
       // ⚠️ `addTearDown`으로는 늦다 — 핸들 검사가 tearDown보다 먼저 돈다.
       semantics.dispose();
-    });
+    }, skip: true);
   });
 
   group('⚠️ 채팅을 열어 둔 사이의 자동 이동', () {
+    // TODO(되살리기): 방 채팅을 되살리면 skip을 지운다.
     testWidgets('⚠️ 채팅을 연 채 방이 죽으면 채팅부터 닫힌다', (tester) async {
       final app = await pumpRoom(tester, snapshot: room());
       await tester.tap(find.byKey(MatchRoomPage.chatKey));
@@ -244,8 +250,9 @@ void main() {
       // 채팅만 닫히고 죽은 방 화면에 사람이 남으면 실패다.
       expect(find.byType(ChatPage, skipOffstage: false), findsNothing);
       expect(find.byType(MatchRoomPage, skipOffstage: false), findsNothing);
-    });
+    }, skip: true);
 
+    // TODO(되살리기): 방 채팅을 되살리면 skip을 지운다.
     testWidgets('⚠️ 채팅을 연 채 출발 시각이 닥치면 카운트다운으로 간다', (tester) async {
       final app = await pumpRoom(tester, snapshot: room(startAt: soon));
       await tester.tap(find.byKey(MatchRoomPage.chatKey));
@@ -262,7 +269,7 @@ void main() {
       expect(find.byType(MatchRoomPage, skipOffstage: false), findsNothing);
 
       app.stream.close();
-    });
+    }, skip: true);
   });
 }
 

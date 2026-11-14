@@ -22,6 +22,11 @@ import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 
+// TODO(되살리기): 운영 서버에 방 채팅이 배포되면 true로.
+// 빌드 때 고정하는 숨김이다(원격 설정 아님). 채팅 상태는 이 버튼이 처음 읽어서
+// 버튼이 없으면 채팅 API도 부르지 않는다. 되살릴 때 테스트 skip도 지운다.
+const _showChat = false;
+
 /// 대기방 (S10). 시안 `158:3415` `매칭 완료 / 세션 로비 페이지`.
 ///
 /// **모집 중과 확정 뒤를 한 화면이 맡는다.** 확정은 순간이고, 그 앞뒤로 사람이
@@ -461,7 +466,8 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
   /// 원래 인원수를 보지 않으므로(`chat_provider._syncRoom`), 숨기던 것은
   /// 버튼뿐이었다.
   bool _chatting(RoomInfo room) =>
-      room.status == RoomStatus.matching || room.status == RoomStatus.matched;
+      _showChat &&
+      (room.status == RoomStatus.matching || room.status == RoomStatus.matched);
 }
 
 /// 대기방의 채팅 버튼 — 원형 `primary` 면에 말풍선을 흰색으로 얹는다.
