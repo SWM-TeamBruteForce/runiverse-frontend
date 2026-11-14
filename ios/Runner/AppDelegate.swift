@@ -4,6 +4,8 @@ import firebase_messaging
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
+  private var watchBridge: WatchBridge?
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -17,5 +19,6 @@ import firebase_messaging
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    watchBridge = WatchBridge(messenger: engineBridge.applicationRegistrar.messenger())
   }
 }

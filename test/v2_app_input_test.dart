@@ -14,6 +14,7 @@ import 'package:runiverse/core/widgets/v2/app_input.dart';
 /// - 톤이 테두리와 helper 색을 함께 바꾼다
 /// - `obscureText`가 글자를 가린다
 /// - `key`가 [EditableText]까지 닿는다 — 화면 테스트가 칸을 이 손잡이로 찾는다
+/// - `enabled: false`가 칸을 잠그되 모양은 그대로 둔다
 void main() {
   Future<void> pump(WidgetTester tester, Widget input) async {
     await tester.pumpWidget(
@@ -165,6 +166,27 @@ void main() {
     final suffix = tester.getRect(find.text('인증하기'));
 
     expect(suffix.left, greaterThan(field.right));
+  });
+
+  testWidgets('⚠️ 잠그면 눌러도 키보드가 안 뜨고 글자색은 그대로다', (tester) async {
+    // 회원가입이 인증을 마친 이메일을 이것으로 잠근다. 글자가 흐려지면
+    // 인증한 값이 잘못된 것처럼 보인다.
+    await pump(
+      tester,
+      AppInputV2(
+        controller: TextEditingController(text: 'a@b.com'),
+        enabled: false,
+      ),
+    );
+
+    await tester.tap(find.byType(TextField), warnIfMissed: false);
+    await tester.pump();
+
+    expect(tester.testTextInput.isVisible, isFalse);
+    expect(
+      tester.widget<EditableText>(find.byType(EditableText)).style.color,
+      colorsOf(tester).textPrimary,
+    );
   });
 
   testWidgets('counter가 없으면 helper 줄이 생기지 않는다', (tester) async {

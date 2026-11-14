@@ -9,6 +9,7 @@ import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/field_action.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
@@ -143,7 +144,7 @@ void main() {
     await type(tester, weightField, '65');
   }
 
-  /// 페이스 칸의 '건너뛰기'를 누른다.
+  /// 페이스 칸의 '페이스 건너뛰기'를 누른다.
   ///
   /// ⚠️ **먼저 끌어올린다.** 폼 맨 아래라 600px 짜리 테스트 화면에서는
   /// y=691 — 화면 밖이다. 바로 누르면 "닿지 않는다"고 경고하고 실패한다.
@@ -177,18 +178,9 @@ void main() {
     testWidgets('⚠️ 채우지 않고 나가는 문이 없다', (tester) async {
       // 프로필을 비워두면 매칭도 기록도 설 자리가 없다.
       // 시안에는 뒤로가기와 건너뛰기가 있지만 넣지 않았다.
-      //
-      // ⚠️ **`onboardingSkip` 과 `profilePaceSkip` 은 글자가 똑같다**(`건너뛰기`).
-      // 그래서 "없다"로는 볼 수 없다 — 페이스 버튼이 걸린다. 대신 **개수**로 본다:
-      // 이 화면의 건너뛰기는 페이스 칸의 것 하나뿐이다. 폼을 빠져나가는 문이
-      // 생기면 둘이 되어 여기서 걸린다 — 그것이 어떤 위젯이든.
       await pumpPage(tester);
 
-      expect(find.text(AppStrings.onboardingSkip), findsOneWidget);
-      expect(
-        find.widgetWithText(AppButtonV2, AppStrings.profilePaceSkip),
-        findsOneWidget,
-      );
+      expect(find.text(AppStrings.onboardingSkip), findsNothing);
       expect(find.byType(BackButton), findsNothing);
     });
 
@@ -269,6 +261,68 @@ void main() {
       await tester.tap(find.text(AppStrings.profileGenderFemale));
       await tester.pumpAndSettle();
       expect(nextEnabled(tester), isTrue);
+    });
+  });
+
+  group('⚠️ 키보드가 올라오면', () {
+    // 갤럭시 S23+ 크기(384x832)에 키보드 380.
+    const keyboard = 380.0;
+    const keyboardTop = 832.0 - keyboard;
+
+    Future<void> pumpPhone(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2340);
+      tester.view.devicePixelRatio = 2.8125;
+      addTearDown(tester.view.reset);
+      await pumpPage(tester);
+    }
+
+    Future<void> raiseKeyboard(WidgetTester tester) async {
+      await tester.tap(find.byType(TextField).at(nicknameField));
+      await tester.pumpAndSettle();
+      tester.view.viewInsets = const FakeViewPadding(bottom: keyboard * 2.8125);
+      await tester.pumpAndSettle();
+    }
+
+    Rect next(WidgetTester tester) => tester.getRect(
+      find.widgetWithText(AppButtonV2, AppStrings.profileNext),
+    );
+
+    /// 목록 끝과 「다음」 사이.
+    double gap(WidgetTester tester) =>
+        next(tester).top -
+        tester.getRect(find.byType(SingleChildScrollView).first).bottom;
+
+    testWidgets('⚠️ 목록과 「다음」 사이를 띄운다', (tester) async {
+      // 붙어 있으면 목록 끝에서 잘린 칸이 같은 회색의 「다음」에 맞붙어
+      // 깨진 것처럼 보였다. 초대 등록이 버튼 위에 남기는 목록 끝 여백과 같다.
+      await pumpPhone(tester);
+      await raiseKeyboard(tester);
+
+      expect(gap(tester), moreOrLessEquals(AppSpacing.space6));
+    });
+
+    testWidgets('키보드가 오르내리는 중에는 올라온 높이만큼만 띄운다', (tester) async {
+      // 간격이 한 번에 24로 생기거나 사라지면 키보드가 움직이는 동안 목록이 툭 뛴다.
+      await pumpPhone(tester);
+      await raiseKeyboard(tester);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 10 * 2.8125);
+      await tester.pumpAndSettle();
+
+      expect(gap(tester), moreOrLessEquals(10));
+    });
+
+    testWidgets('「다음」은 키보드 위에 그대로 보인다', (tester) async {
+      // 키보드가 덮으면 아이폰 숫자 패드에 완료 키가 없어 내릴 길이 없다.
+      await pumpPhone(tester);
+      await raiseKeyboard(tester);
+
+      expect(next(tester).bottom, lessThanOrEqualTo(keyboardTop));
+    });
+
+    testWidgets('키보드가 없으면 전처럼 붙어 있다', (tester) async {
+      await pumpPhone(tester);
+
+      expect(gap(tester), moreOrLessEquals(0));
     });
   });
 

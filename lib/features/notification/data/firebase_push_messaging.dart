@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:runiverse/features/notification/data/notification_access_mapper.dart';
 import 'package:runiverse/features/notification/domain/push_messaging.dart';
+import 'package:runiverse/features/session/domain/permission_access.dart';
 
 /// FCM에 닿는 [PushMessaging]. `main.dart`가 끼운다.
 ///
@@ -24,11 +26,16 @@ class FirebasePushMessaging implements PushMessaging {
   /// ⚠️ **던지지 않는다.** 셸이 기다리지 않고 부르므로, 던지면 처리되지 않은
   /// 오류가 되어 Crashlytics에 치명 오류로 쌓인다.
   @override
-  Future<void> requestPermission() async {
+  Future<PermissionAccess?> requestPermission() async {
     try {
-      await _messaging.requestPermission();
+      final settings = await _messaging.requestPermission();
+      return toNotificationAccess(
+        settings.authorizationStatus,
+        isIos: Platform.isIOS,
+      );
     } on FirebaseException catch (error) {
       debugPrint('[push] 알림 권한을 묻지 못했다 · ${error.code}');
+      return null;
     }
   }
 

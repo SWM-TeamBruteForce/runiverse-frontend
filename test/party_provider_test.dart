@@ -6,10 +6,12 @@ import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_track_repository.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
+import 'package:runiverse/features/session/domain/party_board.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
 import 'package:runiverse/features/session/domain/run_numbers.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
@@ -32,6 +34,7 @@ void main() {
 
   late _PushChannel channel;
   late FakeLocationRepository location;
+  late InMemoryTokenStore tokens;
 
   /// 세션이 지금 재고 있는 내 거리(m). 달리는 중이 아니면 0.
   int distanceOf(ProviderContainer container) =>
@@ -41,8 +44,9 @@ void main() {
         _ => 0,
       };
 
-  Future<ProviderContainer> makeContainer() async {
-    final tokens = InMemoryTokenStore();
+  /// [auth]를 주면 로그인 상태를 테스트가 바꿀 수 있는 컨트롤러로 덮는다.
+  Future<ProviderContainer> makeContainer({AuthState? auth}) async {
+    tokens = InMemoryTokenStore();
     await tokens.saveSession(
       userId: 'u-1',
       accessToken: 'a-1',
@@ -69,6 +73,8 @@ void main() {
           ),
         ),
         runningChannelFactoryProvider.overrideWithValue((_) => channel),
+        if (auth != null)
+          authControllerProvider.overrideWith(() => _Auth(auth)),
       ],
     );
   }
@@ -417,6 +423,62 @@ void main() {
     expect(channel.progressListeners, 1);
     expect(channel.comboListeners, 1);
   });
+
+  test('⚠️ 앱을 끄지 않고 계정을 바꿔도 새 계정으로 나를 찾는다', () async {
+    // 이 provider는 로그아웃해도 살아 있다. 옛 계정 번호를 들고 있으면 명단에서
+    // 나를 못 찾아, 이름 없는 `나` 줄 옆에 내 이름이 파티원으로 또 선다
+    // (초대 러닝 2명이 3명으로 보였다).
+    final container = await makeContainer(
+      auth: const AuthSignedIn('u-1', isOnboarded: true),
+    );
+    await container
+        .read(runningConnectionProvider.notifier)
+        .openMatched(13, targetDistanceMeters: 3000);
+    container.read(partyProvider);
+
+    // u-1로 뛰는 동안 통지를 받아 내 번호를 읽어 둔다.
+    channel.progress_.add(progress('u-9', 100));
+    await settle();
+
+    // u-2로 바꿔 들어온다.
+    final auth = container.read(authControllerProvider.notifier) as _Auth;
+    auth.set(const AuthSignedOut(returning: true));
+    // 세션 만료는 저장소에 옛 번호를 남긴다. 그 사이 통지가 와 옛 번호를 다시
+    // 읽어도, 새 계정으로 들어오면 또 버려야 한다.
+    channel.progress_.add(progress('u-9', 200));
+    await settle();
+    await tokens.saveSession(
+      userId: 'u-2',
+      accessToken: 'a-2',
+      refreshToken: 'r-2',
+      isOnboarded: true,
+    );
+    auth.set(const AuthSignedIn('u-2', isOnboarded: true));
+
+    // 대기방 명단(나 포함)을 들고 출발한 뒤 파티원 진행이 온다.
+    container.read(partyProvider.notifier).setRoster(const [
+      PartyMember(userId: 'u-9', nickname: '애플찬'),
+      PartyMember(userId: 'u-2', nickname: '오리예나'),
+    ], myUserId: 'u-2');
+    channel.progress_.add(progress('u-9', 300));
+    await settle();
+
+    final lanes = container.read(partyProvider).lanes;
+    expect(lanes.map((lane) => lane.userId), ['u-2', 'u-9']);
+    expect(lanes.first.isMe, isTrue);
+  });
+}
+
+/// 테스트가 로그인 상태를 바꿔 끼우는 컨트롤러.
+class _Auth extends AuthController {
+  _Auth(this.initial);
+
+  final AuthState initial;
+
+  @override
+  AuthState build() => initial;
+
+  void set(AuthState next) => state = next;
 }
 
 /// 진행·콤보를 손으로 흘려보낼 수 있는 채널. 구독 수도 센다.

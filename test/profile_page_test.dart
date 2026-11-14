@@ -25,6 +25,11 @@ import 'package:runiverse/features/auth/domain/current_user.dart';
 import 'package:runiverse/features/auth/domain/oauth_authorization.dart';
 import 'package:runiverse/features/auth/domain/oauth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/notification/data/fake_app_stream.dart';
+import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
+import 'package:runiverse/features/notification/domain/notification_page_result.dart';
+import 'package:runiverse/features/notification/presentation/notification_page.dart';
+import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/profile/data/fake_profile_image_repository.dart';
 import 'package:runiverse/features/profile/data/fake_profile_repository.dart';
@@ -64,6 +69,7 @@ void main() {
     PhotoPicker? picker,
     FakeProfileRepository? summary,
     String? cachedNickname,
+    FakeNotificationRepository? notifications,
   }) async {
     final repository = FakeAuthRepository(latency: Duration.zero);
     const email = 'runner@example.com';
@@ -124,6 +130,12 @@ void main() {
             background ?? FakeProfileImageRepository(latency: Duration.zero),
           ),
           if (picker != null) photoPickerProvider.overrideWithValue(picker),
+          // 벨을 누르면 알림함이 목록을 받는다. 진짜를 두면 dio가 서버 주소를
+          // 찾다 죽는다.
+          if (notifications != null) ...[
+            appStreamProvider.overrideWithValue(FakeAppStream()),
+            notificationRepositoryProvider.overrideWithValue(notifications),
+          ],
         ],
         child: const RuniverseApp(initialLocation: AppRoutes.profile),
       ),
@@ -423,6 +435,46 @@ void main() {
       );
       expect(size.width, greaterThanOrEqualTo(44));
       expect(size.height, greaterThanOrEqualTo(44));
+    });
+  });
+
+  group('알림 벨', () {
+    testWidgets('벨을 누르면 알림함으로 간다', (tester) async {
+      // 알림함 입구 둘 중 하나다. 다른 하나는 홈 위 줄 종이다.
+      await pumpProfile(
+        tester,
+        onboarded: true,
+        notifications: FakeNotificationRepository(),
+      );
+
+      await tester.tap(find.bySemanticsLabel(AppStrings.notificationTitle));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NotificationPage), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 안 읽은 알림이 있으면 벨에 점이 서고 읽히는 이름이 바뀐다', (tester) async {
+      final handle = tester.ensureSemantics();
+      final notifications = FakeNotificationRepository()
+        ..pages[null] = const NotificationPageResult(items: [], unreadCount: 1);
+      await pumpProfile(tester, onboarded: true, notifications: notifications);
+
+      // 셸은 로그인돼 있을 때만 알림을 받는데, 여기서는 로그인 복원이 셸보다
+      // 늦다(`pumpProfile`). 대신 받는다.
+      await ProviderScope.containerOf(
+        tester.element(find.byType(ProfilePage)),
+      ).read(notificationProvider.notifier).refresh();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('cover-action-badge')), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          '${AppStrings.notificationTitle}, '
+          '${AppStrings.notificationUnreadSemantics}',
+        ),
+        findsOneWidget,
+      );
+      handle.dispose();
     });
   });
 

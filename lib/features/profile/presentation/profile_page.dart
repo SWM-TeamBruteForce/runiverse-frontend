@@ -10,6 +10,7 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/profile/presentation/profile_cover.dart';
+import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_cover_action.dart';
 import 'package:runiverse/features/friend/presentation/friend_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_header.dart';
@@ -54,8 +55,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       // 커버가 영영 기본 배경으로 남는다.
       ref.read(backgroundImageControllerProvider.notifier).load();
       // ⚠️ **받은 요청 수를 주는 API가 따로 없다.** 친구 목록 첫 장을 받아
-      // 센다(`ProfileStatRow.receivedCount`). 그 숫자가 지금은 요청이 왔다는
-      // 것을 아는 **유일한 통로**다 — 인앱 알림은 백엔드가 만들고 있다.
+      // 센다(`ProfileStatRow.receivedCount`).
       ref.read(friendProvider.notifier).load();
     });
   }
@@ -123,14 +123,26 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       // 여기 값은 **커버 안쪽 간격**이다.
                       top: AppSpacing.space2,
                       right: AppSpacing.space4,
-                      // 알림 종은 홈 위 줄로 옮겼다(`home_top_bar.dart`).
-                      child: ProfileCoverAction(
-                        icon: AppIcons.settings,
-                        label: AppStrings.settingsTitle,
-                        // 편집과 달리 **돌아와서 다시 받아오지 않는다.**
-                        // 설정은 프로필 요약(닉네임·사진·소개글)을
-                        // 건드리지 않는다.
-                        onTap: () => context.push(AppRoutes.settings),
+                      child: Row(
+                        children: [
+                          // 홈 위 줄 종과 같은 알림함으로 간다. 하단 탭의
+                          // 점은 홈 탭에만 있다(`app_shell.dart`).
+                          ProfileCoverAction(
+                            icon: AppIcons.bell,
+                            label: AppStrings.notificationTitle,
+                            badged: ref.watch(hasUnreadProvider),
+                            onTap: () => context.push(AppRoutes.notifications),
+                          ),
+                          const SizedBox(width: AppSpacing.space2),
+                          ProfileCoverAction(
+                            icon: AppIcons.settings,
+                            label: AppStrings.settingsTitle,
+                            // 편집과 달리 **돌아와서 다시 받아오지 않는다.**
+                            // 설정은 프로필 요약(닉네임·사진·소개글)을
+                            // 건드리지 않는다.
+                            onTap: () => context.push(AppRoutes.settings),
+                          ),
+                        ],
                       ),
                     ),
                   ],

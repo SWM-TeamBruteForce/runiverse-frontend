@@ -401,6 +401,24 @@ void main() {
       await unmount(tester);
     });
 
+    testWidgets('폰 시각이 출발 전으로 돌아가도 시간이 음수로 보이지 않는다', (tester) async {
+      await pumpRun(tester);
+      await startRunning(tester);
+
+      // 먼저 시간이 화면에 그려지는지 본다. 안 그려져도 처음부터 `00:00`이라
+      // 이것 없이는 막아서 `00:00`인지 구분이 안 된다.
+      clock = clock.add(const Duration(minutes: 5));
+      await emit(tester, point(37.5, 127));
+      expect(find.text('05:00'), findsOneWidget);
+
+      // 달리는 중에 사용자가 폰 시각을 한 시간 전으로 돌렸다.
+      clock = clock.subtract(const Duration(hours: 1));
+      await emit(tester, point(37.5, 127));
+
+      expect(find.text('00:00'), findsOneWidget);
+      await unmount(tester);
+    });
+
     testWidgets('⚠️ 달리면 좌표가 로컬에 쌓인다', (tester) async {
       // 서버가 아직 좌표를 못 받으므로, 쌓아 두지 않으면 통째로 사라진다.
       await pumpRun(tester);

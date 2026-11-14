@@ -1,11 +1,15 @@
+import 'package:runiverse/features/session/domain/permission_access.dart';
+
 /// 푸시 SDK(FCM)에 닿는 문.
 ///
 /// 화면과 provider는 이것만 안다. 진짜(`FirebasePushMessaging`)는 플랫폼 채널을
 /// 부르므로 `main.dart`가 끼운다 — 기본값은 [NoopPushMessaging]이다.
 abstract interface class PushMessaging {
-  /// 알림 권한을 묻는다. **결과는 보지 않는다** — 거절해도 등록은 한다(토큰은
-  /// 권한과 상관없이 생긴다). 이미 답한 권한이면 창 없이 끝난다.
-  Future<void> requestPermission();
+  /// 알림 권한을 묻는다. 이미 답한 권한이면 창 없이 지금 상태를 돌려준다.
+  ///
+  /// **결과는 기록(GA)에만 쓴다** — 거절해도 등록은 한다(토큰은 권한과
+  /// 상관없이 생긴다). 묻지 못했으면 `null`이다.
+  Future<PermissionAccess?> requestPermission();
 
   /// 지금 FCM 등록 토큰. 아직 없거나 못 받았으면 `null`이다.
   Future<String?> token();
@@ -37,7 +41,7 @@ class NoopPushMessaging implements PushMessaging {
   const NoopPushMessaging();
 
   @override
-  Future<void> requestPermission() async {}
+  Future<PermissionAccess?> requestPermission() async => null;
 
   @override
   Future<String?> token() async => null;

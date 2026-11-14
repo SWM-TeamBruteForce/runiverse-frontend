@@ -387,7 +387,17 @@ void main() {
       expect(find.text(AppStrings.withdrawBody), findsOneWidget);
     });
 
-    testWidgets('⚠️ 로컬 계정에는 애플 안내가 없다', (tester) async {
+    /// 구글도 연결이 남는다 — 서버도 앱도 구글 연결을 끊지 않는다.
+    testWidgets('⚠️ 구글 계정이면 구글 해제 안내가 뜬다', (tester) async {
+      await pumpSettings(tester, loginType: LoginType.google);
+
+      await tapRow(tester, AppStrings.settingsWithdraw);
+
+      expect(find.text(AppStrings.withdrawGoogleNotice), findsOneWidget);
+      expect(find.text(AppStrings.withdrawAppleNotice), findsNothing);
+    });
+
+    testWidgets('⚠️ 로컬 계정에는 해제 안내가 없다', (tester) async {
       // 이메일로 가입한 사람에게 애플 설정을 열라고 하면 쓸모없는 줄이
       // 하나 늘 뿐이다.
       await pumpSettings(tester);
@@ -395,6 +405,17 @@ void main() {
       await tapRow(tester, AppStrings.settingsWithdraw);
 
       expect(find.text(AppStrings.withdrawAppleNotice), findsNothing);
+      expect(find.text(AppStrings.withdrawGoogleNotice), findsNothing);
+    });
+
+    testWidgets('⚠️ 카카오 계정에는 해제 안내가 없다', (tester) async {
+      // 카카오는 탈퇴 때 서버가 연결을 끊는다.
+      await pumpSettings(tester, loginType: LoginType.kakao);
+
+      await tapRow(tester, AppStrings.settingsWithdraw);
+
+      expect(find.text(AppStrings.withdrawAppleNotice), findsNothing);
+      expect(find.text(AppStrings.withdrawGoogleNotice), findsNothing);
     });
   });
 

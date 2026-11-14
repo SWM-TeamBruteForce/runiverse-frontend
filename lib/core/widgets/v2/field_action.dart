@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
@@ -54,18 +56,22 @@ class FieldActionV2 extends StatelessWidget {
     final colors = context.appColorsV2;
     final enabled = onPressed != null;
 
-    final pill = Container(
+    // ⚠️ 면은 `Container`가 아니라 `Ink`로 칠한다. `Container`의 색은 물결을
+    // 덮어서, 눌러도 알약은 그대로이고 위아래 빈 곳만 번쩍였다.
+    final pill = Ink(
       height: _height,
       padding: const EdgeInsets.symmetric(horizontal: _padX),
-      alignment: Alignment.center,
       decoration: BoxDecoration(
         color: colors.borderStrong,
         borderRadius: AppRadius.md,
       ),
-      child: Text(
-        label,
-        style: AppTypographyV2.body21.copyWith(
-          color: enabled ? colors.textSecondary : colors.textTertiary,
+      child: Center(
+        widthFactor: 1,
+        child: Text(
+          label,
+          style: AppTypographyV2.body21.copyWith(
+            color: enabled ? colors.textSecondary : colors.textTertiary,
+          ),
         ),
       ),
     );
@@ -77,7 +83,8 @@ class FieldActionV2 extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onPressed,
-          borderRadius: AppRadius.md,
+          // 누르는 곳은 칸 높이 그대로 두고, 물결만 알약 모양으로 자른다.
+          customBorder: const _PillBorder(),
           // ⚠️ `widthFactor: 1`은 **가로만** 알약에 맞추라는 뜻이다. 세로는
           // 부모가 주는 만큼 늘어나고, 그 전체가 누르는 영역이 된다.
           child: Center(widthFactor: 1, child: pill),
@@ -85,4 +92,36 @@ class FieldActionV2 extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 받은 칸 안 세로 가운데의 알약 모양. 물결을 자르는 데만 쓴다 —
+/// `customBorder`는 그림만 자르고 누르는 범위는 줄이지 않는다.
+class _PillBorder extends ShapeBorder {
+  const _PillBorder();
+
+  Path _path(Rect rect) => Path()
+    ..addRRect(
+      AppRadius.md.toRRect(
+        Rect.fromCenter(
+          center: rect.center,
+          width: rect.width,
+          height: math.min(FieldActionV2._height, rect.height),
+        ),
+      ),
+    );
+
+  @override
+  EdgeInsetsGeometry get dimensions => EdgeInsets.zero;
+
+  @override
+  Path getInnerPath(Rect rect, {TextDirection? textDirection}) => _path(rect);
+
+  @override
+  Path getOuterPath(Rect rect, {TextDirection? textDirection}) => _path(rect);
+
+  @override
+  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {}
+
+  @override
+  ShapeBorder scale(double t) => this;
 }

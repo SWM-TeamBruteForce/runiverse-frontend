@@ -24,6 +24,12 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 /// 매칭의 3/5/10은 서버가 같은 조건끼리 묶는 **버킷** 때문에 있는 값이고 초대
 /// 방에는 버킷이 없다. 타자로 치기 고약하고 이름이 있는 거리만 남긴다.
 void main() {
+  /// KST 19:00에 해당하는 순간. 시각을 따로 넘기지 않는 테스트는 이때 돈다.
+  ///
+  /// ⚠️ 비워 두면 화면이 실제 시계를 탄다. KST 23:49부터는 오늘 고를 시각이
+  /// 없어 피커 대신 마감 안내가 뜨고, 피커를 찾는 테스트가 전부 깨진다.
+  final open = DateTime.utc(2026, 10, 29, 10);
+
   Future<FakeMatchRepository> pump(WidgetTester tester, {DateTime? now}) async {
     final matches = FakeMatchRepository();
     await tester.pumpWidget(
@@ -34,7 +40,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.dark(),
-          home: InviteRegisterPage(now: now),
+          home: InviteRegisterPage(now: now ?? open),
         ),
       ),
     );
@@ -107,6 +113,29 @@ void main() {
 
       expect(find.text('42.195'), findsOneWidget);
       expect(InviteLimits.fullMeters, InviteLimits.maxMeters);
+    });
+  });
+
+  group('⚠️ 키보드가 올라오면', () {
+    testWidgets('칩과 범위 안내까지 버튼 위에 보인다', (tester) async {
+      // 입력란만 보이게 두면 칩이 버튼 바로 위에서 반쯤 잘려 버튼과 겹쳐
+      // 보인다(갤럭시 S23+). 화면은 S23+ 크기(384x832), 키보드는 380이다.
+      tester.view.physicalSize = const Size(1080, 2340);
+      tester.view.devicePixelRatio = 2.8125;
+      addTearDown(tester.view.reset);
+      await pump(tester);
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      tester.view.viewInsets = const FakeViewPadding(bottom: 380 * 2.8125);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .getRect(find.text(AppStrings.inviteRegisterDistanceRange))
+            .bottom,
+        lessThanOrEqualTo(tester.getRect(find.byType(AppButtonV2)).top),
+      );
     });
   });
 

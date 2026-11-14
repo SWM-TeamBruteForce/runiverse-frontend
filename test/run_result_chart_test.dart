@@ -116,24 +116,28 @@ void main() {
 
     testWidgets('⚠️ 짧은 러닝에서도 자리가 남는다', (tester) async {
       // 220m를 뛰면 0.5km에 닿은 점이 하나도 없다. 간격 후보가 0.5km부터면
-      // **총 거리 하나만 남아** 축이 사실상 비어 버린다.
+      // **라벨이 하나도 남지 않아** 축이 비어 버린다. 몇 m 간격이 뽑히는지는
+      // 글자 폭에 달렸으므로 자리가 남는지만 본다.
       await pump(tester, detail(meters: 220));
 
-      const title = AppStrings.runResultPaceDetailChart;
-      expect(inChart(title, '0.05 km'), findsOneWidget);
-      expect(inChart(title, '0.1 km'), findsOneWidget);
-      expect(inChart(title, '0.15 km'), findsOneWidget);
-      expect(inChart(title, '0.22 km'), findsOneWidget);
+      final labels = find.descendant(
+        of: find.ancestor(
+          of: find.text(AppStrings.runResultPaceDetailChart),
+          matching: find.byType(SplitLineChart),
+        ),
+        matching: find.textContaining(RegExp(r'^[\d.]+ km$')),
+      );
+      expect(labels, findsWidgets);
     });
 
-    testWidgets('마지막 점은 딱 떨어지지 않아도 찍는다', (tester) async {
-      // 총 거리를 읽는 자리다.
+    testWidgets('⚠️ 총 거리는 눈금이 아니면 찍지 않는다', (tester) async {
+      // 끝에 붙이면 앞 눈금과 붙어 하나를 버려야 해 간격이 들쭉날쭉해진다.
+      // 총 거리는 맨 위 지표에 있다.
       await pump(tester, detail(meters: 2150));
 
-      expect(
-        inChart(AppStrings.runResultPaceDetailChart, '2.15 km'),
-        findsOneWidget,
-      );
+      const title = AppStrings.runResultPaceDetailChart;
+      expect(inChart(title, '2.15 km'), findsNothing);
+      expect(inChart(title, '2 km'), findsOneWidget);
     });
 
     testWidgets('케이던스 그래프도 같은 자를 쓴다', (tester) async {

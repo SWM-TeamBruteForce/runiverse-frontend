@@ -82,6 +82,25 @@ void main() {
     expect(tester.getSize(find.byType(AppInputV2)).height, closeTo(71, 2));
   });
 
+  testWidgets('⚠️ 물결은 칸 높이가 아니라 알약 안에만 그린다', (tester) async {
+    // 알약 색을 `Container`로 칠하고 물결을 자르지 않았더니, 누르면 알약은
+    // 그대로이고 칸 높이만 한 밝은 상자가 알약 뒤에 떴다. 누르는 영역은
+    // 칸 높이 그대로 두고, 물결이 그려지는 모양만 알약에 맞춘다.
+    await pumpInField(tester, onPressed: () {});
+
+    final area = tester.getRect(find.byType(InkWell));
+    final pill = tester.getRect(find.byType(Ink));
+    final clip = tester
+        .widget<InkWell>(find.byType(InkWell))
+        .customBorder!
+        .getOuterPath(area)
+        .getBounds();
+
+    expect(area.height, greaterThan(pill.height));
+    // `Path`는 엔진에서 float32로 계산해 좌표가 1e-5 안팎 어긋난다.
+    expect(clip, rectMoreOrLessEquals(pill, epsilon: 1e-3));
+  });
+
   testWidgets('눌리면 알려준다', (tester) async {
     var tapped = 0;
     await pump(tester, FieldActionV2(label: '중복확인', onPressed: () => tapped++));
@@ -110,11 +129,11 @@ void main() {
     ).extension<AppColorsV2>()!;
     final face =
         tester
-                .widget<Container>(
+                .widget<Ink>(
                   find
                       .ancestor(
                         of: find.text('재전송'),
-                        matching: find.byType(Container),
+                        matching: find.byType(Ink),
                       )
                       .first,
                 )

@@ -71,3 +71,6 @@ config/*.json
 
 # Claude Code 개인 설정 — 팀 저장소에 섞지 않는다.
 .claude/
+
+# superpowers 작업 디렉터리 (브레인스토밍 목업·실행 원장). 커밋 대상이 아니다.
+.superpowers/

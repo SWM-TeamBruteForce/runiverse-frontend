@@ -43,7 +43,7 @@ void main() {
 
   /// 그 사람의 축하가 떠 있는가.
   ///
-  /// ⚠️ **문장을 한 덩이로 찾지 않는다.** 화면은 닉네임과 `님과 매칭성공!`을
+  /// ⚠️ **문장을 한 덩이로 찾지 않는다.** 화면은 닉네임과 `님이 합류했어요`를
   /// 따로 세운다 — 긴 닉네임만 줄이려면 그래야 한다.
   ///
   /// 닉네임 **전체**가 글자로 나오는 자리는 축하 카드뿐이다. 궤도의 아바타는
@@ -66,7 +66,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(celebrates('민수'), findsOneWidget);
-      expect(find.text(AppStrings.homeMatchSuccessSuffix), findsOneWidget);
+      expect(find.text(AppStrings.homePlayerJoinedSuffix), findsOneWidget);
       // ⚠️ **사진도 함께 선다.** 닉네임만 띄우면 누가 왔는지 얼굴로는 알 수
       // 없다. 가운데 나 · 궤도의 민수 · 축하의 민수, 셋이다.
       expect(find.byType(RunnerAvatarV2), findsNWidgets(3));
@@ -86,7 +86,7 @@ void main() {
       await tester.pumpWidget(appOf(meAlone));
       await tester.pump(const Duration(milliseconds: 100));
 
-      expect(find.textContaining('매칭성공'), findsNothing);
+      expect(find.text(AppStrings.homePlayerJoinedSuffix), findsNothing);
     });
 
     testWidgets('1.92초가 지나면 사라진다', (tester) async {
@@ -106,7 +106,7 @@ void main() {
 
     testWidgets('⚠️ 긴 닉네임은 말줄임한다 — 문구는 끝까지 남는다', (tester) async {
       // 닉네임은 16자까지 받는다. 문장 전체를 줄이면 정작 알려야 할
-      // `매칭성공!`이 먼저 잘린다.
+      // `합류했어요`가 먼저 잘린다.
       await tester.pumpWidget(appOf(meAlone));
       await tester.pumpWidget(
         appOf(roomOf([player('me', '지환'), player('u2', '열여섯글자까지받는닉네임')])),
@@ -117,7 +117,7 @@ void main() {
       expect(nickname.overflow, TextOverflow.ellipsis);
       expect(nickname.maxLines, 1);
       // 뒷말은 따로 선다 — 잘리지 않는다.
-      expect(find.text(AppStrings.homeMatchSuccessSuffix), findsOneWidget);
+      expect(find.text(AppStrings.homePlayerJoinedSuffix), findsOneWidget);
     });
 
     testWidgets('⚠️ 둘이 연달아 들어오면 나중 사람으로 바뀐다', (tester) async {

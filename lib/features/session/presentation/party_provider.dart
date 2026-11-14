@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/session/domain/combo_milestone.dart';
 import 'package:runiverse/features/session/domain/party_board.dart';
 import 'package:runiverse/features/session/domain/run_progress.dart';
@@ -71,6 +72,16 @@ class PartyController extends Notifier<PartyBoard> {
       if (meters == state.myDistanceMeters) return;
       state = state.withMyDistance(meters);
     });
+
+    // ⚠️ **계정이 바뀌면 들고 있던 내 번호를 버린다.** 이 provider는 로그아웃해도
+    // 살아 있어서, 앱을 끄지 않고 다른 계정으로 들어와 뛰면 옛 번호로 나를 찾는다 —
+    // 명단에서 나를 못 알아봐 이름 없는 `나` 줄 옆에 내 이름이 또 선다.
+    ref.listen(
+      authControllerProvider.select(
+        (auth) => auth is AuthSignedIn ? auth.userId : null,
+      ),
+      (_, _) => _me = null,
+    );
 
     return const PartyBoard();
   }
@@ -215,7 +226,7 @@ class PartyController extends Notifier<PartyBoard> {
   /// 로그인할 때 받아 둔 내 번호. **서버가 알려주기를 기다리지 않는다.**
   ///
   /// 한 번 읽고 들고 있는다 — 통지가 10초마다 오는데 그때마다 저장소를 열 이유가
-  /// 없다. 로그아웃하면 이 provider 도 함께 사라진다.
+  /// 없다. 계정이 바뀌면 [build]의 구독이 비운다.
   String? _me;
 
   Future<String?> _myUserId() async =>

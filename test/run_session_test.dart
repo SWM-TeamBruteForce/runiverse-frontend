@@ -271,6 +271,131 @@ void main() {
       final state = container.read(runSessionControllerProvider) as RunRunning;
       expect(state.metrics.elapsed, const Duration(minutes: 3));
     });
+
+    test('폰 시각을 돌렸다 되돌리면 멈췄다 간 러닝도 경과 시간이 돌아온다', () async {
+      final container = await running();
+      final controller = container.read(runSessionControllerProvider.notifier);
+      advance(const Duration(minutes: 10));
+
+      // 폰 시각을 한 시간 전으로 돌린 채 1분 뒤에 멈추고, 1분 뒤에 다시 간다.
+      // 음수를 계산에서 0으로 막으면 멈출 때 0이 저장돼 60분으로 찍힌다.
+      clock = clock.subtract(const Duration(hours: 1));
+      advance(const Duration(minutes: 1));
+      controller.pause();
+      advance(const Duration(minutes: 1));
+      controller.resume();
+
+      // 폰 시각을 원래대로 돌려놓았다.
+      advance(const Duration(hours: 1));
+      location.emit(point(37.5, 127));
+      await settle();
+
+      final state = container.read(runSessionControllerProvider) as RunRunning;
+      expect(state.metrics.clockElapsed, const Duration(minutes: 11));
+    });
+  });
+
+  group('화면 시계', () {
+    /// 시계와 타이머를 함께 흘린다.
+    Future<void> pass(WidgetTester tester, Duration by) async {
+      advance(by);
+      await tester.pump(by);
+    }
+
+    /// 타이머가 화면을 민 순간의 경과 시간을 모은다.
+    List<Duration> ticksOf(ProviderContainer container) {
+      final ticks = <Duration>[];
+      container.listen(runSessionControllerProvider, (_, next) {
+        if (next is RunRunning) ticks.add(next.metrics.clockElapsed);
+      });
+      return ticks;
+    }
+
+    testWidgets('재개한 뒤에는 러닝 시간의 초가 바뀌는 순간에 화면을 민다', (tester) async {
+      final container = makeContainer();
+      final controller = container.read(runSessionControllerProvider.notifier);
+      await controller.prepare();
+      location.emit(point(37.5, 127));
+      await tester.pump();
+      controller.start();
+
+      // 2.7초에 멈췄다 다시 간다. 재개한 순간부터 1초씩 돌면 3.7초, 4.7초에 민다.
+      await pass(tester, const Duration(milliseconds: 2700));
+      controller.pause();
+      controller.resume();
+      final ticks = ticksOf(container);
+
+      await pass(tester, const Duration(milliseconds: 300));
+      await pass(tester, const Duration(seconds: 1));
+
+      expect(ticks, const [Duration(seconds: 3), Duration(seconds: 4)]);
+      controller.reset();
+    });
+
+    testWidgets('초가 바뀌기 전에는 밀지 않는다', (tester) async {
+      final container = makeContainer();
+      final controller = container.read(runSessionControllerProvider.notifier);
+      await controller.prepare();
+      location.emit(point(37.5, 127));
+      await tester.pump();
+      controller.start();
+
+      // 2.7006초에 재개한다. 남은 299.4ms를 내리거나 반올림해 걸면 2.9996초에 민다.
+      await pass(tester, const Duration(microseconds: 2700600));
+      controller.pause();
+      controller.resume();
+      final ticks = ticksOf(container);
+
+      await pass(tester, const Duration(milliseconds: 299));
+      expect(ticks, isEmpty);
+
+      await pass(tester, const Duration(milliseconds: 1));
+      expect(ticks, const [Duration(microseconds: 3000600)]);
+      controller.reset();
+    });
+
+    testWidgets('화면을 민 자리에서 멈추면 타이머가 다시 걸리지 않는다', (tester) async {
+      final container = makeContainer();
+      final controller = container.read(runSessionControllerProvider.notifier);
+      await controller.prepare();
+      location.emit(point(37.5, 127));
+      await tester.pump();
+      controller.start();
+      container.listen(runSessionControllerProvider, (_, next) {
+        if (next is RunRunning) controller.pause();
+      });
+
+      await pass(tester, const Duration(seconds: 1));
+
+      // 타이머가 남아 있으면 flutter_test가 테스트 끝에서 실패시킨다.
+      expect(container.read(runSessionControllerProvider), isA<RunPaused>());
+    });
+
+    testWidgets('시작 시각이 바뀌면 다음 틱부터 새 박자를 따른다', (tester) async {
+      final container = makeContainer();
+      final controller = container.read(runSessionControllerProvider.notifier);
+      await controller.prepare();
+      location.emit(point(37.5, 127));
+      await tester.pump();
+
+      // 앱을 다시 켜 이어 뛴다. 5분 전으로 재기 시작했다가 서버가 아는 시작 시각
+      // (0.4초 늦다)으로 맞춘다.
+      final since = clock.subtract(const Duration(minutes: 5));
+      controller.start(since: since);
+      controller.seedStartedAt(since.add(const Duration(milliseconds: 400)));
+      final ticks = ticksOf(container);
+
+      await pass(tester, const Duration(seconds: 1));
+      await pass(tester, const Duration(milliseconds: 400));
+      await pass(tester, const Duration(seconds: 1));
+
+      expect(ticks, const [
+        Duration(minutes: 5, milliseconds: 600),
+        Duration(minutes: 5, seconds: 1),
+        Duration(minutes: 5, seconds: 2),
+      ]);
+      controller.reset();
+    });
   });
 
   group('일시정지', () {

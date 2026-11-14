@@ -183,8 +183,19 @@ class _RunSessionPageState extends ConsumerState<RunSessionPage> {
       // 바깥을 눌러 넘기지 못한다. 고를 것이 둘 다 뚜렷하다.
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text(AppStrings.runGoalPendingTitle),
-        content: Text(AppStrings.runGoalPendingBody(remainingMeters)),
+        backgroundColor: context.appColorsV2.bgElevated,
+        title: Text(
+          AppStrings.runGoalPendingTitle,
+          style: AppTypographyV2.heading06.copyWith(
+            color: context.appColorsV2.textPrimary,
+          ),
+        ),
+        content: Text(
+          AppStrings.runGoalPendingBody(remainingMeters),
+          style: AppTypographyV2.body12.copyWith(
+            color: context.appColorsV2.textSecondary,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -721,8 +732,13 @@ class _MetricsPage extends StatelessWidget {
   }
 
   static String _elapsedText(Duration elapsed) {
-    final minutes = elapsed.inMinutes.toString().padLeft(2, '0');
-    final seconds = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
+    // ⚠️ **음수는 계산이 아니라 보여 줄 때 막는다.** 폰 시각을 출발 전으로
+    // 돌리면 경과 시간이 음수가 된다. 계산에서 0으로 막으면 일시정지가 0을
+    // 저장해 시각을 되돌려도 시간이 안 돌아오고, 초가 안 바뀌어 워치 전송이
+    // 멈춘다. 워치로 보내는 값도 같은 이유로 `WatchPayload`에서 막는다.
+    final shown = elapsed.isNegative ? Duration.zero : elapsed;
+    final minutes = shown.inMinutes.toString().padLeft(2, '0');
+    final seconds = (shown.inSeconds % 60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
   }
 }

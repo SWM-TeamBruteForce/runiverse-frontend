@@ -37,8 +37,8 @@ import 'package:runiverse/features/session/domain/party_color.dart';
 ///
 /// 매칭 러닝이면 지표 아래에 **파티원 비교 카드**가 붙고, 구간 표 위의 러너
 /// 칩으로 **한 명**을 골라 겹쳐 본다(정본은 두 명 — 첫 버전은 한 명). 고르면
-/// 표의 격차가 내 평균 대비에서 **그 사람 대비**로 바뀌고 두 페이스 그래프에
-/// 그 사람의 선이 겹친다. 색은 러닝 화면의 레인과 같다 — 서버가 준 순서다.
+/// 표에 `파티원 대비` 칸이 생기고 세 그래프에 그 사람의 선이 겹친다. 색은
+/// 러닝 화면의 레인과 같다 — 서버가 준 순서다.
 /// - **구간별 경사** — `GeoPoint.altitude`가 "경사를 내는 데 쓰지 않는다"고
 ///   못 박고 있다. GPS 고도 오차가 ±10~20m다
 class RunResultView extends StatefulWidget {
@@ -149,6 +149,7 @@ class _RunResultViewState extends State<RunResultView> {
                           (s.pace ?? Duration.zero).inSeconds.toDouble(),
                       ],
                       labels: _labels(splits, detail.distanceKm),
+                      axisMeters: _ends(splits),
                       format: (v) =>
                           PaceCalculator.format(Duration(seconds: v.round())),
                       color: myColor,
@@ -190,7 +191,7 @@ class _RunResultViewState extends State<RunResultView> {
                           (s.pace ?? Duration.zero).inSeconds.toDouble(),
                       ],
                       labels: _sampleLabels(samples),
-                      axisTicks: _sampleTicks(samples),
+                      axisMeters: _ends(samples),
                       format: (v) =>
                           PaceCalculator.format(Duration(seconds: v.round())),
                       color: myColor,
@@ -222,7 +223,7 @@ class _RunResultViewState extends State<RunResultView> {
                           for (final s in samples) s.cadenceSpm?.toDouble(),
                         ],
                         labels: _sampleLabels(samples),
-                        axisTicks: _sampleTicks(samples),
+                        axisMeters: _ends(samples),
                         format: (v) => v.round().toString(),
                         color: myColor,
                         hint: AppStrings.runResultChartHint,
@@ -260,7 +261,9 @@ class _RunResultViewState extends State<RunResultView> {
     );
   }
 
-  /// 1km 그래프의 x축 라벨. 마지막 자투리 구간만 실제로 닿은 지점을 적는다.
+  /// 1km 그래프의 x축·툴팁 라벨. 마지막 자투리 구간은 실제로 닿은 지점을
+  /// 적는다 — 앞 눈금과 같은 간격으로 이어지지 않으면 눈금에는 안 뜨고
+  /// 툴팁에만 뜬다.
   static List<String> _labels(List<SplitBucket> splits, double totalKm) => [
     for (final split in splits)
       split.isPartialOf(SplitAggregator.tableMeters)
@@ -277,51 +280,11 @@ class _RunResultViewState extends State<RunResultView> {
       AppStrings.runResultSampleLabel(sample.endDistanceMeters / 1000),
   ];
 
-  /// 50m 그래프의 x축에 **라벨을 찍을 자리.**
-  ///
-  /// ## ⚠️ 점 개수로 솎으면 어중간한 거리가 나온다
-  ///
-  /// 3km는 점이 60개다. 전체의 1/5마다 찍으면 첫 점부터 열둘씩 세어
-  /// `0.05 · 0.65 · 1.25 · 1.85 · 2.45 km`가 된다. 겹치지 않게 줄이려던
-  /// 것이지만, **읽는 사람이 쓰는 자는 거리**지 점 번호가 아니다.
-  ///
-  /// ## 간격은 러닝 길이를 보고 고른다
-  ///
-  /// `5km 미만은 0.5km`처럼 하나로 못 박으면 4.9km 러닝에서 라벨이 아홉
-  /// 개가 되어 12px 글자끼리 포갠다. 자리가 [_maxTicks]개를 넘지 않는
-  /// **가장 촘촘한 간격**을 고른다.
-  static List<int> _sampleTicks(List<SplitBucket> samples) {
-    if (samples.isEmpty) return const [];
-
-    final totalMeters = samples.last.endDistanceMeters;
-    var step = _tickStepsMeters.last;
-    for (final candidate in _tickStepsMeters) {
-      if (totalMeters ~/ candidate <= _maxTicks) {
-        step = candidate;
-        break;
-      }
-    }
-
-    return [
-      for (var i = 0; i < samples.length; i++)
-        // 서버 경계가 10m라 50m 표본의 끝은 늘 50의 배수다 — 딱 떨어지는
-        // 거리에 닿은 점이 반드시 있다.
-        if (samples[i].endDistanceMeters % step == 0) i,
-    ];
-  }
-
-  /// 라벨 사이로 둘 수 있는 거리 — **촘촘한 것부터** 본다.
-  ///
-  /// ⚠️ **0.5km부터 시작하면 짧은 러닝에 찍을 자리가 없다.** 220m를 뛰면
-  /// 0.5km에 닿은 점이 하나도 없어 총 거리 하나만 남는다(에뮬레이터에서
-  /// 그렇게 나왔다). 50m 표본의 끝은 늘 50의 배수라 여기도 50부터 둔다.
-  static const _tickStepsMeters = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
-
-  /// x축에 둘 거리 라벨의 최대 개수.
-  ///
-  /// 그림 영역이 270px 남짓이라 여섯 개부터는 `2.5 km`가 옆 라벨에 닿는다.
-  /// 마지막 점은 이 수에 들어가지 않는다 — 총 거리는 늘 따로 찍힌다.
-  static const _maxTicks = 5;
+  /// 점마다 닿은 누적 거리. 그래프가 x축 라벨을 딱 떨어지는 거리에 찍는 데
+  /// 쓴다([SplitLineChart.axisMeters]).
+  static List<int> _ends(List<SplitBucket> buckets) => [
+    for (final bucket in buckets) bucket.endDistanceMeters,
+  ];
 }
 
 class _Header extends StatelessWidget {
@@ -504,6 +467,34 @@ class _PartyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
+    final paceStyle = AppTypographyV2.body07.copyWith(
+      color: colors.textSecondary,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+
+    // ⚠️ 페이스 칸을 이 카드에서 가장 긴 페이스 폭에 맞춘다. 글자 폭대로
+    // 두면 자릿수가 다른 사람(`5'06"`·`10'05"`)이 섞일 때 그 줄만 시간이
+    // 왼쪽으로 밀려 시간 열이 어긋난다. `tabularFigures`는 숫자 하나의 폭만
+    // 맞추고 자릿수는 못 맞춘다.
+    final scaler = MediaQuery.textScalerOf(context);
+    // `Text`는 굵은 글꼴 설정이면 bold를 얹어 그린다 — 잴 때도 얹는다.
+    final measureStyle = MediaQuery.boldTextOf(context)
+        ? paceStyle.merge(const TextStyle(fontWeight: FontWeight.bold))
+        : paceStyle;
+    var paceWidth = 0.0;
+    for (final player in detail.party) {
+      if (!player.hasRecord) continue;
+      final painter = TextPainter(
+        text: TextSpan(
+          text: PaceCalculator.format(player.averagePace),
+          style: measureStyle,
+        ),
+        textDirection: TextDirection.ltr,
+        textScaler: scaler,
+      )..layout();
+      if (painter.width > paceWidth) paceWidth = painter.width;
+      painter.dispose();
+    }
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -561,11 +552,12 @@ class _PartyCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.space4),
-                      Text(
-                        PaceCalculator.format(player.averagePace),
-                        style: AppTypographyV2.body07.copyWith(
-                          color: colors.textSecondary,
-                          fontFeatures: const [FontFeature.tabularFigures()],
+                      ConstrainedBox(
+                        constraints: BoxConstraints(minWidth: paceWidth),
+                        child: Text(
+                          PaceCalculator.format(player.averagePace),
+                          textAlign: TextAlign.right,
+                          style: paceStyle,
                         ),
                       ),
                     ] else
@@ -685,7 +677,13 @@ class _RunnerChips extends StatelessWidget {
   }
 }
 
-/// 구간 리스트. 정본의 `경사`는 빼고 `구간 · 페이스(격차) · 소모`만 남았다.
+/// 구간 리스트. 정본의 `경사`는 빼고 `구간 · 페이스 · 소모`만 남았다 — 서버가
+/// 고도차를 10m 구간으로만 주고, 10m에서는 대체로 `null`이다. 파티원을 고르면
+/// 페이스 뒤에 `파티원 대비` 칸이 붙는다.
+///
+/// 칸은 같은 폭으로 나누고 모두 왼쪽에 붙인다. 머리줄 글자와 값이 같은 선에서
+/// 시작해야 어느 칸의 값인지 읽힌다 — 외주 시안 `70:1571`도 모든 칸이 왼쪽
+/// 정렬이다.
 class _SplitTable extends StatefulWidget {
   const _SplitTable({required this.detail, this.compareTo});
 
@@ -724,6 +722,12 @@ class _SplitTableState extends State<_SplitTable> {
     // ⚠️ 빈 목록은 고르지 않은 것과 같다. 상대가 방에는 있는데 서버가 구간을
     // 하나도 안 준 경우가 있고, 그때는 잴 것이 하나도 없다.
     final comparing = widget.compareTo?.isNotEmpty ?? false;
+    // 머리줄 아래부터 줄마다 위에 긋는다. 외주 시안 `70:1571`도 표 끝에서 끝까지다.
+    final divider = Divider(
+      height: 1,
+      thickness: AppSizes.hairline,
+      color: colors.borderDefault,
+    );
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -735,10 +739,12 @@ class _SplitTableState extends State<_SplitTable> {
           _SplitHead(
             basis: comparing ? AppStrings.runResultGapBaseParty : null,
           ),
-          for (final (i, split) in shown.indexed)
+          for (final (i, split) in shown.indexed) ...[
+            divider,
             _SplitRow(
               split: split,
               totalKm: widget.detail.distanceKm,
+              comparing: comparing,
               // 같은 경계라 같은 자리가 같은 구간이다.
               //
               // ⚠️ **먼저 끝난 사람의 빈 구간은 비운다.** 내 평균으로
@@ -751,7 +757,9 @@ class _SplitTableState extends State<_SplitTable> {
                   ? null
                   : widget.compareTo![i].pace,
             ),
-          if (collapsed)
+          ],
+          if (collapsed) ...[
+            divider,
             InkWell(
               onTap: () => setState(() => _expanded = true),
               child: SizedBox(
@@ -766,6 +774,7 @@ class _SplitTableState extends State<_SplitTable> {
                 ),
               ),
             ),
+          ],
         ],
       ),
     );
@@ -775,7 +784,7 @@ class _SplitTableState extends State<_SplitTable> {
 class _SplitHead extends StatelessWidget {
   const _SplitHead({this.basis});
 
-  /// 차이 값의 기준. `null`이면 그릴 차이가 없다는 뜻이라 적지 않는다.
+  /// 차이 칸의 머리. `null`이면 그릴 차이가 없다는 뜻이라 칸을 두지 않는다.
   final String? basis;
 
   @override
@@ -792,30 +801,18 @@ class _SplitHead extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: 80,
-            child: Text(AppStrings.runResultSplitColumn, style: style),
-          ),
-          Expanded(
-            child: Row(
-              children: [
-                Text(AppStrings.runResultPace, style: style),
-                if (basis case final text?) ...[
-                  // 아래 줄의 페이스와 차이도 이만큼 떨어져 있다.
-                  const SizedBox(width: AppSpacing.space2),
-                  Flexible(
-                    child: Text(
-                      text,
-                      style: style,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ],
+          Expanded(child: Text(AppStrings.runResultSplitColumn, style: style)),
+          Expanded(child: Text(AppStrings.runResultPace, style: style)),
+          if (basis case final text?)
+            Expanded(
+              child: Text(
+                text,
+                style: style,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-          ),
-          Text(AppStrings.runResultBurnedColumn, style: style),
+          Expanded(child: Text(AppStrings.runResultBurnedColumn, style: style)),
         ],
       ),
     );
@@ -823,10 +820,19 @@ class _SplitHead extends StatelessWidget {
 }
 
 class _SplitRow extends StatelessWidget {
-  const _SplitRow({required this.split, required this.totalKm, this.base});
+  const _SplitRow({
+    required this.split,
+    required this.totalKm,
+    required this.comparing,
+    this.base,
+  });
 
   final SplitBucket split;
   final double totalKm;
+
+  /// 차이 칸을 두는가. 머리줄과 칸 수를 맞춘다 — [base]가 `null`인 줄(먼저
+  /// 끝난 사람의 빈 구간)도 칸은 비워 둔 채 있어야 소모가 제 칸에 선다.
+  final bool comparing;
 
   /// 차이를 재는 기준. `null`이면 **차이를 그리지 않는다** — 혼자 보는
   /// 중이거나 이 구간을 잴 것이 없다는 뜻이다.
@@ -839,6 +845,17 @@ class _SplitRow extends StatelessWidget {
     // 순위가 아니라 거리다 — 음수면 내가 빨랐다.
     final pace = split.pace;
     final gap = (base == null || pace == null) ? null : pace - base!;
+    // 값은 한 크기(16)로 두고 강약은 색·굵기로만 준다 — 위 파티원 비교 카드와 같은
+    // 방식이다. 페이스가 주인공이라 `textPrimary` Medium, 구간·소모는
+    // `textSecondary`다. 차이는 페이스와 같은 굵기에 색만 바꾼다.
+    final valueStyle = AppTypographyV2.body06.copyWith(
+      color: colors.textPrimary,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    final asideStyle = AppTypographyV2.body07.copyWith(
+      color: colors.textSecondary,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -847,53 +864,42 @@ class _SplitRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: 80,
+          Expanded(
             child: Text(
               split.isPartialOf(SplitAggregator.tableMeters)
                   ? AppStrings.runResultPartialLabel(totalKm)
                   : AppStrings.runResultSplitLabel(split.index),
-              style: AppTypographyV2.body07.copyWith(
-                color: colors.textSecondary,
-              ),
+              style: asideStyle,
             ),
           ),
           Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(
-                  PaceCalculator.format(split.pace),
-                  style: AppTypographyV2.body07.copyWith(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                if (gap != null) ...[
-                  const SizedBox(width: AppSpacing.space2),
-                  Text(
-                    _gapText(gap),
-                    // 기준보다 빨랐으면 success, 느렸으면 error.
-                    //
-                    // ⚠️ **0은 어느 쪽도 아니다.** `isNegative`만 보면 0이
-                    // 느린 쪽으로 빨갛게 칠해진다 — 평균과 같은 구간을
-                    // 나무라는 셈이다.
-                    style: AppTypographyV2.body18.copyWith(
-                      color: switch (gap.inSeconds) {
-                        < 0 => colors.success,
-                        > 0 => colors.error,
-                        _ => colors.textTertiary,
-                      },
-                    ),
-                  ),
-                ],
-              ],
-            ),
+            child: Text(PaceCalculator.format(split.pace), style: valueStyle),
           ),
-          Text(
-            '$burned ${AppStrings.runResultUnitKcal}',
-            style: AppTypographyV2.body15.copyWith(color: colors.textSecondary),
+          if (comparing)
+            Expanded(
+              child: gap == null
+                  ? const SizedBox.shrink()
+                  : Text(
+                      _gapText(gap),
+                      // 기준보다 빨랐으면 success, 느렸으면 error.
+                      //
+                      // ⚠️ **0은 어느 쪽도 아니다.** `isNegative`만 보면 0이
+                      // 느린 쪽으로 빨갛게 칠해진다 — 평균과 같은 구간을
+                      // 나무라는 셈이다.
+                      style: valueStyle.copyWith(
+                        color: switch (gap.inSeconds) {
+                          < 0 => colors.success,
+                          > 0 => colors.error,
+                          _ => colors.textTertiary,
+                        },
+                      ),
+                    ),
+            ),
+          Expanded(
+            child: Text(
+              '$burned ${AppStrings.runResultUnitKcal}',
+              style: asideStyle,
+            ),
           ),
         ],
       ),

@@ -226,10 +226,15 @@ class AuthController extends Notifier<AuthState> {
   Future<AuthFailure?> signIn({
     required String email,
     required String password,
-  }) => _authenticate(
-    () => _repository.signIn(email: email, password: password),
-    SignInMethod.email,
-  );
+  }) {
+    unawaited(
+      ref.read(analyticsProvider).loginAttempt(method: SignInMethod.email.name),
+    );
+    return _authenticate(
+      () => _repository.signIn(email: email, password: password),
+      SignInMethod.email,
+    );
+  }
 
   /// 성공하면 `null`.
   ///
@@ -238,13 +243,20 @@ class AuthController extends Notifier<AuthState> {
   Future<AuthFailure?> signUp({
     required String verificationTicket,
     required String password,
-  }) => _authenticate(
-    () => _repository.signUp(
-      verificationTicket: verificationTicket,
-      password: password,
-    ),
-    SignInMethod.email,
-  );
+  }) {
+    // 가입도 성공하면 `login`을 남긴다. 여기서 안 세면 이메일만 성공이 시도보다
+    // 많아진다.
+    unawaited(
+      ref.read(analyticsProvider).loginAttempt(method: SignInMethod.email.name),
+    );
+    return _authenticate(
+      () => _repository.signUp(
+        verificationTicket: verificationTicket,
+        password: password,
+      ),
+      SignInMethod.email,
+    );
+  }
 
   /// 성공하면 `null`.
   ///
@@ -255,6 +267,15 @@ class AuthController extends Notifier<AuthState> {
   /// ⚠️ **인가에 실패하면 서버를 부르지 않는다.** 취소한 사람 때문에 요청이
   /// 나가면, 서버는 빈 코드로 카카오에 교환을 시도하게 된다.
   Future<AuthFailure?> signInWithOauth(OauthProvider provider) async {
+    final method = switch (provider) {
+      OauthProvider.kakao => SignInMethod.kakao,
+      OauthProvider.google => SignInMethod.google,
+      OauthProvider.apple => SignInMethod.apple,
+    };
+    // 인가 **전에** 남긴다. 제공자 창에서 취소한 사람도 세야 `login`과 견줘
+    // 버튼을 누르고 못 들어간 사람이 보인다.
+    unawaited(ref.read(analyticsProvider).loginAttempt(method: method.name));
+
     final OauthAuthorization authorization;
     try {
       authorization = await ref
@@ -270,11 +291,7 @@ class AuthController extends Notifier<AuthState> {
         provider: provider,
         authorization: authorization,
       ),
-      switch (provider) {
-        OauthProvider.kakao => SignInMethod.kakao,
-        OauthProvider.google => SignInMethod.google,
-        OauthProvider.apple => SignInMethod.apple,
-      },
+      method,
     );
   }
 

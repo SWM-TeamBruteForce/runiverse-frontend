@@ -48,14 +48,16 @@ const _backIconSize = 28.0;
 /// 들고 있다가 다시 누르면 `emailNotVerified`가 나와, 같은 조작에 이유가
 /// 바뀌는 것만 보게 된다. 실패하면 인증 단계를 다시 연다.
 ///
-/// ## ⚠️ 이메일을 고치면 인증이 풀린다
+/// ## ⚠️ 인증을 마치면 이메일 칸을 잠근다
 ///
-/// [_verifiedEmail]에 **인증한 이메일 자체**를 담고 현재 입력값과 비교한다.
-/// `bool _verified` 하나로 두면 A로 인증받고 B로 가입하는 구멍이 생긴다.
+/// 잠그지 않으면 한 글자만 고쳐도 인증이 조용히 풀려 비밀번호 칸이 사라진다.
+/// 다른 이메일로 가입하려면 칸 안의 「변경」을 눌러 인증을 처음부터 다시 받는다.
 ///
-/// 비교만으로도 부족하다 — A로 인증받고 B로 고쳤다가 다시 A로 되돌리면 비교식은
-/// 통과하는데 손에 든 티켓은 이미 버린 뒤다. 그래서 [_verified]는
-/// **티켓의 존재도 함께** 본다.
+/// 잠가도 [_verifiedEmail]에 **인증한 이메일 자체**를 담고 현재 입력값과 비교하는
+/// 판정은 둔다. `bool _verified` 하나로 두면 A로 인증받고 B로 가입하는 구멍이 생긴다.
+///
+/// 비교만으로도 부족하다 — 가입에 실패하면 티켓을 버리는데 이메일은 그대로라
+/// 비교식은 통과한다. 그래서 [_verified]는 **티켓의 존재도 함께** 본다.
 ///
 /// ## 카운트다운은 표시일 뿐이다
 ///
@@ -83,13 +85,17 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
   final _password = TextEditingController();
   final _passwordConfirm = TextEditingController();
 
+  /// 「변경」을 누르면 이메일 칸으로 커서를 옮기려고 든다.
+  final _emailFocus = FocusNode();
+
   /// 인증번호를 보낸 이메일. 현재 입력과 다르면 보낸 적 없는 것으로 친다.
   String? _codeSentTo;
 
   /// 인증을 마친 이메일. 현재 입력과 다르면 인증이 풀린 것으로 친다.
   ///
-  /// 인증이 풀려도 **비우지 않는다.** [_verificationReset]이 이 값을 보고
-  /// "왜 풀렸는지"를 말한다.
+  /// 가입에 실패해 인증이 풀려도 **비우지 않는다.** [_verificationReset]이 이 값을
+  /// 보고 "왜 풀렸는지"를 말한다. 「변경」은 비운다 — 스스로 푼 것이라 알릴 것이 없다.
+  /// 이미 가입된 이메일로 실패했을 때도 비운다 — 다시 인증할 수 없는 이메일이다.
   String? _verifiedEmail;
 
   /// 인증을 마치고 받은 티켓. **가입 요청에 이것을 보낸다.**
@@ -118,6 +124,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
     _code.dispose();
     _password.dispose();
     _passwordConfirm.dispose();
+    _emailFocus.dispose();
     super.dispose();
   }
 
@@ -131,12 +138,11 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
   /// 지금 입력된 이메일이 인증된 상태인가.
   ///
   /// ⚠️ **티켓을 함께 본다.** 이메일 비교만으로 판정하면 구멍이 생긴다 —
-  /// A로 인증받고 → B로 고쳤다가(티켓을 버린다) → 다시 A로 되돌리면
-  /// 비교식은 통과하는데 손에 든 티켓이 없다. 그러면 가입 버튼이 눌리는데
-  /// 아무 일도 일어나지 않는다.
+  /// 가입에 실패하면 티켓을 버리는데 이메일은 그대로라 비교식이 통과한다.
+  /// 그러면 가입 버튼이 눌리는데 아무 일도 일어나지 않는다.
   bool get _verified => _ticket != null && _verifiedEmail == _normalizedEmail;
 
-  /// 인증을 마쳤다가 이메일을 고쳐서 풀린 상태인가. 왜 풀렸는지 알려주려고 쓴다.
+  /// 인증을 마쳤다가 가입에 실패해 풀린 상태인가. 왜 풀렸는지 알려주려고 쓴다.
   bool get _verificationReset => _verifiedEmail != null && !_verified;
 
   Duration get _remaining {
@@ -206,6 +212,34 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
 
   void _onPasswordChanged(String _) {
     setState(() => _failure = null);
+  }
+
+  /// 「변경」 — 잠금을 풀고 인증을 처음부터 다시 받는다.
+  ///
+  /// 비밀번호 칸에 친 글자는 둔다. 다시 인증하면 그대로 돌아온다.
+  void _changeEmail() {
+    setState(() {
+      _ticket = null;
+      _verifiedEmail = null;
+      _failure = null;
+      _forgetCode();
+    });
+    // 잠긴 칸과 풀린 칸이 똑같이 생겨, 커서가 안 가면 한 번 더 눌러야 한다.
+    // 칸은 다음 그림에서야 풀린다 — 지금 부르면 잠긴 칸이라 무시된다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _emailFocus.requestFocus();
+    });
+  }
+
+  /// 보낸 인증번호를 잊는다. 인증에 쓴 번호는 서버가 지웠다.
+  ///
+  /// 남기면 이메일이 같아 [_codeSent]가 참이 되고, 인증번호 칸이 쓴 번호와
+  /// 멈춘 남은 시간을 단 채 다시 열린다. 「확인」을 누르면 "만료됐어요"가 뜬다.
+  void _forgetCode() {
+    _codeSentTo = null;
+    _expiresAt = null;
+    _justSent = false;
+    _code.clear();
   }
 
   Future<void> _send() async {
@@ -292,7 +326,13 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
       // `emailNotVerified`가 나고, 같은 조작에 이유가 바뀌는 것만 보게 된다.
       //
       // `_verifiedEmail`은 남긴다 — 왜 인증이 풀렸는지 알려야 한다.
-      if (failure != null) _ticket = null;
+      if (failure != null) {
+        _ticket = null;
+        _forgetCode();
+        // 이미 가입된 이메일이면 같은 이메일로 다시 인증할 수 없다 — 서버가 발송
+        // 단계에서 막는다. "인증을 다시 받아야 해요"는 틀린 안내라 실패 안내만 남긴다.
+        if (failure == AuthFailure.emailAlreadyExists) _verifiedEmail = null;
+      }
     });
 
     if (failure == null) {
@@ -368,6 +408,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                     // 칸 밖에 두면 이메일과 그 이메일로 할 일이 떨어져 보인다.
                     AppInputV2(
                       controller: _email,
+                      focusNode: _emailFocus,
                       label: AppStrings.authEmailLabel,
                       hint: AppStrings.authEmailHint,
                       keyboardType: TextInputType.emailAddress,
@@ -375,8 +416,17 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                       onChanged: _onEmailChanged,
                       tone: _emailTone(emailStatus),
                       helper: _emailHelper(emailStatus),
+                      // 인증을 마치면 잠근다(클래스 주석). 「확인」 응답을 기다리는
+                      // 동안에도 잠근다 — 그사이 고치면 응답이 예전 이메일로
+                      // 인증을 세워, 가입 실패가 없었는데도 풀렸다고 뜬다.
+                      // 「인증번호 받기」 중에는 잠그지 않는다 — 잠그면 치던 칸에서
+                      // 포커스가 빠져 키보드가 닫힌다.
+                      enabled: !_verified && !_verifying,
                       suffix: _verified
-                          ? null
+                          ? FieldActionV2(
+                              label: AppStrings.authEmailChange,
+                              onPressed: _busy ? null : _changeEmail,
+                            )
                           : _sending
                           ? _Spinner(color: colors.primary)
                           : FieldActionV2(
@@ -503,7 +553,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
 
   String? _emailHelper(EmailStatus status) {
     if (status == EmailStatus.invalid) return AppStrings.authEmailInvalid;
-    // 인증을 마친 뒤 이메일을 고쳤다. **왜 인증이 풀렸는지** 밝히지 않으면
+    // 가입에 실패해 인증이 풀렸다. **왜 비밀번호 칸이 사라졌는지** 밝히지 않으면
     // 사용자는 방금 한 인증이 사라진 것을 모른 채 가입 버튼만 쳐다본다.
     if (_verificationReset) return AppStrings.authVerifyReset;
     return null;

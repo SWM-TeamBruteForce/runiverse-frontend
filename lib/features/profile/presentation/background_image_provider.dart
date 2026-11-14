@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/profile/data/http_profile_image_repository.dart';
 import 'package:runiverse/features/profile/data/ui_image_cropper.dart';
 import 'package:runiverse/features/profile/domain/cover_crop.dart';
@@ -52,8 +53,30 @@ final backgroundImageControllerProvider =
 /// [photoPickerProvider]를 그대로 쓴다. 압축 기본값(짧은 변 1080)이 배경에도
 /// 맞아서, 종류별 압축 값을 만들 이유가 없다.
 class BackgroundImageController extends Notifier<ProfileImageState> {
+  /// 계정 차수. 계정을 떠날 때마다 올라간다 — 그 전에 떠난 요청의 답을 가린다.
+  ///
+  /// ⚠️ 답을 받아 [state]를 바꾸는 곳은 모두 이것부터 본다.
+  var _accountEpoch = 0;
+
   @override
-  ProfileImageState build() => const ProfileImageLoading();
+  ProfileImageState build() {
+    // ⚠️ **계정을 떠나면 차수를 올리고 들고 있던 주소를 버린다.** 이 provider는
+    // 로그아웃해도 살아 있어서, 다음 사람이 프로필 탭을 열면 첫 화면에 앞 사람의
+    // 배경이 뜬다 — 새로 묻는 것은 그 화면이 그려진 뒤다.
+    //
+    // 들어올 때(로그아웃 → 계정)는 비우지 않는다. 떠날 때 이미 비웠다.
+    ref.listen(
+      authControllerProvider.select(
+        (auth) => auth is AuthSignedIn ? auth.userId : null,
+      ),
+      (previous, _) {
+        if (previous == null) return;
+        _accountEpoch++;
+        state = const ProfileImageLoading();
+      },
+    );
+    return const ProfileImageLoading();
+  }
 
   ProfileImageRepository get _repository =>
       ref.read(backgroundImageRepositoryProvider);
@@ -94,9 +117,14 @@ class BackgroundImageController extends Notifier<ProfileImageState> {
   void markRendered() => _canRetry = true;
 
   Future<void> _fetch() async {
+    final epoch = _accountEpoch;
     try {
-      state = ProfileImageReady(url: await _repository.fetchUrl());
+      final url = await _repository.fetchUrl();
+      // ⚠️ 기다리는 사이 계정을 떠났으면 앞 사람의 배경이다. 커버에 남기지 않는다.
+      if (epoch != _accountEpoch) return;
+      state = ProfileImageReady(url: url);
     } on ProfileImageException catch (error) {
+      if (epoch != _accountEpoch) return;
       state = ProfileImageFailed(error.failure);
     }
   }
@@ -145,6 +173,7 @@ class BackgroundImageController extends Notifier<ProfileImageState> {
   /// **실패하면 원래 상태로 되돌린다** — 네트워크가 잠깐 끊긴 것 때문에 멀쩡한
   /// 배경이 화면에서 사라지면 사용자는 지워진 줄 안다.
   Future<ProfileImageFailure?> _busy(Future<String?> Function() call) async {
+    final epoch = _accountEpoch;
     final current = state;
     final before = current is ProfileImageReady
         ? current
@@ -152,12 +181,17 @@ class BackgroundImageController extends Notifier<ProfileImageState> {
 
     state = before.copyWith(busy: true);
     try {
-      state = ProfileImageReady(url: await call());
+      final url = await call();
+      // ⚠️ 기다리는 사이 계정을 떠났으면 바뀐 것은 앞 사람 배경이다. 다음 사람
+      // 커버에 얹지 않는다. 서버는 받아 줬으니 성공으로 돌려준다.
+      if (epoch != _accountEpoch) return null;
+      state = ProfileImageReady(url: url);
       // 새 주소다. 이것이 만료될 때도 한 번은 다시 받아야 한다.
       _canRetry = true;
       return null;
     } on ProfileImageException catch (error) {
-      state = before.copyWith(busy: false);
+      // 계정을 떠났으면 되돌릴 원래 상태도 앞 사람 것이다.
+      if (epoch == _accountEpoch) state = before.copyWith(busy: false);
       return error.failure;
     }
   }

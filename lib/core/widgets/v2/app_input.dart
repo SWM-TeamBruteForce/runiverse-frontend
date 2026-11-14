@@ -57,6 +57,9 @@ class AppInputV2 extends StatefulWidget {
     this.suffix,
     this.autofocus = false,
     this.focusNode,
+    this.maxLines = 1,
+    this.minLines,
+    this.enabled = true,
     super.key,
   });
 
@@ -99,6 +102,21 @@ class AppInputV2 extends StatefulWidget {
   /// ⚠️ **주면 버리는 것도 준 쪽의 몫이다.** 프로필 등록이 "이미 있는 닉네임"을
   /// 들었을 때 그 칸으로 데려오려고 쓴다.
   final FocusNode? focusNode;
+
+  /// 몇 줄까지 늘어나는가. **기본 1이라 기존 호출부는 그대로다.**
+  ///
+  /// 칸의 높이는 [IntrinsicHeight]가 글자에서 가져오므로 여러 줄을 허용하면
+  /// 칸이 따라 자란다 — 채팅 입력처럼 한 줄에 안 끝나는 글을 받는 자리에 쓴다.
+  /// `null`이면 끝없이 늘어난다.
+  final int? maxLines;
+
+  /// 처음부터 확보할 줄 수. 대개는 주지 않는다.
+  final int? minLines;
+
+  /// `false`면 칸이 잠긴다 — 눌러도 키보드가 뜨지 않고 글자를 고칠 수 없다.
+  /// **모양은 그대로다.** 왜 잠겼는지는 화면이 [suffix]·주변 안내로 말한다.
+  /// 회원가입이 인증을 마친 이메일을 잠그려고 쓴다.
+  final bool enabled;
 
   @override
   State<AppInputV2> createState() => _AppInputV2State();
@@ -206,6 +224,7 @@ class _AppInputV2State extends State<AppInputV2> {
                         TextField(
                           controller: widget.controller,
                           focusNode: _focus,
+                          enabled: widget.enabled,
                           autofocus: widget.autofocus,
                           keyboardType: widget.keyboardType,
                           inputFormatters: widget.inputFormatters,
@@ -213,6 +232,8 @@ class _AppInputV2State extends State<AppInputV2> {
                           onChanged: widget.onChanged,
                           onSubmitted: widget.onSubmitted,
                           obscureText: widget.obscureText,
+                          maxLines: widget.maxLines,
+                          minLines: widget.minLines,
                           style: valueStyle.copyWith(color: colors.textPrimary),
                           cursorColor: colors.primary,
                           // 칸은 바깥 [Container]가 그린다. [TextField]가 제 여백과

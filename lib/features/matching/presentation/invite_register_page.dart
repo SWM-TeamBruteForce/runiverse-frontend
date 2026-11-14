@@ -161,6 +161,13 @@ class _InviteRegisterPageState extends ConsumerState<InviteRegisterPage> {
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                 ],
+                // 키보드가 올라오면 칩과 범위 안내까지 보이게 목록을 끝까지
+                // 내린다. 기본값(20)은 입력란만 보이게 해서 칩이 버튼 바로
+                // 위에서 반쯤 잘린다. 거리 칸이 목록 맨 끝 묶음이라 화면
+                // 높이만큼 주면 끝에서 멈추고, 입력란은 위로 밀려나지 않는다.
+                scrollPadding: const EdgeInsets.all(
+                  20,
+                ).copyWith(bottom: MediaQuery.sizeOf(context).height),
                 // 숫자가 흔들리지 않게 고정폭 숫자를 쓴다 — 러닝 수치의
                 // 규칙이다(CLAUDE.md).
                 style: AppTypographyV2.body04.copyWith(

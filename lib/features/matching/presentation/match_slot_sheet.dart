@@ -6,7 +6,63 @@ import 'package:runiverse/core/theme/tokens/app_radius.dart';
 import 'package:runiverse/core/theme/tokens/app_sizes.dart';
 import 'package:runiverse/core/theme/tokens/app_spacing.dart';
 import 'package:runiverse/core/theme/tokens/app_typography.dart';
+import 'package:runiverse/core/utils/kst_time.dart';
 import 'package:runiverse/features/matching/domain/match_slot.dart';
+
+/// 평소 신청이 모이는 시각. 이른 쪽과 늦은 쪽에서 각각 **아직 열린 첫 시각**에
+/// `추천`이 붙는다 — 18:00이 마감되면 19:00으로 넘어가고, 22:00은 따로 붙는다.
+///
+/// 운영 DB(2026-10-23~11-09, 30분 간격일 때)에서 신청한 사람이 18:00 20명,
+/// 19:00 14명이었다. 21시 이후는 21:00 6명·21:30 8명·22:00 8명으로, 칸별로
+/// 더하면 18:00과 비슷한데 세 칸에 흩어져 있었다. 21:00과 22:00은 거의 같아,
+/// 마지막 칸이라 가장 오래(21:50까지) 열려 있는 22:00으로 둔다.
+///
+/// ⚠️ **앱이 시각을 들고 있다.** 시간대는 서버 설정값이라 앱이 적어 두지
+/// 않는다는 원칙([MatchSlot])과 어긋난다. 서버가 시각을 바꾸면 추천이 조용히
+/// 안 뜰 뿐 엉뚱한 줄에 붙지는 않아서, 응답을 늘리지 않고 여기 둔다.
+const _recommendedHourGroups = [
+  [18, 19],
+  [22],
+];
+
+/// `추천`을 붙일 줄. 이른 쪽·늦은 쪽에 하나씩, **많아야 두 줄이다.**
+///
+/// ## ⚠️ 고른 거리에 누가 있으면 붙이지 않는다
+///
+/// 그 줄의 `N명 대기`가 가장 확실한 추천이다. 빈 18:00·22:00에 `추천`이
+/// 남아 있으면 추천을 믿고 고른 사람과 먼저 신청한 사람이 각자 혼자 남는다.
+/// 마감된 줄의 숫자는 세지 않는다 — 이제 들어갈 수 없는 사람이다.
+///
+/// ## ⚠️ 이른 쪽·늦은 쪽에서 한 줄씩만 고른다
+///
+/// 18:00과 19:00에 둘 다 붙이면 신청이 다시 두 시각으로 갈린다. 같은 거리인데
+/// 18:00과 19:00으로 나뉘어 둘 다 혼자 남은 날이 실제로 있었다. 22:00은 고르는
+/// 사람이 다르다 — 밤에만 뛸 수 있는 사람은 18:00 추천을 봐도 가지 않으니,
+/// 흩어져 있던 늦은 신청을 한 칸으로 모은다.
+List<MatchSlot> recommendedSlots(List<MatchSlot> slots) {
+  final open = [
+    for (final slot in slots)
+      if (slot.selectable) slot,
+  ];
+  if (open.any((slot) => slot.waitingCount > 0)) return const [];
+
+  return [
+    for (final hours in _recommendedHourGroups) ?_firstOpenAt(open, hours),
+  ];
+}
+
+/// [hours]를 앞에서부터 보며 처음 열려 있는 정각 줄.
+MatchSlot? _firstOpenAt(List<MatchSlot> open, List<int> hours) {
+  for (final hour in hours) {
+    for (final slot in open) {
+      // ⚠️ **정각만 본다.** 시만 보면 30분 간격일 때 18:30도 18시라, 18:00이
+      // 마감된 뒤 19:00이 아니라 18:30에 붙는다.
+      final wall = KstTime.wallOf(slot.startAt);
+      if (wall.hour == hour && wall.minute == 0) return slot;
+    }
+  }
+  return null;
+}
 
 /// 시간대를 고르는 바텀시트. 고르면 그 칸을, 닫으면 `null`을 돌려준다.
 ///
@@ -41,6 +97,7 @@ class _SlotSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final recommended = {for (final slot in recommendedSlots(slots)) slot.raw};
 
     return SafeArea(
       top: false,
@@ -103,6 +160,7 @@ class _SlotSheet extends StatelessWidget {
                   itemBuilder: (context, index) => _SlotRow(
                     slot: slots[index],
                     isSelected: slots[index].raw == selected?.raw,
+                    isRecommended: recommended.contains(slots[index].raw),
                   ),
                 ),
               ),
@@ -118,10 +176,17 @@ class _SlotSheet extends StatelessWidget {
 /// **마감된 줄도 남긴다.** 목록에서 빼면 "18:00이 왜 없지"가 되고, 시간이
 /// 흐르며 목록이 줄어드는 것도 이상하게 읽힌다. 남기되 눌리지 않게 한다.
 class _SlotRow extends StatelessWidget {
-  const _SlotRow({required this.slot, required this.isSelected});
+  const _SlotRow({
+    required this.slot,
+    required this.isSelected,
+    required this.isRecommended,
+  });
 
   final MatchSlot slot;
   final bool isSelected;
+
+  /// [recommendedSlots]가 고른 줄인가.
+  final bool isRecommended;
 
   @override
   Widget build(BuildContext context) {
@@ -170,6 +235,15 @@ class _SlotRow extends StatelessWidget {
                     AppStrings.matchWaitingCount(slot.waitingCount),
                     style: AppTypography.caption.copyWith(
                       color: colors.matchWaiting,
+                    ),
+                  )
+                else if (isRecommended)
+                  // `1명 대기`·`마감`과 같은 자리·크기의 글씨다. 색은 대기와
+                  // 갈라 둔다 — 같은 색이면 아무도 없는 줄이 "누가 있다"로 읽힌다.
+                  Text(
+                    AppStrings.matchSlotRecommended,
+                    style: AppTypography.caption.copyWith(
+                      color: colors.primary,
                     ),
                   ),
 

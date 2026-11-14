@@ -11,6 +11,8 @@ import 'package:runiverse/core/widgets/v2/field_action.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
+import 'package:runiverse/features/auth/domain/auth_failure.dart';
+import 'package:runiverse/features/auth/domain/auth_session.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/session/data/fake_user_status_repository.dart';
@@ -70,7 +72,7 @@ void main() {
   /// 버튼이 눌리는 상태인가.
   ///
   /// ⚠️ **두 종류가 섞여 있다.** 큰 버튼은 [AppButtonV2], 입력 칸 **안**의 작은
-  /// 버튼은 [FieldActionV2]다(`인증번호 받기` `다시 받기`). 둘 다 `onPressed`가
+  /// 버튼은 [FieldActionV2]다(`인증번호 받기` `다시 받기` `변경`). 둘 다 `onPressed`가
   /// null이면 잠긴 것이라, 어느 쪽인지 찾아서 같은 것을 본다.
   bool enabled(WidgetTester tester, String label) {
     final big = find.widgetWithText(AppButtonV2, label);
@@ -80,6 +82,16 @@ void main() {
     final small = find.widgetWithText(FieldActionV2, label);
     return tester.widget<FieldActionV2>(small).onPressed != null;
   }
+
+  /// 이메일 칸을 고칠 수 있는가. 인증을 마치면 잠긴다.
+  bool emailEnabled(WidgetTester tester) =>
+      tester.widget<TextField>(find.byType(TextField).at(0)).enabled ?? true;
+
+  /// 이메일 칸에 커서가 있는가.
+  bool emailFocused(WidgetTester tester) => tester
+      .widget<EditableText>(find.byType(EditableText).at(0))
+      .focusNode
+      .hasFocus;
 
   /// 인증을 마친 뒤 비밀번호와 확인을 함께 채운다.
   ///
@@ -252,31 +264,77 @@ void main() {
     expect(find.text(AppStrings.authPasswordDisallowedChar), findsOneWidget);
   });
 
-  testWidgets('인증한 뒤 이메일을 고치면 인증이 풀린다', (tester) async {
+  testWidgets('인증하면 이메일 칸이 잠기고 「변경」이 생긴다', (tester) async {
     await pumpSignUp(tester);
     await verifyEmail(tester);
-    expect(find.text(AppStrings.authVerifyDone), findsOneWidget);
 
-    // A로 인증받고 B로 가입하는 구멍을 막는다.
-    await enterEmail(tester, 'other@example.com');
-
-    expect(find.text(AppStrings.authVerifyDone), findsNothing);
-    expect(find.text(AppStrings.authPasswordLabel), findsNothing);
-    // 왜 풀렸는지 밝히지 않으면 사용자는 가입 버튼만 쳐다본다.
-    expect(find.text(AppStrings.authVerifyReset), findsOneWidget);
+    // 잠그지 않으면 한 글자만 고쳐도 인증이 조용히 풀려 비밀번호 칸이 사라진다.
+    expect(emailEnabled(tester), isFalse);
+    expect(enabled(tester, AppStrings.authEmailChange), isTrue);
+    expect(find.text(AppStrings.authPasswordLabel), findsOneWidget);
   });
 
-  testWidgets('이메일을 되돌려도 인증은 풀린 채로 남는다', (tester) async {
+  testWidgets('「변경」을 누르면 인증을 처음부터 다시 받는다', (tester) async {
     await pumpSignUp(tester);
     await verifyEmail(tester);
 
-    // 고쳤다가 원래대로 되돌린다. 이메일 비교만으로 판정하면 여기서 통과해
-    // **티켓 없이 가입 버튼이 열린다** — 눌러도 아무 일이 없다.
-    await enterEmail(tester, 'other@example.com');
-    await enterEmail(tester, 'new@example.com');
+    await tester.tap(find.text(AppStrings.authEmailChange));
+    await tester.pumpAndSettle();
 
+    expect(emailEnabled(tester), isTrue);
+    // 잠긴 칸과 풀린 칸이 똑같이 생겨, 커서가 안 가면 칸을 한 번 더 눌러야 한다.
+    expect(emailFocused(tester), isTrue);
+    expect(find.text('new@example.com'), findsOneWidget);
     expect(find.text(AppStrings.authVerifyDone), findsNothing);
     expect(find.text(AppStrings.authPasswordLabel), findsNothing);
+    // 지난 인증번호 칸이 다시 열리면 서버가 이미 지운 번호를 눌러 보게 된다.
+    expect(find.text(AppStrings.authVerifyLabel), findsNothing);
+    expect(enabled(tester, AppStrings.authVerifySend), isTrue);
+    // 스스로 누른 것이라 빨간 안내로 알릴 것이 없다.
+    expect(find.text(AppStrings.authVerifyReset), findsNothing);
+  });
+
+  testWidgets('「변경」 뒤 다시 인증하면 친 비밀번호가 남는다', (tester) async {
+    await pumpSignUp(tester);
+    await verifyEmail(tester);
+    await enterPassword(tester, 'runi123!');
+
+    // 「변경」은 인증만 처음부터 다시 받게 한다. 비밀번호까지 지우면 같은 일을
+    // 두 번 하게 된다.
+    await tester.tap(find.text(AppStrings.authEmailChange));
+    await tester.pumpAndSettle();
+    await verifyEmail(tester);
+
+    expect(enabled(tester, AppStrings.authSignUpCta), isTrue);
+  });
+
+  testWidgets('⚠️ 「확인」·가입 요청이 가는 동안에는 이메일 칸과 「변경」이 잠긴다', (tester) async {
+    // 「확인」 응답을 기다리는 사이 이메일을 고치면, 응답이 예전 이메일로
+    // 인증을 세워 가입 실패가 없었는데도 인증이 풀렸다는 안내가 뜬다.
+    const latency = Duration(milliseconds: 100);
+    repository = FakeAuthRepository(latency: latency);
+    await pumpSignUp(tester);
+    await enterEmail(tester, 'new@example.com');
+    await tester.tap(find.text(AppStrings.authVerifySend));
+    await tester.pump(latency);
+    await tick(tester);
+    await tester.enterText(find.byType(TextField).at(1), repository.lastCode!);
+    await tick(tester);
+
+    await tester.tap(find.text(AppStrings.authVerifyConfirm));
+    await tester.pump();
+    expect(emailEnabled(tester), isFalse);
+
+    await tester.pump(latency);
+    await tick(tester);
+    await enterPassword(tester, 'runi123!');
+    await tester.tap(find.text(AppStrings.authSignUpCta));
+    await tester.pump();
+    // 가입 요청은 이미 티켓을 들고 갔다. 그사이 「변경」을 받으면 성공 응답에
+    // 예전 이메일로 계정이 생기고 프로필로 넘어가, 바꾸려던 이메일이 무시된다.
+    expect(enabled(tester, AppStrings.authEmailChange), isFalse);
+
+    await tester.pumpAndSettle();
   });
 
   testWidgets('이미 가입한 이메일은 번호를 받는 단계에서 막힌다', (tester) async {
@@ -307,6 +365,29 @@ void main() {
     // 인증 단계로 되돌려 처음부터 하게 한다.
     expect(find.text(AppStrings.authVerifyDone), findsNothing);
     expect(find.text(AppStrings.authPasswordLabel), findsNothing);
+    // 같은 이메일로는 다시 인증할 수 없다(서버가 발송 단계에서 막는다).
+    // 다시 받으라고 하면 틀린 안내다.
+    expect(find.text(AppStrings.authVerifyReset), findsNothing);
+    // 티켓이 없으니 잠금도 풀린다 — 다른 이메일로 고칠 수 있다.
+    expect(emailEnabled(tester), isTrue);
+    // 쓴 번호는 서버가 지웠다. 그 칸이 다시 열리면 「확인」이 "만료됐어요"로 끝난다.
+    expect(find.text(AppStrings.authVerifyLabel), findsNothing);
+  });
+
+  testWidgets('연결이 끊겨 가입에 실패하면 인증을 다시 받으라고 한다', (tester) async {
+    // 서버는 티켓을 먼저 소비한다. 같은 이메일로 다시 인증하면 가입할 수 있다.
+    repository = _SignUpFailsOnce(AuthFailure.network);
+    await pumpSignUp(tester);
+    await verifyEmail(tester);
+
+    await enterPassword(tester, 'runi123!');
+    await tester.tap(find.text(AppStrings.authSignUpCta));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.authFailedNetwork), findsOneWidget);
+    // 비밀번호 칸이 왜 사라졌는지 밝힌다.
+    expect(find.text(AppStrings.authVerifyReset), findsOneWidget);
+    expect(enabled(tester, AppStrings.authVerifySend), isTrue);
   });
 
   testWidgets('가입에 성공하면 프로필 등록으로 간다', (tester) async {
@@ -320,4 +401,30 @@ void main() {
     // 약관은 앞에서 받았다. 남은 것은 프로필뿐이다.
     expect(find.byType(ProfileSetupPage), findsOneWidget);
   });
+}
+
+/// 가입이 한 번은 [failure]로 실패하는 가짜.
+///
+/// 서버처럼 티켓을 **먼저** 소비하고 실패한다.
+class _SignUpFailsOnce extends FakeAuthRepository {
+  _SignUpFailsOnce(this.failure) : super(latency: Duration.zero);
+
+  final AuthFailure failure;
+  bool _failed = false;
+
+  @override
+  Future<AuthSession> signUp({
+    required String verificationTicket,
+    required String password,
+  }) async {
+    if (!_failed) {
+      _failed = true;
+      consumeTicket(verificationTicket);
+      throw AuthException(failure);
+    }
+    return super.signUp(
+      verificationTicket: verificationTicket,
+      password: password,
+    );
+  }
 }

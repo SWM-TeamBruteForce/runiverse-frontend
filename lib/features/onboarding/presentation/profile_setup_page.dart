@@ -575,6 +575,16 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage>
               ),
             ),
 
+            // 키보드가 올라오면 목록과 「다음」 사이를 띄운다. 붙어 있으면 목록
+            // 끝에서 잘린 칸이 같은 회색의 「다음」에 맞붙어 깨진 것처럼 보인다.
+            // 간격은 초대 등록 목록의 끝 여백(24)과 같게 하고, 키보드 높이를
+            // 따라 늘어나 툭 생기지 않게 한다.
+            SizedBox(
+              height: MediaQuery.viewInsetsOf(
+                context,
+              ).bottom.clamp(0.0, AppSpacing.space6),
+            ),
+
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.space6,

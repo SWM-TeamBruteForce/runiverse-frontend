@@ -1034,6 +1034,50 @@ void main() {
     expect(watch.combos.first['eventId'], isNot(watch.combos.last['eventId']));
   });
 
+  testWidgets('콤보가 오르면 워치 화면이 켜져 있을 때 오른 숫자도 바로 보낸다', (tester) async {
+    start();
+    session.set(const RunRunning(metrics));
+    final board = const PartyBoard()
+        .withRoster(const [
+          PartyMember(userId: 'me', nickname: '나'),
+          PartyMember(userId: 'u-1', nickname: '콩나물'),
+        ], myUserId: 'me')
+        .withProgress(const RunProgress(userId: 'u-1', distanceMeters: 1210));
+    party.set(board);
+    RunCombo comboOf(int count) => RunCombo([
+      ComboPeer(
+        userId: 'u-1',
+        gapMeters: 10,
+        comboCount: count,
+        maxComboCount: count,
+      ),
+    ]);
+
+    // 화면이 꺼져 있으면 알림만 보낸다. 켜질 때 지금 상태를 보낸다.
+    var before = watch.states.length;
+    party.set(board.withCombos(comboOf(1)));
+    await tester.pump();
+    expect(watch.combos, hasLength(1));
+    expect(watch.states, hasLength(before));
+
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': true});
+    await tester.pump();
+    before = watch.states.length;
+    party.set(party.current.withCombos(comboOf(2)));
+    await tester.pump();
+
+    expect(watch.combos, hasLength(2));
+    expect(watch.states, hasLength(before + 1));
+    final players = runOf(watch.states.last)['players']! as List;
+    final peer = players.cast<Map<String, Object?>>().singleWhere(
+      (player) => player['userId'] == 'u-1',
+    );
+    expect(peer['comboCount'], 2);
+
+    watch.receive('WATCH_VISIBILITY_UPDATE', {'isVisible': false});
+    await tester.pump();
+  });
+
   testWidgets('러닝이 끝나며 비워진 보드는 끊김이 아니다', (tester) async {
     start();
     session.set(const RunRunning(metrics));

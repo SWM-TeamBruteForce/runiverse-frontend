@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
@@ -315,26 +317,36 @@ class _Grid extends StatelessWidget {
     // 일요일 시작이므로 `weekday % 7`이 곧 앞의 빈 칸 수다(일=7→0).
     final leading = DateTime(month.year, month.month).weekday % 7;
 
-    return GridView.count(
-      crossAxisCount: 7,
-      shrinkWrap: true,
-      // Figma는 칸이 47×47 정사각이다(`52:177` 이하). 기본값 1.0이 곧 그것이라
-      // 따로 지정하지 않는다. 납작하게 만들었다가 정본과 어긋나 되돌렸다.
-      // 카드 안에 통째로 펼친다. 캘린더가 따로 스크롤되면 안 된다.
-      physics: const NeverScrollableScrollPhysics(),
-      children: [
-        for (var i = 0; i < leading; i++) const SizedBox.shrink(),
-        for (var day = 1; day <= lastDay; day++)
-          _DayCell(
-            date: DateTime(month.year, month.month, day),
-            hasRecord: data.byDay.containsKey(
-              DateTime(month.year, month.month, day),
-            ),
-            selected:
-                data.selectedDay == DateTime(month.year, month.month, day),
-            onTap: onSelect,
-          ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cell = constraints.maxWidth / 7;
+        return GridView.count(
+          crossAxisCount: 7,
+          shrinkWrap: true,
+          // Figma는 칸이 47×47 정사각이다(`52:177` 이하). 납작하게 만들었다가
+          // 정본과 어긋나 되돌렸다.
+          //
+          // ⚠️ 352dp보다 좁으면 칸 폭이 원(40)보다 작아진다. 원은 칸 폭만큼
+          // 줄지만 칸 높이는 40으로 둬 숫자와 점 자리를 지킨다. 그 밖은 정사각
+          // 그대로다.
+          mainAxisExtent: math.max(cell, _DayCell._selectionSize),
+          // 카드 안에 통째로 펼친다. 캘린더가 따로 스크롤되면 안 된다.
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            for (var i = 0; i < leading; i++) const SizedBox.shrink(),
+            for (var day = 1; day <= lastDay; day++)
+              _DayCell(
+                date: DateTime(month.year, month.month, day),
+                hasRecord: data.byDay.containsKey(
+                  DateTime(month.year, month.month, day),
+                ),
+                selected:
+                    data.selectedDay == DateTime(month.year, month.month, day),
+                onTap: onSelect,
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -356,6 +368,10 @@ class _DayCell extends StatelessWidget {
   static const _selectionSize = 40.0;
   static const _dotSize = 5.0;
 
+  /// 원 아래쪽에서 점까지. 숫자(13px, 원 가운데) 글자 끝과 점 사이가 시안
+  /// (`63:224`)처럼 6쯤 벌어진다.
+  static const _dotInset = 4.5;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
@@ -363,20 +379,20 @@ class _DayCell extends StatelessWidget {
     return GestureDetector(
       onTap: () => onTap(date),
       behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Figma `63:224` — 고른 날 뒤에 지름 40 원이 깔린다.
-          SizedBox(
-            width: _selectionSize,
-            height: _selectionSize,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: selected ? colors.primary : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
+      child: Center(
+        // Figma `63:224` — 고른 날 뒤에 지름 40 원이 깔린다.
+        child: SizedBox(
+          width: _selectionSize,
+          height: _selectionSize,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: selected ? colors.primary : Colors.transparent,
+              shape: BoxShape.circle,
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Text(
                   '${date.day}',
                   style: AppTypographyV2.body15.copyWith(
                     // 채운 원 위라 글자는 뒤집힌다.
@@ -385,27 +401,30 @@ class _DayCell extends StatelessWidget {
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
-              ),
+                // 뛴 날에만 점(Figma 5×5). 안 뛴 날은 비워 둔다 — 월 전체를
+                // 칠하지 않는 이유와 같다.
+                //
+                // ⚠️ 원 아래에 따로 쌓지 않고 숫자 바로 밑, 원 안에 둔다(시안도
+                // 숫자 바로 밑이다). 따로 쌓으면 칸 내용이 47이 돼 좁은 폰에서
+                // 아랫줄로 넘치고(360dp 5.9), 칸을 늘리면 달력이 세로로 길어진다.
+                // 고른 날은 그리지 않는다 — 아래 목록이 그날 기록을 보여 주고,
+                // 채운 원 위의 같은 색 점은 보이지도 않는다.
+                if (hasRecord && !selected)
+                  Positioned(
+                    bottom: _dotInset,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        // ⚠️ 정본은 그날 획득한 러닝 컬러다. 규칙이 없어 단색이다.
+                        color: colors.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const SizedBox(width: _dotSize, height: _dotSize),
+                    ),
+                  ),
+              ],
             ),
           ),
-          // Figma는 원(끝 y=29)과 점(y=31.5) 사이를 살짝 띄운다.
-          const SizedBox(height: AppSpacing.space0),
-          // 뛴 날에만 점(Figma 5×5). 안 뛴 날은 빈 자리로 남긴다 —
-          // 월 전체를 칠하지 않는 이유와 같다.
-          SizedBox(
-            height: _dotSize,
-            child: hasRecord
-                ? DecoratedBox(
-                    decoration: BoxDecoration(
-                      // ⚠️ 정본은 그날 획득한 러닝 컬러다. 규칙이 없어 단색이다.
-                      color: colors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const SizedBox(width: _dotSize, height: _dotSize),
-                  )
-                : null,
-          ),
-        ],
+        ),
       ),
     );
   }

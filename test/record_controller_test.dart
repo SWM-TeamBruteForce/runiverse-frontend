@@ -1,6 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/features/auth/domain/current_user.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
+import 'package:runiverse/features/record/domain/run_detail.dart';
+import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record/domain/run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record/presentation/record_state.dart';
@@ -195,4 +202,212 @@ void main() {
       );
     });
   });
+
+  group('⚠️ 앱을 끄지 않고 계정을 바꾸면', () {
+    // 이 provider는 로그아웃해도 살아 있다. 처음 한 번만 읽으면 다음 사람에게 앞
+    // 사람의 차트·달력·목록이 보이고, 그 기록을 누르면 서버가 403으로 막는다.
+    late _AccountRecords records;
+    late _Auth auth;
+
+    /// u-1로 로그인해 기록을 한 번 읽어 둔다.
+    Future<ProviderContainer> signedIn() async {
+      records = _AccountRecords(today);
+      final container = ProviderContainer.test(
+        overrides: [
+          recordClockProvider.overrideWithValue(() => today),
+          runRecordRepositoryProvider.overrideWithValue(records),
+          authControllerProvider.overrideWith(
+            () => _Auth(const AuthSignedIn('u-1', isOnboarded: true)),
+          ),
+        ],
+      );
+      auth = container.read(authControllerProvider.notifier) as _Auth;
+      container.read(recordControllerProvider);
+      await pumpEventQueue();
+      return container;
+    }
+
+    /// 로그아웃하고 `u-[owner]`로 들어온다.
+    void switchTo(int owner) {
+      auth.set(const AuthSignedOut(returning: true));
+      records.owner = owner;
+      auth.set(AuthSignedIn('u-$owner', isOnboarded: true));
+    }
+
+    /// 화면에 걸린 기록 번호 — 달력·차트·스트립 전부.
+    Set<int> shownIds(ProviderContainer container) {
+      final state = container.read(recordControllerProvider) as RecordData;
+      return {
+        for (final list in state.byDay.values)
+          for (final record in list) record.id,
+        for (final record in state.allRangeRecords) record.id,
+      };
+    }
+
+    test('앞 사람 기록을 버리고 새 계정으로 다시 읽는다', () async {
+      final container = await signedIn();
+      // 기록 탭을 띄워 두었다가, 로그아웃으로 셸이 내려가며 구독이 끊긴다.
+      // 구독이 없어도 계정이 바뀐 것은 들어야 한다.
+      final tab = container.listen(recordControllerProvider, (_, _) {});
+      expect(shownIds(container), {1});
+      tab.close();
+
+      final calls = records.calls;
+      auth.set(const AuthSignedOut(returning: true));
+      await pumpEventQueue();
+
+      expect(
+        container.read(recordControllerProvider),
+        isA<RecordLoading>(),
+        reason: '로그아웃했는데 앞 사람 기록이 남았다',
+      );
+      expect(records.calls, calls, reason: '로그아웃 상태로는 읽지 않는다');
+
+      records.owner = 2;
+      auth.set(const AuthSignedIn('u-2', isOnboarded: true));
+      await pumpEventQueue();
+
+      expect(shownIds(container), {2});
+    });
+
+    for (final fails in [false, true]) {
+      test(
+        '⚠️ 바꾸기 전에 떠난 조회가 늦게 ${fails ? '실패해도' : '와도'} 새 계정 기록을 덮지 않는다',
+        () async {
+          final container = await signedIn();
+          // 앞 사람이 지난달로 넘긴 조회가 붙잡혀 있다.
+          final held = records.hold = Completer<void>();
+          final stale = container
+              .read(recordControllerProvider.notifier)
+              .moveMonth(-1);
+          await pumpEventQueue();
+          records.hold = null;
+
+          switchTo(2);
+          await pumpEventQueue();
+          records.fails = fails;
+          held.complete();
+          await stale;
+
+          final state = container.read(recordControllerProvider);
+          expect(state, isA<RecordData>(), reason: '앞 사람의 실패가 오류 화면을 띄웠다');
+          expect(
+            (state as RecordData).month,
+            DateTime(2026, 9),
+            reason: '앞 사람이 넘긴 달로 옮겨 갔다',
+          );
+          expect(shownIds(container), {2});
+        },
+      );
+    }
+
+    test('⚠️ 바꾸기 전에 떠난 스트립 채우기가 늦게 와도 새 계정 기록에 섞이지 않는다', () async {
+      final container = await signedIn();
+      final notifier = container.read(recordControllerProvider.notifier);
+      // 1일을 고르면 스트립이 지난달로 넘쳐 뒤에서 채운다. 그 조회가 붙잡혀 있다.
+      final held = records.hold = Completer<void>();
+      notifier.select(DateTime(2026, 9, 1));
+      await pumpEventQueue();
+      records.hold = null;
+
+      switchTo(2);
+      await pumpEventQueue();
+      // 새 계정도 같은 날을 고른다 — 스트립이 같아 날짜만으로는 못 거른다.
+      notifier.select(DateTime(2026, 9, 1));
+      await pumpEventQueue();
+      held.complete();
+      await pumpEventQueue();
+
+      expect(shownIds(container), {2});
+    });
+
+    test('같은 계정으로 다시 들어와도 다시 읽는다', () async {
+      final container = await signedIn();
+      final calls = records.calls;
+
+      switchTo(1);
+      await pumpEventQueue();
+
+      expect(records.calls, calls + 3, reason: '달·주간 차트·스트립');
+      expect(shownIds(container), {1});
+    });
+
+    test('같은 계정의 프로필만 바뀌면 다시 읽지 않는다', () async {
+      // `/me`가 닉네임을 채워 오는 것처럼 같은 사람 안에서 상태만 바뀐다.
+      final container = await signedIn();
+      final shown = container.read(recordControllerProvider);
+      final calls = records.calls;
+
+      auth.set(
+        const AuthSignedIn(
+          'u-1',
+          isOnboarded: true,
+          user: CurrentUser(userId: 'u-1', isOnboarded: true, nickname: '애플찬'),
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(records.calls, calls);
+      expect(container.read(recordControllerProvider), same(shown));
+    });
+  });
+}
+
+/// 테스트가 로그인 상태를 바꿔 끼우는 컨트롤러.
+class _Auth extends AuthController {
+  _Auth(this.initial);
+
+  final AuthState initial;
+
+  @override
+  AuthState build() => initial;
+
+  void set(AuthState next) => state = next;
+}
+
+/// 계정마다 다른 기록을 주는 저장소. 요청이 떠날 때의 [owner]가 기록 번호가 된다.
+class _AccountRecords implements RunRecordRepository {
+  _AccountRecords(this._today);
+
+  final DateTime _today;
+
+  /// 지금 로그인한 사람.
+  var owner = 1;
+
+  /// 있으면 그때 떠난 요청이 이것을 기다린다.
+  Completer<void>? hold;
+
+  /// 붙잡혔던 요청이 풀릴 때 실패로 끝내는가.
+  var fails = false;
+
+  var calls = 0;
+
+  @override
+  Future<List<RunRecord>> byDateRange({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    calls++;
+    final who = owner;
+    final gate = hold;
+    if (gate != null) {
+      await gate.future;
+      if (fails) throw const RunRecordException(RunRecordFailure.network);
+    }
+    return [
+      RunRecord(
+        id: who,
+        runningRoomId: who,
+        startedAt: _today,
+        distanceMeters: 5020,
+        duration: const Duration(minutes: 30),
+        averagePace: const Duration(seconds: 358),
+        playerCount: 1,
+      ),
+    ];
+  }
+
+  @override
+  Future<RunDetail> byRoom(int runningRoomId) async =>
+      throw UnimplementedError();
 }

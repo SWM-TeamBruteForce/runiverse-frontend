@@ -1,3 +1,4 @@
+import 'package:runiverse/features/chat/domain/chat.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 
 /// 매칭 스트림이 올려보내는 것.
@@ -9,23 +10,32 @@ import 'package:runiverse/features/matching/domain/room_info.dart';
 ///
 /// | | 매칭 방 | 초대 방 |
 /// |---|---|---|
-/// | 연결 직후 스냅샷 | [MatchRoomUpdated] | [InviteRoomEntrance] |
+/// | 연결 직후 스냅샷 | [MatchRoomEntrance] | [InviteRoomEntrance] |
 /// | 갱신 | [MatchRoomUpdated] | [InviteRoomUpdated] |
 /// | 확정 연출 | [MatchStarted] | **없다** |
 ///
 /// 둘은 같은 스트림에서 온다. **받는 쪽이 방 종류를 미리 알지 못해도 된다** —
 /// 어느 이벤트가 오는지가 그것을 말해 준다.
+///
+/// ## ⚠️ 채팅도 이 스트림으로 온다
+///
+/// [RoomChatSent]·[RoomChatEdited]·[RoomChatDeleted]는 **매칭 방과 초대 방이
+/// 같은 것을 쓴다.** 채팅이 따로 연결을 열 수 없어서다 — 대기방 스트림은
+/// 사용자당 하나만 유지되고, 새로 열면 서버가 기존 연결을 닫는다.
+///
+/// 그래서 `sealed`인 이 자리에 채팅이 함께 산다. Dart는 봉인된 타입의 하위
+/// 타입을 **같은 파일**에만 둘 수 있다.
 sealed class MatchEvent {
   const MatchEvent();
 }
 
-/// 매칭이 확정된 **그 순간**.
+/// 매칭이 확정된 **그 순간**. 확정 연출을 띄울 유일한 근거다.
 ///
-/// ## ⚠️ [MatchRoomUpdated]와 나누는 이유
+/// ## ⚠️ `status == matched`로는 알 수 없다
 ///
-/// `status == matched`는 재연결 스냅샷으로도 온다. 그것만 보고 확정 연출을
-/// 띄우면 앱을 껐다 켤 때마다 다시 축하하게 된다. **전이는 이 이벤트가,
-/// 그 밖의 모든 갱신은 [MatchRoomUpdated]가 맡는다.**
+/// 같은 값이 [MatchRoomEntrance]로도 온다 — 확정된 방에 다시 붙으면 늘 온다.
+/// 그것을 확정으로 읽으면 앱을 껐다 켤 때마다 다시 축하하게 된다. **확정은
+/// 이 이벤트가, 그 밖의 모든 갱신은 나머지가 맡는다.**
 ///
 /// 모집 마감 시각에 딱 한 번 온다. 자리가 다 차도 앞당겨 오지 않는다.
 class MatchStarted extends MatchEvent {
@@ -34,10 +44,30 @@ class MatchStarted extends MatchEvent {
   final RoomInfo room;
 }
 
-/// 방 정보가 갱신됐다.
+/// 매칭 방에 들어왔다. **연결 직후 한 번** 온다.
 ///
-/// 모집 중 인원 변동, 방 취소, 그리고 **연결 직후 스냅샷**이 전부 이것이다.
-/// 받으면 무조건 [room]으로 화면을 다시 그린다.
+/// 신청한 직후, 그리고 **재연결**마다 온다. 초대 방의 [InviteRoomEntrance]와
+/// 같은 자리다 — 2026-11-11 백엔드 변경으로 매칭 방도 최초 입장과 이후 갱신을
+/// 서로 다른 이름으로 보낸다(그 전에는 둘 다 [MatchRoomUpdated]였다).
+///
+/// ## ⚠️ 이것으로는 축하하지 않는다
+///
+/// 이름이 "입장"이라고 모집 중인 방이라 단정해서도 안 된다. 확정된 방에 다시
+/// 붙으면 `status: matched`를 그대로 실어 온다 — 그래서 **화면은 이벤트 이름이
+/// 아니라 `room.status`로 정하고, 확정 연출만은 [MatchStarted]로 정한다.**
+///
+/// [InviteRoomEntrance]와 달리 `startsInMs`가 없다. 매칭 방은 그 값을 받을 길이
+/// 없어, 남은 시간을 `room.scheduledStartAt`으로 그린다.
+class MatchRoomEntrance extends MatchEvent {
+  const MatchRoomEntrance(this.room);
+
+  final RoomInfo room;
+}
+
+/// 매칭 방 정보가 갱신됐다. **입장 이후의 변화만 온다.**
+///
+/// 모집 중 인원 변동과 방 취소가 이것이다. 받으면 무조건 [room]으로 화면을
+/// 다시 그린다. 연결 직후 스냅샷은 [MatchRoomEntrance]가 맡는다.
 class MatchRoomUpdated extends MatchEvent {
   const MatchRoomUpdated(this.room);
 
@@ -47,7 +77,7 @@ class MatchRoomUpdated extends MatchEvent {
 /// 초대 방에 들어왔다. **연결 직후 한 번** 온다.
 ///
 /// 방을 개설한 직후, 초대를 수락한 직후, 그리고 **재연결**마다 온다. 매칭 방의
-/// 스냅샷이 [MatchRoomUpdated]인 자리를 초대 방에서는 이것이 맡는다.
+/// [MatchRoomEntrance]와 같은 자리이고, 이쪽에만 [startsInMs]가 붙는다.
 ///
 /// ## ⚠️ 화면은 이벤트 이름이 아니라 `status`로 정한다
 ///
@@ -88,6 +118,45 @@ class InviteRoomUpdated extends MatchEvent {
   const InviteRoomUpdated(this.room);
 
   final RoomInfo room;
+}
+
+/// 같은 방의 **다른 참가자가** 채팅을 보냈다.
+///
+/// ## ⚠️ 내가 보낸 것은 오지 않는다
+///
+/// 보낸 사람의 화면은 **보내기 응답(201 `Chat`)으로** 그린다. 여기로 올 것을
+/// 기다리면 내가 한 말이 영영 안 보인다.
+///
+/// ## ⚠️ 놓친 것은 다시 오지 않는다
+///
+/// 방 상태 이벤트는 전체 상태를 다시 나르지만 채팅은 **변경분**이다. 끊겼다
+/// 다시 붙으면 채팅 목록을 다시 받아 맞춘다.
+class RoomChatSent extends MatchEvent {
+  const RoomChatSent(this.chat);
+
+  final Chat chat;
+}
+
+/// 다른 참가자가 자기 메시지를 고쳤다. [chat]은 **고친 뒤**의 것이다.
+///
+/// ⚠️ **자리는 바뀌지 않는다.** `chatId`가 그대로이므로 목록에서 같은 자리에
+/// 머문다 — 맨 아래로 내려가면 대화의 맥락이 끊긴다.
+class RoomChatEdited extends MatchEvent {
+  const RoomChatEdited(this.chat);
+
+  final Chat chat;
+}
+
+/// 다른 참가자가 자기 메시지를 지웠다. [chat]은 `content: null`,
+/// `isDeleted: true`다.
+///
+/// ⚠️ **아직 불러오지 않은 메시지일 수 있다.** 위로 긁어 오기 전의 과거
+/// 메시지가 지워지면 그렇다. 버리지 않고 들여 둬야 이전 페이지를 받을 때
+/// 되살아나지 않는다(`mergeChats`).
+class RoomChatDeleted extends MatchEvent {
+  const RoomChatDeleted(this.chat);
+
+  final Chat chat;
 }
 
 /// 곧 시작한다. 발사 타이머를 걸 시점이다.

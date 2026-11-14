@@ -72,7 +72,7 @@ iOS는 TestFlight에 올린다. 두 job은 따로 돌아 한쪽이 실패해도 
   그 번호가 들어왔는지 보고, 없을 때만 다시 돌린다. 둘 다 새로 올리려면 Run workflow로 새로 돌린다.
 - 빌드 전에 `flutter analyze`·`flutter test`를 돌린다. 실패하면 두 플랫폼 다 빌드하지 않는다.
 - 업로드 전에 검사하고, 하나라도 틀리면 멈춘다. Android는 패키지·debuggable·Meta 앱 ID·클라이언트 토큰·서명 지문·서버 주소,
-  iOS는 번들 ID·빌드 번호·배포 서명·애플 로그인·푸시 권한·카카오·구글 복귀 스킴·Firebase 설정·Meta 앱 ID·클라이언트 토큰·추적 허용 문구·서버 주소.
+  iOS는 번들 ID·빌드 번호·배포 서명·애플 로그인·푸시 권한·카카오·구글 복귀 스킴·Firebase 설정·Meta 앱 ID·클라이언트 토큰·추적 허용 문구·서버 주소·워치 앱.
 - iOS는 프로젝트의 자동 서명 대신 배포 인증서·프로파일로 서명한다(CI 머신은 매번 새로 떠서, 자동 서명이면 실행마다 개발 인증서가 새로 생긴다).
   **인증서와 프로파일은 1년마다 만료된다.** 만료되면 개발자 포털에서 새로 만들어 아래 Secret을 바꾼다.
 
@@ -90,6 +90,7 @@ CI에 필요한 값은 저장소 Settings → Environments → **`dev`** 에 있
 | Secret | `PLAY_SERVICE_ACCOUNT_JSON` | `Runiverse-dev` 앱에만 출시 권한이 있는 서비스 계정 |
 | Secret | `IOS_DIST_CERT_BASE64` · `IOS_DIST_CERT_PASSWORD` | Apple Distribution 인증서(개인 키 포함 p12) |
 | Secret | `IOS_PROFILE_BASE64` | `com.runiverse.app.dev`의 App Store 배포 프로파일 |
+| Secret | `IOS_WATCH_PROFILE_BASE64` | 워치 앱 `com.runiverse.app.dev.watchkitapp`의 App Store 배포 프로파일 |
 | Secret | `ASC_KEY_ID` · `ASC_ISSUER_ID` · `ASC_KEY_P8` | App Store Connect API 키. TestFlight 업로드에 쓴다 |
 | Variable | `API_BASE_URL` | dev 서버 공개 주소 |
 | Variable | `UPLOAD_CERT_SHA1` | dev 업로드 키의 SHA-1 지문. 공개값이라 Secret이 아니다. 다른 키로 서명되면 업로드 전에 멈춘다 |
@@ -143,6 +144,7 @@ dev와 값이 같은 건 `ASC_ISSUER_ID`(팀 공통)뿐이고, 나머지는 운�
 | `PLAY_SERVICE_ACCOUNT_JSON` | 운영 앱에만 테스트 트랙 출시 권한이 있는 서비스 계정. 프로덕션 출시 권한은 없다 |
 | `IOS_DIST_CERT_BASE64` · `IOS_DIST_CERT_PASSWORD` | 운영용 Apple Distribution 인증서(개인 키 포함 p12) |
 | `IOS_PROFILE_BASE64` | `com.runiverse.app`의 App Store 배포 프로파일. 위 운영 인증서로 만든다 |
+| `IOS_WATCH_PROFILE_BASE64` | 워치 앱 `com.runiverse.app.watchkitapp`의 App Store 배포 프로파일. 위 운영 인증서로 만든다 |
 | `ASC_KEY_ID` · `ASC_KEY_P8` | 운영용 App Store Connect API 키 |
 | `API_BASE_URL` | 운영 서버 주소. 워크플로가 `https://api.runiverseapp.com`과 다르면 멈춘다 |
 
