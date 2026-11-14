@@ -24,6 +24,12 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 /// 매칭의 3/5/10은 서버가 같은 조건끼리 묶는 **버킷** 때문에 있는 값이고 초대
 /// 방에는 버킷이 없다. 타자로 치기 고약하고 이름이 있는 거리만 남긴다.
 void main() {
+  /// KST 19:00에 해당하는 순간. 시각을 따로 넘기지 않는 테스트는 이때 돈다.
+  ///
+  /// ⚠️ 비워 두면 화면이 실제 시계를 탄다. KST 23:49부터는 오늘 고를 시각이
+  /// 없어 피커 대신 마감 안내가 뜨고, 피커를 찾는 테스트가 전부 깨진다.
+  final open = DateTime.utc(2026, 10, 29, 10);
+
   Future<FakeMatchRepository> pump(WidgetTester tester, {DateTime? now}) async {
     final matches = FakeMatchRepository();
     await tester.pumpWidget(
@@ -34,7 +40,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.dark(),
-          home: InviteRegisterPage(now: now),
+          home: InviteRegisterPage(now: now ?? open),
         ),
       ),
     );
