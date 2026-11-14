@@ -408,6 +408,7 @@ jobs:
           [ "$WATCH_BUNDLE_ID" = "$PACKAGE_NAME.watchkitapp" ] || { echo "::error::워치 앱이 없거나 번들 ID가 $PACKAGE_NAME.watchkitapp이 아니다 (${WATCH_BUNDLE_ID:-없음})"; exit 1; }
           codesign -d --entitlements - --xml "$WATCH_APP" > "$RUNNER_TEMP/watch-entitlements.plist" 2>/dev/null
           if grep -q '<key>get-task-allow</key><true/>' "$RUNNER_TEMP/watch-entitlements.plist"; then echo "::error::워치 앱이 개발 서명이다"; exit 1; fi
+          grep -q 'com.apple.developer.healthkit' "$RUNNER_TEMP/watch-entitlements.plist" || { echo "::error::워치 앱에 HealthKit 권한이 없다"; exit 1; }
 
           # 복귀 스킴이 없으면 빌드 단계는 경고만 남긴다. 그 로그인이 안 되니 여기서 멈춘다
           SCHEMES=$($PB -c 'Print :CFBundleURLTypes' "$INFO")
