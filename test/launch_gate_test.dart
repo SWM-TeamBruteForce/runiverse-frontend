@@ -285,7 +285,14 @@ void main() {
         startsInMs: 25000,
       ),
     );
-    for (var ms = 4700; ms <= 6000; ms += 100) {
+    for (var ms = 4700; ms <= 5000; ms += 100) {
+      await pumpTo(ms);
+    }
+    // 게이트가 운 직후다. 아직 아무도 넘기지 않았어야 한다 — 여기서 이미
+    // 카운트다운이면 대기방이 먼저 울도록 시각이 어긋난 것이고, 그러면 이
+    // 테스트는 고치기 전 코드도 통과시킨다.
+    expect(find.byType(MatchCountdownPage), findsNothing);
+    for (var ms = 5100; ms <= 6000; ms += 100) {
       await pumpTo(ms);
     }
 
