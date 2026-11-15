@@ -76,6 +76,24 @@ class FirebaseAnalyticsService implements Analytics {
   Future<void> matchCancel() => _send('match_cancel', null);
 
   @override
+  Future<void> chatOpen({
+    String? roomType,
+    int? partySize,
+    required int unread,
+  }) => _send('chat_open', {
+    // ⚠️ 모르면 **빼고 보낸다.** 0 을 실으면 `0명 방`이 지표에 생긴다.
+    'room_type': ?roomType,
+    'party_size': ?partySize,
+    'unread_count': unread,
+  });
+
+  @override
+  Future<void> chatSend({int? quickReply}) => _send('chat_send', {
+    'source': quickReply == null ? 'typed' : 'quick_reply',
+    'quick_reply_index': ?quickReply,
+  });
+
+  @override
   Future<void> runStart({required String runType}) =>
       _send('run_start', {'run_type': runType});
 

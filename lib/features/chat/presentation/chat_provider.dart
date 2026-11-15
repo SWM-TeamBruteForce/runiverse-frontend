@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/chat/data/http_chat_repository.dart';
 import 'package:runiverse/features/chat/domain/chat.dart';
@@ -330,14 +331,21 @@ class ChatController extends Notifier<ChatState> {
   }
 
   /// 한 건 보낸다. **공백만이면 아무 일도 없다** — 빈 버블을 만들지 않는다.
-  Future<void> send(String text) async {
+  ///
+  /// [quickReply]는 빠른 답장 칩의 순서(1부터)다. GA에만 쓴다.
+  Future<void> send(String text, {int? quickReply}) async {
     final content = text.trim();
     final runningRoomId = state.runningRoomId;
     if (runningRoomId == null || !_sendable(content)) return;
 
+    // ⚠️ **보내기 전에 잡아 둔다.** 응답을 기다리는 사이 방을 떠나 버려지면
+    // 그 뒤 `ref.read`가 터진다.
+    final analytics = ref.read(analyticsProvider);
     final pending = PendingChat(localId: --_localId, content: content);
     state = state.copyWith(pending: [...state.pending, pending]);
-    await _post(runningRoomId, pending);
+    if (await _post(runningRoomId, pending)) {
+      unawaited(analytics.chatSend(quickReply: quickReply));
+    }
   }
 
   /// 실패한 한 건을 다시 보낸다. **사람이 눌러야 보낸다.**
@@ -367,18 +375,20 @@ class ChatController extends Notifier<ChatState> {
     state = state.copyWith(pending: _without(pending));
   }
 
-  Future<void> _post(int runningRoomId, PendingChat pending) async {
+  /// 서버가 받았으면 `true`다. 받은 뒤 방이 바뀌었어도 `true`다.
+  Future<bool> _post(int runningRoomId, PendingChat pending) async {
     try {
       final sent = await _repo.send(runningRoomId, pending.content);
-      if (!_current(runningRoomId)) return;
+      if (!_current(runningRoomId)) return true;
       // ⚠️ **보낸 것은 응답으로만 온다.** 내가 보낸 `ROOM_CHAT_SENT`는 나에게
       // 오지 않는다 — 여기서 넣지 않으면 내 말이 영영 안 보인다.
       state = state.copyWith(
         messages: mergeChats(state.messages, [sent]),
         pending: _without(pending),
       );
+      return true;
     } on ChatException catch (error) {
-      if (!_current(runningRoomId)) return;
+      if (!_current(runningRoomId)) return false;
       debugPrint('[chat] 보내지 못했다 · ${error.failure.name}');
       state = state.copyWith(
         pending: [
@@ -387,6 +397,7 @@ class ChatController extends Notifier<ChatState> {
         ],
         closed: error.failure == ChatFailure.closed || state.closed,
       );
+      return false;
     }
   }
 
