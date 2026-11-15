@@ -137,7 +137,7 @@ class _LaunchGateState extends ConsumerState<LaunchGate> {
     final awake =
         (where == AppRoutes.matchCountdown && room != null) ||
         where == AppRoutes.runSession ||
-        (where == AppRoutes.matchRoom &&
+        ((where == AppRoutes.matchRoom || where == AppRoutes.matchRoomChat) &&
             room != null &&
             room.status != RoomStatus.matching);
     if (awake == _awake) return;

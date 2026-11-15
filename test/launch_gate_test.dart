@@ -15,6 +15,7 @@ import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/chat/data/fake_chat_repository.dart';
+import 'package:runiverse/features/chat/presentation/chat_page.dart';
 import 'package:runiverse/features/chat/presentation/chat_provider.dart';
 import 'package:runiverse/features/matching/data/fake_match_stream.dart';
 import 'package:runiverse/features/matching/domain/match_event.dart';
@@ -70,6 +71,7 @@ void main() {
   Future<FakeMatchStream> pumpHome(
     WidgetTester tester, {
     RunSessionState? session,
+    bool stubChat = false,
   }) async {
     final tokens = InMemoryTokenStore();
     await tokens.saveSession(
@@ -108,6 +110,9 @@ void main() {
           // 채팅 버튼이 보이는 순간 chatProvider가 서고, 그것이 진짜 저장소를
           // 세운다 — 서버 주소가 없는 테스트에서는 거기서 죽는다.
           chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
+          // 채팅 화면을 여는 테스트. 진짜 채팅 상태는 화면이 닫힐 때
+          // (`ChatPage.dispose`의 `close`) 디버그 단정을 남긴다.
+          if (stubChat) chatProvider.overrideWith(_StubChat.new),
           // 셸이 앱 스트림을 만들고, 로그인돼 있으면 첫
           // 페이지도 받는다. 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
           appStreamProvider.overrideWithValue(FakeAppStream()),
@@ -337,7 +342,40 @@ void main() {
 
       expect(wakelock.calls, [true, false]);
     });
+
+    testWidgets('⚠️ 확정된 대기방에서 채팅을 열어도 켜 둔다', (tester) async {
+      // 채팅도 대기방이다. 채팅을 연 채 화면이 꺼지면 위 이유로 출발이 밀린다.
+      final stream = await pumpHome(tester, stubChat: true);
+      await confirm(tester, stream, inSeconds: 300);
+      GoRouter.of(
+        tester.element(find.byType(HomePage)),
+      ).push(AppRoutes.matchRoom);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(MatchRoomPage.chatKey));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ChatPage), findsOneWidget);
+      expect(wakelock.calls, [true]);
+    });
   });
+}
+
+/// 비어 있는 채팅. 여기서는 채팅 화면이 떠 있는지만 본다.
+class _StubChat extends ChatController {
+  @override
+  ChatState build() => const ChatState();
+
+  @override
+  Future<void> connect(int runningRoomId, {int limit = 50}) async {}
+
+  @override
+  Future<void> reload() async {}
+
+  @override
+  void open() {}
+
+  @override
+  void close() {}
 }
 
 /// 화면 켜짐을 기기에 보내는 대신 받은 순서대로 적는다. 테스트에는 플랫폼
