@@ -359,7 +359,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(AppStrings.chatEditCancel),
+            child: const Text(AppStrings.chatDeleteCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),

@@ -597,7 +597,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text(AppStrings.chatDeleteAction));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(AppStrings.chatEditCancel));
+      await tester.tap(find.text(AppStrings.chatDeleteCancel));
       await tester.pumpAndSettle();
 
       expect(stub.removed, isEmpty);
