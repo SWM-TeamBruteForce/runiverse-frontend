@@ -89,7 +89,9 @@ class FirebaseAnalyticsService implements Analytics {
 
   @override
   Future<void> chatSend({int? quickReply}) => _send('chat_send', {
-    'source': quickReply == null ? 'typed' : 'quick_reply',
+    // ⚠️ `source` 로 짓지 않는다. 운영 GA 에 다른 이벤트가 이미 `source` 를
+    // 싣고 있어, 맞춤 측정기준에 그 값이 섞인다.
+    'send_method': quickReply == null ? 'typed' : 'quick_reply',
     'quick_reply_index': ?quickReply,
   });
 

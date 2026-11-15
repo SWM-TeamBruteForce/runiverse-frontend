@@ -311,7 +311,7 @@ void main() {
 
       expect(app.analytics.countOf('chat_send'), 1);
       expect(app.analytics.paramsOf('chat_send'), {
-        'source': 'quick_reply',
+        'send_method': 'quick_reply',
         'quick_reply_index': 2,
       });
     });
@@ -324,7 +324,7 @@ void main() {
 
       expect(app.analytics.countOf('chat_send'), 1);
       // 순서 키가 아예 없어야 한다. 0을 실으면 `0번째 칩`이 지표에 생긴다.
-      expect(app.analytics.paramsOf('chat_send'), {'source': 'typed'});
+      expect(app.analytics.paramsOf('chat_send'), {'send_method': 'typed'});
     });
 
     test('⚠️ 서버가 못 받으면 남지 않고, 다시 보내서 들어가도 남지 않는다', () async {
@@ -372,7 +372,7 @@ void main() {
 
       expect(analytics.countOf('chat_send'), 1);
       expect(analytics.paramsOf('chat_send'), {
-        'source': 'quick_reply',
+        'send_method': 'quick_reply',
         'quick_reply_index': 5,
       });
     });
