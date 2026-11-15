@@ -354,7 +354,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ),
         content: Text(
           AppStrings.chatDeleteConfirmBody,
-          style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
+          style: AppTypographyV2.body12.copyWith(color: colors.textSecondary),
         ),
         actions: [
           TextButton(
