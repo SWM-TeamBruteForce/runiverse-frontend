@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
@@ -62,5 +63,22 @@ void main() {
     expect(find.text(AppStrings.friendAchievement), findsOneWidget);
     expect(find.text(AppStrings.friendAchievementSoon), findsOneWidget);
     expect(find.text(AppStrings.friendAchievementTitle), findsOneWidget);
+  });
+
+  // TODO(되살리기): 업적을 되살리면 이 테스트를 지운다.
+  testWidgets('iOS에서는 업적 줄이 숨겨져 있다', (tester) async {
+    // 본문 안에서 되돌린다 — testWidgets가 본문 끝에서 디버그 변수를 검사한다.
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    try {
+      await pump(tester, friendCount: 0);
+
+      expect(find.text(AppStrings.friendAchievement), findsNothing);
+      expect(find.text(AppStrings.friendAchievementSoon), findsNothing);
+      expect(find.text(AppStrings.friendAchievementTitle), findsNothing);
+      // 친구 줄은 그대로 있다.
+      expect(find.text(AppStrings.friendProfileEntry(0)), findsOneWidget);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 }
