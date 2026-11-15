@@ -178,7 +178,7 @@ class _ChatComposerState extends State<ChatComposer> {
                   controller: _controller,
                   focusNode: _focus,
                   hint: AppStrings.chatHint,
-                  // 세 줄까지 늘어난다. 그 뒤로는 안에서 스크롤된다.
+                  // 세 줄 높이로 고정한다. 그 뒤로는 안에서 스크롤된다.
                   maxLines: 3,
                   textInputAction: TextInputAction.newline,
                   keyboardType: TextInputType.multiline,
