@@ -238,6 +238,62 @@ void main() {
     expect(find.byType(MatchCountdownPage), findsOneWidget);
   });
 
+  testWidgets('⚠️ 채팅을 연 채 30초 선을 넘어도 대기방이 뒤에 남지 않는다', (tester) async {
+    // 1분 전 안내로 대기방에 온 뒤 채팅을 다시 열었다. 게이트가 채팅을
+    // 카운트다운으로 갈아치우면 대기방이 스택에 남고, 러닝이 시작돼 방이
+    // 사라지는 순간 그 대기방이 러닝 화면을 닫는다(`MatchRoomPage._closeChat`).
+    //
+    // ⚠️ 두 1초 시계 중 **게이트가 먼저 울게** 시각을 맞춘다. 대기방이 먼저
+    // 울면 고치기 전 코드도 통과한다. 남은 시간은 실제 시계로 재서 pump로는
+    // 줄지 않으므로 `RunningReady`로 출발을 당긴다.
+    final stream = await pumpHome(tester, stubChat: true);
+    stream.emit(
+      MatchRoomUpdated(
+        room(
+          RoomStatus.matched,
+          at: DateTime.now().add(const Duration(seconds: 55)),
+        ),
+      ),
+    );
+    await tester.pump();
+    // 게이트 시계가 지금(t0) 선다. t0+1, t0+2, ... 에 운다.
+    final t0 = tester.binding.clock.now();
+    Future<void> pumpTo(int ms) => tester.pump(
+      t0.add(Duration(milliseconds: ms)).difference(tester.binding.clock.now()),
+    );
+
+    // t0+1 안내 → t0+3 대기방으로 옮긴다. 새 대기방 시계는 t0+4.5, 5.5, ...
+    await pumpTo(1000);
+    await pumpTo(3500);
+    for (final ms in [3600, 3700, 3800]) {
+      await pumpTo(ms);
+    }
+    expect(find.byType(MatchRoomPage), findsOneWidget);
+
+    await tester.tap(find.byKey(MatchRoomPage.chatKey));
+    for (final ms in [3900, 4000, 4100, 4200, 4300]) {
+      await pumpTo(ms);
+    }
+    expect(find.byType(ChatPage), findsOneWidget);
+
+    // t0+4.6 에 30초 선을 넘긴다. 다음에 먼저 우는 것은 게이트(t0+5)다.
+    await pumpTo(4600);
+    stream.emit(
+      RunningReady(
+        runningRoomId: 125,
+        scheduledStartAt: DateTime.now().add(const Duration(seconds: 25)),
+        startsInMs: 25000,
+      ),
+    );
+    for (var ms = 4700; ms <= 6000; ms += 100) {
+      await pumpTo(ms);
+    }
+
+    expect(find.byType(MatchCountdownPage), findsOneWidget);
+    expect(find.byType(ChatPage, skipOffstage: false), findsNothing);
+    expect(find.byType(MatchRoomPage, skipOffstage: false), findsNothing);
+  });
+
   testWidgets('모집 중에는 아무 일도 하지 않는다', (tester) async {
     // 아직 확정되지 않았다. 시작 시각이 가까워도 데려갈 곳이 없다.
     final stream = await pumpHome(tester);

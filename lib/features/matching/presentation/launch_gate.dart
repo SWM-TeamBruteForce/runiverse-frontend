@@ -163,6 +163,7 @@ class _LaunchGateState extends ConsumerState<LaunchGate> {
     final where = widget.router.state.matchedLocation;
     // 로비는 저쪽이 맡고, 카운트다운·러닝 중이면 이미 도착한 것이다.
     if (where == AppRoutes.matchRoom ||
+        where == AppRoutes.matchRoomChat ||
         where == AppRoutes.matchCountdown ||
         where == AppRoutes.runSession) {
       return;
