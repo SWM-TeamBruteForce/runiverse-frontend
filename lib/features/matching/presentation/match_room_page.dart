@@ -22,10 +22,9 @@ import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 
-// TODO(되살리기): 운영 서버에 방 채팅이 배포되면 true로.
-// 빌드 때 고정하는 숨김이다(원격 설정 아님). 채팅 상태는 이 버튼이 처음 읽어서
-// 버튼이 없으면 채팅 API도 부르지 않는다. 되살릴 때 테스트 skip도 지운다.
-const _showChat = false;
+// 대기방 채팅 스위치. 빌드 때 고정한다(원격 설정 아님). 채팅 상태는 이 버튼이
+// 처음 읽어서 false면 채팅 API도 부르지 않는다.
+const _showChat = true;
 
 /// 대기방 (S10). 시안 `158:3415` `매칭 완료 / 세션 로비 페이지`.
 ///
@@ -459,7 +458,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
   /// 채팅 버튼을 보여줄 때인가.
   ///
   /// 출발 전(`matching`·`matched`)이면 **파티원이 몇이든** 보인다.
-  /// 지금은 [_showChat]이 꺼져 있어 늘 숨는다.
+  /// [_showChat]이 꺼져 있으면 늘 숨는다.
   ///
   /// ⚠️ **혼자면 숨기던 것을 2026-11-13에 걷어냈다.** 둘이 대화하다 한 명이
   /// 나가면 남은 사람 화면에서 버튼이 사라져, **방금 나눈 대화에 들어갈 문이
