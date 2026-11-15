@@ -105,6 +105,24 @@ abstract interface class Analytics {
   /// 매칭 취소 성공.
   Future<void> matchCancel();
 
+  /// 대기방 채팅 버튼을 눌러 채팅을 열었다.
+  ///
+  /// [roomType] 은 `match` · `invite`, [partySize] 는 방 인원, [unread] 는 누른
+  /// 순간 배지의 숫자다. [roomType] · [partySize] 는 모르면 `null` 이고 빼고
+  /// 보낸다 — 스냅샷 전의 대타 방은 인원이 비어 있다.
+  Future<void> chatOpen({
+    String? roomType,
+    int? partySize,
+    required int unread,
+  });
+
+  /// 대기방 채팅 한 건을 서버가 받았다. **처음 보낸 것만 센다** — 실패한 뒤
+  /// 다시 보내서 들어간 말은 남지 않는다.
+  ///
+  /// [quickReply] 는 빠른 답장 칩의 순서(1부터)다. 직접 썼으면 `null` 이다.
+  /// 보낸 내용은 남기지 않는다.
+  Future<void> chatSend({int? quickReply});
+
   /// `RUNNING_STARTED` 를 처음 받았을 때. [runType] 은 `match` · `solo`.
   Future<void> runStart({required String runType});
 
@@ -201,6 +219,16 @@ class NoopAnalytics implements Analytics {
 
   @override
   Future<void> matchCancel() async {}
+
+  @override
+  Future<void> chatOpen({
+    String? roomType,
+    int? partySize,
+    required int unread,
+  }) async {}
+
+  @override
+  Future<void> chatSend({int? quickReply}) async {}
 
   @override
   Future<void> runStart({required String runType}) async {}

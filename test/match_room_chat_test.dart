@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
+import 'package:runiverse/core/analytics/fake_analytics.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/v2/surface_card.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
@@ -48,8 +50,10 @@ void main() {
     RoomStatus status = RoomStatus.matched,
     int players = 3,
     DateTime? startAt,
+    RoomType? type,
   }) => RoomInfo(
     runningRoomId: 125,
+    type: type,
     status: status,
     scheduledStartAt: startAt ?? later,
     targetDistanceMeters: 5000,
@@ -78,17 +82,20 @@ void main() {
   ///
   /// ⚠️ `pumpAndSettle`을 쓰지 못한다. 카운트다운이 1초 타이머를 계속 돌려
   /// 화면이 영영 잠잠해지지 않는다.
-  Future<({FakeMatchStream stream, _StubChat chat})> pumpRoom(
+  Future<({FakeMatchStream stream, _StubChat chat, FakeAnalytics analytics})>
+  pumpRoom(
     WidgetTester tester, {
     required RoomInfo snapshot,
     ChatState chatState = const ChatState(),
   }) async {
     final stream = FakeMatchStream();
     final chat = _StubChat(chatState);
+    final analytics = FakeAnalytics();
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          analyticsProvider.overrideWithValue(analytics),
           appVersionRepositoryProvider.overrideWithValue(
             FakeAppVersionRepository(),
           ),
@@ -130,7 +137,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    return (stream: stream, chat: chat);
+    return (stream: stream, chat: chat, analytics: analytics);
   }
 
   Future<void> tick(WidgetTester tester) async {
@@ -227,6 +234,37 @@ void main() {
 
       // ⚠️ `addTearDown`으로는 늦다 — 핸들 검사가 tearDown보다 먼저 돈다.
       semantics.dispose();
+    });
+  });
+
+  group('GA', () {
+    testWidgets('채팅을 열면 방 종류·인원·안 읽은 수가 남는다', (tester) async {
+      final app = await pumpRoom(
+        tester,
+        snapshot: room(type: RoomType.invite),
+        chatState: unreadState(2),
+      );
+
+      await tester.tap(find.byKey(MatchRoomPage.chatKey));
+      await tick(tester);
+
+      expect(find.byType(ChatPage), findsOne);
+      expect(app.analytics.countOf('chat_open'), 1);
+      expect(app.analytics.paramsOf('chat_open'), {
+        'room_type': 'invite',
+        'party_size': 3,
+        'unread_count': 2,
+      });
+    });
+
+    testWidgets('⚠️ 방 종류와 명단을 모르면 빼고 남긴다', (tester) async {
+      // 스냅샷 전의 대타 방은 명단이 비어 있다. 0을 실으면 `0명 방`이 생긴다.
+      final app = await pumpRoom(tester, snapshot: room(players: 0));
+
+      await tester.tap(find.byKey(MatchRoomPage.chatKey));
+      await tick(tester);
+
+      expect(app.analytics.paramsOf('chat_open'), {'unread_count': 0});
     });
   });
 

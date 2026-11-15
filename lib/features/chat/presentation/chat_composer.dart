@@ -35,7 +35,9 @@ class ChatComposer extends StatefulWidget {
 
   /// 보낸다(수정 중이면 고친다). **끝날 때까지 기다린다** — 그 동안 칩과
   /// 버튼이 잠긴다.
-  final Future<void> Function(String text) onSend;
+  ///
+  /// [quickReply]는 누른 칩의 순서(1부터)다. 입력칸에서 보냈으면 `null`이다.
+  final Future<void> Function(String text, {int? quickReply}) onSend;
 
   final Key sendButtonKey;
 
@@ -92,12 +94,16 @@ class _ChatComposerState extends State<ChatComposer> {
   ///
   /// ⚠️ **칩은 비우지 않는다.** 칩 문구는 입력칸에서 온 것이 아니므로, 비우면
   /// 쓰다 말고 칩을 누른 사람의 **글을 지운다.**
-  Future<void> _send(String text, {bool fromInput = false}) async {
+  Future<void> _send(
+    String text, {
+    bool fromInput = false,
+    int? quickReply,
+  }) async {
     if (_sending || text.trim().isEmpty) return;
 
     setState(() => _sending = true);
     try {
-      await widget.onSend(text);
+      await widget.onSend(text, quickReply: quickReply);
       // 보낸 뒤 비우고 **포커스는 유지한다** — 연달아 말할 수 있어야 한다.
       if (fromInput) _controller.clear();
     } finally {
@@ -125,12 +131,14 @@ class _ChatComposerState extends State<ChatComposer> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  for (final reply in AppStrings.chatQuickReplies)
+                  for (final (i, reply) in AppStrings.chatQuickReplies.indexed)
                     Padding(
                       padding: const EdgeInsets.only(right: AppSpacing.space2),
                       child: _Chip(
                         label: reply,
-                        onTap: _sending ? null : () => _send(reply),
+                        onTap: _sending
+                            ? null
+                            : () => _send(reply, quickReply: i + 1),
                       ),
                     ),
                 ],

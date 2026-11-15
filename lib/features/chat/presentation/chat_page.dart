@@ -138,10 +138,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   /// 보내거나 고친다. **수정 중인지는 화면이 안다.**
-  Future<void> _submit(String text) async {
+  Future<void> _submit(String text, {int? quickReply}) async {
     final editing = _editing;
     if (editing == null) {
-      await _chat.send(text);
+      await _chat.send(text, quickReply: quickReply);
       return;
     }
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
@@ -192,7 +193,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
                         unread: ref.watch(
                           chatProvider.select((state) => state.unread),
                         ),
-                        onTap: () => context.push(AppRoutes.matchRoomChat),
+                        onTap: () => _openChat(room),
                       ),
                     ),
                 ],
@@ -317,6 +318,20 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
 
   Future<void> _openInviteSheet(RoomInfo room) async {
     await showInviteFriendSheet(context, room: room);
+  }
+
+  void _openChat(RoomInfo room) {
+    unawaited(
+      ref
+          .read(analyticsProvider)
+          .chatOpen(
+            roomType: room.type?.name,
+            // 스냅샷 전의 대타 방은 명단이 비어 있다. 0명이 아니라 모르는 것이다.
+            partySize: room.players.isEmpty ? null : room.players.length,
+            unread: ref.read(chatProvider).unread,
+          ),
+    );
+    context.push(AppRoutes.matchRoomChat);
   }
 
   /// 나가기 버튼의 글자.
