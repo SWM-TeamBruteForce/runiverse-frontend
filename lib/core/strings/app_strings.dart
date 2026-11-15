@@ -2031,7 +2031,7 @@ abstract final class AppStrings {
   static const chatQuickReplies = [
     '곧 도착해요',
     '조금 늦어요',
-    '출발 준비 됐어요',
+    '출발 준비됐어요',
     '화이팅!',
     '잠시만요',
   ];
