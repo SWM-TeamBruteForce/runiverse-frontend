@@ -83,7 +83,7 @@ class FakeAnalytics implements Analytics {
   Future<void> chatSend({int? quickReply}) async => events.add((
     'chat_send',
     {
-      'source': quickReply == null ? 'typed' : 'quick_reply',
+      'send_method': quickReply == null ? 'typed' : 'quick_reply',
       'quick_reply_index': ?quickReply,
     },
   ));
