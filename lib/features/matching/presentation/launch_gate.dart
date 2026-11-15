@@ -161,7 +161,9 @@ class _LaunchGateState extends ConsumerState<LaunchGate> {
     if (room.status != RoomStatus.matched) return;
 
     final where = widget.router.state.matchedLocation;
-    // 로비는 저쪽이 맡고, 카운트다운·러닝 중이면 이미 도착한 것이다.
+    // 로비와 그 위 채팅은 저쪽(대기방 화면)이 맡고, 카운트다운·러닝 중이면 이미
+    // 도착한 것이다. 그래서 채팅을 보는 동안에는 1분 전 안내도 띄우지 않는다 —
+    // 여기서 채팅을 갈아치우면 대기방이 스택에 남는다.
     if (where == AppRoutes.matchRoom ||
         where == AppRoutes.matchRoomChat ||
         where == AppRoutes.matchCountdown ||
