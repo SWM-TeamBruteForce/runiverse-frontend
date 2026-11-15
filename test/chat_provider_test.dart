@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
+import 'package:runiverse/core/analytics/fake_analytics.dart';
 import 'package:runiverse/features/chat/data/fake_chat_repository.dart';
 import 'package:runiverse/features/chat/domain/chat.dart';
 import 'package:runiverse/features/chat/domain/chat_event_bus.dart';
@@ -26,6 +30,7 @@ void main() {
     FakeChatRepository fake,
     FakeUserStatusRepository statuses,
     ChatEventBus bus,
+    FakeAnalytics analytics,
   })
   setUpChat({bool fails = false, ChatFailure failure = ChatFailure.network}) {
     final fake = FakeChatRepository(
@@ -35,11 +40,13 @@ void main() {
     );
     final statuses = FakeUserStatusRepository();
     final bus = ChatEventBus();
+    final analytics = FakeAnalytics();
     final container = ProviderContainer(
       overrides: [
         chatRepositoryProvider.overrideWithValue(fake),
         chatEventBusProvider.overrideWithValue(bus),
         userStatusRepositoryProvider.overrideWithValue(statuses),
+        analyticsProvider.overrideWithValue(analytics),
       ],
     );
     addTearDown(container.dispose);
@@ -48,7 +55,13 @@ void main() {
     // 실제 화면은 배지 때문에 늘 watch하고 있다.
     final watching = container.listen(chatProvider, (_, _) {});
     addTearDown(watching.close);
-    return (container: container, fake: fake, statuses: statuses, bus: bus);
+    return (
+      container: container,
+      fake: fake,
+      statuses: statuses,
+      bus: bus,
+      analytics: analytics,
+    );
   }
 
   ChatController chat(ProviderContainer container) =>
@@ -286,6 +299,82 @@ void main() {
       await chat(app.container).send('곧 나갈게요');
 
       expect(app.fake.sendCalls, 0);
+    });
+  });
+
+  group('GA', () {
+    test('칩으로 보내면 빠른 답장과 그 순서가 남는다', () async {
+      final app = setUpChat();
+      await chat(app.container).connect(roomId);
+
+      await chat(app.container).send('조금 늦어요', quickReply: 2);
+
+      expect(app.analytics.countOf('chat_send'), 1);
+      expect(app.analytics.paramsOf('chat_send'), {
+        'send_method': 'quick_reply',
+        'quick_reply_index': 2,
+      });
+    });
+
+    test('직접 쓴 말은 순서 없이 남는다', () async {
+      final app = setUpChat();
+      await chat(app.container).connect(roomId);
+
+      await chat(app.container).send('곧 나갈게요');
+
+      expect(app.analytics.countOf('chat_send'), 1);
+      // 순서 키가 아예 없어야 한다. 0을 실으면 `0번째 칩`이 지표에 생긴다.
+      expect(app.analytics.paramsOf('chat_send'), {'send_method': 'typed'});
+    });
+
+    test('⚠️ 서버가 못 받으면 남지 않고, 다시 보내서 들어가도 남지 않는다', () async {
+      // 처음 보낸 것만 센다. 다시 보내기·수정은 이 기록 밖이다.
+      final app = setUpChat();
+      await chat(app.container).connect(roomId);
+      app.fake.fails = true;
+      await chat(app.container).send('곧 나갈게요');
+
+      expect(app.analytics.countOf('chat_send'), 0);
+
+      app.fake.fails = false;
+      await chat(app.container).resend(stateOf(app.container).pending.single);
+
+      expect(stateOf(app.container).pending, isEmpty);
+      expect(app.analytics.countOf('chat_send'), 0);
+    });
+
+    test('⚠️ 응답을 기다리는 사이 방을 떠나도 남고, 터지지 않는다', () async {
+      // 서버는 이미 받았으므로 센다. 기록기를 응답 뒤에 읽으면 버려진
+      // provider의 `ref`를 써서 터진다.
+      final repo = _HeldSendRepository(now: fixedNow);
+      final analytics = FakeAnalytics();
+      final container = ProviderContainer(
+        overrides: [
+          chatRepositoryProvider.overrideWithValue(repo),
+          chatEventBusProvider.overrideWithValue(ChatEventBus()),
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
+          ),
+          analyticsProvider.overrideWithValue(analytics),
+        ],
+      );
+      addTearDown(container.dispose);
+      final watching = container.listen(chatProvider, (_, _) {});
+      await chat(container).connect(roomId);
+
+      final sending = chat(container).send('잠시만요', quickReply: 5);
+      watching.close();
+      await container.pump();
+      expect(container.exists(chatProvider), isFalse);
+
+      repo.held.complete();
+      await sending;
+
+      expect(analytics.countOf('chat_send'), 1);
+      expect(analytics.paramsOf('chat_send'), {
+        'send_method': 'quick_reply',
+        'quick_reply_index': 5,
+      });
     });
   });
 
@@ -576,4 +665,18 @@ void main() {
       expect(stateOf(app.container).unread, 1);
     });
   });
+}
+
+/// 보내기 응답을 붙잡아 두는 저장소. "응답을 기다리는 사이"를 만들 유일한
+/// 방법이다.
+class _HeldSendRepository extends FakeChatRepository {
+  _HeldSendRepository({super.now});
+
+  final held = Completer<void>();
+
+  @override
+  Future<Chat> send(int runningRoomId, String content) async {
+    await held.future;
+    return super.send(runningRoomId, content);
+  }
 }

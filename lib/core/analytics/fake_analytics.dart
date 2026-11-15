@@ -70,6 +70,25 @@ class FakeAnalytics implements Analytics {
   Future<void> matchCancel() async => events.add(('match_cancel', null));
 
   @override
+  Future<void> chatOpen({
+    String? roomType,
+    int? partySize,
+    required int unread,
+  }) async => events.add((
+    'chat_open',
+    {'room_type': ?roomType, 'party_size': ?partySize, 'unread_count': unread},
+  ));
+
+  @override
+  Future<void> chatSend({int? quickReply}) async => events.add((
+    'chat_send',
+    {
+      'send_method': quickReply == null ? 'typed' : 'quick_reply',
+      'quick_reply_index': ?quickReply,
+    },
+  ));
+
+  @override
   Future<void> runStart({required String runType}) async =>
       events.add(('run_start', {'run_type': runType}));
 

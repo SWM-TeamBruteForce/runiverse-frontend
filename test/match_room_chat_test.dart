@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
+import 'package:runiverse/core/analytics/fake_analytics.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/widgets/v2/surface_card.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
@@ -48,8 +50,10 @@ void main() {
     RoomStatus status = RoomStatus.matched,
     int players = 3,
     DateTime? startAt,
+    RoomType? type,
   }) => RoomInfo(
     runningRoomId: 125,
+    type: type,
     status: status,
     scheduledStartAt: startAt ?? later,
     targetDistanceMeters: 5000,
@@ -78,17 +82,20 @@ void main() {
   ///
   /// ⚠️ `pumpAndSettle`을 쓰지 못한다. 카운트다운이 1초 타이머를 계속 돌려
   /// 화면이 영영 잠잠해지지 않는다.
-  Future<({FakeMatchStream stream, _StubChat chat})> pumpRoom(
+  Future<({FakeMatchStream stream, _StubChat chat, FakeAnalytics analytics})>
+  pumpRoom(
     WidgetTester tester, {
     required RoomInfo snapshot,
     ChatState chatState = const ChatState(),
   }) async {
     final stream = FakeMatchStream();
     final chat = _StubChat(chatState);
+    final analytics = FakeAnalytics();
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          analyticsProvider.overrideWithValue(analytics),
           appVersionRepositoryProvider.overrideWithValue(
             FakeAppVersionRepository(),
           ),
@@ -130,7 +137,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    return (stream: stream, chat: chat);
+    return (stream: stream, chat: chat, analytics: analytics);
   }
 
   Future<void> tick(WidgetTester tester) async {
@@ -140,21 +147,12 @@ void main() {
   }
 
   group('언제 보이는가', () {
-    // TODO(되살리기): 방 채팅을 되살리면 이 테스트를 지운다.
-    testWidgets('채팅을 숨긴 동안은 출발 전 방에도 버튼이 없다', (tester) async {
-      await pumpRoom(tester, snapshot: room());
-
-      expect(find.byKey(MatchRoomPage.chatKey), findsNothing);
-    });
-
-    // TODO(되살리기): 방 채팅을 되살리면 skip을 지운다.
     testWidgets('파티원이 둘 이상이면 채팅 버튼이 보인다', (tester) async {
       await pumpRoom(tester, snapshot: room());
 
       expect(find.byKey(MatchRoomPage.chatKey), findsOne);
-    }, skip: true);
+    });
 
-    // TODO(되살리기): 방 채팅을 되살리면 skip을 지운다.
     testWidgets('⚠️ 나 혼자여도 보인다', (tester) async {
       // ⚠️ **2026-11-13에 뒤집었다.** 전에는 혼자면 숨겼는데, 둘이 대화하다
       // 한 명이 나가면 남은 사람이 **방금 나눈 대화에 들어갈 문을 잃었다.**
@@ -162,7 +160,7 @@ void main() {
       await pumpRoom(tester, snapshot: room(players: 1));
 
       expect(find.byKey(MatchRoomPage.chatKey), findsOne);
-    }, skip: true);
+    });
 
     testWidgets('출발한 방(started)에서는 숨는다', (tester) async {
       await pumpRoom(tester, snapshot: room(status: RoomStatus.started));
@@ -170,7 +168,6 @@ void main() {
       expect(find.byKey(MatchRoomPage.chatKey), findsNothing);
     });
 
-    // TODO(되살리기): 방 채팅을 되살리면 skip을 지운다.
     testWidgets('⚠️ 떠 있는 버튼이 목록 맨 끝 줄을 가리지 않는다', (tester) async {
       // ⚠️ **겨냥하는 것이 2026-11-11에 바뀌었다.** 전에는 목록 맨 끝에 나가기
       // 안내가 있어 그것을 봤는데, 팀이 그 안내를 목록 밖(나가기 버튼 위)으로
@@ -187,7 +184,7 @@ void main() {
       final button = tester.getRect(find.byKey(MatchRoomPage.chatKey));
 
       expect(party.overlaps(button), isFalse);
-    }, skip: true);
+    });
 
     testWidgets('나가기 버튼이 가려지지 않는다', (tester) async {
       // A안(Scaffold FAB)이 깨진 이유다 — `나가기`가 body 안에 있다.
@@ -203,7 +200,6 @@ void main() {
   });
 
   group('배지', () {
-    // TODO(되살리기): 방 채팅을 되살리면 skip을 지운다.
     testWidgets('안 읽은 수가 배지에 뜬다', (tester) async {
       final app = await pumpRoom(
         tester,
@@ -218,7 +214,7 @@ void main() {
       // 있다가 사람이 들어온 방의 채팅이 빈 목록으로 남았다. 지금은
       // `chatProvider`가 방을 직접 듣는다(`chat_provider_test`가 덮는다).
       expect(app.chat.connects, 0);
-    }, skip: true);
+    });
 
     testWidgets('⚠️ 0이면 배지가 없다', (tester) async {
       await pumpRoom(tester, snapshot: room(), chatState: unreadState(0));
@@ -226,7 +222,6 @@ void main() {
       expect(find.byKey(MatchRoomPage.chatBadgeKey), findsNothing);
     });
 
-    // TODO(되살리기): 방 채팅을 되살리면 skip을 지운다.
     testWidgets('Semantics가 안 읽은 수까지 읽는다', (tester) async {
       // 글자 라벨이 없는 버튼이다 — 안 붙이면 스크린리더가 읽을 것이 없다.
       final semantics = tester.ensureSemantics();
@@ -239,11 +234,41 @@ void main() {
 
       // ⚠️ `addTearDown`으로는 늦다 — 핸들 검사가 tearDown보다 먼저 돈다.
       semantics.dispose();
-    }, skip: true);
+    });
+  });
+
+  group('GA', () {
+    testWidgets('채팅을 열면 방 종류·인원·안 읽은 수가 남는다', (tester) async {
+      final app = await pumpRoom(
+        tester,
+        snapshot: room(type: RoomType.invite),
+        chatState: unreadState(2),
+      );
+
+      await tester.tap(find.byKey(MatchRoomPage.chatKey));
+      await tick(tester);
+
+      expect(find.byType(ChatPage), findsOne);
+      expect(app.analytics.countOf('chat_open'), 1);
+      expect(app.analytics.paramsOf('chat_open'), {
+        'room_type': 'invite',
+        'party_size': 3,
+        'unread_count': 2,
+      });
+    });
+
+    testWidgets('⚠️ 방 종류와 명단을 모르면 빼고 남긴다', (tester) async {
+      // 스냅샷 전의 대타 방은 명단이 비어 있다. 0을 실으면 `0명 방`이 생긴다.
+      final app = await pumpRoom(tester, snapshot: room(players: 0));
+
+      await tester.tap(find.byKey(MatchRoomPage.chatKey));
+      await tick(tester);
+
+      expect(app.analytics.paramsOf('chat_open'), {'unread_count': 0});
+    });
   });
 
   group('⚠️ 채팅을 열어 둔 사이의 자동 이동', () {
-    // TODO(되살리기): 방 채팅을 되살리면 skip을 지운다.
     testWidgets('⚠️ 채팅을 연 채 방이 죽으면 채팅부터 닫힌다', (tester) async {
       final app = await pumpRoom(tester, snapshot: room());
       await tester.tap(find.byKey(MatchRoomPage.chatKey));
@@ -257,9 +282,8 @@ void main() {
       // 채팅만 닫히고 죽은 방 화면에 사람이 남으면 실패다.
       expect(find.byType(ChatPage, skipOffstage: false), findsNothing);
       expect(find.byType(MatchRoomPage, skipOffstage: false), findsNothing);
-    }, skip: true);
+    });
 
-    // TODO(되살리기): 방 채팅을 되살리면 skip을 지운다.
     testWidgets('⚠️ 채팅을 연 채 출발 시각이 닥치면 카운트다운으로 간다', (tester) async {
       final app = await pumpRoom(tester, snapshot: room(startAt: soon));
       await tester.tap(find.byKey(MatchRoomPage.chatKey));
@@ -276,7 +300,7 @@ void main() {
       expect(find.byType(MatchRoomPage, skipOffstage: false), findsNothing);
 
       app.stream.close();
-    }, skip: true);
+    });
   });
 }
 

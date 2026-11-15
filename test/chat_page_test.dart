@@ -597,7 +597,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text(AppStrings.chatDeleteAction));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(AppStrings.chatEditCancel));
+      await tester.tap(find.text(AppStrings.chatDeleteCancel));
       await tester.pumpAndSettle();
 
       expect(stub.removed, isEmpty);
@@ -714,6 +714,21 @@ void main() {
         isEmpty,
       );
     });
+
+    testWidgets('칩은 몇 번째인지 함께 넘기고, 입력칸은 넘기지 않는다', (tester) async {
+      // GA가 빠른 답장과 직접 쓴 말을 가르는 값이다. 화면이 안 넘기면 provider는
+      // 전부 직접 쓴 말로 센다.
+      final stub = await pumpChat(tester);
+
+      await tester.tap(find.text(AppStrings.chatQuickReplies[1]));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '곧 나갈게요');
+      await tester.pump();
+      await tester.tap(find.byKey(ChatPage.sendKey));
+      await tester.pumpAndSettle();
+
+      expect(stub.quickReplies, [2, null]);
+    });
   });
 }
 
@@ -727,6 +742,9 @@ class _StubChat extends ChatController {
   final Completer<void>? gate;
 
   final sent = <String>[];
+
+  /// [sent]와 같은 순서로 넘어온 칩 순서. 입력칸에서 보냈으면 `null`이다.
+  final quickReplies = <int?>[];
   final edited = <(int, String)>[];
   final removed = <int>[];
   final resent = <PendingChat>[];
@@ -745,8 +763,9 @@ class _StubChat extends ChatController {
   void close() => closes++;
 
   @override
-  Future<void> send(String text) async {
+  Future<void> send(String text, {int? quickReply}) async {
     sent.add(text);
+    quickReplies.add(quickReply);
     final waiting = gate;
     if (waiting != null) await waiting.future;
   }

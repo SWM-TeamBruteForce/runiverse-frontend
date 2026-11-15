@@ -35,7 +35,9 @@ class ChatComposer extends StatefulWidget {
 
   /// 보낸다(수정 중이면 고친다). **끝날 때까지 기다린다** — 그 동안 칩과
   /// 버튼이 잠긴다.
-  final Future<void> Function(String text) onSend;
+  ///
+  /// [quickReply]는 누른 칩의 순서(1부터)다. 입력칸에서 보냈으면 `null`이다.
+  final Future<void> Function(String text, {int? quickReply}) onSend;
 
   final Key sendButtonKey;
 
@@ -92,12 +94,16 @@ class _ChatComposerState extends State<ChatComposer> {
   ///
   /// ⚠️ **칩은 비우지 않는다.** 칩 문구는 입력칸에서 온 것이 아니므로, 비우면
   /// 쓰다 말고 칩을 누른 사람의 **글을 지운다.**
-  Future<void> _send(String text, {bool fromInput = false}) async {
+  Future<void> _send(
+    String text, {
+    bool fromInput = false,
+    int? quickReply,
+  }) async {
     if (_sending || text.trim().isEmpty) return;
 
     setState(() => _sending = true);
     try {
-      await widget.onSend(text);
+      await widget.onSend(text, quickReply: quickReply);
       // 보낸 뒤 비우고 **포커스는 유지한다** — 연달아 말할 수 있어야 한다.
       if (fromInput) _controller.clear();
     } finally {
@@ -125,12 +131,14 @@ class _ChatComposerState extends State<ChatComposer> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  for (final reply in AppStrings.chatQuickReplies)
+                  for (final (i, reply) in AppStrings.chatQuickReplies.indexed)
                     Padding(
                       padding: const EdgeInsets.only(right: AppSpacing.space2),
                       child: _Chip(
                         label: reply,
-                        onTap: _sending ? null : () => _send(reply),
+                        onTap: _sending
+                            ? null
+                            : () => _send(reply, quickReply: i + 1),
                       ),
                     ),
                 ],
@@ -178,7 +186,7 @@ class _ChatComposerState extends State<ChatComposer> {
                   controller: _controller,
                   focusNode: _focus,
                   hint: AppStrings.chatHint,
-                  // 세 줄까지 늘어난다. 그 뒤로는 안에서 스크롤된다.
+                  // 세 줄 높이로 고정한다. 그 뒤로는 안에서 스크롤된다.
                   maxLines: 3,
                   textInputAction: TextInputAction.newline,
                   keyboardType: TextInputType.multiline,
@@ -238,22 +246,28 @@ class _Chip extends StatelessWidget {
     final colors = context.appColorsV2;
     final locked = onTap == null;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.space3,
-          vertical: AppSpacing.space2,
-        ),
-        decoration: BoxDecoration(
-          color: colors.bgSurface,
-          borderRadius: AppRadius.full,
-          border: Border.all(color: colors.borderDefault),
-        ),
-        child: Text(
-          label,
-          style: AppTypographyV2.body12.copyWith(
-            color: locked ? colors.textDisabled : colors.textSecondary,
+    // 면을 `Ink`로 칠해야 물결이 그 위에 그려진다. `Container`로 칠하면 면이
+    // 물결을 덮는다. `Ink`도 `Container`처럼 테두리 두께를 여백에 더해 크기가 같다.
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.full,
+        child: Ink(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.space3,
+            vertical: AppSpacing.space2,
+          ),
+          decoration: BoxDecoration(
+            color: colors.bgSurface,
+            borderRadius: AppRadius.full,
+            border: Border.all(color: colors.borderDefault),
+          ),
+          child: Text(
+            label,
+            style: AppTypographyV2.body12.copyWith(
+              color: locked ? colors.textDisabled : colors.textSecondary,
+            ),
           ),
         ),
       ),

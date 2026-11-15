@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -20,7 +21,12 @@ import 'package:runiverse/features/notification/presentation/push_provider.dart'
 import 'package:runiverse/features/session/domain/run_resume.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
-/// 하단 탭 셸 — 4개 탭의 공통 껍데기.
+// TODO(되살리기): 기록카드 화면이 생기면 iOS에서도 보이게.
+// iOS에서만 숨긴다(원격 설정 아님). 안드로이드는 그대로 보인다. 탭과 branch가
+// 같이 따라야 해서 라우터도 이 값을 본다. 되살릴 때 widget_test의 iOS 검사도 지운다.
+bool get showRecordCardTab => defaultTargetPlatform != TargetPlatform.iOS;
+
+/// 하단 탭 셸 — 4개 탭(iOS는 3개)의 공통 껍데기.
 ///
 /// [StatefulNavigationShell]이 탭별 [Navigator]를 들고 있고, 이 위젯은
 /// 그것을 `body`에 꽂고 아래에 탭 바를 붙인다. **탭을 옮겨도 이 위젯은 살아있다** —
@@ -40,7 +46,7 @@ import 'package:runiverse/features/session/presentation/user_status_provider.dar
 /// `StatefulShellRoute.indexedStack`은 한 번 열린 탭을 살려두므로, 탭마다 띄우면
 /// 시트가 겹쳐 쌓인다.
 ///
-/// 여기 두면 네 탭 전부가 같은 관문을 지난다. 그것이 "프로필 없이는 앱을 쓸 수
+/// 여기 두면 모든 탭이 같은 관문을 지난다. 그것이 "프로필 없이는 앱을 쓸 수
 /// 없다"는 규칙과도 맞는다 — 홈만 막으면 다른 탭으로 돌아 들어갈 수 있다.
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({required this.navigationShell, super.key});
@@ -279,11 +285,12 @@ class _AppShellState extends ConsumerState<AppShell> {
   ///
   /// ⚠️ **라벨은 화면에 안 그려진다.** 시안이 아이콘만 두기로 해서
   /// (CLAUDE.md Scope) 스크린리더가 읽는 이름으로만 쓰인다.
-  static const _tabs = <AppTabSpec>[
-    AppTabSpec(icon: AppIcons.home, label: AppStrings.tabHome),
-    AppTabSpec(icon: AppIcons.book, label: AppStrings.tabRecord),
-    AppTabSpec(icon: AppIcons.photo, label: AppStrings.tabRecordCard),
-    AppTabSpec(icon: AppIcons.profile, label: AppStrings.tabProfile),
+  static List<AppTabSpec> get _tabs => [
+    const AppTabSpec(icon: AppIcons.home, label: AppStrings.tabHome),
+    const AppTabSpec(icon: AppIcons.book, label: AppStrings.tabRecord),
+    if (showRecordCardTab)
+      const AppTabSpec(icon: AppIcons.photo, label: AppStrings.tabRecordCard),
+    const AppTabSpec(icon: AppIcons.profile, label: AppStrings.tabProfile),
   ];
 
   /// 홈 탭의 자리. [_tabs] 순서와 함께 움직인다.
