@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/app/app.dart';
@@ -116,5 +117,27 @@ void main() {
     expect(tabLabel('피드'), findsNothing);
     expect(tabLabel('대회일정'), findsNothing);
     handle.dispose();
+  });
+
+  // TODO(되살리기): 기록카드 탭을 되살리면 이 테스트를 지운다.
+  testWidgets('iOS에서는 기록카드 탭이 없어 탭이 셋이다', (tester) async {
+    // 본문 안에서 되돌린다 — testWidgets가 본문 끝에서 디버그 변수를 검사한다.
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    try {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester);
+
+      for (final name in [
+        AppStrings.tabHome,
+        AppStrings.tabRecord,
+        AppStrings.tabProfile,
+      ]) {
+        expect(tabLabel(name), findsOneWidget, reason: '$name 탭이 없다');
+      }
+      expect(tabLabel(AppStrings.tabRecordCard), findsNothing);
+      handle.dispose();
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 }
