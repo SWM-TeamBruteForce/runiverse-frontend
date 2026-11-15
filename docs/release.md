@@ -176,7 +176,7 @@ fvm flutter build appbundle --release --flavor prod --build-number=<N> \
 - **`pubspec.yaml`에는 버전 이름(`1.0.0`)만 둔다.** 버전 코드(`+N`)는 적지 않고
   빌드할 때 `--build-number`로 넘긴다. 번호를 올리려고 커밋하지 않는다.
 - 버전 코드는 CI가 정한다 — 두 앱 다 그 워크플로의 실행 번호다. Play에 한 번 올린 번호는 다시 쓸 수 없다.
-- 태그는 달지 않는다. 스토어에 있는 빌드가 어느 커밋인지는 같은 번호의 Actions 실행에서 찾는다.
+- 운영에 낸 main 머지 커밋에 `vX.Y.Z` 태그와 GitHub Release를 단다. iOS를 손으로 빌드해 낸 1.3.2까지는 그 커밋에 `vX.Y.Z-ios` 태그가 따로 있다.
 
 ### ⚠️ 운영 릴리스마다 버전 **이름**을 올린다
 
