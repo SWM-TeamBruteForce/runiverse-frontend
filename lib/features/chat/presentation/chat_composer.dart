@@ -178,7 +178,7 @@ class _ChatComposerState extends State<ChatComposer> {
                   controller: _controller,
                   focusNode: _focus,
                   hint: AppStrings.chatHint,
-                  // 세 줄까지 늘어난다. 그 뒤로는 안에서 스크롤된다.
+                  // 세 줄 높이로 고정한다. 그 뒤로는 안에서 스크롤된다.
                   maxLines: 3,
                   textInputAction: TextInputAction.newline,
                   keyboardType: TextInputType.multiline,
@@ -238,22 +238,28 @@ class _Chip extends StatelessWidget {
     final colors = context.appColorsV2;
     final locked = onTap == null;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.space3,
-          vertical: AppSpacing.space2,
-        ),
-        decoration: BoxDecoration(
-          color: colors.bgSurface,
-          borderRadius: AppRadius.full,
-          border: Border.all(color: colors.borderDefault),
-        ),
-        child: Text(
-          label,
-          style: AppTypographyV2.body12.copyWith(
-            color: locked ? colors.textDisabled : colors.textSecondary,
+    // 면을 `Ink`로 칠해야 물결이 그 위에 그려진다. `Container`로 칠하면 면이
+    // 물결을 덮는다. `Ink`도 `Container`처럼 테두리 두께를 여백에 더해 크기가 같다.
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.full,
+        child: Ink(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.space3,
+            vertical: AppSpacing.space2,
+          ),
+          decoration: BoxDecoration(
+            color: colors.bgSurface,
+            borderRadius: AppRadius.full,
+            border: Border.all(color: colors.borderDefault),
+          ),
+          child: Text(
+            label,
+            style: AppTypographyV2.body12.copyWith(
+              color: locked ? colors.textDisabled : colors.textSecondary,
+            ),
           ),
         ),
       ),

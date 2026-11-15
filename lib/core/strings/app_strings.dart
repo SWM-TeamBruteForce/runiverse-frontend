@@ -2031,13 +2031,13 @@ abstract final class AppStrings {
   static const chatQuickReplies = [
     '곧 도착해요',
     '조금 늦어요',
-    '출발 준비 됐어요',
+    '출발 준비됐어요',
     '화이팅!',
     '잠시만요',
   ];
 
   /// 아직 아무도 말하지 않았다. **이때도 칩과 입력창은 보인다.**
-  static const chatEmpty = '아직 대화가 없어요. 먼저 인사해 보세요.';
+  static const chatEmpty = '아직 대화가 없어요. 먼저 인사해 보세요';
 
   static const chatHint = '메시지 입력';
 
@@ -2081,7 +2081,8 @@ abstract final class AppStrings {
 
   /// 삭제는 되돌릴 수 없어서 묻는다.
   static const chatDeleteConfirmTitle = '이 메시지를 지울까요?';
-  static const chatDeleteConfirmBody = '지운 메시지는 되돌릴 수 없어요.';
+  static const chatDeleteConfirmBody = '지운 메시지는 되돌릴 수 없어요';
+  static const chatDeleteCancel = '취소';
 
   /// 글자 수를 넘겼다. 서버도 400으로 막지만 보내기 전에 알려 준다.
   static const chatTooLong = '200자까지 보낼 수 있어요';

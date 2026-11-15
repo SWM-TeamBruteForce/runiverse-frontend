@@ -22,10 +22,9 @@ import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
 
-// TODO(되살리기): 운영 서버에 방 채팅이 배포되면 true로.
-// 빌드 때 고정하는 숨김이다(원격 설정 아님). 채팅 상태는 이 버튼이 처음 읽어서
-// 버튼이 없으면 채팅 API도 부르지 않는다. 되살릴 때 테스트 skip도 지운다.
-const _showChat = false;
+// 대기방 채팅 스위치. 빌드 때 고정한다(원격 설정 아님). 채팅 상태는 이 버튼이
+// 처음 읽어서 false면 채팅 API도 부르지 않는다.
+const _showChat = true;
 
 /// 대기방 (S10). 시안 `158:3415` `매칭 완료 / 세션 로비 페이지`.
 ///
@@ -459,7 +458,7 @@ class _MatchRoomPageState extends ConsumerState<MatchRoomPage> {
   /// 채팅 버튼을 보여줄 때인가.
   ///
   /// 출발 전(`matching`·`matched`)이면 **파티원이 몇이든** 보인다.
-  /// 지금은 [_showChat]이 꺼져 있어 늘 숨는다.
+  /// [_showChat]이 꺼져 있으면 늘 숨는다.
   ///
   /// ⚠️ **혼자면 숨기던 것을 2026-11-13에 걷어냈다.** 둘이 대화하다 한 명이
   /// 나가면 남은 사람 화면에서 버튼이 사라져, **방금 나눈 대화에 들어갈 문이
@@ -499,59 +498,66 @@ class _ChatButton extends StatelessWidget {
       // ⚠️ **안쪽을 가린다.** 안 가리면 스크린리더가 배지의 숫자만 `2`라고
       // 읽는다. 그 숫자는 라벨이 이미 말로 담고 있다.
       excludeSemantics: true,
-      child: GestureDetector(
-        key: MatchRoomPage.chatKey,
-        onTap: onTap,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: size,
-              height: size,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: colors.primary,
-                borderRadius: AppRadius.full,
-              ),
-              // ⚠️ **PNG다.** `AppIcon`은 `assets/icons/<name>.svg`만 읽으므로
-              // 이 그림은 그 경로를 못 탄다. 단색 선화라 틴트는 먹는다 —
-              // `AppIcon`이 SVG에 하는 일과 같은 결과다.
-              child: Image.asset(
-                'assets/images/icon_chat.png',
-                width: _glyph,
-                height: _glyph,
-                color: colors.textOnPrimary,
-                errorBuilder: (_, _, _) =>
-                    const SizedBox(width: _glyph, height: _glyph),
-              ),
-            ),
-            if (unread > 0)
-              Positioned(
-                right: -AppSpacing.space0,
-                top: -AppSpacing.space0,
-                child: Container(
-                  key: MatchRoomPage.chatBadgeKey,
-                  constraints: const BoxConstraints(minWidth: _badge),
-                  height: _badge,
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.space1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.error,
-                    borderRadius: AppRadius.full,
-                    // 버튼 색과 맞붙으면 숫자가 묻는다. 배경색으로 테두리를 둔다.
-                    border: Border.all(color: colors.bgBase, width: 2),
-                  ),
-                  child: Text(
-                    '$unread',
-                    style: AppTypographyV2.body18.copyWith(
-                      color: colors.textOnPrimary,
-                    ),
+      // 원을 `Ink`로 칠해야 물결이 그 위에 그려진다. 목록 위에 떠 있으므로
+      // `Ink`가 아래 Scaffold가 아니라 이 `Material`에 칠해지게 둔다.
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          key: MatchRoomPage.chatKey,
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Ink(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  color: colors.primary,
+                  borderRadius: AppRadius.full,
+                ),
+                // ⚠️ **PNG다.** `AppIcon`은 `assets/icons/<name>.svg`만 읽으므로
+                // 이 그림은 그 경로를 못 탄다. 단색 선화라 틴트는 먹는다 —
+                // `AppIcon`이 SVG에 하는 일과 같은 결과다.
+                child: Center(
+                  child: Image.asset(
+                    'assets/images/icon_chat.png',
+                    width: _glyph,
+                    height: _glyph,
+                    color: colors.textOnPrimary,
+                    errorBuilder: (_, _, _) =>
+                        const SizedBox(width: _glyph, height: _glyph),
                   ),
                 ),
               ),
-          ],
+              if (unread > 0)
+                Positioned(
+                  right: -AppSpacing.space0,
+                  top: -AppSpacing.space0,
+                  child: Container(
+                    key: MatchRoomPage.chatBadgeKey,
+                    constraints: const BoxConstraints(minWidth: _badge),
+                    height: _badge,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.space1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.error,
+                      borderRadius: AppRadius.full,
+                      // 버튼 색과 맞붙으면 숫자가 묻는다. 배경색으로 테두리를 둔다.
+                      border: Border.all(color: colors.bgBase, width: 2),
+                    ),
+                    child: Text(
+                      '$unread',
+                      style: AppTypographyV2.body18.copyWith(
+                        color: colors.textOnPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
