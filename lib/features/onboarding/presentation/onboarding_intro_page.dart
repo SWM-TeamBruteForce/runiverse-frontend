@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
@@ -304,8 +305,11 @@ class _ArtView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => switch (art) {
+    // iOS는 아이폰 목업을 쓴다. 원본은 안드로이드 목업이라 심사(2.3.10)에 걸린다.
     _Art.together => Image.asset(
-      'assets/images/onboarding_together.png',
+      defaultTargetPlatform == TargetPlatform.iOS
+          ? 'assets/images/onboarding_together_ios.png'
+          : 'assets/images/onboarding_together.png',
       fit: BoxFit.contain,
     ),
     // 애니메이션 WebP다. `Image`가 스스로 돌린다 — 컨트롤러가 필요 없다.
