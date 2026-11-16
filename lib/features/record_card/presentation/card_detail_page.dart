@@ -55,9 +55,9 @@ class CardDetailPage extends StatelessWidget {
         children: [
           _Header(card: card),
           const SizedBox(height: AppSpacing.space4),
+          // ⚠️ **회고를 따로 두지 않는다.** 사진 아래 글자 자리에 첫 장에서만
+          // 선다. 밖에 또 두면 사진을 넘기는 동안 회고가 계속 따라다닌다.
           CardMediaPager(card: card),
-          const SizedBox(height: AppSpacing.space6),
-          _Review(card: card),
         ],
       ),
     );
@@ -71,41 +71,24 @@ class _Header extends StatelessWidget {
   final RecordCard card;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = context.appColorsV2;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-      child: Column(
-        children: [
-          _MetaLine(
-            // ⚠️ **날짜도 유형도 두지 않는다.** 달력에서 그 칸을 눌러 들어왔으니
-            // 이미 알고 있고, 줄이 늘면 사진과 메모가 한 화면에 안 들어온다.
-            //
-            // ⚠️ 한 덩어리 문자열로 잇지 않는다. 조각마다 따로 두어야 좁은
-            // 화면에서 줄이 바뀌고, 테스트도 값 하나씩 짚을 수 있다.
-            parts: [
-              '${AppStrings.kmFloor(card.distanceMeters)} '
-                  '${AppStrings.runPartyUnitKm}',
-              AppStrings.recordRunDuration(card.duration),
-              '${AppStrings.recordRunDuration(card.averagePace)}'
-                  '${AppStrings.runPartyUnitPerKm}',
-            ],
-          ),
-          if (card.runners.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.space1),
-            Text(
-              AppStrings.recordCardRunnerCount(card.runners.length),
-              textAlign: TextAlign.center,
-              style: AppTypographyV2.body18.copyWith(
-                color: colors.textTertiary,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
+    // ⚠️ **머리에는 기록만 둔다.** 날짜·유형·함께 뛴 사람 줄을 두지 않는다 —
+    // 달력에서 그 칸을 눌러 들어왔으니 이미 알고 있고, 줄이 늘면 사진과
+    // 메모가 한 화면에서 밀려난다.
+    //
+    // ⚠️ 한 덩어리 문자열로 잇지 않는다. 조각마다 따로 두어야 좁은 화면에서
+    // 줄이 바뀌고, 테스트도 값 하나씩 짚을 수 있다.
+    child: _MetaLine(
+      parts: [
+        '${AppStrings.kmFloor(card.distanceMeters)} '
+            '${AppStrings.runPartyUnitKm}',
+        AppStrings.recordRunDuration(card.duration),
+        '${AppStrings.recordRunDuration(card.averagePace)}'
+            '${AppStrings.runPartyUnitPerKm}',
+      ],
+    ),
+  );
 }
 
 /// 가운데 정렬 메타 줄. 조각 사이에 가운뎃점을 넣는다.
@@ -129,35 +112,6 @@ class _MetaLine extends StatelessWidget {
           Text(parts[index], style: style),
         ],
       ],
-    );
-  }
-}
-
-class _Review extends StatelessWidget {
-  const _Review({required this.card});
-
-  final RecordCard card;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColorsV2;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            AppStrings.recordCardReview,
-            style: AppTypographyV2.body12.copyWith(color: colors.textPrimary),
-          ),
-          const SizedBox(height: AppSpacing.space2),
-          Text(
-            card.reviewText,
-            style: AppTypographyV2.body12.copyWith(color: colors.textSecondary),
-          ),
-        ],
-      ),
     );
   }
 }

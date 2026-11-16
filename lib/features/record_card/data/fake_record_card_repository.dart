@@ -291,6 +291,14 @@ class FakeRecordCardRepository implements RecordCardRepository {
     'assets/images/onboarding_record.jpg',
   ];
 
+  static const _captions = [
+    '여기서 한 번 쉬었다',
+    '해 지는 게 아까워서 멈췄다',
+    '바람이 딱 좋았다',
+    '다리 건너기 직전',
+    '끝나고 나니 다 좋았다',
+  ];
+
   static const _reviews = [
     '오늘은 퇴근 후 성수동에서 달렸다. 처음에는 몸이 무거웠는데 어느새 발걸음이 가벼워졌다.',
     '선선한 바람 덕분에 생각보다 편안하게 달릴 수 있었다. 다음엔 조금 더 멀리 가 봐야지.',
@@ -342,7 +350,9 @@ class FakeRecordCardRepository implements RecordCardRepository {
           RecordCardPhoto(
             id: index * 10 + p,
             url: _photoPool[(index + p) % _photoPool.length],
-            caption: p == 0 ? '그날의 한 장' : null,
+            // ⚠️ 사람이 쓴 말처럼 둔다. `그날의 한 장` 같은 꼬리표를 넣으면
+            // 캡션이 아니라 화면이 붙인 글자로 읽힌다 — 기기에서 그렇게 보였다.
+            caption: _captions[(index + p) % _captions.length],
           ),
       ],
       route: normalizeRoute(_shape(index, startedAt)),
