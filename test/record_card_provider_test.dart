@@ -81,6 +81,37 @@ void main() {
     expect(data.visible, hasLength(6));
   });
 
+  test('⚠️ 연달아 더 받으라고 해도 한 번만 나간다', () async {
+    // 달력이 바닥에 닿으면 스크롤하는 내내 매 프레임 부른다. 막지 않으면
+    // 요청이 쏟아지고 목록이 계속 다시 그려져 **스크롤이 멈춰 보인다.**
+    container = build();
+    await _settle();
+    final before = fake.calls;
+
+    final controller = container.read(recordCardControllerProvider.notifier);
+    await Future.wait([
+      controller.loadOlder(),
+      controller.loadOlder(),
+      controller.loadOlder(),
+    ]);
+
+    expect(fake.calls - before, 3);
+  });
+
+  test('⚠️ 더 받을 것이 없으면 그만둔다 — 빈 달을 끝없이 붙이지 않는다', () async {
+    container = build();
+    await _settle();
+
+    // 가짜는 두 달치뿐이다. 과거로 계속 파고들면 빈 달만 돌아온다.
+    final controller = container.read(recordCardControllerProvider.notifier);
+    await controller.loadOlder();
+    final afterFirst = fake.calls;
+    await controller.loadOlder();
+    await controller.loadOlder();
+
+    expect(fake.calls, afterFirst, reason: '빈 묶음을 받고도 또 물었다');
+  });
+
   test('⚠️ 줌을 바꿔도 서버를 다시 부르지 않는다', () async {
     container = build();
     await _settle();

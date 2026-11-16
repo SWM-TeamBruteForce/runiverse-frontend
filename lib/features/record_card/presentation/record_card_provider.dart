@@ -48,6 +48,16 @@ class RecordCardController extends Notifier<RecordCardState> {
   /// 계정 차수. 계정이 바뀔 때마다 올라간다 — 그 전에 떠난 조회의 답을 가린다.
   var _accountEpoch = 0;
 
+  /// 더 받는 중인가.
+  ///
+  /// ⚠️ **없으면 스크롤이 멈춘 것처럼 보인다.** 달력이 바닥에 닿으면 스크롤하는
+  /// 내내 매 프레임 [loadOlder]를 부르는데, 그때마다 상태가 바뀌어 목록이 계속
+  /// 다시 그려진다. 에뮬레이터에서 실제로 그렇게 멈췄다(2026-11-16).
+  var _loadingOlder = false;
+
+  /// 더 과거에는 아무것도 없다.
+  var _atOldest = false;
+
   @override
   RecordCardState build() {
     _watchAccount();
@@ -59,6 +69,8 @@ class RecordCardController extends Notifier<RecordCardState> {
   /// 이번 달을 포함한 최근 [_batchMonths]개월을 받는다. 오류 화면의 다시 시도도
   /// 이것을 부른다.
   Future<void> load() {
+    _loadingOlder = false;
+    _atOldest = false;
     final now = ref.read(recordCardClockProvider)();
     return _fetch([
       for (var back = _batchMonths - 1; back >= 0; back--)
@@ -67,17 +79,35 @@ class RecordCardController extends Notifier<RecordCardState> {
   }
 
   /// 들고 있는 것보다 더 과거 [_batchMonths]개월을 덧붙인다.
-  Future<void> loadOlder() {
+  ///
+  /// 달력이 바닥에 닿을 때마다 불린다 — **같은 요청이 겹치지 않게 막고**, 받아
+  /// 온 묶음이 통째로 비어 있으면 더 파고들지 않는다.
+  Future<void> loadOlder() async {
     final current = state;
-    if (current is! RecordCardData || current.months.isEmpty) {
-      return Future<void>.value();
-    }
+    if (_loadingOlder || _atOldest) return;
+    if (current is! RecordCardData || current.months.isEmpty) return;
 
     final earliest = current.months.first.month;
-    return _fetch([
+    final wanted = [
       for (var back = _batchMonths; back >= 1; back--)
         DateTime(earliest.year, earliest.month - back),
-    ], reset: false);
+    ];
+
+    _loadingOlder = true;
+    try {
+      await _fetch(wanted, reset: false);
+
+      // ⚠️ **빈 묶음이 왔으면 거기가 끝이다.** 안 멈추면 과거로 영원히 파고들며
+      // 빈 달을 붙인다. 석 달을 통째로 쉰 사람은 그 앞도 못 보게 되는데, 볼
+      // 것이 없으므로 보이는 결과는 같다. 서버가 "더 있다"를 알려 주면 그걸 쓴다.
+      final next = state;
+      if (next is RecordCardData) {
+        final added = next.months.where((m) => wanted.contains(m.month));
+        if (added.every((month) => month.cardCount == 0)) _atOldest = true;
+      }
+    } finally {
+      _loadingOlder = false;
+    }
   }
 
   /// `null`이면 전체다. **서버를 부르지 않는다.**

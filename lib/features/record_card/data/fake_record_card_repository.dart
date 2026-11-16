@@ -278,11 +278,12 @@ class FakeRecordCardRepository implements RecordCardRepository {
       ];
 
   /// 돌려 쓰는 번들 사진. 서버가 없어 열람 주소를 만들 수 없다.
+  ///
+  /// ⚠️ **`home_*.webp`를 쓰지 않는다.** 그쪽은 사진이 아니라 홈 화면 배경이라,
+  /// 카드 썸네일로 깔면 달력에 **앱 스크린샷이 끼어 있는 것처럼** 보인다.
   static const _photoPool = [
     'assets/images/onboarding_record.jpg',
     'assets/images/onboarding_together.png',
-    'assets/images/home_waiting_bg.webp',
-    'assets/images/onboarding_combo.webp',
     'assets/images/sign_in_hero.png',
   ];
 
@@ -349,8 +350,15 @@ class FakeRecordCardRepository implements RecordCardRepository {
 
   /// 카드마다 다른 모양을 낸다. 전부 같은 선이면 달력 칸이 구별되지 않는다.
   ///
+  /// ## ⚠️ 일부러 흔들어 놓는다
+  ///
+  /// 매끈한 원이나 8자를 그리면 **러닝 경로가 아니라 도형으로 보인다.** 길을
+  /// 따라 달린 선은 꺾이고 삐뚤다. `seed`로 정해진 난수를 섞어 모양을 흐트러뜨린다
+  /// — 같은 카드는 늘 같은 모양이어야 해서 시각을 섞지 않는다.
+  ///
   /// 네 장에 한 번은 **두 조각**으로 끊어 일시정지를 흉내낸다.
   static List<List<GeoPoint>> _shape(int seed, DateTime at) {
+    final random = math.Random(seed);
     final lobesX = 1 + seed % 3;
     final lobesY = 1 + (seed + 1) % 2;
     final points = [
@@ -359,9 +367,12 @@ class FakeRecordCardRepository implements RecordCardRepository {
           latitude:
               37.54 +
               0.008 * math.sin(i / 48 * 2 * math.pi * lobesY) +
+              0.0018 * (random.nextDouble() - 0.5) +
               seed * 0.0002,
           longitude:
-              127.05 + 0.010 * math.cos(i / 48 * 2 * math.pi * lobesX),
+              127.05 +
+              0.010 * math.cos(i / 48 * 2 * math.pi * lobesX) +
+              0.0018 * (random.nextDouble() - 0.5),
           recordedAt: at.add(Duration(seconds: i * 30)),
         ),
     ];
