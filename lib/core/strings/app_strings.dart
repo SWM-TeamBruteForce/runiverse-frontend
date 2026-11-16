@@ -1551,6 +1551,55 @@ abstract final class AppStrings {
     return '$hours시간 $minutes분';
   }
 
+  // ── 기록카드 탭 ──────────────────────────────────────────────
+  //
+  // 탭 이름은 위의 [tabRecordCard]다. 여기 또 두지 않는다.
+
+  /// 달 머리의 오른쪽. **분수를 쓰지 않는다.**
+  ///
+  /// ⚠️ 시안은 `18/30`인데, 분모가 날짜 수든 뛴 날 수든 **안 채운 칸이 결손으로
+  /// 읽힌다.** 디자인 시스템 v1.1 §5-5가 잔디의 죄책감 문제를 못 박았고 기록
+  /// 탭도 그걸 지켰다.
+  static String recordCardMonthCount(int count) => '카드 $count장';
+
+  /// 카드를 한 장도 안 썼을 때.
+  ///
+  /// ⚠️ **필터로 0장이 된 것과 다르다.** 필터를 건 사람에게 이 문구가 뜨면
+  /// 필터 때문인 줄 모른다(`RecordCardData.hasAnyCard`).
+  static const recordCardEmptyTitle = '아직 남긴 기록카드가 없어요';
+  static const recordCardEmptyAction = '기록카드 쓰기';
+
+  /// 유형 필터의 `전체`. 나머지 셋은 [RecordCardActivity]의 이름을 쓴다.
+  static const recordCardFilterAll = '전체';
+  static const recordCardActivityDaily = '일상';
+  static const recordCardActivityRace = '대회';
+  static const recordCardActivityTravel = '여행';
+
+  /// 달력 칸을 스크린리더가 읽을 말.
+  ///
+  /// ⚠️ 칸에는 날짜 숫자와 사진뿐이라 **읽을 것이 거의 없다.** 분기 보기에서는
+  /// 숫자마저 빠진다.
+  static String recordCardCellSemantics({
+    required DateTime day,
+    required int count,
+  }) {
+    final date = '${day.month}월 ${day.day}일';
+    if (count == 0) return '$date, 기록카드 없음';
+    if (count == 1) return '$date, 기록카드 1장';
+    return '$date, 기록카드 $count장';
+  }
+
+  /// 하루에 카드가 둘 이상일 때 뜨는 시트의 제목.
+  static String recordCardDaySheetTitle(DateTime day) =>
+      '${day.month}월 ${day.day}일의 기록카드';
+
+  /// 카드 한 장을 요약한 한 줄. 시트와 상세 머리에 쓴다.
+  static String recordCardStartedAt(DateTime at) {
+    final hour = at.hour.toString().padLeft(2, '0');
+    final minute = at.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
   // ── 프로필 유도 바텀시트 ─────────────────────────────────────
   //
   // ⚠️ **닫히지 않는다.** 프로필 없이는 매칭도 기록도 돌아가지 않아서
