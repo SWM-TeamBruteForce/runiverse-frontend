@@ -96,11 +96,20 @@ abstract final class AppRoutes {
   static String recordDetailOf(int runningRoomId) =>
       '$record/detail/$runningRoomId';
 
-  /// 기록카드 — 준비 중.
+  /// 기록카드 탭.
   ///
   /// 그때 뛴 경험을 사진·회고로 남기는 탭이다. 온보딩 3장이 이걸 소개한다.
-  /// 시안에 화면이 없어 [ComingSoonPage]를 띄운다.
   static const recordCard = '/record-card';
+
+  /// 기록카드 한 장 (읽기 전용).
+  ///
+  /// ⚠️ **탭 셸 밖에 둔다.** 셸 안에 두면 ① 프로필 그리드나 러닝 요약에서 카드를
+  /// 열었을 때 **기록카드 탭으로 전환**되어 뒤로 가기가 엉뚱한 데로 떨어지고
+  /// ② 하단 탭 바가 함께 보인다.
+  static const recordCardDetail = '/record-card/card/:id';
+
+  /// ⚠️ **카드 번호다.** 러닝 기록 번호도 방 번호도 아니다.
+  static String recordCardDetailOf(int cardId) => '$recordCard/card/$cardId';
 
   /// 본인 프로필 (S20)
   static const profile = '/profile';

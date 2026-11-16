@@ -1562,6 +1562,9 @@ abstract final class AppStrings {
   /// 탭도 그걸 지켰다.
   static String recordCardMonthCount(int count) => '카드 $count장';
 
+  /// 조회가 실패했을 때. 다시 시도 버튼은 [recordRetry]를 쓴다.
+  static const recordCardError = '기록카드를 불러오지 못했어요';
+
   /// 카드를 한 장도 안 썼을 때.
   ///
   /// ⚠️ **필터로 0장이 된 것과 다르다.** 필터를 건 사람에게 이 문구가 뜨면

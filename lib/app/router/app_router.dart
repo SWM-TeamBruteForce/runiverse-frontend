@@ -1,8 +1,6 @@
 ﻿import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/app/router/app_shell.dart';
-import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/widgets/coming_soon_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_in_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_up_page.dart';
 import 'package:runiverse/features/friend/presentation/friend_page.dart';
@@ -22,6 +20,7 @@ import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.
 import 'package:runiverse/features/profile/presentation/profile_edit_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_page.dart';
 import 'package:runiverse/features/session/presentation/run_prepare_page.dart';
 import 'package:runiverse/features/session/presentation/run_session_page.dart';
 import 'package:runiverse/features/record/presentation/record_detail_page.dart';
@@ -245,17 +244,17 @@ GoRouter createAppRouter({String? initialLocation}) {
             ],
           ),
 
-          // 2 · 기록카드 — 화면이 생기면 여기만 갈아끼운다.
-          // iOS에서는 `showRecordCardTab`으로 숨겨 프로필이 2번이 된다.
+          // 2 · 기록카드
+          //
+          // ⚠️ **카드 상세는 여기 두지 않는다.** 셸 밖(`recordCardDetail`)이다 —
+          // 프로필이나 러닝 요약에서 카드를 열었을 때 탭이 바뀌면 안 된다.
           if (showRecordCardTab)
             StatefulShellBranch(
               routes: [
                 GoRoute(
                   path: AppRoutes.recordCard,
                   name: 'record_card',
-                  builder: (context, state) => const ComingSoonPage(
-                    featureName: AppStrings.tabRecordCard,
-                  ),
+                  builder: (context, state) => const RecordCardPage(),
                 ),
               ],
             ),
