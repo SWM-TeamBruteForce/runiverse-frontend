@@ -153,25 +153,24 @@ void main() {
     expect(find.text('사진 0의 한마디'), findsOneWidget);
   });
 
-  testWidgets('⚠️ 사진이 화면의 절반을 넘게 먹지 않는다 — 아래가 밀려난다', (tester) async {
+  testWidgets('⚠️ 점은 제목과 사진 사이에 선다 — 아래는 글 자리다', (tester) async {
     await _pump(tester, photos: 2);
 
-    expect(
-      tester.getSize(find.byType(PageView)).height,
-      lessThanOrEqualTo(915 * 0.55),
-    );
+    final dots = tester.getRect(find.byType(CardPageDots));
+    final pager = tester.getRect(find.byType(PageView));
+    expect(dots.bottom, lessThanOrEqualTo(pager.top));
   });
 
   testWidgets('⚠️ 사진이 없으면 한 장뿐이고 진행 막대도 안 뜬다', (tester) async {
     await _pump(tester);
 
-    expect(find.byType(CardPageBars), findsNothing);
+    expect(find.byType(CardPageDots), findsNothing);
   });
 
   testWidgets('사진이 5장이면 막대가 6개다', (tester) async {
     await _pump(tester, photos: 5);
 
-    final bars = tester.widget<CardPageBars>(find.byType(CardPageBars));
+    final bars = tester.widget<CardPageDots>(find.byType(CardPageDots));
     expect(bars.count, 6);
   });
 

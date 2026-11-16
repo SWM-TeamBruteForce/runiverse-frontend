@@ -45,7 +45,7 @@ class CardMediaPager extends StatefulWidget {
   ///
   /// ⚠️ **디자인 확인이 필요한 값이다.** 사진·캡션·회고가 한 화면에 들어오는
   /// 것이 기준이다.
-  static const _maxHeightShare = 0.52;
+  static const _maxHeightShare = 0.68;
 
   final RecordCard card;
 
@@ -135,12 +135,18 @@ class _CardMediaPagerState extends State<CardMediaPager> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // ⚠️ **표시는 사진 위다.** 사진 아래는 회고·캡션이 쓰는 자리라,
+        // 거기 두면 글과 다툰다. 장이 하나뿐이면 두지 않는다 — 점 하나는
+        // 알려 주는 것이 없다.
+        if (_count > 1) ...[
+          CardPageDots(count: _count, current: _page),
+          const SizedBox(height: AppSpacing.space3),
+        ],
         SizedBox(
-          // ⚠️ **9:16을 그대로 쓰면 사진이 화면을 거의 다 먹는다.** 한 장의
-          // 폭은 뷰포트 폭의 [_viewport]배라 높이가 `폭 × _viewport × 16/9`인데,
-          // 손전화에서 그 값이 화면의 2/3를 넘겨 캡션·회고가 밀려났다.
-          // 화면 높이의 [_maxHeightShare]를 넘지 않게 자른다 — 사진은
-          // `BoxFit.cover`라 잘려도 가운데가 남는다.
+          // ⚠️ **한 장이 9:16이지 페이저가 9:16이 아니다.** 한 장의 폭은
+          // 뷰포트 폭의 [_viewport]배라 높이는 `폭 × _viewport × 16/9`다.
+          // 그 값이 화면 높이의 [_maxHeightShare]를 넘으면 잘라 낸다 —
+          // 사진은 `BoxFit.cover`라 잘려도 가운데가 남는다.
           height: _pagerHeight(context),
           child: Semantics(
             label: AppStrings.recordCardPageSemantics(
@@ -180,12 +186,6 @@ class _CardMediaPagerState extends State<CardMediaPager> {
               ),
             ),
           ),
-        // ⚠️ 장이 하나뿐이면 막대를 두지 않는다. 늘 꽉 찬 막대 하나는
-        // 알려 주는 것이 없다.
-        if (_count > 1) ...[
-          const SizedBox(height: AppSpacing.space3),
-          CardPageBars(count: _count, current: _page),
-        ],
       ],
     );
   }
@@ -230,12 +230,14 @@ class _Page extends StatelessWidget {
   }
 }
 
-/// 장마다 하나씩 차는 막대.
+/// 몇 번째 장인지 알리는 작은 흰 점들. **제목과 사진 사이**에 선다.
 ///
-/// ⚠️ **점이 아니라 막대다.** 장마다 길이가 있는 재생이라, 점은 "몇 번째인가"만
-/// 말하고 **얼마나 남았는지**를 못 알린다.
-class CardPageBars extends StatelessWidget {
-  const CardPageBars({required this.count, required this.current, super.key});
+/// 사진 아래는 회고·캡션이 쓰는 자리라, 표시를 그쪽에 두면 글과 다툰다.
+class CardPageDots extends StatelessWidget {
+  const CardPageDots({required this.count, required this.current, super.key});
+
+  /// 점 지름.
+  static const _size = 6.0;
 
   final int count;
   final int current;
@@ -244,26 +246,22 @@ class CardPageBars extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-      child: Row(
-        children: [
-          for (var index = 0; index < count; index++) ...[
-            if (index > 0) const SizedBox(width: AppSpacing.space1),
-            Expanded(
-              child: Container(
-                height: 3,
-                decoration: BoxDecoration(
-                  color: index <= current
-                      ? colors.primary
-                      : colors.borderDefault,
-                  borderRadius: AppRadius.full,
-                ),
-              ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var index = 0; index < count; index++) ...[
+          if (index > 0) const SizedBox(width: AppSpacing.space1),
+          Container(
+            width: _size,
+            height: _size,
+            decoration: BoxDecoration(
+              // 지금 장만 또렷하고 나머지는 흐리다.
+              color: index == current ? colors.textStrong : colors.textDisabled,
+              shape: BoxShape.circle,
             ),
-          ],
+          ),
         ],
-      ),
+      ],
     );
   }
 }
