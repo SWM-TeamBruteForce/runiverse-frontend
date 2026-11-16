@@ -135,13 +135,6 @@ class _CardMediaPagerState extends State<CardMediaPager> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ⚠️ **표시는 사진 위다.** 사진 아래는 회고·캡션이 쓰는 자리라,
-        // 거기 두면 글과 다툰다. 장이 하나뿐이면 두지 않는다 — 점 하나는
-        // 알려 주는 것이 없다.
-        if (_count > 1) ...[
-          CardPageDots(count: _count, current: _page),
-          const SizedBox(height: AppSpacing.space3),
-        ],
         SizedBox(
           // ⚠️ **한 장이 9:16이지 페이저가 9:16이 아니다.** 한 장의 폭은
           // 뷰포트 폭의 [_viewport]배라 높이는 `폭 × _viewport × 16/9`다.
@@ -175,6 +168,12 @@ class _CardMediaPagerState extends State<CardMediaPager> {
           ),
         ),
         const SizedBox(height: AppSpacing.space3),
+        // ⚠️ **사진과 글 사이다.** 장이 하나뿐이면 두지 않는다 — 점 하나는
+        // 알려 주는 것이 없다.
+        if (_count > 1) ...[
+          CardPageDots(count: _count, current: _page),
+          const SizedBox(height: AppSpacing.space3),
+        ],
         if (_below != null && _below!.trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
@@ -230,9 +229,7 @@ class _Page extends StatelessWidget {
   }
 }
 
-/// 몇 번째 장인지 알리는 작은 흰 점들. **제목과 사진 사이**에 선다.
-///
-/// 사진 아래는 회고·캡션이 쓰는 자리라, 표시를 그쪽에 두면 글과 다툰다.
+/// 몇 번째 장인지 알리는 작은 흰 점들. **사진과 글 사이**에 선다.
 class CardPageDots extends StatelessWidget {
   const CardPageDots({required this.count, required this.current, super.key});
 

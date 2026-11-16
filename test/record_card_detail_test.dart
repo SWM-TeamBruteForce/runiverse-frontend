@@ -153,12 +153,15 @@ void main() {
     expect(find.text('사진 0의 한마디'), findsOneWidget);
   });
 
-  testWidgets('⚠️ 점은 제목과 사진 사이에 선다 — 아래는 글 자리다', (tester) async {
+  testWidgets('⚠️ 점은 사진과 글 사이에 선다', (tester) async {
     await _pump(tester, photos: 2);
 
     final dots = tester.getRect(find.byType(CardPageDots));
     final pager = tester.getRect(find.byType(PageView));
-    expect(dots.bottom, lessThanOrEqualTo(pager.top));
+    final text = tester.getRect(find.text('오늘은 퇴근 후 성수동에서 달렸다.'));
+
+    expect(dots.top, greaterThanOrEqualTo(pager.bottom));
+    expect(dots.bottom, lessThanOrEqualTo(text.top));
   });
 
   testWidgets('⚠️ 사진이 없으면 한 장뿐이고 진행 막대도 안 뜬다', (tester) async {
