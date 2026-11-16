@@ -112,6 +112,61 @@ void main() {
       expect(data.visible.first.cardCount, 0);
     });
 
+    test('⚠️ 가장 오래된 빈 달들은 보이지 않는다 — 첫 카드가 있는 달까지다', () {
+      // 더 받기가 빈 달을 붙여 놓으면 바닥에 아무것도 없는 달력이 늘어선다.
+      final data = RecordCardData(
+        months: [
+          MonthCards(month: DateTime(2026, 7), cards: const []),
+          MonthCards(month: DateTime(2026, 8), cards: const []),
+          september(),
+          october(),
+        ],
+      );
+
+      expect(data.visible.map((m) => m.month), [
+        DateTime(2026, 9),
+        DateTime(2026, 10),
+      ]);
+      // 원본은 그대로다 — 이미 받은 달을 다시 받지 않으려면 들고 있어야 한다.
+      expect(data.months, hasLength(4));
+    });
+
+    test('⚠️ 사이에 낀 빈 달은 남는다 — 달력에서 달이 건너뛰면 안 된다', () {
+      final data = RecordCardData(
+        months: [
+          september(),
+          MonthCards(month: DateTime(2026, 10), cards: const []),
+          MonthCards(
+            month: DateTime(2026, 11),
+            cards: [_card(id: 3, startedAt: DateTime(2026, 11, 2))],
+          ),
+        ],
+      );
+
+      expect(data.visible, hasLength(3));
+    });
+
+    test('⚠️ 카드가 하나도 없으면 받은 달을 그대로 보여준다 — 달력이 통째로 비면 안 된다', () {
+      final data = RecordCardData(
+        months: [
+          MonthCards(month: DateTime(2026, 9), cards: const []),
+          MonthCards(month: DateTime(2026, 10), cards: const []),
+        ],
+      );
+
+      expect(data.visible, hasLength(2));
+      expect(data.hasAnyCard, isFalse);
+    });
+
+    test('⚠️ 필터로 0장이 된 달은 잘리지 않는다 — 자르는 기준은 필터 전이다', () {
+      final data = RecordCardData(
+        months: [september(), october()],
+        filter: RecordCardActivity.race,
+      );
+
+      expect(data.visible, hasLength(2));
+    });
+
     test('⚠️ 필터는 visible만 바꾼다 — 원본은 그대로다', () {
       final data = RecordCardData(
         months: [september()],

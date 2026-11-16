@@ -51,8 +51,10 @@ void main() {
 
     expect(fake.queries, hasLength(3));
     final data = container.read(recordCardControllerProvider) as RecordCardData;
+    // ⚠️ `visible`이 아니라 `months`를 본다 — 보이는 쪽은 카드가 없는 가장
+    // 오래된 달을 잘라 내므로 "무엇을 받아 왔나"를 말해 주지 못한다.
     expect(
-      data.visible.map((m) => m.month),
+      data.months.map((m) => m.month),
       [DateTime(2026, 9), DateTime(2026, 10), DateTime(2026, 11)],
     );
   });
@@ -77,8 +79,10 @@ void main() {
 
     expect(fake.queries, hasLength(6));
     final data = container.read(recordCardControllerProvider) as RecordCardData;
-    expect(data.visible.first.month, DateTime(2026, 6));
-    expect(data.visible, hasLength(6));
+    expect(data.months.first.month, DateTime(2026, 6));
+    expect(data.months, hasLength(6));
+    // 받아 온 빈 달은 화면에 세우지 않는다.
+    expect(data.visible.first.month, DateTime(2026, 10));
   });
 
   test('⚠️ 연달아 더 받으라고 해도 한 번만 나간다', () async {

@@ -87,12 +87,21 @@ class RecordCardError extends RecordCardState {
 
 /// 받아 온 카드.
 class RecordCardData extends RecordCardState {
-  RecordCardData({
+  factory RecordCardData({
     required List<MonthCards> months,
-    this.filter,
-    this.zoom = CalendarZoom.month,
-  }) : months = _sorted(months),
-       visible = [for (final month in _sorted(months)) month.filtered(filter)];
+    RecordCardActivity? filter,
+    CalendarZoom zoom = CalendarZoom.month,
+  }) => RecordCardData._(
+    months: [...months]..sort((a, b) => a.month.compareTo(b.month)),
+    filter: filter,
+    zoom: zoom,
+  );
+
+  RecordCardData._({
+    required this.months,
+    required this.filter,
+    required this.zoom,
+  }) : visible = _visibleOf(months, filter);
 
   /// 필터를 걸기 **전**의 달들. 오름차순이다.
   ///
@@ -132,6 +141,26 @@ class RecordCardData extends RecordCardState {
     zoom: zoom ?? this.zoom,
   );
 
-  static List<MonthCards> _sorted(List<MonthCards> months) =>
-      [...months]..sort((a, b) => a.month.compareTo(b.month));
+  /// 화면에 세울 달들. **가장 오래된 빈 달들을 잘라 낸다.**
+  ///
+  /// ## ⚠️ 더 받기가 빈 달을 붙여 둔다
+  ///
+  /// 과거로 더 받다 보면 카드가 없는 달이 딸려 온다. 그대로 두면 바닥에
+  /// **아무것도 없는 달력이 줄줄이** 늘어선다. 설계가 "과거는 첫 카드가 있는
+  /// 달까지"라고 적은 이유다.
+  ///
+  /// 자르는 기준은 **필터를 걸기 전**이다. 필터로 0장이 된 달까지 잘라 내면
+  /// 필터를 걸 때마다 달력의 길이가 들쭉날쭉해진다.
+  ///
+  /// ⚠️ **사이에 낀 빈 달은 남긴다.** 9월과 11월만 뛰었다고 10월을 빼면 달력이
+  /// 달을 건너뛴다. ⚠️ **한 장도 없으면 받은 그대로 둔다** — 달력이 통째로
+  /// 비면 이 탭이 무엇인지 알 수 없다.
+  static List<MonthCards> _visibleOf(
+    List<MonthCards> sorted,
+    RecordCardActivity? filter,
+  ) {
+    final first = sorted.indexWhere((month) => month.cardCount > 0);
+    final from = first < 0 ? 0 : first;
+    return [for (final month in sorted.skip(from)) month.filtered(filter)];
+  }
 }
