@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
-import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
@@ -9,7 +8,12 @@ import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/presentation/activity_label.dart';
 import 'package:runiverse/features/record_card/presentation/card_media_pager.dart';
 
-/// 기록카드 한 장 — **읽기만 한다.**
+/// 기록카드 한 장 — **포토북이다. 읽기만 한다.**
+///
+/// ## 위아래가 사진을 비켜 준다
+///
+/// 날짜와 기록은 **위 가운데**, 캡션은 **아래 가운데**다(시안). 가운데는
+/// 사진 한 장이 크게 차지한다 — 숫자를 사진 옆에 늘어놓으면 둘 다 묻힌다.
 ///
 /// ## ⚠️ 없는 버튼을 그려 두지 않는다
 ///
@@ -34,17 +38,13 @@ class CardDetailPage extends StatelessWidget {
       backgroundColor: colors.bgBase,
       appBar: AppBar(
         backgroundColor: colors.bgBase,
+        // ⚠️ **제목을 두지 않는다.** 날짜는 바로 아래 가운데에 크게 선다.
+        // 둘 다 두면 같은 말이 두 번이다.
         leading: IconButton(
           icon: const AppIcon(AppIcons.left),
           onPressed: () => Navigator.of(context).maybePop(),
           tooltip: AppStrings.authBack,
         ),
-        title: Text(
-          '${AppStrings.recordMonthLabel(card.day)} ${card.day.day}일 · '
-          '${AppStrings.recordCardStartedAt(card.startedAt)}',
-          style: AppTypographyV2.body12.copyWith(color: colors.textPrimary),
-        ),
-        centerTitle: true,
       ),
       body: ListView(
         // ⚠️ **바닥을 시스템에 비킨다.** 제스처 바가 맨 아래를 덮는다. 여기는
@@ -54,50 +54,20 @@ class CardDetailPage extends StatelessWidget {
           bottom: AppSpacing.space8 + MediaQuery.paddingOf(context).bottom,
         ),
         children: [
+          _Header(card: card),
+          const SizedBox(height: AppSpacing.space4),
           CardMediaPager(card: card),
-          const SizedBox(height: AppSpacing.space5),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _ActivityChip(card: card),
-                const SizedBox(height: AppSpacing.space4),
-                _Stats(card: card),
-                if (card.runners.isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.space4),
-                  Text(
-                    AppStrings.recordCardRunnerCount(card.runners.length),
-                    style: AppTypographyV2.body18.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.space5),
-                Text(
-                  AppStrings.recordCardReview,
-                  style: AppTypographyV2.body12.copyWith(
-                    color: colors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.space2),
-                Text(
-                  card.reviewText,
-                  style: AppTypographyV2.body12.copyWith(
-                    color: colors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          const SizedBox(height: AppSpacing.space6),
+          _Review(card: card),
         ],
       ),
     );
   }
 }
 
-class _ActivityChip extends StatelessWidget {
-  const _ActivityChip({required this.card});
+/// 날짜 · 기록 · 함께 뛴 사람. **전부 가운데 정렬이다.**
+class _Header extends StatelessWidget {
+  const _Header({required this.card});
 
   final RecordCard card;
 
@@ -105,85 +75,94 @@ class _ActivityChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
 
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.space3,
-          vertical: AppSpacing.space1,
-        ),
-        decoration: BoxDecoration(
-          color: colors.bgSurface,
-          borderRadius: AppRadius.full,
-        ),
-        child: Text(
-          recordCardActivityLabel(card.activity),
-          style: AppTypographyV2.body18.copyWith(color: colors.textSecondary),
-        ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
+      child: Column(
+        children: [
+          Text(
+            AppStrings.recordCardDateTitle(card.day),
+            textAlign: TextAlign.center,
+            style: AppTypographyV2.heading05.copyWith(color: colors.textStrong),
+          ),
+          const SizedBox(height: AppSpacing.space2),
+          // ⚠️ 한 덩어리 문자열로 잇지 않는다. 조각마다 따로 두어야 긴 화면에서
+          // 줄이 바뀌고, 테스트도 값 하나씩 짚을 수 있다.
+          _MetaLine(
+            parts: [
+              recordCardActivityLabel(card.activity),
+              AppStrings.recordCardStartedAt(card.startedAt),
+              '${AppStrings.kmFloor(card.distanceMeters)} '
+                  '${AppStrings.runPartyUnitKm}',
+              AppStrings.recordRunDuration(card.duration),
+              '${AppStrings.recordRunDuration(card.averagePace)}'
+                  '${AppStrings.runPartyUnitPerKm}',
+            ],
+          ),
+          if (card.runners.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.space1),
+            Text(
+              AppStrings.recordCardRunnerCount(card.runners.length),
+              textAlign: TextAlign.center,
+              style: AppTypographyV2.body18.copyWith(
+                color: colors.textTertiary,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
 }
 
-class _Stats extends StatelessWidget {
-  const _Stats({required this.card});
+/// 가운데 정렬 메타 줄. 조각 사이에 가운뎃점을 넣는다.
+class _MetaLine extends StatelessWidget {
+  const _MetaLine({required this.parts});
 
-  final RecordCard card;
+  final List<String> parts;
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      // ⚠️ **단위를 빼지 않는다.** 숫자만 두면 `5.40`이 거리인지 페이스인지
-      // 알 수 없다. 기기에서 보고 알았다(2026-11-16).
-      Expanded(
-        child: _Stat(
-          label: AppStrings.recordCardDistance,
-          value:
-              '${AppStrings.kmFloor(card.distanceMeters)} '
-              '${AppStrings.runPartyUnitKm}',
-        ),
-      ),
-      Expanded(
-        child: _Stat(
-          label: AppStrings.recordCardPace,
-          value:
-              '${AppStrings.recordRunDuration(card.averagePace)}'
-              '${AppStrings.runPartyUnitPerKm}',
-        ),
-      ),
-      Expanded(
-        child: _Stat(
-          label: AppStrings.recordCardDuration,
-          value: AppStrings.recordRunDuration(card.duration),
-        ),
-      ),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+    final style = AppTypographyV2.body18.copyWith(color: colors.textSecondary);
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        for (var index = 0; index < parts.length; index++) ...[
+          if (index > 0) Text(AppStrings.recordCardMetaDot, style: style),
+          Text(parts[index], style: style),
+        ],
+      ],
+    );
+  }
 }
 
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value});
+class _Review extends StatelessWidget {
+  const _Review({required this.card});
 
-  final String label;
-  final String value;
+  final RecordCard card;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: AppTypographyV2.body18.copyWith(color: colors.textTertiary),
-        ),
-        const SizedBox(height: AppSpacing.space1),
-        Text(
-          value,
-          style: AppTypographyV2.body12.copyWith(color: colors.textPrimary),
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            AppStrings.recordCardReview,
+            style: AppTypographyV2.body12.copyWith(color: colors.textPrimary),
+          ),
+          const SizedBox(height: AppSpacing.space2),
+          Text(
+            card.reviewText,
+            style: AppTypographyV2.body12.copyWith(color: colors.textSecondary),
+          ),
+        ],
+      ),
     );
   }
 }

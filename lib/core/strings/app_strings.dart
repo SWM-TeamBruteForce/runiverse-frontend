@@ -1607,6 +1607,13 @@ abstract final class AppStrings {
     required int count,
   }) => '$count장 중 $index번째';
 
+  /// 포토북 머리의 날짜. `2026년 11월 16일`
+  static String recordCardDateTitle(DateTime day) =>
+      '${recordMonthLabel(day)} ${day.day}일';
+
+  /// 머리의 메타를 잇는 글자.
+  static const recordCardMetaDot = ' · ';
+
   /// 상세의 지표 이름.
   static const recordCardDistance = '총 거리';
   static const recordCardPace = '평균 페이스';
