@@ -118,9 +118,11 @@ void main() {
     RecordCard? opened;
     await _pump(tester, onOpen: (card) => opened = card);
 
-    await tester.tap(find.bySemanticsLabel(
-      AppStrings.recordCardCellSemantics(day: DateTime(2026, 9, 7), count: 1),
-    ));
+    await tester.tap(
+      find.bySemanticsLabel(
+        AppStrings.recordCardCellSemantics(day: DateTime(2026, 9, 7), count: 1),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(opened?.id, 7);
@@ -131,9 +133,14 @@ void main() {
     RecordCard? opened;
     await _pump(tester, onOpen: (card) => opened = card);
 
-    await tester.tap(find.bySemanticsLabel(
-      AppStrings.recordCardCellSemantics(day: DateTime(2026, 9, 11), count: 2),
-    ));
+    await tester.tap(
+      find.bySemanticsLabel(
+        AppStrings.recordCardCellSemantics(
+          day: DateTime(2026, 9, 11),
+          count: 2,
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(DayCardsSheet), findsOne);
@@ -148,11 +155,18 @@ void main() {
     RecordCard? opened;
     await _pump(tester, onOpen: (card) => opened = card);
 
-    await tester.tap(find.bySemanticsLabel(
-      AppStrings.recordCardCellSemantics(day: DateTime(2026, 9, 11), count: 2),
-    ));
+    await tester.tap(
+      find.bySemanticsLabel(
+        AppStrings.recordCardCellSemantics(
+          day: DateTime(2026, 9, 11),
+          count: 2,
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.recordCardStartedAt(DateTime(2026, 9, 11, 20))));
+    await tester.tap(
+      find.text(AppStrings.recordCardStartedAt(DateTime(2026, 9, 11, 20))),
+    );
     await tester.pumpAndSettle();
 
     expect(opened?.id, 12);
@@ -162,9 +176,11 @@ void main() {
     DateTime? empty;
     await _pump(tester, onEmptyDay: (day) => empty = day);
 
-    await tester.tap(find.bySemanticsLabel(
-      AppStrings.recordCardCellSemantics(day: DateTime(2026, 9, 3), count: 0),
-    ));
+    await tester.tap(
+      find.bySemanticsLabel(
+        AppStrings.recordCardCellSemantics(day: DateTime(2026, 9, 3), count: 0),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(empty, DateTime(2026, 9, 3));

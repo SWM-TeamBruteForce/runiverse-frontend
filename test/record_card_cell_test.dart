@@ -135,10 +135,7 @@ void main() {
 
     expect(
       find.bySemanticsLabel(
-        AppStrings.recordCardCellSemantics(
-          day: DateTime(2026, 9, 2),
-          count: 2,
-        ),
+        AppStrings.recordCardCellSemantics(day: DateTime(2026, 9, 2), count: 2),
       ),
       findsOne,
     );
@@ -152,10 +149,7 @@ void main() {
 
     expect(
       find.bySemanticsLabel(
-        AppStrings.recordCardCellSemantics(
-          day: DateTime(2026, 9, 2),
-          count: 0,
-        ),
+        AppStrings.recordCardCellSemantics(day: DateTime(2026, 9, 2), count: 0),
       ),
       findsOne,
     );

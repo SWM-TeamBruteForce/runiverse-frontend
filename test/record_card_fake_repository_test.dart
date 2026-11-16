@@ -14,8 +14,14 @@ Future<List<RecordCard>> _twoMonths(FakeRecordCardRepository fake) async {
   final thisMonth = DateTime(_today.year, _today.month);
   final lastMonth = DateTime(_today.year, _today.month - 1);
   return [
-    ...await fake.byDateRange(from: _firstOf(lastMonth), to: _lastOf(lastMonth)),
-    ...await fake.byDateRange(from: _firstOf(thisMonth), to: _lastOf(thisMonth)),
+    ...await fake.byDateRange(
+      from: _firstOf(lastMonth),
+      to: _lastOf(lastMonth),
+    ),
+    ...await fake.byDateRange(
+      from: _firstOf(thisMonth),
+      to: _lastOf(thisMonth),
+    ),
   ];
 }
 
@@ -57,7 +63,10 @@ void main() {
 
   test('시작일이 끝일보다 늦어도 거절한다', () async {
     expect(
-      () => fake.byDateRange(from: _today, to: _today.subtract(const Duration(days: 3))),
+      () => fake.byDateRange(
+        from: _today,
+        to: _today.subtract(const Duration(days: 3)),
+      ),
       throwsA(isA<RecordCardException>()),
     );
   });

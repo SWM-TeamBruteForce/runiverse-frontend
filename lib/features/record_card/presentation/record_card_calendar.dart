@@ -107,7 +107,11 @@ class _MonthSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
     final compact = zoom == CalendarZoom.quarter;
-    final daysInMonth = DateTime(month.month.year, month.month.month + 1, 0).day;
+    final daysInMonth = DateTime(
+      month.month.year,
+      month.month.month + 1,
+      0,
+    ).day;
     final blanks = leadingBlanks(month.month);
 
     final grid = GridView.count(
@@ -162,7 +166,11 @@ class _MonthSection extends StatelessWidget {
     );
   }
 
-  Widget _cellFor(BuildContext context, int dayOfMonth, {required bool compact}) {
+  Widget _cellFor(
+    BuildContext context,
+    int dayOfMonth, {
+    required bool compact,
+  }) {
     final day = DateTime(month.month.year, month.month.month, dayOfMonth);
     final cards = month.byDay[day] ?? const <RecordCard>[];
 

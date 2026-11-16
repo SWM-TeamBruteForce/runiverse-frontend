@@ -114,10 +114,7 @@ class RecordCardController extends Notifier<RecordCardState> {
   void setFilter(RecordCardActivity? activity) {
     final current = state;
     if (current is! RecordCardData) return;
-    state = current.copyWith(
-      filter: activity,
-      clearFilter: activity == null,
-    );
+    state = current.copyWith(filter: activity, clearFilter: activity == null);
   }
 
   /// **서버를 부르지 않는다.** 이미 받은 달을 작게 그릴 뿐이다.

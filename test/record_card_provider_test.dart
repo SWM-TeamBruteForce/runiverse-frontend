@@ -53,10 +53,11 @@ void main() {
     final data = container.read(recordCardControllerProvider) as RecordCardData;
     // ⚠️ `visible`이 아니라 `months`를 본다 — 보이는 쪽은 카드가 없는 가장
     // 오래된 달을 잘라 내므로 "무엇을 받아 왔나"를 말해 주지 못한다.
-    expect(
-      data.months.map((m) => m.month),
-      [DateTime(2026, 9), DateTime(2026, 10), DateTime(2026, 11)],
-    );
+    expect(data.months.map((m) => m.month), [
+      DateTime(2026, 9),
+      DateTime(2026, 10),
+      DateTime(2026, 11),
+    ]);
   });
 
   test('⚠️ 달마다 따로 묻는다 — 한 번에 31일을 넘기면 서버가 400을 준다', () async {
@@ -191,6 +192,9 @@ void main() {
     auth.set(const AuthSignedOut(returning: true));
     await _settle();
 
-    expect(container.read(recordCardControllerProvider), isA<RecordCardLoading>());
+    expect(
+      container.read(recordCardControllerProvider),
+      isA<RecordCardLoading>(),
+    );
   });
 }

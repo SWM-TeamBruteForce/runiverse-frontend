@@ -107,12 +107,7 @@ void main() {
     test('가로세로 비를 지키며 가운데에 앉힌다', () {
       // 가로:세로 = 1:2 인 경로를 100x100 상자에 넣으면 세로로 꽉 차고
       // 가로는 가운데 50폭(25~75)만 쓴다.
-      final fitted = fitRoute(
-        square(0.5),
-        width: 100,
-        height: 100,
-        padding: 0,
-      );
+      final fitted = fitRoute(square(0.5), width: 100, height: 100, padding: 0);
 
       expect(fitted.single.first.x, closeTo(25, 0.001));
       expect(fitted.single.first.y, closeTo(0, 0.001));
@@ -130,7 +125,12 @@ void main() {
     });
 
     test('padding만큼 안쪽으로 들인다', () {
-      final fitted = fitRoute(square(0.5), width: 100, height: 100, padding: 10);
+      final fitted = fitRoute(
+        square(0.5),
+        width: 100,
+        height: 100,
+        padding: 10,
+      );
 
       expect(fitted.single.first.x, closeTo(30, 0.001));
       expect(fitted.single.first.y, closeTo(10, 0.001));

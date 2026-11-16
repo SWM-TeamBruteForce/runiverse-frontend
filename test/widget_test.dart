@@ -116,5 +116,4 @@ void main() {
     expect(tabLabel('대회일정'), findsNothing);
     handle.dispose();
   });
-
 }

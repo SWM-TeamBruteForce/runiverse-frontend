@@ -160,10 +160,7 @@ class _DayNumber extends StatelessWidget {
           ? const EdgeInsets.symmetric(horizontal: 4, vertical: 1)
           : EdgeInsets.zero,
       decoration: covered
-          ? BoxDecoration(
-              color: colors.bgScrim,
-              borderRadius: AppRadius.sm,
-            )
+          ? BoxDecoration(color: colors.bgScrim, borderRadius: AppRadius.sm)
           : null,
       child: Text(
         '${day.day}',

@@ -85,15 +85,17 @@ class FakeRecordCardRepository implements RecordCardRepository {
   /// ⚠️ **`daysAgo`가 46을 넘지 않게 둔다.** 두 달치를 보여 주려는 값이라, 더
   /// 멀어지면 세 번째 달이 한 장만 있는 채로 끼어든다.
   static const _plan =
-      <({
-        int daysAgo,
-        int hour,
-        RecordCardActivity activity,
-        int photos,
-        RecordCardVisibility visibility,
-        int meters,
-        int seconds,
-      })>[
+      <
+        ({
+          int daysAgo,
+          int hour,
+          RecordCardActivity activity,
+          int photos,
+          RecordCardVisibility visibility,
+          int meters,
+          int seconds,
+        })
+      >[
         (
           daysAgo: 0,
           hour: 7,
@@ -307,15 +309,19 @@ class FakeRecordCardRepository implements RecordCardRepository {
     for (var i = 0; i < _plan.length; i++) _cardAt(i, _plan[i]),
   ];
 
-  RecordCard _cardAt(int index, ({
-    int daysAgo,
-    int hour,
-    RecordCardActivity activity,
-    int photos,
-    RecordCardVisibility visibility,
-    int meters,
-    int seconds,
-  }) spec) {
+  RecordCard _cardAt(
+    int index,
+    ({
+      int daysAgo,
+      int hour,
+      RecordCardActivity activity,
+      int photos,
+      RecordCardVisibility visibility,
+      int meters,
+      int seconds,
+    })
+    spec,
+  ) {
     final day = DateTime(
       _today.year,
       _today.month,

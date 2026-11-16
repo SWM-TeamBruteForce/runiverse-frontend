@@ -35,7 +35,10 @@ void main() {
         ],
       );
 
-      expect(month.byDay.keys, containsAll([DateTime(2026, 9, 2), DateTime(2026, 9, 7)]));
+      expect(
+        month.byDay.keys,
+        containsAll([DateTime(2026, 9, 2), DateTime(2026, 9, 7)]),
+      );
       expect(month.byDay[DateTime(2026, 9, 2)], hasLength(1));
       expect(month.cardCount, 2);
     });
@@ -82,13 +85,14 @@ void main() {
   });
 
   group('RecordCardData', () {
-    MonthCards september({RecordCardActivity activity = RecordCardActivity.daily}) =>
-        MonthCards(
-          month: DateTime(2026, 9),
-          cards: [
-            _card(id: 1, startedAt: DateTime(2026, 9, 2), activity: activity),
-          ],
-        );
+    MonthCards september({
+      RecordCardActivity activity = RecordCardActivity.daily,
+    }) => MonthCards(
+      month: DateTime(2026, 9),
+      cards: [
+        _card(id: 1, startedAt: DateTime(2026, 9, 2), activity: activity),
+      ],
+    );
 
     MonthCards october() => MonthCards(
       month: DateTime(2026, 10),
@@ -178,9 +182,9 @@ void main() {
     });
 
     test('⚠️ 카드가 하나도 없는 것과 필터로 0장인 것을 가른다', () {
-      final empty = RecordCardData(months: [
-        MonthCards(month: DateTime(2026, 9), cards: const []),
-      ]);
+      final empty = RecordCardData(
+        months: [MonthCards(month: DateTime(2026, 9), cards: const [])],
+      );
       final filteredOut = RecordCardData(
         months: [september()],
         filter: RecordCardActivity.race,
