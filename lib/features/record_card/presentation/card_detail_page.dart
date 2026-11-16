@@ -5,7 +5,6 @@ import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
-import 'package:runiverse/features/record_card/presentation/activity_label.dart';
 import 'package:runiverse/features/record_card/presentation/card_media_pager.dart';
 
 /// 기록카드 한 장 — **포토북이다. 읽기만 한다.**
@@ -79,18 +78,13 @@ class _Header extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
       child: Column(
         children: [
-          Text(
-            AppStrings.recordCardDateTitle(card.day),
-            textAlign: TextAlign.center,
-            style: AppTypographyV2.heading05.copyWith(color: colors.textStrong),
-          ),
-          const SizedBox(height: AppSpacing.space2),
-          // ⚠️ 한 덩어리 문자열로 잇지 않는다. 조각마다 따로 두어야 긴 화면에서
-          // 줄이 바뀌고, 테스트도 값 하나씩 짚을 수 있다.
           _MetaLine(
+            // ⚠️ **날짜도 유형도 두지 않는다.** 달력에서 그 칸을 눌러 들어왔으니
+            // 이미 알고 있고, 줄이 늘면 사진과 메모가 한 화면에 안 들어온다.
+            //
+            // ⚠️ 한 덩어리 문자열로 잇지 않는다. 조각마다 따로 두어야 좁은
+            // 화면에서 줄이 바뀌고, 테스트도 값 하나씩 짚을 수 있다.
             parts: [
-              recordCardActivityLabel(card.activity),
-              AppStrings.recordCardStartedAt(card.startedAt),
               '${AppStrings.kmFloor(card.distanceMeters)} '
                   '${AppStrings.runPartyUnitKm}',
               AppStrings.recordRunDuration(card.duration),
@@ -123,7 +117,8 @@ class _MetaLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
-    final style = AppTypographyV2.body18.copyWith(color: colors.textSecondary);
+    // 상세에 남은 숫자가 이것뿐이라 작게 두면 읽을 것이 없어 보인다.
+    final style = AppTypographyV2.body12.copyWith(color: colors.textPrimary);
 
     return Wrap(
       alignment: WrapAlignment.center,

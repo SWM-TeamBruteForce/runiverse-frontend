@@ -66,8 +66,12 @@ Future<void> _pump(
   // 아래 내용이 전부 밀려나 "안 보인다"로 떨어진다. 손전화 크기로 맞춘다.
   tester.view.physicalSize = const Size(412, 915);
   tester.view.devicePixelRatio = 1;
+  // ⚠️ **시스템 여백도 넣는다.** 기본 테스트 화면에는 상태바도 제스처 바도
+  // 없어서, "다 들어온다"가 기기에서만 거짓이 된다 — 실제로 그랬다.
+  tester.view.padding = const FakeViewPadding(top: 38, bottom: 38);
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPadding);
 
   await tester.pumpWidget(
     MaterialApp(
@@ -101,6 +105,23 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('오늘은 퇴근 후 성수동에서 달렸다.'), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 한 화면에 기록·사진·메모가 다 들어온다', (tester) async {
+    // 스크롤하지 않고도 회고까지 보여야 한다. 사진이 커서 아래가 밀려나기
+    // 쉬운 자리라, 화면 높이로 못 박는다.
+    await _pump(tester, photos: 2);
+
+    final memo = find.text('오늘은 퇴근 후 성수동에서 달렸다.');
+    expect(memo, findsOneWidget);
+    expect(tester.getRect(memo).bottom, lessThanOrEqualTo(915));
+  });
+
+  testWidgets('⚠️ 날짜와 유형은 상세에 두지 않는다 — 달력이 이미 말했다', (tester) async {
+    await _pump(tester);
+
+    expect(find.textContaining('2026년'), findsNothing);
+    expect(find.text(AppStrings.recordCardActivityDaily), findsNothing);
   });
 
   testWidgets('함께 뛴 사람이 보인다', (tester) async {
