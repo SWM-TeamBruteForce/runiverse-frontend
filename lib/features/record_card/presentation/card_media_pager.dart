@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
@@ -40,6 +41,12 @@ class CardMediaPager extends StatefulWidget {
   /// 조금씩 드러낸다.
   static const _viewport = 0.82;
 
+  /// 사진이 화면 높이의 몇 할까지 먹을 수 있나.
+  ///
+  /// ⚠️ **디자인 확인이 필요한 값이다.** 사진·캡션·회고가 한 화면에 들어오는
+  /// 것이 기준이다.
+  static const _maxHeightShare = 0.52;
+
   final RecordCard card;
 
   @override
@@ -58,10 +65,17 @@ class _CardMediaPagerState extends State<CardMediaPager> {
   /// 경로 한 장 + 사진들.
   int get _count => widget.card.photos.length + 1;
 
-  /// 사진 아래에 설 글자. 첫 장은 회고, 사진 장은 그 사진의 캡션이다.
-  String? get _below => _page == 0
-      ? widget.card.reviewText
-      : widget.card.photos[_page - 1].caption;
+  /// 페이저 높이. 9:16으로 낸 값과 화면의 [CardMediaPager._maxHeightShare]
+  /// 중 **작은 쪽**이다.
+  double _pagerHeight(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final ideal = size.width * CardMediaPager._viewport * 16 / 9;
+    return math.min(ideal, size.height * CardMediaPager._maxHeightShare);
+  }
+
+  /// 지금 장의 캡션. **경로 장에는 없다.**
+  String? get _caption =>
+      _page == 0 ? null : widget.card.photos[_page - 1].caption;
 
   @override
   void initState() {
@@ -116,12 +130,13 @@ class _CardMediaPagerState extends State<CardMediaPager> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AspectRatio(
-          // ⚠️ **한 장이 9:16이지 페이저가 9:16이 아니다.** 한 장의 폭은
-          // 뷰포트 폭의 [_viewport]배라, 페이저의 높이는 `폭 × _viewport × 16/9`
-          // 이고 비는 `9 / (16 × _viewport)`다. 그냥 `9/16`을 쓰면 페이저가
-          // 화면보다 길어져 아래가 전부 밀려난다.
-          aspectRatio: 9 / (16 * CardMediaPager._viewport),
+        SizedBox(
+          // ⚠️ **9:16을 그대로 쓰면 사진이 화면을 거의 다 먹는다.** 한 장의
+          // 폭은 뷰포트 폭의 [_viewport]배라 높이가 `폭 × _viewport × 16/9`인데,
+          // 손전화에서 그 값이 화면의 2/3를 넘겨 캡션·회고가 밀려났다.
+          // 화면 높이의 [_maxHeightShare]를 넘지 않게 자른다 — 사진은
+          // `BoxFit.cover`라 잘려도 가운데가 남는다.
+          height: _pagerHeight(context),
           child: Semantics(
             label: AppStrings.recordCardPageSemantics(
               index: _page + 1,
@@ -149,14 +164,12 @@ class _CardMediaPagerState extends State<CardMediaPager> {
           ),
         ),
         const SizedBox(height: AppSpacing.space3),
-        // ⚠️ **글자 자리는 하나다.** 첫 장(경로)에서는 러닝 메모, 사진 장에서는
-        // 그 사진의 캡션이 그 자리에 선다. 둘을 따로 두면 사진을 넘길 때마다
-        // 회고가 아래에 계속 따라다니고, 한 화면에 들어오지 않는다.
-        if (_below != null && _below!.trim().isNotEmpty)
+        // 그 사진에 붙인 한마디. 회고는 이 아래에 따로 선다.
+        if (_caption != null && _caption!.trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
             child: Text(
-              _below!,
+              _caption!,
               textAlign: TextAlign.center,
               style: AppTypographyV2.body12.copyWith(
                 color: context.appColorsV2.textSecondary,

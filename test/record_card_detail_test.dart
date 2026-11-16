@@ -117,10 +117,18 @@ void main() {
     expect(tester.getRect(memo).bottom, lessThanOrEqualTo(915));
   });
 
-  testWidgets('⚠️ 날짜와 유형은 상세에 두지 않는다 — 달력이 이미 말했다', (tester) async {
+  testWidgets('날짜가 머리에 선다', (tester) async {
     await _pump(tester);
 
-    expect(find.textContaining('2026년'), findsNothing);
+    expect(
+      find.text(AppStrings.recordCardDateTitle(DateTime(2026, 9, 2))),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('⚠️ 유형은 두지 않는다 — 달력의 필터가 이미 말했다', (tester) async {
+    await _pump(tester);
+
     expect(find.text(AppStrings.recordCardActivityDaily), findsNothing);
   });
 
@@ -131,18 +139,28 @@ void main() {
     expect(find.text('러닝 메모'), findsNothing);
   });
 
-  testWidgets('⚠️ 글자 자리는 하나다 — 첫 장은 회고, 사진 장은 그 사진의 캡션', (tester) async {
+  testWidgets('⚠️ 회고와 캡션이 둘 다 사진 아래에 선다', (tester) async {
     await _pump(tester, photos: 2);
 
+    // 첫 장(경로)에는 캡션이 없다. 회고는 늘 있다.
     expect(find.text('오늘은 퇴근 후 성수동에서 달렸다.'), findsOneWidget);
     expect(find.text('사진 0의 한마디'), findsNothing);
 
     await tester.drag(find.byType(PageView), const Offset(-400, 0));
     await tester.pumpAndSettle();
 
-    // 사진으로 넘어가면 회고는 물러나고 캡션이 그 자리에 선다.
-    expect(find.text('오늘은 퇴근 후 성수동에서 달렸다.'), findsNothing);
+    // 사진 장에서는 둘 다 보인다.
     expect(find.text('사진 0의 한마디'), findsOneWidget);
+    expect(find.text('오늘은 퇴근 후 성수동에서 달렸다.'), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 사진이 화면의 절반을 넘게 먹지 않는다 — 아래가 밀려난다', (tester) async {
+    await _pump(tester, photos: 2);
+
+    expect(
+      tester.getSize(find.byType(PageView)).height,
+      lessThanOrEqualTo(915 * 0.55),
+    );
   });
 
   testWidgets('⚠️ 사진이 없으면 한 장뿐이고 진행 막대도 안 뜬다', (tester) async {

@@ -55,9 +55,19 @@ class CardDetailPage extends StatelessWidget {
         children: [
           _Header(card: card),
           const SizedBox(height: AppSpacing.space4),
-          // ⚠️ **회고를 따로 두지 않는다.** 사진 아래 글자 자리에 첫 장에서만
-          // 선다. 밖에 또 두면 사진을 넘기는 동안 회고가 계속 따라다닌다.
           CardMediaPager(card: card),
+          const SizedBox(height: AppSpacing.space4),
+          // 캡션은 사진 바로 아래(페이저 안), 회고는 그 아래에 선다.
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
+            child: Text(
+              card.reviewText,
+              textAlign: TextAlign.center,
+              style: AppTypographyV2.body12.copyWith(
+                color: context.appColorsV2.textSecondary,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -73,19 +83,29 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-    // ⚠️ **머리에는 기록만 둔다.** 날짜·유형·함께 뛴 사람 줄을 두지 않는다 —
-    // 달력에서 그 칸을 눌러 들어왔으니 이미 알고 있고, 줄이 늘면 사진과
-    // 메모가 한 화면에서 밀려난다.
-    //
-    // ⚠️ 한 덩어리 문자열로 잇지 않는다. 조각마다 따로 두어야 좁은 화면에서
-    // 줄이 바뀌고, 테스트도 값 하나씩 짚을 수 있다.
-    child: _MetaLine(
-      parts: [
-        '${AppStrings.kmFloor(card.distanceMeters)} '
-            '${AppStrings.runPartyUnitKm}',
-        AppStrings.recordRunDuration(card.duration),
-        '${AppStrings.recordRunDuration(card.averagePace)}'
-            '${AppStrings.runPartyUnitPerKm}',
+    // ⚠️ **유형과 함께 뛴 사람 줄은 두지 않는다.** 달력의 필터가 유형을 이미
+    // 말했고, 줄이 늘면 사진·캡션·회고가 한 화면에서 밀려난다.
+    child: Column(
+      children: [
+        Text(
+          AppStrings.recordCardDateTitle(card.day),
+          textAlign: TextAlign.center,
+          style: AppTypographyV2.body07.copyWith(
+            color: context.appColorsV2.textStrong,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.space1),
+        // ⚠️ 한 덩어리 문자열로 잇지 않는다. 조각마다 따로 두어야 좁은 화면에서
+        // 줄이 바뀌고, 테스트도 값 하나씩 짚을 수 있다.
+        _MetaLine(
+          parts: [
+            '${AppStrings.kmFloor(card.distanceMeters)} '
+                '${AppStrings.runPartyUnitKm}',
+            AppStrings.recordRunDuration(card.duration),
+            '${AppStrings.recordRunDuration(card.averagePace)}'
+                '${AppStrings.runPartyUnitPerKm}',
+          ],
+        ),
       ],
     ),
   );
