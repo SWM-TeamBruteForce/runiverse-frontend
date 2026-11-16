@@ -47,7 +47,12 @@ class CardDetailPage extends StatelessWidget {
         centerTitle: true,
       ),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: AppSpacing.space8),
+        // ⚠️ **바닥을 시스템에 비킨다.** 제스처 바가 맨 아래를 덮는다. 여기는
+        // `SafeArea`로 감싸지 않고 여백에 직접 더한다 — 페이저가 화면 폭을
+        // 꽉 써야 해서 좌우까지 깎이면 안 된다(`test/bottom_inset_test.dart`).
+        padding: EdgeInsets.only(
+          bottom: AppSpacing.space8 + MediaQuery.paddingOf(context).bottom,
+        ),
         children: [
           CardMediaPager(card: card),
           const SizedBox(height: AppSpacing.space5),
