@@ -139,19 +139,18 @@ void main() {
     expect(find.text('러닝 메모'), findsNothing);
   });
 
-  testWidgets('⚠️ 회고와 캡션이 둘 다 사진 아래에 선다', (tester) async {
+  testWidgets('⚠️ 글자 자리는 하나다 — 경로 장은 회고, 사진 장은 그 사진의 캡션', (tester) async {
     await _pump(tester, photos: 2);
 
-    // 첫 장(경로)에는 캡션이 없다. 회고는 늘 있다.
     expect(find.text('오늘은 퇴근 후 성수동에서 달렸다.'), findsOneWidget);
     expect(find.text('사진 0의 한마디'), findsNothing);
 
     await tester.drag(find.byType(PageView), const Offset(-400, 0));
     await tester.pumpAndSettle();
 
-    // 사진 장에서는 둘 다 보인다.
+    // 사진에는 회고가 없다. 그 자리에 캡션이 대신 든다.
+    expect(find.text('오늘은 퇴근 후 성수동에서 달렸다.'), findsNothing);
     expect(find.text('사진 0의 한마디'), findsOneWidget);
-    expect(find.text('오늘은 퇴근 후 성수동에서 달렸다.'), findsOneWidget);
   });
 
   testWidgets('⚠️ 사진이 화면의 절반을 넘게 먹지 않는다 — 아래가 밀려난다', (tester) async {

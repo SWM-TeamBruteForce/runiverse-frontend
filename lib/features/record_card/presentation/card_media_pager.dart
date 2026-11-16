@@ -73,9 +73,14 @@ class _CardMediaPagerState extends State<CardMediaPager> {
     return math.min(ideal, size.height * CardMediaPager._maxHeightShare);
   }
 
-  /// 지금 장의 캡션. **경로 장에는 없다.**
-  String? get _caption =>
-      _page == 0 ? null : widget.card.photos[_page - 1].caption;
+  /// 사진 아래 글자 자리에 설 말.
+  ///
+  /// ⚠️ **자리는 하나다.** 경로 장에서는 회고, 사진 장에서는 **회고 대신**
+  /// 그 사진의 캡션이 선다. 둘을 같이 두면 사진을 넘기는 내내 회고가 아래에
+  /// 따라다닌다.
+  String? get _below => _page == 0
+      ? widget.card.reviewText
+      : widget.card.photos[_page - 1].caption;
 
   @override
   void initState() {
@@ -164,12 +169,11 @@ class _CardMediaPagerState extends State<CardMediaPager> {
           ),
         ),
         const SizedBox(height: AppSpacing.space3),
-        // 그 사진에 붙인 한마디. 회고는 이 아래에 따로 선다.
-        if (_caption != null && _caption!.trim().isNotEmpty)
+        if (_below != null && _below!.trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
             child: Text(
-              _caption!,
+              _below!,
               textAlign: TextAlign.center,
               style: AppTypographyV2.body12.copyWith(
                 color: context.appColorsV2.textSecondary,

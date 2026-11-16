@@ -55,19 +55,9 @@ class CardDetailPage extends StatelessWidget {
         children: [
           _Header(card: card),
           const SizedBox(height: AppSpacing.space4),
+          // ⚠️ **회고를 여기 두지 않는다.** 사진 아래 글자 자리에 경로 장일
+          // 때만 선다. 사진 장에서는 그 자리에 캡션이 대신 든다.
           CardMediaPager(card: card),
-          const SizedBox(height: AppSpacing.space4),
-          // 캡션은 사진 바로 아래(페이저 안), 회고는 그 아래에 선다.
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-            child: Text(
-              card.reviewText,
-              textAlign: TextAlign.center,
-              style: AppTypographyV2.body12.copyWith(
-                color: context.appColorsV2.textSecondary,
-              ),
-            ),
-          ),
         ],
       ),
     );
