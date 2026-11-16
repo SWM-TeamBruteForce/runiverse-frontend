@@ -45,7 +45,7 @@ class CardMediaPager extends StatefulWidget {
   ///
   /// ⚠️ **디자인 확인이 필요한 값이다.** 사진·캡션·회고가 한 화면에 들어오는
   /// 것이 기준이다.
-  static const _maxHeightShare = 0.68;
+  static const _maxHeightShare = 0.52;
 
   final RecordCard card;
 

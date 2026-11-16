@@ -153,6 +153,15 @@ void main() {
     expect(find.text('사진 0의 한마디'), findsOneWidget);
   });
 
+  testWidgets('⚠️ 사진이 화면의 절반 남짓을 넘지 않는다 — 글이 밀려난다', (tester) async {
+    await _pump(tester, photos: 2);
+
+    expect(
+      tester.getSize(find.byType(PageView)).height,
+      lessThanOrEqualTo(915 * 0.55),
+    );
+  });
+
   testWidgets('⚠️ 점은 사진과 글 사이에 선다', (tester) async {
     await _pump(tester, photos: 2);
 
