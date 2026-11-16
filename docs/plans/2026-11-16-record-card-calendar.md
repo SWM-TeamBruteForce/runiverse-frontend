@@ -669,7 +669,17 @@ git commit -m "📍 Feat: 기록카드 탭을 준비중 화면에서 꺼낸다"
 
 ---
 
-### Task 9: 카드 상세 (읽기 전용)
+### Task 9: 카드 상세 — **포토북** (읽기 전용)
+
+> **2026-11-16 변경.** 사용자가 상세를 **포토북**으로 바꿨다(참고 시안: 큰 사진
+> 한 장이 가운데 서고 양옆 이웃이 살짝 보이는 가로 페이저). **그 장의 음악이
+> 끝나면 자동으로 다음 장**으로 넘어간다.
+>
+> ⚠️ **음악은 아직 없다.** 오디오 패키지가 `pubspec`에 없고 음악 엔드포인트도
+> 명세에 없다. 그래서 넘기는 조건을 **"그 장의 길이만큼 지나면"**으로 짓고,
+> 길이의 출처만 나중에 실제 재생 끝 신호로 바꾼다. 화면 구조는 다시 짓지 않는다.
+>
+> 기본 음악 30초 · 사진 음악 10초가 그 길이다(백엔드 AI 계약).
 
 **Files:**
 - Create: `lib/features/record_card/presentation/card_detail_page.dart`
@@ -688,16 +698,34 @@ testWidgets('첫 장은 경로 선 아트다', (tester) async {
   expect(find.byType(RouteArtView), findsOneWidget);
 });
 
-testWidgets('⚠️ 사진이 없으면 한 장뿐이고 점도 안 뜬다', (tester) async { /* 점 표시 없음 */ });
+testWidgets('⚠️ 사진이 없으면 한 장뿐이고 진행 막대도 안 뜬다', (tester) async { });
 
-testWidgets('사진이 5장이면 점이 6개다', (tester) async { /* 선 아트 1 + 사진 5 */ });
+testWidgets('사진이 5장이면 막대가 6개다', (tester) async { /* 선 아트 1 + 사진 5 */ });
 
 testWidgets('사진 장에서는 캡션이 보인다', (tester) async { /* 밀어서 2번째 장 */ });
 
 testWidgets('지표 셋과 회고가 보인다', (tester) async { /* 거리·페이스·시간·회고 */ });
 
+testWidgets('⚠️ 그 장의 길이가 지나면 다음 장으로 넘어간다', (tester) async {
+  // 첫 장(경로)은 30초, 사진 장은 10초.
+  await tester.pump(const Duration(seconds: 30));
+  expect(pageOf(tester), 1);
+  await tester.pump(const Duration(seconds: 10));
+  expect(pageOf(tester), 2);
+});
+
+testWidgets('⚠️ 마지막 장에서는 멈춘다 — 처음으로 되돌아가지 않는다', (tester) async { });
+
+testWidgets('탭하면 멈추고 다시 탭하면 이어간다', (tester) async { });
+
+testWidgets('⚠️ 손으로 밀면 그 장부터 다시 센다', (tester) async {
+  // 20초쯤 흐른 뒤 밀었는데 10초 만에 넘어가면 안 된다.
+});
+
 testWidgets('⚠️ 스크린리더가 몇 번째 장인지 읽는다', (tester) async { /* container: true */ });
 ```
+
+`pageOf`는 테스트가 `PageView.controller.page`를 읽는 작은 도우미다.
 
 - [ ] **Step 2: 실패를 확인한다**
 
@@ -706,7 +734,15 @@ Expected: FAIL — `CardDetailPage`가 없다
 
 - [ ] **Step 3: 상세와 페이저를 쓴다**
 
-`PageView`에 **선 아트 1장 + 사진 N장**을 9:16으로 싣는다. 점 표시는 장이 둘 이상일 때만 둔다.
+`PageView`에 **선 아트 1장 + 사진 N장**을 9:16으로 싣는다. `viewportFraction`을
+1보다 작게 두어 **양옆 이웃이 살짝 보이게** 한다(시안). 진행 표시는 점이 아니라
+**장마다 하나씩 차는 막대**다 — 길이가 있는 재생이라 점은 남은 시간을 못 알린다.
+장이 하나뿐이면 막대를 두지 않는다.
+
+자동 넘김은 `Ticker`가 아니라 **`Timer` 하나**로 충분하다. 장이 바뀔 때마다 그
+장의 길이로 다시 건다. 멈춤은 타이머를 취소하고, 이어가기는 **남은 시간이 아니라
+그 장을 처음부터** 다시 센다 — 남은 시간을 들고 있으면 멈춤·이어가기가 섞일 때
+막대와 어긋난다.
 
 ⚠️ **지도 위젯을 쓰지 않는다.** `RunMapView`·`flutter_naver_map`을 타면 키 없는 빌드에서 안내가 뜨고, 지도 제스처가 페이저의 좌우 밀기를 빼앗는다.
 

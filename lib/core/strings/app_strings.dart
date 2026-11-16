@@ -1596,6 +1596,25 @@ abstract final class AppStrings {
   static String recordCardDaySheetTitle(DateTime day) =>
       '${day.month}월 ${day.day}일의 기록카드';
 
+  /// 상세 아래의 함께 뛴 사람 줄. 혼자 뛰었으면 쓰지 않는다.
+  static String recordCardRunnerCount(int count) => '함께 뛴 러너가 $count명이에요';
+
+  /// 포토북이 몇 번째 장을 보여 주나. **[index]는 1부터다.**
+  ///
+  /// ⚠️ 장을 넘기는 것이 사진뿐이라 **스크린리더에는 읽을 것이 거의 없다.**
+  static String recordCardPageSemantics({
+    required int index,
+    required int count,
+  }) => '$count장 중 $index번째';
+
+  /// 상세의 지표 이름.
+  static const recordCardDistance = '총 거리';
+  static const recordCardPace = '평균 페이스';
+  static const recordCardDuration = '총 소요시간';
+
+  /// 회고 묶음의 머리.
+  static const recordCardReview = '러닝 메모';
+
   /// 카드 한 장을 요약한 한 줄. 시트와 상세 머리에 쓴다.
   static String recordCardStartedAt(DateTime at) {
     final hour = at.hour.toString().padLeft(2, '0');

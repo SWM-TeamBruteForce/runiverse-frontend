@@ -20,6 +20,8 @@ import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.
 import 'package:runiverse/features/profile/presentation/profile_edit_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
+import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/presentation/card_detail_page.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_page.dart';
 import 'package:runiverse/features/session/presentation/run_prepare_page.dart';
 import 'package:runiverse/features/session/presentation/run_session_page.dart';
@@ -109,6 +111,20 @@ GoRouter createAppRouter({String? initialLocation}) {
         path: AppRoutes.notifications,
         name: 'notifications',
         builder: (context, state) => const NotificationPage(),
+      ),
+      // 기록카드 한 장. **탭 셸 밖이다** — 프로필이나 러닝 요약에서 열어도
+      // 탭이 바뀌면 안 된다(`app_routes.dart`).
+      //
+      // ⚠️ **카드를 `extra`로 받는다.** 달력이 이미 들고 있는 것을 넘겨 주면
+      // 다시 받아 올 필요가 없다. 딥링크처럼 `extra` 없이 들어오면 보여 줄
+      // 것이 없으므로 탭으로 돌려보낸다 — 빈 화면을 띄우지 않는다.
+      GoRoute(
+        path: AppRoutes.recordCardDetail,
+        name: 'record_card_detail',
+        redirect: (context, state) =>
+            state.extra is RecordCard ? null : AppRoutes.recordCard,
+        builder: (context, state) =>
+            CardDetailPage(card: state.extra! as RecordCard),
       ),
       GoRoute(
         path: AppRoutes.friends,

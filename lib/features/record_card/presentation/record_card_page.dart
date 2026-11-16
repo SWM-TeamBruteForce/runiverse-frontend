@@ -68,7 +68,9 @@ class _Body extends StatelessWidget {
       Expanded(
         child: RecordCardCalendar(
           data: data,
-          onOpen: (card) => context.push(AppRoutes.recordCardDetailOf(card.id)),
+          // 이미 들고 있는 카드를 그대로 넘긴다 — 다시 받아 올 이유가 없다.
+          onOpen: (card) =>
+              context.push(AppRoutes.recordCardDetailOf(card.id), extra: card),
           onEmptyDay: (_) {
             // ⚠️ 아직 아무 데도 가지 않는다. 작성 화면은 다음 PR이다 —
             // 갈 데가 없는데 보내면 빈 화면이 뜬다.
