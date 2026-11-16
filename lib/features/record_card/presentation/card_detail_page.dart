@@ -133,16 +133,22 @@ class _Stats extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
+      // ⚠️ **단위를 빼지 않는다.** 숫자만 두면 `5.40`이 거리인지 페이스인지
+      // 알 수 없다. 기기에서 보고 알았다(2026-11-16).
       Expanded(
         child: _Stat(
           label: AppStrings.recordCardDistance,
-          value: AppStrings.kmFloor(card.distanceMeters),
+          value:
+              '${AppStrings.kmFloor(card.distanceMeters)} '
+              '${AppStrings.runPartyUnitKm}',
         ),
       ),
       Expanded(
         child: _Stat(
           label: AppStrings.recordCardPace,
-          value: AppStrings.recordRunDuration(card.averagePace),
+          value:
+              '${AppStrings.recordRunDuration(card.averagePace)}'
+              '${AppStrings.runPartyUnitPerKm}',
         ),
       ),
       Expanded(

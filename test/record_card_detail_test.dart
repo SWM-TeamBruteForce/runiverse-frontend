@@ -88,7 +88,18 @@ void main() {
   testWidgets('지표 셋과 회고가 보인다', (tester) async {
     await _pump(tester);
 
-    expect(find.text(AppStrings.kmFloor(5400)), findsOneWidget);
+    // ⚠️ 단위까지 함께 본다. 숫자만 두면 `5.40`이 무엇인지 알 수 없다.
+    expect(
+      find.text('${AppStrings.kmFloor(5400)} ${AppStrings.runPartyUnitKm}'),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        '${AppStrings.recordRunDuration(const Duration(minutes: 5, seconds: 38))}'
+        '${AppStrings.runPartyUnitPerKm}',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('오늘은 퇴근 후 성수동에서 달렸다.'), findsOneWidget);
   });
 
