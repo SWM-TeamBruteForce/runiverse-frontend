@@ -1,0 +1,155 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
+import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
+import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_state.dart';
+
+/// 기록카드를 누가 읽어 오나.
+///
+/// ⚠️ **아직 가짜다.** 3차 API 명세서의 `record-card` 엔드포인트 여섯 줄이 본문
+/// 없이 등록만 돼 있다. 스키마가 채워지면 `HttpRecordCardRepository`로 바꾼다.
+final recordCardRepositoryProvider = Provider<RecordCardRepository>(
+  (ref) => FakeRecordCardRepository(),
+);
+
+/// "오늘"이 언제인가. 테스트가 고정된 날짜를 넣는다.
+///
+/// `DateTime.now()`를 컨트롤러에서 직접 부르면 자정 근처에서 테스트가 흔들리고,
+/// 어느 달을 받아 왔는지 검증할 수 없다.
+final recordCardClockProvider = Provider<DateTime Function()>(
+  (ref) => DateTime.now,
+);
+
+final recordCardControllerProvider =
+    NotifierProvider<RecordCardController, RecordCardState>(
+      RecordCardController.new,
+    );
+
+/// 기록카드 탭의 데이터를 모은다.
+///
+/// ## ⚠️ 받은 달은 다시 받지 않는다
+///
+/// 달력이 월 ⇄ 분기로 오가고 유형 필터도 붙지만, **둘 다 요청을 만들지
+/// 않는다.** 들고 있는 [RecordCardData.months]를 걸러서 쓸 뿐이다. 분기 보기는
+/// "새로 3개월을 받는 것"이 아니라 "이미 받은 달 셋을 작게 그리는 것"이다.
+///
+/// ## ⚠️ 달마다 한 번씩 묻는다
+///
+/// 한 번에 [RecordCardRepository.maxRangeDays]를 넘길 수 없다. 세 달이면
+/// 세 번이다.
+class RecordCardController extends Notifier<RecordCardState> {
+  /// 한 번에 받아 오는 달 수.
+  static const _batchMonths = 3;
+
+  /// 계정 차수. 계정이 바뀔 때마다 올라간다 — 그 전에 떠난 조회의 답을 가린다.
+  var _accountEpoch = 0;
+
+  @override
+  RecordCardState build() {
+    _watchAccount();
+    // build 안에서 await하지 않는다. 먼저 loading을 내보내고 뒤에서 읽는다.
+    Future.microtask(load);
+    return const RecordCardLoading();
+  }
+
+  /// 이번 달을 포함한 최근 [_batchMonths]개월을 받는다. 오류 화면의 다시 시도도
+  /// 이것을 부른다.
+  Future<void> load() {
+    final now = ref.read(recordCardClockProvider)();
+    return _fetch([
+      for (var back = _batchMonths - 1; back >= 0; back--)
+        DateTime(now.year, now.month - back),
+    ], reset: true);
+  }
+
+  /// 들고 있는 것보다 더 과거 [_batchMonths]개월을 덧붙인다.
+  Future<void> loadOlder() {
+    final current = state;
+    if (current is! RecordCardData || current.months.isEmpty) {
+      return Future<void>.value();
+    }
+
+    final earliest = current.months.first.month;
+    return _fetch([
+      for (var back = _batchMonths; back >= 1; back--)
+        DateTime(earliest.year, earliest.month - back),
+    ], reset: false);
+  }
+
+  /// `null`이면 전체다. **서버를 부르지 않는다.**
+  void setFilter(RecordCardActivity? activity) {
+    final current = state;
+    if (current is! RecordCardData) return;
+    state = current.copyWith(
+      filter: activity,
+      clearFilter: activity == null,
+    );
+  }
+
+  /// **서버를 부르지 않는다.** 이미 받은 달을 작게 그릴 뿐이다.
+  void setZoom(CalendarZoom zoom) {
+    final current = state;
+    if (current is! RecordCardData) return;
+    state = current.copyWith(zoom: zoom);
+  }
+
+  Future<void> _fetch(List<DateTime> wanted, {required bool reset}) async {
+    final epoch = _accountEpoch;
+    final previous = reset || state is! RecordCardData
+        ? null
+        : state as RecordCardData;
+    final existing = previous?.months ?? const [];
+    final already = previous?.loadedMonths ?? const <DateTime>{};
+    final repository = ref.read(recordCardRepositoryProvider);
+
+    try {
+      final fetched = <MonthCards>[];
+      for (final month in wanted) {
+        // 이미 들고 있는 달은 건너뛴다.
+        if (already.contains(month)) continue;
+        final cards = await repository.byDateRange(
+          from: month,
+          to: _lastDayOf(month),
+        );
+        fetched.add(MonthCards(month: month, cards: cards));
+      }
+
+      if (epoch != _accountEpoch) return;
+      state = RecordCardData(
+        months: [...existing, ...fetched],
+        filter: previous?.filter,
+        zoom: previous?.zoom ?? CalendarZoom.month,
+      );
+    } on RecordCardException catch (error) {
+      if (epoch != _accountEpoch) return;
+      state = RecordCardError(error.failure);
+    }
+  }
+
+  /// 계정이 바뀌면 들고 있던 카드를 버리고, 로그인 상태면 다시 읽는다.
+  ///
+  /// ⚠️ 이 provider는 로그아웃해도 살아 있고 [build]가 다시 돌지 않는다. 앱을
+  /// 끄지 않고 다른 계정으로 들어오면 **앞 사람의 카드가 그대로 보이고**, 그 카드를
+  /// 누르면 서버가 403으로 막는다. 기록 탭이 같은 함정을 적어 두었다
+  /// (`record_provider.dart`).
+  void _watchAccount() {
+    ref.listen(
+      authControllerProvider.select(
+        (auth) => auth is AuthSignedIn ? auth.userId : null,
+      ),
+      (_, userId) {
+        _accountEpoch++;
+        state = const RecordCardLoading();
+        if (userId != null) unawaited(load());
+      },
+    );
+  }
+
+  /// 그 달의 마지막 날. 다음 달 0일이 이번 달 말일이다.
+  static DateTime _lastDayOf(DateTime month) =>
+      DateTime(month.year, month.month + 1, 0);
+}
