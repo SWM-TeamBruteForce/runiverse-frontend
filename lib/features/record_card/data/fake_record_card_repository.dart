@@ -279,14 +279,14 @@ class FakeRecordCardRepository implements RecordCardRepository {
 
   /// 돌려 쓰는 번들 사진. 서버가 없어 열람 주소를 만들 수 없다.
   ///
-  /// ⚠️ **`home_*.webp`와 `onboarding_record.jpg`를 쓰지 않는다.** 그쪽은 사진이
+  /// ⚠️ **진짜 사진만 쓴다.** `home_*.webp`와 `onboarding_together.png`는 사진이
   /// 아니라 **앱 화면을 찍은 그림**이라, 카드 썸네일로 깔면 달력에 앱 스크린샷이
   /// 끼어 있는 것처럼 보인다. 기기에서 보고 알았다(2026-11-16).
   ///
   /// 둘뿐이라 같은 사진이 되풀이된다. 서버가 붙으면 없어질 목이라 그대로 둔다.
   static const _photoPool = [
-    'assets/images/onboarding_together.png',
     'assets/images/sign_in_hero.png',
+    'assets/images/onboarding_record.jpg',
   ];
 
   static const _reviews = [
