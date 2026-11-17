@@ -101,9 +101,10 @@ class _HomeNoticeStripState extends ConsumerState<HomeNoticeStrip> {
     final text = _textOf(_reel.current);
 
     return Container(
+      // 위아래 16 — 12면 바로 아래 340짜리 히어로 옆에서 가는 줄처럼 보였다.
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.space4,
-        vertical: AppSpacing.space3,
+        vertical: AppSpacing.space4,
       ),
       decoration: BoxDecoration(
         color: colors.bgSurface,
