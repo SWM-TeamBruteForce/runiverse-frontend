@@ -117,6 +117,38 @@ void main() {
     expect(fake.calls, afterFirst, reason: '빈 묶음을 받고도 또 물었다');
   });
 
+  test('⚠️ 더 받다 실패해도 들고 있던 달력을 버리지 않는다', () async {
+    // 지하철에서 한 번 끊겼다고 잘 보던 여섯 달이 사라지면 안 된다.
+    container = build();
+    await _settle();
+    final before = container.read(recordCardControllerProvider);
+    expect(before, isA<RecordCardData>());
+
+    fake.failWith = RecordCardFailure.network;
+    await container.read(recordCardControllerProvider.notifier).loadOlder();
+
+    final after = container.read(recordCardControllerProvider);
+    expect(after, isA<RecordCardData>(), reason: '오류 화면으로 갈아치웠다');
+    expect((after as RecordCardData).months, hasLength(3));
+  });
+
+  test('⚠️ 더 과거가 비어도 force면 한 번 더 판다', () async {
+    // 석 달을 통째로 쉰 사람의 그 앞이 영영 안 보이면 안 된다.
+    container = build();
+    await _settle();
+    final controller = container.read(recordCardControllerProvider.notifier);
+
+    await controller.loadOlder();
+    expect(
+      (container.read(recordCardControllerProvider) as RecordCardData).atOldest,
+      isTrue,
+    );
+
+    final before = fake.calls;
+    await controller.loadOlder(force: true);
+    expect(fake.calls, greaterThan(before));
+  });
+
   test('⚠️ 줌을 바꿔도 서버를 다시 부르지 않는다', () async {
     container = build();
     await _settle();

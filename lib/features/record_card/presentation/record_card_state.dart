@@ -91,16 +91,19 @@ class RecordCardData extends RecordCardState {
     required List<MonthCards> months,
     RecordCardActivity? filter,
     CalendarZoom zoom = CalendarZoom.month,
+    bool atOldest = false,
   }) => RecordCardData._(
     months: [...months]..sort((a, b) => a.month.compareTo(b.month)),
     filter: filter,
     zoom: zoom,
+    atOldest: atOldest,
   );
 
   RecordCardData._({
     required this.months,
     required this.filter,
     required this.zoom,
+    required this.atOldest,
   }) : visible = _visibleOf(months, filter);
 
   /// 필터를 걸기 **전**의 달들. 오름차순이다.
@@ -119,6 +122,13 @@ class RecordCardData extends RecordCardState {
 
   final CalendarZoom zoom;
 
+  /// 더 과거에는 카드가 없다고 본 상태.
+  ///
+  /// ⚠️ **"끝"이 아니라 "여기까지 파 봤다"는 뜻이다.** 석 달을 통째로 쉰
+  /// 사람은 그 앞에 카드가 있을 수 있어, 화면은 이 값일 때도 **사용자가 한 번
+  /// 더 파게** 둔다(`loadOlder(force: true)`).
+  final bool atOldest;
+
   /// 필터를 떼고 보면 카드가 하나라도 있나.
   ///
   /// ## ⚠️ [visible]이 비었는지로 판단하면 안 된다
@@ -135,10 +145,12 @@ class RecordCardData extends RecordCardState {
     RecordCardActivity? filter,
     bool clearFilter = false,
     CalendarZoom? zoom,
+    bool? atOldest,
   }) => RecordCardData(
     months: months ?? this.months,
     filter: clearFilter ? null : (filter ?? this.filter),
     zoom: zoom ?? this.zoom,
+    atOldest: atOldest ?? this.atOldest,
   );
 
   /// 화면에 세울 달들. **가장 오래된 빈 달들을 잘라 낸다.**

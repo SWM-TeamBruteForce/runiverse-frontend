@@ -1572,6 +1572,17 @@ abstract final class AppStrings {
   static const recordCardEmptyTitle = '아직 남긴 기록카드가 없어요';
   static const recordCardEmptyAction = '기록카드 쓰기';
 
+  /// 달력 맨 아래의 더 받기.
+  ///
+  /// ⚠️ **스크롤만으로는 안 된다.** 안드로이드에서 스크롤할 것이 없는 목록은
+  /// `ScrollUpdateNotification`을 아예 내지 않아, 보이는 달이 하나뿐이면 과거를
+  /// 받을 방아쇠가 없다. 스크린리더·모터 제약 사용자에게도 누를 것이 낫다.
+  static const recordCardLoadOlder = '이전 기록 더 보기';
+
+  /// 더 과거에 아무것도 없을 때. **버튼을 그냥 없애지 않는다** — 사라지면
+  /// 더 받은 것인지 고장인지 알 수 없다.
+  static const recordCardNoOlder = '더 과거에는 기록카드가 없어요';
+
   /// 유형 필터의 `전체`. 나머지 셋은 [RecordCardActivity]의 이름을 쓴다.
   static const recordCardFilterAll = '전체';
   static const recordCardActivityDaily = '일상';

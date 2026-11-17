@@ -3,6 +3,7 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/presentation/day_cards_sheet.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_cell.dart';
@@ -68,14 +69,64 @@ class RecordCardCalendar extends StatelessWidget {
         },
         child: ListView.builder(
           padding: const EdgeInsets.only(bottom: AppSpacing.space8),
-          itemCount: months.length,
-          itemBuilder: (context, index) => _MonthSection(
-            month: months[index],
-            zoom: data.zoom,
-            onOpen: onOpen,
-            onEmptyDay: onEmptyDay,
-          ),
+          // 마지막 한 칸은 더 받기 줄이다.
+          itemCount: months.length + 1,
+          itemBuilder: (context, index) => index == months.length
+              ? _Footer(atOldest: data.atOldest, onLoadOlder: onLoadOlder)
+              : _MonthSection(
+                  month: months[index],
+                  zoom: data.zoom,
+                  onOpen: onOpen,
+                  onEmptyDay: onEmptyDay,
+                ),
         ),
+      ),
+    );
+  }
+}
+
+/// 목록 맨 아래의 더 받기 줄.
+///
+/// ## ⚠️ 스크롤만으로는 못 받는다
+///
+/// 안드로이드에서 **스크롤할 것이 없는 목록은 `ScrollUpdateNotification`을 아예
+/// 내지 않는다**(`ClampingScrollPhysics`). 보이는 달이 하나뿐이면 그것만으로는
+/// 과거를 받을 방아쇠가 없어, 더 과거의 카드에 닿을 길이 앱 안에 사라진다.
+///
+/// 누를 것을 두면 스크린리더·모터 제약 사용자에게도 길이 생긴다.
+class _Footer extends StatelessWidget {
+  const _Footer({required this.atOldest, required this.onLoadOlder});
+
+  final bool atOldest;
+  final VoidCallback onLoadOlder;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.space4,
+        AppSpacing.space4,
+        AppSpacing.space4,
+        AppSpacing.space6,
+      ),
+      child: Center(
+        // ⚠️ 더 없을 때 버튼을 **그냥 치우지 않는다.** 사라지면 다 받은 것인지
+        // 고장인지 알 수 없다.
+        child: atOldest
+            ? Text(
+                AppStrings.recordCardNoOlder,
+                style: AppTypographyV2.body18.copyWith(
+                  color: colors.textTertiary,
+                ),
+              )
+            : AppButtonV2(
+                label: AppStrings.recordCardLoadOlder,
+                variant: AppButtonV2Variant.secondary,
+                expand: false,
+                onPressed: onLoadOlder,
+              ),
       ),
     );
   }

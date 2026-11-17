@@ -25,21 +25,24 @@ final _route = normalizeRoute([
   ],
 ]);
 
-RecordCard _card({required int id, List<RecordCardPhoto> photos = const []}) =>
-    RecordCard(
-      id: id,
-      runningRecordId: id + 100,
-      startedAt: DateTime(2026, 9, 2, 18, 54),
-      activity: RecordCardActivity.daily,
-      visibility: RecordCardVisibility.friends,
-      reviewText: '회고',
-      photos: photos,
-      route: _route,
-      distanceMeters: 5000,
-      duration: const Duration(minutes: 30),
-      averagePace: const Duration(minutes: 6),
-      runners: const [],
-    );
+RecordCard _card({
+  required int id,
+  List<RecordCardPhoto> photos = const [],
+  RouteArt? route,
+}) => RecordCard(
+  id: id,
+  runningRecordId: id + 100,
+  startedAt: DateTime(2026, 9, 2, 18, 54),
+  activity: RecordCardActivity.daily,
+  visibility: RecordCardVisibility.friends,
+  reviewText: '회고',
+  photos: photos,
+  route: route ?? _route,
+  distanceMeters: 5000,
+  duration: const Duration(minutes: 30),
+  averagePace: const Duration(minutes: 6),
+  runners: const [],
+);
 
 Future<void> _pump(
   WidgetTester tester, {
@@ -89,6 +92,14 @@ void main() {
     await _pump(tester, cards: [_card(id: 1)]);
 
     expect(find.byType(RouteArtView), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 경로도 사진도 없는 카드가 빈 날과 같아 보이면 안 된다', (tester) async {
+    // 트레드밀이나 GPS를 못 받은 러닝은 경로가 비어 있다. 사진까지 없으면
+    // 칸이 안 뛴 날과 픽셀 단위로 같아져, 쓴 카드를 달력에서 못 찾는다.
+    await _pump(tester, cards: [_card(id: 1, route: RouteArt.empty)]);
+
+    expect(find.byType(CardMarkDot), findsOneWidget);
   });
 
   testWidgets('카드가 없는 날은 날짜만 있다', (tester) async {

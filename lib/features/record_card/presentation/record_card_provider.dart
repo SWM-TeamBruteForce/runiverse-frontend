@@ -82,9 +82,12 @@ class RecordCardController extends Notifier<RecordCardState> {
   ///
   /// 달력이 바닥에 닿을 때마다 불린다 — **같은 요청이 겹치지 않게 막고**, 받아
   /// 온 묶음이 통째로 비어 있으면 더 파고들지 않는다.
-  Future<void> loadOlder() async {
+  /// [force]면 **더 없다고 본 뒤에도 한 번 더 판다.** 석 달을 통째로 쉰 사람의
+  /// 그 앞에 카드가 있을 수 있어, 사용자가 요구하면 들어준다.
+  Future<void> loadOlder({bool force = false}) async {
     final current = state;
-    if (_loadingOlder || _atOldest) return;
+    if (_loadingOlder) return;
+    if (_atOldest && !force) return;
     if (current is! RecordCardData || current.months.isEmpty) return;
 
     final earliest = current.months.first.month;
@@ -103,7 +106,8 @@ class RecordCardController extends Notifier<RecordCardState> {
       final next = state;
       if (next is RecordCardData) {
         final added = next.months.where((m) => wanted.contains(m.month));
-        if (added.every((month) => month.cardCount == 0)) _atOldest = true;
+        _atOldest = added.every((month) => month.cardCount == 0);
+        state = next.copyWith(atOldest: _atOldest);
       }
     } finally {
       _loadingOlder = false;
@@ -153,6 +157,10 @@ class RecordCardController extends Notifier<RecordCardState> {
       );
     } on RecordCardException catch (error) {
       if (epoch != _accountEpoch) return;
+      // ⚠️ **더 받다 실패했다고 들고 있던 달력을 갈아치우지 않는다.** 지하철에서
+      // 한 번 끊겼다고 잘 보던 여섯 달이 사라지고 필터까지 풀리면 안 된다.
+      // 오류 화면은 처음 받기(`reset`)가 실패했을 때만이다.
+      if (previous != null) return;
       state = RecordCardError(error.failure);
     }
   }

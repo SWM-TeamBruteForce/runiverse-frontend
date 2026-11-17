@@ -34,7 +34,9 @@ RecordCardData _data({
   List<RecordCard>? cards,
   RecordCardActivity? filter,
   CalendarZoom zoom = CalendarZoom.month,
+  bool atOldest = false,
 }) => RecordCardData(
+  atOldest: atOldest,
   months: [
     MonthCards(
       month: DateTime(2026, 9),
@@ -191,6 +193,49 @@ void main() {
 
     expect(find.text(AppStrings.recordCardMonthCount(0)), findsOne);
     expect(find.byType(RecordCardCell), findsNWidgets(30));
+  });
+
+  testWidgets('⚠️ 스크롤할 것이 없어도 과거를 더 받을 길이 있다', (tester) async {
+    // 안드로이드에서는 스크롤할 것이 없으면 ScrollUpdateNotification 자체가
+    // 나오지 않는다. 그것만 방아쇠로 두면 과거 카드에 닿을 길이 앱 안에 없다.
+    var asked = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(),
+        home: Scaffold(
+          body: RecordCardCalendar(
+            data: _data(),
+            onOpen: (_) {},
+            onEmptyDay: (_) {},
+            onZoom: (_) {},
+            onLoadOlder: () => asked++,
+          ),
+        ),
+      ),
+    );
+
+    await tester.scrollUntilVisible(
+      find.text(AppStrings.recordCardLoadOlder),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text(AppStrings.recordCardLoadOlder));
+    await tester.pump();
+
+    expect(asked, 1);
+  });
+
+  testWidgets('⚠️ 더 과거가 없으면 버튼 대신 그 사실을 알린다', (tester) async {
+    await _pump(tester, data: _data(atOldest: true));
+
+    await tester.scrollUntilVisible(
+      find.text(AppStrings.recordCardNoOlder),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(find.text(AppStrings.recordCardLoadOlder), findsNothing);
+    expect(find.text(AppStrings.recordCardNoOlder), findsOneWidget);
   });
 
   testWidgets('라이트 테마에서도 그려진다', (tester) async {

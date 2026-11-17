@@ -44,7 +44,9 @@ class FakeRecordCardRepository implements RecordCardRepository {
   final Duration delay;
 
   /// 주면 **언제나 이 실패로 던진다.** 오류 화면을 눈으로 보는 길이다.
-  final RecordCardFailure? failWith;
+  ///
+  /// 도중에 바꿀 수 있다 — "잘 보다가 한 번 끊겼다"를 흉내내는 데 쓴다.
+  RecordCardFailure? failWith;
 
   /// 몇 번 불렸나. 화면이 받은 달을 다시 받는지 본다.
   var calls = 0;

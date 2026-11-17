@@ -105,6 +105,11 @@ class _Face extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = card.thumbnailUrl;
     if (url == null) {
+      // ⚠️ **경로도 사진도 없는 카드가 있다.** 트레드밀이나 GPS를 못 받은
+      // 러닝이다. 그대로 두면 `RouteArtView`가 아무것도 안 그려, 칸이 **안 뛴
+      // 날과 픽셀 단위로 같아진다** — 쓴 카드를 달력에서 못 찾는다.
+      if (card.route.isEmpty) return const CardMarkDot();
+
       return RouteArtView(
         art: card.route,
         color: context.appColorsV2.primary,
@@ -125,6 +130,28 @@ class _Face extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 보여 줄 것이 아무것도 없는 카드의 자국.
+///
+/// 사진도 경로도 없을 때 칸 가운데에 작은 점 하나를 남긴다. **"여기 카드가
+/// 있다"만 말하면 된다** — 빈 날과 구별되는 것이 전부다.
+class CardMarkDot extends StatelessWidget {
+  const CardMarkDot({super.key});
+
+  static const _size = 8.0;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Container(
+      width: _size,
+      height: _size,
+      decoration: BoxDecoration(
+        color: context.appColorsV2.primary,
+        shape: BoxShape.circle,
+      ),
+    ),
+  );
 }
 
 /// 카드 사진을 띄울 [ImageProvider].
