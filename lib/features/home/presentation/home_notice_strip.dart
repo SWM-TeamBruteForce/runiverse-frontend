@@ -42,12 +42,7 @@ class HomeNoticeStrip extends ConsumerStatefulWidget {
 }
 
 class _HomeNoticeStripState extends ConsumerState<HomeNoticeStrip> {
-  final _reel = HomeNoticeReel(
-    updateSince: HomeNoticeStrip.updateSince,
-    // 업데이트 소식이 워치 안내와 같은 문장이면 그 주엔 워치 줄을 뺀다.
-    updateRepeatsWatch:
-        AppStrings.homeNoticeUpdate == AppStrings.homeNoticeWatch,
-  );
+  final _reel = HomeNoticeReel(updateSince: HomeNoticeStrip.updateSince);
   Timer? _timer;
 
   /// 홈 탭이 보이는가. 꺼진 동안은 넘기지 않는다.

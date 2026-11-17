@@ -32,8 +32,7 @@ void main() {
     yesterdayFinishedCount: yesterday,
   );
 
-  HomeNoticeReel reel({bool repeatsWatch = false}) =>
-      HomeNoticeReel(updateSince: since, updateRepeatsWatch: repeatsWatch);
+  HomeNoticeReel reel() => HomeNoticeReel(updateSince: since);
 
   /// 멈출 때까지 넘기며 본 줄을 모은다.
   List<HomeNoticeLine> playOut(HomeNoticeReel reel) {
@@ -81,17 +80,6 @@ void main() {
       final it = HomeNoticeReel()..restart(activity(now: 1), updateWeek);
 
       expect(kinds(playOut(it)), [HomeNoticeRunningNow, HomeNoticeWatch]);
-    });
-
-    test('⚠️ 업데이트가 워치와 같은 문장이면 그 주엔 워치 줄을 뺀다', () {
-      final it = reel(repeatsWatch: true)
-        ..restart(activity(now: 3, today: 20), updateWeek);
-
-      expect(kinds(playOut(it)), [
-        HomeNoticeUpdate,
-        HomeNoticeRunningNow,
-        HomeNoticeToday,
-      ]);
     });
 
     test('⚠️ 마지막 줄에서 더 넘기지 않는다', () {
@@ -261,6 +249,28 @@ void main() {
       expect(it.current, isA<HomeNoticeWatch>());
     });
 
+    test('⚠️ 도는 중에 소식이 모두 사라지면 남은 숫자를 띄우지 않고 워치로 간다', () {
+      // 남겨 두면 다음 차례에 지난 `어제 5명`이 뜨고 거기서 멈춘다(자정 넘김,
+      // 코덱스 부계정 리뷰 지적).
+      final it = reel()..restart(activity(now: 2, yesterday: 5), afterUpdate);
+      expect(it.stopped, isFalse);
+
+      it.receive(activity(), afterUpdate);
+
+      expect(kinds(playOut(it)), [HomeNoticeWatch]);
+    });
+
+    test('업데이트를 보여 주는 중에 소식이 사라지면 업데이트 → 워치로 잇는다', () {
+      final it = reel()..restart(activity(now: 2, today: 3), updateWeek);
+      final turns = it.turns;
+
+      it.receive(activity(), updateWeek);
+
+      expect(it.current, isA<HomeNoticeUpdate>());
+      expect(it.turns, turns);
+      expect(kinds(playOut(it)), [HomeNoticeUpdate, HomeNoticeWatch]);
+    });
+
     test('⚠️ 처음 값이 홈에 들어온 뒤에 오면 그때 한 바퀴 돈다', () {
       // 연결 직후에는 값이 없다(최대 30초). 그동안 띠는 워치 줄이다.
       final it = reel()..restart(null, afterUpdate);
@@ -291,6 +301,39 @@ void main() {
 
       expect(it.current, isA<HomeNoticeWatch>());
       expect(it.turns, turns);
+    });
+
+    test('⚠️ 업데이트 주간에 도는 중 값이 끊겨도 업데이트 줄을 다시 띄우지 않는다', () {
+      // 바탕 바퀴를 처음부터 깔면 `업데이트 → 지금 2명 → 업데이트 → 워치`가
+      // 된다(두 번째 Claude 재리뷰 지적).
+      final it = reel()
+        ..restart(activity(now: 2, today: 3), updateWeek)
+        ..advance();
+
+      it.receive(null, updateWeek);
+
+      expect(kinds(playOut(it)), [HomeNoticeWatch]);
+    });
+
+    test('⚠️ 소식이 사라졌다 다시 생겨도 이번 방문에 본 업데이트 줄은 다시 안 뜬다', () {
+      // 두 번째 Claude 재리뷰 지적: 1명 → 0명 → 1명이면 업데이트가 두 번 떴다.
+      final it = reel()
+        ..restart(activity(now: 1), updateWeek)
+        ..advance();
+
+      it.receive(activity(), updateWeek);
+      it.receive(activity(now: 1), updateWeek);
+
+      expect(kinds(playOut(it)), [HomeNoticeRunningNow, HomeNoticeWatch]);
+    });
+
+    test('홈에 다시 들어오면 업데이트 줄이 다시 맨 앞에 선다', () {
+      final it = reel()..restart(activity(now: 1), updateWeek);
+      playOut(it);
+
+      it.restart(activity(now: 1), updateWeek);
+
+      expect(it.current, isA<HomeNoticeUpdate>());
     });
 
     test('값이 끊기면 소식 없는 바퀴로 돌아간다', () {
