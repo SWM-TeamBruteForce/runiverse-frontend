@@ -509,11 +509,8 @@ abstract final class AppStrings {
   static const homeGreetingEvening = '좋은 저녁이에요';
   static const homeGreetingNight = '늦은 밤이네요';
 
-  /// 히어로 제목. **이름을 부른다** — 시안 `158:2848`이 `김지원님`으로 시작한다.
-  ///
-  /// ⚠️ **이름이 없을 수 있다.** `/me`가 오기 전이거나 온보딩 전이면 비어 있다.
-  /// 그때는 부르는 줄을 통째로 뺀다 — `님`만 남으면 이름을 잃은 것처럼 보인다.
-  static String homeHeroName(String nickname) => '$nickname님';
+  /// 히어로 제목. 시안 `158:2848`은 앞에 `김지원님`을 붙여 부르지만, 340
+  /// 높이로 줄이면서 이름 줄은 뺐다.
   static const homeHeroPrompt = '오늘도 함께 달려볼까요?';
 
   /// ⚠️ **시안은 `매칭시작`·`혼자연습하기`로 붙여 쓴다.** 한국어 맞춤법상
@@ -526,8 +523,8 @@ abstract final class AppStrings {
   /// 친구를 불러 같이 뛰는 것이 아니라 **방에 초대하는** 기능이라서다.
   static const homeInviteRunCta = '초대 러닝';
 
-  /// 히어로 부제. 줄바꿈 위치를 고정해 두 줄로 읽히게 한다.
-  static const homeHeroSubtitle = '나와 비슷한 러너를 만나\n같은 시간, 각자의 자리에서 함께 달려보세요.';
+  /// 히어로 부제. 시안의 두 줄 중 앱이 무엇인지 말하는 둘째 줄만 둔다.
+  static const homeHeroSubtitle = '같은 시간, 각자의 자리에서 함께 달려요';
 
   // 위 줄 날씨 — 외주 시안 `70:739`(`서울 강남구 · 맑음 18°`)
 

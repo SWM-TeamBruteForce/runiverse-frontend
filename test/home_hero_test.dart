@@ -120,21 +120,6 @@ void main() {
 
       expect(find.text(AppStrings.homeSoloCta), findsNothing);
     });
-
-    testWidgets('이름이 있으면 부른다', (tester) async {
-      await pumpHero(tester, name: '러너42');
-
-      expect(find.textContaining('러너42님'), findsOneWidget);
-    });
-
-    testWidgets('⚠️ 이름이 없으면 그 줄을 통째로 뺀다', (tester) async {
-      // `/me`가 오기 전이거나 온보딩 전이면 비어 있다. `님`만 남으면
-      // 이름을 잃어버린 것처럼 보인다.
-      await pumpHero(tester);
-
-      expect(find.text(AppStrings.homeHeroPrompt), findsOneWidget);
-      expect(find.textContaining('님'), findsNothing);
-    });
   });
 
   group('모집 중', () {

@@ -58,9 +58,10 @@ class HomeHero extends StatelessWidget {
     super.key,
   });
 
-  /// 부를 이름. **없을 수 있다** — `/me`가 오기 전이거나 온보딩 전이다.
+  /// 내 닉네임. **없을 수 있다** — `/me`가 오기 전이거나 온보딩 전이다.
   ///
-  /// 시안 `158:2848`이 `김지원님`으로 시작한다. 없으면 그 줄을 통째로 뺀다.
+  /// 대기 중 카드가 방 명단에 내가 없을 때 가운데 원에 쓴다. 기본 카드는
+  /// 이름을 부르지 않는다.
   final String? name;
 
   /// 내 프로필 사진. 대기 중 카드가 가운데에 쓴다.
@@ -108,12 +109,7 @@ class HomeHero extends StatelessWidget {
     // `theme_generation_test`가 그것을 막는다. 상태를 하나씩 옮기는 동안
     // **옮긴 것만 자기 파일로 나간다** — 남은 넷은 아래 껍데기를 그대로 쓴다.
     if (current == null && !pending) {
-      return HomeIdle(
-        name: name,
-        onMatch: onMatch,
-        now: now,
-        cooldownUntil: cooldownUntil,
-      );
+      return HomeIdle(onMatch: onMatch, now: now, cooldownUntil: cooldownUntil);
     }
     if (current != null && current.status == RoomStatus.matched) {
       // ⚠️ **혼자 달리게 된 방을 먼저 가른다.** 상대를 못 만나면 서버가 그

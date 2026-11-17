@@ -1,13 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:runiverse/app/app.dart';
-import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
-import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
-import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
-import 'package:runiverse/features/auth/domain/current_user.dart';
 import 'package:runiverse/features/auth/domain/login_type.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
@@ -127,62 +122,6 @@ void main() {
     expect(signedIn(container).user?.nickname, '러너-test');
   });
 
-  testWidgets('⚠️ 홈이 그 자리에서 새 이름을 부른다', (tester) async {
-    // 위 셋은 상태만 본다. 보고된 증상은 **화면**이라, 홈이 그 상태를 실제로
-    // 다시 그리는지까지 한 번 본다 — 홈은 `authControllerProvider`를 watch 한다.
-    //
-    // ⚠️ **여기서는 로그인 과정을 밟지 않는다.** `testWidgets`의 시계는
-    // 가짜라서 `signIn`이 기다리는 타이머가 영영 깨어나지 않는다(테스트가
-    // 5분을 버티다 "did not complete"로 끝났다). 다른 화면 테스트들처럼
-    // 로그인한 상태를 처음부터 세워 둔다. 컨트롤러는 진짜 그대로다 —
-    // `build()`만 덮으므로 `applyNickname`은 실제 코드가 돈다.
-    final container = ProviderContainer.test(
-      overrides: [
-        // 스플래시가 **토큰 복원보다 먼저** 앱 버전을 확인한다. 진짜를 두면
-        // dio가 서버 주소를 찾다 죽고, 판정을 못 받은 화면은 넘어가지 않는다.
-        appVersionRepositoryProvider.overrideWithValue(
-          FakeAppVersionRepository(),
-        ),
-        ...fakes(),
-        authControllerProvider.overrideWith(
-          () => _SignedIn(
-            const AuthSignedIn(
-              'u-1',
-              isOnboarded: true,
-              user: CurrentUser(
-                userId: 'u-1',
-                isOnboarded: true,
-                nickname: '러너-test',
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const RuniverseApp(initialLocation: AppRoutes.home),
-      ),
-    );
-    // ⚠️ `pumpAndSettle`을 쓰지 않는다. 홈은 1초마다 도는 시계를 달고 있어
-    // **영영 가라앉지 않는다.** 프레임 몇 장만 보낸다.
-    await tester.pump(const Duration(milliseconds: 50));
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(find.textContaining('러너-test님'), findsOneWidget);
-
-    await container
-        .read(profileSummaryControllerProvider.notifier)
-        .changeNickname('새이름');
-    await tester.pump(const Duration(milliseconds: 50));
-
-    expect(find.textContaining('새이름님'), findsOneWidget);
-    // 앱을 다시 켜야 바뀌던 것이 이 줄이다.
-    expect(find.textContaining('러너-test'), findsNothing);
-  });
-
   test('로그인 상태가 아니면 아무 일도 하지 않는다', () async {
     // 프로필 탭에 닿으려면 로그인해야 하지만, 상태를 만들어 내는 길을
     // 열어 두면 로그인하지 않은 사람이 홈에 들어간다.
@@ -194,15 +133,4 @@ void main() {
 
     expect(container.read(authControllerProvider), isNot(isA<AuthSignedIn>()));
   });
-}
-
-/// 로그인한 상태로 시작하는 컨트롤러. **`build()`만 덮는다** — 나머지는
-/// 진짜 [AuthController]라서 `applyNickname`은 실제 코드가 돈다.
-class _SignedIn extends AuthController {
-  _SignedIn(this.initial);
-
-  final AuthState initial;
-
-  @override
-  AuthState build() => initial;
 }

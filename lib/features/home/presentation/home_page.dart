@@ -125,7 +125,8 @@ class _HomePageState extends ConsumerState<HomePage> {
       (_) => _syncTicker(needed: counting || cooling),
     );
 
-    // 부를 이름. **없을 수 있다** — `/me`가 오기 전이거나 온보딩 전이다.
+    // 로그인 정보. 대기 카드가 나를 가려내고, 온보딩 안내를 가른다.
+    // `user`는 `/me`가 오기 전이면 비어 있다.
     final auth = ref.watch(authControllerProvider);
     final signedIn = auth is AuthSignedIn ? auth : null;
 
