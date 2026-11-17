@@ -105,7 +105,9 @@ class HomeIdle extends StatelessWidget {
                         fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.space4),
+                    // 12 — 버튼에 딸린 한 줄로 읽히게. 대기방 나가기 버튼 위
+                    // 안내 줄(`match_room_page.dart`), 위 제목↔부제와 같은 값.
+                    const SizedBox(height: AppSpacing.space3),
                   ],
 
                   // ⚠️ **눌러 보고 409를 받게 두지 않는다.** 서버가 이미 언제까지인지
