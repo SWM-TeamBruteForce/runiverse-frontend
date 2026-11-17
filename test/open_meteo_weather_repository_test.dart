@@ -83,6 +83,11 @@ void main() {
 
   for (final (label, error, retried) in [
     (
+      '응답을 받던 중 끊김은 다음 경로로',
+      const HttpException('Connection closed while receiving data'),
+      true,
+    ),
+    (
       'TLS 협상 중 끊김은 다음 경로로',
       const HandshakeException('Connection terminated during handshake'),
       true,

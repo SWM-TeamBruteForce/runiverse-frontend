@@ -111,6 +111,9 @@ class OpenMeteoWeatherRepository implements WeatherRepository {
             (error.response?.statusCode ?? 0) >= 500,
           DioExceptionType.unknown => switch (error.error) {
             SocketException() => true,
+            // 응답을 받던 중 상대가 끊었다(`Connection closed while receiving
+            // data`). 연결 장애라 다음 경로로 간다.
+            HttpException() => true,
             // TLS 협상 중 상대가 끊은 것은 연결 장애다 — 다음 경로로 간다.
             // 인증서 검증 실패(`CERTIFICATE_VERIFY_FAILED`)는 넘기지 않는다.
             HandshakeException(:final message, :final osError) =>
