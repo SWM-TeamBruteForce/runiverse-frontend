@@ -623,9 +623,6 @@ abstract final class AppStrings {
   /// 화면에 뜬다. 모른다는 것을 모른다고 적는다.
   static const homeMatchUnknownValue = '-';
 
-  /// 아바타 줄 위의 라벨.
-  static const homeMatchPartyLabel = '참여자';
-
   // 히어로 — 혼자 달리게 된 방 (시안 158:3029 자리)
   //
   // ⚠️ **시안은 이 자리를 `매칭실패`로 그렸는데 그런 상태는 없다.**

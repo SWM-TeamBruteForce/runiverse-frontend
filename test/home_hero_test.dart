@@ -288,14 +288,15 @@ void main() {
       expect(entered, 1, reason: '로비로 가는 문이 안 열린다');
     });
 
-    testWidgets('⚠️ 함께 달릴 사람을 이름으로 보여준다', (tester) async {
-      // 시안이 겹친 동그라미 대신 이름을 붙인 얼굴 셋을 둔다. 누가 함께
-      // 달리는지가 이 카드의 요점이다.
+    testWidgets('⚠️ 함께 달릴 사람을 이름으로 읽어 준다', (tester) async {
+      // 겹친 동그라미 대신 얼굴을 나란히 둔다. 누가 함께 달리는지가 이
+      // 카드의 요점이다. 이름 줄은 없어서 `Semantics`가 이름을 말한다.
+      final handle = tester.ensureSemantics();
       await pumpHero(tester, withRoom: room(RoomStatus.matched, players: 3));
 
-      expect(find.text(AppStrings.homeMatchPartyLabel), findsOneWidget);
-      expect(find.text('러너0'), findsOneWidget);
-      expect(find.text('러너2'), findsOneWidget);
+      expect(find.bySemanticsLabel('러너0'), findsOneWidget);
+      expect(find.bySemanticsLabel('러너2'), findsOneWidget);
+      handle.dispose();
     });
 
     testWidgets('⚠️ 세 칸을 라벨과 함께 보여준다', (tester) async {
