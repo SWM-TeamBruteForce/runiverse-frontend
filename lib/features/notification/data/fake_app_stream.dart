@@ -8,7 +8,7 @@ import 'package:runiverse/features/notification/domain/app_stream.dart';
 /// 버퍼·병합 규칙은 **목록 응답과 이벤트의 도착 순서**가 전부라, 그 순서를
 /// 손으로 정할 수 있어야 검증된다. 진짜 서버로는 그 순서를 만들 수 없다.
 class FakeAppStream implements AppStream {
-  StreamController<AppNotification>? _controller;
+  StreamController<AppStreamEvent>? _controller;
 
   /// 몇 번 붙었는가. **다시 붙는 규칙을 세는 자리다.**
   var connects = 0;
@@ -19,9 +19,9 @@ class FakeAppStream implements AppStream {
   Object? failure;
 
   @override
-  Stream<AppNotification> connect() {
+  Stream<AppStreamEvent> connect() {
     connects++;
-    final controller = StreamController<AppNotification>();
+    final controller = StreamController<AppStreamEvent>();
     _controller = controller;
 
     final error = failure;
@@ -34,7 +34,11 @@ class FakeAppStream implements AppStream {
   }
 
   /// 알림 하나가 도착했다.
-  void emit(AppNotification notification) => _controller?.add(notification);
+  void emit(AppNotification notification) =>
+      emitEvent(AppNotificationArrived(notification));
+
+  /// 알림이 아닌 이벤트(홈 공지)가 도착했다.
+  void emitEvent(AppStreamEvent event) => _controller?.add(event);
 
   /// 연결이 끊겼다.
   void breakConnection([

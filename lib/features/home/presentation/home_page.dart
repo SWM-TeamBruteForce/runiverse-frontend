@@ -15,6 +15,8 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/home/presentation/home_hero.dart';
 import 'package:runiverse/features/home/presentation/home_top_bar.dart';
+import 'package:runiverse/features/home/presentation/home_notice_provider.dart';
+import 'package:runiverse/features/home/presentation/home_notice_strip.dart';
 import 'package:runiverse/features/home/presentation/home_weather_provider.dart';
 import 'package:runiverse/features/home/presentation/home_weather_sheet.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
@@ -161,6 +163,8 @@ class _HomePageState extends ConsumerState<HomePage> {
               ),
             ),
             const SizedBox(height: AppSpacing.space3),
+            const HomeNoticeStrip(),
+            const SizedBox(height: AppSpacing.space3),
             HomeHero(
               name: signedIn?.user?.nickname,
               photoUrl: signedIn?.user?.profileImageUrl,
@@ -175,6 +179,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                   RunResume.showsMatchBanner(status),
               now: _now,
               cooldownUntil: cooldownUntil,
+              waitingCount: ref.watch(
+                homeNoticeProvider.select((s) => s.waitingCount),
+              ),
               // 조건을 고르는 화면(S08)을 거친다. 홈에서 바로 신청하면
               // 시간대도 거리도 정할 수 없다.
               onMatch: () => context.push(AppRoutes.matchRegister),

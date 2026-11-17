@@ -11,6 +11,13 @@ import 'package:runiverse/features/notification/domain/app_notification.dart';
 ///   연결)와 구분해야 한다
 /// - **버전 헤더가 없으면 거절한다.** 다른 경로도 같고, 토큰 검사보다 먼저다
 void main() {
+  /// 알림 이벤트로 읽었으면 그 알림을 꺼낸다.
+  AppNotification? notificationOf(String? name, String raw) =>
+      switch (SseAppStream.eventOf(name, raw)) {
+        AppNotificationArrived(:final notification) => notification,
+        _ => null,
+      };
+
   group('이벤트를 읽는다', () {
     const invited =
         '{"notificationId":913,"isRead":false,'
@@ -22,7 +29,7 @@ void main() {
         '"targetDistanceMeters":7000}}';
 
     test('RUNNING_INVITED를 알림으로 읽는다', () {
-      final one = SseAppStream.eventOf('RUNNING_INVITED', invited);
+      final one = notificationOf('RUNNING_INVITED', invited);
 
       expect(one!.notificationId, 913);
       expect(one.type, NotificationType.runningInvited);
@@ -38,11 +45,11 @@ void main() {
           '"invitation":null}';
 
       expect(
-        SseAppStream.eventOf('FRIEND_REQUESTED', friend)!.type,
+        notificationOf('FRIEND_REQUESTED', friend)!.type,
         NotificationType.friendRequested,
       );
       expect(
-        SseAppStream.eventOf('FRIEND_ACCEPTED', friend)!.type,
+        notificationOf('FRIEND_ACCEPTED', friend)!.type,
         NotificationType.friendAccepted,
       );
     });
@@ -60,6 +67,55 @@ void main() {
 
     test('JSON이 깨져도 던지지 않는다', () {
       expect(SseAppStream.eventOf('RUNNING_INVITED', '{nope'), isNull);
+    });
+
+    test('HOME_WAITING을 대기 수로 읽는다', () {
+      final one = SseAppStream.eventOf('HOME_WAITING', '{"waitingCount":4}');
+
+      expect((one! as HomeWaitingArrived).waitingCount, 4);
+    });
+
+    test('HOME_ACTIVITY를 공지 띠 소식으로 읽는다', () {
+      final one = SseAppStream.eventOf(
+        'HOME_ACTIVITY',
+        '{"runningNowCount":3,'
+            '"todayFinishedRuns":[{"runningRecordId":71,"nickname":"철**",'
+            '"distanceMeters":5000}],'
+            '"todayFinishedCount":20,"yesterdayFinishedCount":12}',
+      );
+      final activity = (one! as HomeActivityArrived).activity;
+
+      expect(activity.runningNowCount, 3);
+      expect(activity.todayFinishedRuns.single.nickname, '철**');
+      expect(activity.todayFinishedCount, 20);
+      expect(activity.yesterdayFinishedCount, 12);
+    });
+
+    test('⚠️ 홈 공지를 못 읽으면 버리고 스트림은 산다', () {
+      // 숫자 하나를 0으로 채우면 `어제 0명` 같은 없는 사실이 띠에 선다.
+      expect(SseAppStream.eventOf('HOME_WAITING', '{}'), isNull);
+      expect(
+        SseAppStream.eventOf('HOME_ACTIVITY', '{"runningNowCount":3}'),
+        isNull,
+      );
+    });
+
+    test('완주 목록은 깨진 건만 건너뛴다', () {
+      final one = SseAppStream.eventOf(
+        'HOME_ACTIVITY',
+        '{"runningNowCount":0,'
+            '"todayFinishedRuns":[{"runningRecordId":"71","nickname":"철**",'
+            '"distanceMeters":5000},{"runningRecordId":72,"nickname":"영**",'
+            '"distanceMeters":3000}],'
+            '"todayFinishedCount":2,"yesterdayFinishedCount":0}',
+      );
+
+      expect(
+        (one! as HomeActivityArrived).activity.todayFinishedRuns.map(
+          (r) => r.runningRecordId,
+        ),
+        [72],
+      );
     });
   });
 

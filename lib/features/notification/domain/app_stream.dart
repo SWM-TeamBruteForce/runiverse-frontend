@@ -1,3 +1,4 @@
+import 'package:runiverse/features/home/domain/home_notice.dart';
 import 'package:runiverse/features/notification/domain/app_notification.dart';
 
 /// 앱 전역 알림 스트림이 실패하는 이유.
@@ -30,6 +31,41 @@ class AppStreamException implements Exception {
   String toString() => 'AppStreamException($failure, code: $code)';
 }
 
+/// 앱 스트림이 올려보내는 것.
+///
+/// ## ⚠️ 알림만 오는 채널이 아니다
+///
+/// 홈 공지의 두 값([HomeWaitingArrived]·[HomeActivityArrived])도 같은
+/// 연결로 온다. 따로 열 수 없다 — 같은 계정의 연결 둘은 서로를 밀어낸다
+/// (`AppStreamBackoff` 주석).
+sealed class AppStreamEvent {
+  const AppStreamEvent();
+}
+
+/// 알림 한 건이 도착했다.
+class AppNotificationArrived extends AppStreamEvent {
+  const AppNotificationArrived(this.notification);
+
+  final AppNotification notification;
+}
+
+/// `HOME_WAITING` — 오늘 아직 들어갈 수 있는 칸에 기다리는 사람 수.
+///
+/// 서버가 10초마다 보낸다. 칸을 합치는 것도 서버다 — 규칙이 바뀌어도 앱을
+/// 다시 낼 필요가 없게.
+class HomeWaitingArrived extends AppStreamEvent {
+  const HomeWaitingArrived(this.waitingCount);
+
+  final int waitingCount;
+}
+
+/// `HOME_ACTIVITY` — 공지 띠에 쓸 지금·오늘·어제 소식. 30초마다 온다.
+class HomeActivityArrived extends AppStreamEvent {
+  const HomeActivityArrived(this.activity);
+
+  final HomeActivity activity;
+}
+
 /// 앱에 들어온 뒤 계속 열어 두는 알림 채널.
 ///
 /// ## ⚠️ 매칭 스트림과 별개 연결이고, 둘을 동시에 유지한다
@@ -47,8 +83,8 @@ class AppStreamException implements Exception {
 ///
 /// `:connected` 주석 한 줄만 온다. 지금까지의 알림은 목록 API로 받는다.
 abstract interface class AppStream {
-  /// 붙어서 알림을 받는다. 부를 때마다 **새 연결**이다.
-  Stream<AppNotification> connect();
+  /// 붙어서 이벤트를 받는다. 부를 때마다 **새 연결**이다.
+  Stream<AppStreamEvent> connect();
 
   Future<void> close();
 }

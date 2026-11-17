@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/app_update/presentation/app_update_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/home/presentation/home_notice_provider.dart';
 import 'package:runiverse/features/notification/data/http_notification_repository.dart';
 import 'package:runiverse/features/notification/data/sse_app_stream.dart';
 import 'package:runiverse/features/notification/domain/app_notification.dart';
@@ -113,7 +114,7 @@ final hasUnreadProvider = Provider<bool>(
 /// 오면 `notificationId`로 대조해 **목록에 없는 것만** 더하고, 배지는 응답의
 /// `unreadCount`에 그 수만 보탠다.
 class NotificationController extends Notifier<NotificationState> {
-  StreamSubscription<AppNotification>? _subscription;
+  StreamSubscription<AppStreamEvent>? _subscription;
 
   /// 목록 응답을 기다리는 동안 받아 둔 알림. 키는 `notificationId`다.
   ///
@@ -241,9 +242,22 @@ class NotificationController extends Notifier<NotificationState> {
     });
   }
 
-  void _onEvent(AppNotification notification) {
+  void _onEvent(AppStreamEvent event) {
     _backoff.reset();
 
+    switch (event) {
+      case AppNotificationArrived(:final notification):
+        _onNotification(notification);
+      // 홈 공지는 버퍼에 담지 않는다 — 목록과 맞춰 볼 것이 없는 지금 값이다.
+      // 넘기기만 하고 그쪽을 듣지는 않는다(`homeNoticeProvider` 주석).
+      case HomeWaitingArrived(:final waitingCount):
+        ref.read(homeNoticeProvider.notifier).receiveWaiting(waitingCount);
+      case HomeActivityArrived(:final activity):
+        ref.read(homeNoticeProvider.notifier).receiveActivity(activity);
+    }
+  }
+
+  void _onNotification(AppNotification notification) {
     // 목록을 기다리는 중이다. 화면에 바로 넣지 않는다.
     if (_buffering) {
       _buffer[notification.notificationId] = notification;
@@ -416,5 +430,6 @@ class NotificationController extends Notifier<NotificationState> {
     _buffer.clear();
     _buffering = false;
     state = const NotificationState();
+    ref.read(homeNoticeProvider.notifier).clear();
   }
 }

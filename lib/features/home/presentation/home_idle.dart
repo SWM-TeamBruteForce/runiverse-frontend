@@ -16,10 +16,17 @@ class HomeIdle extends StatelessWidget {
     required this.onMatch,
     required this.now,
     this.cooldownUntil,
+    this.waitingCount,
     super.key,
   });
 
   final VoidCallback onMatch;
+
+  /// 오늘 아직 들어갈 수 있는 칸에 기다리는 사람 수(`HOME_WAITING`).
+  ///
+  /// `null`이나 0이면 줄째 뺀다 — `오늘 0명 대기`는 신청을 말린다. 값이 아직
+  /// 안 왔거나 90초 동안 끊겨도 `null`이다.
+  final int? waitingCount;
 
   /// 지금. **부르는 쪽이 갈아끼운다** — 제한이 풀리는 순간 버튼이 열려야 한다.
   final DateTime now;
@@ -40,6 +47,7 @@ class HomeIdle extends StatelessWidget {
     final colors = context.appColorsV2;
     final until = cooldownUntil;
     final locked = until != null && until.isAfter(now);
+    final waiting = waitingCount;
 
     return ClipRRect(
       borderRadius: AppRadius.card,
@@ -87,6 +95,18 @@ class HomeIdle extends StatelessWidget {
 
                   // 빛이 지나갈 자리. 시안은 제목과 버튼이 카드 양 끝에 붙어 있다.
                   const Spacer(),
+
+                  if (waiting != null && waiting > 0) ...[
+                    Text(
+                      AppStrings.homeWaitingToday(waiting),
+                      textAlign: TextAlign.center,
+                      style: AppTypographyV2.body07.copyWith(
+                        color: colors.textSecondary,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.space4),
+                  ],
 
                   // ⚠️ **눌러 보고 409를 받게 두지 않는다.** 서버가 이미 언제까지인지
                   // 말해 줬는데 그것을 숨기면, 사용자는 눌러야만 이유를 알 수 있다.
