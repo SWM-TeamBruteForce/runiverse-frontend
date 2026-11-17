@@ -30,8 +30,9 @@ class OpenMeteoWeatherRepository implements WeatherRepository {
                  (createDio ?? _createDio)(address),
              ];
 
-  // 임시 우회: https://github.com/open-meteo/open-meteo/issues/2329
-  // 고정 IP는 영구 엔드포인트가 아니다. 장애 해결 후 [null]로 되돌린다.
+  // TODO(되돌리기): Open-Meteo 장애가 끝나면 `[null]`로 되돌리고 고정 IP를 지운다.
+  // https://github.com/open-meteo/open-meteo/issues/2329
+  // 고정 IP는 영구 엔드포인트가 아니다.
   // 두 우회 경로가 실패하면 마지막 null에서 기존 DNS 연결을 사용한다.
   static const _addresses = ['167.114.211.86', '157.90.83.168', null];
 
