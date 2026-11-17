@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/runner_avatar.dart';
 import 'package:runiverse/features/home/presentation/home_waiting.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
@@ -28,11 +29,11 @@ void main() {
   /// ⚠️ **폭을 못 박는다.** `Stack`이 폭을 자식에게서 받으므로, 느슨한
   /// 제약을 주면 가장 큰 자식(가운데 아바타 135px)만큼으로 쪼그라든다 —
   /// 실제 화면은 카드가 폭을 꽉 채운다.
-  Widget appOf(RoomInfo room) => MaterialApp(
+  Widget appOf(RoomInfo room, {double width = 412}) => MaterialApp(
     theme: AppTheme.dark(),
     home: Scaffold(
       body: SizedBox(
-        width: 412,
+        width: width,
         child: HomeWaiting(room: room, onLobby: () {}, myUserId: 'me'),
       ),
     ),
@@ -211,5 +212,71 @@ void main() {
 
       expect(tester.getCenter(find.text('지')), before);
     });
+  });
+
+  group('⚠️ 폭마다 둘레 원이 제자리에 머문다', () {
+    // 궤도 값(반지름·흔들림·드나듦·원 크기)은 카드 폭 352에서 카드 끝·버튼·
+    // 안내 줄·내 사진·서로와 닿지 않게 맞췄고, 다른 폭에서는 가로만 늘이고
+    // 줄인다(`home_waiting.dart` `_stretchOf`). 원 크기는 그대로라 카드 끝과의
+    // 틈이 폭을 따라 준다 — 352에서 7, 320dp 폰(288)에서 0.3이다.
+    //
+    // 카드 폭은 320·360·384·412·440dp 폰에서 양옆 16씩 뺀 값이다.
+    bool apart(Rect a, Rect b) =>
+        (a.center - b.center).distance >= a.width / 2 + b.width / 2;
+
+    final full = roomOf([
+      player('me', '지환'),
+      player('u2', '민수'),
+      player('u3', '하늘'),
+      player('u4', '서연'),
+    ]);
+
+    for (final width in [288.0, 328.0, 352.0, 380.0, 408.0]) {
+      for (final (label, room) in [('빈 자리 셋', meAlone), ('셋이 들어옴', full)]) {
+        testWidgets('폭 $width · $label', (tester) async {
+          await tester.pumpWidget(appOf(room, width: width));
+          final card = tester.getRect(find.byType(HomeWaiting));
+          final button = tester.getRect(find.byType(AppButtonV2));
+          final hint = tester.getRect(
+            find.text(AppStrings.homeMatchWaitingHint),
+          );
+
+          // 각도(6.2초)와 반지름(4.1초) 주기를 둘 다 한 바퀴 넘게 훑는다. 두
+          // 끝이 같은 순간까지는 못 봐 1px 안쪽 넘침은 놓친다. 주기를 늘리면
+          // 이 창도 늘린다.
+          for (var step = 1; step <= 70; step++) {
+            await tester.pump(const Duration(milliseconds: 100));
+            final at = '폭 $width · ${step * 100}ms';
+
+            final avatars = [
+              for (final e in find.byType(RunnerAvatarV2).evaluate())
+                tester.getRect(find.byWidget(e.widget)),
+            ]..sort((a, b) => b.width.compareTo(a.width));
+            // 가장 큰 것이 가운데 나다.
+            final me = avatars.first;
+            final circles = [
+              ...avatars.skip(1),
+              for (final e in emptySlots().evaluate())
+                tester.getRect(find.byWidget(e.widget)),
+            ];
+            expect(circles, hasLength(3));
+
+            for (final (i, r) in circles.indexed) {
+              expect(
+                r.left >= card.left - .01 && r.right <= card.right + .01,
+                isTrue,
+                reason: '$at: $i번 원이 카드 밖으로 나갔다',
+              );
+              expect(r.top >= hint.bottom, isTrue, reason: '$at: 안내 줄을 덮는다');
+              expect(r.bottom <= button.top, isTrue, reason: '$at: 버튼을 덮는다');
+              expect(apart(r, me), isTrue, reason: '$at: 내 사진과 닿는다');
+              for (final other in circles.skip(i + 1)) {
+                expect(apart(r, other), isTrue, reason: '$at: 원끼리 닿는다');
+              }
+            }
+          }
+        });
+      }
+    }
   });
 }
