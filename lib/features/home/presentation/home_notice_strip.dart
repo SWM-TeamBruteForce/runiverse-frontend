@@ -108,8 +108,9 @@ class _HomeNoticeStripState extends ConsumerState<HomeNoticeStrip> {
       ),
       decoration: BoxDecoration(
         color: colors.bgSurface,
-        // 날씨 줄과 같은 보조 정보 위계라 히어로(카드)보다 작게 굴린다.
-        borderRadius: AppRadius.md,
+        // 아래 혼자 연습하기·초대 러닝 타일과 같은 색·여백이라 둥글기도 맞춘다.
+        // 12면 같은 색 상자인데 띠만 각져 다른 부품처럼 보였다.
+        borderRadius: AppRadius.lg,
       ),
       child: Row(
         children: [
