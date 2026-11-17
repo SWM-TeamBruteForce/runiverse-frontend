@@ -49,8 +49,13 @@ class HomeHero extends StatelessWidget {
     this.room,
     this.pending = false,
     this.cooldownUntil,
+    this.waitingCount,
     super.key,
   });
+
+  /// 기본 카드의 매칭 버튼 위 `오늘 N명 대기`. **다른 카드는 쓰지 않는다** —
+  /// 이미 신청한 사람에게 대기 수는 할 일이 없는 숫자다.
+  final int? waitingCount;
 
   /// 내 닉네임. **없을 수 있다** — `/me`가 오기 전이거나 온보딩 전이다.
   ///
@@ -96,7 +101,12 @@ class HomeHero extends StatelessWidget {
 
     // 상태마다 자기 카드를 통째로 그린다.
     if (current == null && !pending) {
-      return HomeIdle(onMatch: onMatch, now: now, cooldownUntil: cooldownUntil);
+      return HomeIdle(
+        onMatch: onMatch,
+        now: now,
+        cooldownUntil: cooldownUntil,
+        waitingCount: waitingCount,
+      );
     }
     if (current != null && current.status == RoomStatus.matched) {
       // ⚠️ **혼자 달리게 된 방을 먼저 가른다.** 상대를 못 만나면 서버가 그

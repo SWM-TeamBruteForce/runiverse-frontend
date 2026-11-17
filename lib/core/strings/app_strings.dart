@@ -526,6 +526,33 @@ abstract final class AppStrings {
   /// 히어로 부제. 시안의 두 줄 중 앱이 무엇인지 말하는 둘째 줄만 둔다.
   static const homeHeroSubtitle = '같은 시간, 각자의 자리에서 함께 달려요';
 
+  /// `오늘 4명 대기` — 매칭 버튼 바로 위. 오늘 아직 들어갈 수 있는 칸을 서버가
+  /// 합친 수다. 칸 하나(`18:00 · 5 km`)로 적으면 "그 칸에만 있다"로 읽힌다.
+  static String homeWaitingToday(int count) => '오늘 ${matchWaitingCount(count)}';
+
+  // 공지 띠 — 날씨 줄 아래. 순서와 멈춤은 `HomeNoticeReel`이 정한다.
+
+  /// ⚠️ **새 기능 안내다. 운영 릴리스마다 바꿀지 본다** — 그 버전의 출시 노트
+  /// 한 줄을 쓰고, 나온 날짜(`HomeNoticeStrip.featureSince`)도 함께 바꾼다
+  /// (`docs/release.md`). 다른 소식이 없을 때도 이 줄이 선다.
+  static const homeNoticeFeature = '출발 전에 함께 뛸 러너와 채팅할 수 있어요';
+
+  static String homeNoticeRunningNow(int count) => '지금 $count명이 달리고 있어요';
+
+  /// 닉네임은 서버가 가려서 보낸다(`철**`).
+  static String homeNoticeFinished(String nickname, int meters) =>
+      '$nickname 님이 ${_noticeKm(meters)} 달렸어요';
+
+  static String homeNoticeToday(int count) => '오늘 $count명이 달렸어요';
+  static String homeNoticeYesterday(int count) => '어제 $count명이 달렸어요';
+
+  /// `5 km` · `4.2 km`. 목표 없이 혼자 달린 거리(`4237`)도 오므로 100m에서
+  /// 버린다 — [distanceKm]로 쓰면 `4.237 km`가 된다.
+  static String _noticeKm(int meters) {
+    final km = kmFloor1(meters);
+    return '${km.endsWith('.0') ? km.substring(0, km.length - 2) : km} km';
+  }
+
   // 위 줄 날씨 — 외주 시안 `70:739`(`서울 강남구 · 맑음 18°`)
 
   static const homeWeatherClear = '맑음';
