@@ -723,8 +723,15 @@ class _Celebration extends StatelessWidget {
               ),
               // ⚠️ **읽을 때는 한 문장이다.** 말줄임 때문에 닉네임과 뒷말을
               // 따로 세웠는데, 그대로 두면 스크린리더가 토막으로 읽는다.
+              //
+              // 누가 들어왔는지 알리는 것이 이 카드뿐이라(인원 줄은 없다)
+              // 뜨는 순간 스크린리더가 읽게 한다(`liveRegion`). `container`가
+              // 없으면 이 문장이 카드 전체 노드에 붙어, 들어올 때마다 카드를
+              // 통째로 다시 읽는다.
               child: Semantics(
                 label: AppStrings.homePlayerJoined(player.nickname),
+                container: true,
+                liveRegion: true,
                 excludeSemantics: true,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
