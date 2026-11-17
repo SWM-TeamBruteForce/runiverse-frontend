@@ -755,18 +755,24 @@ class _Celebration extends StatelessWidget {
                       // ⚠️ **테두리가 없으면 원이 묻힌다.** 아바타의 바탕이
                       // `primaryMuted`인데(`runner_avatar.dart`) 이 카드도 같은
                       // 색이라, 사진이 없는 사람은 동그라미가 아예 안 보인다.
-                      DecoratedBox(
+                      //
+                      // 테두리 굵기만큼 사진을 안쪽으로 들인다(`Container`가
+                      // 테두리 폭을 여백으로 둔다). 프로필 사진과 같은 방식이다.
+                      // 바깥 지름은 그대로 44다. 원을 바탕에서 떼어 보이게만
+                      // 하면 되니 빈 자리 원과 같은 밝기대의 흐린 흰 1이다 —
+                      // 더 밝으면 문장보다 선이 먼저 보인다.
+                      Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: colors.textStrong,
-                            width: 2,
+                            color: colors.textStrong.withValues(alpha: .3),
+                            width: 1,
                           ),
                         ),
                         child: RunnerAvatarV2(
                           nickname: player.nickname,
                           imageUrl: player.profileImageUrl,
-                          size: _avatarSize,
+                          size: _avatarSize - 2,
                         ),
                       ),
                       const SizedBox(width: AppSpacing.space3),
