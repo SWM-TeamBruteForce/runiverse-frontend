@@ -102,6 +102,10 @@ class HomeWaiting extends StatefulWidget {
   /// 버튼 사이 한가운데에 둔다. 배경 동심원도 같이 내린다([HomeWaitingRing]).
   static const _centerDrop = 24.0;
 
+  /// [_centerDrop]만큼 내린 동심원 중심을 카드 안 정렬로 적은 것. 합류
+  /// 축하가 이 점을 중심으로 커지고, 축하 뒤를 누르는 막도 이 점에서 번진다.
+  static const _ringCenter = Alignment(0, _centerDrop / (_height / 2));
+
   /// 동심원 구멍의 지름(배율 1). 시안이 가운데 내 사진(`158:2969`)을 이
   /// 크기로 구멍에 꼭 맞췄다.
   static const _ringHole = 135.0;
@@ -510,6 +514,9 @@ class _HomeWaitingState extends State<HomeWaiting>
                   transitionBuilder: (child, animation) => FadeTransition(
                     opacity: animation,
                     child: ScaleTransition(
+                      // 축하는 내린 동심원 중심에 뜬다. 그 점을 기준으로 키워야
+                      // 커지는 동안 중심이 동심원에서 비켜나지 않는다.
+                      alignment: HomeWaiting._ringCenter,
                       scale: Tween<double>(
                         begin: .86,
                         end: 1,
@@ -684,7 +691,10 @@ class _RingPainter extends CustomPainter {
       old.scale != scale || old.centerY != centerY;
 }
 
-/// 합류 축하 — 히어로 **한가운데**에 뜬다(1.92초).
+/// 합류 축하 — 동심원 **한가운데**, 가운데 내 사진 위에 뜬다(1.92초).
+///
+/// 내 사진과 동심원을 카드 한가운데에서 [HomeWaiting._centerDrop]만큼
+/// 내렸으니 축하와 그 뒤를 누르는 막도 같은 자리로 내린다.
 ///
 /// ## ⚠️ 가로로 눕힌다
 ///
@@ -703,77 +713,87 @@ class _Celebration extends StatelessWidget {
       // 동심원 위에 그냥 올리면 흰 글자가 묻힌다. 가운데만 눌러 둔다.
       decoration: BoxDecoration(
         gradient: RadialGradient(
+          center: HomeWaiting._ringCenter,
           colors: [colors.bgScrim, colors.bgScrim.withValues(alpha: .35)],
         ),
       ),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: colors.primaryMuted,
-              borderRadius: AppRadius.card,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.space3,
-                AppSpacing.space3,
-                AppSpacing.space4,
-                AppSpacing.space3,
+      // ⚠️ `Align`으로 내리면 카드 자기 높이만큼 기준점이 어긋난다(높이 68
+      // 카드면 중심이 194가 아니라 189). 위를 내림의 두 배 비우고 그 안
+      // 가운데에 두면 카드 높이와 상관없이 중심이 동심원 중심에 온다.
+      child: Padding(
+        padding: const EdgeInsets.only(top: 2 * HomeWaiting._centerDrop),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.primaryMuted,
+                borderRadius: AppRadius.card,
               ),
-              // ⚠️ **읽을 때는 한 문장이다.** 말줄임 때문에 닉네임과 뒷말을
-              // 따로 세웠는데, 그대로 두면 스크린리더가 토막으로 읽는다.
-              //
-              // 누가 들어왔는지 알리는 것이 이 카드뿐이라(인원 줄은 없다)
-              // 뜨는 순간 스크린리더가 읽게 한다(`liveRegion`). `container`가
-              // 없으면 이 문장이 카드 전체 노드에 붙어, 들어올 때마다 카드를
-              // 통째로 다시 읽는다.
-              child: Semantics(
-                label: AppStrings.homePlayerJoined(player.nickname),
-                container: true,
-                liveRegion: true,
-                excludeSemantics: true,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // ⚠️ **테두리가 없으면 원이 묻힌다.** 아바타의 바탕이
-                    // `primaryMuted`인데(`runner_avatar.dart`) 이 카드도 같은
-                    // 색이라, 사진이 없는 사람은 동그라미가 아예 안 보인다.
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: colors.textStrong, width: 2),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.space3,
+                  AppSpacing.space3,
+                  AppSpacing.space4,
+                  AppSpacing.space3,
+                ),
+                // ⚠️ **읽을 때는 한 문장이다.** 말줄임 때문에 닉네임과 뒷말을
+                // 따로 세웠는데, 그대로 두면 스크린리더가 토막으로 읽는다.
+                //
+                // 누가 들어왔는지 알리는 것이 이 카드뿐이라(인원 줄은 없다)
+                // 뜨는 순간 스크린리더가 읽게 한다(`liveRegion`). `container`가
+                // 없으면 이 문장이 카드 전체 노드에 붙어, 들어올 때마다 카드를
+                // 통째로 다시 읽는다.
+                child: Semantics(
+                  label: AppStrings.homePlayerJoined(player.nickname),
+                  container: true,
+                  liveRegion: true,
+                  excludeSemantics: true,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // ⚠️ **테두리가 없으면 원이 묻힌다.** 아바타의 바탕이
+                      // `primaryMuted`인데(`runner_avatar.dart`) 이 카드도 같은
+                      // 색이라, 사진이 없는 사람은 동그라미가 아예 안 보인다.
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: colors.textStrong,
+                            width: 2,
+                          ),
+                        ),
+                        child: RunnerAvatarV2(
+                          nickname: player.nickname,
+                          imageUrl: player.profileImageUrl,
+                          size: _avatarSize,
+                        ),
                       ),
-                      child: RunnerAvatarV2(
-                        nickname: player.nickname,
-                        imageUrl: player.profileImageUrl,
-                        size: _avatarSize,
+                      const SizedBox(width: AppSpacing.space3),
+                      // ⚠️ **닉네임만 줄인다.** 문장을 통째로 줄이면 정작
+                      // 알려야 할 `합류했어요`가 먼저 잘린다. 닉네임은 16자까지
+                      // 온다.
+                      //
+                      // ⚠️ `Expanded`가 아니라 `Flexible`이다. 짧은 이름일 때
+                      // 남는 자리를 글자가 먹어 가운데 정렬이 깨진다.
+                      Flexible(
+                        child: Text(
+                          player.nickname,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypographyV2.body05.copyWith(
+                            color: colors.textStrong,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: AppSpacing.space3),
-                    // ⚠️ **닉네임만 줄인다.** 문장을 통째로 줄이면 정작
-                    // 알려야 할 `합류했어요`가 먼저 잘린다. 닉네임은 16자까지
-                    // 온다.
-                    //
-                    // ⚠️ `Expanded`가 아니라 `Flexible`이다. 짧은 이름일 때
-                    // 남는 자리를 글자가 먹어 가운데 정렬이 깨진다.
-                    Flexible(
-                      child: Text(
-                        player.nickname,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Text(
+                        AppStrings.homePlayerJoinedSuffix,
                         style: AppTypographyV2.body05.copyWith(
                           color: colors.textStrong,
                         ),
                       ),
-                    ),
-                    Text(
-                      AppStrings.homePlayerJoinedSuffix,
-                      style: AppTypographyV2.body05.copyWith(
-                        color: colors.textStrong,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
