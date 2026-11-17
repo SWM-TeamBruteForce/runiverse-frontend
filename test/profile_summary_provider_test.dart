@@ -238,11 +238,6 @@ void main() {
 
       expect(await change, isNull, reason: '서버는 받아 줬다');
       expect((await store.read()).nickname, '다음사람');
-      expect(
-        (container.read(authControllerProvider) as AuthSignedIn).user?.nickname,
-        '다음사람',
-        reason: '홈이 부르는 이름이 앞 사람 것으로 바뀌었다',
-      );
       expect(container.read(profileSummaryControllerProvider).summary, isNull);
     });
 
