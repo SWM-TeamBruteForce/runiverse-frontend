@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_motion.dart';
+import 'package:runiverse/core/theme/v2/app_palette.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
@@ -83,12 +84,16 @@ class HomeWaiting extends StatefulWidget {
 
   /// 둘레 사람들의 크기와 궤도 반지름.
   ///
-  /// ⚠️ **폭 352 카드(384dp 폰)에서 어느 순간에도 닿지 않는 값이다.**
+  /// ⚠️ **폭 [_designWidth] 카드에서 어느 순간에도 닿지 않는 값이다.**
   /// 반지름 [_driftIn]~[_driftOut]과 각도 [_sways]를 다 돌려도 둘레 원은
   /// 버튼·카드 끝·내 사진·서로와 떨어져 있다. 시안 크기(80)·반지름(165)
-  /// 그대로면 원이 버튼 뒤로 들어가고 카드 밖으로 잘린다.
+  /// 그대로면 원이 버튼 뒤로 들어가고 카드 밖으로 잘린다. 다른 폭에서는
+  /// 궤도 가로만 [_stretchOf]만큼 늘이고 줄인다.
   static const _otherSize = 60.0;
   static const _orbit = 136.0;
+
+  /// 궤도 값을 정한 카드 폭 — 384dp 폰.
+  static const _designWidth = 352.0;
 
   /// 궤도를 세로로 누르는 비율. 원이 안내 줄과 버튼 사이에서만 돌게 한다.
   static const _squash = 0.7;
@@ -97,27 +102,32 @@ class HomeWaiting extends StatefulWidget {
   /// 버튼 사이 한가운데에 둔다. 배경 동심원도 같이 내린다([HomeWaitingRing]).
   static const _centerDrop = 24.0;
 
-  /// 배경(`home_waiting_bg.webp`)의 원본 크기. 동심원 구멍이 한가운데 있다.
-  static const _ringImage = Size(384, 452);
-
-  /// 원본에서 구멍의 지름. 시안이 가운데 내 사진(`158:2969`)을 이 크기로
-  /// 구멍에 꼭 맞췄다.
+  /// 동심원 구멍의 지름(배율 1). 시안이 가운데 내 사진(`158:2969`)을 이
+  /// 크기로 구멍에 꼭 맞췄다.
   static const _ringHole = 135.0;
 
-  /// 카드 폭 [width]에서 배경을 키우거나 줄일 배율. 가운데 내 사진도 같은
-  /// 배율로 그린다(1배까지).
+  /// 배율 1인 카드 폭. 동심원을 잰 원래 배경 그림(384×452)의 폭이다.
+  static const _ringWidth = 384.0;
+
+  /// 카드 폭 [width]에서 동심원과 가운데 내 사진을 키우거나 줄일 배율.
   ///
-  /// ## ⚠️ 사진 크기를 박아 두면 폰마다 구멍과 어긋난다
+  /// ## ⚠️ 폭을 따라가되 1배에서 멈춘다
   ///
-  /// 340은 원본 높이(452)보다 낮아서, 카드를 채우는 배율이 높이가 아니라
-  /// **폭**을 따라간다 — 폭 328(360dp 폰)에서 0.85, 352(384dp)에서 0.92,
-  /// 380(412dp)에서 0.99다. 452 카드에서는 늘 1이라 135 하나로 맞았다.
+  /// 동심원은 카드 폭을 따라 줄고 는다 — 360dp 폰(폭 328)에서 0.85,
+  /// 384dp(352)에서 0.92, 412dp(380)에서 0.99다. 사진도 같은 배율로 그려야
+  /// 폰마다 구멍에 맞는다.
   ///
-  /// 다만 구멍을 [_centerDrop]만큼 내려도 카드 위가 비지 않을 만큼은 키운다.
-  static double _ringScale(double width) => math.max(
-    width / _ringImage.width,
-    (_height / 2 + _centerDrop) / (_ringImage.height / 2),
-  );
+  /// 1배(폭 384, 416dp 폰)에서 멈춘다. 높이 340에 글자·버튼 자리가 고정이라
+  /// 사진이 계속 커지면 버튼(위끝 268)에 붙는다 — 135면 6.5 떨어지고 148이면
+  /// 닿는다. 그보다 넓은 화면에서는 같은 크기의 동심원이 가운데 놓이고
+  /// 바깥은 바탕색이 이어진다.
+  static double _ringScale(double width) => math.min(width / _ringWidth, 1);
+
+  /// 카드 폭 [width]에서 궤도 가로를 늘이고 줄일 비율. [_designWidth]에서
+  /// 1이고, 동심원과 같은 배율로 따라가 둘레 원이 링 위 같은 자리에 앉는다.
+  /// 세로는 높이가 고정이라 그대로 둔다.
+  static double _stretchOf(double width) =>
+      _ringScale(width) / _ringScale(_designWidth);
 
   /// 아직 아무도 안 들어온 자리의 크기.
   ///
@@ -258,7 +268,9 @@ class _HomeWaitingState extends State<HomeWaiting>
   ///
   /// 각도와 반지름이 주기가 다른 사인 둘이라, 원은 호를 따라 왕복하면서 동시에
   /// 들락거린다 — 눈에는 정해진 길 없이 떠도는 것으로 보인다.
-  Offset _wanderOf(int index, int total) {
+  ///
+  /// 가로는 [stretch]([HomeWaiting._stretchOf])만큼 늘이고 줄인다.
+  Offset _wanderOf(int index, int total, double stretch) {
     final (lo, hi) = _swayOf(index, total);
     // 왼쪽 두 자리(1·2)는 같은 위상으로 함께 움직인다 — 사이가 늘 같아
     // 서로 부딪치지 않는다. 넷 이상으로 고르게 나눌 때는 자리마다 다르다.
@@ -277,7 +289,7 @@ class _HomeWaitingState extends State<HomeWaiting>
           HomeWaiting._driftOut,
         );
     return Offset(
-      radius * math.cos(angle),
+      radius * math.cos(angle) * stretch,
       radius * math.sin(angle) * HomeWaiting._squash + HomeWaiting._centerDrop,
     );
   }
@@ -354,19 +366,38 @@ class _HomeWaitingState extends State<HomeWaiting>
             // ⚠️ **옮기는 것은 자리뿐이다.** `Transform.translate`는 사진을
             // 돌리지 않으므로, 각도에 회전을 더하면 얼굴은 선 채로 궤도만
             // 돈다 — 거꾸로 돌려 세울 레이어가 필요 없다.
+            //
+            // ⚠️ **카드 폭은 카드를 채운 칸(`Positioned.fill`)에서 읽는다.**
+            // 움직임은 `LayoutBuilder` 안에서 다시 만들어져 그 `LayoutBuilder`를
+            // 프레임마다 다시 배치한다. 크기가 정해진 칸이면 거기서 멈추고,
+            // 그냥 두면 카드 `Stack` 배치까지 번진다. 폭은 프레임마다 읽지
+            // 않고, 카드가 다시 만들어지거나 폭이 바뀔 때만 다시 읽는다.
             for (final (index, player) in others.indexed)
-              AnimatedBuilder(
-                animation: _wander,
-                // ⚠️ **아바타는 `child`로 넘긴다.** builder 안에서 만들면
-                // 프레임마다 사진 위젯이 새로 서고, 네트워크 이미지가 매번
-                // 다시 붙는다.
-                child: RunnerAvatarV2(
-                  nickname: player.nickname,
-                  imageUrl: player.profileImageUrl,
-                  size: HomeWaiting._otherSize,
+              Positioned.fill(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stretch = HomeWaiting._stretchOf(
+                      constraints.maxWidth,
+                    );
+                    return Center(
+                      child: AnimatedBuilder(
+                        animation: _wander,
+                        // ⚠️ **아바타는 `child`로 넘긴다.** builder 안에서
+                        // 만들면 프레임마다 사진 위젯이 새로 서고, 네트워크
+                        // 이미지가 매번 다시 붙는다.
+                        child: RunnerAvatarV2(
+                          nickname: player.nickname,
+                          imageUrl: player.profileImageUrl,
+                          size: HomeWaiting._otherSize,
+                        ),
+                        builder: (context, child) => _Orbiting(
+                          offset: _wanderOf(index, slots, stretch),
+                          child: child!,
+                        ),
+                      ),
+                    );
+                  },
                 ),
-                builder: (context, child) =>
-                    _Orbiting(offset: _wanderOf(index, slots), child: child!),
               ),
 
             // 아직 안 찬 자리. **사람 뒤에 그린다** — 자리가 겹칠 일은 없지만
@@ -376,23 +407,29 @@ class _HomeWaitingState extends State<HomeWaiting>
             // 바뀐다. 사진도 네트워크 이미지도 없는 테두리 하나라 매 프레임
             // 세워도 값이 싸다.
             for (var index = others.length; index < slots; index++)
-              AnimatedBuilder(
-                animation: _wander,
-                builder: (context, _) => _Orbiting(
-                  offset: _wanderOf(index, slots),
-                  child: _SearchingSlot(
-                    key: ValueKey('home-waiting-empty-$index'),
-                    alpha: _breathOf(index),
-                  ),
+              Positioned.fill(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stretch = HomeWaiting._stretchOf(
+                      constraints.maxWidth,
+                    );
+                    return Center(
+                      child: AnimatedBuilder(
+                        animation: _wander,
+                        builder: (context, _) => _Orbiting(
+                          offset: _wanderOf(index, slots, stretch),
+                          child: _SearchingSlot(
+                            key: ValueKey('home-waiting-empty-$index'),
+                            alpha: _breathOf(index),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
 
-            // 가운데 — 나. 배경 구멍과 같은 배율로 그려 구멍에 꼭 맞춘다.
-            //
-            // ⚠️ **시안 크기(배율 1)보다 키우지 않는다.** 궤도와 글자 자리는
-            // 고정이라, 태블릿처럼 넓은 화면에서 사진만 커지면 둘레 원과 안내
-            // 줄을 덮는다(폭 768에서 지름 259). 그 폭에서는 구멍이 사진보다
-            // 커진다 — 452 카드였을 때도 넓은 화면에서는 같았다.
+            // 가운데 — 나. 동심원과 같은 배율로 그려 구멍에 꼭 맞춘다.
             LayoutBuilder(
               builder: (context, constraints) => Transform.translate(
                 offset: const Offset(0, HomeWaiting._centerDrop),
@@ -407,7 +444,7 @@ class _HomeWaitingState extends State<HomeWaiting>
                   imageUrl: mine?.profileImageUrl ?? widget.myPhotoUrl,
                   size:
                       HomeWaiting._ringHole *
-                      math.min(1, HomeWaiting._ringScale(constraints.maxWidth)),
+                      HomeWaiting._ringScale(constraints.maxWidth),
                 ),
               ),
             ),
@@ -521,8 +558,8 @@ class _HomeWaitingState extends State<HomeWaiting>
 /// [HomeWaiting._centerDrop] 아래에 오게 깐다. 같은 배경을 쓰는 상태 대기
 /// 카드도 이것을 깐다 — 두 카드가 번갈아 떠도 동심원이 제자리에 있다.
 ///
-/// 배율은 `HomeWaiting._ringScale`이다. 넘치는 곳은 카드가 자른다. 덮개의
-/// 빛 중심도 같은 자리에서 구한다 — 숫자를 따로 적어 두면 한쪽만 바뀐다.
+/// 덮개의 빛 중심도 같은 자리에서 구한다 — 숫자를 따로 적어 두면 한쪽만
+/// 바뀐다.
 class HomeWaitingRing extends StatelessWidget {
   const HomeWaitingRing({super.key});
 
@@ -530,22 +567,21 @@ class HomeWaitingRing extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth;
         final height = constraints.maxHeight;
-        final size = HomeWaiting._ringImage * HomeWaiting._ringScale(width);
         final center = height / 2 + HomeWaiting._centerDrop;
 
         return Stack(
           children: [
-            Positioned(
-              left: (width - size.width) / 2,
-              top: center - size.height / 2,
-              width: size.width,
-              height: size.height,
-              child: Image.asset(
-                'assets/images/home_waiting_bg.webp',
-                fit: BoxFit.fill,
-                excludeFromSemantics: true,
+            Positioned.fill(
+              // ⚠️ **따로 묶는다.** 둘레 원이 프레임마다 움직여도 동심원은
+              // 처음 한 번만 그리고 그 뒤로는 그려 둔 것을 다시 쓴다.
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: _RingPainter(
+                    scale: HomeWaiting._ringScale(constraints.maxWidth),
+                    centerY: center,
+                  ),
+                ),
               ),
             ),
             Positioned.fill(
@@ -559,6 +595,93 @@ class HomeWaitingRing extends StatelessWidget {
       },
     );
   }
+}
+
+/// 동심원 링 셋 — 시안 `158:2951`의 배경.
+///
+/// ## ⚠️ 그림이 아니라 그린다
+///
+/// 처음엔 시안을 384×452 그림(`home_waiting_bg.webp`, 지금은 지움)으로 구워
+/// 깔았다. 그림은 카드를 덮어야 해서 좁은 카드에서는 0.86배 아래로 줄일 수
+/// 없었고, 카드가 384보다 넓으면 1배를 넘겨 키워 구멍이 가운데 사진보다
+/// 커졌다. 무늬가 동심원과 번짐뿐이라 그 그림에서 반지름별 색을 재 같은
+/// 모양으로 그린다 — 어느 폭에서도 끝이 없고, 1배 그림을 키울 때 보이던
+/// 계단도 없다.
+///
+/// 링마다 안쪽 끝이 가장 짙고([AppPaletteV2.ringGlow]) 바깥으로 [_falloff]
+/// 곡선을 따라 바탕([AppPaletteV2.neutral900])으로 번진다. 둘 다 그림에서 잰
+/// 테마와 무관한 값이다 — 그림도 테마를 따르지 않았다.
+class _RingPainter extends CustomPainter {
+  const _RingPainter({required this.scale, required this.centerY});
+
+  /// [HomeWaiting._ringScale]. 아래 길이는 모두 배율 1 기준이다.
+  final double scale;
+
+  /// 동심원 중심의 높이. 가로는 늘 가운데다.
+  final double centerY;
+
+  /// 링 셋 — 안쪽 끝 반지름, 바깥으로 번지는 폭, 안쪽 끝의 짙기.
+  ///
+  /// 첫 링의 안쪽 끝이 구멍이다([HomeWaiting._ringHole]의 반). 셋째 링의
+  /// 번짐은 그림 끝(반지름 약 290)에서 잘려 있어, 남은 구간의 짙기로 폭을
+  /// 어림했다 — 어림한 바깥은 320dp처럼 좁은 폰의 카드 위 모서리와, 태블릿처럼
+  /// 넓은 화면의 카드 가장자리에서만 보인다.
+  static const _rings = [
+    (edge: HomeWaiting._ringHole / 2, fade: 38.0, peak: .92),
+    (edge: 158.5, fade: 66.0, peak: 1.0),
+    (edge: 244.5, fade: 116.0, peak: 1.0),
+  ];
+
+  /// 번짐 곡선 — 안쪽 끝(0)에서 바깥 끝(1)까지 짙기가 줄어드는 모양.
+  /// 첫째·둘째 링에서 잰 값의 평균이다.
+  static const _falloff = [
+    (at: 0.0, alpha: 1.0),
+    (at: .15, alpha: .83),
+    (at: .3, alpha: .61),
+    (at: .45, alpha: .42),
+    (at: .6, alpha: .23),
+    (at: .75, alpha: .105),
+    (at: .9, alpha: .03),
+    (at: 1.0, alpha: 0.0),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final area = Offset.zero & size;
+    canvas.drawRect(area, Paint()..color = AppPaletteV2.neutral900);
+
+    final outer = _rings.last.edge + _rings.last.fade;
+    final colors = <Color>[];
+    final stops = <double>[];
+    void stop(double radius, double alpha) {
+      stops.add(radius / outer);
+      colors.add(AppPaletteV2.ringGlow.withValues(alpha: alpha));
+    }
+
+    stop(0, 0);
+    for (final ring in _rings) {
+      // 링 안쪽은 비어 있다. 1px 안에서 바탕에서 가장 짙은 색으로 선다.
+      stop(ring.edge - 1, 0);
+      for (final point in _falloff) {
+        stop(ring.edge + ring.fade * point.at, ring.peak * point.alpha);
+      }
+    }
+
+    canvas.drawRect(
+      area,
+      Paint()
+        ..shader = RadialGradient(colors: colors, stops: stops).createShader(
+          Rect.fromCircle(
+            center: Offset(size.width / 2, centerY),
+            radius: outer * scale,
+          ),
+        ),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter old) =>
+      old.scale != scale || old.centerY != centerY;
 }
 
 /// 합류 축하 — 히어로 **한가운데**에 뜬다(1.92초).
@@ -659,8 +782,8 @@ class _Celebration extends StatelessWidget {
 
 /// 가운데에서 [offset]만큼 밀어낸다.
 ///
-/// ⚠️ **카드 밖으로 걸쳐도 둔다.** 폭 352 카드(384dp 폰)에서는 안에 머물지만,
-/// 320dp 폰에서는 좌우 원이 카드 끝에 걸친다. 바깥은 `ClipRRect`가 자른다.
+/// 궤도 가로를 카드 폭에 맞춰 늘이고 줄여(`_wanderOf`), 320~440dp 폰에서
+/// 둘레 원은 카드 안에 머문다. 그래도 넘치면 바깥은 `ClipRRect`가 자른다.
 class _Orbiting extends StatelessWidget {
   const _Orbiting({required this.offset, required this.child});
 
