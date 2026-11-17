@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_motion.dart';
@@ -111,13 +112,12 @@ class _HomeNoticeStripState extends ConsumerState<HomeNoticeStrip> {
       ),
       child: Row(
         children: [
-          Container(
-            width: AppSpacing.space2,
-            height: AppSpacing.space2,
-            decoration: BoxDecoration(
-              color: colors.primary,
-              shape: BoxShape.circle,
-            ),
+          // 확성기 — 이 줄이 소식이라는 걸 말한다. 회색이라 날씨 줄 핀과 같은
+          // 보조 정보 위계이고, 아래 파란 매칭 버튼보다 앞서지 않는다.
+          Icon(
+            LucideIcons.megaphone,
+            size: AppSpacing.space4,
+            color: colors.textSecondary,
           ),
           const SizedBox(width: AppSpacing.space2),
           Expanded(
