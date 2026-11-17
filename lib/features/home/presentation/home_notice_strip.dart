@@ -30,16 +30,24 @@ class HomeNoticeStrip extends ConsumerStatefulWidget {
   /// 한 줄을 보여 주는 시간. 짧은 슬라이드는 5~7초가 읽기 좋다(Baymard).
   static const hold = Duration(seconds: 5);
 
-  /// [AppStrings.homeNoticeFeature]가 나온 날. 그날부터 1주일 동안 띠 맨 앞에
-  /// 선다. ⚠️ **운영 릴리스마다 문구와 함께 바꿀지 본다**(`docs/release.md`).
-  static final featureSince = DateTime(2026, 11, 15);
+  /// [AppStrings.homeNoticeUpdate]가 나온 날. 그날부터 1주일 동안 띠 맨 앞에
+  /// 선다. `null`이면 업데이트 줄이 없다.
+  ///
+  /// ⚠️ **알릴 기능이 있는 운영 릴리스 때 공개일로 채운다**(`docs/release.md`).
+  /// 다음 공개일이 정해지지 않아 지금은 비어 있다.
+  static const DateTime? updateSince = null;
 
   @override
   ConsumerState<HomeNoticeStrip> createState() => _HomeNoticeStripState();
 }
 
 class _HomeNoticeStripState extends ConsumerState<HomeNoticeStrip> {
-  final _reel = HomeNoticeReel(featureSince: HomeNoticeStrip.featureSince);
+  final _reel = HomeNoticeReel(
+    updateSince: HomeNoticeStrip.updateSince,
+    // 업데이트 소식이 워치 안내와 같은 문장이면 그 주엔 워치 줄을 뺀다.
+    updateRepeatsWatch:
+        AppStrings.homeNoticeUpdate == AppStrings.homeNoticeWatch,
+  );
   Timer? _timer;
 
   /// 홈 탭이 보이는가. 꺼진 동안은 넘기지 않는다.
@@ -87,7 +95,7 @@ class _HomeNoticeStripState extends ConsumerState<HomeNoticeStrip> {
       final wasStopped = _reel.stopped;
       setState(() => _reel.receive(next, DateTime.now()));
       // 줄이 바뀌었으면 새 줄도 제 시간을 다 보여 준다. 줄은 그대로여도 멈춰
-      // 있던 띠가 돌 거리가 생겼으면(값을 기다리던 새 기능 안내) 시계를 건다.
+      // 있던 띠가 돌 거리가 생겼으면(값을 기다리던 워치 줄) 시계를 건다.
       if (_reel.turns != before || (wasStopped && !_reel.stopped)) {
         _schedule();
       }
@@ -171,7 +179,8 @@ class _HomeNoticeStripState extends ConsumerState<HomeNoticeStrip> {
       );
 
   static String _textOf(HomeNoticeLine line) => switch (line) {
-    HomeNoticeFeature() => AppStrings.homeNoticeFeature,
+    HomeNoticeUpdate() => AppStrings.homeNoticeUpdate,
+    HomeNoticeWatch() => AppStrings.homeNoticeWatch,
     HomeNoticeRunningNow(:final count) => AppStrings.homeNoticeRunningNow(
       count,
     ),

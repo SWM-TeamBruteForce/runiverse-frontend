@@ -6,11 +6,12 @@ import 'package:runiverse/features/home/domain/home_notice.dart';
 /// ## ⚠️ 한 번 돌고 멈춘다
 ///
 /// 30초마다 오는 값마다 처음부터 돌리면 첫 줄만 보게 된다. 처음 보는 완주가
-/// 왔을 때만 그 줄을 보여 주고 다시 멈춘다.
+/// 왔을 때만 그 줄을 보여 주고 다시 멈춘다. 워치 줄은 늘 한 바퀴에 한 번
+/// 지나가고, 소식이 없으면 그 줄에 머문다.
 void main() {
   final since = DateTime(2026, 11, 15);
-  final featureWeek = DateTime(2026, 11, 17);
-  final afterFeature = DateTime(2026, 11, 30);
+  final updateWeek = DateTime(2026, 11, 17);
+  final afterUpdate = DateTime(2026, 11, 30);
 
   FinishedRun run(int id, {String nickname = '철**', int meters = 5000}) =>
       FinishedRun(
@@ -31,6 +32,9 @@ void main() {
     yesterdayFinishedCount: yesterday,
   );
 
+  HomeNoticeReel reel({bool repeatsWatch = false}) =>
+      HomeNoticeReel(updateSince: since, updateRepeatsWatch: repeatsWatch);
+
   /// 멈출 때까지 넘기며 본 줄을 모은다.
   List<HomeNoticeLine> playOut(HomeNoticeReel reel) {
     final seen = [reel.current];
@@ -41,97 +45,130 @@ void main() {
     return seen;
   }
 
+  List<Type> kinds(List<HomeNoticeLine> lines) => [
+    for (final l in lines) l.runtimeType,
+  ];
+
   group('한 바퀴', () {
-    test('새 기능 → 지금 달리는 수 → 오늘 완주 → 오늘 수에서 멈춘다', () {
-      final reel = HomeNoticeReel(featureSince: since)
+    test('업데이트 → 지금 달리는 수 → 오늘 완주 → 워치 → 오늘 수에서 멈춘다', () {
+      final it = reel()
         ..restart(
           activity(now: 3, runs: [run(2), run(1)], today: 20, yesterday: 12),
-          featureWeek,
+          updateWeek,
         );
 
-      final lines = playOut(reel);
+      final lines = playOut(it);
 
-      expect(lines.map((l) => l.runtimeType), [
-        HomeNoticeFeature,
+      expect(kinds(lines), [
+        HomeNoticeUpdate,
         HomeNoticeRunningNow,
         HomeNoticeFinished,
         HomeNoticeFinished,
+        HomeNoticeWatch,
         HomeNoticeToday,
       ]);
       expect((lines[2] as HomeNoticeFinished).run.runningRecordId, 2);
       expect((lines.last as HomeNoticeToday).count, 20);
     });
 
-    test('⚠️ 마지막 줄에서 더 넘기지 않는다', () {
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(activity(today: 5), afterFeature);
-      final turns = reel.turns;
+    test('업데이트는 나온 날부터 1주일만 맨 앞에 선다', () {
+      final it = reel()..restart(activity(now: 1, today: 2), afterUpdate);
 
-      reel.advance();
-
-      expect(reel.current, isA<HomeNoticeToday>());
-      expect(reel.turns, turns);
+      expect(it.current, isA<HomeNoticeRunningNow>());
     });
 
-    test('새 기능 안내는 나온 날부터 1주일만 맨 앞에 선다', () {
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(activity(now: 1, today: 2), afterFeature);
+    test('업데이트 날짜가 없으면 업데이트 줄이 없다', () {
+      final it = HomeNoticeReel()..restart(activity(now: 1), updateWeek);
 
-      expect(reel.current, isA<HomeNoticeRunningNow>());
+      expect(kinds(playOut(it)), [HomeNoticeRunningNow, HomeNoticeWatch]);
+    });
+
+    test('⚠️ 업데이트가 워치와 같은 문장이면 그 주엔 워치 줄을 뺀다', () {
+      final it = reel(repeatsWatch: true)
+        ..restart(activity(now: 3, today: 20), updateWeek);
+
+      expect(kinds(playOut(it)), [
+        HomeNoticeUpdate,
+        HomeNoticeRunningNow,
+        HomeNoticeToday,
+      ]);
+    });
+
+    test('⚠️ 마지막 줄에서 더 넘기지 않는다', () {
+      final it = reel()..restart(activity(today: 5), afterUpdate);
+      playOut(it);
+      final turns = it.turns;
+
+      it.advance();
+
+      expect(it.current, isA<HomeNoticeToday>());
+      expect(it.turns, turns);
     });
 
     test('오늘이 어제보다 적으면 어제 수에서 멈춘다', () {
       // 아침에 `오늘 1명`을 띄우면 앱이 죽어 보인다.
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(activity(today: 1, yesterday: 12), afterFeature);
+      final it = reel()
+        ..restart(activity(today: 1, yesterday: 12), afterUpdate);
 
-      expect((playOut(reel).last as HomeNoticeYesterday).count, 12);
+      expect((playOut(it).last as HomeNoticeYesterday).count, 12);
     });
 
     test('오늘과 어제가 같으면 오늘이다', () {
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(activity(today: 7, yesterday: 7), afterFeature);
+      final it = reel()..restart(activity(today: 7, yesterday: 7), afterUpdate);
 
-      expect(playOut(reel).last, isA<HomeNoticeToday>());
+      expect(playOut(it).last, isA<HomeNoticeToday>());
     });
 
-    test('소식이 하나도 없으면 새 기능 안내 한 줄이다', () {
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(activity(), afterFeature);
+    test('오늘·어제 수가 없으면 워치 줄에서 멈춘다', () {
+      final it = reel()..restart(activity(now: 3), afterUpdate);
 
-      expect(reel.current, isA<HomeNoticeFeature>());
-      expect(reel.stopped, isTrue);
+      expect(kinds(playOut(it)), [HomeNoticeRunningNow, HomeNoticeWatch]);
     });
 
-    test('값이 아직 없으면 새 기능 안내 한 줄이다', () {
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(null, featureWeek);
+    test('소식이 하나도 없으면 워치 한 줄이다', () {
+      final it = reel()..restart(activity(), afterUpdate);
 
-      expect(reel.current, isA<HomeNoticeFeature>());
-      expect(reel.stopped, isTrue);
+      expect(it.current, isA<HomeNoticeWatch>());
+      expect(it.stopped, isTrue);
+    });
+
+    test('소식이 없어도 업데이트 기간이면 업데이트 → 워치', () {
+      final it = reel()..restart(null, updateWeek);
+
+      expect(kinds(playOut(it)), [HomeNoticeUpdate, HomeNoticeWatch]);
+    });
+
+    test('⚠️ 워치 한 줄 바퀴는 홈에 다시 들어와도 같은 문장을 다시 넘기지 않는다', () {
+      final it = reel()..restart(activity(), afterUpdate);
+      final turns = it.turns;
+
+      it.restart(null, afterUpdate);
+
+      expect(it.current, isA<HomeNoticeWatch>());
+      expect(it.turns, turns);
     });
   });
 
   group('30초마다 오는 값', () {
     test('⚠️ 같은 값이 다시 와도 처음으로 돌아가지 않는다', () {
       final value = activity(now: 3, runs: [run(1)], today: 20);
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(value, afterFeature)
+      final it = reel()
+        ..restart(value, afterUpdate)
         ..advance();
-      final turns = reel.turns;
+      final turns = it.turns;
 
-      reel.receive(value, afterFeature);
+      it.receive(value, afterUpdate);
 
-      expect(reel.current, isA<HomeNoticeFinished>());
-      expect(reel.turns, turns);
+      expect(it.current, isA<HomeNoticeFinished>());
+      expect(it.turns, turns);
     });
 
-    test('처음 보는 완주가 오면 그 줄만 보여 주고 다시 멈춘다', () {
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(activity(now: 3, runs: [run(1)], today: 20), afterFeature);
-      playOut(reel);
+    test('멈춘 뒤 처음 보는 완주가 오면 그 줄만 보여 주고 다시 멈춘다', () {
+      final it = reel()
+        ..restart(activity(now: 3, runs: [run(1)], today: 20), afterUpdate);
+      playOut(it);
 
-      reel.receive(
+      it.receive(
         activity(
           now: 2,
           runs: [
@@ -140,33 +177,33 @@ void main() {
           ],
           today: 21,
         ),
-        afterFeature,
+        afterUpdate,
       );
-      final lines = playOut(reel);
+      final lines = playOut(it);
 
       expect(lines, hasLength(2));
       expect((lines.first as HomeNoticeFinished).run.nickname, '영**');
       expect((lines.last as HomeNoticeToday).count, 21);
     });
 
-    test('⚠️ 도는 중에 처음 보는 완주가 오면 남은 줄 뒤에 이어 붙인다', () {
+    test('⚠️ 도는 중에 처음 보는 완주가 오면 남은 줄은 그대로 두고 워치 앞에 끼운다', () {
       // 처음부터 다시 깔면 이번 바퀴에 남은 완주가 안 뜨고, 이미 본 것으로
-      // 쳐져 다시도 안 나온다(두 번째 Claude 리뷰 지적).
-      final reel = HomeNoticeReel(featureSince: since)
+      // 쳐져 다시도 안 나온다.
+      final it = reel()
         ..restart(
           activity(now: 3, runs: [run(3), run(2), run(1)], today: 20),
-          afterFeature,
+          afterUpdate,
         );
-      final turns = reel.turns;
+      final turns = it.turns;
 
-      reel.receive(
-        activity(now: 3, runs: [run(4), run(3), run(2)], today: 21),
-        afterFeature,
+      it.receive(
+        activity(now: 2, runs: [run(4), run(3), run(2)], today: 21),
+        afterUpdate,
       );
 
-      expect(reel.current, isA<HomeNoticeRunningNow>());
-      expect(reel.turns, turns);
-      final lines = playOut(reel);
+      expect(it.current, isA<HomeNoticeRunningNow>());
+      expect(it.turns, turns);
+      final lines = playOut(it);
       expect(
         [
           for (final l in lines)
@@ -174,135 +211,104 @@ void main() {
         ],
         [3, 2, 1, 4],
       );
+      expect(kinds(lines.sublist(lines.length - 2)), [
+        HomeNoticeWatch,
+        HomeNoticeToday,
+      ]);
       expect((lines.last as HomeNoticeToday).count, 21);
     });
 
-    test('⚠️ 지금 달리는 수로 끝나던 바퀴에 완주가 오면 그 줄은 ①로 남는다', () {
-      // 빼면 이번 바퀴에서 `지금 N명`이 사라진다(두 번째 Claude 재리뷰 지적).
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(activity(now: 3), featureWeek);
-      expect(reel.stopped, isFalse);
+    test('도는 중에 오면 아직 안 본 지금 달리는 수도 새 값으로 바꾼다', () {
+      final it = reel()
+        ..restart(activity(now: 3, today: 5), updateWeek); // 업데이트에 서 있음
 
-      reel.receive(activity(now: 2, runs: [run(9)], today: 1), featureWeek);
-
-      expect(playOut(reel).map((l) => l.runtimeType), [
-        HomeNoticeFeature,
-        HomeNoticeRunningNow,
-        HomeNoticeFinished,
-        HomeNoticeToday,
-      ]);
-    });
-
-    test('지금 달리는 수로 끝나던 바퀴에 어제 수가 생겨도 ①은 남는다', () {
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(activity(now: 3), featureWeek);
-
-      reel.receive(activity(now: 2, yesterday: 5), featureWeek);
-      final lines = playOut(reel);
+      it.receive(activity(now: 2, today: 6), updateWeek);
+      final lines = playOut(it);
 
       expect((lines[1] as HomeNoticeRunningNow).count, 2);
-      expect((lines.last as HomeNoticeYesterday).count, 5);
-    });
-
-    test('⚠️ 한 줄짜리 바퀴는 탭에서 돌아와도 같은 문장을 다시 넘기지 않는다', () {
-      final value = activity(yesterday: 12);
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(value, afterFeature);
-      final turns = reel.turns;
-
-      reel.restart(value, afterFeature);
-
-      expect(reel.current, isA<HomeNoticeYesterday>());
-      expect(reel.turns, turns);
+      expect((lines.last as HomeNoticeToday).count, 6);
     });
 
     test('멈춘 줄의 숫자는 넘기지 않고 바꾼다', () {
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(activity(today: 20), afterFeature);
-      final turns = reel.turns;
+      final it = reel()..restart(activity(today: 20), afterUpdate);
+      playOut(it);
+      final turns = it.turns;
 
-      reel.receive(activity(today: 21), afterFeature);
+      it.receive(activity(today: 21), afterUpdate);
 
-      expect((reel.current as HomeNoticeToday).count, 21);
-      expect(reel.turns, turns);
+      expect((it.current as HomeNoticeToday).count, 21);
+      expect(it.turns, turns);
     });
 
-    test('⚠️ 지금 달리는 수에서 멈춘 띠는 모두 끝나면 새 기능 안내로 돌아간다', () {
-      // 안 돌아가면 0명이 된 뒤에도 `지금 3명이 달리고 있어요`가 선다
-      // (코덱스 리뷰 지적).
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(activity(now: 3), afterFeature);
-      expect(reel.stopped, isTrue);
+    test('워치에 멈춘 띠는 오늘 수가 생기면 그리로 옮긴다', () {
+      final it = reel()..restart(activity(now: 3), afterUpdate);
+      playOut(it);
+      final turns = it.turns;
 
-      reel.receive(activity(), afterFeature);
+      it.receive(activity(now: 2, today: 1), afterUpdate);
 
-      expect(reel.current, isA<HomeNoticeFeature>());
+      expect((it.current as HomeNoticeToday).count, 1);
+      expect(it.turns, greaterThan(turns));
     });
 
-    test('지금 달리는 수에서 멈춘 띠는 오늘 수가 생기면 그리로 옮긴다', () {
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(activity(now: 3), afterFeature);
-      final turns = reel.turns;
+    test('⚠️ 멈춘 띠는 소식이 모두 사라지면 워치로 돌아간다', () {
+      // 안 돌아가면 0명이 된 뒤에도 지난 숫자가 선다.
+      final it = reel()..restart(activity(now: 3, today: 2), afterUpdate);
+      playOut(it);
 
-      reel.receive(activity(now: 2, today: 1), afterFeature);
+      it.receive(activity(), afterUpdate);
 
-      expect((reel.current as HomeNoticeToday).count, 1);
-      expect(reel.turns, greaterThan(turns));
-    });
-
-    test('지금 달리는 수에서 멈춘 띠는 숫자만 바꾼다', () {
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(activity(now: 3), afterFeature);
-      final turns = reel.turns;
-
-      reel.receive(activity(now: 2), afterFeature);
-
-      expect((reel.current as HomeNoticeRunningNow).count, 2);
-      expect(reel.turns, turns);
+      expect(it.current, isA<HomeNoticeWatch>());
     });
 
     test('⚠️ 처음 값이 홈에 들어온 뒤에 오면 그때 한 바퀴 돈다', () {
-      // 연결 직후에는 값이 없다(최대 30초). 그동안 띠는 새 기능 안내다.
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(null, afterFeature);
+      // 연결 직후에는 값이 없다(최대 30초). 그동안 띠는 워치 줄이다.
+      final it = reel()..restart(null, afterUpdate);
 
-      reel.receive(activity(now: 3, today: 20), afterFeature);
+      it.receive(activity(now: 3, today: 20), afterUpdate);
 
-      expect(reel.current, isA<HomeNoticeRunningNow>());
-      expect(reel.stopped, isFalse);
+      expect(it.current, isA<HomeNoticeRunningNow>());
+      expect(it.stopped, isFalse);
     });
 
-    test('⚠️ 기다리던 새 기능 안내는 첫 값이 와도 다시 넘기지 않는다', () {
+    test('⚠️ 기다리던 업데이트 줄은 첫 값이 와도 다시 넘기지 않는다', () {
       // 넘기면 같은 문장이 한 번 더 밀려 올라온다(에뮬레이터에서 봄).
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(null, featureWeek);
-      final turns = reel.turns;
+      final it = reel()..restart(null, updateWeek);
+      final turns = it.turns;
 
-      reel.receive(activity(now: 3, today: 20), featureWeek);
+      it.receive(activity(now: 3, today: 20), updateWeek);
 
-      expect(reel.current, isA<HomeNoticeFeature>());
-      expect(reel.turns, turns);
-      expect(reel.stopped, isFalse);
+      expect(it.current, isA<HomeNoticeUpdate>());
+      expect(it.turns, turns);
+      expect(it.stopped, isFalse);
     });
 
-    test('값이 끊기면 새 기능 안내로 돌아간다', () {
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(activity(now: 3, today: 20), afterFeature);
+    test('소식 없는 값이 계속 와도 워치 줄 그대로다', () {
+      final it = reel()..restart(null, afterUpdate);
+      final turns = it.turns;
 
-      reel.receive(null, afterFeature);
+      it.receive(activity(), afterUpdate);
 
-      expect(reel.current, isA<HomeNoticeFeature>());
+      expect(it.current, isA<HomeNoticeWatch>());
+      expect(it.turns, turns);
+    });
+
+    test('값이 끊기면 소식 없는 바퀴로 돌아간다', () {
+      final it = reel()..restart(activity(now: 3, today: 20), afterUpdate);
+
+      it.receive(null, afterUpdate);
+
+      expect(it.current, isA<HomeNoticeWatch>());
     });
 
     test('홈에 다시 들어오면 본 완주도 한 바퀴에 다시 나온다', () {
       final value = activity(runs: [run(1)], today: 1);
-      final reel = HomeNoticeReel(featureSince: since)
-        ..restart(value, afterFeature);
-      playOut(reel);
+      final it = reel()..restart(value, afterUpdate);
+      playOut(it);
 
-      reel.restart(value, afterFeature);
+      it.restart(value, afterUpdate);
 
-      expect(reel.current, isA<HomeNoticeFinished>());
+      expect(it.current, isA<HomeNoticeFinished>());
     });
   });
 }

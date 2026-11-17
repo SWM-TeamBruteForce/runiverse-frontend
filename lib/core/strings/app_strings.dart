@@ -532,10 +532,15 @@ abstract final class AppStrings {
 
   // 공지 띠 — 날씨 줄 아래. 순서와 멈춤은 `HomeNoticeReel`이 정한다.
 
-  /// ⚠️ **새 기능 안내다. 운영 릴리스마다 바꿀지 본다** — 그 버전의 출시 노트
-  /// 한 줄을 쓰고, 나온 날짜(`HomeNoticeStrip.featureSince`)도 함께 바꾼다
-  /// (`docs/release.md`). 다른 소식이 없을 때도 이 줄이 선다.
-  static const homeNoticeFeature = '출발 전에 함께 뛸 러너와 채팅할 수 있어요';
+  /// 업데이트 소식. 나온 날(`HomeNoticeStrip.updateSince`)부터 1주일만 맨
+  /// 앞에 선다. ⚠️ **알릴 기능이 있는 운영 릴리스 때 이 문장과 날짜만 바꾼다**
+  /// (`docs/release.md`). 기간이 지나면 저절로 빠져서 깜빡해도 옛 소식이
+  /// 남지 않는다.
+  static const homeNoticeUpdate = '출발 전에 파티원과 채팅할 수 있어요';
+
+  /// 워치 앱 안내. 늘 한 바퀴에 한 번 지나가고, 소식이 없으면 이 줄에 머문다.
+  /// 기기 이름을 쓰지 않는다 — `갤럭시워치로 …`는 기기 광고처럼 읽힌다.
+  static const homeNoticeWatch = '워치에서도 러니버스를 만나요';
 
   static String homeNoticeRunningNow(int count) => '지금 $count명이 달리고 있어요';
 
