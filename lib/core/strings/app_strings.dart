@@ -531,6 +531,10 @@ abstract final class AppStrings {
   static String homeWaitingToday(int count) => '오늘 ${matchWaitingCount(count)}';
 
   // 공지 띠 — 날씨 줄 아래. 순서와 멈춤은 `HomeNoticeReel`이 정한다.
+  //
+  // ⚠️ **띠 문구는 띄어쓰기 포함 20자 이내.** 한 줄짜리라 넘치면 끝이 `…`로
+  // 잘린다. 360dp 폰에서 글자 칸이 약 280dp이고, 14px에서 19자가 약 200dp를
+  // 차지한다(SUIT 실측). 20자면 글자를 1.3배로 키운 사람에게도 들어간다.
 
   /// 업데이트 소식. 나온 날(`HomeNoticeStrip.updateSince`)부터 1주일만 맨
   /// 앞에 선다. ⚠️ **알릴 기능이 있는 운영 릴리스 때 이 문장과 날짜만 바꾼다**
