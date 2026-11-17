@@ -616,7 +616,7 @@ abstract final class AppStrings {
   static const homeMatchConfirmedTitle = '매칭 완료';
 
   static const homeMatchStartAtLabel = '시작 시간';
-  static const homeMatchDistanceLabel = '목표거리';
+  static const homeMatchDistanceLabel = '목표 거리';
   static const homeMatchStartLabel = '시작까지';
 
   /// ⚠️ **서버가 목표 거리를 안 줄 수 있다.** 0 으로 메우면 지어낸 값이
