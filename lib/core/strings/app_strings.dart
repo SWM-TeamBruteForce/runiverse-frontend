@@ -634,10 +634,6 @@ abstract final class AppStrings {
 
   static const homeMatchSoloTitle = '혼자 달리게 됐어요';
 
-  /// ⚠️ **예약이 그대로라는 것**을 말한다. 이 줄이 없으면 신청이 날아간 줄
-  /// 안다. 혼자가 됐다는 것은 제목([homeMatchSoloTitle])이 말한다.
-  static const homeMatchSoloBody = '예약한 시간에 그대로 달려요';
-
   /// 확정된 방으로 들어가는 문.
   ///
   /// ⚠️ **시안은 `로비이동`이다.** 모집 중(`로비로 가기`)과 확정 뒤를 같은
