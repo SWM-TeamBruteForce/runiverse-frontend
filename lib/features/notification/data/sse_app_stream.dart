@@ -9,8 +9,8 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/version/app_version_headers.dart';
 import 'package:runiverse/core/version/installed_app_version.dart';
 import 'package:runiverse/features/auth/domain/token_refresher.dart';
+import 'package:runiverse/features/home/data/home_notice_dto.dart';
 import 'package:runiverse/features/notification/data/notification_dto.dart';
-import 'package:runiverse/features/notification/domain/app_notification.dart';
 import 'package:runiverse/features/notification/domain/app_stream.dart';
 
 /// 다시 붙기까지 기다리는 간격.
@@ -68,13 +68,13 @@ class SseAppStream implements AppStream {
 
   static const _cancelGrace = Duration(seconds: 1);
 
-  StreamSubscription<AppNotification>? _subscription;
-  StreamController<AppNotification>? _controller;
+  StreamSubscription<AppStreamEvent>? _subscription;
+  StreamController<AppStreamEvent>? _controller;
   HttpClient? _client;
 
   @override
-  Stream<AppNotification> connect() {
-    final controller = StreamController<AppNotification>();
+  Stream<AppStreamEvent> connect() {
+    final controller = StreamController<AppStreamEvent>();
     // 지난 연결의 뒷정리가 지금 연결을 닫지 않게 한다 — `SseMatchStream`이
     // 같은 함정을 적어 뒀다.
     controller.onCancel = () => _closeIfCurrent(controller);
@@ -84,13 +84,13 @@ class SseAppStream implements AppStream {
   }
 
   Future<void> _closeIfCurrent(
-    StreamController<AppNotification> controller,
+    StreamController<AppStreamEvent> controller,
   ) async {
     if (!identical(_controller, controller)) return;
     await close();
   }
 
-  Future<void> _pump(StreamController<AppNotification> controller) async {
+  Future<void> _pump(StreamController<AppStreamEvent> controller) async {
     try {
       final stored = await _store.read();
       if (controller.isClosed) return;
@@ -242,11 +242,11 @@ class SseAppStream implements AppStream {
     return accessToken;
   }
 
-  /// 바이트를 알림으로 옮긴다. **테스트가 직접 부른다.**
+  /// 바이트를 이벤트로 옮긴다. **테스트가 직접 부른다.**
   ///
   /// `:`로 시작하는 줄은 주석이라 버린다 — 연결 직후의 `:connected`와 15초마다
   /// 오는 `:ping`이 그것이다. **알림으로 세면 배지가 혼자 올라간다.**
-  static Stream<AppNotification> decode(Stream<List<int>> bytes) async* {
+  static Stream<AppStreamEvent> decode(Stream<List<int>> bytes) async* {
     final lines = bytes
         .cast<List<int>>()
         .transform(utf8.decoder)
@@ -281,8 +281,10 @@ class SseAppStream implements AppStream {
     }
   }
 
-  /// 한 이벤트를 알림으로 읽는다. **테스트가 직접 부른다.**
-  static AppNotification? eventOf(String? name, String raw) {
+  /// 한 이벤트를 읽는다. **테스트가 직접 부른다.**
+  ///
+  /// 홈 공지 둘이 아니면 알림으로 읽는다. 모르는 이름은 거기서 버려진다.
+  static AppStreamEvent? eventOf(String? name, String raw) {
     if (name == null || raw.isEmpty) return null;
 
     final Object? decoded;
@@ -292,7 +294,17 @@ class SseAppStream implements AppStream {
       debugPrint('[app-stream] 해석하지 못한 이벤트를 버렸다 · $name');
       return null;
     }
-    return notificationFromEvent(name, decoded);
+
+    switch (name) {
+      case 'HOME_WAITING':
+        final count = homeWaitingFromJson(decoded);
+        return count == null ? null : HomeWaitingArrived(count);
+      case 'HOME_ACTIVITY':
+        final activity = homeActivityFromJson(decoded);
+        return activity == null ? null : HomeActivityArrived(activity);
+    }
+    final notification = notificationFromEvent(name, decoded);
+    return notification == null ? null : AppNotificationArrived(notification);
   }
 
   @override
