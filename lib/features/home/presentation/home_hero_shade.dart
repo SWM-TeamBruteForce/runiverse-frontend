@@ -9,7 +9,7 @@ enum HomeHeroLight {
   /// 위에서 내려온다 — 확정·혼자 남은 방·시작됨 카드.
   top,
 
-  /// 동심원 한가운데 — 모집 중·상태 대기 카드.
+  /// 동심원 한가운데([HomeHeroShade.ringCenter]) — 모집 중·상태 대기 카드.
   center,
 }
 
@@ -24,16 +24,20 @@ enum HomeHeroLight {
 /// 색은 [AppColorsV2.bgBase]다 — 카드 둘레 화면 바탕과 같은 색으로 눌러야
 /// 빛이 바탕으로 스며드는 것처럼 보인다.
 class HomeHeroShade extends StatelessWidget {
-  const HomeHeroShade({required this.light, super.key});
+  const HomeHeroShade({
+    required this.light,
+    this.ringCenter = Alignment.center,
+    super.key,
+  });
 
   final HomeHeroLight light;
 
+  /// [HomeHeroLight.center]일 때 빛이 나오는 동심원 중심. 동심원 배경을 까는
+  /// 쪽(`HomeWaitingRing`)이 자기 배치에서 구해 넘긴다.
+  final Alignment ringCenter;
+
   static const _weak = .15;
   static const _strong = .45;
-
-  /// 모집 중 카드의 동심원 중심. 340 카드 한가운데(170)에서 가운데 원을
-  /// 24 내린 자리(194)다 — `HomeWaiting`이 원과 배경을 같이 내린다.
-  static const _ringCenter = Alignment(0, 24 / 170);
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +57,7 @@ class HomeHeroShade extends StatelessWidget {
         colors: [weak, strong],
       ),
       HomeHeroLight.center => RadialGradient(
-        center: _ringCenter,
+        center: ringCenter,
         radius: .8,
         colors: [weak, strong],
         stops: const [.4, 1],

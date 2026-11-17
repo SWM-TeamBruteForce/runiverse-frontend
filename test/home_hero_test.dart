@@ -134,10 +134,7 @@ void main() {
       );
 
       expect(find.text(AppStrings.homeMatchWaitingTitle), findsOneWidget);
-      expect(
-        find.textContaining(AppStrings.homeMatchWaitingOthers(2)),
-        findsOneWidget,
-      );
+      expect(find.text(AppStrings.homeMatchWaitingHint), findsOneWidget);
     });
 
     testWidgets('⚠️ 가운데 내 사진은 방 명단에서 온다', (tester) async {
@@ -156,7 +153,8 @@ void main() {
       final avatars = tester
           .widgetList<RunnerAvatarV2>(find.byType(RunnerAvatarV2))
           .toList();
-      // 가운데가 가장 크다(시안 135). 크기로 고른다 — 순서는 레이아웃 사정이다.
+      // 가운데가 가장 크다(폭 412에서 135). 크기로 고른다 — 순서는 레이아웃
+      // 사정이다.
       final me = avatars.reduce((a, b) => a.size >= b.size ? a : b);
 
       expect(me.imageUrl, 'https://img/u-0.png');
@@ -191,10 +189,8 @@ void main() {
         myUserId: 'u-0',
       );
 
-      expect(
-        find.textContaining(AppStrings.homeMatchWaitingOthers(1)),
-        findsOneWidget,
-      );
+      // 가운데 나 하나 + 둘레 한 사람. 나를 안 빼면 둘레에도 내가 선다.
+      expect(find.byType(RunnerAvatarV2), findsNWidgets(2));
     });
 
     testWidgets('⚠️ 인원이 셋이 아니어도 고르게 흩어진다', (tester) async {
@@ -223,17 +219,6 @@ void main() {
         }
       }
       handle.dispose();
-    });
-
-    testWidgets('⚠️ 아직 나뿐이면 0명이라 적지 않는다', (tester) async {
-      // 신청 직후에는 둘레가 빈다. **시안에 없는 구간이다.**
-      await pumpHero(tester, withRoom: room(RoomStatus.matching, players: 0));
-
-      expect(
-        find.textContaining(AppStrings.homeMatchWaitingAlone),
-        findsOneWidget,
-      );
-      expect(find.textContaining('0명'), findsNothing);
     });
 
     testWidgets('⚠️ 다시 신청하러 갈 문이 없다', (tester) async {
@@ -560,24 +545,6 @@ void main() {
       expect(find.text(AppStrings.homeInviteWaitingTitle), findsOneWidget);
     });
 
-    testWidgets('⚠️ 찾고 있다고 하지 않는다 — 답을 기다린다', (tester) async {
-      // 나뿐인 방이다. `myUserId`를 줘야 "나 말고" 셀 수 있다.
-      await pumpHero(
-        tester,
-        withRoom: inviteRoom(RoomStatus.matching),
-        myUserId: 'u-0',
-      );
-
-      expect(
-        find.textContaining(AppStrings.homeMatchWaitingAlone),
-        findsNothing,
-      );
-      expect(
-        find.textContaining(AppStrings.homeInviteWaitingAlone),
-        findsOneWidget,
-      );
-    });
-
     testWidgets('⚠️ 신청했다고 하지 않는다 — 신청한 적이 없다', (tester) async {
       await pumpHero(tester, withRoom: inviteRoom(RoomStatus.matching));
 
@@ -587,19 +554,6 @@ void main() {
       );
       expect(
         find.textContaining(AppStrings.homeInviteWaitingHint),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('사람이 들어오면 몇 명이 함께 뛰는지 적는다', (tester) async {
-      await pumpHero(
-        tester,
-        withRoom: inviteRoom(RoomStatus.matching, players: 3),
-        myUserId: 'u-0',
-      );
-
-      expect(
-        find.textContaining(AppStrings.homeInviteJoined(3)),
         findsOneWidget,
       );
     });

@@ -571,18 +571,10 @@ abstract final class AppStrings {
   /// 카드 제목. 시안 `158:2971`.
   static const homeMatchWaitingTitle = '매칭 대기 중';
 
-  /// 매칭 방 부제 둘째 줄. 혼자일 때와 둘레에 사람이 있을 때가 같은 말로
-  /// 끝난다. 기다리라고 하지 않는다 — 화면을 지켜보다 취소하고 나가는 사람이 많다.
+  /// 매칭 방 부제. 몇 명이 왔는지와 상관없이 이 한 줄이다. 기다리라고 하지
+  /// 않는다 — 화면을 지켜보다 취소하고 나가는 사람이 많다.
   /// 초대 방은 [homeInviteWaitingHint]를 쓴다.
   static const homeMatchWaitingHint = '앱을 꺼도 신청은 그대로예요';
-
-  /// `3명의 러너가 함께 달릴 준비를 하고 있어요` — **나를 뺀 수**다.
-  static String homeMatchWaitingOthers(int count) =>
-      '$count명의 러너가 함께 달릴 준비를 하고 있어요';
-
-  /// ⚠️ **시안에 없는 구간이다.** 신청 직후에는 아직 나뿐이라 궤도가 빈다.
-  /// 그때 `0명의 러너가 준비를 하고 있어요`라고 적으면 말이 안 된다.
-  static const homeMatchWaitingAlone = '아직 함께 달릴 러너를 찾고 있어요';
 
   /// `민수님이 합류했어요` — 파티원이 **늘어난 순간** 히어로 한가운데 뜬다.
   ///
@@ -1911,14 +1903,7 @@ abstract final class AppStrings {
   /// 서고, 방을 만든 사람은 **최소 10분**을 거기서 기다린다.
   static const homeInviteWaitingTitle = '초대 러닝 대기 중';
 
-  /// 혼자일 때. 매칭의 `아직 함께 달릴 러너를 찾고 있어요`는 **찾는 중**이라는
-  /// 뜻이라 초대에 맞지 않는다.
-  static const homeInviteWaitingAlone = '초대한 러너의 답을 기다리고 있어요';
-
-  /// 사람이 들어왔을 때. 초대 방은 매칭이 아니라 수락이라 매칭 문구를 쓰지 않는다.
-  static String homeInviteJoined(int count) => '$count명이 함께 뛰어요';
-
-  /// 부제 둘째 줄. 매칭의 [homeMatchWaitingHint]는 "신청"이라 맞지 않는다 —
+  /// 부제. 매칭의 [homeMatchWaitingHint]는 "신청"이라 맞지 않는다 —
   /// 초대 방은 신청한 것이 아니라 방을 만들었거나 초대를 받아 들어왔다.
   static const homeInviteWaitingHint = '앱을 꺼도 방은 그대로예요';
 
