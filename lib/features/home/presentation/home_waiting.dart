@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_motion.dart';
+import 'package:runiverse/core/theme/v2/app_palette.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/runner_avatar.dart';
+import 'package:runiverse/features/home/presentation/home_hero_shade.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/session/domain/user_status.dart';
 
@@ -23,7 +25,7 @@ import 'package:runiverse/features/session/domain/user_status.dart';
 /// 제각각이고(-23° · 122° · 203°), 크기도 67·78·103으로 다르다.
 ///
 /// 우리 방은 **2~4명**이라 둘레에 설 사람이 1~3명으로 변한다. 그래서
-/// **각도는 시안이 쓴 셋을 자리표로 두고, 그보다 많아지면 고르게 나눈다.**
+/// **세 자리를 자리표([_angles])로 두고, 그보다 많아지면 고르게 나눈다.**
 ///
 /// ⚠️ **크기와 불투명도는 모두 같게 뒀다.** 시안은 깊이를 내려고 달리하는데,
 /// 우리 목록은 서버가 준 순서라 **앞사람이 크게 그려지면 순위처럼 읽힌다.**
@@ -33,17 +35,18 @@ import 'package:runiverse/features/session/domain/user_status.dart';
 /// ## ⚠️ 움직이는 것은 둘레의 원뿐이다
 ///
 /// 동심원 배경·글자·버튼은 시안 그대로 가만히 있는다. 움직임을 더한 것은
-/// 넷뿐이다.
+/// 셋뿐이다.
 ///
-/// - **둘레 원이 저마다 맴돈다** — 자리마다 위상·폭이 달라 한 몸처럼 기울지
-///   않는다. 각도(6.2초)와 반지름(4.1초)이 따로 도는 탓에 같은 길을 되밟는
-///   것으로 보이지 않는다.
+/// - **둘레 원이 저마다 맴돈다** — 각도(6.2초)와 반지름(4.1초)이 따로 도는
+///   탓에 같은 길을 되밟는 것으로 보이지 않는다.
 /// - **빈 자리도 돈다** — 아직 아무도 없을 때 둘레가 텅 비면 **찾고 있는
 ///   것인지 멈춘 것인지** 알 수 없다. 신청 직후가 가장 오래 보는 화면이다.
-/// - **가운데 내 원이 숨 쉰다** — 테두리 빛이 들고 난다. 원 자체는 손대지
-///   않는다. 사진이 커졌다 작아지면 출렁이는 것으로 보인다.
 /// - **파티원이 늘면 한가운데 축하가 뜬다** — 1.92초. 그동안에도 궤도는
 ///   멈추지 않는다.
+///
+/// 가운데 내 원은 움직이지 않는다. 시안의 파란 번짐(`158:2969`)을 숨 쉬듯
+/// 들고 나게 했었는데, 네온처럼 보여 번짐째 뺐다 — 내가 가운데라는 표시는
+/// 동심원 구멍이 한다.
 ///
 /// 확정(`HomeConfirmed`)에서는 이 모두가 없다. **멈춤 자체가 "끝났다"는
 /// 신호다** — 거기서는 참여자가 줄을 서고 화면이 고요해진다.
@@ -76,15 +79,59 @@ class HomeWaiting extends StatefulWidget {
   /// 필드를 더하는 날 살아나라고 자리만 남긴다.
   final String? myPhotoUrl;
 
-  /// 시안 `158:2952`의 높이.
-  static const _height = 452.0;
-
-  /// 가운데 내 사진. 시안 `158:2969`.
-  static const _mySize = 135.0;
+  /// 시안 `158:2952`은 452다. 340으로 줄였다 — 상태 카드 모두 같은 높이다.
+  static const _height = 340.0;
 
   /// 둘레 사람들의 크기와 궤도 반지름.
-  static const _otherSize = 80.0;
-  static const _orbit = 165.0;
+  ///
+  /// ⚠️ **폭 [_designWidth] 카드에서 어느 순간에도 닿지 않는 값이다.**
+  /// 반지름 [_driftIn]~[_driftOut]과 각도 [_sways]를 다 돌려도 둘레 원은
+  /// 버튼·카드 끝·내 사진·서로와 떨어져 있다. 시안 크기(80)·반지름(165)
+  /// 그대로면 원이 버튼 뒤로 들어가고 카드 밖으로 잘린다. 다른 폭에서는
+  /// 궤도 가로만 [_stretchOf]만큼 늘이고 줄인다.
+  static const _otherSize = 60.0;
+  static const _orbit = 136.0;
+
+  /// 궤도 값을 정한 카드 폭 — 384dp 폰.
+  static const _designWidth = 352.0;
+
+  /// 궤도를 세로로 누르는 비율. 원이 안내 줄과 버튼 사이에서만 돌게 한다.
+  static const _squash = 0.7;
+
+  /// 가운데 원과 궤도 중심을 카드 한가운데에서 내리는 거리. 제목·안내 줄과
+  /// 버튼 사이 한가운데에 둔다. 배경 동심원도 같이 내린다([HomeWaitingRing]).
+  static const _centerDrop = 24.0;
+
+  /// [_centerDrop]만큼 내린 동심원 중심을 카드 안 정렬로 적은 것. 합류
+  /// 축하가 이 점을 중심으로 커지고, 축하 뒤를 누르는 막도 이 점에서 번진다.
+  static const _ringCenter = Alignment(0, _centerDrop / (_height / 2));
+
+  /// 동심원 구멍의 지름(배율 1). 시안이 가운데 내 사진(`158:2969`)을 이
+  /// 크기로 구멍에 꼭 맞췄다.
+  static const _ringHole = 135.0;
+
+  /// 배율 1인 카드 폭. 동심원을 잰 원래 배경 그림(384×452)의 폭이다.
+  static const _ringWidth = 384.0;
+
+  /// 카드 폭 [width]에서 동심원과 가운데 내 사진을 키우거나 줄일 배율.
+  ///
+  /// ## ⚠️ 폭을 따라가되 1배에서 멈춘다
+  ///
+  /// 동심원은 카드 폭을 따라 줄고 는다 — 360dp 폰(폭 328)에서 0.85,
+  /// 384dp(352)에서 0.92, 412dp(380)에서 0.99다. 사진도 같은 배율로 그려야
+  /// 폰마다 구멍에 맞는다.
+  ///
+  /// 1배(폭 384, 416dp 폰)에서 멈춘다. 높이 340에 글자·버튼 자리가 고정이라
+  /// 사진이 계속 커지면 버튼(위끝 268)에 붙는다 — 135면 6.5 떨어지고 148이면
+  /// 닿는다. 그보다 넓은 화면에서는 같은 크기의 동심원이 가운데 놓이고
+  /// 바깥은 바탕색이 이어진다.
+  static double _ringScale(double width) => math.min(width / _ringWidth, 1);
+
+  /// 카드 폭 [width]에서 궤도 가로를 늘이고 줄일 비율. [_designWidth]에서
+  /// 1이고, 동심원과 같은 배율로 따라가 둘레 원이 링 위 같은 자리에 앉는다.
+  /// 세로는 높이가 고정이라 그대로 둔다.
+  static double _stretchOf(double width) =>
+      _ringScale(width) / _ringScale(_designWidth);
 
   /// 아직 아무도 안 들어온 자리의 크기.
   ///
@@ -93,8 +140,12 @@ class HomeWaiting extends StatefulWidget {
   /// 부딪칠 일도 그만큼 준다.
   static const _emptySize = 56.0;
 
-  /// 시안이 쓴 세 각도(도). 넷째부터는 고르게 나눈다.
-  static const _angles = [-22.9, 121.8, 202.8];
+  /// 세 자리의 각도(도). 넷째부터는 고르게 나눈다.
+  ///
+  /// 시안 각도(-22.9° · 121.8° · 202.8°)는 340에서 121.8° 자리가 버튼 뒤로
+  /// 들어간다. 오른쪽 하나는 가로 중앙선 위, 왼쪽 둘은 그 선을 기준으로
+  /// 거울처럼 마주 보게 옮겼다.
+  static const _angles = [0.0, 160.0, 200.0];
 
   /// 각도가 한 번 왕복하는 데 걸리는 시간.
   ///
@@ -114,40 +165,29 @@ class HomeWaiting extends StatefulWidget {
 
   /// 자리마다 흔들 폭(도). 사인을 이 범위로 편다.
   ///
-  /// ## ⚠️ 폭이 자리마다 다르고, 가운데가 시안 자리가 아니다
-  ///
-  /// 돌려 보니 **흰 원이 제목·부제 위를 지나갔다.** 글자도 흰색이라 지나가는
-  /// 동안 읽을 수 없다. 시안이 세 사람을 좌우 바깥([_angles])에 둔 것은
+  /// ⚠️ **흰 원이 제목·안내 줄 위를 지나가면 안 된다.** 글자도 흰색이라
+  /// 지나가는 동안 읽을 수 없다. 세 자리를 좌우 바깥([_angles])에 둔 것도
   /// 가운데 위 글자를 피하려는 배치다.
   ///
-  /// 처음엔 시안 자리를 가운데 두고 ±6°로 좁혔는데, 좁히니 움직임이 안 보이고
-  /// 넓히면 글자를 가렸다. **폭이 문제가 아니라 방향이 문제였다** — 위로 가는
-  /// 쪽만 글자와 부딪친다.
-  ///
-  /// 그래서 **시안 자리를 흔들림의 한쪽 끝으로 삼고, 반대쪽으로만 편다.**
-  /// 1번 자리(오른쪽 위)는 시계방향이 아래로 내려가는 쪽, 3번(왼쪽 위)은
-  /// 반대다. 2번(왼쪽 아래)만 아래가 CTA라 위로 편다.
-  static const _sways = [(0.0, 16.0), (0.0, 18.0), (-16.0, 0.0)];
+  /// 오른쪽 자리는 가로 중앙선을 사이에 두고 ±8°, 왼쪽 두 자리는 서로
+  /// 40°밖에 안 떨어져 ±4°로 좁힌다. 왼쪽 둘은 같은 위상으로 함께
+  /// 움직여(`_wanderOf`) 사이가 늘 같다.
+  static const _sways = [(-8.0, 8.0), (-4.0, 4.0), (-4.0, 4.0)];
 
-  /// 자리가 넷 이상일 때(고르게 나눌 때) 쓸 폭. 어느 자리가 글자를 지나는지
-  /// 알 수 없으니 좁게 둔다.
+  /// 자리가 넷 이상일 때(고르게 나눌 때) 모든 자리에 쓸 폭.
   static const _swayFallback = (-8.0, 8.0);
 
   /// 반지름이 드나드는 폭(px).
   ///
-  /// ⚠️ **안쪽이 넓다.** 바깥으로 밀면 위쪽 두 자리가 카드 모서리와 글자 끝
-  /// 쪽으로 간다. 안쪽은 가운데 내 원(지름 135)까지 아직 여유가 있다.
-  static const _driftIn = -16.0;
-  static const _driftOut = 5.0;
+  /// 340에서는 안팎 모두 좁다 — 안쪽으로 더 들이면 왼쪽 두 원끼리, 바깥으로
+  /// 더 밀면 카드 끝과 닿는다.
+  static const _driftIn = -3.0;
+  static const _driftOut = 3.0;
 
   /// 자리마다 어긋나게 둘 위상(바퀴 수). 황금비라 몇 자리를 늘어놓아도
   /// 겹치지 않는다.
   static const _spinPhase = 0.618;
   static const _driftPhase = 0.382;
-
-  /// 가운데 원이 숨 쉬는 주기. 궤도와 배수 관계가 아니라 둘이 맞물려
-  /// 반복하는 것처럼 보이지 않는다.
-  static const _pulsePeriod = Duration(milliseconds: 2600);
 
   /// 축하가 머무는 시간. 등장 320(`drop`) · 유지 1400 · 퇴장 200(`base`).
   static const _celebrateHold = Duration(milliseconds: 1400);
@@ -174,11 +214,6 @@ class _HomeWaitingState extends State<HomeWaiting>
 
   /// 둘레 원이 지켜볼 것 — 각도와 반지름 둘 다다.
   late final Listenable _wander = Listenable.merge([_spin, _drift]);
-
-  late final AnimationController _pulse = AnimationController(
-    vsync: this,
-    duration: HomeWaiting._pulsePeriod,
-  )..repeat(reverse: true);
 
   /// 지금 축하하고 있는 사람. `null`이면 아무것도 안 뜬다.
   RoomPlayer? _celebrating;
@@ -230,7 +265,6 @@ class _HomeWaitingState extends State<HomeWaiting>
     _celebrateTimer?.cancel();
     _spin.dispose();
     _drift.dispose();
-    _pulse.dispose();
     super.dispose();
   }
 
@@ -238,22 +272,30 @@ class _HomeWaitingState extends State<HomeWaiting>
   ///
   /// 각도와 반지름이 주기가 다른 사인 둘이라, 원은 호를 따라 왕복하면서 동시에
   /// 들락거린다 — 눈에는 정해진 길 없이 떠도는 것으로 보인다.
-  Offset _wanderOf(int index, int total) {
+  ///
+  /// 가로는 [stretch]([HomeWaiting._stretchOf])만큼 늘이고 줄인다.
+  Offset _wanderOf(int index, int total, double stretch) {
     final (lo, hi) = _swayOf(index, total);
+    // 왼쪽 두 자리(1·2)는 같은 위상으로 함께 움직인다 — 사이가 늘 같아
+    // 서로 부딪치지 않는다. 넷 이상으로 고르게 나눌 때는 자리마다 다르다.
+    final phase = total <= HomeWaiting._angles.length && index == 2 ? 1 : index;
     final angle =
         _angleOf(index, total) +
-        _sinBetween(_spin, index * HomeWaiting._spinPhase, lo, hi) *
+        _sinBetween(_spin, phase * HomeWaiting._spinPhase, lo, hi) *
             math.pi /
             180;
     final radius =
         HomeWaiting._orbit +
         _sinBetween(
           _drift,
-          index * HomeWaiting._driftPhase,
+          phase * HomeWaiting._driftPhase,
           HomeWaiting._driftIn,
           HomeWaiting._driftOut,
         );
-    return Offset(radius * math.cos(angle), radius * math.sin(angle));
+    return Offset(
+      radius * math.cos(angle) * stretch,
+      radius * math.sin(angle) * HomeWaiting._squash + HomeWaiting._centerDrop,
+    );
   }
 
   /// 아직 안 찬 자리의 테두리가 지금 얼마나 짙은가.
@@ -286,20 +328,7 @@ class _HomeWaitingState extends State<HomeWaiting>
       if (player.userId != widget.myUserId) player,
   ];
 
-  /// 둘째 줄. **초대 방은 "찾고 있다"고 하지 않는다** — 상대를 이미 골랐고
-  /// 답을 기다리는 중이다.
-  String _waitingBody(int others) {
-    if (widget.room.type == RoomType.invite) {
-      return others == 0
-          ? AppStrings.homeInviteWaitingAlone
-          : AppStrings.homeInviteJoined(others + 1);
-    }
-    return others == 0
-        ? AppStrings.homeMatchWaitingAlone
-        : AppStrings.homeMatchWaitingOthers(others);
-  }
-
-  /// 그 아래 줄. **초대 방은 "신청"이라고 하지 않는다** — 신청한 적이 없다.
+  /// 제목 아래 줄. **초대 방은 "신청"이라고 하지 않는다** — 신청한 적이 없다.
   String get _waitingHint => widget.room.type == RoomType.invite
       ? AppStrings.homeInviteWaitingHint
       : AppStrings.homeMatchWaitingHint;
@@ -319,13 +348,12 @@ class _HomeWaitingState extends State<HomeWaiting>
         others.add(player);
       }
     }
-    // 둘레에 깔 자리 수. 사람이 덜 찼으면 **빈 자리로 채운다** — 시안이 놓은
-    // 셋이 기본이고, 그보다 많이 오면 사람 수만큼만 둔다.
+    // 둘레에 깔 자리 수. 사람이 덜 찼으면 **빈 자리로 채운다** — 셋이
+    // 기본이고, 그보다 많이 오면 사람 수만큼만 둔다.
     //
-    // ⚠️ **방 정원을 모른다.** 서버가 2~4명으로 편성한다는 것만 알고 응답에
-    // 정원 필드가 없다. 그래서 빈 원 셋은 "자리가 셋 남았다"는 약속이 아니라
-    // 찾고 있다는 그림이다 — 둘짜리 방으로 확정돼도 틀린 말이 되지 않게.
-    // 디자인 확인이 필요하다.
+    // 빈 원 셋은 가운데 나까지 **정원 4명을 보여 준다.** 응답에 정원 필드가
+    // 없어 서버가 2~4명으로 편성하는 방의 최대를 그린다 — 둘짜리 방으로
+    // 확정되면 확정 카드가 실제 인원을 보여 준다.
     final slots = math.max(others.length, HomeWaiting._angles.length);
 
     return ClipRRect(
@@ -335,32 +363,45 @@ class _HomeWaitingState extends State<HomeWaiting>
         child: Stack(
           alignment: Alignment.center,
           children: [
-            Positioned.fill(
-              child: Image.asset(
-                'assets/images/home_waiting_bg.webp',
-                fit: BoxFit.cover,
-                excludeFromSemantics: true,
-              ),
-            ),
+            const Positioned.fill(child: HomeWaitingRing()),
 
             // 둘레 사람들. **가운데보다 먼저 그린다** — 겹치면 내가 위다.
             //
             // ⚠️ **옮기는 것은 자리뿐이다.** `Transform.translate`는 사진을
             // 돌리지 않으므로, 각도에 회전을 더하면 얼굴은 선 채로 궤도만
             // 돈다 — 거꾸로 돌려 세울 레이어가 필요 없다.
+            //
+            // ⚠️ **카드 폭은 카드를 채운 칸(`Positioned.fill`)에서 읽는다.**
+            // 움직임은 `LayoutBuilder` 안에서 다시 만들어져 그 `LayoutBuilder`를
+            // 프레임마다 다시 배치한다. 크기가 정해진 칸이면 거기서 멈추고,
+            // 그냥 두면 카드 `Stack` 배치까지 번진다. 폭은 프레임마다 읽지
+            // 않고, 카드가 다시 만들어지거나 폭이 바뀔 때만 다시 읽는다.
             for (final (index, player) in others.indexed)
-              AnimatedBuilder(
-                animation: _wander,
-                // ⚠️ **아바타는 `child`로 넘긴다.** builder 안에서 만들면
-                // 프레임마다 사진 위젯이 새로 서고, 네트워크 이미지가 매번
-                // 다시 붙는다.
-                child: RunnerAvatarV2(
-                  nickname: player.nickname,
-                  imageUrl: player.profileImageUrl,
-                  size: HomeWaiting._otherSize,
+              Positioned.fill(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stretch = HomeWaiting._stretchOf(
+                      constraints.maxWidth,
+                    );
+                    return Center(
+                      child: AnimatedBuilder(
+                        animation: _wander,
+                        // ⚠️ **아바타는 `child`로 넘긴다.** builder 안에서
+                        // 만들면 프레임마다 사진 위젯이 새로 서고, 네트워크
+                        // 이미지가 매번 다시 붙는다.
+                        child: RunnerAvatarV2(
+                          nickname: player.nickname,
+                          imageUrl: player.profileImageUrl,
+                          size: HomeWaiting._otherSize,
+                        ),
+                        builder: (context, child) => _Orbiting(
+                          offset: _wanderOf(index, slots, stretch),
+                          child: child!,
+                        ),
+                      ),
+                    );
+                  },
                 ),
-                builder: (context, child) =>
-                    _Orbiting(offset: _wanderOf(index, slots), child: child!),
               ),
 
             // 아직 안 찬 자리. **사람 뒤에 그린다** — 자리가 겹칠 일은 없지만
@@ -370,53 +411,51 @@ class _HomeWaitingState extends State<HomeWaiting>
             // 바뀐다. 사진도 네트워크 이미지도 없는 테두리 하나라 매 프레임
             // 세워도 값이 싸다.
             for (var index = others.length; index < slots; index++)
-              AnimatedBuilder(
-                animation: _wander,
-                builder: (context, _) => _Orbiting(
-                  offset: _wanderOf(index, slots),
-                  child: _SearchingSlot(
-                    key: ValueKey('home-waiting-empty-$index'),
-                    alpha: _breathOf(index),
-                  ),
+              Positioned.fill(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stretch = HomeWaiting._stretchOf(
+                      constraints.maxWidth,
+                    );
+                    return Center(
+                      child: AnimatedBuilder(
+                        animation: _wander,
+                        builder: (context, _) => _Orbiting(
+                          offset: _wanderOf(index, slots, stretch),
+                          child: _SearchingSlot(
+                            key: ValueKey('home-waiting-empty-$index'),
+                            alpha: _breathOf(index),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
 
-            // 가운데 — 나.
-            AnimatedBuilder(
-              animation: _pulse,
-              child: RunnerAvatarV2(
-                nickname: mine?.nickname ?? widget.myNickname ?? '',
-                // ⚠️ **방 명단이 먼저다.** [HomeWaiting.myPhotoUrl]의 출처인
-                // `GET /users/me`(36번)에는 **`profileImageUrl`이 없다** —
-                // 응답은 `userId`·`email`·`loginType`·`nickname`·`isOnboarded`
-                // 뿐이라 늘 `null`이고, 가운데 내 얼굴만 기본 이미지로 남았다.
-                // 둘레 사람들은 같은 명단에서 사진을 받아 제대로 떴다.
-                imageUrl: mine?.profileImageUrl ?? widget.myPhotoUrl,
-                size: HomeWaiting._mySize,
+            // 가운데 — 나. 동심원과 같은 배율로 그려 구멍에 꼭 맞춘다.
+            LayoutBuilder(
+              builder: (context, constraints) => Transform.translate(
+                offset: const Offset(0, HomeWaiting._centerDrop),
+                child: RunnerAvatarV2(
+                  nickname: mine?.nickname ?? widget.myNickname ?? '',
+                  // ⚠️ **방 명단이 먼저다.** [HomeWaiting.myPhotoUrl]의 출처인
+                  // `GET /users/me`(36번)에는 **`profileImageUrl`이 없다** —
+                  // 응답은 `userId`·`email`·`loginType`·`nickname`·
+                  // `isOnboarded`뿐이라 늘 `null`이고, 가운데 내 얼굴만 기본
+                  // 이미지로 남았다. 둘레 사람들은 같은 명단에서 사진을 받아
+                  // 제대로 떴다.
+                  imageUrl: mine?.profileImageUrl ?? widget.myPhotoUrl,
+                  size:
+                      HomeWaiting._ringHole *
+                      HomeWaiting._ringScale(constraints.maxWidth),
+                ),
               ),
-              builder: (context, child) {
-                // ⚠️ **크기를 건드리지 않는다.** 사진이 커졌다 작아지면
-                // 출렁이는 것으로 보인다. 들고 나는 것은 테두리 빛뿐이다.
-                final t = Curves.easeInOut.transform(_pulse.value);
-                return DecoratedBox(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    // 시안 `158:2969`의 파란 번짐. 내가 가운데라는 표시다.
-                    boxShadow: [
-                      BoxShadow(
-                        color: colors.primary,
-                        blurRadius: 24 + 14 * t,
-                        spreadRadius: 2 * t,
-                      ),
-                    ],
-                  ),
-                  child: child,
-                );
-              },
             ),
 
             Positioned(
-              top: AppSpacing.space8,
+              // 다른 상태 카드와 같이 제목을 위 24에 둔다.
+              top: AppSpacing.space6,
               left: AppSpacing.space6,
               right: AppSpacing.space6,
               child: Column(
@@ -434,9 +473,9 @@ class _HomeWaitingState extends State<HomeWaiting>
                   ),
                   const SizedBox(height: AppSpacing.space3),
                   Text(
-                    // ⚠️ 신청 직후에는 아직 나뿐이다. 그때 `0명의 러너가`라고
-                    // 적으면 말이 안 된다 — 시안에 없는 구간이다.
-                    '${_waitingBody(others.length)}\n$_waitingHint',
+                    // 기다려도 된다는 안내 한 줄만 둔다. 몇 명이 왔는지는
+                    // 둘레 사진과 합류 축하가 보여 준다.
+                    _waitingHint,
                     textAlign: TextAlign.center,
                     style: AppTypographyV2.body07.copyWith(
                       color: colors.textSecondary,
@@ -475,6 +514,9 @@ class _HomeWaitingState extends State<HomeWaiting>
                   transitionBuilder: (child, animation) => FadeTransition(
                     opacity: animation,
                     child: ScaleTransition(
+                      // 축하는 내린 동심원 중심에 뜬다. 그 점을 기준으로 키워야
+                      // 커지는 동안 중심이 동심원에서 비켜나지 않는다.
+                      alignment: HomeWaiting._ringCenter,
                       scale: Tween<double>(
                         begin: .86,
                         end: 1,
@@ -499,8 +541,9 @@ class _HomeWaitingState extends State<HomeWaiting>
 
   /// 자리 [index]가 흔들릴 폭(도).
   ///
-  /// 시안이 쓴 셋은 자리마다 다르고([HomeWaiting._sways]), 그보다 많아지면
-  /// 어느 자리가 글자를 지나는지 알 수 없어 좁게 둔다.
+  /// 세 자리는 자리마다 정해 두고([HomeWaiting._sways]), 그보다 많아지면
+  /// 어느 자리가 글자를 지나는지 알 수 없어 모든 자리에
+  /// [HomeWaiting._swayFallback]을 쓴다.
   static (double, double) _swayOf(int index, int total) =>
       total <= HomeWaiting._angles.length
       ? HomeWaiting._sways[index]
@@ -508,7 +551,8 @@ class _HomeWaitingState extends State<HomeWaiting>
 
   /// 둘레 자리의 각도(라디안).
   ///
-  /// 시안이 쓴 셋까지는 그대로 쓰고, 그보다 많아지면 고르게 나눈다.
+  /// 세 자리까지는 자리표([HomeWaiting._angles])를 쓰고, 그보다 많아지면
+  /// 고르게 나눈다.
   static double _angleOf(int index, int total) {
     final degrees = total <= HomeWaiting._angles.length
         ? HomeWaiting._angles[index]
@@ -517,7 +561,140 @@ class _HomeWaitingState extends State<HomeWaiting>
   }
 }
 
-/// 합류 축하 — 히어로 **한가운데**에 뜬다(1.92초).
+/// 모집 중 배경과 그 위 덮개 — 동심원 구멍이 카드 한가운데에서
+/// [HomeWaiting._centerDrop] 아래에 오게 깐다. 같은 배경을 쓰는 상태 대기
+/// 카드도 이것을 깐다 — 두 카드가 번갈아 떠도 동심원이 제자리에 있다.
+///
+/// 덮개의 빛 중심도 같은 자리에서 구한다 — 숫자를 따로 적어 두면 한쪽만
+/// 바뀐다.
+class HomeWaitingRing extends StatelessWidget {
+  const HomeWaitingRing({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final height = constraints.maxHeight;
+        final center = height / 2 + HomeWaiting._centerDrop;
+
+        return Stack(
+          children: [
+            Positioned.fill(
+              // ⚠️ **따로 묶는다.** 둘레 원이 프레임마다 움직여도 동심원은
+              // 처음 한 번만 그리고 그 뒤로는 그려 둔 것을 다시 쓴다.
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: _RingPainter(
+                    scale: HomeWaiting._ringScale(constraints.maxWidth),
+                    centerY: center,
+                  ),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: HomeHeroShade(
+                light: HomeHeroLight.center,
+                ringCenter: Alignment(0, center / (height / 2) - 1),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// 동심원 링 셋 — 시안 `158:2951`의 배경.
+///
+/// ## ⚠️ 그림이 아니라 그린다
+///
+/// 처음엔 시안을 384×452 그림(`home_waiting_bg.webp`, 지금은 지움)으로 구워
+/// 깔았다. 그림은 카드를 덮어야 해서 좁은 카드에서는 0.86배 아래로 줄일 수
+/// 없었고, 카드가 384보다 넓으면 1배를 넘겨 키워 구멍이 가운데 사진보다
+/// 커졌다. 무늬가 동심원과 번짐뿐이라 그 그림에서 반지름별 색을 재 같은
+/// 모양으로 그린다 — 어느 폭에서도 끝이 없고, 1배 그림을 키울 때 보이던
+/// 계단도 없다.
+///
+/// 링마다 안쪽 끝이 가장 짙고([AppPaletteV2.ringGlow]) 바깥으로 [_falloff]
+/// 곡선을 따라 바탕([AppPaletteV2.neutral900])으로 번진다. 둘 다 그림에서 잰
+/// 테마와 무관한 값이다 — 그림도 테마를 따르지 않았다.
+class _RingPainter extends CustomPainter {
+  const _RingPainter({required this.scale, required this.centerY});
+
+  /// [HomeWaiting._ringScale]. 아래 길이는 모두 배율 1 기준이다.
+  final double scale;
+
+  /// 동심원 중심의 높이. 가로는 늘 가운데다.
+  final double centerY;
+
+  /// 링 셋 — 안쪽 끝 반지름, 바깥으로 번지는 폭, 안쪽 끝의 짙기.
+  ///
+  /// 첫 링의 안쪽 끝이 구멍이다([HomeWaiting._ringHole]의 반). 셋째 링의
+  /// 번짐은 그림 끝(반지름 약 290)에서 잘려 있어, 남은 구간의 짙기로 폭을
+  /// 어림했다 — 어림한 바깥은 320dp처럼 좁은 폰의 카드 위 모서리와, 태블릿처럼
+  /// 넓은 화면의 카드 가장자리에서만 보인다.
+  static const _rings = [
+    (edge: HomeWaiting._ringHole / 2, fade: 38.0, peak: .92),
+    (edge: 158.5, fade: 66.0, peak: 1.0),
+    (edge: 244.5, fade: 116.0, peak: 1.0),
+  ];
+
+  /// 번짐 곡선 — 안쪽 끝(0)에서 바깥 끝(1)까지 짙기가 줄어드는 모양.
+  /// 첫째·둘째 링에서 잰 값의 평균이다.
+  static const _falloff = [
+    (at: 0.0, alpha: 1.0),
+    (at: .15, alpha: .83),
+    (at: .3, alpha: .61),
+    (at: .45, alpha: .42),
+    (at: .6, alpha: .23),
+    (at: .75, alpha: .105),
+    (at: .9, alpha: .03),
+    (at: 1.0, alpha: 0.0),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final area = Offset.zero & size;
+    canvas.drawRect(area, Paint()..color = AppPaletteV2.neutral900);
+
+    final outer = _rings.last.edge + _rings.last.fade;
+    final colors = <Color>[];
+    final stops = <double>[];
+    void stop(double radius, double alpha) {
+      stops.add(radius / outer);
+      colors.add(AppPaletteV2.ringGlow.withValues(alpha: alpha));
+    }
+
+    stop(0, 0);
+    for (final ring in _rings) {
+      // 링 안쪽은 비어 있다. 1px 안에서 바탕에서 가장 짙은 색으로 선다.
+      stop(ring.edge - 1, 0);
+      for (final point in _falloff) {
+        stop(ring.edge + ring.fade * point.at, ring.peak * point.alpha);
+      }
+    }
+
+    canvas.drawRect(
+      area,
+      Paint()
+        ..shader = RadialGradient(colors: colors, stops: stops).createShader(
+          Rect.fromCircle(
+            center: Offset(size.width / 2, centerY),
+            radius: outer * scale,
+          ),
+        ),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter old) =>
+      old.scale != scale || old.centerY != centerY;
+}
+
+/// 합류 축하 — 동심원 **한가운데**, 가운데 내 사진 위에 뜬다(1.92초).
+///
+/// 내 사진과 동심원을 카드 한가운데에서 [HomeWaiting._centerDrop]만큼
+/// 내렸으니 축하와 그 뒤를 누르는 막도 같은 자리로 내린다.
 ///
 /// ## ⚠️ 가로로 눕힌다
 ///
@@ -536,70 +713,93 @@ class _Celebration extends StatelessWidget {
       // 동심원 위에 그냥 올리면 흰 글자가 묻힌다. 가운데만 눌러 둔다.
       decoration: BoxDecoration(
         gradient: RadialGradient(
+          center: HomeWaiting._ringCenter,
           colors: [colors.bgScrim, colors.bgScrim.withValues(alpha: .35)],
         ),
       ),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: colors.primaryMuted,
-              borderRadius: AppRadius.card,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.space3,
-                AppSpacing.space3,
-                AppSpacing.space4,
-                AppSpacing.space3,
+      // ⚠️ `Align`으로 내리면 카드 자기 높이만큼 기준점이 어긋난다(높이 68
+      // 카드면 중심이 194가 아니라 189). 위를 내림의 두 배 비우고 그 안
+      // 가운데에 두면 카드 높이와 상관없이 중심이 동심원 중심에 온다.
+      child: Padding(
+        padding: const EdgeInsets.only(top: 2 * HomeWaiting._centerDrop),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.primaryMuted,
+                borderRadius: AppRadius.card,
               ),
-              // ⚠️ **읽을 때는 한 문장이다.** 말줄임 때문에 닉네임과 뒷말을
-              // 따로 세웠는데, 그대로 두면 스크린리더가 토막으로 읽는다.
-              child: Semantics(
-                label: AppStrings.homePlayerJoined(player.nickname),
-                excludeSemantics: true,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // ⚠️ **테두리가 없으면 원이 묻힌다.** 아바타의 바탕이
-                    // `primaryMuted`인데(`runner_avatar.dart`) 이 카드도 같은
-                    // 색이라, 사진이 없는 사람은 동그라미가 아예 안 보인다.
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: colors.textStrong, width: 2),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.space3,
+                  AppSpacing.space3,
+                  AppSpacing.space4,
+                  AppSpacing.space3,
+                ),
+                // ⚠️ **읽을 때는 한 문장이다.** 말줄임 때문에 닉네임과 뒷말을
+                // 따로 세웠는데, 그대로 두면 스크린리더가 토막으로 읽는다.
+                //
+                // 누가 들어왔는지 알리는 것이 이 카드뿐이라(인원 줄은 없다)
+                // 뜨는 순간 스크린리더가 읽게 한다(`liveRegion`). `container`가
+                // 없으면 이 문장이 카드 전체 노드에 붙어, 들어올 때마다 카드를
+                // 통째로 다시 읽는다.
+                child: Semantics(
+                  label: AppStrings.homePlayerJoined(player.nickname),
+                  container: true,
+                  liveRegion: true,
+                  excludeSemantics: true,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // ⚠️ **테두리가 없으면 원이 묻힌다.** 아바타의 바탕이
+                      // `primaryMuted`인데(`runner_avatar.dart`) 이 카드도 같은
+                      // 색이라, 사진이 없는 사람은 동그라미가 아예 안 보인다.
+                      //
+                      // 테두리 굵기만큼 사진을 안쪽으로 들인다(`Container`가
+                      // 테두리 폭을 여백으로 둔다). 프로필 사진과 같은 방식이다.
+                      // 바깥 지름은 그대로 44다. 원을 바탕에서 떼어 보이게만
+                      // 하면 되니 빈 자리 원과 같은 밝기대의 흐린 흰 1이다 —
+                      // 더 밝으면 문장보다 선이 먼저 보인다.
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: colors.textStrong.withValues(alpha: .3),
+                            width: 1,
+                          ),
+                        ),
+                        child: RunnerAvatarV2(
+                          nickname: player.nickname,
+                          imageUrl: player.profileImageUrl,
+                          size: _avatarSize - 2,
+                        ),
                       ),
-                      child: RunnerAvatarV2(
-                        nickname: player.nickname,
-                        imageUrl: player.profileImageUrl,
-                        size: _avatarSize,
+                      const SizedBox(width: AppSpacing.space3),
+                      // ⚠️ **닉네임만 줄인다.** 문장을 통째로 줄이면 정작
+                      // 알려야 할 `합류했어요`가 먼저 잘린다. 닉네임은 16자까지
+                      // 온다.
+                      //
+                      // ⚠️ `Expanded`가 아니라 `Flexible`이다. 짧은 이름일 때
+                      // 남는 자리를 글자가 먹어 가운데 정렬이 깨진다.
+                      Flexible(
+                        child: Text(
+                          player.nickname,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypographyV2.body05.copyWith(
+                            color: colors.textStrong,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: AppSpacing.space3),
-                    // ⚠️ **닉네임만 줄인다.** 문장을 통째로 줄이면 정작
-                    // 알려야 할 `합류했어요`가 먼저 잘린다. 닉네임은 16자까지
-                    // 온다.
-                    //
-                    // ⚠️ `Expanded`가 아니라 `Flexible`이다. 짧은 이름일 때
-                    // 남는 자리를 글자가 먹어 가운데 정렬이 깨진다.
-                    Flexible(
-                      child: Text(
-                        player.nickname,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Text(
+                        AppStrings.homePlayerJoinedSuffix,
                         style: AppTypographyV2.body05.copyWith(
                           color: colors.textStrong,
                         ),
                       ),
-                    ),
-                    Text(
-                      AppStrings.homePlayerJoinedSuffix,
-                      style: AppTypographyV2.body05.copyWith(
-                        color: colors.textStrong,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -615,8 +815,8 @@ class _Celebration extends StatelessWidget {
 
 /// 가운데에서 [offset]만큼 밀어낸다.
 ///
-/// ⚠️ **카드 밖으로 걸쳐도 둔다.** 시안도 왼쪽 사람을 카드 밖까지 내보낸다 —
-/// 둘레가 화면보다 넓다는 느낌이 거기서 나온다. 바깥은 `ClipRRect`가 자른다.
+/// 궤도 가로를 카드 폭에 맞춰 늘이고 줄여(`_wanderOf`), 320~440dp 폰에서
+/// 둘레 원은 카드 안에 머문다. 그래도 넘치면 바깥은 `ClipRRect`가 자른다.
 class _Orbiting extends StatelessWidget {
   const _Orbiting({required this.offset, required this.child});
 

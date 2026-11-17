@@ -5,10 +5,12 @@ import 'package:runiverse/core/storage/consent_store.dart';
 import 'package:runiverse/core/storage/sign_in_memory_store.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/widgets/v2/runner_avatar.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/home/presentation/home_confirmed.dart';
 import 'package:runiverse/features/home/presentation/home_page.dart';
 import 'package:runiverse/features/matching/data/fake_match_stream.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
@@ -125,7 +127,14 @@ void main() {
     expect(find.text(AppStrings.homeMatchToWaitingRoom), findsOneWidget);
     // ⚠️ 인원은 모른다. 명단이 없으면 **참여자 줄을 아예 그리지 않는다** —
     // 빈 줄을 두면 아무도 없는 것처럼 보인다.
-    expect(find.text(AppStrings.homeMatchPartyLabel), findsNothing);
+    expect(find.byType(HomeConfirmed), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(HomeConfirmed),
+        matching: find.byType(RunnerAvatarV2),
+      ),
+      findsNothing,
+    );
     // 다시 신청하러 갈 문은 여전히 닫혀 있다.
     expect(find.text(AppStrings.homeMatchCta), findsNothing);
   });

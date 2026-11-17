@@ -7,9 +7,10 @@ import 'package:runiverse/features/matching/domain/room_info.dart';
 
 /// 매칭 확정 카드의 참여자 줄 — **4명이 좁은 폰에서도 다 보이는가.**
 ///
-/// 시안(`158:3102`)은 아바타 60·간격 20으로 3명을 그렸다. 4명이면 300이라
-/// 360dp 폰의 카드 안쪽(296)에 안 들어간다. 이름 칸을 72로 두던 때는
-/// 348이 돼 4번째 사람이 잘렸다(에뮬레이터 360dp에서 52px 넘침).
+/// 시안(`158:3102`)은 아바타 60·간격 20으로 3명을 그렸다. 340 카드의 아바타
+/// 56이면 4명에 284라 360dp 폰의 카드 안쪽(296)에는 들어가고, 320dp(256)에는
+/// 안 들어간다. 이름 칸을 72로 두던 때는 348이 돼 4번째 사람이 잘렸다
+/// (에뮬레이터 360dp에서 52px 넘침).
 void main() {
   RoomInfo room(int players) => RoomInfo(
     runningRoomId: 125,
@@ -55,22 +56,22 @@ void main() {
   double centerGap(WidgetTester tester) =>
       tester.getCenter(avatar(1)).dx - tester.getCenter(avatar(0)).dx;
 
-  testWidgets('넓은 폰에서는 시안 그대로다', (tester) async {
+  testWidgets('넓은 폰에서는 줄지 않는다', (tester) async {
     await pump(tester, screen: 412);
 
     expect(tester.takeException(), isNull);
-    expect(tester.getSize(avatar(0)), const Size(60, 60));
-    // 아바타 60 + 간격 20.
-    expect(centerGap(tester), moreOrLessEquals(80));
+    expect(tester.getSize(avatar(0)), const Size(56, 56));
+    // 아바타 56 + 간격 20.
+    expect(centerGap(tester), moreOrLessEquals(76));
   });
 
   testWidgets('⚠️ 360dp 폰에서 4명이 넘치지 않는다', (tester) async {
     await pump(tester, screen: 360);
 
     expect(tester.takeException(), isNull);
-    // (296 − 20×3) ÷ 4 = 59. 간격은 두고 아바타가 줄어든다.
-    expect(tester.getSize(avatar(0)), const Size(59, 59));
-    expect(centerGap(tester), moreOrLessEquals(79));
+    // 56×4 + 20×3 = 284 ≤ 296. 줄지 않고 들어간다.
+    expect(tester.getSize(avatar(0)), const Size(56, 56));
+    expect(centerGap(tester), moreOrLessEquals(76));
     expect(
       tester.getRect(avatar(3)).right,
       lessThanOrEqualTo(tester.getRect(find.byType(HomeConfirmed)).right),
@@ -102,7 +103,7 @@ void main() {
   testWidgets('3명은 360dp에서도 줄지 않는다', (tester) async {
     await pump(tester, screen: 360, players: 3);
 
-    expect(tester.getSize(avatar(0)), const Size(60, 60));
-    expect(centerGap(tester), moreOrLessEquals(80));
+    expect(tester.getSize(avatar(0)), const Size(56, 56));
+    expect(centerGap(tester), moreOrLessEquals(76));
   });
 }

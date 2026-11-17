@@ -509,11 +509,8 @@ abstract final class AppStrings {
   static const homeGreetingEvening = '좋은 저녁이에요';
   static const homeGreetingNight = '늦은 밤이네요';
 
-  /// 히어로 제목. **이름을 부른다** — 시안 `158:2848`이 `김지원님`으로 시작한다.
-  ///
-  /// ⚠️ **이름이 없을 수 있다.** `/me`가 오기 전이거나 온보딩 전이면 비어 있다.
-  /// 그때는 부르는 줄을 통째로 뺀다 — `님`만 남으면 이름을 잃은 것처럼 보인다.
-  static String homeHeroName(String nickname) => '$nickname님';
+  /// 히어로 제목. 시안 `158:2848`은 앞에 `김지원님`을 붙여 부르지만, 340
+  /// 높이로 줄이면서 이름 줄은 뺐다.
   static const homeHeroPrompt = '오늘도 함께 달려볼까요?';
 
   /// ⚠️ **시안은 `매칭시작`·`혼자연습하기`로 붙여 쓴다.** 한국어 맞춤법상
@@ -526,8 +523,8 @@ abstract final class AppStrings {
   /// 친구를 불러 같이 뛰는 것이 아니라 **방에 초대하는** 기능이라서다.
   static const homeInviteRunCta = '초대 러닝';
 
-  /// 히어로 부제. 줄바꿈 위치를 고정해 두 줄로 읽히게 한다.
-  static const homeHeroSubtitle = '나와 비슷한 러너를 만나\n같은 시간, 각자의 자리에서 함께 달려보세요.';
+  /// 히어로 부제. 시안의 두 줄 중 앱이 무엇인지 말하는 둘째 줄만 둔다.
+  static const homeHeroSubtitle = '같은 시간, 각자의 자리에서 함께 달려요';
 
   // 위 줄 날씨 — 외주 시안 `70:739`(`서울 강남구 · 맑음 18°`)
 
@@ -574,18 +571,10 @@ abstract final class AppStrings {
   /// 카드 제목. 시안 `158:2971`.
   static const homeMatchWaitingTitle = '매칭 대기 중';
 
-  /// 매칭 방 부제 둘째 줄. 혼자일 때와 둘레에 사람이 있을 때가 같은 말로
-  /// 끝난다. 기다리라고 하지 않는다 — 화면을 지켜보다 취소하고 나가는 사람이 많다.
+  /// 매칭 방 부제. 몇 명이 왔는지와 상관없이 이 한 줄이다. 기다리라고 하지
+  /// 않는다 — 화면을 지켜보다 취소하고 나가는 사람이 많다.
   /// 초대 방은 [homeInviteWaitingHint]를 쓴다.
   static const homeMatchWaitingHint = '앱을 꺼도 신청은 그대로예요';
-
-  /// `3명의 러너가 함께 달릴 준비를 하고 있어요` — **나를 뺀 수**다.
-  static String homeMatchWaitingOthers(int count) =>
-      '$count명의 러너가 함께 달릴 준비를 하고 있어요';
-
-  /// ⚠️ **시안에 없는 구간이다.** 신청 직후에는 아직 나뿐이라 궤도가 빈다.
-  /// 그때 `0명의 러너가 준비를 하고 있어요`라고 적으면 말이 안 된다.
-  static const homeMatchWaitingAlone = '아직 함께 달릴 러너를 찾고 있어요';
 
   /// `민수님이 합류했어요` — 파티원이 **늘어난 순간** 히어로 한가운데 뜬다.
   ///
@@ -627,15 +616,12 @@ abstract final class AppStrings {
   static const homeMatchConfirmedTitle = '매칭 완료';
 
   static const homeMatchStartAtLabel = '시작 시간';
-  static const homeMatchDistanceLabel = '목표거리';
+  static const homeMatchDistanceLabel = '목표 거리';
   static const homeMatchStartLabel = '시작까지';
 
   /// ⚠️ **서버가 목표 거리를 안 줄 수 있다.** 0 으로 메우면 지어낸 값이
   /// 화면에 뜬다. 모른다는 것을 모른다고 적는다.
   static const homeMatchUnknownValue = '-';
-
-  /// 아바타 줄 위의 라벨.
-  static const homeMatchPartyLabel = '참여자';
 
   // 히어로 — 혼자 달리게 된 방 (시안 158:3029 자리)
   //
@@ -647,10 +633,6 @@ abstract final class AppStrings {
   // `대안 매칭하기`·`매칭 재등록`도 쓰지 않는다.
 
   static const homeMatchSoloTitle = '혼자 달리게 됐어요';
-
-  /// ⚠️ **예약이 그대로라는 것**을 말한다. 이 줄이 없으면 신청이 날아간 줄
-  /// 안다. 혼자가 됐다는 것은 제목([homeMatchSoloTitle])이 말한다.
-  static const homeMatchSoloBody = '예약한 시간에 그대로 달려요';
 
   /// 확정된 방으로 들어가는 문.
   ///
@@ -1914,14 +1896,7 @@ abstract final class AppStrings {
   /// 서고, 방을 만든 사람은 **최소 10분**을 거기서 기다린다.
   static const homeInviteWaitingTitle = '초대 러닝 대기 중';
 
-  /// 혼자일 때. 매칭의 `아직 함께 달릴 러너를 찾고 있어요`는 **찾는 중**이라는
-  /// 뜻이라 초대에 맞지 않는다.
-  static const homeInviteWaitingAlone = '초대한 러너의 답을 기다리고 있어요';
-
-  /// 사람이 들어왔을 때. 초대 방은 매칭이 아니라 수락이라 매칭 문구를 쓰지 않는다.
-  static String homeInviteJoined(int count) => '$count명이 함께 뛰어요';
-
-  /// 부제 둘째 줄. 매칭의 [homeMatchWaitingHint]는 "신청"이라 맞지 않는다 —
+  /// 부제. 매칭의 [homeMatchWaitingHint]는 "신청"이라 맞지 않는다 —
   /// 초대 방은 신청한 것이 아니라 방을 만들었거나 초대를 받아 들어왔다.
   static const homeInviteWaitingHint = '앱을 꺼도 방은 그대로예요';
 

@@ -5,6 +5,7 @@ import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/features/home/presentation/home_hero_shade.dart';
 
 /// 기본 — 아직 매칭 중이 아니다. 시안 `158:2848`.
 ///
@@ -14,13 +15,10 @@ class HomeIdle extends StatelessWidget {
   const HomeIdle({
     required this.onMatch,
     required this.now,
-    this.name,
     this.cooldownUntil,
     super.key,
   });
 
-  /// 부를 이름. 없으면 그 줄을 뺀다.
-  final String? name;
   final VoidCallback onMatch;
 
   /// 지금. **부르는 쪽이 갈아끼운다** — 제한이 풀리는 순간 버튼이 열려야 한다.
@@ -33,22 +31,22 @@ class HomeIdle extends StatelessWidget {
   /// 하단 칸(`ActionTileV2`)이라 여기서 잠글 것도 없다.
   final DateTime? cooldownUntil;
 
-  /// 시안 `158:2860`의 높이.
-  static const _height = 452.0;
+  /// 시안 `158:2860`은 452다. 매칭 버튼이 화면 가운데쯤 오도록 340으로
+  /// 줄였다 — 상태 카드 모두 같은 높이다.
+  static const _height = 340.0;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
     final until = cooldownUntil;
     final locked = until != null && until.isAfter(now);
-    final called = name;
 
     return ClipRRect(
       borderRadius: AppRadius.card,
       child: SizedBox(
         // ⚠️ **높이를 고정한다.**
         //
-        // 시안이 452 이기도 하지만, 그보다 **`Spacer`가 무한한 높이 안에서는
+        // 정해 둔 높이가 있기도 하지만, 그보다 **`Spacer`가 무한한 높이 안에서는
         // 못 산다.** 이 위젯은 `ListView` 안에 들어가 높이가 위에서 내려오지
         // 않는다 — 안 걸면 제목과 버튼을 카드 양 끝으로 밀 수가 없고
         // 레이아웃이 그 자리에서 죽는다.
@@ -56,22 +54,25 @@ class HomeIdle extends StatelessWidget {
         child: Stack(
           children: [
             const Positioned.fill(child: _IdleLight()),
+            const Positioned.fill(
+              child: HomeHeroShade(light: HomeHeroLight.bottom),
+            ),
             Padding(
-              padding: const EdgeInsets.all(AppSpacing.space6),
+              // 다른 상태 카드와 같은 틀 — 제목은 위 24, 좌우·아래는 16.
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.space4,
+                AppSpacing.space6,
+                AppSpacing.space4,
+                AppSpacing.space4,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: AppSpacing.space3),
-
                   Text(
-                    // ⚠️ 이름이 없으면 **줄째 뺀다.** `님`만 남으면 이름을 잃은 것처럼
-                    // 보이고, 빈 줄을 두면 제목이 아래로 밀린다.
-                    called == null || called.isEmpty
-                        ? AppStrings.homeHeroPrompt
-                        : '${AppStrings.homeHeroName(called)}\n${AppStrings.homeHeroPrompt}',
+                    AppStrings.homeHeroPrompt,
                     textAlign: TextAlign.center,
                     style: AppTypographyV2.heading03.copyWith(
-                      color: colors.textPrimary,
+                      color: colors.textStrong,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.space3),

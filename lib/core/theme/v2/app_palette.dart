@@ -48,6 +48,13 @@ abstract final class AppPaletteV2 {
   /// 같은 이유로 구글 타일의 바탕은 [neutral50]이 아니라 흰색 계열 고정값이다.
   static const kakaoYellow = Color(0xFFFFE600);
 
+  /// 홈 모집 중 카드의 동심원 빛 — 링 안쪽 끝의 가장 짙은 색.
+  ///
+  /// 시안 `158:2951`을 구워 쓰던 배경 그림(지운 `home_waiting_bg.webp`)에서
+  /// 쟀다. 그 그림을 코드로 다시 그리는 색이라 테마가 바뀌어도 이 값이다 —
+  /// [kakaoYellow]처럼 팔레트에 둔다. 바탕은 [neutral900]이다.
+  static const ringGlow = Color(0xFF244677);
+
   /// 본문 글자. 시안이 `--label/normal`로 쓰는 값이다.
   ///
   /// [neutral900]과 두 자리만 다르다(`171717` / `171719`). 시안이 둘을 따로

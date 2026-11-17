@@ -6,6 +6,8 @@ import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/fact_row.dart';
+import 'package:runiverse/core/widgets/v2/runner_avatar.dart';
+import 'package:runiverse/features/home/presentation/home_hero_shade.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 
 /// 상대를 못 만나 **혼자 달리게 된 방** — 시안 `158:3029`의 자리.
@@ -40,8 +42,11 @@ class HomeSoloRoom extends StatelessWidget {
 
   final VoidCallback onLobby;
 
-  /// 시안 `158:3030`의 높이.
-  static const _height = 452.0;
+  /// 시안 `158:3030`은 452다. 340으로 줄였다 — 상태 카드 모두 같은 높이다.
+  static const _height = 340.0;
+
+  /// 내 사진. 확정 카드의 참여자 동그라미와 같은 크기다.
+  static const _avatarSize = 56.0;
 
   /// 이 방이 **혼자 달리게 된 방**인가.
   ///
@@ -73,13 +78,17 @@ class HomeSoloRoom extends StatelessWidget {
                 excludeFromSemantics: true,
               ),
             ),
+            const Positioned.fill(
+              child: HomeHeroShade(light: HomeHeroLight.top),
+            ),
 
             Padding(
               padding: const EdgeInsets.all(AppSpacing.space4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: AppSpacing.space5),
+                  // 다른 상태 카드와 같이 제목을 위 24(안쪽 여백 16 + 8)에 둔다.
+                  const SizedBox(height: AppSpacing.space2),
                   Text(
                     AppStrings.homeMatchSoloTitle,
                     textAlign: TextAlign.center,
@@ -87,15 +96,9 @@ class HomeSoloRoom extends StatelessWidget {
                       color: colors.textStrong,
                     ),
                   ),
+                  // 설명 줄 없이 시간표를 확정 카드와 같은 높이에 둔다 —
+                  // 예약한 시각에 달린다는 것은 시간표가 말한다.
                   const SizedBox(height: AppSpacing.space3),
-                  Text(
-                    AppStrings.homeMatchSoloBody,
-                    textAlign: TextAlign.center,
-                    style: AppTypographyV2.body07.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.space6),
 
                   FactRowV2(
                     facts: [
@@ -113,6 +116,19 @@ class HomeSoloRoom extends StatelessWidget {
                       ),
                     ],
                   ),
+
+                  // 확정 카드의 참여자 줄 자리에 내 사진 하나. [shows]가 참이면
+                  // 명단은 나뿐이다. 명단을 모르면 확정 카드처럼 그리지 않는다.
+                  if (room.players.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.space5),
+                    Center(
+                      child: RunnerAvatarV2(
+                        nickname: room.players.first.nickname,
+                        imageUrl: room.players.first.profileImageUrl,
+                        size: _avatarSize,
+                      ),
+                    ),
+                  ],
 
                   const Spacer(),
 
