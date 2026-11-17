@@ -146,8 +146,11 @@ class _IdleLight extends StatelessWidget {
   Widget build(BuildContext context) {
     return Image.asset(
       'assets/images/home_hero_light.webp',
-      // 카드 폭이 기기마다 다르다. 빛은 가장자리가 없어 늘려도 티가 안 난다.
-      fit: BoxFit.cover,
+      // ⚠️ **그림 전체를 카드에 눌러 담는다.** 그림은 시안 높이 452용이라
+      // `cover`로 340 카드를 채우면 위 25%가 잘려, 빛줄기가 위로 가며 사라지는
+      // 끝이 없어지고 테두리에서 끊겨 보인다. 빛은 가장자리가 없어 늘리거나
+      // 눌러도 티가 안 나고, 카드 폭이 기기마다 다른 것도 같이 맞춘다.
+      fit: BoxFit.fill,
       alignment: Alignment.bottomCenter,
       // 사람이 읽을 것이 아니라 분위기다. 스크린리더가 읽을 것이 없다.
       excludeFromSemantics: true,
