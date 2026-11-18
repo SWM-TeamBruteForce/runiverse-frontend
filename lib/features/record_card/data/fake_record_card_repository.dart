@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
@@ -77,10 +78,61 @@ class FakeRecordCardRepository implements RecordCardRepository {
     queries.add((from: start, to: end));
 
     return [
-      for (final card in _all())
+      for (final card in [..._all(), ..._created])
         if (!card.day.isBefore(start) && !card.day.isAfter(end)) card,
     ]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
   }
+
+  /// 이 앱이 만든 카드들. **앱을 끄면 사라진다.**
+  ///
+  /// ⚠️ 영속화하지 않는다 — 서버가 올 자리에 로컬 DB를 세우면 서버가 붙는 날
+  /// 두 번 걷어내야 한다.
+  final _created = <RecordCard>[];
+
+  /// 몇 번 만들었나. 저장을 두 번 누르지 않았는지 보는 데 쓴다.
+  var creates = 0;
+
+  @override
+  Future<RecordCard> create(NewRecordCard card) async {
+    creates++;
+
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (failWith != null) throw RecordCardException(failWith!);
+
+    // ⚠️ **목 데이터와 번호가 겹치면 안 된다.** 겹치면 달력이 두 장을 한 장으로
+    // 보고 상세가 엉뚱한 것을 연다. 목은 `1000 +`, 사진은 `index * 10 +`을
+    // 쓰므로 한참 위에서 센다.
+    final id = _nextCardId++;
+    final made = RecordCard(
+      id: id,
+      runningRecordId: card.record.id,
+      startedAt: card.record.startedAt,
+      activity: card.activity,
+      visibility: card.visibility,
+      reviewText: card.reviewText,
+      photos: [
+        for (var i = 0; i < card.photos.length; i++)
+          RecordCardPhoto(
+            id: id * 10 + i,
+            url: card.photos[i].path,
+            thumbnailUrl: card.photos[i].thumbnailPath,
+            caption: card.photos[i].caption,
+          ),
+      ],
+      route: card.route,
+      distanceMeters: card.record.distanceMeters,
+      duration: card.record.duration,
+      averagePace: card.record.averagePace,
+      // ⚠️ **비어 있다.** `RunRecord`는 `playerCount`만 알고 함께 뛴 사람의
+      // 닉네임·프로필은 모른다. 서버가 붙으면 응답이 싣는다(설계 3절).
+      runners: const [],
+    );
+    _created.add(made);
+    return made;
+  }
+
+  /// 다음 카드 번호. 목 데이터(`1000 +`)와 겹치지 않는 자리에서 시작한다.
+  var _nextCardId = 9000;
 
   /// 오늘로부터 며칠 전 · 몇 시 · 유형 · 사진 수 · 공개범위 · 거리(m) · 시간(초).
   ///

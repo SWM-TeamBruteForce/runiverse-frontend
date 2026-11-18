@@ -12,6 +12,7 @@ import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record/domain/run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record_card/domain/card_draft.dart';
+import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
@@ -121,6 +122,11 @@ class _Cards implements RecordCardRepository {
     required DateTime from,
     required DateTime to,
   }) async => cards;
+
+  /// 이 테스트는 **읽기만** 본다. 불리면 테스트가 잘못 세워진 것이다.
+  @override
+  Future<RecordCard> create(NewRecordCard card) =>
+      throw UnsupportedError('이 테스트는 카드를 만들지 않는다');
 }
 
 Future<void> _pump(

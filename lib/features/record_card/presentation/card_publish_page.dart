@@ -6,8 +6,10 @@ import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
+import 'package:runiverse/features/record_card/presentation/card_save_provider.dart';
 import 'package:runiverse/features/record_card/presentation/visibility_label.dart';
 
 /// 기록카드 작성 3 — 공개범위 · 음악 (설계 6-4).
@@ -23,16 +25,22 @@ import 'package:runiverse/features/record_card/presentation/visibility_label.dar
 /// 작성 2와 같다 — 버릴지 묻는 것은 **작성 1의 뒤로가기에서만** 한다
 /// (설계 7절).
 class CardPublishPage extends ConsumerWidget {
-  const CardPublishPage({this.cardId, super.key});
+  const CardPublishPage({this.cardId, this.onSaved, super.key});
 
   /// 수정 중인 카드 번호. `null`이면 새 카드다.
   final int? cardId;
+
+  /// 만든 카드를 어디로 보낼까. **라우트를 아는 쪽이 정한다**(다음 Task) —
+  /// 여기서 `context.push`를 부르면 이 화면이 라우터에 매여 테스트가 무거워진다.
+  final void Function(RecordCard card)? onSaved;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColorsV2;
     final draft = ref.watch(cardDraftProvider(cardId));
     final controller = ref.read(cardDraftProvider(cardId).notifier);
+    final save = ref.watch(cardSaveProvider(cardId));
+    final saving = save is CardSaveSaving;
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -40,7 +48,8 @@ class CardPublishPage extends ConsumerWidget {
         backgroundColor: colors.bgBase,
         leading: IconButton(
           icon: const Icon(LucideIcons.chevronLeft),
-          onPressed: () => Navigator.of(context).maybePop(),
+          // 도는 동안 나가면 만들어진 카드를 아무도 안 받는다.
+          onPressed: saving ? null : () => Navigator.of(context).maybePop(),
         ),
         title: Text(
           AppStrings.recordCardPublishTitle,
@@ -48,12 +57,23 @@ class CardPublishPage extends ConsumerWidget {
         ),
         centerTitle: true,
         actions: [
-          TextButton(
-            // ⚠️ **아직 아무것도 만들지 않는다.** 자르기·썸네일·저장이 다음
-            // Task다. 이 묶음은 저장이 붙은 뒤에야 PR로 나간다.
-            onPressed: draft.canProceed ? () {} : null,
-            child: Text(AppStrings.recordCardPublishSave),
-          ),
+          if (saving)
+            // ⚠️ **버튼을 진행 표시로 바꾼다.** `onPressed: null`만 두면
+            // 눌리지 않는 이유가 안 보여, 사용자가 계속 누른다.
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: AppSpacing.space4),
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else
+            TextButton(
+              onPressed: draft.canProceed ? () => _save(context, ref) : null,
+              child: Text(AppStrings.recordCardPublishSave),
+            ),
         ],
       ),
       body: SafeArea(
@@ -87,12 +107,31 @@ class CardPublishPage extends ConsumerWidget {
             const SizedBox(height: AppSpacing.space5),
             _MusicToggle(
               enabled: draft.musicEnabled,
-              onChanged: controller.setMusicEnabled,
+              onChanged: saving ? null : controller.setMusicEnabled,
             ),
           ],
         ),
       ),
     );
+  }
+
+  /// 저장하고, 만들어졌으면 [onSaved]에 넘긴다.
+  ///
+  /// ## ⚠️ 실패하면 화면에 머문다
+  ///
+  /// 초안은 그대로 남아 있다(`CardSaveController.save`). 나가 버리면 쓴 글을
+  /// 다시 쓸 길이 없다 — 초안은 영속화하지 않는다.
+  Future<void> _save(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final card = await ref.read(cardSaveProvider(cardId).notifier).save();
+
+    if (card == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text(AppStrings.recordCardPublishSaveFailed)),
+      );
+      return;
+    }
+    onSaved?.call(card);
   }
 }
 
@@ -189,7 +228,9 @@ class _MusicToggle extends StatelessWidget {
   const _MusicToggle({required this.enabled, required this.onChanged});
 
   final bool enabled;
-  final ValueChanged<bool> onChanged;
+
+  /// `null`이면 저장이 도는 중이다 — 바꿔도 이미 보낸 값에 반영되지 않는다.
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {

@@ -3,11 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/features/profile/domain/image_cropper.dart';
+import 'package:runiverse/features/profile/domain/picked_image.dart';
+import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
+import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
+import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_publish_page.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 import 'package:runiverse/features/record_card/presentation/visibility_label.dart';
 
 /// 기록카드 작성 3 — 공개범위 · 음악 (설계 6-4).
@@ -119,6 +126,49 @@ void main() {
 
       expect(_saveEnabled(tester), isFalse);
     });
+
+    testWidgets('누르면 카드를 만들어 넘긴다', (tester) async {
+      RecordCard? saved;
+      await _pump(tester, onSaved: (card) => saved = card);
+
+      await tester.tap(find.text(AppStrings.recordCardPublishSave));
+      await tester.pumpAndSettle();
+
+      expect(saved, isNotNull);
+      expect(saved!.reviewText, '좋았다');
+    });
+
+    testWidgets('⚠️ 도는 동안 버튼이 진행 표시로 바뀐다', (tester) async {
+      // `onPressed: null`만 두면 눌리지 않는 이유가 안 보여 계속 누른다.
+      await _pump(tester, delay: const Duration(milliseconds: 50));
+
+      await tester.tap(find.text(AppStrings.recordCardPublishSave));
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsOne);
+      expect(find.text(AppStrings.recordCardPublishSave), findsNothing);
+
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.recordCardPublishSave), findsOne);
+    });
+
+    testWidgets('⚠️ 실패하면 화면에 머물고 왜인지 말한다', (tester) async {
+      RecordCard? saved;
+      final container = await _pump(
+        tester,
+        failWith: RecordCardFailure.network,
+        onSaved: (card) => saved = card,
+      );
+
+      await tester.tap(find.text(AppStrings.recordCardPublishSave));
+      await tester.pumpAndSettle();
+
+      expect(saved, isNull);
+      expect(find.text(AppStrings.recordCardPublishSaveFailed), findsOne);
+      expect(find.byType(CardPublishPage), findsOne);
+      // 쓴 글이 남아 있어야 다시 누를 수 있다.
+      expect(container.read(cardDraftProvider(null)).reviewText, '좋았다');
+    });
   });
 
   testWidgets('⚠️ 고른 것과 안 고른 것이 갈라 읽힌다', (tester) async {
@@ -192,8 +242,23 @@ Future<ProviderContainer> _pump(
   WidgetTester tester, {
   bool light = false,
   bool empty = false,
+  Duration delay = Duration.zero,
+  RecordCardFailure? failWith,
+  void Function(RecordCard card)? onSaved,
 }) async {
-  final container = ProviderContainer();
+  final container = ProviderContainer(
+    overrides: [
+      recordCardRepositoryProvider.overrideWithValue(
+        FakeRecordCardRepository(
+          today: DateTime(2026, 11, 18),
+          delay: delay,
+          failWith: failWith,
+        ),
+      ),
+      // 진짜는 `dart:ui`와 플랫폼 플러그인을 써서 테스트 환경에 없다.
+      imageCropperProvider.overrideWithValue(_Cropper()),
+    ],
+  );
   addTearDown(container.dispose);
   final handle = container.listen(
     cardDraftProvider(null),
@@ -214,10 +279,24 @@ Future<ProviderContainer> _pump(
       container: container,
       child: MaterialApp(
         theme: light ? AppTheme.light() : AppTheme.dark(),
-        home: const CardPublishPage(),
+        home: CardPublishPage(onSaved: onSaved),
       ),
     ),
   );
   await tester.pumpAndSettle();
   return container;
+}
+
+/// 자르지 않고 받은 경로를 그대로 돌려준다.
+class _Cropper implements ImageCropper {
+  @override
+  Future<PickedImage> crop(
+    PickedImage image, {
+    required double aspectRatio,
+    required double alignY,
+    double alignX = 0,
+  }) async => image;
+
+  @override
+  Future<void> discard(PickedImage cropped) async {}
 }

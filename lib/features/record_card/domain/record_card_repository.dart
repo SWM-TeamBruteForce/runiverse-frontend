@@ -1,3 +1,4 @@
+import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 
 /// 기록카드를 읽는다.
@@ -27,6 +28,18 @@ abstract interface class RecordCardRepository {
     required DateTime from,
     required DateTime to,
   });
+
+  /// 카드를 만든다. **만들어진 카드를 그대로 돌려준다** — 부르는 쪽이 바로
+  /// 상세로 보내야 하고, 상세 라우트가 카드를 `extra`로 요구한다.
+  ///
+  /// ## ⚠️ 서버 흐름이 이것과 다를 수 있다
+  ///
+  /// 3차 명세의 작성은 `POST /record-cards` → `drafts/{id}/complete` **두
+  /// 단계**이고, 사진을 그 사이에 올리라는 뜻으로 보인다. 어느 시점에 draft를
+  /// 만드는지 물어 두었다(`docs/notes/2026-11-16-record-card-backend-questions.md`
+  /// 6-1번). 답이 오면 이 한 메서드가 두 번의 왕복으로 갈라질 수 있다 —
+  /// **화면은 바뀌지 않는다.** 화면은 끝까지 쓴 뒤 한 번 저장한다.
+  Future<RecordCard> create(NewRecordCard card);
 }
 
 /// 카드를 못 읽은 이유.

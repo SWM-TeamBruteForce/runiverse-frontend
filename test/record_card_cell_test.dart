@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/widgets/profile_photo_image.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
@@ -192,5 +193,41 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.byType(RouteArtView), findsOneWidget);
+  });
+
+  group('cardThumbnail', () {
+    testWidgets('⚠️ 주소의 꼴마다 읽는 데가 다르다', (tester) async {
+      // 올릴 엔드포인트가 없어 방금 만든 카드의 사진은 기기 안 임시 파일이다.
+      // 이 분기가 없으면 `ProfilePhotoImage`가 파일 경로를 URL로 치고 받으려
+      // 한다.
+      late BuildContext captured;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(),
+          home: Builder(
+            builder: (context) {
+              captured = context;
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      expect(
+        cardThumbnail(captured, 'assets/images/a.jpg'),
+        isA<AssetImage>(),
+        reason: 'Fake 목 데이터는 번들 에셋이다',
+      );
+      expect(
+        cardThumbnail(captured, 'https://x.example/a.jpg?sig=1'),
+        isA<ProfilePhotoImage>(),
+        reason: '서명이 달라져도 경로가 같으면 다시 받지 않는다',
+      );
+      expect(
+        cardThumbnail(captured, '/data/user/0/cache/cropped.jpg'),
+        isA<FileImage>(),
+        reason: '방금 잘라 둔, 아직 올리지 않은 사진이다',
+      );
+    });
   });
 }

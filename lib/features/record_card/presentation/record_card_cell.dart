@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
@@ -202,11 +204,20 @@ class RunShoeMark extends StatelessWidget {
 /// **HTTP 구현체가 붙으면 이 분기를 지운다** — 안 지우면 서버가 `assets/`로
 /// 시작하는 키를 주는 날 조용히 깨진다.
 ///
+/// ## ⚠️ `http`로 시작하지 않으면 기기 안 파일이다
+///
+/// 올릴 엔드포인트가 아직 없어(3차 명세에 사진 업로드가 없다) 방금 만든 카드의
+/// 사진은 **잘라 둔 임시 파일**이다. **이 분기는 HTTP 구현체가 붙어도 남는다**
+/// — 올리기 전의 카드를 그려야 한다.
+///
 /// 서명이 붙은 주소는 [ProfilePhotoImage]에 맡긴다. 조회할 때마다 서명이
 /// 달라져도 **경로가 같으면 다시 받지 않는다.**
+///
+/// 순서가 중요하다. `assets/` → 번들, `http` → 망, 나머지 → 파일.
 ImageProvider<Object> cardThumbnail(BuildContext context, String url) {
   if (url.startsWith('assets/')) return AssetImage(url);
-  return ProfilePhotoImage(url);
+  if (url.startsWith('http')) return ProfilePhotoImage(url);
+  return FileImage(File(url));
 }
 
 class _DayNumber extends StatelessWidget {

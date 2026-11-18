@@ -4,6 +4,7 @@ import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record/domain/run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record_card/domain/composable_record.dart';
+import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
@@ -91,6 +92,11 @@ class _Cards implements RecordCardRepository {
     if (delay > Duration.zero) await Future<void>.delayed(delay);
     return cards;
   }
+
+  /// 이 테스트는 **읽기만** 본다. 불리면 테스트가 잘못 세워진 것이다.
+  @override
+  Future<RecordCard> create(NewRecordCard card) =>
+      throw UnsupportedError('이 테스트는 카드를 만들지 않는다');
 }
 
 class _FailingCards implements RecordCardRepository {
@@ -99,6 +105,11 @@ class _FailingCards implements RecordCardRepository {
     required DateTime from,
     required DateTime to,
   }) async => throw const RecordCardException(RecordCardFailure.network);
+
+  /// 이 테스트는 **읽기만** 본다. 불리면 테스트가 잘못 세워진 것이다.
+  @override
+  Future<RecordCard> create(NewRecordCard card) =>
+      throw UnsupportedError('이 테스트는 카드를 만들지 않는다');
 }
 
 /// ⚠️ **구독을 붙이고 읽는다.** `autoDispose` provider 는 듣는 사람이 없으면
