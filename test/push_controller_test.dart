@@ -491,6 +491,20 @@ void main() {
       expect(app.messaging.cleared, ['125']);
     });
 
+    test('iOS에는 같은 판단을 보일 방식으로 답한다', () async {
+      // iOS는 OS가 그린다 — 앱은 OS가 띄우려 할 때 답만 한다.
+      final app = build(initial: me);
+      final decide = app.messaging.decide!;
+
+      expect(decide(chatIn('125')), ForegroundAlert.quiet);
+      push(app.container).viewChat('125');
+      expect(decide(chatIn('125')), ForegroundAlert.none);
+      expect(
+        decide(const ReceivedPush(data: {'type': 'RUNNING_REMINDER'})),
+        ForegroundAlert.none,
+      );
+    });
+
     test('채팅이 아닌 푸시는 그리지 않는다', () async {
       // 같은 알림이 SSE로 알림함에 들어온다. 그리면 두 번 알린다.
       final app = build(initial: me);
@@ -533,6 +547,21 @@ void main() {
       await settle();
 
       expect(app.messaging.notices, isEmpty);
+    });
+
+    test('iOS에는 팝업으로 답한다', () async {
+      final app = build(initial: me);
+
+      expect(
+        app.messaging.decide!(
+          const ReceivedPush(
+            data: {'type': 'NOTICE'},
+            title: '점검 안내',
+            body: '오늘 밤 2시에 점검해요',
+          ),
+        ),
+        ForegroundAlert.banner,
+      );
     });
   });
 }
@@ -595,6 +624,13 @@ class _FakeMessaging implements PushMessaging {
     required String title,
     required String body,
   }) async => notices.add('$title/$body');
+
+  /// 컨트롤러가 맡긴 켜진 앱 알림 판단. iOS가 OS 대신 묻는 곳이다.
+  ForegroundAlert Function(ReceivedPush push)? decide;
+
+  @override
+  void decideForeground(ForegroundAlert Function(ReceivedPush push) decide) =>
+      this.decide = decide;
 }
 
 /// 받은 등록을 `기기/토큰`으로 적어 둔다.

@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:runiverse/features/notification/data/android_chat_notifications.dart';
+import 'package:runiverse/features/notification/data/ios_push_channel.dart';
 import 'package:runiverse/features/notification/data/notification_access_mapper.dart';
 import 'package:runiverse/features/notification/domain/chat_push.dart';
 import 'package:runiverse/features/notification/domain/push_messaging.dart';
@@ -33,13 +34,19 @@ import 'package:runiverse/features/session/domain/permission_access.dart';
 /// 공지는 SSE 알림함에 들어가지 않는다. 배너를 띄우지 않으면 앱을 보고 있던
 /// 사람은 공지를 못 본다. 그래서 `PushController`가 채팅과 같은 도구로 팝업을
 /// 쌓는다.
+///
+/// ## 예외 — iOS 켜진 앱의 채팅·공지
+///
+/// 안드로이드와 같은 규칙으로 보인다. 다만 그리는 것은 OS다 — 서버가 둘 다 알림으로
+/// 보내므로, 앱은 OS가 띄우려 할 때 보일 방식만 답한다([IosPushChannel]).
+/// 전역 `setForegroundNotificationPresentationOptions`는 종류를 고르지 못해 쓰지 않는다.
 class FirebasePushMessaging implements PushMessaging {
   FirebasePushMessaging({
     FirebaseMessaging? messaging,
     AndroidChatNotifications? chat,
   }) : _messaging = messaging ?? FirebaseMessaging.instance,
-       _chat =
-           chat ?? (Platform.isAndroid ? AndroidChatNotifications() : null) {
+       _chat = chat ?? (Platform.isAndroid ? AndroidChatNotifications() : null),
+       _ios = Platform.isIOS ? const IosPushChannel() : null {
     // ⚠️ **앱이 뜰 때 바로 준비한다.** 채팅 알림을 누른 것은 준비된 뒤에야
     // [opened]로 들어온다.
     unawaited(_chat?.start(listenTaps: true));
@@ -49,6 +56,9 @@ class FirebasePushMessaging implements PushMessaging {
 
   /// 안드로이드에서만 있다. iOS는 서버가 알림으로 보내 OS가 띄운다.
   final AndroidChatNotifications? _chat;
+
+  /// iOS에서만 있다.
+  final IosPushChannel? _ios;
 
   /// ⚠️ **던지지 않는다.** 셸이 기다리지 않고 부르므로, 던지면 처리되지 않은
   /// 오류가 되어 Crashlytics에 치명 오류로 쌓인다.
@@ -122,14 +132,20 @@ class FirebasePushMessaging implements PushMessaging {
       _chat?.show(push, quiet: quiet);
 
   @override
-  Future<void> clearChat(String runningRoomId) async =>
-      _chat?.clear(runningRoomId);
+  Future<void> clearChat(String runningRoomId) async {
+    await _chat?.clear(runningRoomId);
+    await _ios?.clearChat(runningRoomId);
+  }
 
   @override
   Future<void> showNotice({
     required String title,
     required String body,
   }) async => _chat?.showNotice(title: title, body: body);
+
+  @override
+  void decideForeground(ForegroundAlert Function(ReceivedPush push) decide) =>
+      _ios?.decideForeground(decide);
 
   static OpenedPush _openedOf(RemoteMessage message) =>
       OpenedPush(messageId: message.messageId, data: message.data);

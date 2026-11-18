@@ -40,6 +40,24 @@ abstract interface class PushMessaging {
   /// 공지를 화면 위 팝업으로 띄우고 알림창에 남긴다(앱이 켜져 있을 때). **안드로이드에서만
   /// 그린다.**
   Future<void> showNotice({required String title, required String body});
+
+  /// 앱이 켜져 있을 때 OS가 띄우려는 알림을 어떻게 보일지 [decide]에 묻게 한다.
+  ///
+  /// **iOS에서만 묻는다** — iOS는 서버가 보낸 알림을 OS가 띄우고 앱은 보일 방식만
+  /// 고른다. 안드로이드는 [received]를 듣는 쪽이 [showChat]·[showNotice]로 그린다.
+  void decideForeground(ForegroundAlert Function(ReceivedPush push) decide);
+}
+
+/// 앱이 켜져 있을 때 받은 푸시를 어떻게 보일까.
+enum ForegroundAlert {
+  /// 띄우지 않는다.
+  none,
+
+  /// 화면 위로 내려오는 팝업 없이 알림창에만 쌓는다. 소리는 폰 설정을 따른다.
+  quiet,
+
+  /// 화면 위 팝업을 띄우고 알림창에 남긴다.
+  banner,
 }
 
 /// 앱이 켜져 있을 때 받은 푸시 하나.
@@ -100,4 +118,7 @@ class NoopPushMessaging implements PushMessaging {
     required String title,
     required String body,
   }) async {}
+
+  @override
+  void decideForeground(ForegroundAlert Function(ReceivedPush push) decide) {}
 }

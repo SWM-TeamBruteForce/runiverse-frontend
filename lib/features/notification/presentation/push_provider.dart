@@ -141,6 +141,7 @@ class PushController extends Notifier<PushLanding?> {
         ),
       )
       ..add(_messaging.received.listen(_onReceived, onError: _onError));
+    _messaging.decideForeground(_foregroundAlert);
     unawaited(_readInitialOpened());
   }
 
@@ -327,35 +328,52 @@ class PushController extends Notifier<PushLanding?> {
     state = landing;
   }
 
-  /// 앱이 켜져 있을 때 받은 푸시. **대기방 채팅과 공지만** 알림창에 쌓는다.
+  /// 앱이 켜져 있을 때 받은 푸시를 안드로이드에서 그린다. 무엇을 띄울지는
+  /// [_foregroundAlert]가 정한다 — iOS는 같은 답을 OS에 넘긴다.
+  void _onReceived(ReceivedPush received) {
+    switch (_foregroundAlert(received)) {
+      case ForegroundAlert.none:
+        return;
+      case ForegroundAlert.quiet:
+        final push = ChatPush.of(received.data);
+        if (push == null) return;
+        debugPrint('[push] 켜진 앱이 채팅 푸시를 받았다');
+        unawaited(_messaging.showChat(push, quiet: true));
+      case ForegroundAlert.banner:
+        final title = received.title;
+        final body = received.body;
+        if (title == null || body == null) return;
+        debugPrint('[push] 켜진 앱이 공지 푸시를 받았다');
+        unawaited(_messaging.showNotice(title: title, body: body));
+    }
+  }
+
+  /// 앱이 켜져 있을 때 받은 푸시를 어떻게 보일까. **대기방 채팅과 공지만** 띄운다.
   ///
-  /// 다른 푸시는 같은 알림이 앱 스트림(SSE)으로 알림함에 들어오므로 그리지 않는다.
-  /// 채팅·공지는 알림함에 들어가지 않아, 그리지 않으면 앱을 켜 둔 채 폰을 내려놓은
+  /// 다른 푸시는 같은 알림이 앱 스트림(SSE)으로 알림함에 들어오므로 띄우지 않는다.
+  /// 채팅·공지는 알림함에 들어가지 않아, 띄우지 않으면 앱을 켜 둔 채 폰을 내려놓은
   /// 사람이 놓친다.
   ///
   /// - 채팅은 팝업 없이 쌓는다(`quiet`) — 보던 화면을 가리지 않는다. 소리는 폰
-  ///   설정을 따른다. 공지는 팝업을 띄운다(`showNotice`).
-  /// - **그 방 채팅 화면을 보고 있으면 아무것도 하지 않는다** — 화면에 이미 떴다.
+  ///   설정을 따른다.
+  /// - **그 방 채팅 화면을 보고 있으면 띄우지 않는다** — 화면에 이미 떴다.
   ///   가려져 있으면 보고 있는 것이 아니다.
-  void _onReceived(ReceivedPush received) {
-    if (received.data['type'] == 'NOTICE') return _onNotice(received);
+  /// - 공지는 팝업을 띄운다. 서버가 알림 블록(제목·내용)에 문구를 싣고 data에는
+  ///   `type`만 둔다.
+  ForegroundAlert _foregroundAlert(ReceivedPush received) {
+    if (received.data['type'] == 'NOTICE') {
+      if (received.title == null || received.body == null) {
+        return ForegroundAlert.none;
+      }
+      return ForegroundAlert.banner;
+    }
     final push = ChatPush.of(received.data);
-    if (push == null) return;
+    if (push == null) return ForegroundAlert.none;
     if (push.runningRoomId == _viewingChat && (_chatOnTop?.call() ?? true)) {
       debugPrint('[push] 보고 있는 채팅 방이라 알림을 띄우지 않는다');
-      return;
+      return ForegroundAlert.none;
     }
-    debugPrint('[push] 켜진 앱이 채팅 푸시를 받았다');
-    unawaited(_messaging.showChat(push, quiet: true));
-  }
-
-  /// 공지. 서버가 알림 블록(제목·내용)에 문구를 싣고 data에는 `type`만 둔다.
-  void _onNotice(ReceivedPush received) {
-    final title = received.title;
-    final body = received.body;
-    if (title == null || body == null) return;
-    debugPrint('[push] 켜진 앱이 공지 푸시를 받았다');
-    unawaited(_messaging.showNotice(title: title, body: body));
+    return ForegroundAlert.quiet;
   }
 
   void _onError(Object error) {
