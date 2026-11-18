@@ -653,6 +653,20 @@ void main() {
       await unmount(tester, container);
     });
 
+    testWidgets('⚠️ 초대 방은 match가 아니라 invite로 남는다', (tester) async {
+      // 초대 방도 `isMatched`가 참이다. 그것만 보면 직접 모은 방이 매칭
+      // 퍼널에 섞인다.
+      final container = await pumpRunning(tester);
+      await container.read(runningConnectionProvider.notifier).close();
+      await container
+          .read(runningConnectionProvider.notifier)
+          .openMatched(2, type: RoomType.invite);
+      await reconnect(tester);
+
+      expect(analytics.paramsOf('run_start'), {'run_type': 'invite'});
+      await unmount(tester, container);
+    });
+
     testWidgets('⚠️ 다음 러닝이 멈춤을 들고 가지 않는다', (tester) async {
       // 표식을 안 되돌리면 **다음 러닝이 붙자마자 `PAUSE`를 보낸다** — 이
       // 길을 타고서다.

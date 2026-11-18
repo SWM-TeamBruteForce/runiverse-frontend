@@ -5,6 +5,7 @@ import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
+import 'package:runiverse/features/home/presentation/home_hero_shade.dart';
 
 /// 기본 — 아직 매칭 중이 아니다. 시안 `158:2848`.
 ///
@@ -14,14 +15,18 @@ class HomeIdle extends StatelessWidget {
   const HomeIdle({
     required this.onMatch,
     required this.now,
-    this.name,
     this.cooldownUntil,
+    this.waitingCount,
     super.key,
   });
 
-  /// 부를 이름. 없으면 그 줄을 뺀다.
-  final String? name;
   final VoidCallback onMatch;
+
+  /// 오늘 아직 들어갈 수 있는 칸에 기다리는 사람 수(`HOME_WAITING`).
+  ///
+  /// `null`이나 0이면 줄째 뺀다 — `0명이 기다리고 있어요`는 신청을 말린다.
+  /// 값이 아직 안 왔거나 90초 동안 끊겨도 `null`이다.
+  final int? waitingCount;
 
   /// 지금. **부르는 쪽이 갈아끼운다** — 제한이 풀리는 순간 버튼이 열려야 한다.
   final DateTime now;
@@ -33,22 +38,23 @@ class HomeIdle extends StatelessWidget {
   /// 하단 칸(`ActionTileV2`)이라 여기서 잠글 것도 없다.
   final DateTime? cooldownUntil;
 
-  /// 시안 `158:2860`의 높이.
-  static const _height = 452.0;
+  /// 시안 `158:2860`은 452다. 매칭 버튼이 화면 가운데쯤 오도록 340으로
+  /// 줄였다 — 상태 카드 모두 같은 높이다.
+  static const _height = 340.0;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
     final until = cooldownUntil;
     final locked = until != null && until.isAfter(now);
-    final called = name;
+    final waiting = waitingCount;
 
     return ClipRRect(
       borderRadius: AppRadius.card,
       child: SizedBox(
         // ⚠️ **높이를 고정한다.**
         //
-        // 시안이 452 이기도 하지만, 그보다 **`Spacer`가 무한한 높이 안에서는
+        // 정해 둔 높이가 있기도 하지만, 그보다 **`Spacer`가 무한한 높이 안에서는
         // 못 산다.** 이 위젯은 `ListView` 안에 들어가 높이가 위에서 내려오지
         // 않는다 — 안 걸면 제목과 버튼을 카드 양 끝으로 밀 수가 없고
         // 레이아웃이 그 자리에서 죽는다.
@@ -56,22 +62,25 @@ class HomeIdle extends StatelessWidget {
         child: Stack(
           children: [
             const Positioned.fill(child: _IdleLight()),
+            const Positioned.fill(
+              child: HomeHeroShade(light: HomeHeroLight.bottom),
+            ),
             Padding(
-              padding: const EdgeInsets.all(AppSpacing.space6),
+              // 다른 상태 카드와 같은 틀 — 제목은 위 24, 좌우·아래는 16.
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.space4,
+                AppSpacing.space6,
+                AppSpacing.space4,
+                AppSpacing.space4,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: AppSpacing.space3),
-
                   Text(
-                    // ⚠️ 이름이 없으면 **줄째 뺀다.** `님`만 남으면 이름을 잃은 것처럼
-                    // 보이고, 빈 줄을 두면 제목이 아래로 밀린다.
-                    called == null || called.isEmpty
-                        ? AppStrings.homeHeroPrompt
-                        : '${AppStrings.homeHeroName(called)}\n${AppStrings.homeHeroPrompt}',
+                    AppStrings.homeHeroPrompt,
                     textAlign: TextAlign.center,
                     style: AppTypographyV2.heading03.copyWith(
-                      color: colors.textPrimary,
+                      color: colors.textStrong,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.space3),
@@ -86,6 +95,20 @@ class HomeIdle extends StatelessWidget {
 
                   // 빛이 지나갈 자리. 시안은 제목과 버튼이 카드 양 끝에 붙어 있다.
                   const Spacer(),
+
+                  if (waiting != null && waiting > 0) ...[
+                    Text(
+                      AppStrings.homeWaitingToday(waiting),
+                      textAlign: TextAlign.center,
+                      style: AppTypographyV2.body07.copyWith(
+                        color: colors.textSecondary,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    // 12 — 버튼에 딸린 한 줄로 읽히게. 대기방 나가기 버튼 위
+                    // 안내 줄(`match_room_page.dart`), 위 제목↔부제와 같은 값.
+                    const SizedBox(height: AppSpacing.space3),
+                  ],
 
                   // ⚠️ **눌러 보고 409를 받게 두지 않는다.** 서버가 이미 언제까지인지
                   // 말해 줬는데 그것을 숨기면, 사용자는 눌러야만 이유를 알 수 있다.
@@ -125,8 +148,16 @@ class _IdleLight extends StatelessWidget {
   Widget build(BuildContext context) {
     return Image.asset(
       'assets/images/home_hero_light.webp',
-      // 카드 폭이 기기마다 다르다. 빛은 가장자리가 없어 늘려도 티가 안 난다.
-      fit: BoxFit.cover,
+      // 어두운 곳을 카드 바탕색으로 받친다(`HomeHeroShade` 참고). `screen`은
+      // 어두울수록 회색이 많이 들고 밝은 빛은 거의 그대로다. `lighten`은
+      // 채널마다 바닥을 올려 어두운 파랑을 보라로 틀고 경계선을 만든다.
+      color: context.appColorsV2.bgSurface,
+      colorBlendMode: BlendMode.screen,
+      // ⚠️ **그림 전체를 카드에 눌러 담는다.** 그림은 시안 높이 452용이라
+      // `cover`로 340 카드를 채우면 위 25%가 잘려, 빛줄기가 위로 가며 사라지는
+      // 끝이 없어지고 테두리에서 끊겨 보인다. 빛은 가장자리가 없어 늘리거나
+      // 눌러도 티가 안 나고, 카드 폭이 기기마다 다른 것도 같이 맞춘다.
+      fit: BoxFit.fill,
       alignment: Alignment.bottomCenter,
       // 사람이 읽을 것이 아니라 분위기다. 스크린리더가 읽을 것이 없다.
       excludeFromSemantics: true,

@@ -208,7 +208,14 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
   /// 시간을 고른다. **서버를 부르지 않는다.** 고른 거리의 시트에서 온 칸이다.
   void selectTime(MatchSlot time) {
     state = state.copyWith(time: time, failure: null);
-    unawaited(ref.read(analyticsProvider).matchSlotSelect());
+    unawaited(
+      ref
+          .read(analyticsProvider)
+          .matchSlotSelect(
+            slotStartAt: time.startAt,
+            distanceMeters: state.meters,
+          ),
+    );
   }
 
   /// 거리를 고른다. **서버를 부르지 않는다.**
@@ -362,6 +369,7 @@ class MatchRegisterController extends Notifier<MatchRegisterState> {
               distanceMeters: pick.meters,
               otherDistanceWaiting: otherWaiting,
               otherDistanceWaitingSameTime: otherWaitingSameTime,
+              slotStartAt: pick.slot.startAt,
             ),
       );
 

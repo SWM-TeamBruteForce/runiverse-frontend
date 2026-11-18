@@ -24,6 +24,9 @@ abstract final class AppMotion {
   /// 느린 전환용. 끝을 조금 더 길게 끈다.
   static const easeSlow = Cubic(0.2, 0, 0.2, 1);
 
+  /// 들어오는 요소와 나가는 요소가 같은 속도로 움직이는 대칭 전환.
+  static const easeInOut = Curves.easeInOut;
+
   /// 빛이 번지는 느낌. 초반에 확 퍼지고 길게 잦아든다.
   /// 빛 번짐과 토스트 드롭이 이 곡선을 공유한다.
   static const easeBloom = Cubic(0.16, 1, 0.3, 1);

@@ -204,6 +204,43 @@ class ChatBubble extends StatelessWidget {
   }
 }
 
+/// 누가 방에 들어오고 나간 안내 줄. **말풍선이 아니다.**
+///
+/// 누가 한 말처럼 읽히지 않게 사진·이름 없이 가운데 둥근 띠에 작게 둔다
+/// (카톡 단톡방과 같은 모양). 시각도 붙이지 않는다. 길게 눌러도 아무 일이
+/// 없다 — 안내 줄은 고치거나 지울 수 없다(서버 404).
+class ChatNoticeLine extends StatelessWidget {
+  const ChatNoticeLine({required this.text, super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    // ⚠️ 목록 칸은 폭을 꽉 채우라고 하므로 `Center`로 띠를 글자 폭까지 줄인다.
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.space3,
+          vertical: AppSpacing.space1,
+        ),
+        // 띠 색·글자 크기·색은 **디자인 확인이 필요한 값이다.**
+        decoration: BoxDecoration(
+          color: colors.bgSurface,
+          borderRadius: AppRadius.full,
+        ),
+        // 띠 위라 시각(`textTertiary`)보다 한 단 밝게 — 다크에서 대비 2.5:1이었다.
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: AppTypographyV2.body18.copyWith(color: colors.textSecondary),
+        ),
+      ),
+    );
+  }
+}
+
 /// 아직 서버가 받지 않은 내 말.
 ///
 /// ## ⚠️ 성공한 척 그리지 않는다

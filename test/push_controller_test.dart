@@ -7,6 +7,7 @@ import 'package:runiverse/core/analytics/fake_analytics.dart';
 import 'package:runiverse/core/storage/device_id_store.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/notification/domain/chat_push.dart';
 import 'package:runiverse/features/notification/domain/device_repository.dart';
 import 'package:runiverse/features/notification/domain/push_landing.dart';
 import 'package:runiverse/features/notification/domain/push_messaging.dart';
@@ -422,6 +423,147 @@ void main() {
       expect(app.container.read(pushProvider), isNull);
     });
   });
+
+  group('앱이 켜져 있을 때 받은 채팅 푸시', () {
+    // 채팅은 SSE 알림함에 들어가지 않는다. 켜 둔 앱이 그리지 않으면 폰을 내려놓고
+    // 출발을 기다리는 사람이 놓친다.
+    // 채팅은 data만 온다 — 알림 블록이 없다.
+    ReceivedPush chatIn(String room) => ReceivedPush(
+      data: {
+        'type': 'ROOM_CHAT_SENT',
+        'runningRoomId': room,
+        'chatId': '3021',
+        'chatType': 'MESSAGE',
+        'actorId': 'u-9',
+        'actorNickname': '철수',
+        'title': '19:30 - 5 km 러닝',
+        'body': '곧 출발해요',
+      },
+    );
+
+    test('팝업 없이 알림창에 쌓는다', () async {
+      final app = build(initial: me);
+      app.messaging.incoming.add(chatIn('125'));
+      await settle();
+
+      expect(app.messaging.shown, ['125/quiet']);
+    });
+
+    test('⚠️ 그 방 채팅 화면을 보고 있으면 그리지 않는다', () async {
+      final app = build(initial: me);
+      push(app.container).viewChat('125');
+      app.messaging.incoming.add(chatIn('125'));
+      await settle();
+
+      expect(app.messaging.shown, isEmpty);
+    });
+
+    test('⚠️ 채팅 화면이 다른 화면에 가려져 있으면 그린다', () async {
+      // 채팅을 연 채 다른 푸시를 눌러 프로필이 위에 쌓인 경우다. 채팅 화면은
+      // 살아 있지만 보이지 않는다.
+      var onTop = true;
+      final app = build(initial: me);
+      push(app.container).viewChat('125', onTop: () => onTop);
+      onTop = false;
+      app.messaging.incoming.add(chatIn('125'));
+      await settle();
+
+      expect(app.messaging.shown, ['125/quiet']);
+    });
+
+    test('다른 방 채팅이나 채팅 화면을 나간 뒤에는 그린다', () async {
+      final app = build(initial: me);
+      push(app.container).viewChat('125');
+      app.messaging.incoming.add(chatIn('126'));
+      push(app.container).viewChat(null);
+      app.messaging.incoming.add(chatIn('125'));
+      await settle();
+
+      expect(app.messaging.shown, ['126/quiet', '125/quiet']);
+    });
+
+    test('채팅 화면에 들어오면 그 방 알림을 지운다', () async {
+      final app = build(initial: me);
+      push(app.container)
+        ..viewChat('125')
+        ..viewChat(null);
+
+      expect(app.messaging.cleared, ['125']);
+    });
+
+    test('iOS에는 같은 판단을 보일 방식으로 답한다', () async {
+      // iOS는 OS가 그린다 — 앱은 OS가 띄우려 할 때 답만 한다.
+      final app = build(initial: me);
+      final decide = app.messaging.decide!;
+
+      expect(decide(chatIn('125')), ForegroundAlert.quiet);
+      push(app.container).viewChat('125');
+      expect(decide(chatIn('125')), ForegroundAlert.none);
+      expect(
+        decide(const ReceivedPush(data: {'type': 'RUNNING_REMINDER'})),
+        ForegroundAlert.none,
+      );
+    });
+
+    test('채팅이 아닌 푸시는 그리지 않는다', () async {
+      // 같은 알림이 SSE로 알림함에 들어온다. 그리면 두 번 알린다.
+      final app = build(initial: me);
+      app.messaging.incoming.add(
+        const ReceivedPush(
+          data: {'type': 'RUNNING_REMINDER'},
+          title: '곧 러닝이 시작돼요',
+          body: '19:30 - 5 km 러닝',
+        ),
+      );
+      await settle();
+
+      expect(app.messaging.shown, isEmpty);
+      expect(app.messaging.notices, isEmpty);
+    });
+  });
+
+  group('앱이 켜져 있을 때 받은 공지 푸시', () {
+    // 공지는 SSE 알림함에 들어가지 않는다. 켜 둔 앱이 그리지 않으면 아무도 못 본다.
+    test('알림 블록의 제목·내용으로 그린다', () async {
+      final app = build(initial: me);
+      app.messaging.incoming.add(
+        const ReceivedPush(
+          data: {'type': 'NOTICE'},
+          title: '점검 안내',
+          body: '오늘 밤 2시에 점검해요',
+        ),
+      );
+      await settle();
+
+      expect(app.messaging.notices, ['점검 안내/오늘 밤 2시에 점검해요']);
+      expect(app.messaging.shown, isEmpty);
+    });
+
+    test('⚠️ 문구가 빠졌으면 그리지 않는다', () async {
+      final app = build(initial: me);
+      app.messaging.incoming.add(
+        const ReceivedPush(data: {'type': 'NOTICE'}, title: '점검 안내'),
+      );
+      await settle();
+
+      expect(app.messaging.notices, isEmpty);
+    });
+
+    test('iOS에는 팝업으로 답한다', () async {
+      final app = build(initial: me);
+
+      expect(
+        app.messaging.decide!(
+          const ReceivedPush(
+            data: {'type': 'NOTICE'},
+            title: '점검 안내',
+            body: '오늘 밤 2시에 점검해요',
+          ),
+        ),
+        ForegroundAlert.banner,
+      );
+    });
+  });
 }
 
 class _FakeMessaging implements PushMessaging {
@@ -455,6 +597,40 @@ class _FakeMessaging implements PushMessaging {
 
   @override
   Stream<OpenedPush> get opened => taps.stream;
+
+  /// 켜진 앱이 받은 푸시를 흘려 넣는 곳.
+  final incoming = StreamController<ReceivedPush>.broadcast();
+
+  /// 그린 채팅 알림을 `방/quiet`처럼 적어 둔다.
+  final shown = <String>[];
+  final cleared = <String>[];
+
+  /// 그린 공지를 `제목/내용`처럼 적어 둔다.
+  final notices = <String>[];
+
+  @override
+  Stream<ReceivedPush> get received => incoming.stream;
+
+  @override
+  Future<void> showChat(ChatPush push, {required bool quiet}) async =>
+      shown.add('${push.runningRoomId}/${quiet ? 'quiet' : 'loud'}');
+
+  @override
+  Future<void> clearChat(String runningRoomId) async =>
+      cleared.add(runningRoomId);
+
+  @override
+  Future<void> showNotice({
+    required String title,
+    required String body,
+  }) async => notices.add('$title/$body');
+
+  /// 컨트롤러가 맡긴 켜진 앱 알림 판단. iOS가 OS 대신 묻는 곳이다.
+  ForegroundAlert Function(ReceivedPush push)? decide;
+
+  @override
+  void decideForeground(ForegroundAlert Function(ReceivedPush push) decide) =>
+      this.decide = decide;
 }
 
 /// 받은 등록을 `기기/토큰`으로 적어 둔다.

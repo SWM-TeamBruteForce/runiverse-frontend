@@ -6,7 +6,7 @@ import 'package:runiverse/core/widgets/v2/fact_row.dart';
 
 /// `FactRowV2`가 지키는 약속.
 ///
-/// 매칭 완료·실패 카드가 `시작 시간 · 목표거리 · 시작까지`를 이걸로 보여준다.
+/// 매칭 완료·실패 카드가 `시작 시간 · 목표 거리 · 시작까지`를 이걸로 보여준다.
 void main() {
   Future<void> pump(WidgetTester tester, List<Fact> facts) async {
     await tester.pumpWidget(

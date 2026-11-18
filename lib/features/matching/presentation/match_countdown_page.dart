@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
@@ -22,6 +23,7 @@ import 'package:runiverse/features/matching/presentation/match_room_provider.dar
 import 'package:runiverse/features/session/domain/location_repository.dart';
 import 'package:runiverse/features/session/domain/party_board.dart';
 import 'package:runiverse/features/session/domain/run_session_state.dart';
+import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/session/presentation/party_provider.dart';
 import 'package:runiverse/features/session/presentation/run_session_provider.dart';
 import 'package:runiverse/features/session/presentation/running_connection_provider.dart';
@@ -161,6 +163,8 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
     final room = ref.read(matchRoomProvider).room;
     if (room == null || !mounted) return;
 
+    _logLocationBlocked(room);
+
     // ⚠️ **명단을 지금 넘긴다.** 러닝이 시작되면 SSE가 닫혀 이 정보를 다시
     // 받을 길이 없다 — 진행·콤보 통지는 `userId`만 싣고, 명세가 정한 출처인
     // `RUNNING_STARTED` 스냅샷은 서버가 비워 보낸다.
@@ -190,6 +194,35 @@ class _MatchCountdownPageState extends ConsumerState<MatchCountdownPage> {
 
     // `pushReplacement` — 달리는 중에 뒤로 가서 대기실이 나오면 안 된다.
     context.pushReplacement(AppRoutes.runSession);
+  }
+
+  /// 출발 순간 위치를 쓸 수 없었으면 `run_start_failed` 를 남긴다.
+  ///
+  /// GPS 카드([_GpsCard])와 **같은 판정**이다 — 화면이 "위치 권한이 없어요"를
+  /// 띄운 상태에서 출발한 경우만 센다. 아직 묻는 중(`_access == null`)이면
+  /// 막힌 것이 아니라 모르는 것이라 남기지 않는다.
+  ///
+  /// ⚠️ 출발은 막지 않는다. 서버는 이미 시작했다.
+  void _logLocationBlocked(RoomInfo room) {
+    final session = ref.read(runSessionControllerProvider);
+    final access = _access;
+    final blocked =
+        (session is RunPreparing ? session.failure : null) ??
+        (access != null && !access.isGranted ? access : null);
+    if (blocked == null) return;
+    unawaited(
+      ref
+          .read(analyticsProvider)
+          .runStartFailed(
+            runType: room.type == RoomType.invite ? 'invite' : 'match',
+            reason: switch (blocked) {
+              LocationAccess.deniedForever => 'location_denied_forever',
+              LocationAccess.serviceDisabled => 'location_off',
+              LocationAccess.denied ||
+              LocationAccess.granted => 'location_denied',
+            },
+          ),
+    );
   }
 
   /// 워치에 보낼 파티원 사진을 출발 전에 만들어 둔다. 워치는 출발하며 켜지자마자

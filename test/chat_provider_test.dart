@@ -87,6 +87,16 @@ void main() {
     createdAt: fixedNow(),
   );
 
+  /// 서버가 보낸 것처럼 만드는 안내 줄. 보낸 사람이 없고 들어오거나 나간
+  /// 사람이 `actor`다.
+  Chat notice(ChatType type, {int chatId = 9002}) => Chat(
+    chatId: chatId,
+    runningRoomId: roomId,
+    type: type,
+    actor: const ChatSender(userId: 'u1', nickname: '영희'),
+    createdAt: fixedNow(),
+  );
+
   group('첫 조회', () {
     test('싣는 동안 loading이고, 끝나면 목록이 선다', () async {
       final app = setUpChat();
@@ -384,7 +394,7 @@ void main() {
       await chat(app.container).connect(roomId);
       final mine = stateOf(
         app.container,
-      ).messages.firstWhere((one) => one.sender.userId == 'me');
+      ).messages.firstWhere((one) => one.sender?.userId == 'me');
 
       await chat(app.container).edit(mine.chatId, '조금 늦어요');
 
@@ -560,6 +570,23 @@ void main() {
       );
 
       expect(stateOf(app.container).unread, 0);
+    });
+
+    test('⚠️ 들어온 줄은 세고 나간 줄은 세지 않는다 — 푸시와 같다', () async {
+      // 말과 들어온 줄은 폰에 푸시가 가고, 나간 줄은 안 간다.
+      final app = setUpChat();
+      await chat(app.container).connect(roomId);
+
+      chat(app.container).received(
+        ChatChange(ChatChangeKind.sent, notice(ChatType.joined, chatId: 600)),
+      );
+      chat(app.container).received(
+        ChatChange(ChatChangeKind.sent, notice(ChatType.left, chatId: 601)),
+      );
+
+      final state = stateOf(app.container);
+      expect(state.messages.map((one) => one.chatId), contains(601));
+      expect(state.unread, 1);
     });
 
     test('⚠️ 다른 방 것은 버린다', () async {

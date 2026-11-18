@@ -77,8 +77,8 @@ abstract final class AppStrings {
 
   // ── 온보딩 소개 (S02) ────────────────────────────────────────
   //
-  // 카드 3장의 순서는 "무엇을 하는 앱인가 → 무엇을 얻는가 → 어떻게 남는가"다.
-  // 기능 나열이 아니라 동기를 쌓는 순서라 바꾸지 않는다.
+  // 카드 4장의 순서는 러닝 하루를 따라간다 — "만난다 → 나란히 달린다 →
+  // 돌아본다 → 남는다". 기능 나열이 아니라 하루의 순서라 바꾸지 않는다.
 
   /// 우상단 이탈 경로. 최우선으로 노출한다.
   static const onboardingSkip = '건너뛰기';
@@ -88,31 +88,40 @@ abstract final class AppStrings {
   /// 마지막 카드에서 [onboardingNext] 대신 쓴다.
   static const onboardingStart = '시작하기';
 
-  /// 1장 — 함께 달린다. 시안 `158:2699`의 문구 그대로다.
+  /// 1장 — 함께 달린다. 제목은 시안 `158:2699` 그대로다.
+  ///
+  /// 출발 전 채팅은 대기방에 들어가야 보여서, 신청 전에 알릴 곳이 여기뿐이다.
   static const onboardingCard1Title = '함께 달리면\n더 멀리 갈 수 있어요';
-  static const onboardingCard1Body =
-      '같은 시간, 다른 장소에서도 괜찮아요.\n나와 맞는 러너를 만나 함께 달려보세요.';
+  static const onboardingCard1Body = '같은 시간, 다른 장소에서 달려요\n출발 전엔 대기방에서 인사도 나눠요';
 
   /// 2장 — 콤보.
   ///
   /// ⚠️ **30m는 앱이 실제로 쓰는 기준이다** ([runPartyComboHint]와 같은 값).
-  /// 숫자를 바꾸려면 서버의 콤보 판정부터 바꿔야 한다.
+  /// 숫자를 바꾸려면 서버의 콤보 판정부터 바꿔야 한다. 서로 다른 곳에서
+  /// 달리므로 두 사람 사이의 거리가 아니라 **달린 거리의 차이**다.
   static const onboardingCard2Title = '나란히 달리면\n콤보가 쌓여요';
-  static const onboardingCard2Body = '서로의 거리가 30m 안으로 좁혀지면\n콤보가 시작되고 계속 쌓여요.';
+  static const onboardingCard2Body =
+      '달린 거리 차이가 30m 안이면 시작돼요\n내 위치는 상대에게 보이지 않아요';
 
-  /// 3장 — 기록카드와 AI 음악.
+  /// 3장 — 끝난 뒤 결과 화면의 파티원 비교.
+  static const onboardingCard3Title = '같이 달린 기록을\n구간별로 돌아봐요';
+  static const onboardingCard3Body = '함께 뛴 러너를 골라\n구간마다 페이스를 겹쳐 봐요';
+
+  /// 4장 — 기록카드와 AI 음악.
   ///
   /// ⚠️ **둘 다 아직 없는 기능이다.** 그래서 이 장에만 [onboardingComingSoon]
   /// 배지가 붙는다. 배지를 떼는 것은 두 기능이 실제로 들어온 뒤다.
-  static const onboardingCard3Title = '달린 날이\n사진과 음악으로 남아요';
-  static const onboardingCard3Body = '사진과 소감을 기록카드에 담고,\n함께 달린 데이터로 만든 곡을 받아요.';
+  ///
+  /// 곡은 내 기록·회고·사진으로 만든다. 함께 달린 사람의 기록은 재료가 아니다.
+  static const onboardingCard4Title = '달린 날이\n사진과 음악으로 남아요';
+  static const onboardingCard4Body = '기록카드에 사진과 회고를 남기면\n그날의 기록으로 연주곡을 만들어 줘요';
 
   /// 아직 만들지 않은 기능을 소개하는 장에 붙는 배지.
   ///
   /// 온보딩은 설치 직후 첫 화면이다. 없는 것을 있는 것처럼 말하면 바로 들통난다.
   static const onboardingComingSoon = '런칭 준비 중';
 
-  // ── 3장 그림 속 예시 값 ──────────────────────────────────────
+  // ── 4장 그림 속 예시 값 ──────────────────────────────────────
   //
   // ⚠️ **사용자의 기록이 아니라 그림이다.** 기록카드 화면이 아직 없어 온보딩이
   // 직접 그리고 있고, 그 안의 숫자와 문장은 전부 예시다. 화면이 생기면 이
@@ -123,7 +132,10 @@ abstract final class AppStrings {
   static const onboardingSampleDuration = '28:14';
   static const onboardingSampleNote = '비 온 뒤라 공기가 좋았다.';
   static const onboardingSampleSong = '그날의 곡';
-  static const onboardingSampleSongMeta = '85 BPM · 12콤보 구간 포함';
+
+  /// BPM은 평균 페이스로 정해진다 — 위 예시 기록(5'37"/km)이면 170이다.
+  /// 곡 길이는 회고만 남겼을 때의 기본 곡이다.
+  static const onboardingSampleSongMeta = '170 BPM · 30초';
 
   // ── 약관 동의 (S03) ──────────────────────────────────────────
   //
@@ -509,11 +521,8 @@ abstract final class AppStrings {
   static const homeGreetingEvening = '좋은 저녁이에요';
   static const homeGreetingNight = '늦은 밤이네요';
 
-  /// 히어로 제목. **이름을 부른다** — 시안 `158:2848`이 `김지원님`으로 시작한다.
-  ///
-  /// ⚠️ **이름이 없을 수 있다.** `/me`가 오기 전이거나 온보딩 전이면 비어 있다.
-  /// 그때는 부르는 줄을 통째로 뺀다 — `님`만 남으면 이름을 잃은 것처럼 보인다.
-  static String homeHeroName(String nickname) => '$nickname님';
+  /// 히어로 제목. 시안 `158:2848`은 앞에 `김지원님`을 붙여 부르지만, 340
+  /// 높이로 줄이면서 이름 줄은 뺐다.
   static const homeHeroPrompt = '오늘도 함께 달려볼까요?';
 
   /// ⚠️ **시안은 `매칭시작`·`혼자연습하기`로 붙여 쓴다.** 한국어 맞춤법상
@@ -526,8 +535,45 @@ abstract final class AppStrings {
   /// 친구를 불러 같이 뛰는 것이 아니라 **방에 초대하는** 기능이라서다.
   static const homeInviteRunCta = '초대 러닝';
 
-  /// 히어로 부제. 줄바꿈 위치를 고정해 두 줄로 읽히게 한다.
-  static const homeHeroSubtitle = '나와 비슷한 러너를 만나\n같은 시간, 각자의 자리에서 함께 달려보세요.';
+  /// 히어로 부제. 시안의 두 줄 중 앱이 무엇인지 말하는 둘째 줄만 둔다.
+  static const homeHeroSubtitle = '같은 시간, 각자의 자리에서 함께 달려요';
+
+  /// `4명이 기다리고 있어요` — 매칭 버튼 바로 위. 오늘 아직 들어갈 수 있는 칸을
+  /// 서버가 합친 수다. 칸 하나(`18:00 · 5 km`)로 적으면 "그 칸에만 있다"로
+  /// 읽힌다. `오늘`은 붙이지 않는다 — 제목 `오늘도 함께 달려볼까요?`와 겹친다.
+  static String homeWaitingToday(int count) => '$count명이 기다리고 있어요';
+
+  // 공지 띠 — 날씨 줄 아래. 순서와 멈춤은 `HomeNoticeReel`이 정한다.
+  //
+  // ⚠️ **띠 문구는 띄어쓰기 포함 20자 이내.** 한 줄짜리라 넘치면 끝이 `…`로
+  // 잘린다. 360dp 폰에서 글자 칸이 약 280dp이고, 14px에서 19자가 약 200dp를
+  // 차지한다(SUIT 실측). 20자면 글자를 1.3배로 키운 사람에게도 들어간다.
+
+  /// 업데이트 소식. 나온 날(`HomeNoticeStrip.updateSince`)부터 1주일만 맨
+  /// 앞에 선다. ⚠️ **알릴 기능이 있는 운영 릴리스 때 이 문장과 날짜만 바꾼다**
+  /// (`docs/release.md`). 기간이 지나면 저절로 빠져서 깜빡해도 옛 소식이
+  /// 남지 않는다.
+  static const homeNoticeUpdate = '출발 전에 파티원과 채팅할 수 있어요';
+
+  /// 워치 앱 안내. 늘 한 바퀴에 한 번 지나가고, 소식이 없으면 이 줄에 머문다.
+  /// 기기 이름을 쓰지 않는다 — `갤럭시워치로 …`는 기기 광고처럼 읽힌다.
+  static const homeNoticeWatch = '워치에서도 러니버스를 만나요';
+
+  static String homeNoticeRunningNow(int count) => '지금 $count명이 달리고 있어요';
+
+  /// 닉네임은 서버가 가려서 보낸다(`철**`).
+  static String homeNoticeFinished(String nickname, int meters) =>
+      '$nickname 님이 ${_noticeKm(meters)} 달렸어요';
+
+  static String homeNoticeToday(int count) => '오늘 $count명이 달렸어요';
+  static String homeNoticeYesterday(int count) => '어제 $count명이 달렸어요';
+
+  /// `5 km` · `4.2 km`. 목표 없이 혼자 달린 거리(`4237`)도 오므로 100m에서
+  /// 버린다 — [distanceKm]로 쓰면 `4.237 km`가 된다.
+  static String _noticeKm(int meters) {
+    final km = kmFloor1(meters);
+    return '${km.endsWith('.0') ? km.substring(0, km.length - 2) : km} km';
+  }
 
   // 위 줄 날씨 — 외주 시안 `70:739`(`서울 강남구 · 맑음 18°`)
 
@@ -574,18 +620,10 @@ abstract final class AppStrings {
   /// 카드 제목. 시안 `158:2971`.
   static const homeMatchWaitingTitle = '매칭 대기 중';
 
-  /// 매칭 방 부제 둘째 줄. 혼자일 때와 둘레에 사람이 있을 때가 같은 말로
-  /// 끝난다. 기다리라고 하지 않는다 — 화면을 지켜보다 취소하고 나가는 사람이 많다.
+  /// 매칭 방 부제. 몇 명이 왔는지와 상관없이 이 한 줄이다. 기다리라고 하지
+  /// 않는다 — 화면을 지켜보다 취소하고 나가는 사람이 많다.
   /// 초대 방은 [homeInviteWaitingHint]를 쓴다.
   static const homeMatchWaitingHint = '앱을 꺼도 신청은 그대로예요';
-
-  /// `3명의 러너가 함께 달릴 준비를 하고 있어요` — **나를 뺀 수**다.
-  static String homeMatchWaitingOthers(int count) =>
-      '$count명의 러너가 함께 달릴 준비를 하고 있어요';
-
-  /// ⚠️ **시안에 없는 구간이다.** 신청 직후에는 아직 나뿐이라 궤도가 빈다.
-  /// 그때 `0명의 러너가 준비를 하고 있어요`라고 적으면 말이 안 된다.
-  static const homeMatchWaitingAlone = '아직 함께 달릴 러너를 찾고 있어요';
 
   /// `민수님이 합류했어요` — 파티원이 **늘어난 순간** 히어로 한가운데 뜬다.
   ///
@@ -627,15 +665,12 @@ abstract final class AppStrings {
   static const homeMatchConfirmedTitle = '매칭 완료';
 
   static const homeMatchStartAtLabel = '시작 시간';
-  static const homeMatchDistanceLabel = '목표거리';
+  static const homeMatchDistanceLabel = '목표 거리';
   static const homeMatchStartLabel = '시작까지';
 
   /// ⚠️ **서버가 목표 거리를 안 줄 수 있다.** 0 으로 메우면 지어낸 값이
   /// 화면에 뜬다. 모른다는 것을 모른다고 적는다.
   static const homeMatchUnknownValue = '-';
-
-  /// 아바타 줄 위의 라벨.
-  static const homeMatchPartyLabel = '참여자';
 
   // 히어로 — 혼자 달리게 된 방 (시안 158:3029 자리)
   //
@@ -647,10 +682,6 @@ abstract final class AppStrings {
   // `대안 매칭하기`·`매칭 재등록`도 쓰지 않는다.
 
   static const homeMatchSoloTitle = '혼자 달리게 됐어요';
-
-  /// ⚠️ **예약이 그대로라는 것**을 말한다. 이 줄이 없으면 신청이 날아간 줄
-  /// 안다. 혼자가 됐다는 것은 제목([homeMatchSoloTitle])이 말한다.
-  static const homeMatchSoloBody = '예약한 시간에 그대로 달려요';
 
   /// 확정된 방으로 들어가는 문.
   ///
@@ -1914,14 +1945,7 @@ abstract final class AppStrings {
   /// 서고, 방을 만든 사람은 **최소 10분**을 거기서 기다린다.
   static const homeInviteWaitingTitle = '초대 러닝 대기 중';
 
-  /// 혼자일 때. 매칭의 `아직 함께 달릴 러너를 찾고 있어요`는 **찾는 중**이라는
-  /// 뜻이라 초대에 맞지 않는다.
-  static const homeInviteWaitingAlone = '초대한 러너의 답을 기다리고 있어요';
-
-  /// 사람이 들어왔을 때. 초대 방은 매칭이 아니라 수락이라 매칭 문구를 쓰지 않는다.
-  static String homeInviteJoined(int count) => '$count명이 함께 뛰어요';
-
-  /// 부제 둘째 줄. 매칭의 [homeMatchWaitingHint]는 "신청"이라 맞지 않는다 —
+  /// 부제. 매칭의 [homeMatchWaitingHint]는 "신청"이라 맞지 않는다 —
   /// 초대 방은 신청한 것이 아니라 방을 만들었거나 초대를 받아 들어왔다.
   static const homeInviteWaitingHint = '앱을 꺼도 방은 그대로예요';
 
@@ -2058,6 +2082,15 @@ abstract final class AppStrings {
   /// 고친 메시지에 붙는 꼬리말.
   static const chatEdited = '수정됨';
 
+  /// 누가 방에 들어오고 나간 안내 줄. 다시 들어와도 "들어왔어요"다.
+  static String chatJoined(String nickname) => '$nickname님이 들어왔어요';
+  static String chatLeft(String nickname) => '$nickname님이 나갔어요';
+
+  /// 탈퇴한 사람의 안내 줄. 서버가 주는 이름이 `탈퇴한 사용자`라 "님이"를
+  /// 붙이면 어색하다.
+  static const chatJoinedWithdrawn = '탈퇴한 사용자가 들어왔어요';
+  static const chatLeftWithdrawn = '탈퇴한 사용자가 나갔어요';
+
   /// 러닝이 시작돼 채팅이 닫혔다(409). **"다시 시도"를 띄우지 않는다** —
   /// 되돌아오지 않는 상태다.
   static const chatClosed = '러닝이 시작돼 대화를 닫았어요';
@@ -2096,4 +2129,31 @@ abstract final class AppStrings {
   /// 안 읽은 수는 배지의 숫자로만 보이므로 여기서 함께 읽어 준다.
   static String chatButtonSemantics(int unread) =>
       unread == 0 ? '채팅' : '채팅 · 안 읽은 메시지 $unread개';
+
+  // ── 대기방 채팅 알림 (안드로이드) ──────────────────────────────
+  //
+  // 서버는 data만 보내고 앱이 알림창에 그린다. 제목·내용은 서버 문구 그대로라
+  // 여기엔 앱이 채우는 칸만 있다.
+
+  /// 설정 앱의 알림 채널 목록에 뜨는 이름. 앱이 꺼졌거나 뒤에 있을 때 쓰는
+  /// 채널이고, 화면 위로 내려오는 팝업이 뜬다.
+  static const chatPushChannel = '대기방 채팅';
+
+  /// 앱을 보고 있을 때 쓰는 채널. 팝업 없이 알림창에만 쌓인다.
+  ///
+  /// ⚠️ **채널을 둘로 나눈 이유:** 안드로이드 8부터 팝업 여부는 알림마다가 아니라
+  /// 채널의 중요도로 정해진다.
+  static const chatPushQuietChannel = '대기방 채팅(앱 사용 중)';
+
+  /// 들어온 사람 줄의 이름 칸. 내용(`영희님이 들어왔어요`)에 이미 이름이 있어
+  /// 사람 이름을 또 세우지 않는다.
+  static const chatPushNoticeSender = '안내';
+
+  /// 알림 속 "나". 안드로이드 대화형 알림이 반드시 받는 값이고, 내가 보낸 줄은
+  /// 그리지 않으므로 화면에 나올 일은 거의 없다.
+  static const chatPushSelf = '나';
+
+  /// 앱을 보고 있을 때 받은 공지의 알림 채널 이름(안드로이드). 화면 위로 내려오는
+  /// 팝업이 뜬다. 앱이 꺼져 있을 때의 공지는 OS가 띄워 이 채널을 쓰지 않는다.
+  static const noticePushChannel = '공지';
 }

@@ -176,7 +176,7 @@ class ProfileSummaryController extends Notifier<ProfileSummaryState> {
     final store = ref.read(tokenStoreProvider);
     final stored = await store.read();
     // 기다리는 사이 계정을 떠났으면 바뀐 것은 앞 사람 이름이다. 다음 사람의
-    // 저장값·홈·요약에 얹지 않는다. 서버는 받아 줬으니 성공으로 돌려준다.
+    // 저장값·요약에 얹지 않는다. 서버는 받아 줬으니 성공으로 돌려준다.
     if (epoch != _accountEpoch) return null;
     final userId = stored.userId;
     if (userId != null) {
@@ -190,11 +190,6 @@ class ProfileSummaryController extends Notifier<ProfileSummaryState> {
       );
     }
     if (epoch != _accountEpoch) return null;
-
-    // ⚠️ **홈이 부르는 이름은 아래 요약이 아니다.** 홈은 `AuthSignedIn.user`를
-    // 읽어서(`home_page.dart`), 여기서 같이 고치지 않으면 프로필 탭만 바뀌고
-    // 홈은 앱을 다시 켤 때까지 옛 이름이다.
-    ref.read(authControllerProvider.notifier).applyNickname(changed);
 
     final summary = state.summary;
     state = ProfileSummaryState(

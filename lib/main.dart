@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:facebook_app_events/facebook_app_events.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -62,6 +63,13 @@ void main() async {
   // ⚠️ 위의 세 SDK 와 달리 **키 유무를 보고 거르지 않는다.** 설정 파일이
   // 없으면 Gradle 이 빌드를 먼저 세우므로, 여기까지 왔다면 파일은 있다.
   await Firebase.initializeApp();
+
+  // 앱이 꺼졌거나 뒤에 있을 때 받은 푸시. 안드로이드 대기방 채팅은 서버가 data만
+  // 보내 OS가 띄우지 않으므로 이것이 알림을 그린다.
+  //
+  // ⚠️ **`runApp` 전에 건다.** 이것을 지우면 안드로이드 채팅 알림이 앱을 보고
+  // 있을 때만 뜬다.
+  FirebaseMessaging.onBackgroundMessage(handleBackgroundPush);
 
   // 잡히지 않은 오류를 Crashlytics로 보낸다. 디버그 빌드는 보내지 않는다 —
   // `flutter run` 중에 난 오류가 운영·dev 대시보드에 섞이면 진짜를 못 가린다.

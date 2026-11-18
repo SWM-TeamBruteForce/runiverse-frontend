@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.4.0 # 버전 코드는 빌드할 때 --build-number로 넘긴다
+version: 1.4.1 # 버전 코드는 빌드할 때 --build-number로 넘긴다
 
 environment:
   sdk: ^3.12.2
@@ -92,6 +92,13 @@ dependencies:
   # 푸시를 받는다. 서버는 iOS에도 FCM 토큰으로 보내서, APNs 토큰을 FCM 토큰으로
   # 바꾸는 일까지 이것이 한다.
   firebase_messaging: ^16.7.0
+  # 서버가 data만 보내는 푸시(대기방 채팅)를 안드로이드 알림창에 그린다.
+  # ⚠️ **23.x는 compileSdk 37을 요구한다** — 3.44.8 기본값은 36이라 22.x에 묶는다
+  # (구현 노트 6절). 앱 Gradle의 desugaring 두 줄과 짝이다.
+  flutter_local_notifications: 22.3.3
+  # 채팅 알림에 붙일 보낸 사람 사진을 캐시 폴더에 둔다. 이미 지도 패키지가
+  # 끌어오던 것을 직접 쓴다 — 새로 들어오는 패키지는 없다.
+  path_provider: ^2.1.6
   flutter_image_compress: ^2.5.1
   # 애플 로그인. **iOS 에서만 부른다** — 안드로이드·웹에서는 애플 웹 흐름을
   # 열어야 해서 `serviceIdentifier` 와 `redirectUri` 가 필요한데, 서버는 iOS

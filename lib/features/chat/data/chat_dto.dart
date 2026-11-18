@@ -12,12 +12,22 @@ Chat? chatFromJson(Object? wire) {
 
   final chatId = wire['chatId'];
   final roomId = wire['runningRoomId'];
+  final type = _typeOf(wire['type']);
   final sender = _senderOf(wire['sender']);
+  final actor = _senderOf(wire['actor']);
   final createdAt = KstTime.parse(wire['createdAt']);
+
+  // 말은 보낸 사람이, 안내 줄은 들어오거나 나간 사람이 있어야 그린다.
+  final person = type == ChatType.message ? sender : actor;
 
   // 이 넷 중 하나라도 없으면 그릴 수 없다. 특히 `chatId`는 정렬과 병합의
   // 기준이라, 없는 메시지를 들이면 **자리도 정하지 못하고 중복도 못 거른다.**
-  if (chatId is! int || roomId is! int || sender == null || createdAt == null) {
+  // 모르는 `type`도 버린다 — 무슨 줄인지 모르면 문구를 정할 수 없다.
+  if (chatId is! int ||
+      roomId is! int ||
+      type == null ||
+      person == null ||
+      createdAt == null) {
     debugPrint('[chat] 읽을 수 없는 메시지를 버렸다');
     return null;
   }
@@ -26,13 +36,23 @@ Chat? chatFromJson(Object? wire) {
   return Chat(
     chatId: chatId,
     runningRoomId: roomId,
-    sender: sender,
+    type: type,
+    sender: type == ChatType.message ? sender : null,
+    actor: type == ChatType.message ? null : actor,
     content: content is String ? content : null,
     isDeleted: wire['isDeleted'] == true,
     editedAt: KstTime.parse(wire['editedAt']),
     createdAt: createdAt,
   );
 }
+
+/// 모르는 값이면 `null`이다.
+ChatType? _typeOf(Object? wire) => switch (wire) {
+  'MESSAGE' => ChatType.message,
+  'JOINED' => ChatType.joined,
+  'LEFT' => ChatType.left,
+  _ => null,
+};
 
 ChatSender? _senderOf(Object? wire) {
   if (wire is! Map) return null;

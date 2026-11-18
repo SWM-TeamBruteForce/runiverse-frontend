@@ -1,4 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/analytics/run_outcome.dart';
+
+export 'package:runiverse/core/analytics/match_slot_params.dart';
+export 'package:runiverse/core/analytics/run_outcome.dart';
 
 /// 사용자 행동을 남긴다 — 앱에서의 GA4(Firebase Analytics).
 ///
@@ -46,7 +50,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// 구현체가 예외를 안에서 삼킨다.
 abstract interface class Analytics {
   /// 화면 하나를 봤다. [name] 은 `GoRoute` 에 붙인 이름이다.
-  Future<void> screenView({required String name});
+  ///
+  /// [runType] 은 **출발 대기실(`match_countdown`)에만** 싣는다 — `match` ·
+  /// `invite`. 확정되고도 출발하지 않은 사람을 방 종류별로 가른다. 다른
+  /// 화면은 `null` 이고 파라미터가 빠진다.
+  Future<void> screenView({required String name, String? runType});
 
   /// 로그인 성공. [method] 는 `email` · `kakao` · `google` · `apple`.
   ///
@@ -74,7 +82,13 @@ abstract interface class Analytics {
   Future<void> matchSlotSheetOpen();
 
   /// 시간 시트에서 시각을 골랐다.
-  Future<void> matchSlotSelect();
+  ///
+  /// ## 매칭 이벤트의 `slotStartAt`
+  ///
+  /// 이 아래 매칭 이벤트는 **예약한 출발 순간**(`slotStartAt`)과 거리를 받아
+  /// `slot_time`·`slot_weekday`·`distance_group` 으로 싣는다
+  /// ([MatchSlotParams]). 모르면 `null` 이고, 그 파라미터만 빠진다.
+  Future<void> matchSlotSelect({DateTime? slotStartAt, int? distanceMeters});
 
   /// 매칭 신청 성공. [distanceMeters] 는 3000 · 5000 · 10000.
   ///
@@ -87,6 +101,7 @@ abstract interface class Analytics {
     required int distanceMeters,
     required int otherDistanceWaiting,
     required int otherDistanceWaitingSameTime,
+    DateTime? slotStartAt,
   });
 
   /// 방이 **확정됐다** — 사람이 모여 같이 뛸 수 있게 된 순간.
@@ -100,10 +115,33 @@ abstract interface class Analytics {
   ///
   /// [distanceMeters] 는 모르면 `null` 이다. [matchApply] 와 같은 이름의
   /// 파라미터로 나가므로 거리별 성사율을 바로 견줄 수 있다.
-  Future<void> matchConfirmed({int? distanceMeters});
+  ///
+  /// ⚠️ **혼자 남은 방은 여기로 오지 않는다** — [matchFailed] 다. 서버는
+  /// 인원과 무관하게 1인 방도 확정하는데, 그것을 성사로 세면 성사율이
+  /// 부풀려진다.
+  Future<void> matchConfirmed({int? distanceMeters, DateTime? slotStartAt});
+
+  /// 매칭이 **성사되지 않았다** — 모집이 마감됐는데 나 혼자 남았다.
+  ///
+  /// 서버에는 실패 상태가 없다. 상대를 못 찾은 방을 **1인 방으로 확정**하고
+  /// 예약한 시각에 혼자 달리게 한다. 그래서 대기 화면을 떠날 때가 아니라
+  /// **그 1인 확정을 받은 때** 남긴다.
+  Future<void> matchFailed({int? distanceMeters, DateTime? slotStartAt});
 
   /// 매칭 취소 성공.
-  Future<void> matchCancel();
+  ///
+  /// [stage] 는 취소한 순간 방이 어디까지 왔는가다.
+  ///
+  /// - `waiting` — 모집 중에 뺐다
+  /// - `confirmed` — 함께 뛸 사람이 정해진 뒤에 뺐다
+  /// - `alone` — 혼자 남은 방([matchFailed])에서 뺐다. 성사된 뒤 이탈과
+  ///   섞이면 이탈률이 부풀려진다
+  /// - `unknown` — 방을 아직 모르거나 명단을 못 받았다
+  Future<void> matchCancel({
+    required String stage,
+    int? distanceMeters,
+    DateTime? slotStartAt,
+  });
 
   /// 대기방 채팅 버튼을 눌러 채팅을 열었다.
   ///
@@ -123,15 +161,43 @@ abstract interface class Analytics {
   /// 보낸 내용은 남기지 않는다.
   Future<void> chatSend({int? quickReply});
 
-  /// `RUNNING_STARTED` 를 처음 받았을 때. [runType] 은 `match` · `solo`.
+  /// `RUNNING_STARTED` 를 처음 받았을 때. [runType] 은 `match` · `invite` ·
+  /// `solo`.
+  ///
+  /// ⚠️ `invite` 는 2026-11-18에 생겼다. 그전에는 초대 방도 `match` 였다.
   Future<void> runStart({required String runType});
 
-  /// `RUNNING_FINISHED` 를 처음 받았을 때. [runType] 은 `match` · `solo`.
+  /// 출발하지 못한 것이 **확인됐다.** [runType] 은 [runStart] 와 같다.
+  ///
+  /// ⚠️ **확인된 실패만 남긴다.** 대기실에 아예 오지 않은 미참여는 앱이 알 수
+  /// 없으므로 서버 기록으로 가린다. [reason] 은 다음 중 하나다.
+  ///
+  /// - `location_denied` · `location_denied_forever` · `location_off` — 출발
+  ///   순간 위치를 쓸 수 없었다. 서버는 출발시키므로 **[runStart] 와 함께
+  ///   남을 수 있다** — 방은 시작했는데 기기가 좌표를 못 낸다
+  /// - `not_room_player` — 서버가 이 방의 참가자로 보지 않는다
+  /// - `session_expired` — 로그인이 풀려 붙지 못했다
+  ///
+  /// 방마다 한 번이고, [runStart] 가 이미 남은 방에서는 서버 쪽 이유를
+  /// 남기지 않는다 — 그때는 시작 실패가 아니라 도중에 끊긴 것이다.
+  Future<void> runStartFailed({
+    required String runType,
+    required String reason,
+  });
+
+  /// `RUNNING_FINISHED` 를 처음 받았을 때. [runType] 은 [runStart] 와 같다.
   ///
   /// [early] 는 **본인이 목표 전에 끝내기로 했는가**(`forced=true`)다. 서버가
   /// 그 시점 거리로 완주 처리할 수도 있어서 "완주 못 함"과 같은 뜻은 아니다.
   /// 서버가 끝낸 경우는 `false` 다.
-  Future<void> runFinish({required String runType, required bool early});
+  ///
+  /// [outcome] 이 **완주했는가**다 — 위 이유로 [early] 로는 못 가린다
+  /// ([RunOutcome]).
+  Future<void> runFinish({
+    required String runType,
+    required bool early,
+    required RunOutcome outcome,
+  });
 
   /// 탈퇴 성공.
   Future<void> withdraw();
@@ -187,7 +253,7 @@ class NoopAnalytics implements Analytics {
   const NoopAnalytics();
 
   @override
-  Future<void> screenView({required String name}) async {}
+  Future<void> screenView({required String name, String? runType}) async {}
 
   @override
   Future<void> login({required String method}) async {}
@@ -205,20 +271,37 @@ class NoopAnalytics implements Analytics {
   Future<void> matchSlotSheetOpen() async {}
 
   @override
-  Future<void> matchSlotSelect() async {}
+  Future<void> matchSlotSelect({
+    DateTime? slotStartAt,
+    int? distanceMeters,
+  }) async {}
 
   @override
   Future<void> matchApply({
     required int distanceMeters,
     required int otherDistanceWaiting,
     required int otherDistanceWaitingSameTime,
+    DateTime? slotStartAt,
   }) async {}
 
   @override
-  Future<void> matchConfirmed({int? distanceMeters}) async {}
+  Future<void> matchConfirmed({
+    int? distanceMeters,
+    DateTime? slotStartAt,
+  }) async {}
 
   @override
-  Future<void> matchCancel() async {}
+  Future<void> matchFailed({
+    int? distanceMeters,
+    DateTime? slotStartAt,
+  }) async {}
+
+  @override
+  Future<void> matchCancel({
+    required String stage,
+    int? distanceMeters,
+    DateTime? slotStartAt,
+  }) async {}
 
   @override
   Future<void> chatOpen({
@@ -234,9 +317,16 @@ class NoopAnalytics implements Analytics {
   Future<void> runStart({required String runType}) async {}
 
   @override
+  Future<void> runStartFailed({
+    required String runType,
+    required String reason,
+  }) async {}
+
+  @override
   Future<void> runFinish({
     required String runType,
     required bool early,
+    required RunOutcome outcome,
   }) async {}
 
   @override
