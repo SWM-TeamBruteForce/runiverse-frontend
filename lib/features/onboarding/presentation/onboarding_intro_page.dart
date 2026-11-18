@@ -106,68 +106,131 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
       // 마지막 화면이 넘어온 뒤의 일이다.
       backgroundColor: colors.bgBase,
       body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: AppSpacing.space6),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = math.max(
+              0.0,
+              constraints.maxWidth - AppSpacing.space6 * 2,
+            );
+            double textHeight(String text, TextStyle style) {
+              final painter = TextPainter(
+                text: TextSpan(text: text, style: style),
+                textDirection: Directionality.of(context),
+                textScaler: MediaQuery.textScalerOf(context),
+              )..layout(maxWidth: width);
+              final height = painter.height;
+              painter.dispose();
+              return height;
+            }
 
-            // 이탈 경로는 최우선이다. 카드를 다 보지 않아도 나갈 수 있어야 한다.
-            //
-            // ⚠️ 시안의 좌측 뒤로가기는 넣지 않는다. 온보딩은 스플래시 다음
-            // 첫 화면이라 뒤로 갈 곳이 없다.
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.space3,
-                ),
-                child: TextButton(
-                  onPressed: _finish,
-                  style: TextButton.styleFrom(
-                    // 글자는 14px이지만 히트 박스는 44px를 지킨다.
-                    minimumSize: const Size(
-                      AppSizes.touchDefault,
-                      AppSizes.touchDefault,
+            // 실제 가용 공간과 글자 배율로 계산한다. 기기별 높이 분기는 없다.
+            // 모든 장에 가장 큰 글자 영역을 예약해 페이지 이동 시 높이를 유지한다.
+            final titleHeight = _cards
+                .map(
+                  (card) => textHeight(card.title, AppTypographyV2.heading04),
+                )
+                .reduce(math.max);
+            final bodyHeight = _cards
+                .map((card) => textHeight(card.body, AppTypographyV2.body06))
+                .reduce(math.max);
+            final skipHeight = math.max(
+              kMinInteractiveDimension,
+              textHeight(AppStrings.onboardingSkip, AppTypographyV2.body11) +
+                  AppSpacing.space2 * 2,
+            );
+            final contentHeight =
+                width / _IntroCardView.artAspect +
+                _IntroCardView.artToTitle +
+                titleHeight +
+                _IntroCardView.titleToBody +
+                bodyHeight;
+            final preferredHeight =
+                contentHeight +
+                skipHeight +
+                AppSizes.touchRunning +
+                AppSpacing.space2 +
+                AppSpacing.space5 +
+                AppSpacing.space6 +
+                AppSpacing.space5 +
+                AppSpacing.space9 * 2;
+            const reducibleSpace =
+                (AppSpacing.space6 - AppSpacing.space2) +
+                (AppSpacing.space5 - AppSpacing.space2) +
+                (AppSpacing.space9 - AppSpacing.space4) * 2;
+            final compression =
+                ((preferredHeight - constraints.maxHeight) / reducibleSpace)
+                    .clamp(0.0, 1.0);
+            double gap(double preferred, double minimum) =>
+                preferred - (preferred - minimum) * compression;
+
+            return Column(
+              children: [
+                SizedBox(height: gap(AppSpacing.space6, AppSpacing.space2)),
+
+                // 이탈 경로는 최우선이다. 카드를 다 보지 않아도 나갈 수 있어야 한다.
+                //
+                // ⚠️ 시안의 좌측 뒤로가기는 넣지 않는다. 온보딩은 스플래시 다음
+                // 첫 화면이라 뒤로 갈 곳이 없다.
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.space3,
                     ),
-                    foregroundColor: colors.textSecondary,
-                  ),
-                  child: Text(
-                    AppStrings.onboardingSkip,
-                    style: AppTypographyV2.body11,
+                    child: TextButton(
+                      onPressed: _finish,
+                      style: TextButton.styleFrom(
+                        // 글자는 14px이지만 히트 박스는 44px를 지킨다.
+                        minimumSize: const Size(
+                          AppSizes.touchDefault,
+                          AppSizes.touchDefault,
+                        ),
+                        foregroundColor: colors.textSecondary,
+                      ),
+                      child: Text(
+                        AppStrings.onboardingSkip,
+                        style: AppTypographyV2.body11,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
 
-            const SizedBox(height: AppSpacing.space5),
+                SizedBox(height: gap(AppSpacing.space5, AppSpacing.space2)),
 
-            Expanded(
-              child: PageView.builder(
-                controller: _controller,
-                itemCount: _cards.length,
-                onPageChanged: (i) => setState(() => _index = i),
-                itemBuilder: (context, i) => _IntroCardView(card: _cards[i]),
-              ),
-            ),
+                Expanded(
+                  child: PageView.builder(
+                    controller: _controller,
+                    itemCount: _cards.length,
+                    onPageChanged: (i) => setState(() => _index = i),
+                    itemBuilder: (context, i) => _IntroCardView(
+                      card: _cards[i],
+                      titleHeight: titleHeight,
+                      bodyHeight: bodyHeight,
+                    ),
+                  ),
+                ),
 
-            const SizedBox(height: AppSpacing.space5),
-            PageIndicatorV2(count: _cards.length, currentIndex: _index),
-            const SizedBox(height: AppSpacing.space9),
+                const SizedBox(height: AppSpacing.space5),
+                PageIndicatorV2(count: _cards.length, currentIndex: _index),
+                SizedBox(height: gap(AppSpacing.space9, AppSpacing.space4)),
 
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.space6,
-              ),
-              child: AppButtonV2(
-                // 마지막 장에서 라벨이 바뀐다 — 다음이 없다는 신호다.
-                label: _isLast
-                    ? AppStrings.onboardingStart
-                    : AppStrings.onboardingNext,
-                onPressed: _onNext,
-              ),
-            ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.space6,
+                  ),
+                  child: AppButtonV2(
+                    // 마지막 장에서 라벨이 바뀐다 — 다음이 없다는 신호다.
+                    label: _isLast
+                        ? AppStrings.onboardingStart
+                        : AppStrings.onboardingNext,
+                    onPressed: _onNext,
+                  ),
+                ),
 
-            const SizedBox(height: AppSpacing.space9),
-          ],
+                SizedBox(height: gap(AppSpacing.space9, AppSpacing.space4)),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -207,73 +270,93 @@ class _IntroCard {
 }
 
 class _IntroCardView extends StatelessWidget {
-  const _IntroCardView({required this.card});
+  const _IntroCardView({
+    required this.card,
+    required this.titleHeight,
+    required this.bodyHeight,
+  });
 
   final _IntroCard card;
+  final double titleHeight;
+  final double bodyHeight;
 
   /// 그림과 제목 사이. 시안 실측(539 → 575)이고 토큰에 없는 값이다.
-  static const _artToTitle = 36.0;
+  static const artToTitle = 36.0;
 
   /// 제목과 본문 사이. 시안 `158:2705`의 gap 14.
-  static const _titleToBody = 14.0;
+  static const titleToBody = 14.0;
 
   /// 그림 칸의 가로세로 비. **네 장이 같은 칸을 쓴다** — 그림마다 제 비율로
   /// 두면 장을 넘길 때 그림 크기가 들쑥날쑥하다. 그림 파일도 이 비율로 자른다.
-  static const _artAspect = 336 / 360;
+  static const artAspect = 336 / 360;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space6),
-      child: Column(
-        children: [
-          // 그림 칸은 남는 세로 안에서 같은 비율로 선다. 제목 아래는 높이가
-          // 고정이라, 화면이 작아지면 그림만 줄어든다 — 글자가 먼저 잘리는
-          // 것보다 낫다. 칸은 아래에 붙여 제목과의 간격을 장마다 같게 둔다.
-          Expanded(
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: AspectRatio(
-                aspectRatio: _artAspect,
-                // 배지는 그림 위에 얹는다. 배지 줄을 따로 두면 한 장만 그림이
-                // 올라가거나, 네 장 모두 빈 줄이 생겨 그림과 제목이 멀어진다.
-                child: Stack(
-                  children: [
-                    Positioned.fill(child: _ArtView(art: card.art)),
-                    if (card.comingSoon)
-                      const Positioned(
-                        top: 0,
-                        left: 0,
-                        child: _ComingSoonBadge(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = math.max(
+          0.0,
+          constraints.maxWidth - AppSpacing.space6 * 2,
+        );
+        // 높이로 그림 폭을 줄이지 않는다. 여백을 줄여도 부족하면 내용을 스크롤한다.
+        return SingleChildScrollView(
+          key: PageStorageKey(card.art),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space6),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                SizedBox(
+                  width: width,
+                  height: width / artAspect,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        // 그림 속 예시 UI는 PNG와 같은 배율로 유지한다.
+                        // 실제 제목·설명·버튼은 시스템 글자 배율을 따른다.
+                        child: MediaQuery.withNoTextScaling(
+                          child: _ArtView(art: card.art),
+                        ),
                       ),
-                  ],
+                      if (card.comingSoon)
+                        const Positioned(
+                          top: 0,
+                          left: 0,
+                          child: _ComingSoonBadge(),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
+                const SizedBox(height: artToTitle),
+                SizedBox(
+                  height: titleHeight,
+                  child: Text(
+                    card.title,
+                    textAlign: TextAlign.center,
+                    style: AppTypographyV2.heading04.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: titleToBody),
+                SizedBox(
+                  height: bodyHeight,
+                  child: Text(
+                    card.body,
+                    textAlign: TextAlign.center,
+                    style: AppTypographyV2.body06.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: _artToTitle),
-
-          Text(
-            card.title,
-            textAlign: TextAlign.center,
-            // 시안의 제목이 26 ExtraBold다 — heading04가 그 값이다.
-            style: AppTypographyV2.heading04.copyWith(
-              color: colors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: _titleToBody),
-
-          Text(
-            card.body,
-            textAlign: TextAlign.center,
-            // ⚠️ 시안의 본문 색(#767676)은 이 바탕에서 대비가 4.36:1이라
-            // 16px 기준(4.5:1)에 못 미친다. 한 단계 밝은 쪽을 쓴다.
-            style: AppTypographyV2.body06.copyWith(color: colors.textSecondary),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
