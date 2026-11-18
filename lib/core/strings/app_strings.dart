@@ -1760,6 +1760,39 @@ abstract final class AppStrings {
   static const recordCardPhotoUnsupported = '이 형식의 사진은 넣을 수 없어요';
   static const recordCardPhotoTooLarge = '사진이 너무 커요';
 
+  // ── 기록카드 작성 3 — 공개범위 · 음악 (설계 6-4) ─────────────
+  //
+  // ⚠️ **"친구"라는 말을 쓴다.** CLAUDE.md는 쓰지 말라고 적었지만 사용자가
+  // 공개범위를 `Friends`로 확정했고, 코드에 이미 `features/friend/`와
+  // "친구 목록"이 있다. 설계 3절이 그 결정을 적어 뒀다 — CLAUDE.md 문구가
+  // 낡았고, 고치는 것은 이 작업의 범위 밖이다.
+
+  static const recordCardPublishTitle = '저장하기';
+  static const recordCardPublishSave = '저장';
+
+  static const recordCardPublishVisibilitySection = '누가 볼 수 있나요';
+
+  static const recordCardVisibilityPublic = '전체 공개';
+  static const recordCardVisibilityPublicBody = '누구나 봅니다';
+  static const recordCardVisibilityFriends = '친구 공개';
+  static const recordCardVisibilityFriendsBody = '친구만 봅니다';
+  static const recordCardVisibilityPrivate = '나만 보기';
+  static const recordCardVisibilityPrivateBody = '나만 봅니다';
+
+  /// ⚠️ **"지도"가 아니라 "선"이다.** 설계 6-4의 문구는 "지도로 함께 보입니다"
+  /// 인데, 기록카드의 경로는 **배경 없는 선 아트**다(같은 문서 3절). 지도라고
+  /// 말하면 보이지도 않는 것을 경고하는 셈이다.
+  static const recordCardPublishRouteWarning = '공개하면 달린 경로가 선으로 함께 보입니다';
+
+  static const recordCardPublishMusicTitle = 'AI 음악 만들기';
+
+  /// ⚠️ **"몇 분"으로 끝내지 않는다.** 서버가 큐에서 6시간까지 기다릴 수 있다
+  /// (설계 3절). "조금만 기다리세요"로 적으면 지키지 못할 약속이 된다.
+  static const recordCardPublishMusicBody =
+      '회고와 러닝 기록으로 30초, 사진마다 10초짜리 곡을 만듭니다. 몇 분에서 길게는 더 걸립니다.';
+
+  static const recordCardPublishSaveFailed = '저장하지 못했어요';
+
   // ── 프로필 유도 바텀시트 ─────────────────────────────────────
   //
   // ⚠️ **닫히지 않는다.** 프로필 없이는 매칭도 기록도 돌아가지 않아서
