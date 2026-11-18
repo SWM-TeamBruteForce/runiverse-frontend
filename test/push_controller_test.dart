@@ -427,16 +427,19 @@ void main() {
   group('앱이 켜져 있을 때 받은 채팅 푸시', () {
     // 채팅은 SSE 알림함에 들어가지 않는다. 켜 둔 앱이 그리지 않으면 폰을 내려놓고
     // 출발을 기다리는 사람이 놓친다.
-    Map<String, Object?> chatIn(String room) => {
-      'type': 'ROOM_CHAT_SENT',
-      'runningRoomId': room,
-      'chatId': '3021',
-      'chatType': 'MESSAGE',
-      'actorId': 'u-9',
-      'actorNickname': '철수',
-      'title': '19:30 - 5 km 러닝',
-      'body': '곧 출발해요',
-    };
+    // 채팅은 data만 온다 — 알림 블록이 없다.
+    ReceivedPush chatIn(String room) => ReceivedPush(
+      data: {
+        'type': 'ROOM_CHAT_SENT',
+        'runningRoomId': room,
+        'chatId': '3021',
+        'chatType': 'MESSAGE',
+        'actorId': 'u-9',
+        'actorNickname': '철수',
+        'title': '19:30 - 5 km 러닝',
+        'body': '곧 출발해요',
+      },
+    );
 
     test('팝업 없이 알림창에 쌓는다', () async {
       final app = build(initial: me);
@@ -491,10 +494,45 @@ void main() {
     test('채팅이 아닌 푸시는 그리지 않는다', () async {
       // 같은 알림이 SSE로 알림함에 들어온다. 그리면 두 번 알린다.
       final app = build(initial: me);
-      app.messaging.incoming.add({'type': 'RUNNING_REMINDER'});
+      app.messaging.incoming.add(
+        const ReceivedPush(
+          data: {'type': 'RUNNING_REMINDER'},
+          title: '곧 러닝이 시작돼요',
+          body: '19:30 - 5 km 러닝',
+        ),
+      );
       await settle();
 
       expect(app.messaging.shown, isEmpty);
+      expect(app.messaging.notices, isEmpty);
+    });
+  });
+
+  group('앱이 켜져 있을 때 받은 공지 푸시', () {
+    // 공지는 SSE 알림함에 들어가지 않는다. 켜 둔 앱이 그리지 않으면 아무도 못 본다.
+    test('알림 블록의 제목·내용으로 그린다', () async {
+      final app = build(initial: me);
+      app.messaging.incoming.add(
+        const ReceivedPush(
+          data: {'type': 'NOTICE'},
+          title: '점검 안내',
+          body: '오늘 밤 2시에 점검해요',
+        ),
+      );
+      await settle();
+
+      expect(app.messaging.notices, ['점검 안내/오늘 밤 2시에 점검해요']);
+      expect(app.messaging.shown, isEmpty);
+    });
+
+    test('⚠️ 문구가 빠졌으면 그리지 않는다', () async {
+      final app = build(initial: me);
+      app.messaging.incoming.add(
+        const ReceivedPush(data: {'type': 'NOTICE'}, title: '점검 안내'),
+      );
+      await settle();
+
+      expect(app.messaging.notices, isEmpty);
     });
   });
 }
@@ -532,14 +570,17 @@ class _FakeMessaging implements PushMessaging {
   Stream<OpenedPush> get opened => taps.stream;
 
   /// 켜진 앱이 받은 푸시를 흘려 넣는 곳.
-  final incoming = StreamController<Map<String, Object?>>.broadcast();
+  final incoming = StreamController<ReceivedPush>.broadcast();
 
   /// 그린 채팅 알림을 `방/quiet`처럼 적어 둔다.
   final shown = <String>[];
   final cleared = <String>[];
 
+  /// 그린 공지를 `제목/내용`처럼 적어 둔다.
+  final notices = <String>[];
+
   @override
-  Stream<Map<String, Object?>> get received => incoming.stream;
+  Stream<ReceivedPush> get received => incoming.stream;
 
   @override
   Future<void> showChat(ChatPush push, {required bool quiet}) async =>
@@ -548,6 +589,12 @@ class _FakeMessaging implements PushMessaging {
   @override
   Future<void> clearChat(String runningRoomId) async =>
       cleared.add(runningRoomId);
+
+  @override
+  Future<void> showNotice({
+    required String title,
+    required String body,
+  }) async => notices.add('$title/$body');
 }
 
 /// 받은 등록을 `기기/토큰`으로 적어 둔다.

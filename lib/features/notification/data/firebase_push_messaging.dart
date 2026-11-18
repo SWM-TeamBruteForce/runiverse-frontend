@@ -27,6 +27,12 @@ import 'package:runiverse/features/session/domain/permission_access.dart';
 /// 그래서 앱이 직접 그린다([AndroidChatNotifications]). 꺼졌거나 뒤에 있을 때는
 /// [handleBackgroundPush]가, 켜져 있을 때는 [received]를 듣는 `PushController`가
 /// 그린다.
+///
+/// ## 예외 — 안드로이드 켜진 앱의 공지
+///
+/// 공지는 SSE 알림함에 들어가지 않는다. 배너를 띄우지 않으면 앱을 보고 있던
+/// 사람은 공지를 못 본다. 그래서 `PushController`가 채팅과 같은 도구로 팝업을
+/// 쌓는다.
 class FirebasePushMessaging implements PushMessaging {
   FirebasePushMessaging({
     FirebaseMessaging? messaging,
@@ -103,8 +109,13 @@ class FirebasePushMessaging implements PushMessaging {
   }
 
   @override
-  Stream<Map<String, Object?>> get received =>
-      FirebaseMessaging.onMessage.map((message) => message.data);
+  Stream<ReceivedPush> get received => FirebaseMessaging.onMessage.map(
+    (message) => ReceivedPush(
+      data: message.data,
+      title: message.notification?.title,
+      body: message.notification?.body,
+    ),
+  );
 
   @override
   Future<void> showChat(ChatPush push, {required bool quiet}) async =>
@@ -113,6 +124,12 @@ class FirebasePushMessaging implements PushMessaging {
   @override
   Future<void> clearChat(String runningRoomId) async =>
       _chat?.clear(runningRoomId);
+
+  @override
+  Future<void> showNotice({
+    required String title,
+    required String body,
+  }) async => _chat?.showNotice(title: title, body: body);
 
   static OpenedPush _openedOf(RemoteMessage message) =>
       OpenedPush(messageId: message.messageId, data: message.data);
