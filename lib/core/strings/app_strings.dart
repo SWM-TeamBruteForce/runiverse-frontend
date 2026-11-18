@@ -1648,6 +1648,54 @@ abstract final class AppStrings {
     return '$hour:$minute';
   }
 
+  // ── 기록카드 작성 1 (기록·유형·회고) ─────────────────────────
+
+  static const recordCardComposeTitle = '기록카드 쓰기';
+  static const recordCardComposeNext = '다음';
+
+  /// 기록 고르기 묶음의 머리.
+  static const recordCardComposeRecordSection = '러닝 불러오기';
+
+  /// 날짜 행을 누르면 뜨는 휠의 제목.
+  static const recordCardComposeDateSheet = '날짜 고르기';
+
+  /// `2026.09.02 (화)`
+  static String recordCardComposeDateLabel(DateTime day) {
+    final month = day.month.toString().padLeft(2, '0');
+    final date = day.day.toString().padLeft(2, '0');
+    return '${day.year}.$month.$date (${recordWeekdayOf(day)})';
+  }
+
+  /// 그날 뛴 것이 없을 때. **달력에서는 여기 닿지 않는다** — 안 뛴 날은
+  /// 눌리지 않는다. 탭 머리의 쓰기로 들어왔는데 오늘 안 뛴 경우와, 날짜를
+  /// 옮겨 안 뛴 날로 간 경우에 뜬다.
+  static const recordCardComposeNoRecords = '이 날에는 러닝 기록이 없어요';
+
+  /// 기록 조회가 실패했을 때. 다시 시도는 [recordRetry]를 쓴다.
+  static const recordCardComposeRecordsError = '러닝 기록을 불러오지 못했어요';
+
+  /// 이미 카드를 쓴 기록에 붙는 표. **회색으로 죽이지 않는다** — 누르면 그
+  /// 카드로 간다(설계 6-2).
+  static const recordCardComposeHasCard = '카드';
+
+  /// 고른 기록에 경로가 없을 때 선 아트 자리에 드는 말. 트레드밀이거나 GPS를
+  /// 못 받은 러닝이다.
+  static const recordCardComposeRouteNone = '경로가 없는 러닝이에요';
+
+  /// 경로를 못 받았을 때. **없는 것과 다르다** — 다시 열면 보일 수 있다.
+  static const recordCardComposeRouteFailed = '경로를 불러오지 못했어요';
+
+  static const recordCardComposeActivitySection = '러닝 유형';
+
+  static const recordCardComposeReviewHint = '오늘의 러닝은 어떤 순간으로 기억되나요?';
+
+  /// `84/1000`.
+  ///
+  /// ⚠️ 상한을 받아 쓴다 — `core/`가 feature 를 import 하지 않는다. 값의
+  /// 주인은 `CardDraft.reviewMaxLength`다.
+  static String recordCardComposeReviewCounter(int length, int max) =>
+      '$length/$max';
+
   // ── 프로필 유도 바텀시트 ─────────────────────────────────────
   //
   // ⚠️ **닫히지 않는다.** 프로필 없이는 매칭도 기록도 돌아가지 않아서

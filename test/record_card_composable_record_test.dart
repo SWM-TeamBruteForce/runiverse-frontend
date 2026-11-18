@@ -80,6 +80,17 @@ void main() {
     expect(joined.every((r) => !r.hasCard), isTrue);
   });
 
+  test('⚠️ 번호가 아니라 카드를 들고 있다 — 상세가 extra로 카드를 요구한다', () {
+    // 번호만 남기면 열 수 없는 번호가 된다(`app_router.dart`의 redirect).
+    final joined = joinCards(
+      records: [_record(id: 11)],
+      cards: [_card(id: 500, runningRecordId: 11)],
+    );
+
+    expect(joined.single.existingCard?.id, 500);
+    expect(joined.single.existingCardId, 500);
+  });
+
   test('⚠️ 그날 기록과 상관없는 카드는 아무 기록에도 안 붙는다', () {
     // 날짜를 옮겨 다니며 조회하므로 두 쪽이 어긋날 수 있다.
     final joined = joinCards(
