@@ -526,9 +526,10 @@ abstract final class AppStrings {
   /// 히어로 부제. 시안의 두 줄 중 앱이 무엇인지 말하는 둘째 줄만 둔다.
   static const homeHeroSubtitle = '같은 시간, 각자의 자리에서 함께 달려요';
 
-  /// `오늘 4명 대기` — 매칭 버튼 바로 위. 오늘 아직 들어갈 수 있는 칸을 서버가
-  /// 합친 수다. 칸 하나(`18:00 · 5 km`)로 적으면 "그 칸에만 있다"로 읽힌다.
-  static String homeWaitingToday(int count) => '오늘 ${matchWaitingCount(count)}';
+  /// `4명이 기다리고 있어요` — 매칭 버튼 바로 위. 오늘 아직 들어갈 수 있는 칸을
+  /// 서버가 합친 수다. 칸 하나(`18:00 · 5 km`)로 적으면 "그 칸에만 있다"로
+  /// 읽힌다. `오늘`은 붙이지 않는다 — 제목 `오늘도 함께 달려볼까요?`와 겹친다.
+  static String homeWaitingToday(int count) => '$count명이 기다리고 있어요';
 
   // 공지 띠 — 날씨 줄 아래. 순서와 멈춤은 `HomeNoticeReel`이 정한다.
   //
