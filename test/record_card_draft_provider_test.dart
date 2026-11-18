@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record_card/domain/card_draft.dart';
+import 'package:runiverse/features/record_card/domain/card_photo_draft.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
@@ -133,7 +134,7 @@ void main() {
       notifier().addPhoto(_image('/tmp/a.jpg'));
       notifier().addPhoto(_image('/tmp/b.jpg'));
 
-      expect(draft().photos.map((p) => p.image.path), [
+      expect(draft().photos.map((p) => (p as PickedPhoto).image.path), [
         '/tmp/a.jpg',
         '/tmp/b.jpg',
       ]);
@@ -145,7 +146,7 @@ void main() {
       }
 
       expect(draft().photos, hasLength(5));
-      expect(draft().photos.last.image.path, '/tmp/4.jpg');
+      expect((draft().photos.last as PickedPhoto).image.path, '/tmp/4.jpg');
     });
 
     test('지우면 그 자리만 빠지고 순서가 남는다', () {
@@ -155,7 +156,7 @@ void main() {
 
       notifier().removePhotoAt(1);
 
-      expect(draft().photos.map((p) => p.image.path), [
+      expect(draft().photos.map((p) => (p as PickedPhoto).image.path), [
         '/tmp/a.jpg',
         '/tmp/c.jpg',
       ]);
@@ -200,9 +201,9 @@ void main() {
 
       notifier().setPhotoAlign(1, alignX: -0.5);
 
-      expect(draft().photos[0].alignX, 0);
-      expect(draft().photos[1].alignX, -0.5);
-      expect(draft().photos[1].alignY, 0);
+      expect((draft().photos[0] as PickedPhoto).alignX, 0);
+      expect((draft().photos[1] as PickedPhoto).alignX, -0.5);
+      expect((draft().photos[1] as PickedPhoto).alignY, 0);
     });
 
     test('한 축만 주면 다른 축은 그대로다', () {
@@ -211,8 +212,8 @@ void main() {
 
       notifier().setPhotoAlign(0, alignX: 0.8);
 
-      expect(draft().photos.first.alignX, 0.8);
-      expect(draft().photos.first.alignY, 0.3);
+      expect((draft().photos.first as PickedPhoto).alignX, 0.8);
+      expect((draft().photos.first as PickedPhoto).alignY, 0.3);
     });
 
     test('⚠️ 없는 자리를 건드려도 던지지 않는다', () {

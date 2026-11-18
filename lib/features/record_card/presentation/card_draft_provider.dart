@@ -81,7 +81,7 @@ class CardDraftController extends Notifier<CardDraft> {
     state = state.copyWith(
       photos: [
         ...state.photos,
-        CardPhotoDraft(image: image),
+        PickedPhoto(image: image),
       ],
     );
   }
@@ -93,15 +93,21 @@ class CardDraftController extends Notifier<CardDraft> {
 
   /// [index] 자리의 캡션. **[CardPhotoDraft.captionMaxLength]에서 자른다.**
   void setCaption(int index, String text) => _withPhoto(index, (photos) {
-    photos[index] = photos[index].copyWith(
-      caption: _cut(text, CardPhotoDraft.captionMaxLength),
+    photos[index] = photos[index].withCaption(
+      _cut(text, CardPhotoDraft.captionMaxLength),
     );
   });
 
   /// [index] 자리의 사진을 민 위치. **주지 않은 축은 그대로 둔다.**
+  ///
+  /// ⚠️ **이미 올린 사진이면 아무 일도 하지 않는다.** 9:16으로 잘려 나갔으므로
+  /// 틀 안에서 옮길 데가 없다. 화면도 그 장에는 끌기를 달지 않지만, 늦게 온
+  /// 콜백이 여기로 올 수 있다.
   void setPhotoAlign(int index, {double? alignX, double? alignY}) =>
       _withPhoto(index, (photos) {
-        photos[index] = photos[index].copyWith(alignX: alignX, alignY: alignY);
+        final photo = photos[index];
+        if (photo is! PickedPhoto) return;
+        photos[index] = photo.withAlign(alignX: alignX, alignY: alignY);
       });
 
   void setVisibility(RecordCardVisibility visibility) =>

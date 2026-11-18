@@ -84,6 +84,9 @@ class CardSaveController extends Notifier<CardSaveState> {
     try {
       final photos = <NewCardPhoto>[];
       for (final photo in draft.photos) {
+        // ⚠️ **새 카드에는 올린 사진이 있을 수 없다.** 수정이 붙으면 여기가
+        // 갈린다 — 그때까지는 들어오면 앱의 버그다.
+        if (photo is! PickedPhoto) continue;
         final one = await cropper.crop(
           photo.image,
           aspectRatio: CardPhotoDraft.aspectRatio,

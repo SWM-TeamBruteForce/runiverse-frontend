@@ -17,6 +17,7 @@ import 'package:runiverse/features/record_card/domain/card_draft.dart';
 import 'package:runiverse/features/record_card/domain/card_photo_draft.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_photo_pan.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_cell.dart';
 
 /// 기록카드 작성 2 — 사진 (설계 6-3).
 ///
@@ -170,17 +171,25 @@ class _CardPhotoPageState extends ConsumerState<CardPhotoPage> {
                       index + 1,
                       photos.length,
                     ),
-                    child: CardPhotoPan(
-                      photo: photos[index],
-                      // 넘기는 중에는 끄지 않는다 — `PageView`가 가로 끌기를
-                      // 먼저 가져가므로, 미는 사진에서는 장을 넘길 수 없다.
-                      // 점을 눌러 넘기는 길을 아래에 둔다.
-                      onAlign: ({alignX, alignY}) => _draft.setPhotoAlign(
-                        index,
-                        alignX: alignX,
-                        alignY: alignY,
+                    child: switch (photos[index]) {
+                      // 이미 올린 사진은 **밀 수 없다** — 9:16으로 잘려
+                      // 나갔으므로 틀 안에서 옮길 데가 없다.
+                      final SavedPhoto saved => Image(
+                        image: cardThumbnail(context, saved.url),
+                        fit: BoxFit.cover,
                       ),
-                    ),
+                      final PickedPhoto picked => CardPhotoPan(
+                        photo: picked,
+                        // 넘기는 중에는 끄지 않는다 — `PageView`가 가로
+                        // 끌기를 먼저 가져가므로, 미는 사진에서는 장을 넘길
+                        // 수 없다. 점을 눌러 넘기는 길을 아래에 둔다.
+                        onAlign: ({alignX, alignY}) => _draft.setPhotoAlign(
+                          index,
+                          alignX: alignX,
+                          alignY: alignY,
+                        ),
+                      ),
+                    },
                   ),
                 ),
               ),

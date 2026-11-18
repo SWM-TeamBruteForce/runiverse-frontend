@@ -239,7 +239,7 @@ CardDraft _ready({int photos = 0, List<String>? captions}) => CardDraft(
   reviewText: '좋았다',
   photos: [
     for (var i = 0; i < photos; i++)
-      CardPhotoDraft(
+      PickedPhoto(
         image: PickedImage.validated(path: '/tmp/p$i.jpg', sizeBytes: 1024),
         caption: captions == null ? '' : captions[i],
       ),
@@ -294,7 +294,7 @@ Future<ProviderContainer> _pump(
   if (start.activity != null) controller.setActivity(start.activity!);
   controller.setReview(start.reviewText);
   for (final photo in start.photos) {
-    controller.addPhoto(photo.image);
+    controller.addPhoto((photo as PickedPhoto).image);
   }
   for (var i = 0; i < start.photos.length; i++) {
     controller.setCaption(i, start.photos[i].caption);

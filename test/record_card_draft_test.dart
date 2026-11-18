@@ -24,10 +24,11 @@ const _route = RouteArt(
   aspect: 1,
 );
 
-CardPhotoDraft _photo({String caption = ''}) => CardPhotoDraft(
-  image: PickedImage.validated(path: '/tmp/a.jpg', sizeBytes: 1024),
-  caption: caption,
-);
+PickedImage _image() =>
+    PickedImage.validated(path: '/tmp/a.jpg', sizeBytes: 1024);
+
+CardPhotoDraft _photo({String caption = ''}) =>
+    PickedPhoto(image: _image(), caption: caption);
 
 CardDraft _draft({
   RunRecord? record,
@@ -165,6 +166,70 @@ void main() {
 
     test('사진 틀은 9:16이다', () {
       expect(CardPhotoDraft.aspectRatio, closeTo(9 / 16, 1e-9));
+    });
+  });
+
+  /// 수정에서 작성 2를 다시 쓴다. 기존 사진이 안 보이면 **3장짜리 카드가
+  /// 0장으로 열린다** — 그래서 초안이 두 종류를 함께 담는다.
+  group('사진은 올린 것과 고른 것으로 갈린다', () {
+    test('이미 올린 사진은 주소와 번호를 든다', () {
+      const photo = SavedPhoto(
+        id: 7,
+        url: 'https://x/a.jpg',
+        thumbnailUrl: 'https://x/a_s.jpg',
+        caption: '바다',
+      );
+
+      expect(photo.id, 7);
+      expect(photo.url, 'https://x/a.jpg');
+      expect(photo.thumbnailUrl, 'https://x/a_s.jpg');
+      expect(photo.caption, '바다');
+    });
+
+    test('새로 고른 사진은 파일과 민 위치를 든다', () {
+      final photo = PickedPhoto(image: _image(), alignX: -0.5);
+
+      expect(photo.image.path, '/tmp/a.jpg');
+      expect(photo.alignX, -0.5);
+      expect(photo.alignY, 0);
+    });
+
+    test('캡션은 종류와 상관없이 바뀐다', () {
+      expect(const SavedPhoto(id: 7, url: 'u').withCaption('가').caption, '가');
+      expect(PickedPhoto(image: _image()).withCaption('가').caption, '가');
+    });
+
+    test('⚠️ 캡션을 바꿔도 종류와 나머지 값이 그대로다', () {
+      // 종류가 섞이면 저장이 올린 사진을 새 사진으로 보고 다시 자른다.
+      // ⚠️ 돌려주는 타입이 **자식 그대로**라 캐스트가 필요 없다 —
+      // `CardPhotoDraft`로 좁아지면 여기서 캐스트가 생기고, 그것이 종류를
+      // 잃었다는 신호다.
+      final saved = const SavedPhoto(id: 7, url: 'u').withCaption('가');
+      expect(saved.id, 7);
+      expect(saved.url, 'u');
+
+      final picked = PickedPhoto(image: _image(), alignX: 0.3).withCaption('가');
+      expect(picked.alignX, 0.3);
+      expect(picked.image.path, '/tmp/a.jpg');
+    });
+
+    test('⚠️ 민 위치는 새로 고른 것에만 있다', () {
+      // 이미 9:16으로 잘려 올라간 사진은 옮길 데가 없다.
+      final moved = PickedPhoto(
+        image: _image(),
+        caption: '가',
+      ).withAlign(alignX: 1);
+
+      expect(moved.alignX, 1);
+      expect(moved.alignY, 0);
+      expect(moved.caption, '가');
+    });
+
+    test('한 축만 주면 다른 축은 그대로다', () {
+      final photo = PickedPhoto(image: _image(), alignX: -0.5, alignY: 0.3);
+
+      expect(photo.withAlign(alignX: 0.8).alignY, 0.3);
+      expect(photo.withAlign(alignY: -1).alignX, -0.5);
     });
   });
 

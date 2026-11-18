@@ -45,7 +45,9 @@ class CardPhotoPan extends StatefulWidget {
     super.key,
   });
 
-  final CardPhotoDraft photo;
+  /// ⚠️ **새로 고른 사진만 받는다.** 이미 올린 사진은 9:16으로 잘려 나가
+  /// 틀 안에서 옮길 데가 없다 — 끌기를 달면 아무 일도 없는 제스처가 된다.
+  final PickedPhoto photo;
 
   /// 민 위치를 밖으로 알린다. **움직인 축만** 준다.
   final void Function({double? alignX, double? alignY}) onAlign;

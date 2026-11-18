@@ -193,7 +193,7 @@ Future<void> _pump(
               width: 270,
               height: 480,
               child: CardPhotoPan(
-                photo: CardPhotoDraft(
+                photo: PickedPhoto(
                   image: PickedImage.validated(path: path, sizeBytes: 1024),
                   alignX: alignX,
                   alignY: alignY,
