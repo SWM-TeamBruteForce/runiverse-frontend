@@ -125,6 +125,12 @@ class FirebaseAnalyticsService implements Analytics {
       _send('run_start', {'run_type': runType});
 
   @override
+  Future<void> runStartFailed({
+    required String runType,
+    required String reason,
+  }) => _send('run_start_failed', {'run_type': runType, 'reason': reason});
+
+  @override
   Future<void> runFinish({
     required String runType,
     required bool early,

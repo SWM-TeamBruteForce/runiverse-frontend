@@ -167,6 +167,24 @@ abstract interface class Analytics {
   /// ⚠️ `invite` 는 2026-11-18에 생겼다. 그전에는 초대 방도 `match` 였다.
   Future<void> runStart({required String runType});
 
+  /// 출발하지 못한 것이 **확인됐다.** [runType] 은 [runStart] 와 같다.
+  ///
+  /// ⚠️ **확인된 실패만 남긴다.** 대기실에 아예 오지 않은 미참여는 앱이 알 수
+  /// 없으므로 서버 기록으로 가린다. [reason] 은 다음 중 하나다.
+  ///
+  /// - `location_denied` · `location_denied_forever` · `location_off` — 출발
+  ///   순간 위치를 쓸 수 없었다. 서버는 출발시키므로 **[runStart] 와 함께
+  ///   남을 수 있다** — 방은 시작했는데 기기가 좌표를 못 낸다
+  /// - `not_room_player` — 서버가 이 방의 참가자로 보지 않는다
+  /// - `session_expired` — 로그인이 풀려 붙지 못했다
+  ///
+  /// 방마다 한 번이고, [runStart] 가 이미 남은 방에서는 서버 쪽 이유를
+  /// 남기지 않는다 — 그때는 시작 실패가 아니라 도중에 끊긴 것이다.
+  Future<void> runStartFailed({
+    required String runType,
+    required String reason,
+  });
+
   /// `RUNNING_FINISHED` 를 처음 받았을 때. [runType] 은 [runStart] 와 같다.
   ///
   /// [early] 는 **본인이 목표 전에 끝내기로 했는가**(`forced=true`)다. 서버가
@@ -297,6 +315,12 @@ class NoopAnalytics implements Analytics {
 
   @override
   Future<void> runStart({required String runType}) async {}
+
+  @override
+  Future<void> runStartFailed({
+    required String runType,
+    required String reason,
+  }) async {}
 
   @override
   Future<void> runFinish({

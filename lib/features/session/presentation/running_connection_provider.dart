@@ -234,6 +234,7 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       // 재시도해도 같은 답이다. 보내던 것을 멈추고 소켓을 닫는다 — 화면이
       // 이 실패를 보고 러닝을 접는다.
       debugPrint('[running] 이 방의 참가자가 아니다. 러닝을 접는다');
+      _logStartFailed(state.room, 'not_room_player');
       _retry?.cancel();
       _sender?.stop();
       _sender = null;
@@ -407,6 +408,22 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
 
   /// `run_start` 를 남긴 방. 재연결로 ack 가 또 와도 다시 세지 않는다.
   int? _startLogged;
+
+  /// `run_start_failed` 를 남긴 방. 같은 방의 실패를 두 번 세지 않는다.
+  int? _startFailedLogged;
+
+  /// 서버가 **시작 전에** 거절했다. 이미 시작한 방이면 남기지 않는다 —
+  /// 그것은 시작 실패가 아니라 도중에 끊긴 것이다(`Analytics.runStartFailed`).
+  void _logStartFailed(RunningRoom? room, String reason) {
+    if (room == null) return;
+    if (room.id == _startLogged || room.id == _startFailedLogged) return;
+    _startFailedLogged = room.id;
+    unawaited(
+      ref
+          .read(analyticsProvider)
+          .runStartFailed(runType: _runType(room), reason: reason),
+    );
+  }
 
   /// GA 가 받는 러닝 종류. `match` · `invite` · `solo`.
   ///
@@ -612,6 +629,7 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   Future<void> _connect(RunningRoom room, {bool recovered = false}) async {
     final accessToken = (await ref.read(tokenStoreProvider).read()).accessToken;
     if (accessToken == null) {
+      _logStartFailed(room, 'session_expired');
       state = const RunningConnectionState(
         failure: RunningRoomFailure.sessionExpired,
       );
