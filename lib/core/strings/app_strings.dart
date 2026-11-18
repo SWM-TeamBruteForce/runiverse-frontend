@@ -1603,6 +1603,14 @@ abstract final class AppStrings {
     return '$date, 기록카드 $count장';
   }
 
+  /// 뛰었는데 기록카드를 안 쓴 날의 칸. **이 칸은 눌러서 작성으로 간다.**
+  ///
+  /// ⚠️ [recordCardCellSemantics]의 `기록카드 없음`으로는 안 된다 — 그 말은
+  /// 안 뛴 날에도 똑같이 붙어서, 누를 수 있는 칸과 누를 수 없는 칸이 스크린
+  /// 리더에서 구별되지 않는다. 운동화는 눈에만 보인다.
+  static String recordCardCellUnwrittenSemantics(DateTime day) =>
+      '${day.month}월 ${day.day}일, 러닝 기록 있음, 기록카드 쓰기';
+
   /// 하루에 카드가 둘 이상일 때 뜨는 시트의 제목.
   static String recordCardDaySheetTitle(DateTime day) =>
       '${day.month}월 ${day.day}일의 기록카드';

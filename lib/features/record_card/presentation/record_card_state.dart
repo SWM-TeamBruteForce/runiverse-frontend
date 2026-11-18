@@ -29,8 +29,11 @@ CalendarZoom zoomFor(CalendarZoom current, double scale) {
 /// 때마다 같은 계산이 반복된다(`docs/implementation-notes.md` 5-3,
 /// `RecordData`가 같은 이유를 적어 두었다).
 class MonthCards {
-  MonthCards({required this.month, required this.cards})
-    : byDay = _groupByDay(cards);
+  MonthCards({
+    required this.month,
+    required this.cards,
+    this.recordDays = const {},
+  }) : byDay = _groupByDay(cards);
 
   /// 이 묶음이 가리키는 달. 항상 그 달 **1일 0시**다.
   final DateTime month;
@@ -44,6 +47,13 @@ class MonthCards {
   /// **하루당 카드 1개가 아니다.**
   final Map<DateTime, List<RecordCard>> byDay;
 
+  /// 이 달에 **뛴 날들**. 카드가 있는지와는 무관하다. 키는 시·분을 자른 날짜다.
+  ///
+  /// ⚠️ **카드 조회와 다른 요청에서 온다**(`GET /users/me/running-records`).
+  /// 그 조회가 실패한 달은 비어 있다 — 달력을 오류로 덮는 대신 운동화만
+  /// 빠진다(`RecordCardController._fetch`).
+  final Set<DateTime> recordDays;
+
   int get cardCount => cards.length;
 
   /// [activity]만 남긴 같은 달. `null`이면 그대로 돌려준다.
@@ -55,6 +65,9 @@ class MonthCards {
         for (final card in cards)
           if (card.activity == activity) card,
       ],
+      // ⚠️ **그대로 넘긴다.** 떨어뜨리면 `visible`을 읽는 다음 사람이 빈
+      // 집합을 받고 "이 달은 안 뛰었다"로 조용히 틀린다.
+      recordDays: recordDays,
     );
   }
 
@@ -104,7 +117,8 @@ class RecordCardData extends RecordCardState {
     required this.filter,
     required this.zoom,
     required this.atOldest,
-  }) : visible = _visibleOf(months, filter);
+  }) : visible = _visibleOf(months, filter),
+       shoeDays = _shoeDaysOf(months);
 
   /// 필터를 걸기 **전**의 달들. 오름차순이다.
   ///
@@ -116,6 +130,16 @@ class RecordCardData extends RecordCardState {
   ///
   /// ⚠️ **0장이 된 달도 남는다.** 달이 통째로 사라지면 달력이 아니게 된다.
   final List<MonthCards> visible;
+
+  /// 뛰었는데 카드를 안 쓴 날. 달력이 여기에 운동화를 두고, **이 날만 눌러서**
+  /// 작성으로 간다.
+  ///
+  /// ## ⚠️ 유형 필터를 따르지 않는다
+  ///
+  /// [months]로 가린다 — [visible]로 가리면 `대회` 필터를 걸었을 때 일상 카드를
+  /// 쓴 날이 전부 "안 쓴 날"이 되어 **달력이 운동화로 뒤덮인다.** 필터는
+  /// 보는 방식이고, 카드를 썼는지는 필터와 무관한 사실이다.
+  final Set<DateTime> shoeDays;
 
   /// `null`이면 전체다.
   final RecordCardActivity? filter;
@@ -152,6 +176,12 @@ class RecordCardData extends RecordCardState {
     zoom: zoom ?? this.zoom,
     atOldest: atOldest ?? this.atOldest,
   );
+
+  static Set<DateTime> _shoeDaysOf(List<MonthCards> months) => {
+    for (final month in months)
+      for (final day in month.recordDays)
+        if (!month.byDay.containsKey(day)) day,
+  };
 
   /// 화면에 세울 달들. **가장 오래된 빈 달들을 잘라 낸다.**
   ///

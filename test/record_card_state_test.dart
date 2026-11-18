@@ -213,6 +213,66 @@ void main() {
     });
   });
 
+  group('shoeDays', () {
+    test('⚠️ 뛰었는데 카드가 없는 날만 운동화다', () {
+      final data = RecordCardData(
+        months: [
+          MonthCards(
+            month: DateTime(2026, 9),
+            cards: [_card(id: 7, startedAt: DateTime(2026, 9, 7, 8))],
+            recordDays: {DateTime(2026, 9, 7), DateTime(2026, 9, 9)},
+          ),
+        ],
+      );
+
+      // 7일은 카드가 있어 썸네일·선 아트가 칸을 채운다. 9일만 운동화다.
+      expect(data.shoeDays, {DateTime(2026, 9, 9)});
+    });
+
+    test('⚠️ 운동화는 유형 필터와 무관하다', () {
+      // 일상 카드가 있는 날에 `대회` 필터를 걸면 칸은 비지만, 거기에 운동화를
+      // 띄우면 달력이 운동화로 뒤덮인다. 필터 걸기 전 카드로 가린다.
+      final data = RecordCardData(
+        months: [
+          MonthCards(
+            month: DateTime(2026, 9),
+            cards: [_card(id: 7, startedAt: DateTime(2026, 9, 7, 8))],
+            recordDays: {DateTime(2026, 9, 7), DateTime(2026, 9, 9)},
+          ),
+        ],
+        filter: RecordCardActivity.race,
+      );
+
+      expect(data.visible.single.cardCount, 0);
+      expect(data.shoeDays, isNot(contains(DateTime(2026, 9, 7))));
+      expect(data.shoeDays, contains(DateTime(2026, 9, 9)));
+    });
+
+    test('러닝 기록을 못 받은 달은 운동화가 없다', () {
+      final data = RecordCardData(
+        months: [MonthCards(month: DateTime(2026, 9), cards: const [])],
+      );
+
+      expect(data.shoeDays, isEmpty);
+    });
+
+    test('⚠️ 필터를 걸어도 visible이 recordDays를 잃지 않는다', () {
+      // 떨어뜨리면 visible을 읽는 다음 사람이 빈 집합을 받고 조용히 틀린다.
+      final data = RecordCardData(
+        months: [
+          MonthCards(
+            month: DateTime(2026, 9),
+            cards: [_card(id: 7, startedAt: DateTime(2026, 9, 7, 8))],
+            recordDays: {DateTime(2026, 9, 9)},
+          ),
+        ],
+        filter: RecordCardActivity.race,
+      );
+
+      expect(data.visible.single.recordDays, {DateTime(2026, 9, 9)});
+    });
+  });
+
   group('zoomFor', () {
     test('많이 오므리면 분기로, 많이 벌리면 월로 간다', () {
       expect(zoomFor(CalendarZoom.month, 0.7), CalendarZoom.quarter);

@@ -24,6 +24,7 @@ class RecordCardCell extends StatelessWidget {
     required this.day,
     required this.cards,
     required this.showDayNumber,
+    required this.hasUnwrittenRun,
     required this.onTap,
     super.key,
   });
@@ -37,6 +38,11 @@ class RecordCardCell extends StatelessWidget {
   /// 분기 보기에서는 칸이 26dp쯤이라 숫자가 안 읽힌다. 그때 `false`다.
   final bool showDayNumber;
 
+  /// 이 날 **뛰었는데 카드를 안 썼나**. 운동화를 둘지 가른다.
+  ///
+  /// [cards]가 비어 있을 때만 쓴다 — 카드가 있으면 그림이 이미 칸을 채운다.
+  final bool hasUnwrittenRun;
+
   /// `null`이면 눌리지 않는다.
   final VoidCallback? onTap;
 
@@ -46,8 +52,14 @@ class RecordCardCell extends StatelessWidget {
     // 가장 최근 카드를 깐다.
     final top = cards.isEmpty ? null : cards.last;
 
+    // 뛴 것이 있는데 카드가 없는 칸은 눌러서 작성으로 간다. 운동화는 눈에만
+    // 보이므로 읽는 말도 달라야 한다.
+    final shoe = cards.isEmpty && hasUnwrittenRun;
+
     return Semantics(
-      label: AppStrings.recordCardCellSemantics(day: day, count: cards.length),
+      label: shoe
+          ? AppStrings.recordCardCellUnwrittenSemantics(day)
+          : AppStrings.recordCardCellSemantics(day: day, count: cards.length),
       button: onTap != null,
       onTap: onTap,
       // ⚠️ **`container`가 없으면 라벨이 자기 노드를 못 만든다** — 조상에
@@ -70,6 +82,7 @@ class RecordCardCell extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   if (top != null) _Face(card: top),
+                  if (shoe) const RunShoeMark(),
                   if (showDayNumber)
                     Align(
                       alignment: Alignment.bottomCenter,
@@ -151,6 +164,32 @@ class CardMarkDot extends StatelessWidget {
         shape: BoxShape.circle,
       ),
     ),
+  );
+}
+
+/// 뛰었는데 기록카드를 안 쓴 날의 자국.
+///
+/// ## ⚠️ 안 뛴 날과 갈라지는 것이 전부다
+///
+/// 날짜 숫자만 있는 칸이 "안 뛴 날"과 "쓸 거리가 있는 날"을 함께 뜻하면
+/// **카드를 쓸 수 있는 날을 사용자가 찾을 수 없다.**
+///
+/// ## ⚠️ 색을 토큰으로 맞출 수 없다
+///
+/// 이모지는 제 색으로 그려져 `appColorsV2`가 닿지 않는다. 어두운 달력에서
+/// 톤이 튀면 `LucideIcons.footprints`로 바꿀 자리다 — Lucide 에 운동화는
+/// 없고 발자국이 가장 가깝다.
+///
+/// 크기를 고정한 이유: `FittedBox`로 늘리면 월 보기에서 칸을 가득 메우고,
+/// 분기 보기(26dp 칸)에서는 이 크기가 들어간다.
+class RunShoeMark extends StatelessWidget {
+  const RunShoeMark({super.key});
+
+  static const _fontSize = 14.0;
+
+  @override
+  Widget build(BuildContext context) => const Center(
+    child: Text('👟', style: TextStyle(fontSize: _fontSize)),
   );
 }
 

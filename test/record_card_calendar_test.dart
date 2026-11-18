@@ -35,6 +35,7 @@ RecordCardData _data({
   RecordCardActivity? filter,
   CalendarZoom zoom = CalendarZoom.month,
   bool atOldest = false,
+  Set<DateTime>? recordDays,
 }) => RecordCardData(
   atOldest: atOldest,
   months: [
@@ -47,6 +48,8 @@ RecordCardData _data({
             _card(id: 11, startedAt: DateTime(2026, 9, 11, 8)),
             _card(id: 12, startedAt: DateTime(2026, 9, 11, 20)),
           ],
+      // 9일은 뛰었는데 카드가 없다 — 운동화가 서고 눌린다.
+      recordDays: recordDays ?? {DateTime(2026, 9, 7), DateTime(2026, 9, 9)},
     ),
   ],
   filter: filter,
@@ -174,7 +177,9 @@ void main() {
     expect(opened?.id, 12);
   });
 
-  testWidgets('빈 날을 누르면 onEmptyDay가 그 날짜로 불린다', (tester) async {
+  testWidgets('⚠️ 안 뛴 빈 날은 눌리지 않는다', (tester) async {
+    // 눌러서 "기록이 없어요"를 보여 주는 것보다 애초에 안 눌리는 편이 낫다
+    // (설계 6-1, 2026-11-18). 운동화가 눌릴 수 있는 날을 이미 가리킨다.
     DateTime? empty;
     await _pump(tester, onEmptyDay: (day) => empty = day);
 
@@ -185,7 +190,27 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(empty, DateTime(2026, 9, 3));
+    expect(empty, isNull);
+  });
+
+  testWidgets('⚠️ 뛴 빈 날을 누르면 onEmptyDay가 그 날짜로 불린다', (tester) async {
+    DateTime? empty;
+    await _pump(tester, onEmptyDay: (day) => empty = day);
+
+    await tester.tap(
+      find.bySemanticsLabel(
+        AppStrings.recordCardCellUnwrittenSemantics(DateTime(2026, 9, 9)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(empty, DateTime(2026, 9, 9));
+  });
+
+  testWidgets('⚠️ 뛴 빈 날에만 운동화가 선다', (tester) async {
+    await _pump(tester);
+
+    expect(find.byType(RunShoeMark), findsOneWidget);
   });
 
   testWidgets('⚠️ 필터로 0장이 된 달도 머리와 칸이 남는다', (tester) async {

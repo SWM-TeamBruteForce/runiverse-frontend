@@ -48,6 +48,7 @@ Future<void> _pump(
   WidgetTester tester, {
   required List<RecordCard> cards,
   bool showDayNumber = true,
+  bool hasUnwrittenRun = false,
   bool light = false,
   VoidCallback? onTap,
 }) => tester.pumpWidget(
@@ -62,6 +63,7 @@ Future<void> _pump(
             day: DateTime(2026, 9, 2),
             cards: cards,
             showDayNumber: showDayNumber,
+            hasUnwrittenRun: hasUnwrittenRun,
             onTap: onTap,
           ),
         ),
@@ -100,6 +102,23 @@ void main() {
     await _pump(tester, cards: [_card(id: 1, route: RouteArt.empty)]);
 
     expect(find.byType(CardMarkDot), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 뛰었는데 카드가 없는 칸에는 운동화가 선다', (tester) async {
+    // 안 뛴 날과 눈으로 갈라져야 한다 — 날짜 숫자만 있는 칸이 둘을 함께
+    // 뜻하면 카드를 쓸 수 있는 날을 사용자가 찾을 수 없다.
+    await _pump(tester, cards: const [], hasUnwrittenRun: true);
+
+    expect(find.byType(RunShoeMark), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 카드가 있으면 운동화를 두지 않는다', (tester) async {
+    // 카드를 쓴 날에 운동화가 겹치면 "아직 안 썼다"로 읽힌다.
+    await _pump(tester, cards: [_card(id: 1)], hasUnwrittenRun: true);
+
+    expect(find.byType(RunShoeMark), findsNothing);
+    expect(find.byType(RouteArtView), findsOneWidget);
   });
 
   testWidgets('카드가 없는 날은 날짜만 있다', (tester) async {

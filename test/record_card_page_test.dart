@@ -5,6 +5,8 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
+import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
@@ -39,6 +41,11 @@ Future<void> _pump(
       overrides: [
         recordCardRepositoryProvider.overrideWithValue(
           repository ?? FakeRecordCardRepository(today: _today),
+        ),
+        // 달력이 러닝 기록도 받는다 — 실제 구현을 그대로 두면 dio와 토큰
+        // 저장소를 끌어온다.
+        runRecordRepositoryProvider.overrideWithValue(
+          FakeRunRecordRepository(today: _today),
         ),
         recordCardClockProvider.overrideWithValue(() => _today),
         authControllerProvider.overrideWith(_Auth.new),

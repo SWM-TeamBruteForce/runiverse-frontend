@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
+import 'package:runiverse/features/record/domain/run_record_repository.dart';
+import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
@@ -41,6 +43,12 @@ final recordCardControllerProvider =
 ///
 /// 한 번에 [RecordCardRepository.maxRangeDays]를 넘길 수 없다. 세 달이면
 /// 세 번이다.
+///
+/// ## ⚠️ 달마다 요청이 둘이다 — 카드와 러닝 기록
+///
+/// 달력은 뛰었는데 카드를 안 쓴 날에 운동화를 둬야 한다(설계 6-1). 그 날이
+/// 어디인지는 카드 조회가 알려 주지 않아 **러닝 기록을 따로 받는다.** 둘은
+/// 동시에 던진다 — 줄 세우면 왕복이 두 배다.
 class RecordCardController extends Notifier<RecordCardState> {
   /// 한 번에 받아 오는 달 수.
   static const _batchMonths = 3;
@@ -136,17 +144,23 @@ class RecordCardController extends Notifier<RecordCardState> {
     final existing = previous?.months ?? const [];
     final already = previous?.loadedMonths ?? const <DateTime>{};
     final repository = ref.read(recordCardRepositoryProvider);
+    final records = ref.read(runRecordRepositoryProvider);
 
     try {
       final fetched = <MonthCards>[];
       for (final month in wanted) {
         // 이미 들고 있는 달은 건너뛴다.
         if (already.contains(month)) continue;
-        final cards = await repository.byDateRange(
-          from: month,
-          to: _lastDayOf(month),
+        final to = _lastDayOf(month);
+        // ⚠️ **둘을 먼저 띄우고 그 다음에 기다린다.** `await`를 한 줄씩
+        // 쓰면 왕복이 두 배가 되고, `(a, b).wait`로 묶으면 카드 쪽 실패가
+        // `ParallelWaitError`에 싸여 아래 `on RecordCardException`에 안 걸린다.
+        final cardsSoon = repository.byDateRange(from: month, to: to);
+        final daysSoon = _recordDaysOf(records, from: month, to: to);
+        final cards = await cardsSoon;
+        fetched.add(
+          MonthCards(month: month, cards: cards, recordDays: await daysSoon),
         );
-        fetched.add(MonthCards(month: month, cards: cards));
       }
 
       if (epoch != _accountEpoch) return;
@@ -182,6 +196,24 @@ class RecordCardController extends Notifier<RecordCardState> {
         if (userId != null) unawaited(load());
       },
     );
+  }
+
+  /// 그 달에 **뛴 날들**.
+  ///
+  /// ⚠️ **실패하면 빈 집합이다.** 러닝 기록 조회 하나로 달력을 오류 화면으로
+  /// 날리지 않는다 — 카드를 보는 것이 이 탭의 본업이고, 그때도 탭 머리의
+  /// 쓰기 버튼으로 작성에 들어갈 수 있다. 운동화만 빠진다.
+  static Future<Set<DateTime>> _recordDaysOf(
+    RunRecordRepository repository, {
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    try {
+      final records = await repository.byDateRange(from: from, to: to);
+      return {for (final record in records) record.day};
+    } on RunRecordException {
+      return const {};
+    }
   }
 
   /// 그 달의 마지막 날. 다음 달 0일이 이번 달 말일이다.

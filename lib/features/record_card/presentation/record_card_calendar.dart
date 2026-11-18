@@ -76,6 +76,7 @@ class RecordCardCalendar extends StatelessWidget {
               : _MonthSection(
                   month: months[index],
                   zoom: data.zoom,
+                  shoeDays: data.shoeDays,
                   onOpen: onOpen,
                   onEmptyDay: onEmptyDay,
                 ),
@@ -136,12 +137,17 @@ class _MonthSection extends StatelessWidget {
   const _MonthSection({
     required this.month,
     required this.zoom,
+    required this.shoeDays,
     required this.onOpen,
     required this.onEmptyDay,
   });
 
   final MonthCards month;
   final CalendarZoom zoom;
+
+  /// 뛰었는데 카드를 안 쓴 날. **달 전체가 아니라 상태가 들고 있는 것**을
+  /// 그대로 받는다 — 유형 필터를 따르지 않아야 해서다(`RecordCardData.shoeDays`).
+  final Set<DateTime> shoeDays;
   final ValueChanged<RecordCard> onOpen;
   final ValueChanged<DateTime> onEmptyDay;
 
@@ -224,22 +230,35 @@ class _MonthSection extends StatelessWidget {
   }) {
     final day = DateTime(month.month.year, month.month.month, dayOfMonth);
     final cards = month.byDay[day] ?? const <RecordCard>[];
+    final hasUnwrittenRun = shoeDays.contains(day);
 
     return RecordCardCell(
       day: day,
       cards: cards,
       showDayNumber: !compact,
-      onTap: () {
-        if (cards.isEmpty) {
-          onEmptyDay(day);
-          return;
-        }
-        if (cards.length == 1) {
-          onOpen(cards.single);
-          return;
-        }
-        showDayCardsSheet(context, day: day, cards: cards, onOpen: onOpen);
-      },
+      hasUnwrittenRun: hasUnwrittenRun,
+      // ⚠️ **안 뛴 빈 날은 눌리지 않는다**(설계 6-1, 2026-11-18). 눌러서
+      // "기록이 없어요"를 보여 주는 것보다 애초에 안 눌리는 편이 낫다.
+      // `null`을 주면 `Semantics(button:)`도 함께 꺼져, 스크린리더가 누를 수
+      // 없는 칸을 버튼으로 읽지 않는다.
+      onTap: cards.isEmpty && !hasUnwrittenRun
+          ? null
+          : () {
+              if (cards.isEmpty) {
+                onEmptyDay(day);
+                return;
+              }
+              if (cards.length == 1) {
+                onOpen(cards.single);
+                return;
+              }
+              showDayCardsSheet(
+                context,
+                day: day,
+                cards: cards,
+                onOpen: onOpen,
+              );
+            },
     );
   }
 }
