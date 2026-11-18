@@ -1,4 +1,6 @@
-﻿import 'package:go_router/go_router.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/app/router/app_shell.dart';
 import 'package:runiverse/features/auth/presentation/sign_in_page.dart';
@@ -23,6 +25,9 @@ import 'package:runiverse/features/record/presentation/record_page.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/presentation/card_compose_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_detail_page.dart';
+import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
+import 'package:runiverse/features/record_card/presentation/card_photo_page.dart';
+import 'package:runiverse/features/record_card/presentation/card_publish_page.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_page.dart';
 import 'package:runiverse/features/session/presentation/run_prepare_page.dart';
 import 'package:runiverse/features/session/presentation/run_session_page.dart';
@@ -126,6 +131,29 @@ GoRouter createAppRouter({String? initialLocation}) {
               DateTime.tryParse(state.uri.queryParameters['date'] ?? '') ??
               DateTime.now(),
         ),
+      ),
+      // 기록카드 작성 2 — 사진. **탭 셸 밖이다.**
+      //
+      // ⚠️ **초안이 비어 있으면 탭으로 돌려보낸다.** 딥링크나 프로세스 복원으로
+      // 여기 바로 떨어지면 고를 기록도, 쓴 회고도 없다 — 카드 상세가 `extra`
+      // 없이 들어온 것과 같은 꼴이다. 빈 화면을 띄우지 않는다.
+      GoRoute(
+        path: AppRoutes.recordCardNewPhotos,
+        name: 'record_card_new_photos',
+        redirect: _needsDraft,
+        builder: (context, state) => const CardPhotoPage(),
+      ),
+      // 기록카드 작성 3 — 공개범위 · 음악 · 저장. **탭 셸 밖이다.**
+      //
+      // ⚠️ **저장하면 작성 셋을 걷고 상세를 민다.** `go`로 가면 셸 밖 라우트
+      // 아래에 스택이 없어 안드로이드 뒤로가 앱을 닫는다. 걷어 내면 뒤로가
+      // 캘린더로 떨어진다(설계 6-4).
+      GoRoute(
+        path: AppRoutes.recordCardNewPublish,
+        name: 'record_card_new_publish',
+        redirect: _needsDraft,
+        builder: (context, state) =>
+            CardPublishPage(onSaved: (card) => _toDetail(context, card)),
       ),
       // 기록카드 한 장. **탭 셸 밖이다** — 프로필이나 러닝 요약에서 열어도
       // 탭이 바뀌면 안 된다(`app_routes.dart`).
@@ -307,4 +335,37 @@ GoRouter createAppRouter({String? initialLocation}) {
       ),
     ],
   );
+}
+
+/// 작성 2·3에 들어갈 초안이 있나. 없으면 탭으로 돌려보낸다.
+///
+/// ## ⚠️ 빈 화면을 띄우지 않는다
+///
+/// 딥링크나 프로세스 복원으로 작성 2·3에 바로 떨어지면 고를 기록도, 쓴 회고도
+/// 없다. 카드 상세가 `extra` 없이 들어왔을 때와 같은 꼴로 다룬다.
+///
+/// `canProceed`가 아니라 `isDirty`를 보지 않는다 — **저장할 수 있는 상태**인지
+/// 묻는 것이고, 사진은 선택이라 그 판단에 안 들어간다.
+String? _needsDraft(BuildContext context, GoRouterState state) {
+  final draft = ProviderScope.containerOf(
+    context,
+    listen: false,
+  ).read(cardDraftProvider(null));
+  return draft.canProceed ? null : AppRoutes.recordCard;
+}
+
+/// 만든 카드의 상세로 보낸다. **작성 세 화면을 걷는다**(설계 6-4).
+///
+/// ## ⚠️ `go`를 쓰지 않는다
+///
+/// 셸 밖 라우트에 `go`로 가면 그 아래에 스택이 없어 **안드로이드 뒤로가 앱을
+/// 닫는다.** 작성 셋을 걷고 상세를 밀면 뒤로가 캘린더로 떨어진다.
+///
+/// ⚠️ **러닝 요약에서 들어온 경우까지 걷는다**(묶음 6). 그때 이 줄을 다시 본다.
+void _toDetail(BuildContext context, RecordCard card) {
+  final router = GoRouter.of(context);
+  while (router.canPop()) {
+    router.pop();
+  }
+  router.push(AppRoutes.recordCardDetailOf(card.id), extra: card);
 }

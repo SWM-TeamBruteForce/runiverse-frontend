@@ -144,10 +144,11 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
         centerTitle: true,
         actions: [
           TextButton(
-            // ⚠️ **아직 아무 데도 보내지 않는다.** 사진 화면이 다음 묶음이고,
-            // 없는 라우트를 미리 밀면 go_router 가 오류 화면을 띄운다. **이
-            // 묶음은 사진 화면과 함께 올린다** — 혼자 올리면 막힌 버튼이 나간다.
-            onPressed: draft.canProceed ? () {} : null,
+            // ⚠️ **초안만 들고 간다.** 사진 화면은 날짜를 쿼리로 받지 않는다 —
+            // 어느 날인지는 초안의 `record`가 안다. 두 곳에 두면 갈라진다.
+            onPressed: draft.canProceed
+                ? () => context.push(AppRoutes.recordCardNewPhotos)
+                : null,
             child: Text(AppStrings.recordCardComposeNext),
           ),
         ],

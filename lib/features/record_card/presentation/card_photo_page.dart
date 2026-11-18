@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
@@ -106,9 +108,9 @@ class _CardPhotoPageState extends ConsumerState<CardPhotoPage> {
         centerTitle: true,
         actions: [
           TextButton(
-            // ⚠️ **아직 아무 데도 보내지 않는다.** 공개범위 화면의 라우트가
-            // 다음 Task다. 없는 라우트를 미리 밀면 오류 화면이 뜬다.
-            onPressed: draft.canProceed ? () {} : null,
+            onPressed: draft.canProceed
+                ? () => context.push(AppRoutes.recordCardNewPublish)
+                : null,
             child: Text(AppStrings.recordCardComposeNext),
           ),
         ],

@@ -120,6 +120,23 @@ abstract final class AppRoutes {
     return '$recordCardNew?date=${day.year}-$month-$date';
   }
 
+  /// 기록카드 작성 2 — 사진.
+  ///
+  /// ⚠️ **날짜를 싣지 않는다.** 어느 날인지는 작성 1이 이미 초안에 꽂았다
+  /// (`cardDraftProvider`의 `record`). 여기서 다시 받으면 두 곳이 갈라져,
+  /// 날짜를 고쳐 놓고 넘어온 사람이 옛 날짜를 보게 된다.
+  ///
+  /// ⚠️ **초안이 비어 있으면 탭으로 돌려보낸다.** 작성 1을 거치지 않고
+  /// 떨어지면 고를 기록도 쓴 회고도 없다 — 카드 상세가 `extra` 없이 들어온
+  /// 것과 같은 꼴이다.
+  static const recordCardNewPhotos = '/record-card/new/photos';
+
+  /// 기록카드 작성 3 — 공개범위 · 음악 · 저장.
+  ///
+  /// [recordCardNewPhotos]와 같은 규칙이다 — 날짜를 싣지 않고, 초안이 비면
+  /// 탭으로 돌려보낸다.
+  static const recordCardNewPublish = '/record-card/new/publish';
+
   /// 기록카드 한 장 (읽기 전용).
   ///
   /// ⚠️ **탭 셸 밖에 둔다.** 셸 안에 두면 ① 프로필 그리드나 러닝 요약에서 카드를
