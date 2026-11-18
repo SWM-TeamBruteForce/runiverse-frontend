@@ -213,7 +213,7 @@
 |---|---|---|
 | `flutter analyze`가 분석 서버 크래시로 죽음 | 저장소가 **한글·공백이 든 경로**에 있음 | ASCII 경로로 옮긴다 |
 | `main.dart` 교체 후 컴파일 자체가 안 됨 | `test/widget_test.dart`가 `flutter create` 기본 카운터 테스트라 `MyApp`을 직접 import | **교체하는 커밋에서 함께 지우거나 다시 쓴다** |
-| `checkDebugAarMetadata`에서 빌드 실패 · `compileSdk of at least 37` | 패키지가 **compileSdk 37**을 요구하는데 Flutter 3.44.8 기본값이 36이다 | 그 패키지의 **버전을 낮춰 고정한다.** `flutter_secure_storage`(11.x 금지)·`permission_handler`(13.x 금지)가 같은 이유로 묶여 있다. 캐럿(`^`)을 쓰면 다음 사람의 `pub upgrade`에서 다시 깨지므로 정확한 버전으로 박는다 |
+| `checkDebugAarMetadata`에서 빌드 실패 · `compileSdk of at least 37` | 패키지가 **compileSdk 37**을 요구하는데 Flutter 3.44.8 기본값이 36이다 | 그 패키지의 **버전을 낮춰 고정한다.** `flutter_secure_storage`(11.x 금지)·`permission_handler`(13.x 금지)·`flutter_local_notifications`(23.x 금지)가 같은 이유로 묶여 있다. 캐럿(`^`)을 쓰면 다음 사람의 `pub upgrade`에서 다시 깨지므로 정확한 버전으로 박는다 |
 | `flutter test integration_test`가 5분 타임아웃 | 끝나면 **앱을 제거**한다. 다시 설치되며 런타임 권한이 날아가고, 앱이 권한 다이얼로그를 띄운 채 아무도 안 누른다 | 도는 동안 `adb shell pm grant <pkg> android.permission.ACCESS_FINE_LOCATION`을 1초마다 반복해서 준다 |
 | 테스트가 끝난 뒤 기기 DB를 못 뽑음 | 같은 이유다. 앱 전용 폴더가 앱과 함께 사라진다 | 도는 동안 `adb exec-out run-as <pkg> cat databases/<파일>`로 빼낸다. `run-as`로 `/sdcard`에 복사하는 것은 **앱 UID에 저장소 권한이 없어 실패한다** |
 
