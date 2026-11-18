@@ -32,11 +32,10 @@ class HomeNoticeStrip extends ConsumerStatefulWidget {
   static const hold = Duration(seconds: 5);
 
   /// [AppStrings.homeNoticeUpdate]가 나온 날. 그날부터 1주일 동안 띠 맨 앞에
-  /// 선다. `null`이면 업데이트 줄이 없다.
+  /// 선다.
   ///
   /// ⚠️ **알릴 기능이 있는 운영 릴리스 때 공개일로 채운다**(`docs/release.md`).
-  /// 다음 공개일이 정해지지 않아 지금은 비어 있다.
-  static const DateTime? updateSince = null;
+  static final updateSince = DateTime(2026, 11, 18);
 
   @override
   ConsumerState<HomeNoticeStrip> createState() => _HomeNoticeStripState();
