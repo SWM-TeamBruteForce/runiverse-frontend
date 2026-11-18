@@ -77,8 +77,8 @@ abstract final class AppStrings {
 
   // ── 온보딩 소개 (S02) ────────────────────────────────────────
   //
-  // 카드 3장의 순서는 "무엇을 하는 앱인가 → 무엇을 얻는가 → 어떻게 남는가"다.
-  // 기능 나열이 아니라 동기를 쌓는 순서라 바꾸지 않는다.
+  // 카드 4장의 순서는 러닝 하루를 따라간다 — "만난다 → 나란히 달린다 →
+  // 돌아본다 → 남는다". 기능 나열이 아니라 하루의 순서라 바꾸지 않는다.
 
   /// 우상단 이탈 경로. 최우선으로 노출한다.
   static const onboardingSkip = '건너뛰기';
@@ -88,31 +88,40 @@ abstract final class AppStrings {
   /// 마지막 카드에서 [onboardingNext] 대신 쓴다.
   static const onboardingStart = '시작하기';
 
-  /// 1장 — 함께 달린다. 시안 `158:2699`의 문구 그대로다.
+  /// 1장 — 함께 달린다. 제목은 시안 `158:2699` 그대로다.
+  ///
+  /// 출발 전 채팅은 대기방에 들어가야 보여서, 신청 전에 알릴 곳이 여기뿐이다.
   static const onboardingCard1Title = '함께 달리면\n더 멀리 갈 수 있어요';
-  static const onboardingCard1Body =
-      '같은 시간, 다른 장소에서도 괜찮아요.\n나와 맞는 러너를 만나 함께 달려보세요.';
+  static const onboardingCard1Body = '같은 시간, 다른 장소에서 달려요\n출발 전엔 대기방에서 인사도 나눠요';
 
   /// 2장 — 콤보.
   ///
   /// ⚠️ **30m는 앱이 실제로 쓰는 기준이다** ([runPartyComboHint]와 같은 값).
-  /// 숫자를 바꾸려면 서버의 콤보 판정부터 바꿔야 한다.
+  /// 숫자를 바꾸려면 서버의 콤보 판정부터 바꿔야 한다. 서로 다른 곳에서
+  /// 달리므로 두 사람 사이의 거리가 아니라 **달린 거리의 차이**다.
   static const onboardingCard2Title = '나란히 달리면\n콤보가 쌓여요';
-  static const onboardingCard2Body = '서로의 거리가 30m 안으로 좁혀지면\n콤보가 시작되고 계속 쌓여요.';
+  static const onboardingCard2Body =
+      '달린 거리 차이가 30m 안이면 시작돼요\n내 위치는 상대에게 보이지 않아요';
 
-  /// 3장 — 기록카드와 AI 음악.
+  /// 3장 — 끝난 뒤 결과 화면의 파티원 비교.
+  static const onboardingCard3Title = '같이 달린 기록을\n구간별로 돌아봐요';
+  static const onboardingCard3Body = '함께 뛴 러너를 골라\n구간마다 페이스를 겹쳐 봐요';
+
+  /// 4장 — 기록카드와 AI 음악.
   ///
   /// ⚠️ **둘 다 아직 없는 기능이다.** 그래서 이 장에만 [onboardingComingSoon]
   /// 배지가 붙는다. 배지를 떼는 것은 두 기능이 실제로 들어온 뒤다.
-  static const onboardingCard3Title = '달린 날이\n사진과 음악으로 남아요';
-  static const onboardingCard3Body = '사진과 소감을 기록카드에 담고,\n함께 달린 데이터로 만든 곡을 받아요.';
+  ///
+  /// 곡은 내 기록·회고·사진으로 만든다. 함께 달린 사람의 기록은 재료가 아니다.
+  static const onboardingCard4Title = '달린 날이\n사진과 음악으로 남아요';
+  static const onboardingCard4Body = '기록카드에 사진과 회고를 남기면\n그날의 기록으로 연주곡을 만들어 줘요';
 
   /// 아직 만들지 않은 기능을 소개하는 장에 붙는 배지.
   ///
   /// 온보딩은 설치 직후 첫 화면이다. 없는 것을 있는 것처럼 말하면 바로 들통난다.
   static const onboardingComingSoon = '런칭 준비 중';
 
-  // ── 3장 그림 속 예시 값 ──────────────────────────────────────
+  // ── 4장 그림 속 예시 값 ──────────────────────────────────────
   //
   // ⚠️ **사용자의 기록이 아니라 그림이다.** 기록카드 화면이 아직 없어 온보딩이
   // 직접 그리고 있고, 그 안의 숫자와 문장은 전부 예시다. 화면이 생기면 이
@@ -123,7 +132,10 @@ abstract final class AppStrings {
   static const onboardingSampleDuration = '28:14';
   static const onboardingSampleNote = '비 온 뒤라 공기가 좋았다.';
   static const onboardingSampleSong = '그날의 곡';
-  static const onboardingSampleSongMeta = '85 BPM · 12콤보 구간 포함';
+
+  /// BPM은 평균 페이스로 정해진다 — 위 예시 기록(5'37"/km)이면 170이다.
+  /// 곡 길이는 회고만 남겼을 때의 기본 곡이다.
+  static const onboardingSampleSongMeta = '170 BPM · 30초';
 
   // ── 약관 동의 (S03) ──────────────────────────────────────────
   //

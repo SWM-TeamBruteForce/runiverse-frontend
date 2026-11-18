@@ -15,21 +15,25 @@ import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/page_indicator.dart';
 
-/// 온보딩 소개 (S02) — 카드 3장. 시안 `158:2699`.
+/// 온보딩 소개 (S02) — 카드 4장. 시안 `158:2699`.
 ///
-/// 세 장이 **서비스의 세 축**을 하나씩 맡는다.
-/// 함께 달린다 → 곁에 있으면 콤보가 쌓인다 → 그날이 사진과 음악으로 남는다.
+/// 네 장이 **러닝 하루**를 따라간다.
+/// 함께 달린다 → 곁에 있으면 콤보가 쌓인다 → 끝나고 구간을 돌아본다 →
+/// 그날이 사진과 음악으로 남는다.
 ///
-/// ## ⚠️ 3장은 아직 없는 기능이다
+/// 그림은 앱 화면의 한 부분만 잘라 쓴다. 폰 테두리를 그리지 않아 iOS와
+/// 안드로이드가 같은 그림을 본다 — 다른 것은 2장의 워치뿐이다.
+///
+/// ## ⚠️ 4장은 아직 없는 기능이다
 ///
 /// 기록카드도 AI 음악도 화면과 API가 없다. 온보딩은 설치 직후 첫 화면이라
 /// 없는 것을 있는 것처럼 말하면 바로 들통난다 — 그래서 그 장에만
 /// `런칭 준비 중` 배지를 단다.
 ///
-/// ## 세로 리듬은 세 장이 같다
+/// ## 세로 리듬은 네 장이 같다
 ///
-/// 제목이 늘 같은 높이에 선다. 3장은 배지가 한 줄 끼어들지만, 그만큼 그림
-/// 영역이 줄어들어 제목 위치는 그대로다. 넘길 때 글자가 위아래로 튀지 않는다.
+/// 그림과 제목이 늘 같은 높이에 선다. 4장의 배지는 줄을 따로 차지하지 않고
+/// 그림 왼쪽 위에 얹는다. 넘길 때 그림도 글자도 위아래로 튀지 않는다.
 ///
 /// 상태는 [PageController]와 현재 인덱스뿐이라 provider를 두지 않았다.
 /// 화면 밖에서 이 값을 알 필요가 없고, 화면을 떠나면 버려도 되는 상태다.
@@ -48,7 +52,7 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
     _IntroCard(
       title: AppStrings.onboardingCard1Title,
       body: AppStrings.onboardingCard1Body,
-      art: _Art.together,
+      art: _Art.home,
     ),
     _IntroCard(
       title: AppStrings.onboardingCard2Title,
@@ -58,6 +62,11 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
     _IntroCard(
       title: AppStrings.onboardingCard3Title,
       body: AppStrings.onboardingCard3Body,
+      art: _Art.compare,
+    ),
+    _IntroCard(
+      title: AppStrings.onboardingCard4Title,
+      body: AppStrings.onboardingCard4Body,
       art: _Art.record,
       comingSoon: true,
     ),
@@ -167,11 +176,14 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
 
 /// 장마다 다른 그림.
 enum _Art {
-  /// 앱 화면을 담은 폰 목업. 시안이 1장에 쓴 그림 그대로다.
-  together,
+  /// 홈의 매칭 카드(`HomeIdle`)를 찍은 것.
+  home,
 
-  /// 파티원 비교 화면에서 콤보 임팩트가 터지는 **실제 녹화**.
+  /// 파티원 비교 화면에서 콤보 임팩트가 터지는 **실제 녹화**에 워치가 걸친다.
   combo,
+
+  /// 결과 화면의 파티원 비교 카드와 구간별 페이스 그래프를 찍은 것.
+  compare,
 
   /// 기록카드와 곡 카드. 아직 없는 화면이라 여기서 그린다.
   record,
@@ -202,11 +214,12 @@ class _IntroCardView extends StatelessWidget {
   /// 그림과 제목 사이. 시안 실측(539 → 575)이고 토큰에 없는 값이다.
   static const _artToTitle = 36.0;
 
-  /// 배지와 제목 사이. 역시 토큰에 없다.
-  static const _badgeToTitle = 10.0;
-
   /// 제목과 본문 사이. 시안 `158:2705`의 gap 14.
   static const _titleToBody = 14.0;
+
+  /// 그림 칸의 가로세로 비. **네 장이 같은 칸을 쓴다** — 그림마다 제 비율로
+  /// 두면 장을 넘길 때 그림 크기가 들쑥날쑥하다. 그림 파일도 이 비율로 자른다.
+  static const _artAspect = 336 / 360;
 
   @override
   Widget build(BuildContext context) {
@@ -216,15 +229,31 @@ class _IntroCardView extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space6),
       child: Column(
         children: [
-          // 그림이 남는 세로를 다 쓴다. 제목 아래는 높이가 고정이라, 화면이
-          // 작아지면 그림만 줄어든다 — 글자가 먼저 잘리는 것보다 낫다.
-          Expanded(child: _ArtView(art: card.art)),
+          // 그림 칸은 남는 세로 안에서 같은 비율로 선다. 제목 아래는 높이가
+          // 고정이라, 화면이 작아지면 그림만 줄어든다 — 글자가 먼저 잘리는
+          // 것보다 낫다. 칸은 아래에 붙여 제목과의 간격을 장마다 같게 둔다.
+          Expanded(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: AspectRatio(
+                aspectRatio: _artAspect,
+                // 배지는 그림 위에 얹는다. 배지 줄을 따로 두면 한 장만 그림이
+                // 올라가거나, 네 장 모두 빈 줄이 생겨 그림과 제목이 멀어진다.
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: _ArtView(art: card.art)),
+                    if (card.comingSoon)
+                      const Positioned(
+                        top: 0,
+                        left: 0,
+                        child: _ComingSoonBadge(),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: _artToTitle),
-
-          if (card.comingSoon) ...[
-            const _ComingSoonBadge(),
-            const SizedBox(height: _badgeToTitle),
-          ],
 
           Text(
             card.title,
@@ -305,28 +334,81 @@ class _ArtView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => switch (art) {
-    // iOS는 아이폰 목업을 쓴다. 원본은 안드로이드 목업이라 심사(2.3.10)에 걸린다.
-    _Art.together => Image.asset(
-      defaultTargetPlatform == TargetPlatform.iOS
-          ? 'assets/images/onboarding_together_ios.png'
-          : 'assets/images/onboarding_together.png',
+    _Art.home => Image.asset(
+      'assets/images/onboarding_home.webp',
       fit: BoxFit.contain,
     ),
-    // 애니메이션 WebP다. `Image`가 스스로 돌린다 — 컨트롤러가 필요 없다.
-    _Art.combo => ClipRRect(
-      borderRadius: AppRadius.xl,
-      child: Image.asset(
-        'assets/images/onboarding_combo.webp',
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-      ),
+    _Art.combo => const _ComboArt(),
+    _Art.compare => Image.asset(
+      'assets/images/onboarding_compare.webp',
+      fit: BoxFit.contain,
     ),
     _Art.record => const _RecordArt(),
   };
 }
 
-/// 3장의 그림 — 기록카드 한 장 위에 곡 카드가 걸친다.
+/// 2장의 그림 — 파티원 비교 녹화의 오른쪽 아래에 워치가 걸친다.
+///
+/// 워치는 같은 콤보 순간(`11 COMBO`)을 띄워, 손목에서도 보인다는 것을 글 없이
+/// 알린다. 워치 화면은 두 워치 앱의 콤보 순간 시안이다.
+///
+/// ⚠️ **세 그림이 같은 시간표로 움직인다** — 시작 전 0.4초, 0.04초 간격 38장,
+/// 끝 0.7초. 셋 중 하나만 다시 만들면 폰과 워치의 콤보 순간이 어긋난다.
+///
+/// ⚠️ **워치는 플랫폼에 맞는 것만 보인다.** 애플워치는 아이폰하고만 쓰이고,
+/// iOS 앱에 안드로이드 기기를 보이면 심사(2.3.10)에 걸린다. 두 그림은 몸체
+/// 스타일이 같고 화면 모양만 다르다.
+class _ComboArt extends StatelessWidget {
+  const _ComboArt();
+
+  /// 워치 그림의 가로세로 비. 두 워치 그림이 같은 캔버스다.
+  static const _watchAspect = 540 / 690;
+
+  /// 그림 칸 폭 대비 워치 폭.
+  static const _watchShare = 0.42;
+
+  /// 워치가 그림 칸 밖으로 나가도 되는 너비 — 오른쪽 화면 여백 안쪽이다.
+  static const _spillX = AppSpacing.space4;
+
+  /// 워치가 칸 아래로 내려가는 몫(워치 높이 대비). 칸 안에만 두면 상대
+  /// 카드의 숫자를 많이 가린다. 그림과 제목 사이(36) 안에서만 내려가야
+  /// 제목과 겹치지 않는다 — 줄 끝이 칸 아래로 약 20 나온다.
+  static const _belowShare = 0.15;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    // 녹화는 그림 칸과 같은 비율로 찍어 칸을 꽉 채운다 — 다른 장 그림과 크기가
+    // 같다. 워치는 오른쪽 아래 모서리에 걸친다.
+    builder: (context, constraints) => Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned.fill(
+          // 애니메이션 WebP다. `Image`가 스스로 돌린다 — 컨트롤러가 필요 없다.
+          child: ClipRRect(
+            borderRadius: AppRadius.xl,
+            child: Image.asset(
+              'assets/images/onboarding_combo.webp',
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        Positioned(
+          right: -_spillX,
+          bottom:
+              -constraints.maxWidth * _watchShare / _watchAspect * _belowShare,
+          width: constraints.maxWidth * _watchShare,
+          child: Image.asset(
+            defaultTargetPlatform == TargetPlatform.iOS
+                ? 'assets/images/onboarding_watch_apple.webp'
+                : 'assets/images/onboarding_watch_galaxy.webp',
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// 4장의 그림 — 기록카드 한 장 위에 곡 카드가 걸친다.
 ///
 /// 기록카드 화면이 아직 없어 **여기서 그린다.** 화면이 생기면 그 화면의
 /// 부품으로 갈아끼운다.
@@ -356,8 +438,12 @@ class _RecordArt extends StatelessWidget {
     // ⚠️ 두 카드는 제 높이대로 쌓이고, 남는 세로가 모자라면 **통째로 줄어든다.**
     // 안에서 늘였다 줄였다 하면 겹치는 깊이와 기울기가 기기마다 달라진다 —
     // 비율을 지킨 채 작아지는 편이 낫다. 넘쳐서 노란 줄이 뜨는 일도 없다.
+    //
+    // 칸 아래에 붙인다. 곡 카드를 끌어올린 만큼 아래가 비어서, 가운데에 두면
+    // 다른 장 그림보다 떠 보인다.
     return FittedBox(
       fit: BoxFit.scaleDown,
+      alignment: Alignment.bottomCenter,
       child: SizedBox(
         width: _artWidth,
         child: Stack(
