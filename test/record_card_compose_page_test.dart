@@ -179,27 +179,30 @@ Future<void> _pump(
   DateTime? day,
   bool light = false,
   RecordCard? card,
+  ProviderContainer? container,
 }) async {
-  await tester.pumpWidget(
-    ProviderScope(
-      overrides: [
-        runRecordRepositoryProvider.overrideWithValue(
-          records ?? _Records([_record(id: 11)], detail: _detail(roomId: 911)),
-        ),
-        recordCardRepositoryProvider.overrideWithValue(
-          cards ?? _Cards(const []),
-        ),
-        recordCardClockProvider.overrideWithValue(() => _today),
-      ],
-      child: MaterialApp(
-        theme: light ? AppTheme.light() : AppTheme.dark(),
-        home: CardComposePage(
-          day: day ?? card?.day ?? _day,
-          cardId: card?.id,
-          card: card,
-        ),
-      ),
+  final overrides = [
+    runRecordRepositoryProvider.overrideWithValue(
+      records ?? _Records([_record(id: 11)], detail: _detail(roomId: 911)),
     ),
+    recordCardRepositoryProvider.overrideWithValue(cards ?? _Cards(const [])),
+    recordCardClockProvider.overrideWithValue(() => _today),
+  ];
+
+  final app = MaterialApp(
+    theme: light ? AppTheme.light() : AppTheme.dark(),
+    home: CardComposePage(
+      day: day ?? card?.day ?? _day,
+      cardId: card?.id,
+      card: card,
+    ),
+  );
+
+  // 미리 더럽혀 둔 초안을 보려면 컨테이너를 밖에서 들어야 한다.
+  await tester.pumpWidget(
+    container == null
+        ? ProviderScope(overrides: overrides, child: app)
+        : UncontrolledProviderScope(container: container, child: app),
   );
   await tester.pumpAndSettle();
 }
@@ -736,7 +739,49 @@ void main() {
       await tester.tap(find.byIcon(LucideIcons.chevronLeft));
       await tester.pumpAndSettle();
 
-      expect(find.text(AppStrings.recordCardComposeDiscardTitle), findsOne);
+      // ⚠️ **작성의 "쓰던 기록카드를 버릴까요?"가 아니다** — 고치던 기존
+      // 카드를 두고 그렇게 물으면 카드가 지워지는 것으로 읽힌다.
+      expect(find.text(AppStrings.recordCardEditDiscardTitle), findsOne);
+      expect(find.text(AppStrings.recordCardEditDiscardBody), findsOne);
+      expect(find.text(AppStrings.recordCardComposeDiscardTitle), findsNothing);
+    });
+
+    testWidgets('⚠️ 더러운 초안으로 다시 들어와도 이어 쓰기를 묻지 않는다', (tester) async {
+      // 수정 스택이 밖에서 걷히면(세션 만료 → `context.go(signIn)`) 초안은
+      // keepAlive라 더러운 채 남는다. 다시 들어왔을 때 묻는 것은 **작성의
+      // 말**이고, 거기서 `새로 쓰기`를 고르면 `editing`이 사라져 **저장할 수
+      // 없는 수정 화면**에 갇힌다.
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final card = _card();
+      container.read(cardDraftProvider(card.id).notifier)
+        ..seed(card)
+        ..setReview('고치다 만 글');
+
+      await _pump(tester, card: card, container: container);
+
+      expect(find.text(AppStrings.recordCardComposeResumeTitle), findsNothing);
+      expect(container.read(cardDraftProvider(card.id)).editing, isNotNull);
+    });
+
+    testWidgets('⚠️ 버리기는 카드 값으로 되돌린다 — 수정 화면을 잠그지 않는다', (tester) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final card = _card();
+      container.read(cardDraftProvider(card.id).notifier)
+        ..seed(card)
+        ..setReview('고치다 만 글');
+
+      await _pump(tester, card: card, container: container);
+      await tester.tap(find.byIcon(LucideIcons.chevronLeft));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.recordCardComposeDiscard));
+      await tester.pumpAndSettle();
+
+      final draft = container.read(cardDraftProvider(card.id));
+      expect(draft.editing, isNotNull, reason: '고치던 카드를 잃으면 안 된다');
+      expect(draft.reviewText, card.reviewText);
+      expect(draft.canProceed, isTrue, reason: '다시 저장할 수 있어야 한다');
     });
 
     testWidgets('안 고치고 나가면 묻지 않는다', (tester) async {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
@@ -73,10 +74,13 @@ Future<void> _pump(
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPadding);
 
+  // ⚠️ **`ProviderScope`가 필요하다.** 상세가 삭제 상태를 본다(`⋮`).
   await tester.pumpWidget(
-    MaterialApp(
-      theme: light ? AppTheme.light() : AppTheme.dark(),
-      home: CardDetailPage(card: _card(photos: photos)),
+    ProviderScope(
+      child: MaterialApp(
+        theme: light ? AppTheme.light() : AppTheme.dark(),
+        home: CardDetailPage(card: _card(photos: photos)),
+      ),
     ),
   );
 }

@@ -1727,6 +1727,12 @@ abstract final class AppStrings {
   /// 거절당하고, 바꾸면 지표·경로가 통째로 달라져 다른 카드가 된다.
   static const recordCardEditRecordLocked = '러닝 기록은 바꿀 수 없어요';
 
+  /// ⚠️ **작성의 "쓰던 기록카드를 버릴까요?"를 쓰지 않는다.** 고치던 기존
+  /// 카드를 두고 그렇게 물으면 **카드 자체가 지워지는 것으로 읽힌다** — 같은
+  /// 화면 묶음에 진짜 삭제가 있어 더 그렇다.
+  static const recordCardEditDiscardTitle = '고친 것을 버릴까요?';
+  static const recordCardEditDiscardBody = '고친 내용만 사라지고 카드는 그대로예요';
+
   /// 상세 머리의 `⋮`. 아이콘뿐이라 이름을 준다.
   static const recordCardMore = '더 보기';
 

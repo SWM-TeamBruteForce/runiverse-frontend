@@ -40,6 +40,10 @@ class CardDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColorsV2;
+    // ⚠️ **도는 동안을 보여 준다.** 아무 표시가 없으면 느린 망에서 "안
+    // 눌렸다"로 읽혀 한 번 더 누르고, 두 번째가 재진입 가드에 걸려 **지워졌는데
+    // "지우지 못했어요"**를 보게 된다.
+    final deleting = ref.watch(cardDeleteProvider) is CardDeleting;
 
     return Scaffold(
       backgroundColor: colors.bgBase,
@@ -53,10 +57,20 @@ class CardDetailPage extends ConsumerWidget {
           tooltip: AppStrings.authBack,
         ),
         actions: [
+          if (deleting)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: AppSpacing.space4),
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
           IconButton(
             icon: const Icon(LucideIcons.ellipsisVertical),
             tooltip: AppStrings.recordCardMore,
-            onPressed: () => _openMenu(context, ref),
+            onPressed: deleting ? null : () => _openMenu(context, ref),
           ),
         ],
       ),
@@ -167,9 +181,14 @@ class CardDetailPage extends ConsumerWidget {
 
     if (!context.mounted) return;
     if (!gone) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text(AppStrings.recordCardDeleteFailed)),
-      );
+      // ⚠️ **`false`가 전부 실패는 아니다.** 이미 도는 중이라 두 번째 호출이
+      // 그냥 돌아온 경우에도 `false`다 — 그때 실패를 띄우면 지워졌는데
+      // "지우지 못했어요"를 본 직후 화면이 걷힌다.
+      if (ref.read(cardDeleteProvider) is CardDeleteFailed) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text(AppStrings.recordCardDeleteFailed)),
+        );
+      }
       return;
     }
     // ⚠️ **왔던 곳으로 돌아간다**(설계 6-6). 머물면 없는 카드를 보고 있다 —

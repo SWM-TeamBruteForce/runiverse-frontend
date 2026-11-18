@@ -10,6 +10,7 @@ import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
+import 'package:runiverse/features/record_card/domain/route_art.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
@@ -192,6 +193,28 @@ void main() {
     });
   });
 
+  group('카드를 고칠 때', () {
+    testWidgets('⚠️ 음악 토글을 보여 주지 않는다', (tester) async {
+      // `RecordCard`에 음악 상태가 없다(묶음 5). 기본값 `true`를 보여 주면
+      // **음악을 끄고 만든 카드**를 고치러 들어온 사람에게 켜진 스위치가
+      // 서고, 저장하면 거절했던 생성이 수정 한 번으로 켜진다.
+      await _pump(tester, editing: true);
+
+      expect(find.byType(Switch), findsNothing);
+      expect(find.text(AppStrings.recordCardPublishMusicTitle), findsNothing);
+    });
+
+    testWidgets('공개범위는 그대로 고칠 수 있다', (tester) async {
+      await _pump(tester, editing: true);
+
+      expect(
+        find.text(AppStrings.recordCardPublishVisibilitySection),
+        findsOne,
+      );
+      expect(find.text(AppStrings.recordCardPublishSave), findsOne);
+    });
+  });
+
   testWidgets('⚠️ 고른 것과 안 고른 것이 갈라 읽힌다', (tester) async {
     // 글자 라벨이 있어도 무엇이 켜졌는지는 테두리 색뿐이라, 이것 없이는
     // 스크린리더가 셋을 구별하지 못한다.
@@ -266,6 +289,7 @@ Future<ProviderContainer> _pump(
   Duration delay = Duration.zero,
   RecordCardFailure? failWith,
   void Function(RecordCard card)? onSaved,
+  bool editing = false,
 }) async {
   final container = ProviderContainer(
     overrides: [
@@ -288,7 +312,10 @@ Future<ProviderContainer> _pump(
   );
   addTearDown(handle.close);
 
-  if (!empty) {
+  final cardId = editing ? _editCard.id : null;
+  if (editing) {
+    container.read(cardDraftProvider(cardId).notifier).seed(_editCard);
+  } else if (!empty) {
     final controller = container.read(cardDraftProvider(null).notifier);
     controller.pickRecord(_record());
     controller.setActivity(RecordCardActivity.daily);
@@ -300,7 +327,7 @@ Future<ProviderContainer> _pump(
       container: container,
       child: MaterialApp(
         theme: light ? AppTheme.light() : AppTheme.dark(),
-        home: CardPublishPage(onSaved: onSaved),
+        home: CardPublishPage(cardId: cardId, onSaved: onSaved),
       ),
     ),
   );
@@ -321,3 +348,19 @@ class _Cropper implements ImageCropper {
   @override
   Future<void> discard(PickedImage cropped) async {}
 }
+
+/// 고치는 카드. ⚠️ **음악 상태가 없다** — `RecordCard`에 그 필드가 없다.
+final _editCard = RecordCard(
+  id: 7,
+  runningRecordId: 11,
+  startedAt: DateTime(2026, 11, 2, 7),
+  activity: RecordCardActivity.travel,
+  visibility: RecordCardVisibility.public,
+  reviewText: '여행에서 뛰었다',
+  photos: const [],
+  route: RouteArt.empty,
+  distanceMeters: 3050,
+  duration: const Duration(minutes: 18),
+  averagePace: const Duration(minutes: 5, seconds: 54),
+  runners: const [],
+);

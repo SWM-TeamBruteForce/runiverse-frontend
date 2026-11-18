@@ -121,13 +121,21 @@ class CardPublishPage extends ConsumerWidget {
               const SizedBox(height: AppSpacing.space1),
               _RouteWarning(),
             ],
-            const SizedBox(height: AppSpacing.space5),
-            Divider(color: colors.bgSurface, height: 1),
-            const SizedBox(height: AppSpacing.space5),
-            _MusicToggle(
-              enabled: draft.musicEnabled,
-              onChanged: saving ? null : controller.setMusicEnabled,
-            ),
+            // ⚠️ **수정에서는 음악 블록을 숨긴다.** `RecordCard`에 음악
+            // 상태가 없어(묶음 5) 기본값 `true`를 보여 주게 되는데, 음악을
+            // **끄고 만든 카드**를 고치러 온 사람에게 켜진 스위치가 서고
+            // 저장하면 거절했던 생성이 수정 한 번으로 켜진다. 모르는 상태를
+            // 조작 가능한 컨트롤로 지어내지 않는다 — 묶음 5가 진짜 상태와
+            // 함께 되살린다.
+            if (draft.editing == null) ...[
+              const SizedBox(height: AppSpacing.space5),
+              Divider(color: colors.bgSurface, height: 1),
+              const SizedBox(height: AppSpacing.space5),
+              _MusicToggle(
+                enabled: draft.musicEnabled,
+                onChanged: saving ? null : controller.setMusicEnabled,
+              ),
+            ],
           ],
         ),
       ),

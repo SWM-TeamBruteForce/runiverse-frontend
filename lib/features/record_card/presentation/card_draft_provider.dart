@@ -134,6 +134,12 @@ class CardDraftController extends Notifier<CardDraft> {
     state = CardDraft.fromCard(card);
   }
 
+  /// 고친 것을 버리고 **카드 값으로 되돌린다.**
+  ///
+  /// ⚠️ [clear]가 아니다 — 그것은 `editing`까지 지워, 화면이 여전히 수정
+  /// 모드인데 고칠 카드가 없는 상태를 만든다(저장 버튼이 영원히 꺼진다).
+  void restore(RecordCard card) => state = CardDraft.fromCard(card);
+
   void clear() => state = const CardDraft();
 
   /// 사진 목록을 고친다. **[index]가 범위를 넘으면 아무 일도 하지 않는다.**

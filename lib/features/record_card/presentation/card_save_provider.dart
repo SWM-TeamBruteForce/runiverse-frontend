@@ -167,7 +167,6 @@ class CardSaveController extends Notifier<CardSaveState> {
                         caption: photo.caption,
                       ),
                 ],
-                musicEnabled: draft.musicEnabled,
               ),
             );
 

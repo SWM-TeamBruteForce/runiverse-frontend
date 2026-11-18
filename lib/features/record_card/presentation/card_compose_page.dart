@@ -113,7 +113,10 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
     // ⚠️ **들어올 때 쓰던 것이 있으면 묻는다**(설계 7절). 초안은 앱을 끄면
     // 사라지므로, 조용히 덮으면 되돌릴 길이 없다. 첫 프레임 뒤에 띄운다 —
     // `initState` 안에서는 아직 시트를 올릴 수 없다.
-    if (ref.read(cardDraftProvider(widget.cardId)).isDirty) {
+    // ⚠️ **수정에서는 묻지 않는다.** "쓰던 기록카드가 있어요 / 새로 쓰기"는
+    // 작성의 말이고, 고치러 들어온 사람에게는 **카드가 지워지는 것처럼**
+    // 읽힌다. 고치다 만 것은 `seed`가 지켜 준다.
+    if (!_editing && ref.read(cardDraftProvider(widget.cardId)).isDirty) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _askResume());
     }
   }
@@ -258,16 +261,29 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
   }
 
   Future<void> _confirmDiscard() async {
+    final card = widget.card;
     final discard = await _ask(
-      title: AppStrings.recordCardComposeDiscardTitle,
-      body: AppStrings.recordCardComposeDiscardBody,
+      title: card == null
+          ? AppStrings.recordCardComposeDiscardTitle
+          : AppStrings.recordCardEditDiscardTitle,
+      body: card == null
+          ? AppStrings.recordCardComposeDiscardBody
+          : AppStrings.recordCardEditDiscardBody,
       yes: AppStrings.recordCardComposeDiscard,
       no: AppStrings.recordCardComposeKeep,
     );
     if (discard != true || !mounted) return;
 
-    _draft.clear();
-    _review.clear();
+    // ⚠️ **수정이면 비우지 않고 카드 값으로 되돌린다.** `clear()`는 `editing`
+    // 까지 지우는데, 화면은 여전히 수정 모드라 기록을 채울 길이 없다 —
+    // `canProceed`가 영원히 거짓이 되어 **저장할 수 없는 수정 화면**에 갇힌다.
+    // 뜻으로도 "버리기"는 고친 것을 버리는 것이지 카드를 버리는 것이 아니다.
+    if (card == null) {
+      _draft.clear();
+    } else {
+      _draft.restore(card);
+    }
+    _review.text = ref.read(cardDraftProvider(widget.cardId)).reviewText;
     if (!mounted) return;
     // ⚠️ **`maybePop`을 쓰지 않는다.** 방금 비운 초안은 아직 다시 그려지지
     // 않아 `PopScope.canPop`이 그대로 `false`고, `maybePop`은 그것을 보고

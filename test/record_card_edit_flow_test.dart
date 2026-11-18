@@ -15,7 +15,10 @@ import 'package:runiverse/features/profile/presentation/background_image_provide
 import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
+import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
+import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/presentation/card_compose_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_detail_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
@@ -146,6 +149,52 @@ void main() {
       expect(_cards.deletes, 1);
     });
 
+    testWidgets('⚠️ 도는 동안 진행 표시가 뜨고 다시 눌리지 않는다', (tester) async {
+      // 아무 표시가 없으면 느린 망에서 "안 눌렸다"로 읽혀 또 누른다.
+      await _pumpDetail(tester, delay: const Duration(milliseconds: 300));
+
+      await _openMenu(tester, AppStrings.recordCardDelete);
+      await tester.tap(find.text(AppStrings.recordCardDeleteConfirm));
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(
+        tester
+            .widget<IconButton>(
+              find.ancestor(
+                of: find.byTooltip(AppStrings.recordCardMore),
+                matching: find.byType(IconButton),
+              ),
+            )
+            .onPressed,
+        isNull,
+        reason: '도는 동안 ⋮가 다시 열리면 안 된다',
+      );
+
+      // ⚠️ **`pumpAndSettle`을 쓰지 않는다.** 진행 표시가 영원히 도는
+      // 애니메이션이라 영영 "settle"하지 않는다.
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(RecordCardPage), findsOne);
+    });
+
+    testWidgets('⚠️ 두 번 눌러도 실패했다고 하지 않는다', (tester) async {
+      // 재진입 가드가 `false`를 주고 화면이 그것을 실패로 읽으면, 지워졌는데
+      // "지우지 못했어요"를 본 직후 화면이 걷힌다.
+      await _pumpDetail(tester, delay: const Duration(milliseconds: 300));
+
+      await _openMenu(tester, AppStrings.recordCardDelete);
+      await tester.tap(find.text(AppStrings.recordCardDeleteConfirm));
+      await tester.pump();
+      // 시트는 닫혔고 상세가 도는 중이다. 한 번 더 같은 길을 탄다.
+      await tester.tap(find.byTooltip(AppStrings.recordCardMore));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text(AppStrings.recordCardDeleteFailed), findsNothing);
+      expect(_cards.deletes, 1);
+    });
+
     testWidgets('⚠️ 지운 카드가 달력에서 빠진다', (tester) async {
       // 안 무효화하면 지운 카드가 달력에 남는다.
       final container = await _pumpDetail(tester);
@@ -216,8 +265,11 @@ Future<void> _reachReview(WidgetTester tester) async {
 }
 
 /// 카드 상세에 선 상태로 띄운다.
-Future<ProviderContainer> _pumpDetail(WidgetTester tester) async {
-  final container = await _pumpAt(tester, AppRoutes.recordCard);
+Future<ProviderContainer> _pumpDetail(
+  WidgetTester tester, {
+  Duration delay = Duration.zero,
+}) async {
+  final container = await _pumpAt(tester, AppRoutes.recordCard, delay: delay);
 
   // 사진 없는 카드를 고른다 — 사진이 있으면 주소를 받으러 나가 테스트가
   // 네트워크를 탄다.
@@ -235,11 +287,18 @@ Future<ProviderContainer> _pumpDetail(WidgetTester tester) async {
   return container;
 }
 
-Future<ProviderContainer> _pumpAt(WidgetTester tester, String at) async {
+Future<ProviderContainer> _pumpAt(
+  WidgetTester tester,
+  String at, {
+  Duration delay = Duration.zero,
+}) async {
   final container = ProviderContainer(
     overrides: [
       recordCardRepositoryProvider.overrideWithValue(
-        _cards = FakeRecordCardRepository(today: _today),
+        // ⚠️ **Fake의 `delay`를 쓰지 않는다.** 그것은 `byDateRange`에도
+        // 걸려 달력이 과거를 더 받는 길까지 느려지고, `pumpAndSettle`이
+        // 영영 끝나지 않는다. 느리게 할 것은 **삭제뿐**이다.
+        _SlowDelete(_cards = FakeRecordCardRepository(today: _today), delay),
       ),
       runRecordRepositoryProvider.overrideWithValue(
         FakeRunRecordRepository(today: _today),
@@ -267,6 +326,32 @@ Future<ProviderContainer> _pumpAt(WidgetTester tester, String at) async {
   );
   await tester.pumpAndSettle();
   return container;
+}
+
+/// 삭제만 느린 저장소. 나머지는 그대로 넘긴다.
+class _SlowDelete implements RecordCardRepository {
+  _SlowDelete(this._inner, this._delay);
+
+  final FakeRecordCardRepository _inner;
+  final Duration _delay;
+
+  @override
+  Future<void> delete(int cardId) async {
+    if (_delay > Duration.zero) await Future<void>.delayed(_delay);
+    return _inner.delete(cardId);
+  }
+
+  @override
+  Future<List<RecordCard>> byDateRange({
+    required DateTime from,
+    required DateTime to,
+  }) => _inner.byDateRange(from: from, to: to);
+
+  @override
+  Future<RecordCard> create(NewRecordCard card) => _inner.create(card);
+
+  @override
+  Future<RecordCard> update(EditRecordCard card) => _inner.update(card);
 }
 
 class _Cropper implements ImageCropper {

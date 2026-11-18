@@ -40,6 +40,13 @@ class EditCardPhoto {
 ///
 /// 그래서 **빈 목록은 "사진을 전부 지웠다"는 뜻**이지 "안 바꿨다"가 아니다.
 ///
+/// ## ⚠️ 음악 설정도 없다
+///
+/// `RecordCard`에 음악 상태 필드가 없어(묶음 5) **이 카드가 음악을 켜고
+/// 만들어졌는지 모른다.** 모르는 값을 지어내 보내면 사용자가 거절했던 생성이
+/// 수정 한 번으로 켜진다 — 보내지 않으면 서버가 건드릴 일도 없다
+/// (사용자 결정 2026-11-19).
+///
 /// ## ⚠️ 러닝 기록은 없다
 ///
 /// 수정에서 바꿀 수 없다(설계 6-6) — `unique(running_record_id)` 때문에 카드
@@ -52,7 +59,6 @@ class EditRecordCard {
     required this.visibility,
     required this.reviewText,
     required this.photos,
-    required this.musicEnabled,
   });
 
   final int cardId;
@@ -62,9 +68,4 @@ class EditRecordCard {
 
   /// **남길 사진 전체.** 비어 있으면 전부 지운다는 뜻이다.
   final List<EditCardPhoto> photos;
-
-  /// ⚠️ **음악은 묶음 5에서 뜻을 갖는다.** 지금은 값만 실어 보낸다 —
-  /// 카드에 음악 상태 필드가 없어 "다시 만들어진다"를 알릴 수 없다
-  /// (사용자 결정 2026-11-19).
-  final bool musicEnabled;
 }
