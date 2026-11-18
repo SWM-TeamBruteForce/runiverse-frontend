@@ -24,9 +24,9 @@ abstract interface class PushMessaging {
   /// 뒤에 있던 앱을 연 푸시. 앱이 직접 그린 알림(채팅)을 누른 것도 여기로 온다.
   Stream<OpenedPush> get opened;
 
-  /// **앱이 켜져 있을 때** 받은 푸시의 data. 꺼졌거나 뒤에 있을 때 받은 것은
+  /// **앱이 켜져 있을 때** 받은 푸시. 꺼졌거나 뒤에 있을 때 받은 것은
   /// 여기로 오지 않는다 — 그때는 진짜가 따로 그린다.
-  Stream<Map<String, Object?>> get received;
+  Stream<ReceivedPush> get received;
 
   /// 채팅 푸시를 그 방 알림에 한 줄 더한다. **안드로이드에서만 그린다** — iOS는
   /// 서버가 알림으로 보내 OS가 띄운다.
@@ -36,6 +36,22 @@ abstract interface class PushMessaging {
 
   /// 그 방 채팅 알림을 알림창에서 지운다. 채팅 화면에 들어왔을 때 부른다.
   Future<void> clearChat(String runningRoomId);
+
+  /// 공지를 화면 위 팝업으로 띄우고 알림창에 남긴다(앱이 켜져 있을 때). **안드로이드에서만
+  /// 그린다.**
+  Future<void> showNotice({required String title, required String body});
+}
+
+/// 앱이 켜져 있을 때 받은 푸시 하나.
+class ReceivedPush {
+  const ReceivedPush({required this.data, this.title, this.body});
+
+  final Map<String, Object?> data;
+
+  /// 알림 블록의 제목·내용. **data만 오는 채팅 푸시에는 없다** — 공지처럼 앱이
+  /// 꺼져 있으면 OS가 띄우는 푸시에만 있다.
+  final String? title;
+  final String? body;
 }
 
 /// 눌린 푸시 하나.
@@ -71,11 +87,17 @@ class NoopPushMessaging implements PushMessaging {
   Stream<OpenedPush> get opened => const Stream.empty();
 
   @override
-  Stream<Map<String, Object?>> get received => const Stream.empty();
+  Stream<ReceivedPush> get received => const Stream.empty();
 
   @override
   Future<void> showChat(ChatPush push, {required bool quiet}) async {}
 
   @override
   Future<void> clearChat(String runningRoomId) async {}
+
+  @override
+  Future<void> showNotice({
+    required String title,
+    required String body,
+  }) async {}
 }

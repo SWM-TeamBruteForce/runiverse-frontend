@@ -13,7 +13,8 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/features/notification/domain/chat_push.dart';
 import 'package:runiverse/features/notification/domain/push_messaging.dart';
 
-/// 대기방 채팅 푸시를 안드로이드 알림창에 그린다.
+/// 대기방 채팅 푸시를 안드로이드 알림창에 그린다. 켜진 앱이 받은 공지도
+/// 여기서 그린다([showNotice]) — 플러그인은 앱에서 한 번만 준비할 수 있다.
 ///
 /// 방 하나에 알림 하나를 두고 줄을 쌓는다(카카오톡 단톡방처럼). 제목은 방 제목,
 /// 줄마다 이름 칸과 내용이 있다.
@@ -65,6 +66,12 @@ class AndroidChatNotifications {
 
   static const _channel = 'room_chat';
   static const _quietChannel = 'room_chat_quiet';
+  static const _noticeChannel = 'notice';
+
+  /// 공지 알림 번호. **방 번호와 겹치지 않게 음수다** — 플러그인이 이 번호를 누름
+  /// 요청 코드로 쓴다([_idOf]). 겹치면 그 방 채팅 알림을 눌렀을 때 공지의 data로
+  /// 열려 방으로 가지 않는다. 공지끼리는 tag로 가른다.
+  static const _noticeId = -1;
 
   /// 러닝 위치 알림과 같은 단색 실루엣이다(구현 노트 11-4).
   static const _smallIcon = 'ic_stat_running';
@@ -197,6 +204,39 @@ class AndroidChatNotifications {
       ),
       payload: jsonEncode(push.landingData),
     );
+  }
+
+  /// 공지를 화면 위 팝업으로 띄우고 알림창에 남긴다. 앱이 켜져 있을 때만
+  /// 부른다 — 꺼졌거나 뒤에 있으면 OS가 띄운다. 던지지 않는다([show]와 같은 이유).
+  ///
+  /// **채팅과 달리 앱을 보고 있어도 팝업을 띄운다.** 공지는 앱 안에 다시 볼 곳이
+  /// 없고(알림함·앱 스트림에 없음), 드물게 온다.
+  ///
+  /// 누르면 앱만 앞으로 온다. 공지에는 갈 화면이 없다.
+  Future<void> showNotice({required String title, required String body}) async {
+    try {
+      if (!await start()) return;
+      await _android?.show(
+        id: _noticeId,
+        title: title,
+        body: body,
+        notificationDetails: AndroidNotificationDetails(
+          _noticeChannel,
+          AppStrings.noticePushChannel,
+          // ⚠️ 채널 중요도는 채널을 처음 만들 때만 정해진다. 나중에 바꿔도
+          // 이미 설치한 폰에는 안 먹는다.
+          importance: Importance.high,
+          priority: Priority.high,
+          // 서버 문구가 500자까지다. 접힌 알림은 한 줄만 보인다.
+          styleInformation: BigTextStyleInformation(body),
+          // 공지마다 따로 둔다. OS가 띄우는 공지도 하나씩 쌓인다.
+          tag: 'notice-${DateTime.now().microsecondsSinceEpoch}',
+          icon: _smallIcon,
+        ),
+      );
+    } on Object catch (error) {
+      debugPrint('[push] 공지 알림을 그리지 못했다 · ${error.runtimeType}');
+    }
   }
 
   /// 그 방 알림을 지운다. 던지지 않는다([show]와 같은 이유).

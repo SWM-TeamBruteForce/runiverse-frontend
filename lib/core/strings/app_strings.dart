@@ -2139,4 +2139,8 @@ abstract final class AppStrings {
   /// 알림 속 "나". 안드로이드 대화형 알림이 반드시 받는 값이고, 내가 보낸 줄은
   /// 그리지 않으므로 화면에 나올 일은 거의 없다.
   static const chatPushSelf = '나';
+
+  /// 앱을 보고 있을 때 받은 공지의 알림 채널 이름(안드로이드). 화면 위로 내려오는
+  /// 팝업이 뜬다. 앱이 꺼져 있을 때의 공지는 OS가 띄워 이 채널을 쓰지 않는다.
+  static const noticePushChannel = '공지';
 }
