@@ -34,8 +34,12 @@ void main() {
     );
   });
 
-  test('매칭 확정·출발 리마인더는 대기방이다', () {
-    for (final type in ['MATCH_CONFIRMED', 'RUNNING_REMINDER']) {
+  test('매칭 확정·출발 리마인더·대기방 채팅은 대기방이다', () {
+    for (final type in [
+      'MATCH_CONFIRMED',
+      'RUNNING_REMINDER',
+      'ROOM_CHAT_SENT',
+    ]) {
       expect(
         PushLanding.of({'type': type, 'runningRoomId': '130'}),
         isA<PushLandingRoom>(),

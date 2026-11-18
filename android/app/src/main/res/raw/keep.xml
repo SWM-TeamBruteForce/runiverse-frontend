@@ -5,6 +5,10 @@
   코드에서 이름 문자열로만 찾는 리소스는 축소기가 "안 쓰는 것"으로 본다.
   - ic_stat_running: geolocator가 러닝 알림 아이콘으로 이름을 받아 찾는다.
     지워지면 알림 아이콘이 없어 위치 서비스가 시작하지 못한다.
+    대기방 채팅 알림의 작은 아이콘으로도 쓴다.
+  - ic_chat_notice: 대기방 채팅 알림에서 "안내" 줄의 사진 자리. 런처 아이콘을
+    원형으로 오린 것이다 — 알림은 사람 칸 그림을 자르지 않아 사각형이 그대로
+    보이고, 알림 플러그인은 drawable에서만 이름으로 찾아 mipmap을 못 쓴다.
 -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@drawable/ic_stat_running" />
+    tools:keep="@drawable/ic_stat_running,@drawable/ic_chat_notice" />

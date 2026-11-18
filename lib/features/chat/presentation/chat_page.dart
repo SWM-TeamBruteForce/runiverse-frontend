@@ -19,6 +19,7 @@ import 'package:runiverse/features/chat/presentation/chat_composer.dart';
 import 'package:runiverse/features/chat/presentation/chat_provider.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
 import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
+import 'package:runiverse/features/notification/presentation/push_provider.dart';
 import 'package:runiverse/features/session/domain/party_color.dart';
 
 /// 대기방 채팅 — `AppRoutes.matchRoom`의 자식 라우트.
@@ -52,6 +53,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   /// 트리에서 provider를 찾게 된다.
   late final ChatController _chat;
 
+  /// 이 화면이 어느 방을 보는지 알린다 — 그 방 채팅 알림을 지우고, 보는 동안은
+  /// 띄우지 않는다. [_chat]과 같은 이유로 미리 붙잡는다.
+  late final PushController _push;
+
   final _scroll = ScrollController();
 
   /// 수정 중인 메시지. `null`이면 새 메시지를 쓰는 중이다.
@@ -61,10 +66,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void initState() {
     super.initState();
     _chat = ref.read(chatProvider.notifier);
+    _push = ref.read(pushProvider.notifier);
     // ⚠️ 첫 프레임 뒤에 연다. build 중에 provider 상태를 바꾸면 Riverpod이 막는다.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _chat.open();
     });
+    // 방 번호는 채팅이 서버에 붙은 뒤에야 생긴다. 열려 있고 방이 정해졌을 때만
+    // 알린다.
+    ref.listenManual(
+      chatProvider.select((state) => state.opened ? state.runningRoomId : null),
+      (_, runningRoomId) =>
+          _push.viewChat(runningRoomId?.toString(), onTop: _onTop),
+      fireImmediately: true,
+    );
     _scroll.addListener(_onScroll);
   }
 
@@ -73,9 +87,42 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _scroll
       ..removeListener(_onScroll)
       ..dispose();
-    // 떠났으니 이제 들어오는 것은 안 읽음으로 쌓인다.
+    // 떠났으니 이제 들어오는 것은 안 읽음으로 쌓이고, 알림도 다시 뜬다.
+    //
+    // ⚠️ **알림 쪽을 먼저 알린다.** [ChatController.close]는 위젯 트리를 정리하는
+    // 중에 provider를 바꿔 Riverpod 예외("Tried to modify a provider while the
+    // widget tree was building")를 던진다(에뮬레이터 실측). 뒤에 두면 이 줄이
+    // 돌지 않아, 채팅 화면을 나간 뒤에도 그 방 알림이 안 뜬다.
+    _push.viewChat(null);
     _chat.close();
     super.dispose();
+  }
+
+  /// 이 화면 위로 다른 화면이 쌓였으면 `false`다 — 그동안은 그 방 알림이 뜬다.
+  ///
+  /// 라우트는 [didChangeDependencies]에서 잡아 둔다. 푸시를 받는 순간에
+  /// `ModalRoute.of`를 부르면 빌드 밖에서 의존성을 거는 셈이다.
+  bool _onTop() => mounted && (_route?.isCurrent ?? false);
+
+  ModalRoute<Object?>? _route;
+  var _wasOnTop = true;
+
+  /// 라우트가 맨 위인지가 바뀌면 다시 불린다(`ModalRoute.of`에 기대어 있어서).
+  ///
+  /// ⚠️ **가려졌다 다시 보이면 그 방 알림을 지운다.** 가려진 동안에는 알림이 쌓이고,
+  /// 돌아와 화면에서 읽었으니 남겨 둘 이유가 없다.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _route = ModalRoute.of(context);
+    final onTop = _route?.isCurrent ?? false;
+    if (onTop && !_wasOnTop) {
+      final chat = ref.read(chatProvider);
+      if (chat.opened) {
+        _push.viewChat(chat.runningRoomId?.toString(), onTop: _onTop);
+      }
+    }
+    _wasOnTop = onTop;
   }
 
   /// 위로 끝까지 긁으면 이전 페이지를 받는다.
