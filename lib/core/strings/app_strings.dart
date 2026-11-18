@@ -1727,6 +1727,20 @@ abstract final class AppStrings {
   /// 거절당하고, 바꾸면 지표·경로가 통째로 달라져 다른 카드가 된다.
   static const recordCardEditRecordLocked = '러닝 기록은 바꿀 수 없어요';
 
+  /// 상세 머리의 `⋮`. 아이콘뿐이라 이름을 준다.
+  static const recordCardMore = '더 보기';
+
+  static const recordCardDelete = '삭제';
+  static const recordCardDeleteTitle = '이 기록카드를 지울까요?';
+
+  /// ⚠️ **되돌릴 수 없다는 말을 그대로 쓴다.** 서버에 논리 삭제 컬럼이 없다
+  /// (설계 3절) — "삭제됩니다"로 적으면 되살릴 수 있을 것처럼 읽힌다.
+  static const recordCardDeleteBody = '지우면 되돌릴 수 없어요';
+
+  static const recordCardDeleteConfirm = '지우기';
+  static const recordCardDeleteCancel = '그대로 두기';
+  static const recordCardDeleteFailed = '지우지 못했어요';
+
   // ── 기록카드 작성 2 — 사진 (설계 6-3) ────────────────────────
   //
   // **사진은 선택이다.** 한 장도 없이 다음으로 간다. 그래서 빈 상태가

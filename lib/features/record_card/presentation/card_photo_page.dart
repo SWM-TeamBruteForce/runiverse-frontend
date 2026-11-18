@@ -15,6 +15,7 @@ import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
 import 'package:runiverse/features/record_card/domain/card_draft.dart';
 import 'package:runiverse/features/record_card/domain/card_photo_draft.dart';
+import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_photo_pan.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_cell.dart';
@@ -39,10 +40,14 @@ import 'package:runiverse/features/record_card/presentation/record_card_cell.dar
 /// 물으면 사진을 보러 들어왔다 나가는 사람이 화면마다 막힌다. 초안은 그대로
 /// 남고, 돌아간 작성 1이 그 문을 지킨다.
 class CardPhotoPage extends ConsumerStatefulWidget {
-  const CardPhotoPage({this.cardId, super.key});
+  const CardPhotoPage({this.cardId, this.card, super.key});
 
   /// 수정 중인 카드 번호. `null`이면 새 카드다.
   final int? cardId;
+
+  /// 고치는 카드. **다음 화면으로 들고 가야 한다** — 공개범위 라우트가
+  /// `extra`로 받아야 초안을 어느 번호로 가를지 안다.
+  final RecordCard? card;
 
   @override
   ConsumerState<CardPhotoPage> createState() => _CardPhotoPageState();
@@ -110,7 +115,12 @@ class _CardPhotoPageState extends ConsumerState<CardPhotoPage> {
         actions: [
           TextButton(
             onPressed: draft.canProceed
-                ? () => context.push(AppRoutes.recordCardNewPublish)
+                ? () => widget.card != null
+                      ? context.push(
+                          AppRoutes.recordCardEditPublishOf(widget.card!.id),
+                          extra: widget.card,
+                        )
+                      : context.push(AppRoutes.recordCardNewPublish)
                 : null,
             child: Text(AppStrings.recordCardComposeNext),
           ),

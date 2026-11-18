@@ -1,0 +1,283 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:runiverse/app/router/app_router.dart';
+import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/features/notification/data/fake_app_stream.dart';
+import 'package:runiverse/features/notification/data/fake_notification_repository.dart';
+import 'package:runiverse/features/notification/presentation/notification_provider.dart';
+import 'package:runiverse/features/profile/domain/image_cropper.dart';
+import 'package:runiverse/features/profile/domain/picked_image.dart';
+import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
+import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
+import 'package:runiverse/features/record/presentation/record_provider.dart';
+import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
+import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/presentation/card_compose_page.dart';
+import 'package:runiverse/features/record_card/presentation/card_detail_page.dart';
+import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
+import 'package:runiverse/features/record_card/presentation/card_photo_page.dart';
+import 'package:runiverse/features/record_card/presentation/card_publish_page.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_page.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_state.dart';
+
+/// 상세에서 고치고 지우는 길 (설계 6-6).
+///
+/// ## ⚠️ 실제 `createAppRouter`를 태운다
+///
+/// 수정 라우트 셋과 `:id` 파싱, `extra` 없는 진입, 저장 뒤 스택 걷기는
+/// **라우터 안에서만** 틀린다.
+void main() {
+  group('⋮', () {
+    testWidgets('수정과 삭제가 있다', (tester) async {
+      await _pumpDetail(tester);
+
+      await tester.tap(find.byTooltip(AppStrings.recordCardMore));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.recordCardEditTitle), findsOne);
+      expect(find.text(AppStrings.recordCardDelete), findsOne);
+    });
+
+    testWidgets('수정을 누르면 그 카드의 작성 1로 간다', (tester) async {
+      await _pumpDetail(tester);
+
+      await _openMenu(tester, AppStrings.recordCardEditTitle);
+
+      expect(find.byType(CardComposePage), findsOne);
+      // 카드 값이 들어와 있다.
+      expect(find.text(AppStrings.recordCardEditRecordLocked), findsOne);
+    });
+  });
+
+  group('수정 저장', () {
+    testWidgets('⚠️ 세 화면을 거쳐 저장하면 고친 값이 상세에 보인다', (tester) async {
+      await _pumpDetail(tester);
+      await _openMenu(tester, AppStrings.recordCardEditTitle);
+
+      await _reachReview(tester);
+      await tester.enterText(find.byType(TextField), '고친 글');
+      await tester.pump();
+      await tester.tap(find.text(AppStrings.recordCardComposeNext));
+      await tester.pumpAndSettle();
+      expect(find.byType(CardPhotoPage), findsOne);
+
+      await tester.tap(find.text(AppStrings.recordCardComposeNext));
+      await tester.pumpAndSettle();
+      expect(find.byType(CardPublishPage), findsOne);
+
+      await tester.tap(find.text(AppStrings.recordCardPublishSave));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CardDetailPage), findsOne);
+      expect(find.text('고친 글'), findsOne);
+    });
+
+    testWidgets('⚠️ 저장하면 작성 셋도 옛 상세도 걷힌다', (tester) async {
+      // 새 상세를 그냥 밀면 상세가 둘 쌓여 **뒤로가 두 번**이 되고, 밑에
+      // 깔린 것은 **고치기 전 값**을 들고 있다.
+      await _pumpDetail(tester);
+      await _openMenu(tester, AppStrings.recordCardEditTitle);
+      await _nextTwice(tester);
+
+      await tester.tap(find.text(AppStrings.recordCardPublishSave));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip(AppStrings.authBack));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RecordCardPage), findsOne);
+      expect(find.byType(CardDetailPage), findsNothing);
+    });
+
+    testWidgets('저장하면 초안을 비운다', (tester) async {
+      // 안 비우면 다음에 그 카드를 열었을 때 고치다 만 것이 되살아난다.
+      final container = await _pumpDetail(tester);
+      await _openMenu(tester, AppStrings.recordCardEditTitle);
+      await _nextTwice(tester);
+
+      await tester.tap(find.text(AppStrings.recordCardPublishSave));
+      await tester.pumpAndSettle();
+
+      expect(container.read(cardDraftProvider(_card.id)).editing, isNull);
+    });
+  });
+
+  group('삭제', () {
+    testWidgets('⚠️ 되돌릴 수 없다고 말하고 받는다', (tester) async {
+      // 서버에 논리 삭제 컬럼이 없다(설계 3절).
+      await _pumpDetail(tester);
+
+      await tester.tap(find.byTooltip(AppStrings.recordCardMore));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.recordCardDelete));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.recordCardDeleteTitle), findsOne);
+      expect(find.text(AppStrings.recordCardDeleteBody), findsOne);
+    });
+
+    testWidgets('그대로 두기를 고르면 아무 일도 없다', (tester) async {
+      final container = await _pumpDetail(tester);
+
+      await _openMenu(tester, AppStrings.recordCardDelete);
+      await tester.tap(find.text(AppStrings.recordCardDeleteCancel));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CardDetailPage), findsOne);
+      expect(_cards.deletes, 0);
+      expect(container, isNotNull);
+    });
+
+    // ⚠️ Review Focus 4
+    testWidgets('⚠️ 지우면 상세에 머물지 않는다', (tester) async {
+      // 없는 카드를 보고 있으면 거기서 수정을 눌러 404를 받는다.
+      await _pumpDetail(tester);
+
+      await _openMenu(tester, AppStrings.recordCardDelete);
+      await tester.tap(find.text(AppStrings.recordCardDeleteConfirm));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CardDetailPage), findsNothing);
+      expect(find.byType(RecordCardPage), findsOne);
+      expect(_cards.deletes, 1);
+    });
+
+    testWidgets('⚠️ 지운 카드가 달력에서 빠진다', (tester) async {
+      // 안 무효화하면 지운 카드가 달력에 남는다.
+      final container = await _pumpDetail(tester);
+
+      await _openMenu(tester, AppStrings.recordCardDelete);
+      await tester.tap(find.text(AppStrings.recordCardDeleteConfirm));
+      await tester.pumpAndSettle();
+
+      final state = container.read(recordCardControllerProvider);
+      final ids = state is RecordCardData
+          ? state.visible.expand((m) => m.cards).map((c) => c.id)
+          : const <int>[];
+      expect(ids, isNot(contains(_card.id)));
+    });
+  });
+
+  group('⚠️ 카드 없이 수정 라우트에 떨어지면 탭으로 돌려보낸다', () {
+    // 딥링크나 프로세스 복원이다. 카드 단건 조회 API가 없어 보여 줄 것이 없다.
+    for (final route in [
+      AppRoutes.recordCardEditOf(1000),
+      AppRoutes.recordCardEditPhotosOf(1000),
+      AppRoutes.recordCardEditPublishOf(1000),
+    ]) {
+      testWidgets(route, (tester) async {
+        await _pumpAt(tester, route);
+
+        expect(find.byType(RecordCardPage), findsOne, reason: route);
+        expect(find.byType(CardComposePage), findsNothing);
+      });
+    }
+  });
+}
+
+// ── 도움 ──────────────────────────────────────────────────────
+
+final _today = DateTime(2026, 11, 18);
+late FakeRecordCardRepository _cards;
+late GoRouter _router;
+
+/// 상세에 띄운 카드. ⚠️ **가짜 저장소에 실제로 있는 것**이어야 한다 — 지어낸
+/// 번호를 쓰면 고치기·지우기가 `notFound`로 떨어진다.
+late RecordCard _card;
+
+/// `⋮`를 열고 한 줄을 누른다.
+Future<void> _openMenu(WidgetTester tester, String item) async {
+  await tester.tap(find.byTooltip(AppStrings.recordCardMore));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(item));
+  await tester.pumpAndSettle();
+}
+
+/// 작성 1 → 2 → 3.
+Future<void> _nextTwice(WidgetTester tester) async {
+  for (var i = 0; i < 2; i++) {
+    await tester.tap(find.text(AppStrings.recordCardComposeNext));
+    await tester.pumpAndSettle();
+  }
+}
+
+/// 회고 칸을 화면 안으로 끌어 올린다 — 수정 모드는 경로·지표가 들어가 더 길다.
+Future<void> _reachReview(WidgetTester tester) async {
+  await tester.dragUntilVisible(
+    find.byType(TextField),
+    find.byType(ListView),
+    const Offset(0, -120),
+  );
+  await tester.pumpAndSettle();
+}
+
+/// 카드 상세에 선 상태로 띄운다.
+Future<ProviderContainer> _pumpDetail(WidgetTester tester) async {
+  final container = await _pumpAt(tester, AppRoutes.recordCard);
+
+  // 사진 없는 카드를 고른다 — 사진이 있으면 주소를 받으러 나가 테스트가
+  // 네트워크를 탄다.
+  // ⚠️ **31일을 넘기지 않는다** — 가짜도 진짜와 같은 규칙으로 거절한다
+  // (`RecordCardRepository.maxRangeDays`).
+  final all = await _cards.byDateRange(
+    from: _today.subtract(const Duration(days: 25)),
+    to: _today,
+  );
+  _card = all.firstWhere((c) => c.photos.isEmpty);
+
+  _router.push(AppRoutes.recordCardDetailOf(_card.id), extra: _card);
+  await tester.pumpAndSettle();
+  expect(find.byType(CardDetailPage), findsOne);
+  return container;
+}
+
+Future<ProviderContainer> _pumpAt(WidgetTester tester, String at) async {
+  final container = ProviderContainer(
+    overrides: [
+      recordCardRepositoryProvider.overrideWithValue(
+        _cards = FakeRecordCardRepository(today: _today),
+      ),
+      runRecordRepositoryProvider.overrideWithValue(
+        FakeRunRecordRepository(today: _today),
+      ),
+      recordCardClockProvider.overrideWithValue(() => _today),
+      imageCropperProvider.overrideWithValue(_Cropper()),
+      // 셸을 세우려면 이 둘이 필요하다 — 진짜는 dio를 거쳐 서버 주소를 찾다
+      // 죽는다(`widget_test.dart`에 전례).
+      appStreamProvider.overrideWithValue(FakeAppStream()),
+      notificationRepositoryProvider.overrideWithValue(
+        FakeNotificationRepository(),
+      ),
+    ],
+  );
+  addTearDown(container.dispose);
+
+  _router = createAppRouter(initialLocation: at);
+  addTearDown(_router.dispose);
+
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(theme: AppTheme.dark(), routerConfig: _router),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return container;
+}
+
+class _Cropper implements ImageCropper {
+  @override
+  Future<PickedImage> crop(
+    PickedImage image, {
+    required double aspectRatio,
+    required double alignY,
+    double alignX = 0,
+  }) async => image;
+
+  @override
+  Future<void> discard(PickedImage cropped) async {}
+}

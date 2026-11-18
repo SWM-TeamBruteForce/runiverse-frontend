@@ -147,6 +147,24 @@ abstract final class AppRoutes {
   /// ⚠️ **카드 번호다.** 러닝 기록 번호도 방 번호도 아니다.
   static String recordCardDetailOf(int cardId) => '$recordCard/card/$cardId';
 
+  /// 기록카드 수정 1·2·3 (설계 6-6).
+  ///
+  /// 수정은 **작성 세 화면을 그대로 다시 쓴다.** 라우트만 따로 두는 이유는
+  /// 초안을 카드 번호로 가르기 위해서다 — 새 카드를 쓰던 중에 남의 카드
+  /// 수정으로 들어가도 섞이지 않는다(설계 7절).
+  ///
+  /// ⚠️ **카드를 `extra`로 받는다.** 카드 단건 조회 API가 없어 상세와 같은
+  /// 방식이다. 없이 들어오면 탭으로 돌려보낸다.
+  static const recordCardEdit = '/record-card/card/:id/edit';
+  static const recordCardEditPhotos = '/record-card/card/:id/edit/photos';
+  static const recordCardEditPublish = '/record-card/card/:id/edit/publish';
+
+  static String recordCardEditOf(int cardId) => '$recordCard/card/$cardId/edit';
+  static String recordCardEditPhotosOf(int cardId) =>
+      '${recordCardEditOf(cardId)}/photos';
+  static String recordCardEditPublishOf(int cardId) =>
+      '${recordCardEditOf(cardId)}/publish';
+
   /// 본인 프로필 (S20)
   static const profile = '/profile';
 

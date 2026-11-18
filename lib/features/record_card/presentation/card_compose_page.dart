@@ -171,8 +171,15 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
           TextButton(
             // ⚠️ **초안만 들고 간다.** 사진 화면은 날짜를 쿼리로 받지 않는다 —
             // 어느 날인지는 초안의 `record`가 안다. 두 곳에 두면 갈라진다.
+            // ⚠️ **수정이면 카드를 들고 간다.** 사진·공개범위 라우트가
+            // `extra`로 그것을 받아야 초안을 어느 번호로 가를지 안다.
             onPressed: draft.canProceed
-                ? () => context.push(AppRoutes.recordCardNewPhotos)
+                ? () => _editing
+                      ? context.push(
+                          AppRoutes.recordCardEditPhotosOf(widget.card!.id),
+                          extra: widget.card,
+                        )
+                      : context.push(AppRoutes.recordCardNewPhotos)
                 : null,
             child: Text(AppStrings.recordCardComposeNext),
           ),

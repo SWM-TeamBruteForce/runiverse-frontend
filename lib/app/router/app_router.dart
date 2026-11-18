@@ -161,6 +161,37 @@ GoRouter createAppRouter({String? initialLocation}) {
       // ⚠️ **카드를 `extra`로 받는다.** 달력이 이미 들고 있는 것을 넘겨 주면
       // 다시 받아 올 필요가 없다. 딥링크처럼 `extra` 없이 들어오면 보여 줄
       // 것이 없으므로 탭으로 돌려보낸다 — 빈 화면을 띄우지 않는다.
+      // 기록카드 수정 1·2·3. **탭 셸 밖이고, 카드를 `extra`로 받는다.**
+      //
+      // ⚠️ **카드 없이 들어오면 탭으로 돌려보낸다.** 단건 조회 API가 없어
+      // 보여 줄 것이 없다 — 상세가 `extra` 없이 들어온 것과 같은 꼴이다.
+      GoRoute(
+        path: AppRoutes.recordCardEdit,
+        name: 'record_card_edit',
+        redirect: _needsCard,
+        builder: (context, state) {
+          final card = state.extra! as RecordCard;
+          return CardComposePage(day: card.day, cardId: card.id, card: card);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.recordCardEditPhotos,
+        name: 'record_card_edit_photos',
+        redirect: _needsCard,
+        builder: (context, state) {
+          final card = state.extra! as RecordCard;
+          return CardPhotoPage(cardId: card.id, card: card);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.recordCardEditPublish,
+        name: 'record_card_edit_publish',
+        redirect: _needsCard,
+        builder: (context, state) => CardPublishPage(
+          cardId: (state.extra! as RecordCard).id,
+          onSaved: (card) => _toDetail(context, card),
+        ),
+      ),
       GoRoute(
         path: AppRoutes.recordCardDetail,
         name: 'record_card_detail',
@@ -354,12 +385,23 @@ String? _needsDraft(BuildContext context, GoRouterState state) {
   return draft.canProceed ? null : AppRoutes.recordCard;
 }
 
-/// 만든 카드의 상세로 보낸다. **작성 세 화면을 걷는다**(설계 6-4).
+/// 고칠 카드가 왔나. 없으면 탭으로 돌려보낸다.
+///
+/// ⚠️ 카드 **단건 조회 API가 없다** — `extra`로 받은 것이 전부다. 딥링크나
+/// 프로세스 복원으로 들어오면 보여 줄 것이 없으므로 빈 화면을 띄우지 않는다.
+String? _needsCard(BuildContext context, GoRouterState state) =>
+    state.extra is RecordCard ? null : AppRoutes.recordCard;
+
+/// 만든(또는 고친) 카드의 상세로 보낸다. **작성 세 화면을 걷는다**(설계 6-4).
 ///
 /// ## ⚠️ `go`를 쓰지 않는다
 ///
 /// 셸 밖 라우트에 `go`로 가면 그 아래에 스택이 없어 **안드로이드 뒤로가 앱을
 /// 닫는다.** 작성 셋을 걷고 상세를 밀면 뒤로가 캘린더로 떨어진다.
+///
+/// ⚠️ **수정이면 옛 상세까지 걷힌다. 그래야 맞다** — 새 상세를 그냥 밀면
+/// 상세가 둘 쌓여 뒤로가 두 번이 되고, 밑에 깔린 것은 **고치기 전 값**을
+/// 들고 있다.
 ///
 /// ⚠️ **러닝 요약에서 들어온 경우까지 걷는다**(묶음 6). 그때 이 줄을 다시 본다.
 void _toDetail(BuildContext context, RecordCard card) {
