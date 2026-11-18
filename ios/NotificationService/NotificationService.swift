@@ -15,7 +15,7 @@ import UserNotifications
 /// - 방 이름은 알림 제목(`19:30 - 5 km 러닝`)을 그대로 쓴다. 같은 방은 `thread-id`로 묶인다.
 /// - 들어온 줄은 보낸 사람 자리에 "안내" + 안내 아이콘을 둔다(안드로이드 `chatPushNoticeSender`).
 /// - 사진 주소는 1시간 뒤 만료된다. 못 받으면 사진 없이 띄운다 — OS가 이름 첫 글자로 그린다.
-/// - 채팅 푸시가 아니거나 값이 빠졌으면 받은 그대로 띄운다.
+/// - 채팅 푸시가 아니거나 모르는 `chatType`이거나 값이 빠졌으면 받은 그대로 띄운다.
 final class NotificationService: UNNotificationServiceExtension {
   private var contentHandler: ((UNNotificationContent) -> Void)?
   private var original: UNNotificationContent?
@@ -32,6 +32,7 @@ final class NotificationService: UNNotificationServiceExtension {
     guard data["type"] as? String == "ROOM_CHAT_SENT",
           let runningRoomId = data["runningRoomId"] as? String,
           let chatType = data["chatType"] as? String,
+          ["MESSAGE", "JOINED"].contains(chatType),
           let actorId = data["actorId"] as? String,
           let actorNickname = data["actorNickname"] as? String
     else {
