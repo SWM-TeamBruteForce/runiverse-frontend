@@ -1714,6 +1714,46 @@ abstract final class AppStrings {
   static const recordCardComposeDiscard = '버리기';
   static const recordCardComposeKeep = '계속 쓰기';
 
+  // ── 기록카드 작성 2 — 사진 (설계 6-3) ────────────────────────
+  //
+  // **사진은 선택이다.** 한 장도 없이 다음으로 간다. 그래서 빈 상태가
+  // 권유가 아니라 **괜찮다는 말**이어야 한다.
+
+  static String recordCardPhotoTitle(int count, int max) => '사진 ($count/$max)';
+
+  static const recordCardPhotoAdd = '사진 추가';
+
+  /// ⚠️ **권유가 아니다.** "사진을 추가해 보세요"로 쓰면 선택인 것이 숙제로
+  /// 읽힌다.
+  static const recordCardPhotoEmpty = '사진은 넣지 않아도 괜찮아요';
+
+  /// 9:16 틀은 고정이고 사진을 움직여 맞춘다(설계 6-3). 말해 주지 않으면
+  /// 잘린 채로 저장하는 사람이 생긴다.
+  static const recordCardPhotoPanHint = '사진을 밀어 보일 곳을 고르세요';
+
+  static const recordCardPhotoCaptionHint = '이 사진에 한마디 (선택)';
+
+  /// 설계 6-3이 **한 줄로 알려 주라고** 못 박았다 — 선택이지만 AI가 읽는 값이다.
+  static const recordCardPhotoCaptionNote = 'AI가 음악을 만들 때 이 글을 읽어요';
+
+  static String recordCardPhotoCaptionCounter(int length, int max) =>
+      '$length/$max';
+
+  static const recordCardPhotoRemove = '이 사진 지우기';
+
+  static String recordCardPhotoLimit(int max) => '사진은 $max장까지 넣을 수 있어요';
+
+  static String recordCardPhotoSemantics(int index, int count) =>
+      '$count장 중 $index번째 사진';
+
+  /// ⚠️ **형식 탓이 아니다.** 고르던 사이에 OS가 임시 폴더를 비운 자리다 —
+  /// 형식이라고 하면 사용자가 다른 사진을 고르러 간다.
+  static const recordCardPhotoUnreadable = '사진을 읽지 못했어요\n다시 골라 주세요';
+
+  static const recordCardPhotoPickFailed = '사진을 가져오지 못했어요';
+  static const recordCardPhotoUnsupported = '이 형식의 사진은 넣을 수 없어요';
+  static const recordCardPhotoTooLarge = '사진이 너무 커요';
+
   // ── 프로필 유도 바텀시트 ─────────────────────────────────────
   //
   // ⚠️ **닫히지 않는다.** 프로필 없이는 매칭도 기록도 돌아가지 않아서
