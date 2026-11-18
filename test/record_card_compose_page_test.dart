@@ -37,20 +37,52 @@ RunRecord _record({required int id, int hour = 18}) => RunRecord(
   playerCount: 1,
 );
 
-RecordCard _card({required int id, required int runningRecordId}) => RecordCard(
+RecordCard _card({
+  int id = 7,
+  int runningRecordId = 11,
+  String reviewText = '여행에서 뛰었다',
+  int distanceMeters = 3050,
+}) => RecordCard(
   id: id,
   runningRecordId: runningRecordId,
   startedAt: DateTime(2026, 9, 2, 18),
-  activity: RecordCardActivity.daily,
-  visibility: RecordCardVisibility.friends,
-  reviewText: '회고',
+  activity: RecordCardActivity.travel,
+  visibility: RecordCardVisibility.public,
+  reviewText: reviewText,
   photos: const [],
   route: RouteArt.empty,
-  distanceMeters: 5400,
-  duration: const Duration(minutes: 28),
-  averagePace: const Duration(minutes: 5),
+  distanceMeters: distanceMeters,
+  duration: const Duration(minutes: 18),
+  averagePace: const Duration(minutes: 5, seconds: 54),
   runners: const [],
 );
+
+/// 회고 칸을 화면 안으로 끌어 올린다.
+///
+/// ⚠️ **수정 모드는 더 길다** — 경로 미리보기와 지표가 들어가 회고 칸이 600dp
+/// 테스트 화면 밑으로 내려간다. `ListView`는 화면 밖 자식을 아예 만들지 않아
+/// `enterText`가 "No element"로 죽는다.
+Future<void> _reachReview(WidgetTester tester) async {
+  await tester.dragUntilVisible(
+    find.byType(TextField),
+    find.byType(ListView),
+    const Offset(0, -120),
+  );
+  await tester.pumpAndSettle();
+}
+
+String _reviewText(WidgetTester tester) =>
+    tester.widget<TextField>(find.byType(TextField)).controller!.text;
+
+bool _nextEnabled(WidgetTester tester) {
+  final button = tester.widget<TextButton>(
+    find.ancestor(
+      of: find.text(AppStrings.recordCardComposeNext),
+      matching: find.byType(TextButton),
+    ),
+  );
+  return button.onPressed != null;
+}
 
 RunDetail _detail({required int roomId, bool withTrack = true}) => RunDetail(
   runningRoomId: roomId,
@@ -135,6 +167,7 @@ Future<void> _pump(
   RecordCardRepository? cards,
   DateTime? day,
   bool light = false,
+  RecordCard? card,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -149,7 +182,11 @@ Future<void> _pump(
       ],
       child: MaterialApp(
         theme: light ? AppTheme.light() : AppTheme.dark(),
-        home: CardComposePage(day: day ?? _day),
+        home: CardComposePage(
+          day: day ?? card?.day ?? _day,
+          cardId: card?.id,
+          card: card,
+        ),
       ),
     ),
   );
@@ -623,6 +660,81 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(container.read(cardDraftProvider(null)).reviewText, '');
+    });
+  });
+
+  /// 수정은 작성 1을 그대로 다시 쓴다 (설계 6-6).
+  group('카드를 고치러 들어왔을 때', () {
+    testWidgets('제목이 쓰기가 아니라 고치기다', (tester) async {
+      await _pump(tester, card: _card());
+
+      expect(find.text(AppStrings.recordCardEditTitle), findsOne);
+      expect(find.text(AppStrings.recordCardComposeTitle), findsNothing);
+    });
+
+    testWidgets('카드 값이 칸에 들어와 있다', (tester) async {
+      await _pump(tester, card: _card());
+      await _reachReview(tester);
+
+      expect(_reviewText(tester), '여행에서 뛰었다');
+      expect(_nextEnabled(tester), isTrue);
+    });
+
+    testWidgets('⚠️ 러닝 기록은 바꿀 수 없다', (tester) async {
+      // `unique(running_record_id)` 때문에 카드 있는 기록으로 옮기면 서버가
+      // 거절하고, 바꾸면 지표·경로가 통째로 달라져 다른 카드가 된다(설계 6-6).
+      await _pump(tester, card: _card());
+
+      expect(find.text(AppStrings.recordCardEditRecordLocked), findsOne);
+    });
+
+    testWidgets('⚠️ 날짜 줄을 눌러도 휠이 안 뜬다', (tester) async {
+      // 날짜를 바꾸면 그날의 다른 기록으로 옮기는 길이 열린다.
+      await _pump(tester, card: _card());
+
+      await tester.tap(
+        find.text(AppStrings.recordCardComposeDateLabel(_card().day)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.recordCardComposeDateSheet), findsNothing);
+    });
+
+    testWidgets('고를 기록 목록이 없다', (tester) async {
+      await _pump(tester, card: _card());
+
+      expect(find.text(AppStrings.recordCardComposeNoRecords), findsNothing);
+      // 고른 하나를 읽기 전용으로 보여 준다.
+      expect(find.textContaining('3.05'), findsWidgets);
+    });
+
+    testWidgets('⚠️ 이어 쓰기를 묻지 않는다', (tester) async {
+      // 뜬 초안은 손대지 않은 것이다. 물으면 고치러 들어온 사람에게 아무
+      // 말이나 묻는 꼴이다.
+      await _pump(tester, card: _card());
+
+      expect(find.text(AppStrings.recordCardComposeResumeTitle), findsNothing);
+    });
+
+    testWidgets('⚠️ 고친 뒤 뒤로 나가면 버릴지 묻는다', (tester) async {
+      await _pump(tester, card: _card());
+
+      await _reachReview(tester);
+      await tester.enterText(find.byType(TextField), '고친 글');
+      await tester.pump();
+      await tester.tap(find.byIcon(LucideIcons.chevronLeft));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.recordCardComposeDiscardTitle), findsOne);
+    });
+
+    testWidgets('안 고치고 나가면 묻지 않는다', (tester) async {
+      await _pump(tester, card: _card());
+
+      await tester.tap(find.byIcon(LucideIcons.chevronLeft));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.recordCardComposeDiscardTitle), findsNothing);
     });
   });
 }

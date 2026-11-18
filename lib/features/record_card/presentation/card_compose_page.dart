@@ -19,6 +19,7 @@ import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record_card/domain/card_draft.dart';
 import 'package:runiverse/features/record_card/domain/composable_record.dart';
+import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
 import 'package:runiverse/features/record_card/presentation/activity_label.dart';
@@ -67,7 +68,11 @@ List<int> composeDayValues({
 /// 기록 조회가 실패하면 **목록 자리에만** 오류를 둔다. 화면 전체를 오류로
 /// 덮으면 날짜를 바꿀 길까지 사라져, 다른 날로 옮겨 쓰지도 못한다.
 class CardComposePage extends ConsumerStatefulWidget {
-  const CardComposePage({required this.day, this.cardId, super.key});
+  const CardComposePage({required this.day, this.cardId, this.card, super.key});
+
+  /// 고치는 카드. **`cardId`가 있으면 반드시 함께 온다** — 카드 단건 조회 API가
+  /// 없어 라우트가 `extra`로 넘겨 준다(상세와 같은 방식).
+  final RecordCard? card;
 
   /// 어느 날의 기록을 고를 것인가. **시·분은 보지 않는다.**
   final DateTime day;
@@ -91,6 +96,18 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
   @override
   void initState() {
     super.initState();
+    // ⚠️ **`initState`에서 provider를 고칠 수 없다**(Riverpod이 막는다).
+    // 고치러 들어왔으면 첫 프레임 뒤에 뿌린다. 이미 손댄 초안이면 `seed`가
+    // 아무 일도 하지 않는다 — 사진 화면에서 돌아올 때마다 고친 것이
+    // 되돌아가면 안 된다.
+    final card = widget.card;
+    if (card != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(cardDraftProvider(widget.cardId).notifier).seed(card);
+        _review.text = ref.read(cardDraftProvider(widget.cardId)).reviewText;
+      });
+    }
     // 초안에 쓰던 글이 있으면 칸에 되돌려 놓는다 — 사진 화면에서 돌아왔을 때다.
     _review.text = ref.read(cardDraftProvider(widget.cardId)).reviewText;
     // ⚠️ **들어올 때 쓰던 것이 있으면 묻는다**(설계 7절). 초안은 앱을 끄면
@@ -109,6 +126,12 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
 
   CardDraftController get _draft =>
       ref.read(cardDraftProvider(widget.cardId).notifier);
+
+  /// 고치러 들어왔나. 제목·날짜 줄·기록 목록이 이것으로 갈린다.
+  ///
+  /// ⚠️ **카드가 왔는지로 본다.** 첫 프레임에는 초안이 아직 비어 있어
+  /// `draft.editing`으로는 가릴 수 없다 — 뿌리는 것은 프레임 뒤다.
+  bool get _editing => widget.card != null;
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +161,9 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
           onPressed: _leave,
         ),
         title: Text(
-          AppStrings.recordCardComposeTitle,
+          _editing
+              ? AppStrings.recordCardEditTitle
+              : AppStrings.recordCardComposeTitle,
           style: AppTypographyV2.body07.copyWith(color: colors.textPrimary),
         ),
         centerTitle: true,
@@ -163,14 +188,28 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
           ),
           children: [
             _SectionLabel(AppStrings.recordCardComposeRecordSection),
-            _DateRow(day: _day, onTap: _pickDay),
+            // ⚠️ **수정이면 날짜도 기록도 못 고른다**(설계 6-6). 날짜를 열어
+            // 두면 그날의 다른 기록으로 옮기는 길이 함께 열린다.
+            _DateRow(day: _day, onTap: _editing ? null : _pickDay),
             const SizedBox(height: AppSpacing.space2),
-            _RecordList(day: _day, selectedId: draft.record?.id, onPick: _pick),
-            if (draft.record != null) ...[
+            if (_editing) ...[
+              _Locked(AppStrings.recordCardEditRecordLocked),
               const SizedBox(height: AppSpacing.space4),
-              _RoutePreview(record: draft.record!, route: draft.route),
+              _SavedRoute(card: widget.card!),
               const SizedBox(height: AppSpacing.space3),
-              _Metrics(record: draft.record!),
+              _SavedMetrics(card: widget.card!),
+            ] else ...[
+              _RecordList(
+                day: _day,
+                selectedId: draft.record?.id,
+                onPick: _pick,
+              ),
+              if (draft.record != null) ...[
+                const SizedBox(height: AppSpacing.space4),
+                _RoutePreview(record: draft.record!, route: draft.route),
+                const SizedBox(height: AppSpacing.space3),
+                _Metrics(record: draft.record!),
+              ],
             ],
             const SizedBox(height: AppSpacing.space6),
             _SectionLabel(AppStrings.recordCardComposeActivitySection),
@@ -403,11 +442,107 @@ class _SectionLabel extends StatelessWidget {
   );
 }
 
+/// 왜 못 바꾸는지 적어 두는 한 줄.
+///
+/// ⚠️ **그냥 잠가 두지 않는다.** 이유 없이 안 눌리는 자리는 고장으로 읽힌다.
+class _Locked extends StatelessWidget {
+  const _Locked(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Row(
+      children: [
+        Icon(LucideIcons.lock, size: 14, color: colors.textSecondary),
+        const SizedBox(width: AppSpacing.space2),
+        Text(
+          text,
+          style: AppTypographyV2.body20.copyWith(color: colors.textSecondary),
+        ),
+      ],
+    );
+  }
+}
+
+/// 고치는 카드의 선 아트. **다시 받아 오지 않는다** — 카드가 경로를 들고 있다
+/// (설계 3절).
+class _SavedRoute extends StatelessWidget {
+  const _SavedRoute({required this.card});
+
+  final RecordCard card;
+
+  static const _height = 240.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return SizedBox(
+      height: _height,
+      child: Center(
+        child: AspectRatio(
+          aspectRatio: 9 / 16,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.bgSurface,
+              borderRadius: AppRadius.md,
+            ),
+            child: card.route.isEmpty
+                ? _Note(AppStrings.recordCardComposeRouteNone)
+                : Padding(
+                    padding: const EdgeInsets.all(AppSpacing.space4),
+                    child: RouteArtView(
+                      art: card.route,
+                      color: colors.primary,
+                      strokeWidth: 2,
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 고치는 카드의 지표. 카드가 스냅샷으로 들고 있다(설계 3절).
+class _SavedMetrics extends StatelessWidget {
+  const _SavedMetrics({required this.card});
+
+  final RecordCard card;
+
+  @override
+  Widget build(BuildContext context) => StatRowV2(
+    stats: [
+      Stat(
+        label: AppStrings.recordCardDistance,
+        value:
+            '${AppStrings.kmFloor(card.distanceMeters)} '
+            '${AppStrings.runPartyUnitKm}',
+      ),
+      Stat(
+        label: AppStrings.recordCardPace,
+        value:
+            '${AppStrings.recordRunDuration(card.averagePace)}'
+            '${AppStrings.runPartyUnitPerKm}',
+      ),
+      Stat(
+        label: AppStrings.recordCardDuration,
+        value: AppStrings.recordRunDuration(card.duration),
+      ),
+    ],
+  );
+}
+
 class _DateRow extends StatelessWidget {
   const _DateRow({required this.day, required this.onTap});
 
   final DateTime day;
-  final VoidCallback onTap;
+
+  /// `null`이면 수정 중이라 날짜를 못 바꾼다.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

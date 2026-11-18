@@ -1714,6 +1714,19 @@ abstract final class AppStrings {
   static const recordCardComposeDiscard = '버리기';
   static const recordCardComposeKeep = '계속 쓰기';
 
+  // ── 기록카드 수정 (설계 6-6) ─────────────────────────────────
+  //
+  // 수정은 작성 세 화면을 그대로 다시 쓴다. 다른 것은 **제목**과 **러닝 기록을
+  // 못 바꾼다는 것** 둘뿐이다.
+
+  static const recordCardEditTitle = '기록카드 고치기';
+
+  /// ⚠️ **왜 못 바꾸는지 말한다.** 그냥 잠가 두면 고장으로 읽힌다.
+  ///
+  /// 서버의 `unique(running_record_id)` 때문에 카드 있는 기록으로 옮기면
+  /// 거절당하고, 바꾸면 지표·경로가 통째로 달라져 다른 카드가 된다.
+  static const recordCardEditRecordLocked = '러닝 기록은 바꿀 수 없어요';
+
   // ── 기록카드 작성 2 — 사진 (설계 6-3) ────────────────────────
   //
   // **사진은 선택이다.** 한 장도 없이 다음으로 간다. 그래서 빈 상태가
