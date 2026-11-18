@@ -438,8 +438,12 @@ class _RecordArt extends StatelessWidget {
     // ⚠️ 두 카드는 제 높이대로 쌓이고, 남는 세로가 모자라면 **통째로 줄어든다.**
     // 안에서 늘였다 줄였다 하면 겹치는 깊이와 기울기가 기기마다 달라진다 —
     // 비율을 지킨 채 작아지는 편이 낫다. 넘쳐서 노란 줄이 뜨는 일도 없다.
+    //
+    // 칸 아래에 붙인다. 곡 카드를 끌어올린 만큼 아래가 비어서, 가운데에 두면
+    // 다른 장 그림보다 떠 보인다.
     return FittedBox(
       fit: BoxFit.scaleDown,
+      alignment: Alignment.bottomCenter,
       child: SizedBox(
         width: _artWidth,
         child: Stack(
