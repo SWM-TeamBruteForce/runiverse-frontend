@@ -24,10 +24,13 @@ class FirebaseAnalyticsService implements Analytics {
   final FirebaseCrashlytics _crashlytics;
 
   @override
-  Future<void> screenView({required String name}) async {
+  Future<void> screenView({required String name, String? runType}) async {
     try {
-      await _analytics.logScreenView(screenName: name);
-      if (kDebugMode) debugPrint('[ga] screen_view $name');
+      await _analytics.logScreenView(
+        screenName: name,
+        parameters: runType == null ? null : {'run_type': runType},
+      );
+      if (kDebugMode) debugPrint('[ga] screen_view $name ${runType ?? ''}');
     } on Object catch (error) {
       if (kDebugMode) debugPrint('[ga] screen_view $name 실패: $error');
     }

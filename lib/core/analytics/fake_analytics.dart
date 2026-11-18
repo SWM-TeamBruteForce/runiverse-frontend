@@ -19,8 +19,8 @@ class FakeAnalytics implements Analytics {
       events.lastWhere((e) => e.$1 == name, orElse: () => (name, null)).$2;
 
   @override
-  Future<void> screenView({required String name}) async =>
-      events.add(('screen_view', {'name': name}));
+  Future<void> screenView({required String name, String? runType}) async =>
+      events.add(('screen_view', {'name': name, 'run_type': ?runType}));
 
   @override
   Future<void> login({required String method}) async =>

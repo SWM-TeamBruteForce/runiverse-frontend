@@ -50,7 +50,11 @@ export 'package:runiverse/core/analytics/run_outcome.dart';
 /// 구현체가 예외를 안에서 삼킨다.
 abstract interface class Analytics {
   /// 화면 하나를 봤다. [name] 은 `GoRoute` 에 붙인 이름이다.
-  Future<void> screenView({required String name});
+  ///
+  /// [runType] 은 **출발 대기실(`match_countdown`)에만** 싣는다 — `match` ·
+  /// `invite`. 확정되고도 출발하지 않은 사람을 방 종류별로 가른다. 다른
+  /// 화면은 `null` 이고 파라미터가 빠진다.
+  Future<void> screenView({required String name, String? runType});
 
   /// 로그인 성공. [method] 는 `email` · `kakao` · `google` · `apple`.
   ///
@@ -231,7 +235,7 @@ class NoopAnalytics implements Analytics {
   const NoopAnalytics();
 
   @override
-  Future<void> screenView({required String name}) async {}
+  Future<void> screenView({required String name, String? runType}) async {}
 
   @override
   Future<void> login({required String method}) async {}

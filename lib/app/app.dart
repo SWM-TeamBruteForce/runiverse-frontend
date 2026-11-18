@@ -10,6 +10,8 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/app_update/presentation/app_update_gate.dart';
 import 'package:runiverse/features/matching/presentation/launch_gate.dart';
+import 'package:runiverse/features/matching/presentation/match_room_provider.dart';
+import 'package:runiverse/features/session/domain/user_status.dart';
 import 'package:runiverse/features/notification/presentation/push_provider.dart';
 import 'package:runiverse/features/session/presentation/watch_link_provider.dart';
 
@@ -112,7 +114,23 @@ class _RuniverseAppState extends ConsumerState<RuniverseApp> {
     // `screen_view` 는 지표에서 쓸모가 없다.
     if (name == null || name == _lastScreen) return;
     _lastScreen = name;
-    unawaited(ref.read(analyticsProvider).screenView(name: name));
+    unawaited(
+      ref
+          .read(analyticsProvider)
+          .screenView(name: name, runType: _lobbyRunType(name)),
+    );
+  }
+
+  /// 출발 대기실의 방 종류. 다른 화면이면 `null` 이다.
+  ///
+  /// ⚠️ 이름은 `app_router.dart` 의 `name: 'match_countdown'` 과 같아야 한다.
+  /// 대기실은 매칭·초대 방만 온다(솔로는 `run_prepare`). 방을 아직 모르면
+  /// 빼고 보낸다 — 짐작해 `match` 로 적으면 초대 방이 섞인다.
+  String? _lobbyRunType(String name) {
+    if (name != 'match_countdown') return null;
+    final room = ref.read(matchRoomProvider).room;
+    if (room == null) return null;
+    return room.type == RoomType.invite ? 'invite' : 'match';
   }
 
   @override
