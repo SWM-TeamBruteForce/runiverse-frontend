@@ -1,5 +1,6 @@
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record_card/domain/card_photo_draft.dart';
+import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
@@ -24,7 +25,39 @@ class CardDraft {
     this.photos = const [],
     this.visibility = RecordCardVisibility.friends,
     this.musicEnabled = true,
+    this.editing,
+    this.seeded = false,
   });
+
+  /// 카드를 **고치려고** 뜬 초안 (설계 6-6).
+  ///
+  /// ## ⚠️ 러닝 기록을 지어내지 않는다
+  ///
+  /// 카드는 **방 번호를 모른다**(설계 3절) — `RunRecord`를 만들어 꽂으면
+  /// `runningRoomId`에 가짜 값이 들어간다. 대신 [editing]에 카드를 들고, 읽기
+  /// 전용으로 보여 줄 것은 거기서 바로 읽는다.
+  ///
+  /// ## ⚠️ [seeded]가 참으로 뜬다
+  ///
+  /// 값이 다 차 있어도 **사용자가 손댄 것은 아니다.** 참이 아니면 들어오자마자
+  /// 이어 쓰기 시트가 뜨고, 고치러 들어온 사람에게 아무 말이나 묻는 꼴이 된다.
+  factory CardDraft.fromCard(RecordCard card) => CardDraft(
+    editing: card,
+    route: card.route,
+    activity: card.activity,
+    visibility: card.visibility,
+    reviewText: card.reviewText,
+    photos: [
+      for (final photo in card.photos)
+        SavedPhoto(
+          id: photo.id,
+          url: photo.url,
+          thumbnailUrl: photo.thumbnailUrl,
+          caption: photo.caption ?? '',
+        ),
+    ],
+    seeded: true,
+  );
 
   /// 이 카드가 붙을 러닝 기록. 고르기 전에는 `null`이다.
   final RunRecord? record;
@@ -61,8 +94,26 @@ class CardDraft {
   ///
   /// 공백뿐인 회고는 쓴 것으로 세지 않는다. 띄어쓰기 한 칸으로 필수 항목을
   /// 통과하면 회고를 필수로 둔 뜻이 없어진다.
+  /// 고치고 있는 카드. **새 카드면 `null`이다.**
+  ///
+  /// ⚠️ 수정에서는 [record]가 비어 있고 이것이 찬다 — 카드가 방 번호를 몰라
+  /// `RunRecord`를 지어낼 수 없다.
+  final RecordCard? editing;
+
+  /// 카드에서 **뜬 직후**인가. 사용자가 한 번이라도 손대면 내려간다.
+  ///
+  /// ⚠️ [copyWith]가 이 값을 **들고 가지 않는다**(기본이 `false`다) — 모든
+  /// 고치기가 `copyWith`를 지나므로, 그것만으로 "손댔다"가 된다.
+  final bool seeded;
+
+  /// 저장할 수 있나.
+  ///
+  /// ⚠️ **[record]만 보면 수정이 영원히 못 저장한다** — 수정에는 러닝 기록이
+  /// 없고 고치는 카드가 있다.
   bool get canProceed =>
-      record != null && activity != null && reviewText.trim().isNotEmpty;
+      (record != null || editing != null) &&
+      activity != null &&
+      reviewText.trim().isNotEmpty;
 
   /// 버리기 전에 사용자에게 물어야 하나.
   ///
@@ -76,12 +127,15 @@ class CardDraft {
   /// ⚠️ 공개범위와 음악은 기본값이 있어 "비었는지"로 못 가린다. 기본값과
   /// 비교한다 — 안 세면 나만 보기로 바꿔 둔 사람이 뒤로 눌렀을 때 그 선택이
   /// 조용히 사라진다.
+  /// ⚠️ **카드에서 막 뜬 초안은 손댄 것이 아니다**([seeded]). 값이 다 차 있어도
+  /// 사용자가 넣은 것이 아니라 앱이 꽂아 준 것이다.
   bool get isDirty =>
-      activity != null ||
-      reviewText.trim().isNotEmpty ||
-      photos.isNotEmpty ||
-      visibility != RecordCardVisibility.friends ||
-      !musicEnabled;
+      !seeded &&
+      (activity != null ||
+          reviewText.trim().isNotEmpty ||
+          photos.isNotEmpty ||
+          visibility != RecordCardVisibility.friends ||
+          !musicEnabled);
 
   /// ⚠️ **비우려면 `clear*`를 쓴다.** `record: null`은 "안 바꾼다"와 구별되지
   /// 않는다. `RecordCardData.copyWith(clearFilter:)`와 같은 꼴이다.
@@ -96,6 +150,9 @@ class CardDraft {
     RecordCardVisibility? visibility,
     bool? musicEnabled,
   }) => CardDraft(
+    // ⚠️ **[seeded]를 들고 가지 않는다.** 모든 고치기가 여기를 지나므로,
+    // 기본값 `false`가 곧 "사용자가 손댔다"가 된다.
+    editing: editing,
     record: clearRecord ? null : (record ?? this.record),
     route: clearRoute ? null : (route ?? this.route),
     activity: activity ?? this.activity,

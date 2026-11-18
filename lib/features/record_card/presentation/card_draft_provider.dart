@@ -7,6 +7,7 @@ import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record_card/domain/card_draft.dart';
 import 'package:runiverse/features/record_card/domain/card_photo_draft.dart';
+import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
@@ -121,6 +122,17 @@ class CardDraftController extends Notifier<CardDraft> {
   /// 유형과 회고는 남긴다. 날짜를 잘못 골라 되돌리는 사람의 글을 버리지 않는다.
   void clearRecord() =>
       state = state.copyWith(clearRecord: true, clearRoute: true);
+
+  /// 카드 값을 초안에 **한 번만** 뿌린다 (설계 6-6).
+  ///
+  /// ## ⚠️ 이미 손댄 초안은 건드리지 않는다
+  ///
+  /// 화면이 들어올 때마다 부른다. 안 막으면 사진 화면에 갔다 돌아올 때마다
+  /// 다시 뿌려 **고친 것이 되돌아간다.**
+  void seed(RecordCard card) {
+    if (state.isDirty) return;
+    state = CardDraft.fromCard(card);
+  }
 
   void clear() => state = const CardDraft();
 

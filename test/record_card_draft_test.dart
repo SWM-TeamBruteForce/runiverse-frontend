@@ -3,6 +3,7 @@ import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record_card/domain/card_draft.dart';
 import 'package:runiverse/features/record_card/domain/card_photo_draft.dart';
+import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
@@ -26,6 +27,28 @@ const _route = RouteArt(
 
 PickedImage _image() =>
     PickedImage.validated(path: '/tmp/a.jpg', sizeBytes: 1024);
+
+RecordCard _card({int id = 7}) => RecordCard(
+  id: id,
+  runningRecordId: 11,
+  startedAt: DateTime(2026, 11, 2, 7),
+  activity: RecordCardActivity.travel,
+  visibility: RecordCardVisibility.public,
+  reviewText: '여행에서 뛰었다',
+  photos: const [
+    RecordCardPhoto(id: 70, url: 'https://x/a.jpg', caption: '첫째'),
+    RecordCardPhoto(
+      id: 71,
+      url: 'https://x/b.jpg',
+      thumbnailUrl: 'https://x/b_s.jpg',
+    ),
+  ],
+  route: _route,
+  distanceMeters: 3050,
+  duration: const Duration(minutes: 18),
+  averagePace: const Duration(minutes: 5, seconds: 54),
+  runners: const [],
+);
 
 CardPhotoDraft _photo({String caption = ''}) =>
     PickedPhoto(image: _image(), caption: caption);
@@ -166,6 +189,60 @@ void main() {
 
     test('사진 틀은 9:16이다', () {
       expect(CardPhotoDraft.aspectRatio, closeTo(9 / 16, 1e-9));
+    });
+  });
+
+  /// 카드를 고치려고 뜬 초안 (설계 6-6).
+  group('카드에서 뜬 초안', () {
+    test('카드의 값이 그대로 들어온다', () {
+      final draft = CardDraft.fromCard(_card());
+
+      expect(draft.activity, _card().activity);
+      expect(draft.visibility, _card().visibility);
+      expect(draft.reviewText, _card().reviewText);
+      expect(draft.photos, hasLength(2));
+      expect(draft.photos.first, isA<SavedPhoto>());
+      expect((draft.photos.first as SavedPhoto).caption, '첫째');
+      expect(draft.route, same(_card().route));
+    });
+
+    test('⚠️ 고치는 카드를 들고 있다 — 러닝 기록이 아니다', () {
+      // 카드는 **방 번호를 모른다**(설계 3절). `RunRecord`를 지어내면 가짜
+      // 값이 들어가므로, 읽기 전용으로 보여 줄 것은 카드에서 바로 읽는다.
+      final draft = CardDraft.fromCard(_card());
+
+      expect(draft.editing?.id, _card().id);
+      expect(draft.record, isNull);
+    });
+
+    test('⚠️ 뜬 초안은 아직 손대지 않은 것이다', () {
+      // 참이면 들어오자마자 "이어 쓸까요?"를 묻는다 — 고치러 들어온 사람에게
+      // 아무 말이나 묻는 꼴이다.
+      expect(CardDraft.fromCard(_card()).isDirty, isFalse);
+    });
+
+    test('⚠️ 한 글자만 고쳐도 손댄 것이 된다', () {
+      // 안 그러면 고치다 뒤로 나갈 때 아무 말 없이 버려진다.
+      final draft = CardDraft.fromCard(_card());
+
+      expect(draft.copyWith(reviewText: '고친 글').isDirty, isTrue);
+      expect(draft.copyWith(photos: const []).isDirty, isTrue);
+      expect(
+        draft.copyWith(visibility: RecordCardVisibility.public).isDirty,
+        isTrue,
+      );
+    });
+
+    test('⚠️ 기록 없이도 저장할 수 있다 — 고치는 카드가 있으면', () {
+      // `canProceed`가 `record`만 보면 수정이 영원히 못 저장한다.
+      expect(CardDraft.fromCard(_card()).canProceed, isTrue);
+    });
+
+    test('회고를 비우면 저장하지 못한다', () {
+      expect(
+        CardDraft.fromCard(_card()).copyWith(reviewText: ' ').canProceed,
+        isFalse,
+      );
     });
   });
 

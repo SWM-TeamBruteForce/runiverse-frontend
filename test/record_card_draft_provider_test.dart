@@ -7,6 +7,7 @@ import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record_card/domain/card_draft.dart';
 import 'package:runiverse/features/record_card/domain/card_photo_draft.dart';
+import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
@@ -14,6 +15,21 @@ import 'package:runiverse/features/record_card/presentation/card_draft_provider.
 
 PickedImage _image(String path) =>
     PickedImage.validated(path: path, sizeBytes: 1024);
+
+RecordCard _card({required int id}) => RecordCard(
+  id: id,
+  runningRecordId: 11,
+  startedAt: DateTime(2026, 11, 2, 7),
+  activity: RecordCardActivity.travel,
+  visibility: RecordCardVisibility.public,
+  reviewText: '여행에서 뛰었다',
+  photos: const [RecordCardPhoto(id: 70, url: 'https://x/a.jpg')],
+  route: _route,
+  distanceMeters: 3050,
+  duration: const Duration(minutes: 18),
+  averagePace: const Duration(minutes: 5, seconds: 54),
+  runners: const [],
+);
 
 RunRecord _record({required int id}) => RunRecord(
   id: id,
@@ -237,6 +253,63 @@ void main() {
       expect(draft().photos, isEmpty);
       expect(draft().visibility, RecordCardVisibility.friends);
       expect(draft().musicEnabled, isTrue);
+    });
+  });
+
+  group('카드를 고치러 들어왔을 때', () {
+    test('seed가 카드 값을 뿌린다', () {
+      notifier(7).seed(_card(id: 7));
+
+      expect(draft(7).reviewText, '여행에서 뛰었다');
+      expect(draft(7).photos, hasLength(1));
+      expect(draft(7).editing?.id, 7);
+    });
+
+    // ⚠️ Review Focus 1
+    test('⚠️ 수정 초안과 새 카드 초안이 섞이지 않는다', () {
+      // 섞이면 남의 카드 글이 새 카드에 붙는다(설계 7절).
+      notifier(7).seed(_card(id: 7));
+
+      notifier().setReview('새로 쓰는 글');
+
+      expect(draft(7).reviewText, '여행에서 뛰었다');
+      expect(draft().reviewText, '새로 쓰는 글');
+      expect(draft().photos, isEmpty);
+      expect(draft().editing, isNull);
+    });
+
+    test('⚠️ 이미 고친 초안에는 다시 뿌리지 않는다', () {
+      // 화면이 매번 부른다. 안 막으면 사진 화면에서 돌아올 때마다 **고친
+      // 것이 되돌아간다.**
+      notifier(7).seed(_card(id: 7));
+      notifier(7).setReview('고친 글');
+
+      notifier(7).seed(_card(id: 7));
+
+      expect(draft(7).reviewText, '고친 글');
+    });
+
+    test('뜬 직후에는 버릴지 묻지 않는다', () {
+      notifier(7).seed(_card(id: 7));
+
+      expect(draft(7).isDirty, isFalse);
+    });
+
+    test('한 글자만 고쳐도 묻는다', () {
+      notifier(7).seed(_card(id: 7));
+
+      notifier(7).setReview('고친 글');
+
+      expect(draft(7).isDirty, isTrue);
+    });
+
+    test('clear가 고치던 카드까지 비운다', () {
+      notifier(7).seed(_card(id: 7));
+
+      notifier(7).clear();
+
+      expect(draft(7).editing, isNull);
+      expect(draft(7).photos, isEmpty);
     });
   });
 
