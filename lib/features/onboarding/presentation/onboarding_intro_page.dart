@@ -51,7 +51,7 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
     _IntroCard(
       title: AppStrings.onboardingCard1Title,
       body: AppStrings.onboardingCard1Body,
-      art: _Art.home,
+      art: _Art.waitingRoomChat,
     ),
     _IntroCard(
       title: AppStrings.onboardingCard2Title,
@@ -208,8 +208,8 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
 
 /// 장마다 다른 그림.
 enum _Art {
-  /// 홈의 매칭 카드(`HomeIdle`)를 찍은 것.
-  home,
+  /// 매칭 대기방 채팅의 제목과 출발 전 인사를 함께 찍은 것.
+  waitingRoomChat,
 
   /// 파티원 비교 화면에서 콤보 임팩트가 터지는 **실제 녹화**에 워치가 걸친다.
   combo,
@@ -412,8 +412,8 @@ class _ArtView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => switch (art) {
-    _Art.home => Image.asset(
-      'assets/images/onboarding_home.webp',
+    _Art.waitingRoomChat => Image.asset(
+      'assets/images/onboarding_chat.webp',
       fit: BoxFit.contain,
     ),
     _Art.combo => const _ComboArt(),

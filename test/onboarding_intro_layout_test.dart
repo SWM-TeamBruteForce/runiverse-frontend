@@ -95,7 +95,7 @@ void main() {
               widget is Image &&
               widget.image is AssetImage &&
               (widget.image as AssetImage).assetName.endsWith(
-                'onboarding_home.webp',
+                'onboarding_chat.webp',
               ),
         );
         final artRect = tester.getRect(art);
