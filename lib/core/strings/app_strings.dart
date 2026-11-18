@@ -1569,6 +1569,9 @@ abstract final class AppStrings {
   ///
   /// ⚠️ **필터로 0장이 된 것과 다르다.** 필터를 건 사람에게 이 문구가 뜨면
   /// 필터 때문인 줄 모른다(`RecordCardData.hasAnyCard`).
+  /// 탭 머리. 시안 `158:2899`.
+  static const recordCardTabTitle = '기록카드';
+
   static const recordCardEmptyTitle = '아직 남긴 기록카드가 없어요';
   static const recordCardEmptyAction = '기록카드 쓰기';
 
@@ -1695,6 +1698,21 @@ abstract final class AppStrings {
   /// 주인은 `CardDraft.reviewMaxLength`다.
   static String recordCardComposeReviewCounter(int length, int max) =>
       '$length/$max';
+
+  // ── 작성 중인 것을 지키는 말 ────────────────────────────────
+  //
+  // ⚠️ 초안은 **앱을 끄면 사라진다**(영속화하지 않는다, 설계 7절). 그래서
+  // 버리기 전에 묻는 것이 유일한 방어다.
+
+  static const recordCardComposeResumeTitle = '쓰던 기록카드가 있어요';
+  static const recordCardComposeResumeBody = '이어 쓰지 않으면 적은 내용이 사라져요';
+  static const recordCardComposeResume = '이어 쓰기';
+  static const recordCardComposeStartOver = '새로 쓰기';
+
+  static const recordCardComposeDiscardTitle = '쓰던 기록카드를 버릴까요?';
+  static const recordCardComposeDiscardBody = '적은 내용이 사라져요';
+  static const recordCardComposeDiscard = '버리기';
+  static const recordCardComposeKeep = '계속 쓰기';
 
   // ── 프로필 유도 바텀시트 ─────────────────────────────────────
   //

@@ -21,6 +21,7 @@ import 'package:runiverse/features/profile/presentation/profile_edit_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/presentation/card_compose_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_detail_page.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_page.dart';
 import 'package:runiverse/features/session/presentation/run_prepare_page.dart';
@@ -111,6 +112,20 @@ GoRouter createAppRouter({String? initialLocation}) {
         path: AppRoutes.notifications,
         name: 'notifications',
         builder: (context, state) => const NotificationPage(),
+      ),
+      // 기록카드 작성 1. **탭 셸 밖이다** — 작성 중에 하단 탭으로 새지
+      // 않게 한다.
+      //
+      // ⚠️ **`date` 쿼리가 없거나 못 읽으면 오늘로 떨어진다.** 404 를 내지
+      // 않는다 — 탭 머리의 쓰기 버튼은 날짜를 싣지 않고 들어온다.
+      GoRoute(
+        path: AppRoutes.recordCardNew,
+        name: 'record_card_new',
+        builder: (context, state) => CardComposePage(
+          day:
+              DateTime.tryParse(state.uri.queryParameters['date'] ?? '') ??
+              DateTime.now(),
+        ),
       ),
       // 기록카드 한 장. **탭 셸 밖이다** — 프로필이나 러닝 요약에서 열어도
       // 탭이 바뀌면 안 된다(`app_routes.dart`).

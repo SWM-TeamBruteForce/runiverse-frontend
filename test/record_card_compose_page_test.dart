@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
@@ -404,5 +405,114 @@ void main() {
     await _pump(tester, light: true);
 
     expect(tester.takeException(), isNull);
+  });
+
+  group('쓰던 것을 지키는 길', () {
+    /// 초안을 미리 채워 둔 판. 화면이 세워질 때의 판단을 보려면 그 전에
+    /// 초안이 있어야 한다.
+    Future<ProviderContainer> pumpWithDraft(
+      WidgetTester tester, {
+      required void Function(CardDraftController draft) seed,
+      DateTime? day,
+    }) async {
+      final container = ProviderContainer(
+        overrides: [
+          runRecordRepositoryProvider.overrideWithValue(
+            _Records([_record(id: 11)], detail: _detail(roomId: 911)),
+          ),
+          recordCardRepositoryProvider.overrideWithValue(_Cards(const [])),
+          recordCardClockProvider.overrideWithValue(() => _today),
+        ],
+      );
+      addTearDown(container.dispose);
+      seed(container.read(cardDraftProvider(null).notifier));
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: CardComposePage(day: day ?? _day),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return container;
+    }
+
+    testWidgets('⚠️ 쓰던 초안이 있으면 들어올 때 확인을 받는다', (tester) async {
+      // 설계 7절: draft 가 있는데 새로 진입하면 덮어쓰기 전에 알린다.
+      await pumpWithDraft(tester, seed: (draft) => draft.setReview('쓰던 글'));
+
+      expect(find.text(AppStrings.recordCardComposeResumeTitle), findsOne);
+      expect(find.text(AppStrings.recordCardComposeResume), findsOne);
+      expect(find.text(AppStrings.recordCardComposeStartOver), findsOne);
+    });
+
+    testWidgets('이어 쓰기를 고르면 쓴 글이 남는다', (tester) async {
+      final container = await pumpWithDraft(
+        tester,
+        seed: (draft) => draft.setReview('쓰던 글'),
+      );
+
+      await tester.tap(find.text(AppStrings.recordCardComposeResume));
+      await tester.pumpAndSettle();
+
+      expect(container.read(cardDraftProvider(null)).reviewText, '쓰던 글');
+      expect(find.text(AppStrings.recordCardComposeResumeTitle), findsNothing);
+    });
+
+    testWidgets('⚠️ 새로 쓰기를 고르면 초안이 비워진다', (tester) async {
+      final container = await pumpWithDraft(
+        tester,
+        seed: (draft) => draft.setReview('쓰던 글'),
+      );
+
+      await tester.tap(find.text(AppStrings.recordCardComposeStartOver));
+      await tester.pumpAndSettle();
+
+      expect(container.read(cardDraftProvider(null)).reviewText, '');
+    });
+
+    testWidgets('쓴 것이 없으면 묻지 않는다', (tester) async {
+      await pumpWithDraft(tester, seed: (_) {});
+
+      expect(find.text(AppStrings.recordCardComposeResumeTitle), findsNothing);
+    });
+
+    testWidgets('⚠️ 쓴 것이 있을 때 뒤로 가면 확인을 받는다', (tester) async {
+      await _pump(tester);
+      await _reach(tester, find.byType(AppInputV2));
+      await tester.enterText(find.byType(AppInputV2), '쓴 글');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(LucideIcons.chevronLeft));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.recordCardComposeDiscardTitle), findsOne);
+    });
+
+    testWidgets('쓴 것이 없으면 뒤로가 그냥 나간다', (tester) async {
+      await _pump(tester);
+
+      await tester.tap(find.byIcon(LucideIcons.chevronLeft));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.recordCardComposeDiscardTitle), findsNothing);
+    });
+
+    testWidgets('⚠️ 버리기를 고르면 초안이 비워진다', (tester) async {
+      final container = await pumpWithDraft(tester, seed: (_) {});
+      await _reach(tester, find.byType(AppInputV2));
+      await tester.enterText(find.byType(AppInputV2), '쓴 글');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(LucideIcons.chevronLeft));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.recordCardComposeDiscard));
+      await tester.pumpAndSettle();
+
+      expect(container.read(cardDraftProvider(null)).reviewText, '');
+    });
   });
 }

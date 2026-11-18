@@ -37,6 +37,28 @@ class RecordCardPage extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: colors.bgBase,
+      appBar: AppBar(
+        backgroundColor: colors.bgBase,
+        title: Text(
+          AppStrings.recordCardTabTitle,
+          style: AppTypographyV2.body04.copyWith(color: colors.textPrimary),
+        ),
+        actions: [
+          // ⚠️ **라벨 없는 아이콘이라 읽을 말을 붙인다**(CLAUDE.md). 여기서는
+          // `tooltip`이 그 일을 한다 — `Tooltip`이 `SemanticsProperties.tooltip`
+          // 을 심어 스크린리더가 읽는다. 탭 바 아이콘이 `Semantics(label:)`을
+          // 쓰는 이유는 그쪽에 툴팁이 없기 때문이다.
+          //
+          // 보기 전환은 다음 묶음이 이 머리에 더한다.
+          IconButton(
+            icon: const Icon(LucideIcons.pencil),
+            tooltip: AppStrings.recordCardEmptyAction,
+            onPressed: () => context.push(
+              AppRoutes.recordCardNewOn(ref.read(recordCardClockProvider)()),
+            ),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: switch (state) {
           RecordCardLoading() => const Center(
@@ -50,14 +72,14 @@ class RecordCardPage extends ConsumerWidget {
   }
 }
 
-class _Body extends StatelessWidget {
+class _Body extends ConsumerWidget {
   const _Body({required this.data, required this.controller});
 
   final RecordCardData data;
   final RecordCardController controller;
 
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context, WidgetRef ref) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       const SizedBox(height: AppSpacing.space2),
@@ -71,10 +93,9 @@ class _Body extends StatelessWidget {
           // 이미 들고 있는 카드를 그대로 넘긴다 — 다시 받아 올 이유가 없다.
           onOpen: (card) =>
               context.push(AppRoutes.recordCardDetailOf(card.id), extra: card),
-          onEmptyDay: (_) {
-            // ⚠️ 아직 아무 데도 가지 않는다. 작성 화면은 다음 PR이다 —
-            // 갈 데가 없는데 보내면 빈 화면이 뜬다.
-          },
+          // ⚠️ **뛴 날만 불린다.** 안 뛴 날은 칸이 아예 눌리지 않는다
+          // (`RecordCardCalendar`). 그래서 여기서 기록 유무를 또 보지 않는다.
+          onEmptyDay: (day) => context.push(AppRoutes.recordCardNewOn(day)),
           onZoom: controller.setZoom,
           onLoadOlder: controller.loadOlder,
         ),
@@ -104,10 +125,26 @@ class _Empty extends StatelessWidget {
             textAlign: TextAlign.center,
             style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
           ),
+          const SizedBox(height: AppSpacing.space3),
+          // ⚠️ 안내만 두면 **어디서 쓰는지 알 수 없다.** 탭 머리의 아이콘은
+          // 라벨이 없어, 카드가 한 장도 없는 사람에게는 이 버튼이 유일하게
+          // 읽히는 입구다.
+          _NewCardButton(),
         ],
       ),
     );
   }
+}
+
+class _NewCardButton extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => AppButtonV2(
+    label: AppStrings.recordCardEmptyAction,
+    expand: false,
+    onPressed: () => context.push(
+      AppRoutes.recordCardNewOn(ref.read(recordCardClockProvider)()),
+    ),
+  );
 }
 
 class _Error extends StatelessWidget {

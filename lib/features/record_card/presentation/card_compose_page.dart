@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -91,6 +93,12 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
     super.initState();
     // 초안에 쓰던 글이 있으면 칸에 되돌려 놓는다 — 사진 화면에서 돌아왔을 때다.
     _review.text = ref.read(cardDraftProvider(widget.cardId)).reviewText;
+    // ⚠️ **들어올 때 쓰던 것이 있으면 묻는다**(설계 7절). 초안은 앱을 끄면
+    // 사라지므로, 조용히 덮으면 되돌릴 길이 없다. 첫 프레임 뒤에 띄운다 —
+    // `initState` 안에서는 아직 시트를 올릴 수 없다.
+    if (ref.read(cardDraftProvider(widget.cardId)).isDirty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _askResume());
+    }
   }
 
   @override
@@ -109,13 +117,25 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
     // 고른 기록의 경로를 받아 초안에 넣는다. 받는 동안에는 자리만 지킨다.
     _watchRoute(draft.record);
 
+    return PopScope(
+      // ⚠️ **시스템 뒤로도 막는다.** 머리의 버튼만 막으면 안드로이드에서
+      // 제스처로 그냥 빠져나가 쓴 글이 사라진다.
+      canPop: !draft.isDirty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_confirmDiscard());
+      },
+      child: _body(context, colors, draft),
+    );
+  }
+
+  Widget _body(BuildContext context, AppColorsV2 colors, CardDraft draft) {
     return Scaffold(
       backgroundColor: colors.bgBase,
       appBar: AppBar(
         backgroundColor: colors.bgBase,
         leading: IconButton(
           icon: const Icon(LucideIcons.chevronLeft),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: _leave,
         ),
         title: Text(
           AppStrings.recordCardComposeTitle,
@@ -180,6 +200,100 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
       ),
     );
   }
+
+  /// 뒤로. 쓴 것이 있으면 **버릴지 묻는다.**
+  Future<void> _leave() async {
+    if (!ref.read(cardDraftProvider(widget.cardId)).isDirty) {
+      Navigator.of(context).maybePop();
+      return;
+    }
+    await _confirmDiscard();
+  }
+
+  Future<void> _confirmDiscard() async {
+    final discard = await _ask(
+      title: AppStrings.recordCardComposeDiscardTitle,
+      body: AppStrings.recordCardComposeDiscardBody,
+      yes: AppStrings.recordCardComposeDiscard,
+      no: AppStrings.recordCardComposeKeep,
+    );
+    if (discard != true || !mounted) return;
+
+    _draft.clear();
+    _review.clear();
+    if (!mounted) return;
+    Navigator.of(context).maybePop();
+  }
+
+  /// 쓰던 초안을 이어 쓸지 묻는다. **화면에 그대로 머문다** — 어느 쪽을
+  /// 골라도 나가지 않는다.
+  Future<void> _askResume() async {
+    final resume = await _ask(
+      title: AppStrings.recordCardComposeResumeTitle,
+      body: AppStrings.recordCardComposeResumeBody,
+      yes: AppStrings.recordCardComposeResume,
+      no: AppStrings.recordCardComposeStartOver,
+    );
+    if (!mounted) return;
+
+    if (resume == true) {
+      // 쓰던 기록이 있으면 그 날짜로 돌아간다 — 이어 쓰는 것은 그날 카드다.
+      final record = ref.read(cardDraftProvider(widget.cardId)).record;
+      if (record != null) setState(() => _day = record.day);
+      _review.text = ref.read(cardDraftProvider(widget.cardId)).reviewText;
+      return;
+    }
+
+    _draft.clear();
+    _review.clear();
+  }
+
+  /// 예·아니오 두 갈래 시트. **바깥을 눌러 닫으면 `null`이다** — 아무것도
+  /// 하지 않는다.
+  Future<bool?> _ask({
+    required String title,
+    required String body,
+    required String yes,
+    required String no,
+  }) => showModalBottomSheet<bool>(
+    context: context,
+    backgroundColor: context.appColorsV2.bgSurface,
+    builder: (sheet) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.space4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              title,
+              style: AppTypographyV2.body04.copyWith(
+                color: sheet.appColorsV2.textPrimary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.space2),
+            Text(
+              body,
+              style: AppTypographyV2.body18.copyWith(
+                color: sheet.appColorsV2.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.space4),
+            AppButtonV2(
+              label: yes,
+              onPressed: () => Navigator.of(sheet).pop(true),
+            ),
+            const SizedBox(height: AppSpacing.space2),
+            AppButtonV2(
+              label: no,
+              variant: AppButtonV2Variant.secondary,
+              onPressed: () => Navigator.of(sheet).pop(false),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 
   /// 고른 기록의 경로 선 아트를 받아 초안에 넣는다.
   ///

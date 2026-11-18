@@ -101,6 +101,25 @@ abstract final class AppRoutes {
   /// 그때 뛴 경험을 사진·회고로 남기는 탭이다. 온보딩 3장이 이걸 소개한다.
   static const recordCard = '/record-card';
 
+  /// 기록카드 작성 1 — 기록 고르기 · 유형 · 회고.
+  ///
+  /// ⚠️ **탭 셸 밖이다.** 작성 화면에 하단 탭 바가 보이면 저장하지 않고 다른
+  /// 탭으로 샐 수 있다(`app_routes.dart`의 프로필 편집과 같은 이유).
+  ///
+  /// ⚠️ **`card/:id`보다 먼저 선언하지 않아도 안전하다** — 상세가
+  /// `/record-card/card/:id`라 `new`와 자리가 겹치지 않는다.
+  static const recordCardNew = '/record-card/new';
+
+  /// 어느 날의 기록을 고를 것인가.
+  ///
+  /// ⚠️ **날짜를 쿼리로 싣는다.** `extra`로 넘기면 딥링크나 프로세스 복구에서
+  /// 사라지고, 그때 작성 화면이 어느 날인지 모른다.
+  static String recordCardNewOn(DateTime day) {
+    final month = day.month.toString().padLeft(2, '0');
+    final date = day.day.toString().padLeft(2, '0');
+    return '$recordCardNew?date=${day.year}-$month-$date';
+  }
+
   /// 기록카드 한 장 (읽기 전용).
   ///
   /// ⚠️ **탭 셸 밖에 둔다.** 셸 안에 두면 ① 프로필 그리드나 러닝 요약에서 카드를

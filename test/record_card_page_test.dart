@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
+import 'package:runiverse/features/record/domain/run_record.dart';
+import 'package:runiverse/features/record/domain/run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
@@ -20,6 +24,34 @@ final _today = DateTime(2026, 11, 16);
 class _Auth extends AuthController {
   @override
   AuthState build() => const AuthSignedIn('u-1', isOnboarded: true);
+}
+
+/// 9월 9일에만 뛴 기록이 있는 저장소. 그날은 카드가 없어 운동화가 선다.
+class _OneRun implements RunRecordRepository {
+  @override
+  Future<List<RunRecord>> byDateRange({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    const day = 9;
+    final at = DateTime(2026, 11, day, 8);
+    if (at.isBefore(from) || at.isAfter(to)) return const [];
+    return [
+      RunRecord(
+        id: 11,
+        runningRoomId: 911,
+        startedAt: at,
+        distanceMeters: 5400,
+        duration: const Duration(minutes: 28),
+        averagePace: const Duration(minutes: 5),
+        playerCount: 1,
+      ),
+    ];
+  }
+
+  @override
+  Future<Never> byRoom(int runningRoomId) =>
+      throw UnimplementedError('이 테스트는 상세를 부르지 않는다');
 }
 
 /// 카드가 한 장도 없는 저장소.
@@ -58,7 +90,98 @@ Future<void> _pump(
   );
 }
 
+/// 라우터를 끼운 판. 입구가 어디로 보내는지 보는 테스트가 쓴다.
+Future<GoRouter> _pumpRouted(
+  WidgetTester tester, {
+  RecordCardRepository? repository,
+  RunRecordRepository? records,
+}) async {
+  final router = GoRouter(
+    initialLocation: AppRoutes.recordCard,
+    routes: [
+      GoRoute(
+        path: AppRoutes.recordCard,
+        builder: (_, _) => const RecordCardPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.recordCardNew,
+        builder: (_, _) => const Scaffold(body: Text('작성')),
+      ),
+    ],
+  );
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        recordCardRepositoryProvider.overrideWithValue(
+          repository ?? FakeRecordCardRepository(today: _today),
+        ),
+        runRecordRepositoryProvider.overrideWithValue(
+          records ?? FakeRunRecordRepository(today: _today),
+        ),
+        recordCardClockProvider.overrideWithValue(() => _today),
+        authControllerProvider.overrideWith(_Auth.new),
+      ],
+      child: MaterialApp.router(theme: AppTheme.dark(), routerConfig: router),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return router;
+}
+
 void main() {
+  test('recordCardNewOn이 날짜를 쿼리로 싣는다', () {
+    // `extra`로 넘기면 딥링크·복구에서 사라진다.
+    expect(
+      AppRoutes.recordCardNewOn(DateTime(2026, 9, 3)),
+      '/record-card/new?date=2026-09-03',
+    );
+    expect(
+      AppRoutes.recordCardNewOn(DateTime(2026, 12, 25)),
+      '/record-card/new?date=2026-12-25',
+    );
+  });
+
+  testWidgets('⚠️ 탭 머리의 쓰기로 작성에 들어간다', (tester) async {
+    final router = await _pumpRouted(tester);
+
+    await tester.tap(find.byTooltip(AppStrings.recordCardEmptyAction));
+    await tester.pumpAndSettle();
+
+    expect(router.state.uri.path, AppRoutes.recordCardNew);
+    expect(find.text('작성'), findsOne);
+  });
+
+  testWidgets('⚠️ 카드가 한 장도 없으면 빈 안내에 쓰기 버튼이 선다', (tester) async {
+    final router = await _pumpRouted(tester, repository: _EmptyRepository());
+
+    expect(find.text(AppStrings.recordCardEmptyTitle), findsOne);
+    await tester.tap(find.text(AppStrings.recordCardEmptyAction));
+    await tester.pumpAndSettle();
+
+    expect(router.state.uri.path, AppRoutes.recordCardNew);
+  });
+
+  testWidgets('⚠️ 운동화 날을 누르면 그 날짜로 작성에 간다', (tester) async {
+    // 1번 PR 에서는 아무 일도 하지 않았다 — 눌리는데 반응이 없는 칸이었다.
+    final router = await _pumpRouted(
+      tester,
+      repository: _EmptyRepository(),
+      records: _OneRun(),
+    );
+
+    await tester.tap(
+      find.bySemanticsLabel(
+        AppStrings.recordCardCellUnwrittenSemantics(DateTime(2026, 11, 9)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      router.state.uri.toString(),
+      AppRoutes.recordCardNewOn(DateTime(2026, 11, 9)),
+    );
+  });
+
   testWidgets('받는 동안 로딩을 보여준다', (tester) async {
     await _pump(
       tester,
