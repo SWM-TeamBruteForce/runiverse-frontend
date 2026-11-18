@@ -11,6 +11,10 @@ import 'package:runiverse/features/profile/presentation/profile_image_provider.d
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record_card/domain/card_draft.dart';
 import 'package:runiverse/features/record_card/domain/card_photo_draft.dart';
+import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
+import 'package:runiverse/features/record_card/domain/route_art.dart';
+import 'package:runiverse/features/record_card/presentation/card_photo_pan.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_photo_page.dart';
@@ -218,6 +222,78 @@ void main() {
       findsOne,
     );
   });
+
+  /// 수정은 작성 2를 그대로 다시 쓴다 (설계 6-6).
+  group('카드를 고치러 들어왔을 때', () {
+    testWidgets('이미 올린 사진이 보인다', (tester) async {
+      await _pumpEdit(tester, card: _card(photos: 2));
+
+      expect(find.text(AppStrings.recordCardPhotoTitle(2, 5)), findsOne);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('⚠️ 이미 올린 사진은 밀 수 없다', (tester) async {
+      // 올릴 때 9:16으로 잘려 나갔다 — 틀 안에서 옮길 데가 없다. 끌기를 달면
+      // 아무 일도 일어나지 않는 제스처가 된다.
+      await _pumpEdit(tester, card: _card(photos: 1));
+
+      expect(find.byType(CardPhotoPan), findsNothing);
+      expect(find.text(AppStrings.recordCardPhotoPanHint), findsNothing);
+    });
+
+    testWidgets('새로 고른 사진은 밀 수 있다', (tester) async {
+      await _pumpEdit(tester, card: _card(photos: 0), picked: 1);
+
+      expect(find.byType(CardPhotoPan), findsOneWidget);
+      expect(find.text(AppStrings.recordCardPhotoPanHint), findsOne);
+    });
+
+    testWidgets('⚠️ 섞이면 보는 장에 따라 안내가 바뀐다', (tester) async {
+      // 올린 장에서 "밀어 보세요"라고 하면 거짓말이다.
+      await _pumpEdit(tester, card: _card(photos: 1), picked: 1);
+      expect(find.text(AppStrings.recordCardPhotoPanHint), findsNothing);
+
+      await tester.drag(find.byType(PageView), const Offset(-600, 0));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.recordCardPhotoPanHint), findsOne);
+    });
+
+    testWidgets('올린 사진의 캡션이 칸에 들어와 있다', (tester) async {
+      await _pumpEdit(tester, card: _card(photos: 2, captions: ['옛것', '둘째']));
+
+      expect(_fieldText(tester), '옛것');
+
+      await tester.drag(find.byType(PageView), const Offset(-600, 0));
+      await tester.pumpAndSettle();
+
+      expect(_fieldText(tester), '둘째');
+    });
+
+    testWidgets('올린 사진을 지울 수 있다', (tester) async {
+      final container = await _pumpEdit(tester, card: _card(photos: 2));
+
+      await _tapBelow(tester, find.text(AppStrings.recordCardPhotoRemove));
+
+      expect(container.read(cardDraftProvider(7)).photos, hasLength(1));
+    });
+
+    testWidgets('올린 사진 위에 더 고를 수 있다', (tester) async {
+      final container = await _pumpEdit(
+        tester,
+        card: _card(photos: 1),
+        picker: _Picker.ok('/tmp/new.jpg'),
+      );
+
+      await tester.tap(find.byTooltip(AppStrings.recordCardPhotoAdd));
+      await tester.pumpAndSettle();
+
+      final photos = container.read(cardDraftProvider(7)).photos;
+      expect(photos, hasLength(2));
+      expect(photos.first, isA<SavedPhoto>());
+      expect(photos.last, isA<PickedPhoto>());
+    });
+  });
 }
 
 // ── 도움 ──────────────────────────────────────────────────────
@@ -351,4 +427,65 @@ class _Picker implements PhotoPicker {
     if (path == null) return null; // 취소
     return PickedImage.validated(path: path, sizeBytes: 1024);
   }
+}
+
+RecordCard _card({int photos = 0, List<String>? captions, int id = 7}) =>
+    RecordCard(
+      id: id,
+      runningRecordId: 11,
+      startedAt: DateTime(2026, 11, 2, 7),
+      activity: RecordCardActivity.travel,
+      visibility: RecordCardVisibility.public,
+      reviewText: '여행에서 뛰었다',
+      photos: [
+        for (var i = 0; i < photos; i++)
+          RecordCardPhoto(
+            id: 70 + i,
+            url: 'https://x/$i.jpg',
+            caption: captions == null ? null : captions[i],
+          ),
+      ],
+      route: RouteArt.empty,
+      distanceMeters: 3050,
+      duration: const Duration(minutes: 18),
+      averagePace: const Duration(minutes: 5, seconds: 54),
+      runners: const [],
+    );
+
+/// 카드를 고치러 들어온 작성 2.
+///
+/// ⚠️ 기존 [_pump]는 `controller.addPhoto`로만 채워 **[SavedPhoto]를 만들 수
+/// 없다** — 수정은 카드에서 뿌려야 한다.
+Future<ProviderContainer> _pumpEdit(
+  WidgetTester tester, {
+  required RecordCard card,
+  int picked = 0,
+  PhotoPicker? picker,
+}) async {
+  final container = ProviderContainer(
+    overrides: [
+      if (picker != null) photoPickerProvider.overrideWithValue(picker),
+    ],
+  );
+  addTearDown(container.dispose);
+
+  final controller = container.read(cardDraftProvider(card.id).notifier);
+  controller.seed(card);
+  for (var i = 0; i < picked; i++) {
+    controller.addPhoto(
+      PickedImage.validated(path: '/tmp/new$i.jpg', sizeBytes: 1024),
+    );
+  }
+
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+        theme: AppTheme.dark(),
+        home: CardPhotoPage(cardId: card.id),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return container;
 }

@@ -177,6 +177,11 @@ class _CardPhotoPageState extends ConsumerState<CardPhotoPage> {
                       final SavedPhoto saved => Image(
                         image: cardThumbnail(context, saved.url),
                         fit: BoxFit.cover,
+                        // ⚠️ **서명이 만료되면 못 받는다.** 고치는 중에
+                        // 화면이 터지면 쓰던 것을 통째로 잃는다 — 못 받은
+                        // 자리만 말하고 나머지는 계속 고칠 수 있게 둔다.
+                        errorBuilder: (context, _, _) =>
+                            const UnreadablePhoto(),
                       ),
                       final PickedPhoto picked => CardPhotoPan(
                         photo: picked,
@@ -201,11 +206,14 @@ class _CardPhotoPageState extends ConsumerState<CardPhotoPage> {
         // 알 길이 없다 — 누르면 상한을 말한다(`_add`).
         _Dots(count: photos.length, current: page, onJump: _jump, onAdd: _add),
         const SizedBox(height: AppSpacing.space2),
-        Text(
-          AppStrings.recordCardPhotoPanHint,
-          textAlign: TextAlign.center,
-          style: AppTypographyV2.body20.copyWith(color: colors.textSecondary),
-        ),
+        // ⚠️ **보고 있는 장이 밀리는 것일 때만 말한다.** 이미 올린 사진에
+        // "밀어 보세요"라고 하면 거짓말이다 — 9:16으로 잘려 나가 옮길 데가 없다.
+        if (photos[page] is PickedPhoto)
+          Text(
+            AppStrings.recordCardPhotoPanHint,
+            textAlign: TextAlign.center,
+            style: AppTypographyV2.body20.copyWith(color: colors.textSecondary),
+          ),
         const SizedBox(height: AppSpacing.space5),
         AppInputV2(
           controller: _caption,

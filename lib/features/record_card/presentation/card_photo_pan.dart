@@ -126,7 +126,7 @@ class _CardPhotoPanState extends State<CardPhotoPan> {
       File(widget.photo.image.path),
       fit: BoxFit.cover,
       alignment: Alignment(widget.photo.alignX, widget.photo.alignY),
-      errorBuilder: (context, _, _) => const _Unreadable(),
+      errorBuilder: (context, _, _) => const UnreadablePhoto(),
     );
 
     return LayoutBuilder(
@@ -174,9 +174,15 @@ class _CardPhotoPanState extends State<CardPhotoPan> {
   );
 }
 
-/// 못 읽은 사진. **고르던 사이에 OS가 임시 폴더를 비운 자리다.**
-class _Unreadable extends StatelessWidget {
-  const _Unreadable();
+/// 못 읽은 사진. 둘 중 하나다.
+///
+/// - **고르던 사이에 OS가 임시 폴더를 비웠다**(새로 고른 사진).
+/// - **열람 서명이 만료됐다**(이미 올린 사진, 수정 중).
+///
+/// ⚠️ 어느 쪽이든 화면이 터지면 **고치던 것을 통째로 잃는다.** 못 받은 자리만
+/// 말하고 나머지는 계속 고칠 수 있게 둔다.
+class UnreadablePhoto extends StatelessWidget {
+  const UnreadablePhoto({super.key});
 
   @override
   Widget build(BuildContext context) => Center(
