@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
@@ -78,8 +79,11 @@ class FakeRecordCardRepository implements RecordCardRepository {
     queries.add((from: start, to: end));
 
     return [
+      // ⚠️ **고친 것이 있으면 그쪽을 준다.** `_all()`이 목을 매번 새로 만들어,
+      // 안 덮으면 고친 카드가 다음 조회에 되돌아간다.
       for (final card in [..._all(), ..._created])
-        if (!card.day.isBefore(start) && !card.day.isAfter(end)) card,
+        if (!card.day.isBefore(start) && !card.day.isAfter(end))
+          _edited[card.id] ?? card,
     ]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
   }
 
@@ -133,6 +137,76 @@ class FakeRecordCardRepository implements RecordCardRepository {
 
   /// 다음 카드 번호. 목 데이터(`1000 +`)와 겹치지 않는 자리에서 시작한다.
   var _nextCardId = 9000;
+
+  /// 고쳐진 카드들. **목 데이터도 고칠 수 있어야 한다** — `_all()`이 매번 목을
+  /// 새로 만들어서, 여기 없으면 고친 것이 다음 조회에 되돌아간다.
+  final _edited = <int, RecordCard>{};
+
+  /// 몇 번 고쳤나.
+  var updates = 0;
+
+  @override
+  Future<RecordCard> update(EditRecordCard card) async {
+    updates++;
+
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (failWith != null) throw RecordCardException(failWith!);
+
+    final before = _find(card.cardId);
+    if (before == null) {
+      throw const RecordCardException(RecordCardFailure.notFound);
+    }
+
+    final made = RecordCard(
+      id: before.id,
+      runningRecordId: before.runningRecordId,
+      startedAt: before.startedAt,
+      activity: card.activity,
+      visibility: card.visibility,
+      reviewText: card.reviewText,
+      // ⚠️ **받은 것이 남길 전체다.** 빠진 것은 지워진 것이다.
+      photos: [
+        for (var i = 0; i < card.photos.length; i++)
+          _photoOf(card.photos[i], before: before, index: i),
+      ],
+      route: before.route,
+      distanceMeters: before.distanceMeters,
+      duration: before.duration,
+      averagePace: before.averagePace,
+      runners: before.runners,
+    );
+    _edited[made.id] = made;
+    return made;
+  }
+
+  /// 남길 사진 하나를 카드의 사진으로. 이미 있던 것이면 **주소를 지킨다.**
+  RecordCardPhoto _photoOf(
+    EditCardPhoto photo, {
+    required RecordCard before,
+    required int index,
+  }) {
+    final savedId = photo.savedId;
+    if (savedId != null) {
+      final kept = before.photos.where((p) => p.id == savedId).firstOrNull;
+      return RecordCardPhoto(
+        id: savedId,
+        url: kept?.url ?? '',
+        thumbnailUrl: kept?.thumbnailUrl,
+        caption: photo.caption,
+      );
+    }
+    return RecordCardPhoto(
+      id: before.id * 10 + 100 + index,
+      url: photo.path!,
+      thumbnailUrl: photo.thumbnailPath,
+      caption: photo.caption,
+    );
+  }
+
+  /// 지금 있는 그 카드. 고친 것이 있으면 그쪽이다.
+  RecordCard? _find(int id) =>
+      _edited[id] ??
+      [..._all(), ..._created].where((c) => c.id == id).firstOrNull;
 
   /// 오늘로부터 며칠 전 · 몇 시 · 유형 · 사진 수 · 공개범위 · 거리(m) · 시간(초).
   ///

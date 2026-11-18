@@ -1,3 +1,4 @@
+import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 
@@ -40,6 +41,12 @@ abstract interface class RecordCardRepository {
   /// 6-1번). 답이 오면 이 한 메서드가 두 번의 왕복으로 갈라질 수 있다 —
   /// **화면은 바뀌지 않는다.** 화면은 끝까지 쓴 뒤 한 번 저장한다.
   Future<RecordCard> create(NewRecordCard card);
+
+  /// 카드를 고친다. **고쳐진 카드를 그대로 돌려준다.**
+  ///
+  /// ⚠️ 싣는 사진은 **남길 전체**다([EditRecordCard.photos]) — 빈 목록은
+  /// "전부 지웠다"는 뜻이지 "안 바꿨다"가 아니다.
+  Future<RecordCard> update(EditRecordCard card);
 }
 
 /// 카드를 못 읽은 이유.

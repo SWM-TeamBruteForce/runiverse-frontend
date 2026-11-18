@@ -7,6 +7,7 @@ import 'package:runiverse/features/profile/presentation/background_image_provide
 import 'package:runiverse/features/record_card/data/compressed_card_thumbnail_maker.dart';
 import 'package:runiverse/features/record_card/domain/card_photo_draft.dart';
 import 'package:runiverse/features/record_card/domain/card_thumbnail_maker.dart';
+import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
@@ -82,44 +83,93 @@ class CardSaveController extends Notifier<CardSaveState> {
     final cropper = ref.read(imageCropperProvider);
     final cropped = <PickedImage>[];
     try {
-      final photos = <NewCardPhoto>[];
+      // 올릴 사진을 만든다. ⚠️ **이미 올린 것은 번호만 돌려보낸다** — 9:16으로
+      // 잘려 나간 것을 또 자르면 그림이 좁아진다.
+      final photos =
+          <
+            ({
+              int? savedId,
+              String? path,
+              String? thumbnailPath,
+              String? caption,
+            })
+          >[];
       for (final photo in draft.photos) {
-        // ⚠️ **새 카드에는 올린 사진이 있을 수 없다.** 수정이 붙으면 여기가
-        // 갈린다 — 그때까지는 들어오면 앱의 버그다.
-        if (photo is! PickedPhoto) continue;
-        final one = await cropper.crop(
-          photo.image,
-          aspectRatio: CardPhotoDraft.aspectRatio,
-          alignX: photo.alignX,
-          alignY: photo.alignY,
-        );
-        cropped.add(one);
-        photos.add(
-          NewCardPhoto(
-            path: one.path,
-            thumbnailPath: await _thumbnail(one.path),
-            // 안 쓴 캡션은 빈 문자열이 아니라 `null`이다 — 서버의
-            // `caption`도 nullable이다.
-            caption: photo.caption.isEmpty ? null : photo.caption,
-          ),
-        );
+        // 안 쓴 캡션은 빈 문자열이 아니라 `null`이다 — 서버도 nullable이다.
+        final caption = photo.caption.isEmpty ? null : photo.caption;
+        switch (photo) {
+          case SavedPhoto(:final id):
+            photos.add((
+              savedId: id,
+              path: null,
+              thumbnailPath: null,
+              caption: caption,
+            ));
+          case PickedPhoto(:final image, :final alignX, :final alignY):
+            final one = await cropper.crop(
+              image,
+              aspectRatio: CardPhotoDraft.aspectRatio,
+              alignX: alignX,
+              alignY: alignY,
+            );
+            cropped.add(one);
+            photos.add((
+              savedId: null,
+              path: one.path,
+              thumbnailPath: await _thumbnail(one.path),
+              caption: caption,
+            ));
+        }
       }
 
-      final card = await ref
-          .read(recordCardRepositoryProvider)
-          .create(
-            NewRecordCard(
-              record: draft.record!,
-              // ⚠️ 경로가 없는 러닝(트레드밀)은 **빈 선 아트**다.
-              // `RecordCard.route`는 null을 받지 못한다.
-              route: draft.route ?? RouteArt.empty,
-              activity: draft.activity!,
-              visibility: draft.visibility,
-              reviewText: draft.reviewText,
-              photos: photos,
-              musicEnabled: draft.musicEnabled,
-            ),
-          );
+      final repository = ref.read(recordCardRepositoryProvider);
+      final editing = draft.editing;
+      final card = editing == null
+          ? await repository.create(
+              NewRecordCard(
+                record: draft.record!,
+                // ⚠️ 경로가 없는 러닝(트레드밀)은 **빈 선 아트**다.
+                // `RecordCard.route`는 null을 받지 못한다.
+                route: draft.route ?? RouteArt.empty,
+                activity: draft.activity!,
+                visibility: draft.visibility,
+                reviewText: draft.reviewText,
+                photos: [
+                  for (final photo in photos)
+                    NewCardPhoto(
+                      path: photo.path!,
+                      thumbnailPath: photo.thumbnailPath,
+                      caption: photo.caption,
+                    ),
+                ],
+                musicEnabled: draft.musicEnabled,
+              ),
+            )
+          : await repository.update(
+              EditRecordCard(
+                cardId: editing.id,
+                activity: draft.activity!,
+                visibility: draft.visibility,
+                reviewText: draft.reviewText,
+                // ⚠️ **남길 사진 전체다**(사용자 결정 2026-11-19). 빈 목록은
+                // "전부 지웠다"는 뜻이지 "안 바꿨다"가 아니다.
+                photos: [
+                  for (final photo in photos)
+                    if (photo.savedId case final savedId?)
+                      EditCardPhoto.saved(
+                        savedId: savedId,
+                        caption: photo.caption,
+                      )
+                    else
+                      EditCardPhoto.added(
+                        path: photo.path!,
+                        thumbnailPath: photo.thumbnailPath,
+                        caption: photo.caption,
+                      ),
+                ],
+                musicEnabled: draft.musicEnabled,
+              ),
+            );
 
       ref.read(cardDraftProvider(cardId).notifier).clear();
       // ⚠️ **달력을 무효화한다.** 안 하면 방금 쓴 날이 운동화 그대로라 "카드를

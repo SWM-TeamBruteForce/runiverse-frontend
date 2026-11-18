@@ -9,6 +9,7 @@ import 'package:runiverse/features/record_card/data/fake_record_card_repository.
 import 'package:runiverse/features/record_card/domain/card_draft.dart';
 import 'package:runiverse/features/record_card/domain/card_photo_draft.dart';
 import 'package:runiverse/features/record_card/domain/card_thumbnail_maker.dart';
+import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
@@ -267,6 +268,105 @@ void main() {
       expect(world.repository.creates, 0);
     });
   });
+
+  /// 수정 저장 (설계 6-6).
+  group('고친 카드를 저장할 때', () {
+    test('create가 아니라 update를 부른다', () async {
+      final world = _EditWorld();
+
+      await world.save();
+
+      expect(world.repository.creates, 0);
+      expect(world.repository.updates, 1);
+      expect(world.repository.lastEdit!.cardId, 7);
+    });
+
+    // ⚠️ Review Focus 2
+    test('⚠️ 이미 올린 사진은 다시 자르지 않는다', () async {
+      // 이미 9:16으로 잘린 것을 또 자르면 그림이 좁아진다.
+      final world = _EditWorld(saved: 2);
+
+      await world.save();
+
+      expect(world.cropper.calls, isEmpty);
+      expect(world.repository.lastEdit!.photos, hasLength(2));
+    });
+
+    test('새로 고른 것만 자른다', () async {
+      final world = _EditWorld(saved: 1, picked: 2);
+
+      await world.save();
+
+      expect(world.cropper.calls, hasLength(2));
+    });
+
+    test('⚠️ 남길 사진 전체를 보낸다', () async {
+      // 바뀐 것만 보내지 않는다(사용자 결정 2026-11-19) — 서버가 차집합으로
+      // 지우고, 앱은 변경을 추적하지 않는다.
+      final world = _EditWorld(saved: 1, picked: 1);
+
+      await world.save();
+
+      final sent = world.repository.lastEdit!.photos;
+      expect(sent, hasLength(2));
+      expect(sent.first.savedId, 70);
+      expect(sent.first.path, isNull);
+      expect(sent.last.savedId, isNull);
+      expect(sent.last.path, isNotNull);
+    });
+
+    // ⚠️ Review Focus 5
+    test('⚠️ 사진을 전부 지워도 저장된다', () async {
+      // `photos: []`가 "안 바꿈"으로 읽히면 지운 사진이 되살아난다.
+      final world = _EditWorld(saved: 2);
+      world.removeAllPhotos();
+
+      final card = await world.save();
+
+      expect(card, isNotNull);
+      expect(world.repository.lastEdit!.photos, isEmpty);
+    });
+
+    test('고친 값이 그대로 실린다', () async {
+      final world = _EditWorld();
+      world.edit(review: '고친 글', visibility: RecordCardVisibility.private);
+
+      await world.save();
+
+      final sent = world.repository.lastEdit!;
+      expect(sent.reviewText, '고친 글');
+      expect(sent.visibility, RecordCardVisibility.private);
+    });
+
+    test('성공하면 초안을 비운다', () async {
+      final world = _EditWorld();
+
+      await world.save();
+
+      expect(world.draft.editing, isNull);
+      expect(world.draft.reviewText, '');
+    });
+
+    test('⚠️ 실패하면 고친 글을 지킨다', () async {
+      final world = _EditWorld(failWith: RecordCardFailure.network);
+      world.edit(review: '고친 글');
+
+      final card = await world.save();
+
+      expect(card, isNull);
+      expect(world.draft.reviewText, '고친 글');
+      expect(world.state, isA<CardSaveFailed>());
+    });
+
+    test('자른 임시 파일은 성공해도 치우지 않는다', () async {
+      // 새 카드와 같은 이유다 — 카드가 그 경로를 가리킨다.
+      final world = _EditWorld(picked: 1);
+
+      await world.save();
+
+      expect(world.cropper.discarded, isEmpty);
+    });
+  });
 }
 
 // ── 도움 ──────────────────────────────────────────────────────
@@ -476,6 +576,19 @@ class _Repository implements RecordCardRepository {
     required DateTime to,
   }) async => const [];
 
+  var updates = 0;
+  EditRecordCard? lastEdit;
+
+  @override
+  Future<RecordCard> update(EditRecordCard card) async {
+    updates++;
+    lastEdit = card;
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    final failure = failWith;
+    if (failure != null) throw RecordCardException(failure);
+    return _edited(card);
+  }
+
   @override
   Future<RecordCard> create(NewRecordCard card) async {
     creates++;
@@ -507,5 +620,99 @@ RecordCard _built(NewRecordCard card, {required int id}) => RecordCard(
   distanceMeters: card.record.distanceMeters,
   duration: card.record.duration,
   averagePace: card.record.averagePace,
+  runners: const [],
+);
+
+/// `_Repository`가 고친 카드를 돌려주는 모양.
+RecordCard _edited(EditRecordCard card) => RecordCard(
+  id: card.cardId,
+  runningRecordId: 11,
+  startedAt: DateTime(2026, 11, 2, 7),
+  activity: card.activity,
+  visibility: card.visibility,
+  reviewText: card.reviewText,
+  photos: [
+    for (var i = 0; i < card.photos.length; i++)
+      RecordCardPhoto(
+        id: card.photos[i].savedId ?? 9000 + i,
+        url: card.photos[i].path ?? 'https://x/$i.jpg',
+        caption: card.photos[i].caption,
+      ),
+  ],
+  route: RouteArt.empty,
+  distanceMeters: 3050,
+  duration: const Duration(minutes: 18),
+  averagePace: const Duration(minutes: 5, seconds: 54),
+  runners: const [],
+);
+
+/// 카드를 고치는 한 판.
+///
+/// ⚠️ [_World]는 새 카드만 본다 — 초안을 `addPhoto`로 채워 [SavedPhoto]를
+/// 만들 수 없다. 수정은 **카드에서 뿌려야** 한다.
+class _EditWorld {
+  _EditWorld({int saved = 0, int picked = 0, RecordCardFailure? failWith})
+    : repository = _Repository(failWith: failWith) {
+    container = ProviderContainer(
+      overrides: [
+        imageCropperProvider.overrideWithValue(cropper),
+        cardThumbnailMakerProvider.overrideWithValue(_Thumbnails()),
+        recordCardRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    addTearDown(container.dispose);
+    addTearDown(container.listen(cardSaveProvider(cardId), (_, _) {}).close);
+
+    final d = container.read(cardDraftProvider(cardId).notifier);
+    d.seed(_savedCard(photos: saved));
+    for (var i = 0; i < picked; i++) {
+      d.addPhoto(
+        PickedImage.validated(path: '/tmp/new$i.jpg', sizeBytes: 1024),
+      );
+    }
+  }
+
+  static const cardId = 7;
+
+  final cropper = _Cropper();
+  final _Repository repository;
+  late final ProviderContainer container;
+
+  CardSaveState get state => container.read(cardSaveProvider(cardId));
+
+  CardDraft get draft => container.read(cardDraftProvider(cardId));
+
+  void edit({String? review, RecordCardVisibility? visibility}) {
+    final d = container.read(cardDraftProvider(cardId).notifier);
+    if (review != null) d.setReview(review);
+    if (visibility != null) d.setVisibility(visibility);
+  }
+
+  void removeAllPhotos() {
+    final d = container.read(cardDraftProvider(cardId).notifier);
+    while (draft.photos.isNotEmpty) {
+      d.removePhotoAt(0);
+    }
+  }
+
+  Future<RecordCard?> save() =>
+      container.read(cardSaveProvider(cardId).notifier).save();
+}
+
+RecordCard _savedCard({int photos = 0}) => RecordCard(
+  id: _EditWorld.cardId,
+  runningRecordId: 11,
+  startedAt: DateTime(2026, 11, 2, 7),
+  activity: RecordCardActivity.travel,
+  visibility: RecordCardVisibility.public,
+  reviewText: '여행에서 뛰었다',
+  photos: [
+    for (var i = 0; i < photos; i++)
+      RecordCardPhoto(id: 70 + i, url: 'https://x/$i.jpg'),
+  ],
+  route: RouteArt.empty,
+  distanceMeters: 3050,
+  duration: const Duration(minutes: 18),
+  averagePace: const Duration(minutes: 5, seconds: 54),
   runners: const [],
 );
