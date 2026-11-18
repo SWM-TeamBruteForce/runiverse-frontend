@@ -295,7 +295,7 @@ jobs:
           WATCH_PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/dev-watch.plist")
           NOTIFICATION_PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/dev-notification.plist")
 
-          # 프로젝트는 로컬용 자동 서명이다. 앱 타깃만 읽는 xcconfig에 덧붙여 배포 인증서·프로파일로 바꾼다
+          # 프로젝트는 로컬용 자동 서명이다. Runner·RunnerWatch·NotificationService만 읽는 xcconfig에 덧붙여 배포 인증서·프로파일로 바꾼다
           # (명령줄로 넘기면 SPM 패키지 대상까지 수동 서명이 걸려 빌드가 멈춘다)
           # 알림 확장은 폰과 같은 iphoneos라 sdk 조건으로 못 가른다. 확장 타깃이 NOTIFICATION_PROFILE_SPECIFIER를 읽는다
           cat >> ios/Flutter/Release.xcconfig <<EOF
