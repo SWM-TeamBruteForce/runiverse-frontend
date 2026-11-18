@@ -48,6 +48,9 @@ class _HomeNoticeStripState extends ConsumerState<HomeNoticeStrip> {
   /// 홈 탭이 보이는가. 꺼진 동안은 넘기지 않는다.
   bool? _active;
 
+  /// 홈을 다시 볼 때 이전 방문의 전환을 버린다.
+  var _visit = 0;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -56,6 +59,7 @@ class _HomeNoticeStripState extends ConsumerState<HomeNoticeStrip> {
     _active = active;
 
     if (active) {
+      _visit++;
       _reel.restart(ref.read(homeNoticeProvider).activity, DateTime.now());
       _schedule();
     } else {
@@ -125,9 +129,11 @@ class _HomeNoticeStripState extends ConsumerState<HomeNoticeStrip> {
             // 넘어가는 줄이 상자 밖으로 삐져나와 보이지 않게 자른다.
             child: ClipRect(
               child: AnimatedSwitcher(
-                duration: AppMotion.base,
-                switchInCurve: AppMotion.easeStandard,
-                switchOutCurve: AppMotion.easeStandard,
+                // 탭을 나갈 때 멈춘 줄을 떼고 첫 공지부터 제자리에 보여 준다.
+                key: ValueKey(_visit),
+                duration: AppMotion.slow,
+                switchInCurve: AppMotion.easeInOut,
+                switchOutCurve: AppMotion.easeInOut,
                 transitionBuilder: _slideUp,
                 layoutBuilder: (current, previous) => Stack(
                   alignment: Alignment.centerLeft,
