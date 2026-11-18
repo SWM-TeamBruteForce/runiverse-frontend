@@ -204,6 +204,29 @@ class ChatBubble extends StatelessWidget {
   }
 }
 
+/// 누가 방에 들어오고 나간 안내 줄. **말풍선이 아니다.**
+///
+/// 누가 한 말처럼 읽히지 않게 사진·이름·말풍선 없이 가운데에 작게 둔다.
+/// 시각도 붙이지 않는다. 길게 눌러도 아무 일이 없다 — 안내 줄은 고치거나
+/// 지울 수 없다(서버 404).
+class ChatNoticeLine extends StatelessWidget {
+  const ChatNoticeLine({required this.text, super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Text(
+      text,
+      textAlign: TextAlign.center,
+      // 시각과 같은 크기·색. **디자인 확인이 필요한 값이다.**
+      style: AppTypographyV2.body18.copyWith(color: colors.textTertiary),
+    );
+  }
+}
+
 /// 아직 서버가 받지 않은 내 말.
 ///
 /// ## ⚠️ 성공한 척 그리지 않는다

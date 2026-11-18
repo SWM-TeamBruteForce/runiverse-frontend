@@ -220,7 +220,7 @@ void main() {
       final sent = event! as RoomChatSent;
       expect(sent.chat.chatId, 3021);
       expect(sent.chat.content, '곧 출발해요');
-      expect(sent.chat.sender.nickname, '철수');
+      expect(sent.chat.sender?.nickname, '철수');
     });
 
     test('ROOM_CHAT_EDITED은 고친 뒤 메시지를 싣는다', () {

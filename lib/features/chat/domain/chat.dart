@@ -13,9 +13,27 @@
 ///
 /// [isDeleted]가 `true`면 [content]가 `null`로 온다. 빼면 그 자리에서 대화가
 /// 끊겨 보이므로, 자리를 지키고 "삭제된 메시지"로 그린다.
+///
+/// ## ⚠️ 말만 오지 않는다 — 들어오고 나간 안내 줄도 같은 목록에 온다
+///
+/// 안내 줄은 [sender]가 `null`이고 들어오거나 나간 사람이 [actor]다.
+/// [content]도 `null`이라 문구는 앱이 [type]과 그 사람 이름으로 그린다.
 library;
 
-/// 보낸 사람. **메시지가 직접 들고 온다.**
+/// 말인지, 들어오고 나간 안내 줄인지. 한 번 정해지면 바뀌지 않는다.
+enum ChatType {
+  /// 참가자가 쓴 말.
+  message,
+
+  /// 방에 들어왔다. 나갔던 방에 다시 들어와도 이것이다.
+  joined,
+
+  /// 방을 나갔다.
+  left,
+}
+
+/// 보낸 사람. **메시지가 직접 들고 온다.** 안내 줄의 들어오거나 나간 사람
+/// ([Chat.actor])도 같은 모양이다.
 ///
 /// ## ⚠️ 방 명단에서 찾지 않는다
 ///
@@ -49,8 +67,10 @@ class Chat {
   const Chat({
     required this.chatId,
     required this.runningRoomId,
-    required this.sender,
     required this.createdAt,
+    this.type = ChatType.message,
+    this.sender,
+    this.actor,
     this.content,
     this.isDeleted = false,
     this.editedAt,
@@ -59,7 +79,13 @@ class Chat {
 
   final int chatId;
   final int runningRoomId;
-  final ChatSender sender;
+  final ChatType type;
+
+  /// 말을 보낸 사람. **안내 줄이면 `null`이다.**
+  final ChatSender? sender;
+
+  /// 들어오거나 나간 사람. **말이면 `null`이다.**
+  final ChatSender? actor;
 
   /// 내용. **지운 메시지면 `null`이다.**
   final String? content;
@@ -90,7 +116,9 @@ class Chat {
   Chat get asDeleted => Chat(
     chatId: chatId,
     runningRoomId: runningRoomId,
+    type: type,
     sender: sender,
+    actor: actor,
     createdAt: createdAt,
     isDeleted: true,
     editedAt: editedAt,
@@ -100,7 +128,9 @@ class Chat {
   Chat copyWith({bool? isRead}) => Chat(
     chatId: chatId,
     runningRoomId: runningRoomId,
+    type: type,
     sender: sender,
+    actor: actor,
     createdAt: createdAt,
     content: content,
     isDeleted: isDeleted,

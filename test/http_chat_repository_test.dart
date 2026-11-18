@@ -7,6 +7,7 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/chat/data/http_chat_repository.dart';
+import 'package:runiverse/features/chat/domain/chat.dart';
 import 'package:runiverse/features/chat/domain/chat_failure.dart';
 
 /// 대기방 채팅 API — `/api/v1/match-rooms/{runningRoomId}/chats`.
@@ -107,9 +108,9 @@ void main() {
       expect(one.editedAt, isNull);
       // 서버는 시간대 없는 한국 시각을 준다. 기대값은 순간으로 적는다.
       expect(one.createdAt, DateTime.utc(2026, 7, 25, 9, 52, 10).toLocal());
-      expect(one.sender.nickname, '철수');
-      expect(one.sender.profileImageUrl, 'https://cdn.test/a.png');
-      expect(one.sender.isDeleted, isFalse);
+      expect(one.sender?.nickname, '철수');
+      expect(one.sender?.profileImageUrl, 'https://cdn.test/a.png');
+      expect(one.sender?.isDeleted, isFalse);
     });
 
     test('⚠️ 지운 메시지도 목록에 남는다', () async {
@@ -173,6 +174,90 @@ void main() {
 
       expect(page.items, isEmpty);
       expect(page.nextCursor, isNull);
+    });
+  });
+
+  group('들어오고 나간 안내 줄', () {
+    /// 명세(5-E)의 안내 줄 예시. 보낸 사람이 없고 들어온 사람이 `actor`다.
+    Map<String, Object?> noticeJson({
+      int chatId = 3023,
+      String type = 'JOINED',
+      Object? actor = const {
+        'userId': '01a0f2d4-6180-7000-8000-446655440014',
+        'nickname': '영희',
+        'profileImageUrl': null,
+        'isDeleted': false,
+      },
+    }) => {
+      'chatId': chatId,
+      'runningRoomId': 125,
+      'type': type,
+      'sender': null,
+      'actor': actor,
+      'content': null,
+      'isDeleted': false,
+      'editedAt': null,
+      'createdAt': '2026-07-25T18:53:00',
+    };
+
+    test('⚠️ 보낸 사람이 없어도 버리지 않는다 — 들어온 사람을 읽는다', () async {
+      final repo = await repositoryReturning({
+        'items': [noticeJson(), noticeJson(chatId: 3024, type: 'LEFT')],
+        'nextCursor': null,
+      });
+
+      final page = await repo.history(125, limit: 50);
+
+      expect(page.items.map((one) => one.type), [
+        ChatType.joined,
+        ChatType.left,
+      ]);
+      expect(page.items.first.sender, isNull);
+      expect(page.items.first.actor?.nickname, '영희');
+      expect(page.items.first.content, isNull);
+    });
+
+    test('말은 MESSAGE로 읽고 actor를 두지 않는다', () async {
+      final repo = await repositoryReturning({
+        'items': [
+          {...chatJson(), 'type': 'MESSAGE', 'actor': null},
+        ],
+        'nextCursor': null,
+      });
+
+      final one = (await repo.history(125, limit: 50)).items.single;
+
+      expect(one.type, ChatType.message);
+      expect(one.sender?.nickname, '철수');
+      expect(one.actor, isNull);
+    });
+
+    test('type이 없으면 말로 읽는다 — #131 전 서버', () async {
+      final repo = await repositoryReturning({
+        'items': [chatJson()],
+        'nextCursor': null,
+      });
+
+      final one = (await repo.history(125, limit: 50)).items.single;
+
+      expect(one.type, ChatType.message);
+    });
+
+    test('⚠️ 모르는 type과 사람이 없는 안내 줄은 건너뛴다', () async {
+      // 무슨 줄인지, 누구 이야기인지 모르면 문구를 정할 수 없다.
+      final repo = await repositoryReturning({
+        'items': [
+          noticeJson(chatId: 3025),
+          noticeJson(chatId: 3024, type: 'REJOINED'),
+          noticeJson(chatId: 3023, actor: null),
+          {...chatJson(chatId: 3022), 'type': 'MESSAGE', 'sender': null},
+        ],
+        'nextCursor': null,
+      });
+
+      final page = await repo.history(125, limit: 50);
+
+      expect(page.items.map((one) => one.chatId), [3025]);
     });
   });
 

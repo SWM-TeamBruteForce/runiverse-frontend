@@ -40,8 +40,8 @@ void main() {
 
       final page = await repo.history(130, limit: 50);
 
-      expect(page.items.any((one) => one.sender.userId == 'me'), isTrue);
-      expect(page.items.any((one) => one.sender.userId != 'me'), isTrue);
+      expect(page.items.any((one) => one.sender?.userId == 'me'), isTrue);
+      expect(page.items.any((one) => one.sender?.userId != 'me'), isTrue);
     });
 
     test('⚠️ 방마다 따로 들고 있다', () async {

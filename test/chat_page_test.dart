@@ -11,6 +11,7 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/chat/domain/chat.dart';
 import 'package:runiverse/features/chat/domain/chat_failure.dart';
+import 'package:runiverse/features/chat/presentation/chat_bubble.dart';
 import 'package:runiverse/features/chat/presentation/chat_page.dart';
 import 'package:runiverse/features/chat/presentation/chat_provider.dart';
 import 'package:runiverse/features/matching/domain/room_info.dart';
@@ -61,6 +62,15 @@ void main() {
     content: isDeleted ? null : content,
     isDeleted: isDeleted,
     editedAt: editedAt,
+    createdAt: createdAt,
+  );
+
+  /// 들어오고 나간 안내 줄. 보낸 사람이 없고 그 사람이 `actor`다.
+  Chat notice(int chatId, ChatType type, ChatSender actor) => Chat(
+    chatId: chatId,
+    runningRoomId: 130,
+    type: type,
+    actor: actor,
     createdAt: createdAt,
   );
 
@@ -129,6 +139,53 @@ void main() {
 
       expect(find.text(AppStrings.chatEmpty), findsOne);
       expect(find.text(AppStrings.chatQuickReplies.first), findsOne);
+    });
+
+    testWidgets('⚠️ 안내 줄만 있으면 그 아래에 안내가 뜬다', (tester) async {
+      // 사람이 쓴 말이 아직 없다. 정중앙에 두면 쌓인 줄과 겹쳐서 맨 아래에 둔다.
+      await pumpChat(
+        tester,
+        state: ChatState(
+          runningRoomId: 130,
+          messages: [notice(1001, ChatType.joined, younghee)],
+        ),
+      );
+
+      final hint = find.text(AppStrings.chatEmpty);
+      final line = find.text(AppStrings.chatJoined('영희'));
+      expect(hint, findsOne);
+      expect(line, findsOne);
+      expect(tester.getCenter(hint).dy, greaterThan(tester.getCenter(line).dy));
+    });
+
+    testWidgets('⚠️ 위로 받을 페이지가 남았으면 안내를 띄우지 않는다', (tester) async {
+      // 받은 페이지가 안내 줄로만 차 있어도 그 위에 말이 있을 수 있다.
+      await pumpChat(
+        tester,
+        state: ChatState(
+          runningRoomId: 130,
+          messages: [notice(1001, ChatType.joined, younghee)],
+          nextCursor: 'MTAwMQ',
+        ),
+      );
+
+      expect(find.text(AppStrings.chatJoined('영희')), findsOne);
+      expect(find.text(AppStrings.chatEmpty), findsNothing);
+    });
+
+    testWidgets('⚠️ 지운 말이라도 있으면 안내가 사라진다', (tester) async {
+      await pumpChat(
+        tester,
+        state: ChatState(
+          runningRoomId: 130,
+          messages: [
+            notice(1001, ChatType.joined, younghee),
+            chat(1002, younghee, isDeleted: true),
+          ],
+        ),
+      );
+
+      expect(find.text(AppStrings.chatEmpty), findsNothing);
     });
 
     testWidgets('⚠️ 닫혔으면 입력창이 사라지고 안내가 남는다', (tester) async {
@@ -381,6 +438,59 @@ void main() {
       );
 
       expect(find.text('시간 맞춰 출발해요'), findsOne);
+    });
+  });
+
+  group('들어오고 나간 안내 줄', () {
+    testWidgets('들어오고 나간 사람의 이름으로 그린다', (tester) async {
+      await pumpChat(
+        tester,
+        state: ChatState(
+          runningRoomId: 130,
+          messages: [
+            notice(1001, ChatType.joined, younghee),
+            chat(1002, younghee, content: '안녕하세요'),
+            notice(1003, ChatType.left, younghee),
+          ],
+        ),
+      );
+
+      expect(find.text('영희님이 들어왔어요'), findsOne);
+      expect(find.text('영희님이 나갔어요'), findsOne);
+    });
+
+    testWidgets('⚠️ 탈퇴한 사람은 "님이"를 붙이지 않는다', (tester) async {
+      // 서버가 주는 이름이 `탈퇴한 사용자`라 "탈퇴한 사용자님이"가 된다.
+      await pumpChat(
+        tester,
+        state: ChatState(
+          runningRoomId: 130,
+          messages: [
+            notice(1001, ChatType.joined, withdrawn),
+            notice(1002, ChatType.left, withdrawn),
+          ],
+        ),
+      );
+
+      expect(find.text('탈퇴한 사용자가 들어왔어요'), findsOne);
+      expect(find.text('탈퇴한 사용자가 나갔어요'), findsOne);
+    });
+
+    testWidgets('⚠️ 말풍선이 아니다 — 내 줄을 길게 눌러도 메뉴가 없다', (tester) async {
+      // 안내 줄은 고치거나 지울 수 없다(서버 404).
+      await pumpChat(
+        tester,
+        state: ChatState(
+          runningRoomId: 130,
+          messages: [notice(1001, ChatType.joined, me)],
+        ),
+      );
+
+      await tester.longPress(find.text('나님이 들어왔어요'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ChatBubble), findsNothing);
+      expect(find.text(AppStrings.chatEditAction), findsNothing);
     });
   });
 

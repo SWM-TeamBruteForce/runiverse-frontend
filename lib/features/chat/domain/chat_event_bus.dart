@@ -4,7 +4,7 @@ import 'package:runiverse/features/chat/domain/chat.dart';
 
 /// 채팅에 생긴 변화 한 건.
 enum ChatChangeKind {
-  /// 새 메시지가 왔다. **이것만 안 읽음으로 쌓는다.**
+  /// 새 메시지나 안내 줄이 왔다. **이것만 안 읽음으로 쌓는다.**
   sent,
 
   /// 누가 자기 메시지를 고쳤다.
@@ -27,7 +27,11 @@ class ChatChange {
   final Chat chat;
 
   /// 안 읽음으로 쌓을 것인가.
-  bool get countsAsUnread => kind == ChatChangeKind.sent;
+  ///
+  /// ⚠️ **푸시가 오는 것만 센다.** 말과 들어온 줄은 폰에 푸시가 가고, 나간
+  /// 줄은 안 간다 — 배지도 같은 기준이다.
+  bool get countsAsUnread =>
+      kind == ChatChangeKind.sent && chat.type != ChatType.left;
 }
 
 /// 대기방 스트림이 받은 채팅 변화를 채팅 화면으로 흘리는 자리.
