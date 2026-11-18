@@ -74,6 +74,13 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!--
+      세로 화면이 없는 기기도 설치 대상에 둔다. MainActivity의 세로 고정을 Play는
+      "세로 화면 필수"로 읽어 그런 기기를 빼고, 제출 때마다 경고를 띄운다.
+      화면은 그대로 세로로 고정된다.
+    -->
+    <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
+
+    <!--
       백업을 끈다 — 토큰이 클라우드로 나가지 않게 한다.
 
       Keystore 키는 백업되지 않아 복호화는 어차피 안 되지만, 암호문을 올릴
