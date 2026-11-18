@@ -890,6 +890,9 @@ class _FakeCropper implements ImageCropper {
     PickedImage image, {
     required double aspectRatio,
     required double alignY,
+    // 커버는 가로로 밀지 않는다. 기본값을 지키는지는
+    // `background_image_controller_test.dart`가 본다.
+    double alignX = 0,
   }) async {
     this.alignY = alignY;
     return image;

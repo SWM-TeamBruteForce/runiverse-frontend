@@ -126,6 +126,18 @@ void main() {
       expect(repository.uploaded?.path, _FakeCropper.croppedPath);
     });
 
+    test('⚠️ 커버는 가로로 밀지 않는다', () async {
+      // 기록카드 사진(9:16) 때문에 `alignX`가 생겼다. 커버는 가로로 넓어
+      // 위아래로만 넘치므로 **기본값 0을 그대로 받아야 한다** — 여기가 0이
+      // 아니면 커버가 조용히 다른 데를 자른다.
+      final container = makeContainer();
+      await controllerOf(container).load();
+
+      await controllerOf(container).apply(PhotoPicked(image(), alignY: 1));
+
+      expect(cropper.alignX, 0);
+    });
+
     test('올리고 나면 자른 파일을 버린다', () async {
       // 저장할 때마다 새로 자른다. 버리지 않으면 임시 폴더에 쌓인다.
       final container = makeContainer();
@@ -462,6 +474,9 @@ class _FakeCropper implements ImageCropper {
   static const croppedPath = '/tmp/cropped.jpg';
 
   double? alignY;
+
+  /// ⚠️ 커버는 가로로 밀지 않는다 — **언제나 기본값 0이어야 한다.**
+  double? alignX;
   double? aspectRatio;
 
   /// 있으면 자르지 못한 것처럼 던진다.
@@ -472,8 +487,10 @@ class _FakeCropper implements ImageCropper {
     PickedImage image, {
     required double aspectRatio,
     required double alignY,
+    double alignX = 0,
   }) async {
     this.alignY = alignY;
+    this.alignX = alignX;
     this.aspectRatio = aspectRatio;
     final failure = failWith;
     if (failure != null) throw ProfileImageException(failure);
