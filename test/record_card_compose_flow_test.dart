@@ -115,11 +115,47 @@ void main() {
     expect(find.byType(RecordCardPage), findsOne);
     expect(find.byType(CardPublishPage), findsNothing);
   });
+
+  testWidgets('⚠️ 저장이 도는 중에는 시스템 뒤로로 빠져나가지 못한다', (tester) async {
+    // AppBar 뒤로만 닫아 두면 안드로이드 하드웨어·제스처 뒤로가 그대로 나가고,
+    // 저장이 끝난 뒤 **걷힌 화면의 context**로 라우터를 불러 "deactivated
+    // widget"으로 죽는다. 만들어진 카드를 아무도 받지 못한 채 초안만 비워진다.
+    // ⚠️ 저장을 **전환 애니메이션보다 길게** 잡는다. 짧으면 pop이 끝나기 전에
+    // 저장이 먼저 끝나, "못 나간다"와 "아직 나가는 중이다"가 구별되지 않는다.
+    await _walkToPublish(tester, delay: const Duration(seconds: 3));
+
+    await tester.tap(find.text(AppStrings.recordCardPublishSave));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // ⚠️ **`maybePop` 경로로 들어가야 한다.** 안드로이드 하드웨어·제스처
+    // 뒤로가 이 길이고, `PopScope`는 이것만 본다. `GoRouter.pop()`은 네비게이터를
+    // 직접 걷어 `PopScope`를 건너뛰므로 이 약속을 검사하지 못한다.
+    await tester.binding.handlePopRoute();
+    // 전환이 끝날 만큼 — 저장(3초)은 아직 돌고 있다.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    expect(find.byType(CardPublishPage), findsOne, reason: '도는 동안에는 나가지 못한다');
+
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    // 저장은 끝까지 가고 상세로 간다 — 나가지 못했으니 받을 사람이 있다.
+    expect(find.byType(CardDetailPage), findsOne);
+  });
 }
 
 /// 탭 → 작성 1 → 2 → 3까지 **실제로 눌러서** 올라간다.
-Future<ProviderContainer> _walkToPublish(WidgetTester tester) async {
-  final container = await _pump(tester, at: AppRoutes.recordCard, filled: true);
+Future<ProviderContainer> _walkToPublish(
+  WidgetTester tester, {
+  Duration delay = Duration.zero,
+}) async {
+  final container = await _pump(
+    tester,
+    at: AppRoutes.recordCard,
+    filled: true,
+    delay: delay,
+  );
 
   // 탭 머리의 연필.
   await tester.tap(find.byTooltip(AppStrings.recordCardEmptyAction).first);
@@ -156,11 +192,12 @@ Future<ProviderContainer> _pump(
   WidgetTester tester, {
   required String at,
   bool filled = false,
+  Duration delay = Duration.zero,
 }) async {
   final container = ProviderContainer(
     overrides: [
       recordCardRepositoryProvider.overrideWithValue(
-        FakeRecordCardRepository(today: _today),
+        FakeRecordCardRepository(today: _today, delay: delay),
       ),
       runRecordRepositoryProvider.overrideWithValue(
         FakeRunRecordRepository(today: _today),

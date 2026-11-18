@@ -152,6 +152,27 @@ void main() {
       expect(find.text(AppStrings.recordCardPublishSave), findsOne);
     });
 
+    testWidgets('⚠️ 두 번 눌러도 실패했다고 하지 않는다', (tester) async {
+      // 자르기가 UI 스레드를 잡아 버튼이 진행 표시로 바뀌기 전에 두 번째 탭이
+      // 옛 위젯 트리에 맞는다. 재진입 가드가 `null`을 주고 화면이 그것을
+      // 실패로 읽으면, **저장은 됐는데 "저장하지 못했어요"를 본 직후 상세로**
+      // 떨어진다 — 됐는지 안 됐는지 알 수 없다.
+      RecordCard? saved;
+      await _pump(
+        tester,
+        delay: const Duration(milliseconds: 300),
+        onSaved: (card) => saved = card,
+      );
+
+      // pump 없이 연달아 — 한 프레임 안에서 두 번 맞는 것을 흉내낸다.
+      await tester.tap(find.text(AppStrings.recordCardPublishSave));
+      await tester.tap(find.text(AppStrings.recordCardPublishSave));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.recordCardPublishSaveFailed), findsNothing);
+      expect(saved, isNotNull);
+    });
+
     testWidgets('⚠️ 실패하면 화면에 머물고 왜인지 말한다', (tester) async {
       RecordCard? saved;
       final container = await _pump(

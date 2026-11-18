@@ -6,6 +6,7 @@ import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/features/record_card/domain/card_draft.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
@@ -42,6 +43,24 @@ class CardPublishPage extends ConsumerWidget {
     final save = ref.watch(cardSaveProvider(cardId));
     final saving = save is CardSaveSaving;
 
+    return PopScope(
+      // ⚠️ **머리의 뒤로만 막으면 안 된다.** 안드로이드 하드웨어·제스처 뒤로와
+      // iOS 스와이프는 그대로 빠져나가고, 저장이 끝나면 **걷힌 화면**의
+      // context로 라우터를 불러 죽는다. 만들어진 카드를 아무도 받지 못한 채
+      // 초안만 비워진다. 두 뒤로가 같은 문을 쓰게 한다.
+      canPop: !saving,
+      child: _body(context, ref, colors, draft, controller, saving: saving),
+    );
+  }
+
+  Widget _body(
+    BuildContext context,
+    WidgetRef ref,
+    AppColorsV2 colors,
+    CardDraft draft,
+    CardDraftController controller, {
+    required bool saving,
+  }) {
     return Scaffold(
       backgroundColor: colors.bgBase,
       appBar: AppBar(
@@ -125,10 +144,20 @@ class CardPublishPage extends ConsumerWidget {
     final messenger = ScaffoldMessenger.of(context);
     final card = await ref.read(cardSaveProvider(cardId).notifier).save();
 
+    // ⚠️ **기다리는 동안 화면이 걷혔을 수 있다.** 죽은 context로 라우터를
+    // 부르면 "deactivated widget" 으로 죽는다.
+    if (!context.mounted) return;
+
     if (card == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text(AppStrings.recordCardPublishSaveFailed)),
-      );
+      // ⚠️ **`null`이 전부 실패는 아니다.** 저장이 이미 돌고 있어 두 번째
+      // 호출이 그냥 돌아온 경우에도 `null`이다 — 그때 실패를 띄우면 저장은
+      // 됐는데 "저장하지 못했어요"를 본 직후 상세로 떨어진다. 상태가
+      // 실패라고 말할 때만 말한다.
+      if (ref.read(cardSaveProvider(cardId)) is CardSaveFailed) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text(AppStrings.recordCardPublishSaveFailed)),
+        );
+      }
       return;
     }
     onSaved?.call(card);

@@ -118,6 +118,12 @@ class CardSaveController extends Notifier<CardSaveState> {
 
       ref.read(cardDraftProvider(cardId).notifier).clear();
       state = const CardSaveIdle();
+      // ⚠️ **자른 파일을 치우지 않는다.** 카드가 그 경로를 들고 갔고, 올릴
+      // 엔드포인트가 없어 **그것이 유일한 사본**이다. 치우면 상세에서 사진이
+      // 전부 사라진다(칸의 썸네일은 남아 "칸에는 있는데 열면 없다"가 된다).
+      // 프로필 커버는 그 사이에 S3 업로드가 있어 치워도 됐다 — 카드는 없다.
+      // **업로드가 붙는 날 성공 경로에서도 치운다.**
+      cropped.clear();
       return card;
     } on RecordCardException catch (error) {
       state = CardSaveFailed(error.failure);
@@ -133,8 +139,9 @@ class CardSaveController extends Notifier<CardSaveState> {
       state = const CardSaveFailed(RecordCardFailure.server);
       return null;
     } finally {
-      // ⚠️ **성공이든 실패든 치운다.** 저장할 때마다 새로 자르므로 남겨 둘
-      // 이유가 없고, 안 치우면 임시 폴더에 쌓인다.
+      // **실패한 것만 치운다.** 성공 경로는 위에서 `cropped`를 비워 둔다 —
+      // 카드가 그 파일을 가리키고 있다. 실패했으면 아무도 안 가리키므로
+      // 남겨 둘 이유가 없다.
       for (final one in cropped) {
         await cropper.discard(one);
       }

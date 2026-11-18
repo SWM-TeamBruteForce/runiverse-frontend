@@ -66,21 +66,41 @@ void main() {
       expect(card.photos[1].caption, isNull);
     });
 
-    test('자른 임시 파일은 성공해도 치운다', () async {
-      // 저장할 때마다 새로 자른다. 안 치우면 임시 폴더에 쌓인다.
+    test('⚠️ 성공하면 자른 파일을 치우지 않는다', () async {
+      // 올릴 엔드포인트가 없어 **그 경로가 유일한 사본**이다. 치우면 카드가
+      // 가리키는 사진이 사라져, 상세에서 세 장이 전부 선 아트로 보인다.
+      // 프로필 커버는 그 사이에 S3 업로드가 있어 치워도 됐다 — 카드는 없다.
       final world = _World();
 
-      await world.save(photos: 2);
+      final card = await world.save(photos: 2);
 
-      expect(world.cropper.discarded, hasLength(2));
+      expect(world.cropper.discarded, isEmpty);
+      expect(
+        card!.photos.map((p) => p.url),
+        everyElement(isNot(isIn(world.cropper.discarded))),
+        reason: '카드가 가리키는 파일을 지우면 안 된다',
+      );
     });
 
-    test('⚠️ 실패해도 치운다', () async {
+    test('⚠️ 실패하면 이미 자른 것을 치운다 — 아무도 가리키지 않는 파일이다', () async {
+      // 둘째 장에서 자르기가 엎어진다. 첫째 장은 이미 잘려 임시 폴더에 있고,
+      // 카드가 안 만들어졌으니 들고 있을 이유가 없다.
+      final world = _World(cropper: _Cropper.failsAt(1));
+
+      final card = await world.save(photos: 2);
+
+      expect(card, isNull);
+      expect(world.cropper.discarded, hasLength(1));
+    });
+
+    test('썸네일이 터져도 저장은 성공하고 파일을 지키다', () async {
+      // 썸네일은 없어도 되는 것이다 — 실패 경로가 아니다.
       final world = _World(thumbnails: _Thumbnails.broken());
 
-      await world.save(photos: 2);
+      final card = await world.save(photos: 2);
 
-      expect(world.cropper.discarded, hasLength(2));
+      expect(card, isNotNull);
+      expect(world.cropper.discarded, isEmpty);
     });
   });
 
@@ -369,9 +389,13 @@ class _World {
 /// 자르지 않고 받은 값만 적는다. 진짜는 `dart:ui`와 플랫폼 플러그인을 써서
 /// 테스트 환경에 없다.
 class _Cropper implements ImageCropper {
-  _Cropper._({this.failure});
+  _Cropper._({this.failure, this.failAt});
 
   factory _Cropper() => _Cropper._();
+
+  /// [index]번째 장부터 엎어진다. 그 앞의 것은 이미 잘려 있다.
+  factory _Cropper.failsAt(int index) =>
+      _Cropper._(failure: ProfileImageFailure.upload, failAt: index);
 
   /// 고른 파일이 사라졌을 때 진짜가 던지는 것과 같은 실패다
   /// (`UiImageCropper`의 `FileSystemException` 가지).
@@ -381,6 +405,9 @@ class _Cropper implements ImageCropper {
   static const croppedPath = '/tmp/cropped.jpg';
 
   final ProfileImageFailure? failure;
+
+  /// `null`이면 언제나 [failure]대로다.
+  final int? failAt;
 
   final calls = <({double aspectRatio, double alignX, double alignY})>[];
   final discarded = <String>[];
@@ -392,10 +419,17 @@ class _Cropper implements ImageCropper {
     required double alignY,
     double alignX = 0,
   }) async {
+    final index = calls.length;
     calls.add((aspectRatio: aspectRatio, alignX: alignX, alignY: alignY));
     final failure = this.failure;
-    if (failure != null) throw ProfileImageException(failure);
-    return PickedImage.validated(path: croppedPath, sizeBytes: 512);
+    if (failure != null && (failAt == null || index >= failAt!)) {
+      throw ProfileImageException(failure);
+    }
+    // 장마다 다른 경로여야 치운 것을 셀 수 있다.
+    return PickedImage.validated(
+      path: index == 0 ? croppedPath : '/tmp/cropped_$index.jpg',
+      sizeBytes: 512,
+    );
   }
 
   @override
