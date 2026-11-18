@@ -148,6 +148,11 @@ class _IdleLight extends StatelessWidget {
   Widget build(BuildContext context) {
     return Image.asset(
       'assets/images/home_hero_light.webp',
+      // 어두운 곳을 카드 바탕색으로 받친다(`HomeHeroShade` 참고). `screen`은
+      // 어두울수록 회색이 많이 들고 밝은 빛은 거의 그대로다. `lighten`은
+      // 채널마다 바닥을 올려 어두운 파랑을 보라로 틀고 경계선을 만든다.
+      color: context.appColorsV2.bgSurface,
+      colorBlendMode: BlendMode.screen,
       // ⚠️ **그림 전체를 카드에 눌러 담는다.** 그림은 시안 높이 452용이라
       // `cover`로 340 카드를 채우면 위 25%가 잘려, 빛줄기가 위로 가며 사라지는
       // 끝이 없어지고 테두리에서 끊겨 보인다. 빛은 가장자리가 없어 늘리거나

@@ -22,14 +22,17 @@ class HomeStarted extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _HeroCard(
-      background: const [
+      background: [
         Image(
-          image: AssetImage('assets/images/home_confirmed_bg.webp'),
+          image: const AssetImage('assets/images/home_confirmed_bg.webp'),
           fit: BoxFit.cover,
+          // 어두운 곳을 카드 바탕색으로 받친다(`HomeHeroShade` 참고).
+          color: context.appColorsV2.bgSurface,
+          colorBlendMode: BlendMode.screen,
           // 사람이 읽을 것이 아니라 분위기다.
           excludeFromSemantics: true,
         ),
-        HomeHeroShade(light: HomeHeroLight.top),
+        const HomeHeroShade(light: HomeHeroLight.top),
       ],
       title: AppStrings.homeRunStarted,
       body: AppStrings.homeRunStartedHint,
