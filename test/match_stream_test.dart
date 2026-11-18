@@ -201,12 +201,14 @@ void main() {
     const chat = {
       'chatId': 3021,
       'runningRoomId': 125,
+      'type': 'MESSAGE',
       'sender': {
         'userId': '01a0f2d4-6180-7000-8000-446655440013',
         'nickname': '철수',
         'profileImageUrl': null,
         'isDeleted': false,
       },
+      'actor': null,
       'content': '곧 출발해요',
       'isDeleted': false,
       'editedAt': null,
