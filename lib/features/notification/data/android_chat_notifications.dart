@@ -31,8 +31,8 @@ import 'package:runiverse/features/notification/domain/push_messaging.dart';
 /// | 꺼졌거나 뒤에 있음 | FCM 백그라운드 처리기(따로 도는 isolate) |
 /// | 켜져 있음 | `PushController` — 팝업 없는 채널로 |
 ///
-/// 그래서 **메모리에 아무것도 두지 않는다.** 앞서 그린 줄은 지금 떠 있는 알림에서
-/// 다시 읽는다.
+/// ⚠️ **isolate끼리 메시지 이력을 나눌 수 없다.** 앞서 그린 줄은 지금 떠 있는
+/// 알림에서 다시 읽고, 그리기 순서와 지운 횟수만 각 isolate의 메모리에 둔다.
 ///
 /// ## ⚠️ 앞 줄의 사진은 다시 붙인다
 ///
@@ -73,7 +73,8 @@ class AndroidChatNotifications {
   static const _noticeKey = 'notice';
   static const _userKeyPrefix = 'user:';
 
-  /// 사진 한 장을 받는 데 쓰는 전체 시간. 못 받으면 사진 없이 그린다.
+  /// 사진 한 장을 받는 데 쓰는 전체 시간. 못 받으면 전에 받아 둔 사진을 쓰고,
+  /// 그것도 없을 때만 사진 없이 그린다.
   static const _photoTimeout = Duration(seconds: 4);
   static const _photoMaxBytes = 2 * 1024 * 1024;
 

@@ -71,7 +71,8 @@ class ChatPush {
   final String actorId;
   final String actorNickname;
 
-  /// 1시간 뒤 만료되는 주소다. 못 받으면 사진 없이 그린다.
+  /// 1시간 뒤 만료되는 주소다. 못 받으면 전에 받아 둔 사진을 쓰고, 그것도 없을
+  /// 때만 사진 없이 그린다.
   final String? actorProfileImageUrl;
 
   /// 알림을 눌렀을 때 `PushLanding.of`에 넘길 data. 방으로 가는 데 필요한

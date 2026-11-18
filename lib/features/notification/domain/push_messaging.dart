@@ -42,7 +42,8 @@ abstract interface class PushMessaging {
 class OpenedPush {
   const OpenedPush({required this.messageId, required this.data});
 
-  /// FCM이 메시지마다 붙이는 고유 값. **같은 누름이 두 번 왔는지 이것으로 가린다.**
+  /// **같은 누름이 두 번 왔는지 이것으로 가린다.** FCM이 띄운 알림은 FCM의
+  /// 메시지 ID, 앱이 그린 채팅 알림은 `chat-<chatId>`다.
   final String? messageId;
 
   final Map<String, Object?> data;
