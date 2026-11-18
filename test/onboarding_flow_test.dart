@@ -104,12 +104,12 @@ void main() {
     await tester.tap(find.byType(SplashPage));
     await tester.pumpAndSettle();
 
-    // 1장 → 2장 → 3장
+    // 1장 → 2장 → 3장 → 4장
     expect(find.text(AppStrings.onboardingNext), findsOneWidget);
-    await tester.tap(find.text(AppStrings.onboardingNext));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.onboardingNext));
-    await tester.pumpAndSettle();
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.text(AppStrings.onboardingNext));
+      await tester.pumpAndSettle();
+    }
 
     expect(find.text(AppStrings.onboardingNext), findsNothing);
     expect(find.text(AppStrings.onboardingStart), findsOneWidget);
