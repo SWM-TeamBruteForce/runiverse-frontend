@@ -43,17 +43,24 @@ class FakeAnalytics implements Analytics {
       events.add(('match_slot_sheet_open', null));
 
   @override
-  Future<void> matchSlotSelect() async =>
-      events.add(('match_slot_select', null));
+  Future<void> matchSlotSelect({
+    DateTime? slotStartAt,
+    int? distanceMeters,
+  }) async => events.add((
+    'match_slot_select',
+    MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
+  ));
 
   @override
   Future<void> matchApply({
     required int distanceMeters,
     required int otherDistanceWaiting,
     required int otherDistanceWaitingSameTime,
+    DateTime? slotStartAt,
   }) async => events.add((
     'match_apply',
     {
+      ...MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
       'distance_m': distanceMeters,
       'other_distance_waiting': otherDistanceWaiting,
       'other_distance_waiting_same_time': otherDistanceWaitingSameTime,
@@ -61,20 +68,42 @@ class FakeAnalytics implements Analytics {
   ));
 
   @override
-  Future<void> matchConfirmed({int? distanceMeters}) async => events.add((
+  Future<void> matchConfirmed({
+    int? distanceMeters,
+    DateTime? slotStartAt,
+  }) async => events.add((
     'match_confirmed',
-    distanceMeters == null ? null : {'distance_m': distanceMeters},
+    {
+      ...MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
+      'distance_m': ?distanceMeters,
+    },
   ));
 
   @override
-  Future<void> matchFailed({int? distanceMeters}) async => events.add((
+  Future<void> matchFailed({
+    int? distanceMeters,
+    DateTime? slotStartAt,
+  }) async => events.add((
     'match_failed',
-    distanceMeters == null ? null : {'distance_m': distanceMeters},
+    {
+      ...MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
+      'distance_m': ?distanceMeters,
+    },
   ));
 
   @override
-  Future<void> matchCancel({required String stage}) async =>
-      events.add(('match_cancel', {'cancel_stage': stage}));
+  Future<void> matchCancel({
+    required String stage,
+    int? distanceMeters,
+    DateTime? slotStartAt,
+  }) async => events.add((
+    'match_cancel',
+    {
+      ...MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
+      'cancel_stage': stage,
+      'distance_m': ?distanceMeters,
+    },
+  ));
 
   @override
   Future<void> chatOpen({

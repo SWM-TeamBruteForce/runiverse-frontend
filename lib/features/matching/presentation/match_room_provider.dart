@@ -486,8 +486,14 @@ class MatchRoomController extends Notifier<MatchRoomState> {
       final distance = room.targetDistanceMeters;
       unawaited(
         room.players.length == 1
-            ? analytics.matchFailed(distanceMeters: distance)
-            : analytics.matchConfirmed(distanceMeters: distance),
+            ? analytics.matchFailed(
+                distanceMeters: distance,
+                slotStartAt: room.scheduledStartAt,
+              )
+            : analytics.matchConfirmed(
+                distanceMeters: distance,
+                slotStartAt: room.scheduledStartAt,
+              ),
       );
     }
 
@@ -525,12 +531,21 @@ class MatchRoomController extends Notifier<MatchRoomState> {
   Future<bool> leave() async {
     // ⚠️ **보내기 전에 잡는다.** 취소를 기다리는 사이 통지가 와서 방이 바뀔
     // 수 있다 — 누른 순간의 단계를 센다.
-    final stage = _cancelStage(state.room);
+    final leaving = state.room;
+    final stage = _cancelStage(leaving);
     try {
       await ref.read(matchRepositoryProvider).cancel();
       // ⚠️ 여기서만 남긴다. 아래 `nothingToCancel` 은 **이미 취소된 것**이라
       // 거기서도 남기면 한 번의 취소가 두 번 세어진다.
-      unawaited(ref.read(analyticsProvider).matchCancel(stage: stage));
+      unawaited(
+        ref
+            .read(analyticsProvider)
+            .matchCancel(
+              stage: stage,
+              distanceMeters: leaving?.targetDistanceMeters,
+              slotStartAt: leaving?.scheduledStartAt,
+            ),
+      );
     } on MatchException catch (error) {
       // 러닝이 이미 시작됐다 — 나가지 못한 것이 맞지만, 여기서 할 일은
       // 재시도가 아니라 **앱이 늦게 아는 상태를 따라잡는 것**이다. 다시 읽으면

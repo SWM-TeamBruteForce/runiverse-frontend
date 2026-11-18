@@ -230,6 +230,13 @@ void main() {
 
       expect(analytics.paramsOf('match_distance_select'), {'distance_m': 3000});
       expect(analytics.countOf('match_slot_select'), 1);
+      // 신청한 시각이 아니라 **예약한 시각**으로 나눈다. 요일은 오늘에 따라
+      // 달라서 값을 못 박는다(`match_slot_params_test.dart`가 본다).
+      expect(analytics.paramsOf('match_slot_select'), {
+        'slot_time': '10:00',
+        'slot_weekday': isA<String>(),
+        'distance_group': '3km',
+      });
     });
 
     test('⚠️ 신청 기록에 다른 거리 대기자를 함께 남긴다', () async {
@@ -242,6 +249,9 @@ void main() {
       await controller.submit();
 
       expect(analytics.paramsOf('match_apply'), {
+        'slot_time': '10:00',
+        'slot_weekday': isA<String>(),
+        'distance_group': '3km',
         'distance_m': 3000,
         'other_distance_waiting': 4,
         'other_distance_waiting_same_time': 2,
@@ -276,6 +286,9 @@ void main() {
       await controller.submit();
 
       expect(analytics.paramsOf('match_apply'), {
+        'slot_time': '10:00',
+        'slot_weekday': isA<String>(),
+        'distance_group': '3km',
         'distance_m': 3000,
         'other_distance_waiting': 1,
         'other_distance_waiting_same_time': 1,

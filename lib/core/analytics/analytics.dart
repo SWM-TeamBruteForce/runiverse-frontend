@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/analytics/run_outcome.dart';
 
+export 'package:runiverse/core/analytics/match_slot_params.dart';
 export 'package:runiverse/core/analytics/run_outcome.dart';
 
 /// 사용자 행동을 남긴다 — 앱에서의 GA4(Firebase Analytics).
@@ -77,7 +78,13 @@ abstract interface class Analytics {
   Future<void> matchSlotSheetOpen();
 
   /// 시간 시트에서 시각을 골랐다.
-  Future<void> matchSlotSelect();
+  ///
+  /// ## 매칭 이벤트의 `slotStartAt`
+  ///
+  /// 이 아래 매칭 이벤트는 **예약한 출발 순간**(`slotStartAt`)과 거리를 받아
+  /// `slot_time`·`slot_weekday`·`distance_group` 으로 싣는다
+  /// ([MatchSlotParams]). 모르면 `null` 이고, 그 파라미터만 빠진다.
+  Future<void> matchSlotSelect({DateTime? slotStartAt, int? distanceMeters});
 
   /// 매칭 신청 성공. [distanceMeters] 는 3000 · 5000 · 10000.
   ///
@@ -90,6 +97,7 @@ abstract interface class Analytics {
     required int distanceMeters,
     required int otherDistanceWaiting,
     required int otherDistanceWaitingSameTime,
+    DateTime? slotStartAt,
   });
 
   /// 방이 **확정됐다** — 사람이 모여 같이 뛸 수 있게 된 순간.
@@ -107,14 +115,14 @@ abstract interface class Analytics {
   /// ⚠️ **혼자 남은 방은 여기로 오지 않는다** — [matchFailed] 다. 서버는
   /// 인원과 무관하게 1인 방도 확정하는데, 그것을 성사로 세면 성사율이
   /// 부풀려진다.
-  Future<void> matchConfirmed({int? distanceMeters});
+  Future<void> matchConfirmed({int? distanceMeters, DateTime? slotStartAt});
 
   /// 매칭이 **성사되지 않았다** — 모집이 마감됐는데 나 혼자 남았다.
   ///
   /// 서버에는 실패 상태가 없다. 상대를 못 찾은 방을 **1인 방으로 확정**하고
   /// 예약한 시각에 혼자 달리게 한다. 그래서 대기 화면을 떠날 때가 아니라
   /// **그 1인 확정을 받은 때** 남긴다.
-  Future<void> matchFailed({int? distanceMeters});
+  Future<void> matchFailed({int? distanceMeters, DateTime? slotStartAt});
 
   /// 매칭 취소 성공.
   ///
@@ -125,7 +133,11 @@ abstract interface class Analytics {
   /// - `alone` — 혼자 남은 방([matchFailed])에서 뺐다. 성사된 뒤 이탈과
   ///   섞이면 이탈률이 부풀려진다
   /// - `unknown` — 방을 아직 모르거나 명단을 못 받았다
-  Future<void> matchCancel({required String stage});
+  Future<void> matchCancel({
+    required String stage,
+    int? distanceMeters,
+    DateTime? slotStartAt,
+  });
 
   /// 대기방 채팅 버튼을 눌러 채팅을 열었다.
   ///
@@ -234,23 +246,37 @@ class NoopAnalytics implements Analytics {
   Future<void> matchSlotSheetOpen() async {}
 
   @override
-  Future<void> matchSlotSelect() async {}
+  Future<void> matchSlotSelect({
+    DateTime? slotStartAt,
+    int? distanceMeters,
+  }) async {}
 
   @override
   Future<void> matchApply({
     required int distanceMeters,
     required int otherDistanceWaiting,
     required int otherDistanceWaitingSameTime,
+    DateTime? slotStartAt,
   }) async {}
 
   @override
-  Future<void> matchConfirmed({int? distanceMeters}) async {}
+  Future<void> matchConfirmed({
+    int? distanceMeters,
+    DateTime? slotStartAt,
+  }) async {}
 
   @override
-  Future<void> matchFailed({int? distanceMeters}) async {}
+  Future<void> matchFailed({
+    int? distanceMeters,
+    DateTime? slotStartAt,
+  }) async {}
 
   @override
-  Future<void> matchCancel({required String stage}) async {}
+  Future<void> matchCancel({
+    required String stage,
+    int? distanceMeters,
+    DateTime? slotStartAt,
+  }) async {}
 
   @override
   Future<void> chatOpen({

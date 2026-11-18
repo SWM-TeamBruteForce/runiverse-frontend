@@ -52,35 +52,50 @@ class FirebaseAnalyticsService implements Analytics {
   Future<void> matchSlotSheetOpen() => _send('match_slot_sheet_open', null);
 
   @override
-  Future<void> matchSlotSelect() => _send('match_slot_select', null);
+  Future<void> matchSlotSelect({DateTime? slotStartAt, int? distanceMeters}) =>
+      _send(
+        'match_slot_select',
+        MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
+      );
 
   @override
   Future<void> matchApply({
     required int distanceMeters,
     required int otherDistanceWaiting,
     required int otherDistanceWaitingSameTime,
+    DateTime? slotStartAt,
   }) => _send('match_apply', {
+    ...MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
     'distance_m': distanceMeters,
     'other_distance_waiting': otherDistanceWaiting,
     'other_distance_waiting_same_time': otherDistanceWaitingSameTime,
   });
 
   @override
-  Future<void> matchConfirmed({int? distanceMeters}) => _send(
-    'match_confirmed',
-    // ⚠️ 모르면 **빼고 보낸다.** 0 을 실으면 `0m 매칭`이 지표에 생긴다.
-    distanceMeters == null ? null : {'distance_m': distanceMeters},
-  );
+  Future<void> matchConfirmed({int? distanceMeters, DateTime? slotStartAt}) =>
+      _send('match_confirmed', {
+        ...MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
+        // ⚠️ 모르면 **빼고 보낸다.** 0 을 실으면 `0m 매칭`이 지표에 생긴다.
+        'distance_m': ?distanceMeters,
+      });
 
   @override
-  Future<void> matchFailed({int? distanceMeters}) => _send(
-    'match_failed',
-    distanceMeters == null ? null : {'distance_m': distanceMeters},
-  );
+  Future<void> matchFailed({int? distanceMeters, DateTime? slotStartAt}) =>
+      _send('match_failed', {
+        ...MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
+        'distance_m': ?distanceMeters,
+      });
 
   @override
-  Future<void> matchCancel({required String stage}) =>
-      _send('match_cancel', {'cancel_stage': stage});
+  Future<void> matchCancel({
+    required String stage,
+    int? distanceMeters,
+    DateTime? slotStartAt,
+  }) => _send('match_cancel', {
+    ...MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
+    'cancel_stage': stage,
+    'distance_m': ?distanceMeters,
+  });
 
   @override
   Future<void> chatOpen({
