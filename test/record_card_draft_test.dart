@@ -54,10 +54,7 @@ void main() {
   test('⚠️ 회고 없이 기록·유형만으로는 켜지지 않는다', () {
     // 설계 6-2가 회고를 필수로 못 박았다. 사진은 선택이지만 글은 아니다.
     expect(
-      _draft(
-        activity: RecordCardActivity.race,
-        reviewText: '대회 완주',
-      ).canProceed,
+      _draft(activity: RecordCardActivity.race, reviewText: '대회 완주').canProceed,
       isFalse,
     );
   });

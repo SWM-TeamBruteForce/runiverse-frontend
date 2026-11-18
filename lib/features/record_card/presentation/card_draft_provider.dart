@@ -50,8 +50,7 @@ class CardDraftController extends Notifier<CardDraft> {
   }
 
   /// 고른 기록의 경로. **못 받았으면 `null`을 넣는다.**
-  void setRoute(RouteArt? route) =>
-      state = route == null
+  void setRoute(RouteArt? route) => state = route == null
       ? state.copyWith(clearRoute: true)
       : state.copyWith(route: route);
 
