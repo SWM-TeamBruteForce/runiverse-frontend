@@ -100,9 +100,16 @@ class FirebaseAnalyticsService implements Analytics {
       _send('run_start', {'run_type': runType});
 
   @override
-  Future<void> runFinish({required String runType, required bool early}) =>
-      // GA 파라미터는 문자열·숫자만 받는다. `bool` 을 실으면 플러그인이 거절한다.
-      _send('run_finish', {'run_type': runType, 'early': early.toString()});
+  Future<void> runFinish({
+    required String runType,
+    required bool early,
+    required RunOutcome outcome,
+  }) => _send('run_finish', {
+    'run_type': runType,
+    // GA 파라미터는 문자열·숫자만 받는다. `bool` 을 실으면 플러그인이 거절한다.
+    'early': early.toString(),
+    'run_outcome': outcome.name,
+  });
 
   @override
   Future<void> withdraw() => _send('withdraw', null);

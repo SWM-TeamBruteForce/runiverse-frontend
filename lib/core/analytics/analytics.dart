@@ -1,4 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/core/analytics/run_outcome.dart';
+
+export 'package:runiverse/core/analytics/run_outcome.dart';
 
 /// 사용자 행동을 남긴다 — 앱에서의 GA4(Firebase Analytics).
 ///
@@ -131,7 +134,14 @@ abstract interface class Analytics {
   /// [early] 는 **본인이 목표 전에 끝내기로 했는가**(`forced=true`)다. 서버가
   /// 그 시점 거리로 완주 처리할 수도 있어서 "완주 못 함"과 같은 뜻은 아니다.
   /// 서버가 끝낸 경우는 `false` 다.
-  Future<void> runFinish({required String runType, required bool early});
+  ///
+  /// [outcome] 이 **완주했는가**다 — 위 이유로 [early] 로는 못 가린다
+  /// ([RunOutcome]).
+  Future<void> runFinish({
+    required String runType,
+    required bool early,
+    required RunOutcome outcome,
+  });
 
   /// 탈퇴 성공.
   Future<void> withdraw();
@@ -237,6 +247,7 @@ class NoopAnalytics implements Analytics {
   Future<void> runFinish({
     required String runType,
     required bool early,
+    required RunOutcome outcome,
   }) async {}
 
   @override

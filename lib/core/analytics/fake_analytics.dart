@@ -96,10 +96,15 @@ class FakeAnalytics implements Analytics {
   Future<void> runFinish({
     required String runType,
     required bool early,
+    required RunOutcome outcome,
   }) async => events.add((
     'run_finish',
     // 진짜와 같은 모양으로 적는다. GA 에는 문자열로 나간다.
-    {'run_type': runType, 'early': early.toString()},
+    {
+      'run_type': runType,
+      'early': early.toString(),
+      'run_outcome': outcome.name,
+    },
   ));
 
   @override
