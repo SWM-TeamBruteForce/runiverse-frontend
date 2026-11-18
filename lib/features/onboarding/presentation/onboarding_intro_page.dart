@@ -7,7 +7,6 @@ import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_motion.dart';
-import 'package:runiverse/core/theme/v2/app_palette.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_sizes.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
@@ -52,7 +51,7 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
     _IntroCard(
       title: AppStrings.onboardingCard1Title,
       body: AppStrings.onboardingCard1Body,
-      art: _Art.home,
+      art: _Art.waitingRoomChat,
     ),
     _IntroCard(
       title: AppStrings.onboardingCard2Title,
@@ -133,39 +132,9 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
             final bodyHeight = _cards
                 .map((card) => textHeight(card.body, AppTypographyV2.body06))
                 .reduce(math.max);
-            final skipHeight = math.max(
-              kMinInteractiveDimension,
-              textHeight(AppStrings.onboardingSkip, AppTypographyV2.body11) +
-                  AppSpacing.space2 * 2,
-            );
-            final contentHeight =
-                width / _IntroCardView.artAspect +
-                _IntroCardView.artToTitle +
-                titleHeight +
-                _IntroCardView.titleToBody +
-                bodyHeight;
-            final preferredHeight =
-                contentHeight +
-                skipHeight +
-                AppSizes.touchRunning +
-                AppSpacing.space2 +
-                AppSpacing.space5 +
-                AppSpacing.space6 +
-                AppSpacing.space5 +
-                AppSpacing.space9 * 2;
-            const reducibleSpace =
-                (AppSpacing.space6 - AppSpacing.space2) +
-                (AppSpacing.space5 - AppSpacing.space2) +
-                (AppSpacing.space9 - AppSpacing.space4) * 2;
-            final compression =
-                ((preferredHeight - constraints.maxHeight) / reducibleSpace)
-                    .clamp(0.0, 1.0);
-            double gap(double preferred, double minimum) =>
-                preferred - (preferred - minimum) * compression;
-
             return Column(
               children: [
-                SizedBox(height: gap(AppSpacing.space6, AppSpacing.space2)),
+                const SizedBox(height: AppSpacing.space4),
 
                 // 이탈 경로는 최우선이다. 카드를 다 보지 않아도 나갈 수 있어야 한다.
                 //
@@ -195,7 +164,7 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
                   ),
                 ),
 
-                SizedBox(height: gap(AppSpacing.space5, AppSpacing.space2)),
+                const SizedBox(height: AppSpacing.space4),
 
                 Expanded(
                   child: PageView.builder(
@@ -212,7 +181,7 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
 
                 const SizedBox(height: AppSpacing.space5),
                 PageIndicatorV2(count: _cards.length, currentIndex: _index),
-                SizedBox(height: gap(AppSpacing.space9, AppSpacing.space4)),
+                const SizedBox(height: AppSpacing.space7),
 
                 Padding(
                   padding: const EdgeInsets.symmetric(
@@ -227,7 +196,7 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
                   ),
                 ),
 
-                SizedBox(height: gap(AppSpacing.space9, AppSpacing.space4)),
+                const SizedBox(height: AppSpacing.space7),
               ],
             );
           },
@@ -239,8 +208,8 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
 
 /// 장마다 다른 그림.
 enum _Art {
-  /// 홈의 매칭 카드(`HomeIdle`)를 찍은 것.
-  home,
+  /// 매칭 대기방 채팅의 제목과 출발 전 인사를 함께 찍은 것.
+  waitingRoomChat,
 
   /// 파티원 비교 화면에서 콤보 임팩트가 터지는 **실제 녹화**에 워치가 걸친다.
   combo,
@@ -290,6 +259,11 @@ class _IntroCardView extends StatelessWidget {
   /// 두면 장을 넘길 때 그림 크기가 들쑥날쑥하다. 그림 파일도 이 비율로 자른다.
   static const artAspect = 336 / 360;
 
+  // 기본 그림 칸보다 크게 확대하지 않는다. 좁거나 짧은 화면에서는
+  // 목표 크기의 80%까지만 줄이고, 그 아래는 문구를 스크롤로 제공한다.
+  static const _maxArtHeight = 360.0;
+  static const _minArtScale = 0.8;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
@@ -300,18 +274,39 @@ class _IntroCardView extends StatelessWidget {
           0.0,
           constraints.maxWidth - AppSpacing.space6 * 2,
         );
-        // 높이로 그림 폭을 줄이지 않는다. 여백을 줄여도 부족하면 내용을 스크롤한다.
+        final targetArtHeight = math.min(width / artAspect, _maxArtHeight);
+        final minArtHeight = targetArtHeight * _minArtScale;
+        const minArtToTitle = AppSpacing.space6;
+        final preferredHeight =
+            targetArtHeight +
+            artToTitle +
+            titleHeight +
+            titleToBody +
+            bodyHeight;
+        final reducibleHeight =
+            targetArtHeight - minArtHeight + artToTitle - minArtToTitle;
+        final compression =
+            ((preferredHeight - constraints.maxHeight) / reducibleHeight).clamp(
+              0.0,
+              1.0,
+            );
+        final artHeight =
+            targetArtHeight - (targetArtHeight - minArtHeight) * compression;
+        final artGap = artToTitle - (artToTitle - minArtToTitle) * compression;
+
+        // 하단 조작 영역은 그대로 두고 중앙 영역 안에서만 크기를 조절한다.
+        // 여유는 위아래로 나누고, 최소 크기로도 부족할 때만 스크롤한다.
         return SingleChildScrollView(
           key: PageStorageKey(card.art),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space6),
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 SizedBox(
-                  width: width,
-                  height: width / artAspect,
+                  width: artHeight * artAspect,
+                  height: artHeight,
                   child: Stack(
                     children: [
                       Positioned.fill(
@@ -330,7 +325,7 @@ class _IntroCardView extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: artToTitle),
+                SizedBox(height: artGap),
                 SizedBox(
                   height: titleHeight,
                   child: Text(
@@ -417,8 +412,8 @@ class _ArtView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => switch (art) {
-    _Art.home => Image.asset(
-      'assets/images/onboarding_home.webp',
+    _Art.waitingRoomChat => Image.asset(
+      'assets/images/onboarding_chat.webp',
       fit: BoxFit.contain,
     ),
     _Art.combo => const _ComboArt(),
@@ -521,9 +516,8 @@ class _RecordArt extends StatelessWidget {
     // ⚠️ 두 카드는 제 높이대로 쌓이고, 남는 세로가 모자라면 **통째로 줄어든다.**
     // 안에서 늘였다 줄였다 하면 겹치는 깊이와 기울기가 기기마다 달라진다 —
     // 비율을 지킨 채 작아지는 편이 낫다. 넘쳐서 노란 줄이 뜨는 일도 없다.
-    //
-    // 칸 아래에 붙인다. 곡 카드를 끌어올린 만큼 아래가 비어서, 가운데에 두면
-    // 다른 장 그림보다 떠 보인다.
+    // 곡 카드가 차지하는 높이에서 겹치는 부분을 빼야 카드 하단이 그림 칸의
+    // 하단에 닿는다. 그리는 위치만 옮기면 아래에 빈 공간이 남는다.
     return FittedBox(
       fit: BoxFit.scaleDown,
       alignment: Alignment.bottomCenter,
@@ -548,25 +542,22 @@ class _RecordArt extends StatelessWidget {
               ),
             ),
 
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Align(
-                  child: Transform.rotate(
-                    angle: _tilt,
-                    child: _RecordCard(
-                      width: _cardWidth,
-                      photoHeight: _photoHeight,
-                    ),
+            Padding(
+              padding: const EdgeInsets.only(
+                bottom: _SongCard._height - _overlap,
+              ),
+              child: Align(
+                heightFactor: 1,
+                child: Transform.rotate(
+                  angle: _tilt,
+                  child: _RecordCard(
+                    width: _cardWidth,
+                    photoHeight: _photoHeight,
                   ),
                 ),
-                Transform.translate(
-                  offset: const Offset(0, -_overlap),
-                  child: const _SongCard(),
-                ),
-              ],
+              ),
             ),
+            const Positioned(left: 0, right: 0, bottom: 0, child: _SongCard()),
           ],
         ),
       ),
@@ -591,13 +582,6 @@ class _RecordCard extends StatelessWidget {
         color: colors.bgSurface,
         borderRadius: AppRadius.xl,
         border: Border.all(color: colors.bgElevated),
-        boxShadow: [
-          BoxShadow(
-            color: AppPaletteV2.black.withValues(alpha: 0.6),
-            blurRadius: 52,
-            offset: const Offset(0, 26),
-          ),
-        ],
       ),
       child: ClipRRect(
         borderRadius: AppRadius.xl,
@@ -671,6 +655,8 @@ class _RecordCard extends StatelessWidget {
 class _SongCard extends StatelessWidget {
   const _SongCard();
 
+  /// 제목(21)과 메타 정보(18), 상하 여백과 테두리가 들어가는 그림 속 높이.
+  static const _height = 66.0;
   static const _playSize = 34.0;
 
   /// 파형 막대의 상대 높이. 콤보 구간이 도드라지게 가운데가 높다.
@@ -695,6 +681,7 @@ class _SongCard extends StatelessWidget {
     final colors = context.appColorsV2;
 
     return Container(
+      height: _height,
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.space4,
         vertical: AppSpacing.space3,
@@ -703,13 +690,6 @@ class _SongCard extends StatelessWidget {
         color: colors.bgSurface,
         borderRadius: AppRadius.card,
         border: Border.all(color: colors.primaryMuted),
-        boxShadow: [
-          BoxShadow(
-            color: AppPaletteV2.black.withValues(alpha: 0.65),
-            blurRadius: 42,
-            offset: const Offset(0, 20),
-          ),
-        ],
       ),
       child: Row(
         children: [
