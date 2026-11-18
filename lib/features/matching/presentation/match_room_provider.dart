@@ -470,14 +470,24 @@ class MatchRoomController extends Notifier<MatchRoomState> {
     //
     // ⚠️ **초대 방은 집계하지 않는다.** 매칭 퍼널 지표라, 직접 골라 모은 방이
     // 섞이면 성사율이 거짓이 된다.
+    //
+    // ⚠️ **혼자 남은 방은 실패로 센다.** 서버는 상대를 못 찾은 방도 1인으로
+    // 확정한다 — 확정으로 세면 성사율이 부풀려진다.
+    //
+    // ⚠️ **명단이 비었으면 아직 세지 않는다.** 비어 있는 것은 "혼자"가 아니라
+    // "모른다"다(`RoomInfo.fromStatus`의 대타 방). 번호도 남기지 않아서, 명단이
+    // 실린 통지가 오면 그때 센다.
     if (celebrates &&
         room.status == RoomStatus.matched &&
+        room.players.isNotEmpty &&
         _confirmedLogged != room.runningRoomId) {
       _confirmedLogged = room.runningRoomId;
+      final analytics = ref.read(analyticsProvider);
+      final distance = room.targetDistanceMeters;
       unawaited(
-        ref
-            .read(analyticsProvider)
-            .matchConfirmed(distanceMeters: room.targetDistanceMeters),
+        room.players.length == 1
+            ? analytics.matchFailed(distanceMeters: distance)
+            : analytics.matchConfirmed(distanceMeters: distance),
       );
     }
 
@@ -513,11 +523,14 @@ class MatchRoomController extends Notifier<MatchRoomState> {
   /// 상태를 다시 읽는다. 스트림을 남겨두면 서버가 닫기 전까지 지난 방의
   /// 이벤트가 계속 올라온다.
   Future<bool> leave() async {
+    // ⚠️ **보내기 전에 잡는다.** 취소를 기다리는 사이 통지가 와서 방이 바뀔
+    // 수 있다 — 누른 순간의 단계를 센다.
+    final stage = _cancelStage(state.room);
     try {
       await ref.read(matchRepositoryProvider).cancel();
       // ⚠️ 여기서만 남긴다. 아래 `nothingToCancel` 은 **이미 취소된 것**이라
       // 거기서도 남기면 한 번의 취소가 두 번 세어진다.
-      unawaited(ref.read(analyticsProvider).matchCancel());
+      unawaited(ref.read(analyticsProvider).matchCancel(stage: stage));
     } on MatchException catch (error) {
       // 러닝이 이미 시작됐다 — 나가지 못한 것이 맞지만, 여기서 할 일은
       // 재시도가 아니라 **앱이 늦게 아는 상태를 따라잡는 것**이다. 다시 읽으면
@@ -543,6 +556,22 @@ class MatchRoomController extends Notifier<MatchRoomState> {
     await ref.read(userStatusProvider.notifier).refresh();
     return true;
   }
+
+  /// `match_cancel` 의 `cancel_stage`. 값의 뜻은 `Analytics.matchCancel` 참조.
+  ///
+  /// 확정 판정은 `match_confirmed`·`match_failed` 와 같다([_applyRoom]) —
+  /// 둘이 어긋나면 "실패한 방에서 확정 후 취소"가 생긴다.
+  static String _cancelStage(RoomInfo? room) => switch (room) {
+    null => 'unknown',
+    RoomInfo(status: RoomStatus.matching) => 'waiting',
+    RoomInfo(status: RoomStatus.matched, :final players) when players.isEmpty =>
+      'unknown',
+    RoomInfo(status: RoomStatus.matched, :final players)
+        when players.length == 1 =>
+      'alone',
+    RoomInfo(status: RoomStatus.matched) => 'confirmed',
+    _ => 'unknown',
+  };
 
   /// 끊고 방을 비운다. 취소·나가기·방 취소에서 부른다.
   Future<void> disconnect() async {

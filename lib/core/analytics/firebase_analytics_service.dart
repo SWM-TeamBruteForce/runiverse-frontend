@@ -73,7 +73,14 @@ class FirebaseAnalyticsService implements Analytics {
   );
 
   @override
-  Future<void> matchCancel() => _send('match_cancel', null);
+  Future<void> matchFailed({int? distanceMeters}) => _send(
+    'match_failed',
+    distanceMeters == null ? null : {'distance_m': distanceMeters},
+  );
+
+  @override
+  Future<void> matchCancel({required String stage}) =>
+      _send('match_cancel', {'cancel_stage': stage});
 
   @override
   Future<void> chatOpen({

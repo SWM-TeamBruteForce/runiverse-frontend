@@ -798,6 +798,87 @@ void main() {
 
       expect(app.analytics.countOf('match_confirmed'), 1);
     });
+
+    test('⚠️ 혼자 남은 방은 확정이 아니라 실패로 남는다', () async {
+      // 서버는 상대를 못 찾은 방도 1인으로 확정한다. 확정으로 세면 성사율이
+      // 부풀려진다.
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      app.stream.emit(MatchRoomUpdated(room(RoomStatus.matched, players: 1)));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(app.analytics.countOf('match_failed'), 1);
+      expect(app.analytics.countOf('match_confirmed'), 0);
+    });
+
+    test('⚠️ 명단이 비면 기다렸다가 명단이 오면 센다', () async {
+      // 빈 명단은 "혼자"가 아니라 "모른다"다. 그때 세면 멀쩡한 방이 실패가 된다.
+      final app = build();
+      app.container.read(matchRoomProvider.notifier).connect();
+      await Future<void>.delayed(Duration.zero);
+
+      app.stream.emit(MatchRoomUpdated(room(RoomStatus.matched, players: 0)));
+      await Future<void>.delayed(Duration.zero);
+      expect(app.analytics.countOf('match_failed'), 0);
+      expect(app.analytics.countOf('match_confirmed'), 0);
+
+      app.stream.emit(MatchRoomUpdated(room(RoomStatus.matched, players: 3)));
+      await Future<void>.delayed(Duration.zero);
+      expect(app.analytics.countOf('match_confirmed'), 1);
+      expect(app.analytics.countOf('match_failed'), 0);
+    });
+  });
+
+  group('match_cancel 의 cancel_stage', () {
+    // 확정 전 이탈을 **대기 중 취소 / 확정 후 취소 / 혼자 남은 방 이탈**로
+    // 가른다. 셋은 고칠 곳이 다르다.
+    Future<String?> stageAfterLeaving(RoomInfo? current) async {
+      final stream = FakeMatchStream();
+      final analytics = FakeAnalytics();
+      final container = ProviderContainer(
+        overrides: [
+          analyticsProvider.overrideWithValue(analytics),
+          matchStreamProvider.overrideWithValue(stream),
+          matchRepositoryProvider.overrideWithValue(FakeMatchRepository()),
+          matchRoomStoreProvider.overrideWithValue(InMemoryMatchRoomStore()),
+          userStatusRepositoryProvider.overrideWithValue(
+            FakeUserStatusRepository(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(matchRoomProvider);
+      if (current != null) {
+        container.read(matchRoomProvider.notifier).connect();
+        await Future<void>.delayed(Duration.zero);
+        stream.emit(MatchRoomUpdated(current));
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      await container.read(matchRoomProvider.notifier).leave();
+      return analytics.paramsOf('match_cancel')?['cancel_stage'] as String?;
+    }
+
+    test('모집 중이면 waiting', () async {
+      expect(await stageAfterLeaving(room(RoomStatus.matching)), 'waiting');
+    });
+
+    test('함께 뛸 사람이 정해졌으면 confirmed', () async {
+      expect(await stageAfterLeaving(room(RoomStatus.matched)), 'confirmed');
+    });
+
+    test('혼자 남은 방이면 alone', () async {
+      expect(
+        await stageAfterLeaving(room(RoomStatus.matched, players: 1)),
+        'alone',
+      );
+    });
+
+    test('방을 모르면 unknown', () async {
+      expect(await stageAfterLeaving(null), 'unknown');
+    });
   });
 
   /// ⚠️ **기기 시계를 믿지 않는다.**

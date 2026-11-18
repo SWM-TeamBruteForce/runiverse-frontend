@@ -67,7 +67,14 @@ class FakeAnalytics implements Analytics {
   ));
 
   @override
-  Future<void> matchCancel() async => events.add(('match_cancel', null));
+  Future<void> matchFailed({int? distanceMeters}) async => events.add((
+    'match_failed',
+    distanceMeters == null ? null : {'distance_m': distanceMeters},
+  ));
+
+  @override
+  Future<void> matchCancel({required String stage}) async =>
+      events.add(('match_cancel', {'cancel_stage': stage}));
 
   @override
   Future<void> chatOpen({

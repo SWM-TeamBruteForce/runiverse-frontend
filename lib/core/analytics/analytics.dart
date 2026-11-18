@@ -103,10 +103,29 @@ abstract interface class Analytics {
   ///
   /// [distanceMeters] 는 모르면 `null` 이다. [matchApply] 와 같은 이름의
   /// 파라미터로 나가므로 거리별 성사율을 바로 견줄 수 있다.
+  ///
+  /// ⚠️ **혼자 남은 방은 여기로 오지 않는다** — [matchFailed] 다. 서버는
+  /// 인원과 무관하게 1인 방도 확정하는데, 그것을 성사로 세면 성사율이
+  /// 부풀려진다.
   Future<void> matchConfirmed({int? distanceMeters});
 
+  /// 매칭이 **성사되지 않았다** — 모집이 마감됐는데 나 혼자 남았다.
+  ///
+  /// 서버에는 실패 상태가 없다. 상대를 못 찾은 방을 **1인 방으로 확정**하고
+  /// 예약한 시각에 혼자 달리게 한다. 그래서 대기 화면을 떠날 때가 아니라
+  /// **그 1인 확정을 받은 때** 남긴다.
+  Future<void> matchFailed({int? distanceMeters});
+
   /// 매칭 취소 성공.
-  Future<void> matchCancel();
+  ///
+  /// [stage] 는 취소한 순간 방이 어디까지 왔는가다.
+  ///
+  /// - `waiting` — 모집 중에 뺐다
+  /// - `confirmed` — 함께 뛸 사람이 정해진 뒤에 뺐다
+  /// - `alone` — 혼자 남은 방([matchFailed])에서 뺐다. 성사된 뒤 이탈과
+  ///   섞이면 이탈률이 부풀려진다
+  /// - `unknown` — 방을 아직 모르거나 명단을 못 받았다
+  Future<void> matchCancel({required String stage});
 
   /// 대기방 채팅 버튼을 눌러 채팅을 열었다.
   ///
@@ -228,7 +247,10 @@ class NoopAnalytics implements Analytics {
   Future<void> matchConfirmed({int? distanceMeters}) async {}
 
   @override
-  Future<void> matchCancel() async {}
+  Future<void> matchFailed({int? distanceMeters}) async {}
+
+  @override
+  Future<void> matchCancel({required String stage}) async {}
 
   @override
   Future<void> chatOpen({
