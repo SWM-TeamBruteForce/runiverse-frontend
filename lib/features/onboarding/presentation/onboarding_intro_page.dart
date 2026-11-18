@@ -32,8 +32,8 @@ import 'package:runiverse/core/widgets/v2/page_indicator.dart';
 ///
 /// ## 세로 리듬은 네 장이 같다
 ///
-/// 그림과 제목이 늘 같은 높이에 선다. 배지는 4장에만 보이지만 배지 자리는
-/// 네 장 모두 비워 둔다. 넘길 때 그림도 글자도 위아래로 튀지 않는다.
+/// 그림과 제목이 늘 같은 높이에 선다. 4장의 배지는 줄을 따로 차지하지 않고
+/// 그림 왼쪽 위에 얹는다. 넘길 때 그림도 글자도 위아래로 튀지 않는다.
 ///
 /// 상태는 [PageController]와 현재 인덱스뿐이라 provider를 두지 않았다.
 /// 화면 밖에서 이 값을 알 필요가 없고, 화면을 떠나면 버려도 되는 상태다.
@@ -214,9 +214,6 @@ class _IntroCardView extends StatelessWidget {
   /// 그림과 제목 사이. 시안 실측(539 → 575)이고 토큰에 없는 값이다.
   static const _artToTitle = 36.0;
 
-  /// 배지와 제목 사이. 역시 토큰에 없다.
-  static const _badgeToTitle = 10.0;
-
   /// 제목과 본문 사이. 시안 `158:2705`의 gap 14.
   static const _titleToBody = 14.0;
 
@@ -240,19 +237,23 @@ class _IntroCardView extends StatelessWidget {
               alignment: Alignment.bottomCenter,
               child: AspectRatio(
                 aspectRatio: _artAspect,
-                child: _ArtView(art: card.art),
+                // 배지는 그림 위에 얹는다. 배지 줄을 따로 두면 한 장만 그림이
+                // 올라가거나, 네 장 모두 빈 줄이 생겨 그림과 제목이 멀어진다.
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: _ArtView(art: card.art)),
+                    if (card.comingSoon)
+                      const Positioned(
+                        top: 0,
+                        left: 0,
+                        child: _ComingSoonBadge(),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
           const SizedBox(height: _artToTitle),
-
-          // 배지 자리는 네 장 모두 비워 둔다. 한 장만 배지만큼 그림이 올라가면
-          // 넘길 때 그림이 위아래로 튄다.
-          Visibility.maintain(
-            visible: card.comingSoon,
-            child: const _ComingSoonBadge(),
-          ),
-          const SizedBox(height: _badgeToTitle),
 
           Text(
             card.title,
@@ -369,9 +370,10 @@ class _ComboArt extends StatelessWidget {
   /// 워치가 그림 칸 밖으로 나가도 되는 너비 — 오른쪽 화면 여백 안쪽이다.
   static const _spillX = AppSpacing.space4;
 
-  /// 워치가 칸 아래로 내려가는 몫(워치 높이 대비). 이 장에는 배지가 없어
-  /// 그 빈자리로 내려간다 — 칸 안에 두면 상대 카드의 숫자를 많이 가린다.
-  static const _belowShare = 0.35;
+  /// 워치가 칸 아래로 내려가는 몫(워치 높이 대비). 칸 안에만 두면 상대
+  /// 카드의 숫자를 많이 가린다. 그림과 제목 사이(36) 안에서만 내려가야
+  /// 제목과 겹치지 않는다 — 줄 끝이 칸 아래로 약 20 나온다.
+  static const _belowShare = 0.15;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
