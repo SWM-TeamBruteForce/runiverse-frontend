@@ -1,10 +1,18 @@
+// `.characters`가 여기서 온다 — `widgets.dart`가 `characters`를 재수출한다.
+// 그 패키지를 직접 적으면 `depend_on_referenced_packages`가 뜬다.
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record_card/domain/card_draft.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
+import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
+
+PickedImage _image(String path) =>
+    PickedImage.validated(path: path, sizeBytes: 1024);
 
 RunRecord _record({required int id}) => RunRecord(
   id: id,
@@ -118,5 +126,141 @@ void main() {
     notifier().setRoute(null);
 
     expect(draft().route, isNull);
+  });
+
+  group('사진', () {
+    test('고른 순서대로 쌓인다', () {
+      notifier().addPhoto(_image('/tmp/a.jpg'));
+      notifier().addPhoto(_image('/tmp/b.jpg'));
+
+      expect(draft().photos.map((p) => p.image.path), [
+        '/tmp/a.jpg',
+        '/tmp/b.jpg',
+      ]);
+    });
+
+    test('여섯 번째 사진은 들어가지 않는다', () {
+      for (var i = 0; i < 6; i++) {
+        notifier().addPhoto(_image('/tmp/$i.jpg'));
+      }
+
+      expect(draft().photos, hasLength(5));
+      expect(draft().photos.last.image.path, '/tmp/4.jpg');
+    });
+
+    test('지우면 그 자리만 빠지고 순서가 남는다', () {
+      notifier().addPhoto(_image('/tmp/a.jpg'));
+      notifier().addPhoto(_image('/tmp/b.jpg'));
+      notifier().addPhoto(_image('/tmp/c.jpg'));
+
+      notifier().removePhotoAt(1);
+
+      expect(draft().photos.map((p) => p.image.path), [
+        '/tmp/a.jpg',
+        '/tmp/c.jpg',
+      ]);
+    });
+
+    test('캡션은 그 장에만 붙는다', () {
+      notifier().addPhoto(_image('/tmp/a.jpg'));
+      notifier().addPhoto(_image('/tmp/b.jpg'));
+
+      notifier().setCaption(1, '바람이 좋았다');
+
+      expect(draft().photos[0].caption, '');
+      expect(draft().photos[1].caption, '바람이 좋았다');
+    });
+
+    test('캡션은 100자에서 자른다', () {
+      notifier().addPhoto(_image('/tmp/a.jpg'));
+
+      notifier().setCaption(0, 'ㄱ' * 200);
+
+      expect(draft().photos.first.caption.characters.length, 100);
+    });
+
+    test('⚠️ 이모지로 100자를 채워도 반쪽이 남지 않는다', () {
+      // 입력 칸은 grapheme으로, 자르기를 code unit으로 세면 경계에서 서로게이트
+      // 쌍이 갈라져 서버로 U+FFFD가 간다. 회고에서 미뤄 둔 결함이고
+      // (`docs/notes/2026-11-18-record-card-compose-deferred.md` 1번) 여기서는
+      // 되풀이하지 않는다.
+      notifier().addPhoto(_image('/tmp/a.jpg'));
+
+      notifier().setCaption(0, '🏃' * 200);
+
+      final caption = draft().photos.first.caption;
+      expect(caption.characters.length, 100);
+      expect(caption.codeUnits.length, 200); // 서로게이트 쌍 100개
+      expect(caption.runes, isNot(contains(0xFFFD)));
+    });
+
+    test('밀어 둔 위치는 그 장에만 남는다', () {
+      notifier().addPhoto(_image('/tmp/a.jpg'));
+      notifier().addPhoto(_image('/tmp/b.jpg'));
+
+      notifier().setPhotoAlign(1, alignX: -0.5);
+
+      expect(draft().photos[0].alignX, 0);
+      expect(draft().photos[1].alignX, -0.5);
+      expect(draft().photos[1].alignY, 0);
+    });
+
+    test('한 축만 주면 다른 축은 그대로다', () {
+      notifier().addPhoto(_image('/tmp/a.jpg'));
+      notifier().setPhotoAlign(0, alignX: -0.5, alignY: 0.3);
+
+      notifier().setPhotoAlign(0, alignX: 0.8);
+
+      expect(draft().photos.first.alignX, 0.8);
+      expect(draft().photos.first.alignY, 0.3);
+    });
+
+    test('⚠️ 없는 자리를 건드려도 던지지 않는다', () {
+      // 화면이 지운 뒤 늦게 온 콜백이다. 던지면 작성 중에 앱이 죽는다.
+      notifier().addPhoto(_image('/tmp/a.jpg'));
+      notifier().removePhotoAt(0);
+
+      expect(() => notifier().setCaption(0, '가'), returnsNormally);
+      expect(() => notifier().setPhotoAlign(3, alignX: 1), returnsNormally);
+      expect(() => notifier().removePhotoAt(9), returnsNormally);
+      expect(draft().photos, isEmpty);
+    });
+
+    test('clear가 사진까지 비운다', () {
+      notifier().addPhoto(_image('/tmp/a.jpg'));
+      notifier().setVisibility(RecordCardVisibility.public);
+      notifier().setMusicEnabled(false);
+
+      notifier().clear();
+
+      expect(draft().photos, isEmpty);
+      expect(draft().visibility, RecordCardVisibility.friends);
+      expect(draft().musicEnabled, isTrue);
+    });
+  });
+
+  group('공개범위와 음악', () {
+    test('고른 공개범위가 남는다', () {
+      notifier().setVisibility(RecordCardVisibility.private);
+
+      expect(draft().visibility, RecordCardVisibility.private);
+    });
+
+    test('음악을 껐다 켤 수 있다', () {
+      notifier().setMusicEnabled(false);
+      expect(draft().musicEnabled, isFalse);
+
+      notifier().setMusicEnabled(true);
+      expect(draft().musicEnabled, isTrue);
+    });
+
+    test('⚠️ 카드별로 따로 둔다', () {
+      // 새 카드를 쓰던 중에 남의 카드 수정으로 들어가도 섞이지 않아야 한다.
+      notifier().addPhoto(_image('/tmp/a.jpg'));
+      notifier(7).setVisibility(RecordCardVisibility.public);
+
+      expect(draft().visibility, RecordCardVisibility.friends);
+      expect(draft(7).photos, isEmpty);
+    });
   });
 }
