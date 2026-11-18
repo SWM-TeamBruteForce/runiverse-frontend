@@ -408,9 +408,16 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// `run_start` 를 남긴 방. 재연결로 ack 가 또 와도 다시 세지 않는다.
   int? _startLogged;
 
-  /// GA 가 받는 러닝 종류. 매칭 방이면 `match`, 솔로면 `solo` 다.
-  static String _runType(bool? isMatched) =>
-      (isMatched ?? false) ? 'match' : 'solo';
+  /// GA 가 받는 러닝 종류. `match` · `invite` · `solo`.
+  ///
+  /// ⚠️ **[RunningRoom.isMatched] 만 보지 않는다.** 초대 방도 파티원 화면이
+  /// 있어 참이라, 그것만 보면 초대 방이 `match` 로 세어진다 — 매칭 퍼널에
+  /// 직접 모은 방이 섞인다. 종류를 모르는 매칭 방은 예전처럼 `match` 다.
+  static String _runType(RunningRoom? room) => switch (room) {
+    RunningRoom(type: RoomType.invite) => 'invite',
+    RunningRoom(isMatched: true) => 'match',
+    _ => 'solo',
+  };
 
   /// `run_finish` 를 남긴다. **결과 API(17번)를 한 번 읽어** 완주를 가린다.
   ///
@@ -447,7 +454,7 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       }
     }
     await analytics.runFinish(
-      runType: _runType(room?.isMatched),
+      runType: _runType(room),
       early: early,
       outcome: outcome,
     );
@@ -667,9 +674,7 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       if (startedId != null && startedId != _startLogged) {
         _startLogged = startedId;
         unawaited(
-          ref
-              .read(analyticsProvider)
-              .runStart(runType: _runType(state.room?.isMatched)),
+          ref.read(analyticsProvider).runStart(runType: _runType(state.room)),
         );
       }
 

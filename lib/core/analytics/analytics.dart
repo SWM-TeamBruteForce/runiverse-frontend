@@ -157,10 +157,13 @@ abstract interface class Analytics {
   /// 보낸 내용은 남기지 않는다.
   Future<void> chatSend({int? quickReply});
 
-  /// `RUNNING_STARTED` 를 처음 받았을 때. [runType] 은 `match` · `solo`.
+  /// `RUNNING_STARTED` 를 처음 받았을 때. [runType] 은 `match` · `invite` ·
+  /// `solo`.
+  ///
+  /// ⚠️ `invite` 는 2026-11-18에 생겼다. 그전에는 초대 방도 `match` 였다.
   Future<void> runStart({required String runType});
 
-  /// `RUNNING_FINISHED` 를 처음 받았을 때. [runType] 은 `match` · `solo`.
+  /// `RUNNING_FINISHED` 를 처음 받았을 때. [runType] 은 [runStart] 와 같다.
   ///
   /// [early] 는 **본인이 목표 전에 끝내기로 했는가**(`forced=true`)다. 서버가
   /// 그 시점 거리로 완주 처리할 수도 있어서 "완주 못 함"과 같은 뜻은 아니다.
