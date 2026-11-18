@@ -82,7 +82,9 @@ class FakeRecordCardRepository implements RecordCardRepository {
       // ⚠️ **고친 것이 있으면 그쪽을 준다.** `_all()`이 목을 매번 새로 만들어,
       // 안 덮으면 고친 카드가 다음 조회에 되돌아간다.
       for (final card in [..._all(), ..._created])
-        if (!card.day.isBefore(start) && !card.day.isAfter(end))
+        if (!_deletedIds.contains(card.id) &&
+            !card.day.isBefore(start) &&
+            !card.day.isAfter(end))
           _edited[card.id] ?? card,
     ]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
   }
@@ -203,10 +205,37 @@ class FakeRecordCardRepository implements RecordCardRepository {
     );
   }
 
-  /// 지금 있는 그 카드. 고친 것이 있으면 그쪽이다.
-  RecordCard? _find(int id) =>
-      _edited[id] ??
-      [..._all(), ..._created].where((c) => c.id == id).firstOrNull;
+  /// 지워진 카드 번호들.
+  ///
+  /// ⚠️ **목 데이터도 지울 수 있어야 한다.** `_all()`이 매번 목을 새로 만들어,
+  /// 거르지 않으면 지운 카드가 다음 조회에 되살아난다.
+  final _deletedIds = <int>{};
+
+  /// 몇 번 지웠나.
+  var deletes = 0;
+
+  @override
+  Future<void> delete(int cardId) async {
+    deletes++;
+
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (failWith != null) throw RecordCardException(failWith!);
+
+    if (_find(cardId) == null) {
+      throw const RecordCardException(RecordCardFailure.notFound);
+    }
+
+    _deletedIds.add(cardId);
+    _edited.remove(cardId);
+    _created.removeWhere((card) => card.id == cardId);
+  }
+
+  /// 지금 있는 그 카드. 고친 것이 있으면 그쪽이고, 지워졌으면 `null`이다.
+  RecordCard? _find(int id) {
+    if (_deletedIds.contains(id)) return null;
+    return _edited[id] ??
+        [..._all(), ..._created].where((c) => c.id == id).firstOrNull;
+  }
 
   /// 오늘로부터 며칠 전 · 몇 시 · 유형 · 사진 수 · 공개범위 · 거리(m) · 시간(초).
   ///

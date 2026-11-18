@@ -103,6 +103,11 @@ class _Cards implements RecordCardRepository {
   @override
   Future<RecordCard> update(EditRecordCard card) =>
       throw UnsupportedError('이 테스트는 카드를 고치지 않는다');
+
+  /// 이 테스트는 **읽기만** 본다. 불리면 테스트가 잘못 세워진 것이다.
+  @override
+  Future<void> delete(int cardId) =>
+      throw UnsupportedError('이 테스트는 카드를 지우지 않는다');
 }
 
 class _FailingCards implements RecordCardRepository {
@@ -121,6 +126,11 @@ class _FailingCards implements RecordCardRepository {
   @override
   Future<RecordCard> update(EditRecordCard card) =>
       throw UnsupportedError('이 테스트는 카드를 고치지 않는다');
+
+  /// 이 테스트는 **읽기만** 본다. 불리면 테스트가 잘못 세워진 것이다.
+  @override
+  Future<void> delete(int cardId) =>
+      throw UnsupportedError('이 테스트는 카드를 지우지 않는다');
 }
 
 /// ⚠️ **구독을 붙이고 읽는다.** `autoDispose` provider 는 듣는 사람이 없으면

@@ -589,6 +589,11 @@ class _Repository implements RecordCardRepository {
     return _edited(card);
   }
 
+  /// 이 테스트는 지우지 않는다.
+  @override
+  Future<void> delete(int cardId) =>
+      throw UnsupportedError('이 테스트는 카드를 지우지 않는다');
+
   @override
   Future<RecordCard> create(NewRecordCard card) async {
     creates++;

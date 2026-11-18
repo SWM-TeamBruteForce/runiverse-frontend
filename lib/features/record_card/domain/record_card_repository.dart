@@ -47,6 +47,17 @@ abstract interface class RecordCardRepository {
   /// ⚠️ 싣는 사진은 **남길 전체**다([EditRecordCard.photos]) — 빈 목록은
   /// "전부 지웠다"는 뜻이지 "안 바꿨다"가 아니다.
   Future<RecordCard> update(EditRecordCard card);
+
+  /// 카드를 지운다.
+  ///
+  /// ## ⚠️ 되돌릴 수 없다
+  ///
+  /// 서버에 **논리 삭제 컬럼이 없다**(설계 3절). 확인을 받는 것은 화면의
+  /// 일이고, 여기는 한 번 가면 끝이라는 전제로 돈다.
+  ///
+  /// 없는 카드면 [RecordCardFailure.notFound]로 던진다 — 이미 지워진 것을 또
+  /// 지우려 한 것이다.
+  Future<void> delete(int cardId);
 }
 
 /// 카드를 못 읽은 이유.
