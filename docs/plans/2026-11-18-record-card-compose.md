@@ -4,7 +4,7 @@
 
 **Goal:** 기록카드 작성의 첫 화면을 세워, 그날 뛴 기록 하나에 유형과 회고를 붙인 **초안**을 만든다.
 
-**Architecture:** 초안은 `cardDraftProvider` 하나가 들고 세 화면을 따라다닌다(수정 모드는 카드 번호별 family). 그날 고를 수 있는 기록은 **러닝 기록 조회와 기록카드 조회를 동시에 부른 뒤 `runningRecordId`로 맞춰** 카드 유무를 가린다 — 서버가 그 값을 실어 주지 않기 때문이다. 화면은 셸 밖 라우트(`/record-card/new`)이고, 탭에서 들어가는 입구를 셋 만든다.
+**Architecture:** 달력이 카드와 **그 달의 러닝 기록**을 함께 받아, 뛰었는데 카드를 안 쓴 날에 운동화를 두고 **그 날만 눌리게** 한다. 초안은 `cardDraftProvider` 하나가 들고 세 화면을 따라다닌다(수정 모드는 카드 번호별 family). 그날 고를 수 있는 기록은 **러닝 기록 조회와 기록카드 조회를 동시에 부른 뒤 `runningRecordId`로 맞춰** 카드 유무를 가린다 — 서버가 그 값을 실어 주지 않기 때문이다. 화면은 셸 밖 라우트(`/record-card/new`)이고, 탭에서 들어가는 입구를 셋 만든다.
 
 **Tech Stack:** Flutter · Riverpod 3(수동 provider, 코드 생성 없음) · go_router · 기존 `showWheelPickerSheet` · `StatRowV2` · `RouteArtView`
 
@@ -29,7 +29,7 @@
 실행자가 설계 문서와 어긋난다고 멈추지 않게 미리 적는다. 셋 다 **설계 문서를 이쪽으로 고치는 것**이 맞고, 사용자에게 보고한다.
 
 1. **카드 유무를 서버에 묻지 않는다.** 설계 10절 질문 3이 "기록 목록 응답에 카드 유무를 실어 달라"인데 그 값은 아직 없다. **내 카드 목록을 그날치만 받아 `runningRecordId`로 맞춘다** — 왕복 하나가 늘지만 백엔드를 기다리지 않아도 되고, 조회가 그날로 좁혀져 비용이 작다.
-2. **빈 날을 눌렀을 때 기록 유무를 미리 보지 않는다.** 설계 6-1은 "그날 러닝 기록이 있을 때만 작성으로 간다"지만, 그러려면 **칸을 누를 때마다 네트워크 왕복**이 생겨 탭이 멈춘 듯 보인다. 작성 화면으로 보내고, 그 화면이 6-2가 이미 정한 "이 날에는 러닝 기록이 없어요" 한 줄을 띄운다. 날짜를 그 자리에서 바꿀 수 있으므로 막히지 않는다.
+2. ~~빈 날을 눌렀을 때 기록 유무를 미리 보지 않는다~~ → **철회(2026-11-18 사용자 결정).** 달력이 그 달의 **러닝 기록을 함께 받아** 둔다. 그러면 칸마다 네트워크를 물을 일이 없어져 원래 걱정이 사라지고, 뛴 날에 **운동화(`👟`)**를 둬 안 뛴 날과 눈으로 갈린다. **기록이 없는 날은 아예 눌리지 않는다** — Task 1이 그 데이터와 표시를, Task 7이 탭 동작을 맡는다.
 3. **카드가 이미 있는 기록을 누르면 `수정`이 아니라 `상세`로 보낸다.** 수정 화면은 뒤 PR이다. 누를 수 있는데 아무 일도 안 일어나는 것을 또 만들지 않는다(1번 PR의 교훈). 수정 PR이 이 한 줄을 바꾼다.
 
 ## 이 계획이 다루지 않는 것
@@ -41,11 +41,12 @@
 
 설계가 전제하지만 어느 작업의 테스트도 짚지 않는 것들. 각 줄의 테스트를 그 코드를 가진 작업에 넣어 두었다.
 
-1. **회고 1000자를 넘겨 붙여넣기.** 잘라서 담고 글자 수를 보여 준다 — 조용히 통째로 담으면 저장에서 거절당하고 쓴 글을 잃는다 → Task 3
-2. **그날 기록이 전부 카드를 가진 날.** 고를 것이 없어도 목록은 보이고 `다음`은 꺼진 채다 → Task 5
-3. **기록 조회 실패(세션 만료·망).** 목록 자리에 오류와 다시 시도. 날짜 행과 유형·회고는 그대로 살아 있다 → Task 5
-4. **미래 날짜.** 휠에서 오늘 이후를 고를 수 없다 — 뛰지 않은 날의 카드는 없다 → Task 5
-5. **쓰던 초안이 있는데 다른 날짜로 또 들어옴.** 덮어쓰기 전에 확인을 받는다(설계 7절) → Task 6
+1. **회고 1000자를 넘겨 붙여넣기.** 잘라서 담고 글자 수를 보여 준다 — 조용히 통째로 담으면 저장에서 거절당하고 쓴 글을 잃는다 → Task 4
+2. **달력의 러닝 기록 조회가 실패한 달.** 운동화만 빠지고 **카드와 달력은 산다** — 카드를 보는 것이 이 탭의 본업이다 → Task 1
+3. **그날 기록이 전부 카드를 가진 날.** 고를 것이 없어도 목록은 보이고 `다음`은 꺼진 채다 → Task 6
+4. **기록 조회 실패(세션 만료·망).** 목록 자리에 오류와 다시 시도. 날짜 행과 유형·회고는 그대로 살아 있다 → Task 6
+5. **미래 날짜.** 휠에서 오늘 이후를 고를 수 없다 — 뛰지 않은 날의 카드는 없다 → Task 6
+6. **쓰던 초안이 있는데 다른 날짜로 또 들어옴.** 덮어쓰기 전에 확인을 받는다(설계 7절) → Task 7
 
 ---
 
@@ -53,6 +54,10 @@
 
 | 파일 | 책임 |
 |---|---|
+| `record_card_state.dart` (수정) | `MonthCards.recordDays` · `RecordCardData.shoeDays`(뛰었는데 카드 없는 날) |
+| `record_card_provider.dart` (수정) | 달마다 카드와 **러닝 기록**을 함께 받는다 |
+| `record_card_cell.dart` (수정) | 운동화 자국 |
+| `record_card_calendar.dart` (수정) | 안 뛴 빈 날은 **눌리지 않는다** |
 | `lib/features/record_card/domain/card_draft.dart` | 초안 값 하나. 무엇이 차면 `다음`이 켜지나, 무엇이 차면 버릴 때 묻나 |
 | `lib/features/record_card/domain/composable_record.dart` | 고를 수 있는 기록 한 줄 + 기록과 카드를 맞추는 순수 함수 |
 | `lib/features/record_card/presentation/card_draft_provider.dart` | 초안을 들고 있는 family notifier (`null` = 새 카드) |
@@ -65,7 +70,113 @@
 
 ---
 
-### Task 1: 초안 값
+### Task 1: 달력이 뛴 날을 안다 — 운동화와 눌리는 칸
+
+**Files:**
+- Modify: `lib/features/record_card/presentation/record_card_state.dart` · `record_card_provider.dart` · `record_card_cell.dart` · `record_card_calendar.dart` · `lib/core/strings/app_strings.dart`
+- Test: `test/record_card_state_test.dart` · `test/record_card_provider_test.dart` · `test/record_card_cell_test.dart` · `test/record_card_calendar_test.dart` (모두 **기존 파일에 더한다**)
+
+**Interfaces:**
+- Consumes: `runRecordRepositoryProvider`(`features/record/presentation/record_provider.dart` — 다른 feature의 provider는 CLAUDE.md가 허용한다)
+- Produces:
+```dart
+// record_card_state.dart
+MonthCards({required DateTime month, required List<RecordCard> cards,
+            Set<DateTime> recordDays = const {}})   // 그 달 뛴 날. 시·분을 자른 날짜
+// RecordCardData
+final Set<DateTime> shoeDays;   // 뛰었는데 카드가 없는 날. 필터와 무관하다
+
+// record_card_cell.dart
+RecordCardCell({..., required bool hasUnwrittenRun})
+class RunShoeMark extends StatelessWidget   // 👟
+
+// app_strings.dart
+static String recordCardCellUnwrittenSemantics(DateTime day);  // '9월 3일, 러닝 기록 있음, 기록카드 쓰기'
+```
+
+**⚠️ 운동화는 유형 필터를 따르지 않는다.** `shoeDays`는 **필터를 걸기 전** 카드(`months`, `visible`이 아니다)로 가린다. 필터로 빈 칸이 된 날까지 운동화를 띄우면 `대회`를 걸었을 때 **달력이 운동화로 뒤덮인다.**
+
+- [ ] **Step 1: 실패하는 테스트를 쓴다**
+
+```dart
+// test/record_card_state_test.dart
+test('⚠️ 뛰었는데 카드가 없는 날만 운동화다', () {
+  final data = RecordCardData(months: [
+    MonthCards(
+      month: DateTime(2026, 9),
+      cards: [_card(id: 7, startedAt: DateTime(2026, 9, 7, 8))],
+      recordDays: {DateTime(2026, 9, 7), DateTime(2026, 9, 9)},
+    ),
+  ]);
+  expect(data.shoeDays, {DateTime(2026, 9, 9)});   // 7일은 카드가 있다
+});
+
+test('⚠️ 운동화는 유형 필터와 무관하다', () {
+  // 일상 카드가 있는 날에 `대회` 필터를 걸면 칸은 비지만 운동화는 뜨지 않는다.
+  final data = RecordCardData(months: [...], filter: RecordCardActivity.race);
+  expect(data.visible.single.cardCount, 0);
+  expect(data.shoeDays, isNot(contains(DateTime(2026, 9, 7))));
+});
+
+// test/record_card_provider_test.dart
+test('달마다 카드와 러닝 기록을 함께 받는다', () { /* recordDays가 찬다 */ });
+
+test('⚠️ 러닝 기록 조회가 실패해도 달력은 산다 — 운동화만 빠진다', () {
+  // 카드를 보는 것이 이 탭의 본업이다. 기록 조회 하나로 달력을 오류 화면으로
+  // 날리면 1번 PR에서 고친 결함을 되살린다.
+  expect(state, isA<RecordCardData>());
+  expect((state as RecordCardData).shoeDays, isEmpty);
+});
+
+// test/record_card_cell_test.dart
+testWidgets('⚠️ 뛰었는데 카드가 없는 칸에는 운동화가 선다', (tester) async {
+  expect(find.byType(RunShoeMark), findsOne);
+});
+testWidgets('카드가 있으면 운동화를 두지 않는다', (tester) async { /* findsNothing */ });
+
+// test/record_card_calendar_test.dart
+testWidgets('⚠️ 안 뛴 빈 날은 눌리지 않는다', (tester) async {
+  // 눌러서 "기록이 없어요"를 보여 주는 것보다 안 눌리는 편이 낫다(설계 6-1).
+  await tester.tap(find.bySemanticsLabel(
+    AppStrings.recordCardCellSemantics(day: DateTime(2026, 9, 3), count: 0)));
+  expect(emptyDay, isNull);
+});
+
+testWidgets('뛴 빈 날을 누르면 onEmptyDay가 그 날짜로 불린다', (tester) async {
+  await tester.tap(find.bySemanticsLabel(
+    AppStrings.recordCardCellUnwrittenSemantics(DateTime(2026, 9, 9))));
+  expect(emptyDay, DateTime(2026, 9, 9));
+});
+```
+
+- [ ] **Step 2: 실패를 확인한다**
+
+Run: `.fvm/flutter_sdk/bin/flutter.bat test test/record_card_state_test.dart test/record_card_cell_test.dart test/record_card_calendar_test.dart test/record_card_provider_test.dart`
+Expected: FAIL — `recordDays`·`shoeDays`·`hasUnwrittenRun`이 없어 컴파일되지 않는다
+
+- [ ] **Step 3: 구현한다**
+
+- `MonthCards.filtered`가 `recordDays`를 **그대로 넘긴다** — 떨어뜨리면 `visible`을 읽는 다음 사람이 빈 집합을 받고 조용히 틀린다.
+- 컨트롤러 `_fetch`는 달마다 `Future.wait`로 카드 조회와 `runRecordRepositoryProvider.byDateRange(from: 달1일, to: 말일)`을 **동시에** 던진다. 러닝 기록 쪽 `RunRecordException`은 **그 달에서만 삼키고** `recordDays: {}`로 둔다(그 이유를 주석에 적는다). 카드 쪽 실패는 지금 그대로다.
+- 칸 그림의 차례는 `사진 › 경로 선 › CardMarkDot › RunShoeMark › 날짜만`. `RunShoeMark`는 `Text('👟', fontSize: 14)` 하나다 — **분기 보기(26dp 칸)에서도 들어가는 크기**이고, `FittedBox`로 늘리면 월 보기에서 칸을 가득 메운다.
+- 달력 `_cellFor`는 `cards.isEmpty && !hasUnwrittenRun`이면 `onTap: null`을 넘긴다. 그러면 `Semantics(button:)`도 함께 꺼진다 — 스크린리더가 누를 수 없는 칸을 버튼으로 읽지 않는다.
+- 이모지는 **색을 토큰으로 맞출 수 없다.** 그 사실을 `RunShoeMark` 문서에 적고, 톤을 맞춰야 하면 `LucideIcons.footprints`로 바꿀 자리라고 남긴다.
+
+- [ ] **Step 4: 통과를 확인한다**
+
+Run: `.fvm/flutter_sdk/bin/flutter.bat test test/record_card_state_test.dart test/record_card_cell_test.dart test/record_card_calendar_test.dart test/record_card_provider_test.dart`
+Expected: PASS
+
+- [ ] **Step 5: 커밋**
+
+```bash
+git add lib/features/record_card/presentation/ lib/core/strings/app_strings.dart test/
+git commit -m "📍 Feat: 뛰었는데 카드를 안 쓴 날에 운동화를 둔다"
+```
+
+---
+
+### Task 2: 초안 값
 
 **Files:**
 - Create: `lib/features/record_card/domain/card_draft.dart`
@@ -146,7 +257,7 @@ git commit -m "📍 Feat: 기록카드 초안 값과 다음 버튼 규칙"
 
 ---
 
-### Task 2: 기록과 카드를 맞춘다
+### Task 3: 기록과 카드를 맞춘다
 
 **Files:**
 - Create: `lib/features/record_card/domain/composable_record.dart`
@@ -220,14 +331,14 @@ git commit -m "📍 Feat: 그날 기록에 이미 쓴 카드를 맞춰 붙인다
 
 ---
 
-### Task 3: 초안 provider
+### Task 4: 초안 provider
 
 **Files:**
 - Create: `lib/features/record_card/presentation/card_draft_provider.dart`
 - Test: `test/record_card_draft_provider_test.dart`
 
 **Interfaces:**
-- Consumes: Task 1의 `CardDraft`
+- Consumes: Task 2의 `CardDraft`
 - Produces:
 ```dart
 /// 인자는 카드 번호. **`null`이 새 카드다.**
@@ -307,14 +418,14 @@ git commit -m "📍 Feat: 작성 세 화면이 함께 쓰는 초안 provider"
 
 ---
 
-### Task 4: 그날 고를 수 있는 기록 조회
+### Task 5: 그날 고를 수 있는 기록 조회
 
 **Files:**
 - Create: `lib/features/record_card/presentation/compose_records_provider.dart`
 - Test: `test/record_card_compose_records_test.dart`
 
 **Interfaces:**
-- Consumes: `runRecordRepositoryProvider`(`features/record/presentation/record_provider.dart`) · `recordCardRepositoryProvider` · Task 2의 `joinCards`
+- Consumes: `runRecordRepositoryProvider`(`features/record/presentation/record_provider.dart`) · `recordCardRepositoryProvider` · Task 3의 `joinCards`
 - Produces:
 ```dart
 /// 인자는 **날짜**다. 시·분이 붙어 와도 날짜만 보고 조회한다.
@@ -371,7 +482,7 @@ git commit -m "📍 Feat: 그날 러닝 기록과 카드 유무를 한 번에 �
 
 ---
 
-### Task 5: 작성 1 화면
+### Task 6: 작성 1 화면
 
 **Files:**
 - Create: `lib/features/record_card/presentation/card_compose_page.dart`
@@ -379,7 +490,7 @@ git commit -m "📍 Feat: 그날 러닝 기록과 카드 유무를 한 번에 �
 - Test: `test/record_card_compose_page_test.dart`
 
 **Interfaces:**
-- Consumes: Task 1·3·4 전부 · `RouteArtView` · `runDetailProvider`(`features/record/presentation/record_provider.dart`) · `normalizeRoute`
+- Consumes: Task 2·4·5 전부 · `RouteArtView` · `runDetailProvider`(`features/record/presentation/record_provider.dart`) · `normalizeRoute`
 - Produces: `class CardComposePage extends ConsumerStatefulWidget { const CardComposePage({required this.day, this.cardId, super.key}); final DateTime day; final int? cardId; }`
 
 **화면** (설계 6-2):
@@ -420,6 +531,9 @@ git commit -m "📍 Feat: 그날 러닝 기록과 카드 유무를 한 번에 �
 ```dart
 testWidgets('기록을 고르고 유형·회고를 채우면 다음이 켜진다', (tester) async { /* ... */ });
 
+// ⚠️ 이 한 줄은 **달력에서는 더 이상 도달하지 않는다**(안 뛴 날이 안 눌린다).
+// 탭 머리 `✎`로 들어왔는데 오늘 안 뛴 경우와, 날짜 휠로 안 뛴 날로 옮긴
+// 경우에 뜬다. 그 두 길이 남아 있으므로 이 상태를 지우지 않는다.
 testWidgets('⚠️ 그날 기록이 없으면 한 줄로 알린다 — 날짜는 그대로 바꿀 수 있다', (tester) async {
   expect(find.text(AppStrings.recordCardComposeNoRecords), findsOne);
   expect(find.text(AppStrings.recordCardComposeDateLabel(DateTime(2026, 9, 3))), findsOne);
@@ -484,7 +598,7 @@ git commit -m "📍 Feat: 기록카드 작성 1 — 기록 고르기·유형·�
 
 ---
 
-### Task 6: 라우트와 입구 셋
+### Task 7: 라우트와 입구 셋
 
 **Files:**
 - Modify: `lib/app/router/app_routes.dart` (`recordCardDetail` 바로 아래 — **정렬 위치에 넣는다.** 맨 끝에 붙이면 머지 충돌이 난다)
@@ -512,9 +626,10 @@ testWidgets('⚠️ 카드가 한 장도 없으면 빈 안내에 쓰기 버튼�
   expect(find.text(AppStrings.recordCardEmptyAction), findsOne);
 });
 
-testWidgets('⚠️ 빈 날을 누르면 그 날짜로 작성에 간다', (tester) async {
+testWidgets('⚠️ 운동화 날을 누르면 그 날짜로 작성에 간다', (tester) async {
   // 1번 PR에서는 아무 일도 하지 않았다 — 눌리는데 반응이 없는 칸이었다.
-  expect(pushed, AppRoutes.recordCardNewOn(DateTime(2026, 9, 3)));
+  // 안 뛴 날이 눌리지 않는 것은 Task 1이 이미 막았다.
+  expect(pushed, AppRoutes.recordCardNewOn(DateTime(2026, 9, 9)));
 });
 
 test('recordCardNewOn이 날짜를 쿼리로 싣는다', () {
