@@ -55,6 +55,22 @@ class _Records implements RunRecordRepository {
       throw UnimplementedError('이 테스트는 상세를 부르지 않는다');
 }
 
+/// `RunRecordException`이 **아닌** 것으로 깨지는 저장소.
+///
+/// `RunRecordDto.recordFrom`은 `as int`와 `DateTime.parse`를 그대로 쓴다 —
+/// 서버가 한 칸만 null 로 주면 `TypeError`지 `RunRecordException`이 아니다.
+class _BrokenRecords implements RunRecordRepository {
+  @override
+  Future<List<RunRecord>> byDateRange({
+    required DateTime from,
+    required DateTime to,
+  }) async => throw TypeError();
+
+  @override
+  Future<Never> byRoom(int runningRoomId) =>
+      throw UnimplementedError('이 테스트는 상세를 부르지 않는다');
+}
+
 /// 러닝 기록 조회가 늘 실패하는 저장소.
 class _FailingRecords implements RunRecordRepository {
   @override
@@ -289,6 +305,18 @@ void main() {
     expect(state, isA<RecordCardData>());
     expect((state as RecordCardData).shoeDays, isEmpty);
     expect(state.months, hasLength(3));
+  });
+
+  test('⚠️ 러닝 기록이 RunRecordException 아닌 것으로 깨져도 달력은 산다', () async {
+    // 안 받으면 두 가지가 한꺼번에 터진다 — 아무도 안 받은 비동기 오류가 되고,
+    // 상태가 RecordCardLoading 에 영원히 머물러 탭이 빈 화면에서 돈다.
+    container = build(records: _BrokenRecords());
+    await _settle();
+
+    final state = container.read(recordCardControllerProvider);
+    expect(state, isA<RecordCardData>());
+    expect((state as RecordCardData).months, hasLength(3));
+    expect(state.shoeDays, isEmpty);
   });
 
   test('⚠️ 계정이 바뀌면 앞 사람 카드를 버리고 다시 읽는다', () async {

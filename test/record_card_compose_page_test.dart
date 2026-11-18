@@ -501,6 +501,110 @@ void main() {
       expect(find.text(AppStrings.recordCardComposeDiscardTitle), findsNothing);
     });
 
+    testWidgets('⚠️ 복귀 시트를 바깥 탭으로 닫아도 쓴 글이 남는다', (tester) async {
+      // 모든 시트가 바깥 탭으로 닫히는 앱에서, 가장 무심한 동작 하나로 쓴
+      // 회고가 사라지면 안 된다. 초안은 영속화하지 않아 되돌릴 길이 없다.
+      final container = await pumpWithDraft(
+        tester,
+        seed: (draft) => draft.setReview('쓰던 글'),
+      );
+
+      await tester.tapAt(const Offset(400, 40));
+      await tester.pumpAndSettle();
+
+      expect(container.read(cardDraftProvider(null)).reviewText, '쓰던 글');
+    });
+
+    testWidgets('⚠️ 버리기를 한 번 누르면 화면을 나간다', (tester) async {
+      // PopScope 의 canPop 이 아직 다시 그려지지 않아, maybePop 이 같은 시트를
+      // 또 띄운다. 사용자는 버리겠다고 한 뒤 빈 화면에 갇힌다.
+      final router = GoRouter(
+        initialLocation: '/host',
+        routes: [
+          GoRoute(
+            path: '/host',
+            builder: (_, _) => const Scaffold(body: Text('호스트')),
+          ),
+          GoRoute(
+            path: '/compose',
+            builder: (_, _) => CardComposePage(day: _day),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            runRecordRepositoryProvider.overrideWithValue(
+              _Records([_record(id: 11)], detail: _detail(roomId: 911)),
+            ),
+            recordCardRepositoryProvider.overrideWithValue(_Cards(const [])),
+            recordCardClockProvider.overrideWithValue(() => _today),
+          ],
+          child: MaterialApp.router(
+            theme: AppTheme.dark(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      router.push('/compose');
+      await tester.pumpAndSettle();
+
+      await _reach(tester, find.byType(AppInputV2));
+      await tester.enterText(find.byType(AppInputV2), '쓴 글');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(LucideIcons.chevronLeft));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.recordCardComposeDiscard));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.recordCardComposeDiscardTitle), findsNothing);
+      expect(find.byType(CardComposePage), findsNothing);
+      expect(find.text('호스트'), findsOne);
+    });
+
+    testWidgets('⚠️ 날짜를 바꾸면 고른 기록이 풀린다', (tester) async {
+      // 안 풀면 날짜 행은 5일인데 초안은 2일 기록을 들고 있고, 그 아래 경로와
+      // 지표도 2일 것이다. 그대로 저장하면 엉뚱한 러닝에 카드가 붙는다.
+      await _pump(tester);
+      await _pickRecord(tester, _record(id: 11));
+      await _reach(tester, find.text(AppStrings.recordCardActivityDaily));
+      await tester.tap(find.text(AppStrings.recordCardActivityDaily));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(AppInputV2), '좋았다');
+      await tester.pumpAndSettle();
+
+      // 회고 칸까지 내려와 있어 날짜 행이 위로 사라졌다. 끌어 올린다 —
+      // `ListView(children:)`는 보이지 않는 자식의 element 를 만들지 않는다.
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, 600));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.recordCardComposeDateLabel(_day)));
+      await tester.pumpAndSettle();
+      // 오늘은 9월 10일이라 일 칸은 1~10이고 지금 2일에 서 있다. 셋 굴려 5일로.
+      await tester.drag(
+        find.byType(ListWheelScrollView).at(2),
+        const Offset(0, -132),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.wheelPickerConfirm));
+      await tester.pumpAndSettle();
+
+      final element = tester.element(find.byType(CardComposePage));
+      final draft = ProviderScope.containerOf(
+        element,
+      ).read(cardDraftProvider(null));
+
+      expect(
+        find.text(AppStrings.recordCardComposeDateLabel(DateTime(2026, 9, 5))),
+        findsOne,
+      );
+      expect(draft.record, isNull);
+      expect(draft.route, isNull);
+      expect(draft.canProceed, isFalse);
+      // 앞 기록의 지표가 남아 있으면 안 된다.
+      expect(find.text(AppStrings.recordCardDistance), findsNothing);
+    });
+
     testWidgets('⚠️ 버리기를 고르면 초안이 비워진다', (tester) async {
       final container = await pumpWithDraft(tester, seed: (_) {});
       await _reach(tester, find.byType(AppInputV2));

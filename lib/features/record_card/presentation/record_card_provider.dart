@@ -5,6 +5,7 @@ import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/record/domain/run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
+import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
@@ -152,14 +153,20 @@ class RecordCardController extends Notifier<RecordCardState> {
         // 이미 들고 있는 달은 건너뛴다.
         if (already.contains(month)) continue;
         final to = _lastDayOf(month);
-        // ⚠️ **둘을 먼저 띄우고 그 다음에 기다린다.** `await`를 한 줄씩
-        // 쓰면 왕복이 두 배가 되고, `(a, b).wait`로 묶으면 카드 쪽 실패가
-        // `ParallelWaitError`에 싸여 아래 `on RecordCardException`에 안 걸린다.
-        final cardsSoon = repository.byDateRange(from: month, to: to);
-        final daysSoon = _recordDaysOf(records, from: month, to: to);
-        final cards = await cardsSoon;
+        // ⚠️ **`Future.wait`로 묶는다.** `await`를 한 줄씩 쓰면, 먼저
+        // 기다리는 쪽이 끝나기 전에 다른 쪽이 깨질 때 그 오류를 **아무도
+        // 받지 않는다**. `(a, b).wait`는 쓰지 않는다 — 오류를
+        // `ParallelWaitError`로 싸서 아래 `on RecordCardException`에 안 걸린다.
+        final both = await Future.wait<Object>([
+          repository.byDateRange(from: month, to: to),
+          _recordDaysOf(records, from: month, to: to),
+        ]);
         fetched.add(
-          MonthCards(month: month, cards: cards, recordDays: await daysSoon),
+          MonthCards(
+            month: month,
+            cards: both[0] as List<RecordCard>,
+            recordDays: both[1] as Set<DateTime>,
+          ),
         );
       }
 
@@ -203,6 +210,11 @@ class RecordCardController extends Notifier<RecordCardState> {
   /// ⚠️ **실패하면 빈 집합이다.** 러닝 기록 조회 하나로 달력을 오류 화면으로
   /// 날리지 않는다 — 카드를 보는 것이 이 탭의 본업이고, 그때도 탭 머리의
   /// 쓰기 버튼으로 작성에 들어갈 수 있다. 운동화만 빠진다.
+  ///
+  /// ⚠️ **`RunRecordException`만 받아내면 모자란다.** `RunRecordDto.recordFrom`
+  /// 은 `as int`와 `DateTime.parse`를 그대로 쓴다 — 서버가 한 칸만 null 로
+  /// 주면 `TypeError`지 `RunRecordException`이 아니다. 그것이 새어 나가면
+  /// 탭이 `RecordCardLoading`에 영원히 머물러 **빈 화면에서 돈다.**
   static Future<Set<DateTime>> _recordDaysOf(
     RunRecordRepository repository, {
     required DateTime from,
@@ -211,7 +223,7 @@ class RecordCardController extends Notifier<RecordCardState> {
     try {
       final records = await repository.byDateRange(from: from, to: to);
       return {for (final record in records) record.day};
-    } on RunRecordException {
+    } on Object {
       return const {};
     }
   }

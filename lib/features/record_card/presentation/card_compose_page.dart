@@ -222,7 +222,12 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
     _draft.clear();
     _review.clear();
     if (!mounted) return;
-    Navigator.of(context).maybePop();
+    // ⚠️ **`maybePop`을 쓰지 않는다.** 방금 비운 초안은 아직 다시 그려지지
+    // 않아 `PopScope.canPop`이 그대로 `false`고, `maybePop`은 그것을 보고
+    // 같은 시트를 또 띄운다 — 사용자가 버리겠다고 한 뒤 빈 화면에 갇힌다.
+    // `pop`은 그 검사를 건너뛴다. 나갈 데가 없으면(루트) 아무것도 안 한다.
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) navigator.pop();
   }
 
   /// 쓰던 초안을 이어 쓸지 묻는다. **화면에 그대로 머문다** — 어느 쪽을
@@ -236,7 +241,11 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
     );
     if (!mounted) return;
 
-    if (resume == true) {
+    // ⚠️ **`null`은 이어 쓰기다.** 바깥을 눌러 닫거나 시스템 뒤로로 시트를
+    // 치운 것은 "버려라"가 아니다. 이 앱의 모든 시트가 바깥 탭으로 닫히므로,
+    // 그 무심한 동작 하나로 쓴 회고가 사라지면 되돌릴 길이 없다 — 초안은
+    // 영속화하지 않는다.
+    if (resume != false) {
       // 쓰던 기록이 있으면 그 날짜로 돌아간다 — 이어 쓰는 것은 그날 카드다.
       final record = ref.read(cardDraftProvider(widget.cardId)).record;
       if (record != null) setState(() => _day = record.day);
@@ -365,7 +374,14 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
     );
     if (picked == null) return;
 
-    setState(() => _day = DateTime(picked[0], picked[1], picked[2]));
+    final next = DateTime(picked[0], picked[1], picked[2]);
+    if (next == _day) return;
+
+    setState(() => _day = next);
+    // ⚠️ **고른 기록을 함께 푼다.** 안 풀면 날짜 행은 새 날인데 초안은 앞
+    // 날의 기록을 들고 있고, 그 아래 경로와 지표도 앞 날 것이다. `다음`이
+    // 켜진 채라 그대로 저장하면 **엉뚱한 러닝에 카드가 붙는다.**
+    _draft.clearRecord();
   }
 }
 
