@@ -24,10 +24,13 @@ class FirebaseAnalyticsService implements Analytics {
   final FirebaseCrashlytics _crashlytics;
 
   @override
-  Future<void> screenView({required String name}) async {
+  Future<void> screenView({required String name, String? runType}) async {
     try {
-      await _analytics.logScreenView(screenName: name);
-      if (kDebugMode) debugPrint('[ga] screen_view $name');
+      await _analytics.logScreenView(
+        screenName: name,
+        parameters: runType == null ? null : {'run_type': runType},
+      );
+      if (kDebugMode) debugPrint('[ga] screen_view $name ${runType ?? ''}');
     } on Object catch (error) {
       if (kDebugMode) debugPrint('[ga] screen_view $name 실패: $error');
     }
@@ -52,28 +55,50 @@ class FirebaseAnalyticsService implements Analytics {
   Future<void> matchSlotSheetOpen() => _send('match_slot_sheet_open', null);
 
   @override
-  Future<void> matchSlotSelect() => _send('match_slot_select', null);
+  Future<void> matchSlotSelect({DateTime? slotStartAt, int? distanceMeters}) =>
+      _send(
+        'match_slot_select',
+        MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
+      );
 
   @override
   Future<void> matchApply({
     required int distanceMeters,
     required int otherDistanceWaiting,
     required int otherDistanceWaitingSameTime,
+    DateTime? slotStartAt,
   }) => _send('match_apply', {
+    ...MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
     'distance_m': distanceMeters,
     'other_distance_waiting': otherDistanceWaiting,
     'other_distance_waiting_same_time': otherDistanceWaitingSameTime,
   });
 
   @override
-  Future<void> matchConfirmed({int? distanceMeters}) => _send(
-    'match_confirmed',
-    // ⚠️ 모르면 **빼고 보낸다.** 0 을 실으면 `0m 매칭`이 지표에 생긴다.
-    distanceMeters == null ? null : {'distance_m': distanceMeters},
-  );
+  Future<void> matchConfirmed({int? distanceMeters, DateTime? slotStartAt}) =>
+      _send('match_confirmed', {
+        ...MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
+        // ⚠️ 모르면 **빼고 보낸다.** 0 을 실으면 `0m 매칭`이 지표에 생긴다.
+        'distance_m': ?distanceMeters,
+      });
 
   @override
-  Future<void> matchCancel() => _send('match_cancel', null);
+  Future<void> matchFailed({int? distanceMeters, DateTime? slotStartAt}) =>
+      _send('match_failed', {
+        ...MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
+        'distance_m': ?distanceMeters,
+      });
+
+  @override
+  Future<void> matchCancel({
+    required String stage,
+    int? distanceMeters,
+    DateTime? slotStartAt,
+  }) => _send('match_cancel', {
+    ...MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
+    'cancel_stage': stage,
+    'distance_m': ?distanceMeters,
+  });
 
   @override
   Future<void> chatOpen({
@@ -100,9 +125,22 @@ class FirebaseAnalyticsService implements Analytics {
       _send('run_start', {'run_type': runType});
 
   @override
-  Future<void> runFinish({required String runType, required bool early}) =>
-      // GA 파라미터는 문자열·숫자만 받는다. `bool` 을 실으면 플러그인이 거절한다.
-      _send('run_finish', {'run_type': runType, 'early': early.toString()});
+  Future<void> runStartFailed({
+    required String runType,
+    required String reason,
+  }) => _send('run_start_failed', {'run_type': runType, 'reason': reason});
+
+  @override
+  Future<void> runFinish({
+    required String runType,
+    required bool early,
+    required RunOutcome outcome,
+  }) => _send('run_finish', {
+    'run_type': runType,
+    // GA 파라미터는 문자열·숫자만 받는다. `bool` 을 실으면 플러그인이 거절한다.
+    'early': early.toString(),
+    'run_outcome': outcome.name,
+  });
 
   @override
   Future<void> withdraw() => _send('withdraw', null);

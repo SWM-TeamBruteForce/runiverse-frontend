@@ -19,8 +19,8 @@ class FakeAnalytics implements Analytics {
       events.lastWhere((e) => e.$1 == name, orElse: () => (name, null)).$2;
 
   @override
-  Future<void> screenView({required String name}) async =>
-      events.add(('screen_view', {'name': name}));
+  Future<void> screenView({required String name, String? runType}) async =>
+      events.add(('screen_view', {'name': name, 'run_type': ?runType}));
 
   @override
   Future<void> login({required String method}) async =>
@@ -43,17 +43,24 @@ class FakeAnalytics implements Analytics {
       events.add(('match_slot_sheet_open', null));
 
   @override
-  Future<void> matchSlotSelect() async =>
-      events.add(('match_slot_select', null));
+  Future<void> matchSlotSelect({
+    DateTime? slotStartAt,
+    int? distanceMeters,
+  }) async => events.add((
+    'match_slot_select',
+    MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
+  ));
 
   @override
   Future<void> matchApply({
     required int distanceMeters,
     required int otherDistanceWaiting,
     required int otherDistanceWaitingSameTime,
+    DateTime? slotStartAt,
   }) async => events.add((
     'match_apply',
     {
+      ...MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
       'distance_m': distanceMeters,
       'other_distance_waiting': otherDistanceWaiting,
       'other_distance_waiting_same_time': otherDistanceWaitingSameTime,
@@ -61,13 +68,42 @@ class FakeAnalytics implements Analytics {
   ));
 
   @override
-  Future<void> matchConfirmed({int? distanceMeters}) async => events.add((
+  Future<void> matchConfirmed({
+    int? distanceMeters,
+    DateTime? slotStartAt,
+  }) async => events.add((
     'match_confirmed',
-    distanceMeters == null ? null : {'distance_m': distanceMeters},
+    {
+      ...MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
+      'distance_m': ?distanceMeters,
+    },
   ));
 
   @override
-  Future<void> matchCancel() async => events.add(('match_cancel', null));
+  Future<void> matchFailed({
+    int? distanceMeters,
+    DateTime? slotStartAt,
+  }) async => events.add((
+    'match_failed',
+    {
+      ...MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
+      'distance_m': ?distanceMeters,
+    },
+  ));
+
+  @override
+  Future<void> matchCancel({
+    required String stage,
+    int? distanceMeters,
+    DateTime? slotStartAt,
+  }) async => events.add((
+    'match_cancel',
+    {
+      ...MatchSlotParams.of(startAt: slotStartAt, meters: distanceMeters),
+      'cancel_stage': stage,
+      'distance_m': ?distanceMeters,
+    },
+  ));
 
   @override
   Future<void> chatOpen({
@@ -93,13 +129,25 @@ class FakeAnalytics implements Analytics {
       events.add(('run_start', {'run_type': runType}));
 
   @override
+  Future<void> runStartFailed({
+    required String runType,
+    required String reason,
+  }) async =>
+      events.add(('run_start_failed', {'run_type': runType, 'reason': reason}));
+
+  @override
   Future<void> runFinish({
     required String runType,
     required bool early,
+    required RunOutcome outcome,
   }) async => events.add((
     'run_finish',
     // 진짜와 같은 모양으로 적는다. GA 에는 문자열로 나간다.
-    {'run_type': runType, 'early': early.toString()},
+    {
+      'run_type': runType,
+      'early': early.toString(),
+      'run_outcome': outcome.name,
+    },
   ));
 
   @override

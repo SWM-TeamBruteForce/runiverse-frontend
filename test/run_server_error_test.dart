@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/core/analytics/analytics.dart';
+import 'package:runiverse/core/analytics/fake_analytics.dart';
 import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/core/storage/token_store.dart';
@@ -25,6 +27,7 @@ import 'package:runiverse/features/session/domain/geo_point.dart';
 void main() {
   late _ErrorChannel channel;
   late FakeTrackRepository track;
+  late FakeAnalytics analytics;
 
   Future<ProviderContainer> makeContainer() async {
     final tokens = InMemoryTokenStore();
@@ -36,8 +39,10 @@ void main() {
     );
     channel = _ErrorChannel();
     track = FakeTrackRepository();
+    analytics = FakeAnalytics();
     return ProviderContainer.test(
       overrides: [
+        analyticsProvider.overrideWithValue(analytics),
         tokenStoreProvider.overrideWithValue(tokens),
         trackRepositoryProvider.overrideWithValue(track),
         runningChannelFactoryProvider.overrideWithValue((_) => channel),
@@ -104,6 +109,22 @@ void main() {
     expect(channel.closed, isTrue);
     // 방 번호는 남긴다. 화면이 상태를 다시 읽을 때 근거가 된다.
     expect(state.room?.id, 125);
+  });
+
+  test('⚠️ 시작 확인 전에 참가자가 아니라는 답이면 시작 실패로 한 번 남는다', () async {
+    // 이 채널은 시작 확인을 보내지 않는다 — 출발하지 못한 방이다.
+    final container = await makeContainer();
+    final connection = container.read(runningConnectionProvider.notifier);
+    await connection.openMatched(125, targetDistanceMeters: 3000);
+
+    channel.errors_.add(WsErrorCode.notRoomPlayer);
+    await settle();
+
+    expect(analytics.countOf('run_start_failed'), 1);
+    expect(analytics.paramsOf('run_start_failed'), {
+      'run_type': 'match',
+      'reason': 'not_room_player',
+    });
   });
 
   /// 저장 실패한 배치를 다시 보내는가 — 1.1.1 3절.

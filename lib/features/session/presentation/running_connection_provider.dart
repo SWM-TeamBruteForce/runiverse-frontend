@@ -8,6 +8,7 @@ import 'package:runiverse/core/network/ws_client.dart';
 import 'package:runiverse/features/app_update/presentation/app_update_provider.dart';
 import 'package:runiverse/core/network/ws_message.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
+import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/session/data/http_running_room_repository.dart';
 import 'package:runiverse/features/session/data/ws_running_channel.dart';
 import 'package:runiverse/features/session/domain/finish_outcome.dart';
@@ -233,6 +234,7 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       // 재시도해도 같은 답이다. 보내던 것을 멈추고 소켓을 닫는다 — 화면이
       // 이 실패를 보고 러닝을 접는다.
       debugPrint('[running] 이 방의 참가자가 아니다. 러닝을 접는다');
+      _logStartFailed(state.room, 'not_room_player');
       _retry?.cancel();
       _sender?.stop();
       _sender = null;
@@ -407,9 +409,73 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   /// `run_start` 를 남긴 방. 재연결로 ack 가 또 와도 다시 세지 않는다.
   int? _startLogged;
 
-  /// GA 가 받는 러닝 종류. 매칭 방이면 `match`, 솔로면 `solo` 다.
-  static String _runType(bool? isMatched) =>
-      (isMatched ?? false) ? 'match' : 'solo';
+  /// `run_start_failed` 를 남긴 방. 같은 방의 실패를 두 번 세지 않는다.
+  int? _startFailedLogged;
+
+  /// 서버가 **시작 전에** 거절했다. 이미 시작한 방이면 남기지 않는다 —
+  /// 그것은 시작 실패가 아니라 도중에 끊긴 것이다(`Analytics.runStartFailed`).
+  void _logStartFailed(RunningRoom? room, String reason) {
+    if (room == null) return;
+    if (room.id == _startLogged || room.id == _startFailedLogged) return;
+    _startFailedLogged = room.id;
+    unawaited(
+      ref
+          .read(analyticsProvider)
+          .runStartFailed(runType: _runType(room), reason: reason),
+    );
+  }
+
+  /// GA 가 받는 러닝 종류. `match` · `invite` · `solo`.
+  ///
+  /// ⚠️ **[RunningRoom.isMatched] 만 보지 않는다.** 초대 방도 파티원 화면이
+  /// 있어 참이라, 그것만 보면 초대 방이 `match` 로 세어진다 — 매칭 퍼널에
+  /// 직접 모은 방이 섞인다. 종류를 모르는 매칭 방은 예전처럼 `match` 다.
+  static String _runType(RunningRoom? room) => switch (room) {
+    RunningRoom(type: RoomType.invite) => 'invite',
+    RunningRoom(isMatched: true) => 'match',
+    _ => 'solo',
+  };
+
+  /// `run_finish` 를 남긴다. **결과 API(17번)를 한 번 읽어** 완주를 가린다.
+  ///
+  /// ⚠️ **기다리지 않는다(`unawaited`).** 분석 한 줄 때문에 종료 정리가 늦으면
+  /// 안 된다. 그래서 [room] 을 **부르는 순간에** 받아 둔다 — 이 함수가 도는
+  /// 사이 [_cleanUpAfterFinish] 가 상태를 비운다.
+  ///
+  /// ⚠️ **`ref` 는 `await` 앞에서만 읽는다.** 결과를 기다리는 사이 provider 가
+  /// 버려질 수 있고, 그 뒤에 `ref` 를 만지면 던진다.
+  ///
+  /// 목표가 없는 방은 **부르지 않는다** — 비교할 것이 없어 어차피 `unknown`
+  /// 이다. 못 읽어도 `unknown` 으로 **보내기는 한다.** 안 보내면 결과 API가
+  /// 실패한 러닝이 종료 집계에서 통째로 빠진다.
+  Future<void> _logFinish(RunningRoom? room, {required bool early}) async {
+    final analytics = ref.read(analyticsProvider);
+    final target = room?.targetDistanceMeters;
+    var outcome = RunOutcome.unknown;
+    if (room != null && target != null) {
+      try {
+        // ⚠️ 저장소 읽기도 `try` 안에 둔다. 만들다 던질 수 있다(테스트에서는
+        // 서버 주소가 없어 dio 가 죽는다).
+        final detail = await ref
+            .read(runRecordRepositoryProvider)
+            .byRoom(room.id);
+        // ⚠️ **17번의 내 거리**다. `RunDetail.distanceMeters` 는 18번을 먼저
+        // 보므로 쓰지 않는다 — 판정 기준을 17번 하나로 정했다.
+        final me = detail.players.where((it) => it.isMe).firstOrNull;
+        outcome = RunOutcome.judge(
+          targetMeters: target,
+          distanceMeters: me?.distanceMeters,
+        );
+      } on Object catch (error) {
+        debugPrint('[running] 완주 판정을 못 했다 · $error');
+      }
+    }
+    await analytics.runFinish(
+      runType: _runType(room),
+      early: early,
+      outcome: outcome,
+    );
+  }
 
   /// 아직 시작하지 않은 방을 **서버에서 없애고** 앱에서도 내려놓는다.
   ///
@@ -563,6 +629,7 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
   Future<void> _connect(RunningRoom room, {bool recovered = false}) async {
     final accessToken = (await ref.read(tokenStoreProvider).read()).accessToken;
     if (accessToken == null) {
+      _logStartFailed(room, 'session_expired');
       state = const RunningConnectionState(
         failure: RunningRoomFailure.sessionExpired,
       );
@@ -625,9 +692,7 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       if (startedId != null && startedId != _startLogged) {
         _startLogged = startedId;
         unawaited(
-          ref
-              .read(analyticsProvider)
-              .runStart(runType: _runType(state.room?.isMatched)),
+          ref.read(analyticsProvider).runStart(runType: _runType(state.room)),
         );
       }
 
@@ -969,14 +1034,7 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
         // ⚠️ **끝냈다는 사실을 남긴다.** 서버 상태가 따라오기 전까지 홈이
         // 이 방으로 돌아가는 문을 띄우지 않게 한다.
         _finishedRoomId = finishedId;
-        unawaited(
-          ref
-              .read(analyticsProvider)
-              .runFinish(
-                runType: _runType(state.room?.isMatched),
-                early: forced,
-              ),
-        );
+        unawaited(_logFinish(state.room, early: forced));
         await ref.read(trackRecorderProvider).discard();
         // ⚠️ 좌표와 **같은 순간에** 지운다. 번호만 남으면 다음 러닝이 이미 끝난
         // 방을 정리하려 들고, 좌표만 남으면 지울 사람이 없어진다.
@@ -1044,11 +1102,7 @@ class RunningConnectionController extends Notifier<RunningConnectionState> {
       _sender?.stop();
 
       _finishedRoomId = finishedId;
-      unawaited(
-        ref
-            .read(analyticsProvider)
-            .runFinish(runType: _runType(state.room?.isMatched), early: false),
-      );
+      unawaited(_logFinish(state.room, early: false));
       await ref.read(trackRecorderProvider).discard();
       await ref.read(trackRepositoryProvider).clearActiveRoom();
     } on Object catch (error) {
