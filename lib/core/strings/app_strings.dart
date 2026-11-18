@@ -1746,6 +1746,12 @@ abstract final class AppStrings {
   static String recordCardPhotoSemantics(int index, int count) =>
       '$count장 중 $index번째 사진';
 
+  /// 점 인디케이터. ⚠️ [recordCardPhotoSemantics]와 **달라야 한다** — 같으면
+  /// 스크린리더가 한 장에 두 번 같은 이름을 읽고, 어느 쪽이 넘기는 버튼인지
+  /// 모른다.
+  static String recordCardPhotoGoTo(int index, int count) =>
+      '$count장 중 $index번째 사진 보기';
+
   /// ⚠️ **형식 탓이 아니다.** 고르던 사이에 OS가 임시 폴더를 비운 자리다 —
   /// 형식이라고 하면 사용자가 다른 사진을 고르러 간다.
   static const recordCardPhotoUnreadable = '사진을 읽지 못했어요\n다시 골라 주세요';
