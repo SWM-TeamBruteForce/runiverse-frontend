@@ -26,7 +26,9 @@ import 'package:runiverse/features/matching/domain/room_info.dart';
 ///
 /// 기본 상태의 빛은 **이미지다**(`assets/images/home_hero_light.webp`).
 /// 시안이 blur 레이어 일곱 겹을 `plus-lighter`로 겹쳐 만든 것이라 손으로
-/// 그리면 맞출 수 없다. 부드러운 그러데이션이라 WebP 로 5KB 에 들어간다.
+/// 그리면 맞출 수 없다. 시안을 3배(1152×1356)로 내보낸 WebP 다 — 1배로
+/// 줄이면 어두운 그러데이션에 계단이 드러난다. 시안의 잔 입자 레이어
+/// (`image 8`)는 폰에서 점 하나하나가 보여 끄고 내보냈다.
 ///
 /// 글자는 빛의 **위쪽**에 둔다. `docs/implementation-notes.md` §3-4가
 /// **글로우를 텍스트 뒤에 깔지 말라**고 못 박았는데, 시안의 빛은 아래가 밝고
