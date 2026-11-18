@@ -2069,6 +2069,15 @@ abstract final class AppStrings {
   /// 고친 메시지에 붙는 꼬리말.
   static const chatEdited = '수정됨';
 
+  /// 누가 방에 들어오고 나간 안내 줄. 다시 들어와도 "들어왔어요"다.
+  static String chatJoined(String nickname) => '$nickname님이 들어왔어요';
+  static String chatLeft(String nickname) => '$nickname님이 나갔어요';
+
+  /// 탈퇴한 사람의 안내 줄. 서버가 주는 이름이 `탈퇴한 사용자`라 "님이"를
+  /// 붙이면 어색하다.
+  static const chatJoinedWithdrawn = '탈퇴한 사용자가 들어왔어요';
+  static const chatLeftWithdrawn = '탈퇴한 사용자가 나갔어요';
+
   /// 러닝이 시작돼 채팅이 닫혔다(409). **"다시 시도"를 띄우지 않는다** —
   /// 되돌아오지 않는 상태다.
   static const chatClosed = '러닝이 시작돼 대화를 닫았어요';

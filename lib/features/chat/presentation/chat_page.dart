@@ -233,25 +233,25 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       );
     }
 
-    if (state.messages.isEmpty && state.pending.isEmpty) {
-      // ⚠️ 칩과 입력창은 이때도 보인다 — 먼저 말을 걸 수 있어야 한다.
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space6),
-          child: Text(
-            AppStrings.chatEmpty,
-            textAlign: TextAlign.center,
-            style: AppTypographyV2.body12.copyWith(color: colors.textTertiary),
-          ),
-        ),
-      );
-    }
-
     final order = [for (final player in players) player.userId];
+
+    // 사람이 쓴 말이 아직 없다. 지운 말도 누가 쓴 것이라 센다.
+    //
+    // ⚠️ **위로 긁어 받을 페이지가 남았으면 띄우지 않는다.** 받은 페이지가 안내
+    // 줄로만 차 있어도 그 위에 말이 있을 수 있다(대기 취소·재신청을 되풀이한 방).
+    //
+    // ⚠️ **안내는 정중앙이 아니라 맨 아래(입력창 바로 위)에 둔다.** 들어오고
+    // 나간 줄만 쌓인 방에서도 뜨는데, 정중앙에 두면 그 줄들과 겹친다. 칩과
+    // 입력창은 이때도 보인다 — 먼저 말을 걸 수 있어야 한다.
+    final quiet =
+        state.pending.isEmpty &&
+        !state.hasMore &&
+        !state.messages.any((one) => one.type == ChatType.message);
 
     // ⚠️ **아래가 최신이다.** `reverse`라 index 0이 맨 아래라, 뒤집어 넣는다.
     // 보내는 중인 내 말은 가장 아래 — 방금 쓴 것이므로.
     final rows = <Object>[
+      if (quiet) _emptyHint,
       for (final one in state.pending.reversed) one,
       for (final one in state.messages.reversed) one,
       // 이전 페이지를 긁는 중이면 맨 위(= 목록의 끝)에 표시가 붙는다.
@@ -266,6 +266,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.space3),
       itemBuilder: (context, index) {
         final row = rows[index];
+
+        if (row == _emptyHint) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space2),
+            child: Text(
+              AppStrings.chatEmpty,
+              textAlign: TextAlign.center,
+              // 들어오고 나간 줄과 같은 크기 — 둘 다 대화를 돕는 글이다.
+              style: AppTypographyV2.body18.copyWith(
+                color: colors.textTertiary,
+              ),
+            ),
+          );
+        }
 
         if (row == _loadingMore) {
           return const Center(
@@ -290,7 +304,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         }
 
         final message = row as Chat;
-        final mine = message.sender.userId == myUserId;
+        final sender = message.sender;
+
+        // 들어오고 나간 안내 줄이다. 보낸 사람이 없다.
+        if (sender == null) return ChatNoticeLine(text: _noticeOf(message));
+
+        final mine = sender.userId == myUserId;
 
         return ChatBubble(
           // ⚠️ **가리는 것은 여기뿐이다.** 보내는 쪽에서 막으면 클라이언트를
@@ -300,7 +319,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           text: maskProfanity(message.content ?? ''),
           time: AppStrings.matchSlotTime(message.createdAt),
           mine: mine,
-          nickname: message.sender.nickname,
+          nickname: sender.nickname,
           deleted: message.isDeleted,
           edited: message.isEdited,
           // ⚠️ **명단에 없으면 방을 떠난 것이다.** 자리는 두고 본문만 가린다.
@@ -311,10 +330,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           //
           // 내 말은 절대 가리지 않는다. 명단이 한 박자 늦게 오는 사이 내가 쓴
           // 말이 흐려지면 보낸 사람이 자기 말을 못 읽는다.
-          blinded:
-              !mine &&
-              order.isNotEmpty &&
-              !order.contains(message.sender.userId),
+          blinded: !mine && order.isNotEmpty && !order.contains(sender.userId),
           // ⚠️ **내 것이고 안 지워졌을 때만** 수정·삭제가 있다. 남의 말은
           // 서버가 404로 막지만, 누를 수 있게 두면 안 되는 것을 눌러 보게 된다.
           onLongPress: mine && !message.isDeleted
@@ -324,7 +340,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           accent: _legible(
             RunPaletteV2.lane(
               partyColorSlot(
-                userId: message.sender.userId,
+                userId: sender.userId,
                 myUserId: myUserId,
                 order: order,
               ),
@@ -332,9 +348,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             colors,
             Theme.of(context).brightness,
           ),
-          imageUrl: message.sender.isDeleted
-              ? null
-              : message.sender.profileImageUrl,
+          imageUrl: sender.isDeleted ? null : sender.profileImageUrl,
         );
       },
     );
@@ -342,6 +356,26 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   /// 긁는 중 표시를 목록에 끼우는 표식. 타입으로 가리기 위해 값 하나를 쓴다.
   static const _loadingMore = 'loading-more';
+
+  /// 아직 말이 없다는 안내를 목록에 끼우는 표식.
+  static const _emptyHint = 'empty-hint';
+
+  /// 안내 줄의 문구. **이름은 줄이 들고 온 [Chat.actor]의 것이다** — 말풍선과
+  /// 같은 이유로 방 명단에서 찾지 않는다.
+  ///
+  /// [Chat.actor]가 없는 안내 줄은 읽을 때 걸러져 오지 않는다(`chatFromJson`).
+  static String _noticeOf(Chat line) {
+    final actor = line.actor;
+    final left = line.type == ChatType.left;
+    if (actor == null || actor.isDeleted) {
+      return left
+          ? AppStrings.chatLeftWithdrawn
+          : AppStrings.chatJoinedWithdrawn;
+    }
+    return left
+        ? AppStrings.chatLeft(actor.nickname)
+        : AppStrings.chatJoined(actor.nickname);
+  }
 
   /// 내 말을 길게 눌렀다. **수정과 삭제를 고른다.**
   Future<void> _actionsFor(Chat message) async {
