@@ -48,12 +48,14 @@ void main() {
   }) => {
     'chatId': chatId,
     'runningRoomId': 125,
+    'type': 'MESSAGE',
     'sender': {
       'userId': '01a0f2d4-6180-7000-8000-446655440013',
       'nickname': '철수',
       'profileImageUrl': 'https://cdn.test/a.png',
       'isDeleted': false,
     },
+    'actor': null,
     'content': content,
     'isDeleted': isDeleted,
     'editedAt': editedAt,
@@ -230,17 +232,6 @@ void main() {
       expect(one.type, ChatType.message);
       expect(one.sender?.nickname, '철수');
       expect(one.actor, isNull);
-    });
-
-    test('type이 없으면 말로 읽는다 — #131 전 서버', () async {
-      final repo = await repositoryReturning({
-        'items': [chatJson()],
-        'nextCursor': null,
-      });
-
-      final one = (await repo.history(125, limit: 50)).items.single;
-
-      expect(one.type, ChatType.message);
     });
 
     test('⚠️ 모르는 type과 사람이 없는 안내 줄은 건너뛴다', () async {

@@ -51,9 +51,6 @@ ChatType? _typeOf(Object? wire) => switch (wire) {
   'MESSAGE' => ChatType.message,
   'JOINED' => ChatType.joined,
   'LEFT' => ChatType.left,
-  // TODO(빼기): 서버 #131이 운영에 배포되면 뺀다. 그 전 서버는 `type`을
-  // 보내지 않고 말만 준다.
-  null => ChatType.message,
   _ => null,
 };
 
