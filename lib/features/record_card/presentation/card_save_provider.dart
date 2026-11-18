@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
@@ -117,6 +119,15 @@ class CardSaveController extends Notifier<CardSaveState> {
           );
 
       ref.read(cardDraftProvider(cardId).notifier).clear();
+      // ⚠️ **달력을 무효화한다.** 안 하면 방금 쓴 날이 운동화 그대로라 "카드를
+      // 썼는데 달력은 안 썼다고 한다"가 된다 — 2026-11-18 에뮬레이터에서 그렇게
+      // 보였다.
+      //
+      // ⚠️ `read(...notifier).load()`가 아니다. 그러면 달력이 안 떠 있어도
+      // 여기서 **새로 세우고**, 달력은 인증·dio를 거쳐 서버 주소를 찾다 죽는다
+      // — 저장만 보려는 테스트까지 함께 무너진다. `invalidate`는 **살아 있는
+      // 것만** 다시 짓고, 없으면 아무 일도 하지 않는다.
+      ref.invalidate(recordCardControllerProvider);
       state = const CardSaveIdle();
       // ⚠️ **자른 파일을 치우지 않는다.** 카드가 그 경로를 들고 갔고, 올릴
       // 엔드포인트가 없어 **그것이 유일한 사본**이다. 치우면 상세에서 사진이

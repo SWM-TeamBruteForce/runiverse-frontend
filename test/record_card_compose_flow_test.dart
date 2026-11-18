@@ -22,6 +22,7 @@ import 'package:runiverse/features/record_card/presentation/card_photo_page.dart
 import 'package:runiverse/features/record_card/presentation/card_publish_page.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_page.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_state.dart';
 
 /// 작성 1 → 2 → 3 → 상세로 가는 길 (설계 6-2 · 6-3 · 6-4 · 7절).
 ///
@@ -116,13 +117,35 @@ void main() {
     expect(find.byType(CardPublishPage), findsNothing);
   });
 
+  testWidgets('⚠️ 저장한 카드가 달력에 바로 보인다', (tester) async {
+    // 저장은 됐는데 달력이 다시 받지 않으면, 그날은 **운동화 그대로**다 —
+    // "카드를 썼는데 달력은 안 썼다고 한다"로 보인다. 2026-11-18 에뮬레이터에서
+    // 실제로 그렇게 보였다.
+    final container = await _walkToPublish(tester);
+
+    await tester.tap(find.text(AppStrings.recordCardPublishSave));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip(AppStrings.authBack));
+    await tester.pumpAndSettle();
+
+    expect(_cards.creates, 1, reason: '카드는 만들어졌다');
+
+    final after = container.read(recordCardControllerProvider);
+    expect(after, isA<RecordCardData>());
+    expect(
+      (after as RecordCardData).visible.expand((m) => m.cards).map((c) => c.id),
+      contains(greaterThanOrEqualTo(9000)),
+      reason: '방금 만든 카드(9000번대)가 달력에 들어와야 한다',
+    );
+  });
+
   testWidgets('⚠️ 저장이 도는 중에는 시스템 뒤로로 빠져나가지 못한다', (tester) async {
     // AppBar 뒤로만 닫아 두면 안드로이드 하드웨어·제스처 뒤로가 그대로 나가고,
     // 저장이 끝난 뒤 **걷힌 화면의 context**로 라우터를 불러 "deactivated
     // widget"으로 죽는다. 만들어진 카드를 아무도 받지 못한 채 초안만 비워진다.
     // ⚠️ 저장을 **전환 애니메이션보다 길게** 잡는다. 짧으면 pop이 끝나기 전에
     // 저장이 먼저 끝나, "못 나간다"와 "아직 나가는 중이다"가 구별되지 않는다.
-    await _walkToPublish(tester, delay: const Duration(seconds: 3));
+    await _walkToPublish(tester, delay: const Duration(milliseconds: 800));
 
     await tester.tap(find.text(AppStrings.recordCardPublishSave));
     await tester.pump(const Duration(milliseconds: 50));
@@ -142,6 +165,10 @@ void main() {
     expect(tester.takeException(), isNull);
     // 저장은 끝까지 가고 상세로 간다 — 나가지 못했으니 받을 사람이 있다.
     expect(find.byType(CardDetailPage), findsOne);
+
+    // 저장이 끝나면 달력이 다시 받는다. 이 테스트의 느린 저장소가 거기도
+    // 걸려, 안 기다리면 타이머가 남은 채로 끝난다.
+    await tester.pumpAndSettle(const Duration(seconds: 2));
   });
 }
 
@@ -187,6 +214,9 @@ Future<void> _keepDraft(WidgetTester tester) async {
 
 final _today = DateTime(2026, 11, 18);
 
+/// 방금 세운 카드 저장소. 만든 횟수를 본다.
+late FakeRecordCardRepository _cards;
+
 /// 실제 라우터를 태운 앱. [filled]면 초안이 작성 1을 통과한 상태다.
 Future<ProviderContainer> _pump(
   WidgetTester tester, {
@@ -197,7 +227,7 @@ Future<ProviderContainer> _pump(
   final container = ProviderContainer(
     overrides: [
       recordCardRepositoryProvider.overrideWithValue(
-        FakeRecordCardRepository(today: _today, delay: delay),
+        _cards = FakeRecordCardRepository(today: _today, delay: delay),
       ),
       runRecordRepositoryProvider.overrideWithValue(
         FakeRunRecordRepository(today: _today),
