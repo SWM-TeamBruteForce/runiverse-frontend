@@ -249,9 +249,12 @@ class _Glow extends StatelessWidget {
           // ⚠️ **같은 색의 투명도만 낮춰 내려간다.** 중간에 다른 색을 끼우면
           // 경계가 띠로 보인다 — 빛이 번지는 것이 아니라 두 면이 만난 것처럼
           // 된다.
+          //
+          // 세기는 홈 히어로에 맞췄다. 48%는 회색 바탕으로 밝아진 홈 옆에서
+          // 탁했고, 75%는 화면 절반이 빛나 쨍했다.
           colors: [
-            colors.primary.withValues(alpha: 0.48),
-            colors.primary.withValues(alpha: 0.22),
+            colors.primary.withValues(alpha: 0.62),
+            colors.primary.withValues(alpha: 0.28),
             colors.bgBase,
           ],
           // 시안(`158:3765`)의 파란 면이 화면 높이의 3분의 2까지 내려온다.

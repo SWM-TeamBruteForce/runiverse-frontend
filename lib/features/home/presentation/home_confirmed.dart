@@ -67,6 +67,9 @@ class HomeConfirmed extends StatelessWidget {
               child: Image.asset(
                 'assets/images/home_confirmed_bg.webp',
                 fit: BoxFit.cover,
+                // 어두운 곳을 카드 바탕색으로 받친다(`HomeHeroShade` 참고).
+                color: colors.bgSurface,
+                colorBlendMode: BlendMode.screen,
                 // 사람이 읽을 것이 아니라 분위기다.
                 excludeFromSemantics: true,
               ),

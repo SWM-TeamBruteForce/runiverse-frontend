@@ -19,10 +19,13 @@ enum HomeHeroLight {
 ///
 /// 시안 빛을 그대로 두면 쨍하다. 이미지 전체를 고르게 덮으면 빛이 어디서
 /// 나오는지가 흐려져서, **나오는 쪽은 옅게([_weak]) 반대쪽은 짙게([_strong])**
-/// 덮는다. 25%→55%는 살짝 어두웠다.
+/// 덮는다. 바탕을 회색으로 받친 뒤로는 그것만으로 빛이 덜 쨍해져서, 그 전에
+/// 쓰던 15%→45%는 칙칙했다.
 ///
-/// 색은 [AppColorsV2.bgBase]다 — 카드 둘레 화면 바탕과 같은 색으로 눌러야
-/// 빛이 바탕으로 스며드는 것처럼 보인다.
+/// 색은 [AppColorsV2.bgSurface]다 — 카드 바탕과 같은 색으로 눌러야 바탕은
+/// 그대로 두고 빛만 눌린다. 화면 바탕([AppColorsV2.bgBase])으로 누르면 카드
+/// 위쪽이 화면에 녹아 카드가 어디서 시작하는지 안 보인다. 그래서 빛 그림도
+/// 어두운 곳을 같은 색으로 받친다.
 class HomeHeroShade extends StatelessWidget {
   const HomeHeroShade({
     required this.light,
@@ -36,12 +39,12 @@ class HomeHeroShade extends StatelessWidget {
   /// 쪽(`HomeWaitingRing`)이 자기 배치에서 구해 넘긴다.
   final Alignment ringCenter;
 
-  static const _weak = .15;
-  static const _strong = .45;
+  static const _weak = .0;
+  static const _strong = .25;
 
   @override
   Widget build(BuildContext context) {
-    final base = context.appColorsV2.bgBase;
+    final base = context.appColorsV2.bgSurface;
     final weak = base.withValues(alpha: _weak);
     final strong = base.withValues(alpha: _strong);
 
