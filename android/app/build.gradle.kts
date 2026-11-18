@@ -34,6 +34,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications가 요구한다(그 패키지 README).
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -118,4 +120,6 @@ dependencies {
     implementation("com.google.android.gms:play-services-wearable:20.0.1")
     // 폰에서 워치 앱을 켠다(RemoteActivityHelper).
     implementation("androidx.wear:wear-remote-interactions:1.2.0")
+    // 위 isCoreLibraryDesugaringEnabled의 짝. 버전은 flutter_local_notifications가 쓰는 것과 같다.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

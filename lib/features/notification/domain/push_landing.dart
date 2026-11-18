@@ -16,7 +16,10 @@ sealed class PushLanding {
     'FRIEND_REQUESTED' || 'FRIEND_ACCEPTED' => _profileOf(data['actorId']),
     // 수락·거절 버튼이 알림함에 있다.
     'RUNNING_INVITED' => const PushLandingNotifications(),
-    'MATCH_CONFIRMED' || 'RUNNING_REMINDER' => const PushLandingRoom(),
+    'MATCH_CONFIRMED' ||
+    'RUNNING_REMINDER' ||
+    // 대기방 채팅. 채팅 화면이 아니라 방으로 연다 — 방 화면이 채팅으로 가는 문이다.
+    'ROOM_CHAT_SENT' => const PushLandingRoom(),
     _ => null,
   };
 

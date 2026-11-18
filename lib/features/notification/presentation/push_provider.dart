@@ -7,6 +7,7 @@ import 'package:runiverse/core/storage/device_id_store.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/notification/data/http_device_repository.dart';
+import 'package:runiverse/features/notification/domain/chat_push.dart';
 import 'package:runiverse/features/notification/domain/device_repository.dart';
 import 'package:runiverse/features/notification/domain/push_landing.dart';
 import 'package:runiverse/features/notification/domain/push_messaging.dart';
@@ -88,6 +89,15 @@ class PushController extends Notifier<PushLanding?> {
   /// 두 겹 쌓이므로, 들어오는 타이밍에 기대지 않고 ID로 거른다.
   final _handled = <String>{};
 
+  /// 지금 열려 있는 채팅 화면의 방. 없으면 `null`이다. [viewChat]이 정한다.
+  String? _viewingChat;
+
+  /// 그 채팅 화면이 맨 위에 보이는가. [viewChat]이 함께 넘긴다.
+  ///
+  /// ⚠️ **열려 있다고 보이는 것은 아니다.** 채팅 화면 위로 다른 화면(눌린 푸시의
+  /// 프로필 등)이 쌓이면 채팅 화면은 살아 있지만 가려진다.
+  bool Function()? _chatOnTop;
+
   /// 지금 서 있는 셸 수. 셸이 세워질 때 [attachShell], 내려갈 때 [detachShell].
   ///
   /// 수로 센다 — 갈아끼울 때 새 셸이 먼저 서고 옛 셸이 나중에 내려갈 수 있다.
@@ -129,8 +139,19 @@ class PushController extends Notifier<PushLanding?> {
           (push) => _onOpened(push, from: 'opened'),
           onError: _onError,
         ),
-      );
+      )
+      ..add(_messaging.received.listen(_onReceived, onError: _onError));
     unawaited(_readInitialOpened());
+  }
+
+  /// 채팅 화면에 들어오고 나갈 때 채팅 화면이 부른다. 나갔으면 `null`이다.
+  ///
+  /// 들어오면 **그 방 알림을 알림창에서 지운다** — 화면에서 다 읽은 것이다.
+  /// [onTop]은 그 화면이 지금 맨 위인지 답한다. 없으면 늘 맨 위로 친다.
+  void viewChat(String? runningRoomId, {bool Function()? onTop}) {
+    _viewingChat = runningRoomId;
+    _chatOnTop = runningRoomId == null ? null : onTop;
+    if (runningRoomId != null) unawaited(_messaging.clearChat(runningRoomId));
   }
 
   /// 포그라운드로 돌아왔다. **앞선 등록이 실패로 남았을 때만** 다시 보낸다.
@@ -304,6 +325,26 @@ class PushController extends Notifier<PushLanding?> {
     }
     _landingEpoch = _shellEpoch;
     state = landing;
+  }
+
+  /// 앱이 켜져 있을 때 받은 푸시. **대기방 채팅만** 알림창에 쌓는다.
+  ///
+  /// 다른 푸시는 같은 알림이 앱 스트림(SSE)으로 알림함에 들어오므로 그리지 않는다.
+  /// 채팅은 알림함에 들어가지 않아, 그리지 않으면 앱을 켜 둔 채 폰을 내려놓은
+  /// 사람이 놓친다.
+  ///
+  /// - 팝업 없이 쌓는다(`quiet`) — 보던 화면을 가리지 않는다. 소리는 폰 설정을 따른다.
+  /// - **그 방 채팅 화면을 보고 있으면 아무것도 하지 않는다** — 화면에 이미 떴다.
+  ///   가려져 있으면 보고 있는 것이 아니다.
+  void _onReceived(Map<String, Object?> data) {
+    final push = ChatPush.of(data);
+    if (push == null) return;
+    if (push.runningRoomId == _viewingChat && (_chatOnTop?.call() ?? true)) {
+      debugPrint('[push] 보고 있는 채팅 방이라 알림을 띄우지 않는다');
+      return;
+    }
+    debugPrint('[push] 켜진 앱이 채팅 푸시를 받았다');
+    unawaited(_messaging.showChat(push, quiet: true));
   }
 
   void _onError(Object error) {

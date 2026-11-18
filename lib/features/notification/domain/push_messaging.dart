@@ -1,3 +1,4 @@
+import 'package:runiverse/features/notification/domain/chat_push.dart';
 import 'package:runiverse/features/session/domain/permission_access.dart';
 
 /// 푸시 SDK(FCM)에 닿는 문.
@@ -20,15 +21,29 @@ abstract interface class PushMessaging {
   /// 꺼진 앱을 연 푸시. 없으면 `null`이다. 한 번 읽으면 비워진다.
   Future<OpenedPush?> initialOpened();
 
-  /// 뒤에 있던 앱을 연 푸시.
+  /// 뒤에 있던 앱을 연 푸시. 앱이 직접 그린 알림(채팅)을 누른 것도 여기로 온다.
   Stream<OpenedPush> get opened;
+
+  /// **앱이 켜져 있을 때** 받은 푸시의 data. 꺼졌거나 뒤에 있을 때 받은 것은
+  /// 여기로 오지 않는다 — 그때는 진짜가 따로 그린다.
+  Stream<Map<String, Object?>> get received;
+
+  /// 채팅 푸시를 그 방 알림에 한 줄 더한다. **안드로이드에서만 그린다** — iOS는
+  /// 서버가 알림으로 보내 OS가 띄운다.
+  ///
+  /// [quiet]면 화면 위로 내려오는 팝업 없이 알림창에만 쌓는다(앱이 켜져 있을 때).
+  Future<void> showChat(ChatPush push, {required bool quiet});
+
+  /// 그 방 채팅 알림을 알림창에서 지운다. 채팅 화면에 들어왔을 때 부른다.
+  Future<void> clearChat(String runningRoomId);
 }
 
 /// 눌린 푸시 하나.
 class OpenedPush {
   const OpenedPush({required this.messageId, required this.data});
 
-  /// FCM이 메시지마다 붙이는 고유 값. **같은 누름이 두 번 왔는지 이것으로 가린다.**
+  /// **같은 누름이 두 번 왔는지 이것으로 가린다.** FCM이 띄운 알림은 FCM의
+  /// 메시지 ID, 앱이 그린 채팅 알림은 `chat-<chatId>`다.
   final String? messageId;
 
   final Map<String, Object?> data;
@@ -54,4 +69,13 @@ class NoopPushMessaging implements PushMessaging {
 
   @override
   Stream<OpenedPush> get opened => const Stream.empty();
+
+  @override
+  Stream<Map<String, Object?>> get received => const Stream.empty();
+
+  @override
+  Future<void> showChat(ChatPush push, {required bool quiet}) async {}
+
+  @override
+  Future<void> clearChat(String runningRoomId) async {}
 }

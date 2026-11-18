@@ -213,7 +213,7 @@
 |---|---|---|
 | `flutter analyze`가 분석 서버 크래시로 죽음 | 저장소가 **한글·공백이 든 경로**에 있음 | ASCII 경로로 옮긴다 |
 | `main.dart` 교체 후 컴파일 자체가 안 됨 | `test/widget_test.dart`가 `flutter create` 기본 카운터 테스트라 `MyApp`을 직접 import | **교체하는 커밋에서 함께 지우거나 다시 쓴다** |
-| `checkDebugAarMetadata`에서 빌드 실패 · `compileSdk of at least 37` | 패키지가 **compileSdk 37**을 요구하는데 Flutter 3.44.8 기본값이 36이다 | 그 패키지의 **버전을 낮춰 고정한다.** `flutter_secure_storage`(11.x 금지)·`permission_handler`(13.x 금지)가 같은 이유로 묶여 있다. 캐럿(`^`)을 쓰면 다음 사람의 `pub upgrade`에서 다시 깨지므로 정확한 버전으로 박는다 |
+| `checkDebugAarMetadata`에서 빌드 실패 · `compileSdk of at least 37` | 패키지가 **compileSdk 37**을 요구하는데 Flutter 3.44.8 기본값이 36이다 | 그 패키지의 **버전을 낮춰 고정한다.** `flutter_secure_storage`(11.x 금지)·`permission_handler`(13.x 금지)·`flutter_local_notifications`(23.x 금지)가 같은 이유로 묶여 있다. 캐럿(`^`)을 쓰면 다음 사람의 `pub upgrade`에서 다시 깨지므로 정확한 버전으로 박는다 |
 | `flutter test integration_test`가 5분 타임아웃 | 끝나면 **앱을 제거**한다. 다시 설치되며 런타임 권한이 날아가고, 앱이 권한 다이얼로그를 띄운 채 아무도 안 누른다 | 도는 동안 `adb shell pm grant <pkg> android.permission.ACCESS_FINE_LOCATION`을 1초마다 반복해서 준다 |
 | 테스트가 끝난 뒤 기기 DB를 못 뽑음 | 같은 이유다. 앱 전용 폴더가 앱과 함께 사라진다 | 도는 동안 `adb exec-out run-as <pkg> cat databases/<파일>`로 빼낸다. `run-as`로 `/sdcard`에 복사하는 것은 **앱 UID에 저장소 권한이 없어 실패한다** |
 
@@ -1178,7 +1178,7 @@ APNs 토큰이 없을 때 FCM 토큰을 달라고 하면 예외가 난다(Fireba
 ### 15-5. 앱이 켜져 있으면 배너를 띄우지 않는다
 
 FCM 기본값이 그렇다. 같은 알림이 앱 스트림(SSE)으로 이미 들어오므로 두 번 알리지
-않는다. ⚠️ iOS에서 `setForegroundNotificationPresentationOptions(alert: true)`를
+않는다. 예외는 안드로이드 대기방 채팅이다(15-10). ⚠️ iOS에서 `setForegroundNotificationPresentationOptions(alert: true)`를
 한 번 부르면 **지워도 기기에 남는다** — 끄려면 `false`로 직접 불러야 한다.
 
 ### 15-6. `aps-environment`는 파일과 배포 앱이 다르다
@@ -1204,3 +1204,19 @@ FCM 기본값이 그렇다. 같은 알림이 앱 스트림(SSE)으로 이미 들
 카운트다운·러닝 중이거나, 출발 1분 전 로비로 옮겨져 셸이 내려간 사이에 누른 푸시는
 열지 않는다. 남겨 두면 러닝을 마치고 홈에 돌아온 순간 한참 전에 누른 화면이 열린다.
 친구·초대 푸시는 알림함에 남아 있다.
+
+### 15-10. 안드로이드 대기방 채팅은 앱이 그린다
+
+서버가 `ROOM_CHAT_SENT`를 알림 블록 없이 data만 보낸다. OS는 아무것도 띄우지 않고
+SSE 알림함에도 안 들어가므로 앱이 방마다 알림 하나에 줄을 쌓는다
+(`AndroidChatNotifications`). 꺼졌거나 뒤에 있으면 `handleBackgroundPush`가, 켜져
+있으면 `PushController`가 팝업 없는 채널로 그린다. 그 방 채팅 화면을 보는 동안은
+안 띄우고, 들어오면 지운다.
+
+- ⚠️ **떠 있는 알림을 다시 읽으면 사진이 안 온다.** 플러그인이 리소스·URI 아이콘만
+  돌려준다. 사진을 사람별 파일로 캐시하고 줄을 더할 때마다 다시 붙인다.
+- ⚠️ **알림 사람 칸은 그림을 원형으로 자르지 않는다**(Android 15 실측). 사진은 원형
+  PNG로 오려 저장하고, 안내 줄 아이콘(`ic_chat_notice`)도 원형으로 오린 것을 둔다.
+- ⚠️ **팝업 여부는 채널 중요도가 정한다.** 알림마다 바꿀 수 없어 채널을 둘 둔다.
+- 채팅 화면은 `dispose`에서 **알림 쪽(`viewChat(null)`)을 먼저** 부른다. 뒤의
+  `ChatController.close()`가 Riverpod 예외를 던져 뒷줄이 돌지 않는다.
