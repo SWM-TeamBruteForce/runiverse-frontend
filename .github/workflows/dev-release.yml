@@ -233,6 +233,7 @@ jobs:
           DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
           PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
           WATCH_PROFILE_BASE64: ${{ secrets.IOS_WATCH_PROFILE_BASE64 }}
+          NOTIFICATION_PROFILE_BASE64: ${{ secrets.IOS_NOTIFICATION_PROFILE_BASE64 }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
@@ -246,7 +247,7 @@ jobs:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
         run: |
           set -euo pipefail
-          for name in DIST_CERT_BASE64 DIST_CERT_PASSWORD PROFILE_BASE64 WATCH_PROFILE_BASE64 ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 KAKAO_NATIVE_APP_KEY NAVER_MAP_CLIENT_ID GOOGLE_SERVER_CLIENT_ID GOOGLE_IOS_CLIENT_ID GOOGLE_SERVICE_INFO_PLIST META_APP_ID META_CLIENT_TOKEN API_BASE_URL; do
+          for name in DIST_CERT_BASE64 DIST_CERT_PASSWORD PROFILE_BASE64 WATCH_PROFILE_BASE64 NOTIFICATION_PROFILE_BASE64 ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 KAKAO_NATIVE_APP_KEY NAVER_MAP_CLIENT_ID GOOGLE_SERVER_CLIENT_ID GOOGLE_IOS_CLIENT_ID GOOGLE_SERVICE_INFO_PLIST META_APP_ID META_CLIENT_TOKEN API_BASE_URL; do
             if [ -z "${!name}" ]; then echo "::error::$name이 비어 있다"; exit 1; fi
           done
 
@@ -278,10 +279,11 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
           security list-keychains -d user -s "$KEYCHAIN" "$HOME/Library/Keychains/login.keychain-db"
 
-          # dev 앱·워치 앱 App Store 배포 프로파일. Xcode가 찾는 두 자리(Xcode 16 전후)에 다 둔다
+          # dev 앱·워치 앱·알림 확장 App Store 배포 프로파일. Xcode가 찾는 두 자리(Xcode 16 전후)에 다 둔다
           echo "$PROFILE_BASE64" | base64 -d > "$RUNNER_TEMP/dev.mobileprovision"
           echo "$WATCH_PROFILE_BASE64" | base64 -d > "$RUNNER_TEMP/dev-watch.mobileprovision"
-          for app in dev dev-watch; do
+          echo "$NOTIFICATION_PROFILE_BASE64" | base64 -d > "$RUNNER_TEMP/dev-notification.mobileprovision"
+          for app in dev dev-watch dev-notification; do
             security cms -D -i "$RUNNER_TEMP/$app.mobileprovision" > "$RUNNER_TEMP/$app.plist"
             PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/$app.plist")
             for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
@@ -291,9 +293,11 @@ jobs:
           done
           PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/dev.plist")
           WATCH_PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/dev-watch.plist")
+          NOTIFICATION_PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/dev-notification.plist")
 
-          # 프로젝트는 로컬용 자동 서명이다. Runner·RunnerWatch만 읽는 xcconfig에 덧붙여 배포 인증서·프로파일로 바꾼다
+          # 프로젝트는 로컬용 자동 서명이다. Runner·RunnerWatch·NotificationService만 읽는 xcconfig에 덧붙여 배포 인증서·프로파일로 바꾼다
           # (명령줄로 넘기면 SPM 패키지 대상까지 수동 서명이 걸려 빌드가 멈춘다)
+          # 알림 확장은 폰과 같은 iphoneos라 sdk 조건으로 못 가른다. 확장 타깃이 NOTIFICATION_PROFILE_SPECIFIER를 읽는다
           cat >> ios/Flutter/Release.xcconfig <<EOF
 
           CODE_SIGN_STYLE = Manual
@@ -301,6 +305,7 @@ jobs:
           CODE_SIGN_IDENTITY[sdk=iphoneos*] = Apple Distribution
           PROVISIONING_PROFILE_SPECIFIER = $PROFILE_NAME
           PROVISIONING_PROFILE_SPECIFIER[sdk=watchos*] = $WATCH_PROFILE_NAME
+          NOTIFICATION_PROFILE_SPECIFIER = $NOTIFICATION_PROFILE_NAME
           EOF
 
           printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
@@ -321,6 +326,7 @@ jobs:
             <dict>
               <key>$PACKAGE_NAME</key><string>$PROFILE_NAME</string>
               <key>$PACKAGE_NAME.watchkitapp</key><string>$WATCH_PROFILE_NAME</string>
+              <key>$PACKAGE_NAME.NotificationService</key><string>$NOTIFICATION_PROFILE_NAME</string>
             </dict>
             <key>uploadSymbols</key><true/>
             <key>manageAppVersionAndBuildNumber</key><false/>
@@ -366,6 +372,14 @@ jobs:
           codesign -d --entitlements - --xml "$WATCH_APP" > "$RUNNER_TEMP/watch-entitlements.plist" 2>/dev/null
           if grep -q '<key>get-task-allow</key><true/>' "$RUNNER_TEMP/watch-entitlements.plist"; then echo "::error::워치 앱이 개발 서명이다"; exit 1; fi
           grep -q 'com.apple.developer.healthkit' "$RUNNER_TEMP/watch-entitlements.plist" || { echo "::error::워치 앱에 HealthKit 권한이 없다"; exit 1; }
+
+          # 알림 확장이 빠져도 빌드·업로드는 된다. 채팅 알림에 보낸 사람이 안 보이니 여기서 멈춘다
+          NOTIFICATION_APPEX="$APP/PlugIns/NotificationService.appex"
+          NOTIFICATION_BUNDLE_ID=$($PB -c 'Print :CFBundleIdentifier' "$NOTIFICATION_APPEX/Info.plist" 2>/dev/null || true)
+          [ "$NOTIFICATION_BUNDLE_ID" = "$PACKAGE_NAME.NotificationService" ] || { echo "::error::알림 확장이 없거나 번들 ID가 $PACKAGE_NAME.NotificationService가 아니다 (${NOTIFICATION_BUNDLE_ID:-없음})"; exit 1; }
+          codesign -d --entitlements - --xml "$NOTIFICATION_APPEX" > "$RUNNER_TEMP/notification-entitlements.plist" 2>/dev/null
+          if grep -q '<key>get-task-allow</key><true/>' "$RUNNER_TEMP/notification-entitlements.plist"; then echo "::error::알림 확장이 개발 서명이다"; exit 1; fi
+          grep -q 'com.apple.developer.usernotifications.communication' "$RUNNER_TEMP/entitlements.plist" || { echo "::error::커뮤니케이션 알림 권한이 없다"; exit 1; }
 
           # 복귀 스킴이 없으면 빌드 단계는 경고만 남긴다. 그 로그인이 안 되니 여기서 멈춘다
           SCHEMES=$($PB -c 'Print :CFBundleURLTypes' "$INFO")
