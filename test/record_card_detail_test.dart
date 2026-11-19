@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
@@ -203,12 +204,12 @@ void main() {
     await _pump(tester, photos: 2);
 
     // 첫 장(경로)은 기본 음악 길이만큼 선다.
-    await tester.pump(CardMediaPager.baseDuration);
+    await tester.pump(MusicGeneration.baseDuration);
     await tester.pumpAndSettle();
     expect(pageOf(tester), 1);
 
     // 사진 장은 사진 음악 길이만큼.
-    await tester.pump(CardMediaPager.photoDuration);
+    await tester.pump(MusicGeneration.photoDuration);
     await tester.pumpAndSettle();
     expect(pageOf(tester), 2);
   });
@@ -216,11 +217,11 @@ void main() {
   testWidgets('⚠️ 마지막 장에서는 멈춘다 — 처음으로 되돌아가지 않는다', (tester) async {
     await _pump(tester, photos: 1);
 
-    await tester.pump(CardMediaPager.baseDuration);
+    await tester.pump(MusicGeneration.baseDuration);
     await tester.pumpAndSettle();
     expect(pageOf(tester), 1);
 
-    await tester.pump(CardMediaPager.photoDuration * 3);
+    await tester.pump(MusicGeneration.photoDuration * 3);
     await tester.pumpAndSettle();
     expect(pageOf(tester), 1);
   });
@@ -228,7 +229,7 @@ void main() {
   testWidgets('⚠️ 사진이 없으면 아예 넘어가지 않는다', (tester) async {
     await _pump(tester);
 
-    await tester.pump(CardMediaPager.baseDuration * 2);
+    await tester.pump(MusicGeneration.baseDuration * 2);
     await tester.pumpAndSettle();
     expect(pageOf(tester), 0);
   });
@@ -238,13 +239,13 @@ void main() {
 
     await tester.tap(find.byType(PageView));
     await tester.pump();
-    await tester.pump(CardMediaPager.baseDuration * 2);
+    await tester.pump(MusicGeneration.baseDuration * 2);
     await tester.pumpAndSettle();
     expect(pageOf(tester), 0, reason: '멈췄는데 넘어갔다');
 
     await tester.tap(find.byType(PageView));
     await tester.pump();
-    await tester.pump(CardMediaPager.baseDuration);
+    await tester.pump(MusicGeneration.baseDuration);
     await tester.pumpAndSettle();
     expect(pageOf(tester), 1);
   });
@@ -253,7 +254,7 @@ void main() {
     await _pump(tester, photos: 2);
 
     // 첫 장에서 한참 기다리다가 손으로 넘긴다.
-    await tester.pump(CardMediaPager.baseDuration - const Duration(seconds: 2));
+    await tester.pump(MusicGeneration.baseDuration - const Duration(seconds: 2));
     await tester.drag(find.byType(PageView), const Offset(-400, 0));
     await tester.pumpAndSettle();
     expect(pageOf(tester), 1);
@@ -263,7 +264,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(pageOf(tester), 1);
 
-    await tester.pump(CardMediaPager.photoDuration);
+    await tester.pump(MusicGeneration.photoDuration);
     await tester.pumpAndSettle();
     expect(pageOf(tester), 2);
   });

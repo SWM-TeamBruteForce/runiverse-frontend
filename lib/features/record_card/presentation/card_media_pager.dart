@@ -7,6 +7,7 @@ import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
+import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_cell.dart';
 import 'package:runiverse/features/record_card/presentation/route_art_view.dart';
@@ -20,7 +21,8 @@ import 'package:runiverse/features/record_card/presentation/route_art_view.dart'
 /// 명세에 없다.
 ///
 /// 그래서 넘기는 조건을 **"그 장의 길이만큼 지나면"**으로 둔다. 길이는 백엔드
-/// AI 계약이 정한 값이다 — 기본 음악 [baseDuration], 사진 음악 [photoDuration].
+/// AI 계약이 정한 값이다 — 기본 음악 [MusicGeneration.baseDuration], 사진
+/// 음악 [MusicGeneration.photoDuration].
 /// 음악이 붙으면 **길이의 출처만** 실제 재생 끝 신호로 바꾼다. 이 위젯의 구조는
 /// 그대로다.
 ///
@@ -30,12 +32,6 @@ import 'package:runiverse/features/record_card/presentation/route_art_view.dart'
 /// 몇 바퀴째인지 알 수 없다.
 class CardMediaPager extends StatefulWidget {
   const CardMediaPager({required this.card, super.key});
-
-  /// 기본 음악 길이. 경로 장이 이만큼 선다.
-  static const baseDuration = Duration(seconds: 30);
-
-  /// 사진 음악 길이. 사진 장이 이만큼 선다.
-  static const photoDuration = Duration(seconds: 10);
 
   /// 양옆 이웃이 살짝 보이는 정도. 시안이 가운데 장을 크게 두고 좌우를
   /// 조금씩 드러낸다.
@@ -106,7 +102,9 @@ class _CardMediaPagerState extends State<CardMediaPager> {
     if (_page >= _count - 1) return;
 
     _advance = Timer(
-      _page == 0 ? CardMediaPager.baseDuration : CardMediaPager.photoDuration,
+      // ⚠️ **길이의 출처는 음악 계약이다.** 여기에 상수를 두면 계약이 바뀔 때
+      // 화면과 도메인이 갈라진다.
+      MusicGeneration.durationOfPage(_page),
       () {
         if (!mounted) return;
         _controller.nextPage(
