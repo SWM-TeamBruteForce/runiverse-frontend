@@ -1651,6 +1651,49 @@ abstract final class AppStrings {
     return '$hour:$minute';
   }
 
+  // ── 기록카드 상세의 음악 한 줄 (설계 6-5) ────────────────────
+  //
+  // ⚠️ **상태가 카드 하나에 하나다.** 곡별 상태가 없어(설계 3절) "3번 사진
+  // 음악만 실패"를 말할 수 없다. 그래서 모든 문구가 **카드 전체**를 가리킨다.
+
+  /// 아직 만든 적이 없는 카드. **줄 전체가 버튼이다.**
+  static const recordCardMusicCreate = 'AI 음악 만들기';
+
+  static const recordCardMusicQueued = '음악 생성 준비 중…';
+  static const recordCardMusicProcessing = '음악 만드는 중…';
+
+  /// ⚠️ **`재생`과 `멈춤`이 상태가 아니라 "누르면 될 일"이다.** 포토북은 상세를
+  /// 열면 이미 돌고 있어서, 도는 중에 `재생`을 세우면 이미 하고 있는 것을
+  /// 하라는 버튼이 된다.
+  static const recordCardMusicPlay = '재생';
+  static const recordCardMusicPause = '멈춤';
+
+  /// ⚠️ **전곡이다.** 1곡만 실패해도 카드 전체가 실패이고, 다시 만들면 전곡을
+  /// 다시 만든다(설계 3절).
+  static const recordCardMusicFailed = '음악을 만들지 못했어요';
+  static const recordCardMusicRetry = '다시 만들기';
+
+  /// 상태조차 못 읽었을 때. **카드는 그대로 보인다** — 음악과 카드는 따로다.
+  static const recordCardMusicError = '음악 상태를 보지 못했어요';
+  static const recordCardMusicReload = '다시';
+
+  /// 스크린리더용. 줄에 아이콘만 서는 구간이 있어 라벨을 따로 둔다.
+  static const recordCardMusicSemantics = 'AI 음악';
+
+  /// 수정에서 **만드는 중인 음악이 버려진다**고 알린다 (설계 6-6).
+  ///
+  /// ⚠️ **"공개범위만 바꾸면 그대로"가 생성 중에는 거짓이다.** 백엔드가
+  /// "생성 중 수정·삭제는 활성 요청을 무효화한다"고 적었다(설계 3절) —
+  /// 만드는 중이면 무엇을 바꾸든 버려진다.
+  static const recordCardMusicWorkingEdit =
+      '음악을 만드는 중이에요. 저장하면 만들던 음악은 버려지고 처음부터 다시 만듭니다';
+
+  /// 다 된 음악인데 **AI가 읽는 값**이 바뀌었을 때 (설계 6-6).
+  static const recordCardMusicRegenerate = '저장하면 음악을 처음부터 다시 만듭니다';
+
+  /// 삭제 확인에서. **막지 않고 알리기만 한다**(설계 6-6).
+  static const recordCardMusicWorkingDelete = '음악을 만드는 중이에요. 카드와 함께 사라집니다';
+
   // ── 기록카드 작성 1 (기록·유형·회고) ─────────────────────────
 
   static const recordCardComposeTitle = '기록카드 쓰기';

@@ -28,9 +28,7 @@ class MusicInputs {
   factory MusicInputs.ofCard(RecordCard card) => MusicInputs(
     activity: card.activity,
     reviewText: card.reviewText,
-    photos: [
-      for (final photo in card.photos) _saved(photo.id, photo.caption),
-    ],
+    photos: [for (final photo in card.photos) _saved(photo.id, photo.caption)],
   );
 
   /// 쓰고 있는 초안의 값.
