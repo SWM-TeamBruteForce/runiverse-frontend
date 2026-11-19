@@ -14,6 +14,7 @@ import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
+import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/presentation/activity_filter.dart';
@@ -78,6 +79,16 @@ class _EmptyRepository implements RecordCardRepository {
   @override
   Future<void> delete(int cardId) =>
       throw UnsupportedError('이 테스트는 카드를 지우지 않는다');
+
+  /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
+  @override
+  Future<MusicGeneration> musicOf(int cardId) =>
+      throw UnsupportedError('이 테스트는 음악을 보지 않는다');
+
+  /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
+  @override
+  Future<MusicGeneration> requestMusic(int cardId) =>
+      throw UnsupportedError('이 테스트는 음악을 만들지 않는다');
 }
 
 Future<void> _pump(

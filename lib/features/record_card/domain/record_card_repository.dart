@@ -1,4 +1,5 @@
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
+import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 
@@ -58,6 +59,36 @@ abstract interface class RecordCardRepository {
   /// 없는 카드면 [RecordCardFailure.notFound]로 던진다 — 이미 지워진 것을 또
   /// 지우려 한 것이다.
   Future<void> delete(int cardId);
+
+  /// 이 카드의 음악이 어디까지 갔나.
+  ///
+  /// ## ⚠️ 붙일 엔드포인트가 **하나도 없다**
+  ///
+  /// 생성 요청·재요청·상태 조회가 3차 명세의 어디에도 없다
+  /// (`docs/notes/2026-11-16-record-card-backend-questions.md` 4번). 그래서
+  /// 지금은 가짜만 답한다.
+  ///
+  /// ## ⚠️ 카드 응답에 싣지 않고 따로 묻는다
+  ///
+  /// 음악이 **카드 응답에 실릴지, 따로 조회할지도 모른다.** 어디에 올지 모르는
+  /// 값을 [RecordCard]의 필드로 지어 넣으면, 따로 오는 것으로 정해지는 날
+  /// 도메인과 화면을 다시 짓는다. 따로 묻는 쪽은 그 반대로 — 카드에 실려 오면
+  /// 이 메서드가 **이미 받은 값을 돌려주는 것**으로 줄어든다.
+  ///
+  /// 한 번도 요청하지 않았으면 [MusicStatus.none]이다 — 오류가 아니다.
+  /// 없는 카드면 [RecordCardFailure.notFound]로 던진다.
+  Future<MusicGeneration> musicOf(int cardId);
+
+  /// **전곡을** 만들어 달라고 한다. 처음 만드는 것과 다시 만드는 것이 같다.
+  ///
+  /// ## ⚠️ 곡 하나만 다시 만드는 길이 없다
+  ///
+  /// 상태가 묶음 하나에 하나라서(설계 3절) 1곡만 실패해도 카드 전체가
+  /// [MusicStatus.failed]이고, 다시 만들기는 전곡이다.
+  ///
+  /// 돌려주는 것은 **요청 직후 상태**([MusicStatus.queued])다 — 부르는 쪽이
+  /// 바로 줄을 바꿔 세워야 하고, 다시 묻는 것은 그다음 일이다.
+  Future<MusicGeneration> requestMusic(int cardId);
 }
 
 /// 카드를 못 읽은 이유.

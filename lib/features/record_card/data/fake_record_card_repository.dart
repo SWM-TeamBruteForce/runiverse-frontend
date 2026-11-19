@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
+import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/music_inputs.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
@@ -37,6 +39,7 @@ class FakeRecordCardRepository implements RecordCardRepository {
     DateTime? today,
     this.delay = Duration.zero,
     this.failWith,
+    this.clock = DateTime.now,
   }) : _today = today ?? DateTime.now();
 
   /// "오늘"을 어디로 볼 것인가. 목 데이터를 이 날 기준으로 만든다.
@@ -44,6 +47,13 @@ class FakeRecordCardRepository implements RecordCardRepository {
 
   /// 로딩 상태를 눈으로 보려고 두는 지연. 테스트에서는 0이다.
   final Duration delay;
+
+  /// 지금 몇 시인가. **음악 상태를 시간으로 계산한다.**
+  ///
+  /// ⚠️ **타이머를 쓰지 않는 이유다.** 타이머로 흉내내면 테스트가 13초를
+  /// 실제로 기다린다. 요청 시각만 적어 두고 흐른 시간으로 상태를 내면,
+  /// 테스트는 시계를 밀고 기기는 진짜 시간을 쓴다.
+  final DateTime Function() clock;
 
   /// 주면 **언제나 이 실패로 던진다.** 오류 화면을 눈으로 보는 길이다.
   ///
@@ -134,6 +144,9 @@ class FakeRecordCardRepository implements RecordCardRepository {
       runners: const [],
     );
     _created.add(made);
+    // 서버가 `musicEnabled`로 생성 요청을 건다(`NewRecordCard`). 가짜도 같은
+    // 자리에서 건다 — 저장하고 상세로 가면 줄이 `준비 중…`으로 서 있다.
+    if (card.musicEnabled) _musicRequestedAt[id] = clock();
     return made;
   }
 
@@ -178,6 +191,15 @@ class FakeRecordCardRepository implements RecordCardRepository {
       runners: before.runners,
     );
     _edited[made.id] = made;
+    // ⚠️ **활성 요청을 무효화하고 전곡을 다시 만든다**(설계 3절). 입력이
+    // 그대로면(공개범위만 바꿨다면) 건드리지 않는다.
+    // ⚠️ **요청 기록이 있는지로 가리면 안 된다.** 목에 심어 둔 카드는 다 된
+    // 음악을 들고도 기록이 없다 — 그러면 목 카드는 고쳐도 영영 안 다시 만든다.
+    if (_generationOf(before).status != MusicStatus.none &&
+        MusicInputs.ofEdit(card) != MusicInputs.ofCard(before)) {
+      _musicWillFail.remove(made.id);
+      _musicRequestedAt[made.id] = clock();
+    }
     return made;
   }
 
@@ -228,6 +250,115 @@ class FakeRecordCardRepository implements RecordCardRepository {
     _deletedIds.add(cardId);
     _edited.remove(cardId);
     _created.removeWhere((card) => card.id == cardId);
+    _musicRequestedAt.remove(cardId);
+    _musicWillFail.remove(cardId);
+  }
+
+  // ── 음악 흉내 (설계 8절) ───────────────────────────────────────
+
+  /// 카드별 **마지막 요청 시각**. 없으면 한 번도 요청하지 않은 것이다.
+  final _musicRequestedAt = <int, DateTime>{};
+
+  /// 이 요청은 끝에서 떨어뜨릴 것. [musicRequests]의 20번째다.
+  final _musicWillFail = <int>{};
+
+  /// 몇 번 만들어 달라고 했나.
+  var musicRequests = 0;
+
+  /// `QUEUED`에서 `PROCESSING`으로 넘어가는 시점.
+  static const _toProcessing = Duration(seconds: 3);
+
+  /// `PROCESSING`이 끝나는 시점. **요청 시각 기준**이다.
+  static const _toDone = Duration(seconds: 13);
+
+  @override
+  Future<MusicGeneration> musicOf(int cardId) async {
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (failWith != null) throw RecordCardException(failWith!);
+
+    final card = _find(cardId);
+    if (card == null) {
+      throw const RecordCardException(RecordCardFailure.notFound);
+    }
+
+    return _generationOf(card);
+  }
+
+  /// 지금 이 카드의 음악. **[musicOf]와 수정 판정이 같은 길을 타게** 한 곳에
+  /// 둔다 — 갈라 두면 "조회는 다 됐다는데 고쳐도 다시 안 만드는" 틈이 생긴다.
+  MusicGeneration _generationOf(RecordCard card) {
+    final requestedAt = _musicRequestedAt[card.id];
+    // 요청한 적이 없으면 목에 심어 둔 상태를 그대로 쓴다.
+    if (requestedAt == null) return _seeded(card);
+
+    final elapsed = clock().difference(requestedAt);
+    final status = switch (elapsed) {
+      _ when elapsed < _toProcessing => MusicStatus.queued,
+      _ when elapsed < _toDone => MusicStatus.processing,
+      // ⚠️ **실패도 거쳐서 온다.** 요청 즉시 실패로 떨구면 진짜와 다르다 —
+      // 큐와 처리를 지난 뒤에 실패한다.
+      _ when _musicWillFail.contains(card.id) => MusicStatus.failed,
+      _ => MusicStatus.succeeded,
+    };
+
+    return MusicGeneration(
+      cardId: card.id,
+      status: status,
+      trackCount: MusicGeneration.trackCountFor(card.photos.length),
+    );
+  }
+
+  @override
+  Future<MusicGeneration> requestMusic(int cardId) async {
+    musicRequests++;
+
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (failWith != null) throw RecordCardException(failWith!);
+
+    final card = _find(cardId);
+    if (card == null) {
+      throw const RecordCardException(RecordCardFailure.notFound);
+    }
+
+    // ⚠️ **난수로 떨구지 않는다.** 재현되지 않는 가짜 실패는 눈검증을 망친다 —
+    // "방금 그 실패"를 다시 볼 수 없다. 강제 실패는 [failWith]가 이미 한다.
+    if (musicRequests % 20 == 0) {
+      _musicWillFail.add(cardId);
+    } else {
+      _musicWillFail.remove(cardId);
+    }
+    _musicRequestedAt[cardId] = clock();
+
+    return MusicGeneration(
+      cardId: cardId,
+      status: MusicStatus.queued,
+      trackCount: MusicGeneration.trackCountFor(card.photos.length),
+    );
+  }
+
+  /// 목 카드에 심어 둔 상태.
+  ///
+  /// ⚠️ **다섯 상태를 기다리지 않고 보려고** 일부러 갈라 둔다 — 전부
+  /// `SUCCEEDED`면 `만드는 중…`·`만들지 못했어요`·`AI 음악 만들기` 줄을 한 번도
+  /// 못 보고 넘어간다. `QUEUED`는 눌러서 본다.
+  ///
+  /// 앱이 만든 카드(번호 `9000 +`)는 저장할 때 음악을 켰는지로 갈린다 —
+  /// 여기 걸리지 않는다.
+  MusicGeneration _seeded(RecordCard card) {
+    final status = switch (card.id) {
+      1000 => MusicStatus.processing,
+      1001 => MusicStatus.failed,
+      1002 => MusicStatus.none,
+      _ when card.id >= 9000 => MusicStatus.none,
+      _ => MusicStatus.succeeded,
+    };
+    if (status == MusicStatus.none) return MusicGeneration.none(card.id);
+
+    return MusicGeneration(
+      cardId: card.id,
+      status: status,
+      trackCount: MusicGeneration.trackCountFor(card.photos.length),
+    );
   }
 
   /// 지금 있는 그 카드. 고친 것이 있으면 그쪽이고, 지워졌으면 `null`이다.
