@@ -165,12 +165,12 @@ class _Repository implements RecordCardRepository {
   Future<RecordCard> update(EditRecordCard card) =>
       throw UnsupportedError('이 테스트는 카드를 고치지 않는다');
 
-  /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
+  /// ⚠️ **상세가 음악 줄을 세운다.** 던지면 삭제 테스트가 음악 때문에
+  /// 떨어진다. 이 테스트의 카드는 음악이 없는 것으로 둔다.
   @override
-  Future<MusicGeneration> musicOf(int cardId) =>
-      throw UnsupportedError('이 테스트는 음악을 보지 않는다');
+  Future<MusicGeneration> musicOf(int cardId) async =>
+      MusicGeneration.none(cardId);
 
-  /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
   @override
   Future<MusicGeneration> requestMusic(int cardId) =>
       throw UnsupportedError('이 테스트는 음악을 만들지 않는다');

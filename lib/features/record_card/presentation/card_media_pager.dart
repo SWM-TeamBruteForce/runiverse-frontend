@@ -31,7 +31,12 @@ import 'package:runiverse/features/record_card/presentation/route_art_view.dart'
 /// 처음으로 되돌아가지 않는다. 포토북은 끝이 있는 것이고, 돌아가면 사용자가
 /// 몇 바퀴째인지 알 수 없다.
 class CardMediaPager extends StatefulWidget {
-  const CardMediaPager({required this.card, super.key});
+  const CardMediaPager({
+    required this.card,
+    required this.playing,
+    required this.onPlayingChanged,
+    super.key,
+  });
 
   /// 양옆 이웃이 살짝 보이는 정도. 시안이 가운데 장을 크게 두고 좌우를
   /// 조금씩 드러낸다.
@@ -45,6 +50,17 @@ class CardMediaPager extends StatefulWidget {
 
   final RecordCard card;
 
+  /// 지금 넘어가고 있나.
+  ///
+  /// ## ⚠️ 바깥이 든다
+  ///
+  /// 음악 줄도 같은 것을 가리켜야 한다(`MusicStrip`). 각자 들면 줄은 `재생`
+  /// 인데 책은 넘어가거나, 사진을 탭해 멈췄는데 줄은 여전히 `멈춤`이다.
+  final bool playing;
+
+  /// 사진을 탭했다. **스스로 바꾸지 않는다** — 든 사람이 바꾼다.
+  final ValueChanged<bool> onPlayingChanged;
+
   @override
   State<CardMediaPager> createState() => _CardMediaPagerState();
 }
@@ -56,7 +72,6 @@ class _CardMediaPagerState extends State<CardMediaPager> {
 
   Timer? _advance;
   var _page = 0;
-  var _playing = true;
 
   /// 경로 한 장 + 사진들.
   int get _count => widget.card.photos.length + 1;
@@ -84,6 +99,14 @@ class _CardMediaPagerState extends State<CardMediaPager> {
     _schedule();
   }
 
+  /// ⚠️ **바깥이 멈추면 타이머를 다시 건다.** 안 걸면 줄의 `멈춤`이 상태만
+  /// 바꾸고 책은 그대로 넘어간다.
+  @override
+  void didUpdateWidget(CardMediaPager oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.playing != widget.playing) _schedule();
+  }
+
   @override
   void dispose() {
     _advance?.cancel();
@@ -97,7 +120,7 @@ class _CardMediaPagerState extends State<CardMediaPager> {
   /// 다시 센다 — 남은 시간을 들고 있으면 막대가 가리키는 것과 어긋난다.
   void _schedule() {
     _advance?.cancel();
-    if (!_playing) return;
+    if (!widget.playing) return;
     // 마지막 장이면 걸지 않는다. 사진이 없으면 첫 장이 곧 마지막이다.
     if (_page >= _count - 1) return;
 
@@ -118,11 +141,6 @@ class _CardMediaPagerState extends State<CardMediaPager> {
   void _onPage(int page) {
     setState(() => _page = page);
     // 손으로 밀었든 타이머가 넘겼든, 새 장은 처음부터 센다.
-    _schedule();
-  }
-
-  void _toggle() {
-    setState(() => _playing = !_playing);
     _schedule();
   }
 
@@ -147,7 +165,7 @@ class _CardMediaPagerState extends State<CardMediaPager> {
             container: true,
             child: GestureDetector(
               // 탭하면 멈추고 다시 탭하면 이어간다.
-              onTap: _toggle,
+              onTap: () => widget.onPlayingChanged(!widget.playing),
               child: PageView.builder(
                 controller: _controller,
                 onPageChanged: _onPage,

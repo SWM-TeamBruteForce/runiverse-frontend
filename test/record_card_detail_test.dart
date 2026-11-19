@@ -3,12 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
+import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/presentation/card_media_pager.dart';
+import 'package:runiverse/features/record_card/presentation/music_strip.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_detail_page.dart';
 import 'package:runiverse/features/record_card/presentation/route_art_view.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
@@ -59,10 +64,56 @@ int pageOf(WidgetTester tester) {
   return (view.controller!.page ?? 0).round();
 }
 
+/// 음악만 답하는 저장소. **번호를 안 본다** — 상세가 어떤 카드를 들고 와도
+/// 같은 상태를 준다.
+class _MusicRepository implements RecordCardRepository {
+  _MusicRepository(this.status);
+
+  final MusicStatus status;
+
+  var requests = 0;
+
+  @override
+  Future<MusicGeneration> musicOf(int cardId) async => status == MusicStatus.none
+      ? MusicGeneration.none(cardId)
+      : MusicGeneration(cardId: cardId, status: status, trackCount: 1);
+
+  @override
+  Future<MusicGeneration> requestMusic(int cardId) async {
+    requests++;
+    return MusicGeneration(
+      cardId: cardId,
+      status: MusicStatus.queued,
+      trackCount: 1,
+    );
+  }
+
+  /// 이 테스트는 **음악만** 본다. 불리면 테스트가 잘못 세워진 것이다.
+  @override
+  Future<List<RecordCard>> byDateRange({
+    required DateTime from,
+    required DateTime to,
+  }) => throw UnsupportedError('이 테스트는 목록을 받지 않는다');
+
+  @override
+  Future<RecordCard> create(NewRecordCard card) =>
+      throw UnsupportedError('이 테스트는 카드를 만들지 않는다');
+
+  @override
+  Future<RecordCard> update(EditRecordCard card) =>
+      throw UnsupportedError('이 테스트는 카드를 고치지 않는다');
+
+  @override
+  Future<void> delete(int cardId) =>
+      throw UnsupportedError('이 테스트는 카드를 지우지 않는다');
+}
+
 Future<void> _pump(
   WidgetTester tester, {
   int photos = 0,
   bool light = false,
+  MusicStatus music = MusicStatus.succeeded,
+  _MusicRepository? repository,
 }) async {
   // ⚠️ 기본 테스트 화면(800×600)은 가로로 넓어 9:16 페이저가 화면보다 길어진다.
   // 아래 내용이 전부 밀려나 "안 보인다"로 떨어진다. 손전화 크기로 맞춘다.
@@ -75,15 +126,22 @@ Future<void> _pump(
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPadding);
 
-  // ⚠️ **`ProviderScope`가 필요하다.** 상세가 삭제 상태를 본다(`⋮`).
+  // ⚠️ **`ProviderScope`가 필요하다.** 상세가 삭제 상태와 음악 상태를 본다.
   await tester.pumpWidget(
     ProviderScope(
+      overrides: [
+        recordCardRepositoryProvider.overrideWithValue(
+          repository ?? _MusicRepository(music),
+        ),
+      ],
       child: MaterialApp(
         theme: light ? AppTheme.light() : AppTheme.dark(),
         home: CardDetailPage(card: _card(photos: photos)),
       ),
     ),
   );
+  // 음악 상태가 한 프레임 뒤에 선다.
+  await tester.pump();
 }
 
 void main() {
@@ -287,5 +345,79 @@ void main() {
     await _pump(tester, photos: 2, light: true);
 
     expect(tester.takeException(), isNull);
+  });
+
+  // ── 음악 줄 (묶음 5) ──────────────────────────────────────────
+
+  testWidgets('상세에 음악 줄이 선다', (tester) async {
+    await _pump(tester, photos: 2);
+
+    expect(find.byType(MusicStrip), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 음악 줄은 글 아래에 선다 — 사진을 밀어내지 않는다', (tester) async {
+    await _pump(tester, photos: 2);
+
+    final memo = tester.getRect(find.text('오늘은 퇴근 후 성수동에서 달렸다.'));
+    final strip = tester.getRect(find.byType(MusicStrip));
+
+    expect(strip.top, greaterThanOrEqualTo(memo.bottom));
+  });
+
+  testWidgets('⚠️ 줄의 멈춤을 누르면 책이 안 넘어간다', (tester) async {
+    await _pump(tester, photos: 2);
+
+    await tester.tap(find.text(AppStrings.recordCardMusicPause));
+    await tester.pump();
+
+    await tester.pump(MusicGeneration.baseDuration * 2);
+    await tester.pumpAndSettle();
+
+    expect(pageOf(tester), 0, reason: '멈췄는데 넘어갔다');
+  });
+
+  testWidgets('⚠️ 다시 누르면 이어간다', (tester) async {
+    await _pump(tester, photos: 2);
+
+    await tester.tap(find.text(AppStrings.recordCardMusicPause));
+    await tester.pump();
+    await tester.tap(find.text(AppStrings.recordCardMusicPlay));
+    await tester.pump();
+
+    await tester.pump(MusicGeneration.baseDuration);
+    await tester.pumpAndSettle();
+
+    expect(pageOf(tester), 1);
+  });
+
+  testWidgets('⚠️ 사진을 탭해 멈추면 줄도 재생으로 바뀐다 — 둘이 한 상태다', (tester) async {
+    await _pump(tester, photos: 2);
+    expect(find.text(AppStrings.recordCardMusicPause), findsOneWidget);
+
+    await tester.tap(find.byType(PageView));
+    await tester.pump();
+
+    expect(find.text(AppStrings.recordCardMusicPlay), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 음악이 없는 카드도 책은 넘어간다 — 음악은 길이의 출처일 뿐이다', (
+    tester,
+  ) async {
+    await _pump(tester, photos: 2, music: MusicStatus.none);
+    expect(find.text(AppStrings.recordCardMusicCreate), findsOneWidget);
+
+    await tester.pump(MusicGeneration.baseDuration);
+    await tester.pumpAndSettle();
+
+    expect(pageOf(tester), 1);
+  });
+
+  testWidgets('⚠️ 만드는 중인 카드도 책은 넘어간다', (tester) async {
+    await _pump(tester, photos: 2, music: MusicStatus.processing);
+
+    await tester.pump(MusicGeneration.baseDuration);
+    await tester.pumpAndSettle();
+
+    expect(pageOf(tester), 1);
   });
 }

@@ -14,6 +14,7 @@ import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/presentation/card_delete_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_media_pager.dart';
+import 'package:runiverse/features/record_card/presentation/music_strip.dart';
 
 /// 기록카드 한 장 — **포토북이다. 읽기만 한다.**
 ///
@@ -22,23 +23,40 @@ import 'package:runiverse/features/record_card/presentation/card_media_pager.dar
 /// 날짜와 기록은 **위 가운데**, 캡션은 **아래 가운데**다(시안). 가운데는
 /// 사진 한 장이 크게 차지한다 — 숫자를 사진 옆에 늘어놓으면 둘 다 묻힌다.
 ///
-/// ## ⚠️ 없는 버튼을 그려 두지 않는다
+/// ## ⚠️ 재생은 **한 상태**다
 ///
-/// `⋮`가 생겼다(수정·삭제). **음악 줄은 아직 없다** — 묶음 5다. 눌러도 아무
-/// 데도 가지 않는 버튼은 두지 않는다 — 고장으로 읽힌다
-/// (`run_summary_page.dart`가 같은 이유를 적어 두었다).
+/// 음악 줄과 포토북이 같은 `playing`을 본다. 각자 들면 줄은 `재생`인데 책은
+/// 넘어가거나, 사진을 탭해 멈췄는데 줄은 `멈춤`으로 남는다. provider로 올리지
+/// 않는 이유는 **이 화면을 넘지 않는 상태**라서다 — 카드를 닫으면 사라져야
+/// 한다.
+///
+/// ## ⚠️ 음악이 자동 넘김을 막지 않는다
+///
+/// 음악이 다 되지 않았을 때 책을 세워 두면, 음악을 **끈 카드**와 **실패한
+/// 카드**의 포토북이 영영 첫 장에 멈춘다. 음악이 붙으면 바뀌는 것은 설계가
+/// 적은 대로 **길이의 출처뿐**이다(6-5).
 ///
 /// ## ⚠️ 탭 셸 밖이다
 ///
 /// 프로필 그리드나 러닝 요약에서 열어도 탭이 바뀌면 안 된다
 /// (`app_routes.dart`의 `recordCardDetail`).
-class CardDetailPage extends ConsumerWidget {
+class CardDetailPage extends ConsumerStatefulWidget {
   const CardDetailPage({required this.card, super.key});
 
   final RecordCard card;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CardDetailPage> createState() => _CardDetailPageState();
+}
+
+class _CardDetailPageState extends ConsumerState<CardDetailPage> {
+  /// 포토북이 넘어가고 있나. **열면 돌고 있다**(묶음 1에서 정했다).
+  var _playing = true;
+
+  RecordCard get card => widget.card;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.appColorsV2;
     // ⚠️ **도는 동안을 보여 준다.** 아무 표시가 없으면 느린 망에서 "안
     // 눌렸다"로 읽혀 한 번 더 누르고, 두 번째가 재진입 가드에 걸려 **지워졌는데
@@ -70,7 +88,7 @@ class CardDetailPage extends ConsumerWidget {
           IconButton(
             icon: const Icon(LucideIcons.ellipsisVertical),
             tooltip: AppStrings.recordCardMore,
-            onPressed: deleting ? null : () => _openMenu(context, ref),
+            onPressed: deleting ? null : () => _openMenu(context),
           ),
         ],
       ),
@@ -86,14 +104,26 @@ class CardDetailPage extends ConsumerWidget {
           const SizedBox(height: AppSpacing.space4),
           // ⚠️ **회고를 여기 두지 않는다.** 사진 아래 글자 자리에 경로 장일
           // 때만 선다. 사진 장에서는 그 자리에 캡션이 대신 든다.
-          CardMediaPager(card: card),
+          CardMediaPager(
+            card: card,
+            playing: _playing,
+            onPlayingChanged: (playing) => setState(() => _playing = playing),
+          ),
+          const SizedBox(height: AppSpacing.space3),
+          // ⚠️ **글 아래다**(시안 6-5). 사진과 글 사이에 끼우면 점·캡션·회고가
+          // 밀려 한 화면에 안 들어온다.
+          MusicStrip(
+            cardId: card.id,
+            playing: _playing,
+            onTogglePlay: () => setState(() => _playing = !_playing),
+          ),
         ],
       ),
     );
   }
 
   /// `⋮` — 수정과 삭제 (설계 6-6).
-  Future<void> _openMenu(BuildContext context, WidgetRef ref) async {
+  Future<void> _openMenu(BuildContext context) async {
     final picked = await showModalBottomSheet<_CardAction>(
       context: context,
       backgroundColor: context.appColorsV2.bgSurface,
@@ -125,13 +155,13 @@ class CardDetailPage extends ConsumerWidget {
         // ⚠️ **카드를 `extra`로 들려 보낸다.** 단건 조회 API가 없다.
         await context.push(AppRoutes.recordCardEditOf(card.id), extra: card);
       case _CardAction.delete:
-        await _confirmDelete(context, ref);
+        await _confirmDelete(context);
     }
   }
 
   /// ⚠️ **되돌릴 수 없다고 말하고 받는다.** 서버에 논리 삭제 컬럼이 없다
   /// (설계 3절).
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+  Future<void> _confirmDelete(BuildContext context) async {
     final yes = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: context.appColorsV2.bgSurface,

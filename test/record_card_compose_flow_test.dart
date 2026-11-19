@@ -18,6 +18,7 @@ import 'package:runiverse/features/record_card/domain/record_card_activity.dart'
 import 'package:runiverse/features/record_card/presentation/card_compose_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_detail_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
+import 'package:runiverse/features/record_card/presentation/card_music_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_photo_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_publish_page.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_page.dart';
@@ -95,6 +96,7 @@ void main() {
     // ⚠️ **탭에서 걸어 들어간다.** `initialLocation`으로 작성 3에 바로 떨어지면
     // 그 아래에 스택이 없어, 걷어 낼 것도 돌아갈 데도 없다 — 실제 사용자는
     // 탭을 밑에 두고 올라온다.
+    _musicNow = DateTime(2026, 11, 18, 10);
     final container = await _walkToPublish(tester);
 
     await tester.tap(find.text(AppStrings.recordCardPublishSave));
@@ -166,6 +168,8 @@ void main() {
     // 저장은 끝까지 가고 상세로 간다 — 나가지 못했으니 받을 사람이 있다.
     expect(find.byType(CardDetailPage), findsOne);
 
+    await _finishMusic(tester);
+
     // 저장이 끝나면 달력이 다시 받는다. 이 테스트의 느린 저장소가 거기도
     // 걸려, 안 기다리면 타이머가 남은 채로 끝난다.
     await tester.pumpAndSettle(const Duration(seconds: 2));
@@ -214,6 +218,19 @@ Future<void> _keepDraft(WidgetTester tester) async {
 
 final _today = DateTime(2026, 11, 18);
 
+/// 가짜가 보는 "지금". **음악 상태가 이 값으로 계산된다**(요청 시각과의 차).
+var _musicNow = DateTime(2026, 11, 18, 10);
+
+/// ⚠️ **저장하면 상세가 음악을 묻기 시작한다** — 음악을 켜고 저장했으면
+/// `QUEUED`이고, 끝날 때까지 다시 묻는다(설계 3절: 큐에서 6시간). 폴링 타이머를
+/// 남기고 테스트를 끝내면 `!timersPending`으로 떨어지므로, 시계를 밀어 끝
+/// 상태로 세운다.
+Future<void> _finishMusic(WidgetTester tester) async {
+  _musicNow = _musicNow.add(const Duration(seconds: 14));
+  await tester.pump(CardMusicController.pollInterval);
+  await tester.pump();
+}
+
 /// 방금 세운 카드 저장소. 만든 횟수를 본다.
 late FakeRecordCardRepository _cards;
 
@@ -227,7 +244,11 @@ Future<ProviderContainer> _pump(
   final container = ProviderContainer(
     overrides: [
       recordCardRepositoryProvider.overrideWithValue(
-        _cards = FakeRecordCardRepository(today: _today, delay: delay),
+        _cards = FakeRecordCardRepository(
+          today: _today,
+          delay: delay,
+          clock: () => _musicNow,
+        ),
       ),
       runRecordRepositoryProvider.overrideWithValue(
         FakeRunRecordRepository(today: _today),
