@@ -13,6 +13,7 @@ import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
+import 'package:runiverse/features/record_card/presentation/card_music_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 
 final cardThumbnailMakerProvider = Provider<CardThumbnailMaker>(
@@ -180,6 +181,14 @@ class CardSaveController extends Notifier<CardSaveState> {
       // — 저장만 보려는 테스트까지 함께 무너진다. `invalidate`는 **살아 있는
       // 것만** 다시 짓고, 없으면 아무 일도 하지 않는다.
       ref.invalidate(recordCardControllerProvider);
+      // ⚠️ **고친 카드의 음악 상태도 버린다.** AI가 읽는 값이 바뀌면 서버가
+      // 전곡을 다시 만들기 시작하는데(설계 3절), 들고 있던 `SUCCEEDED`는
+      // 폴링이 멈춘 상태라 스스로 고쳐지지 않는다 — 돌아온 상세가 `멈춤`을
+      // 세워 **방금 읽은 "처음부터 다시 만듭니다"가 거짓**이 된다.
+      //
+      // 옛 상세가 전환이 끝날 때까지 살아 있어 provider가 버려지지 않으므로,
+      // 여기서 직접 버린다.
+      if (editing != null) ref.invalidate(cardMusicProvider(editing.id));
       state = const CardSaveIdle();
       // ⚠️ **자른 파일을 치우지 않는다.** 카드가 그 경로를 들고 갔고, 올릴
       // 엔드포인트가 없어 **그것이 유일한 사본**이다. 치우면 상세에서 사진이

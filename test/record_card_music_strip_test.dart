@@ -35,6 +35,7 @@ void main() {
     WidgetTester tester, {
     required int cardId,
     bool playing = true,
+    bool canAdvance = true,
     bool light = false,
   }) async {
     await tester.pumpWidget(
@@ -46,6 +47,7 @@ void main() {
             body: MusicStrip(
               cardId: cardId,
               playing: playing,
+              canAdvance: canAdvance,
               onTogglePlay: () => toggles++,
             ),
           ),
@@ -168,5 +170,59 @@ void main() {
     );
 
     handle.dispose();
+  });
+
+  testWidgets('⚠️ 요청이 날아가는 동안 줄이 그 말을 한다 — 같은 라벨로 서 있지 않는다', (
+    tester,
+  ) async {
+    repo = FakeRecordCardRepository(
+      today: DateTime(2026, 11, 16),
+      clock: () => now,
+      delay: const Duration(milliseconds: 50),
+    );
+    await pump(tester, cardId: _none);
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pump();
+
+    await tester.tap(find.text(AppStrings.recordCardMusicCreate));
+    await tester.pump();
+
+    expect(find.text(AppStrings.recordCardMusicRequesting), findsOneWidget);
+    expect(find.text(AppStrings.recordCardMusicCreate), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pump();
+    expect(find.text(AppStrings.recordCardMusicQueued), findsOneWidget);
+
+    now = now.add(const Duration(seconds: 13));
+    await tester.pump(CardMusicController.pollInterval);
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pump();
+  });
+
+  testWidgets('⚠️ 요청 중에는 다시 눌려도 아무 일도 없다', (tester) async {
+    repo = FakeRecordCardRepository(
+      today: DateTime(2026, 11, 16),
+      clock: () => now,
+      delay: const Duration(milliseconds: 50),
+    );
+    await pump(tester, cardId: _none);
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pump();
+
+    await tester.tap(find.text(AppStrings.recordCardMusicCreate));
+    await tester.pump();
+    // 줄이 버튼이 아니므로 두 번째 탭이 들어갈 자리가 없다.
+    await tester.tap(find.text(AppStrings.recordCardMusicRequesting));
+    await tester.pump();
+
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pump();
+    expect(repo.musicRequests, 1);
+
+    now = now.add(const Duration(seconds: 13));
+    await tester.pump(CardMusicController.pollInterval);
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pump();
   });
 }

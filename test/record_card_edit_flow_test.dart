@@ -80,6 +80,34 @@ void main() {
 
       expect(find.byType(CardDetailPage), findsOne);
       expect(find.text('고친 글'), findsOne);
+
+      // ⚠️ 고친 값이 AI 입력이라 저장이 음악을 다시 걸었다 — 폴링을 끝낸다.
+      await _finishMusic(tester);
+    });
+
+    testWidgets('⚠️ 저장하면 상세의 음악 줄이 되돌아간다 — 전곡을 다시 만든다', (
+      tester,
+    ) async {
+      // 작성 3이 "처음부터 다시 만듭니다"라고 알렸으면, 돌아온 상세가 그 말과
+      // 같은 것을 보여야 한다. 다 된 음악 줄(`멈춤`)이 그대로 서 있으면
+      // **방금 읽은 경고가 거짓**이 된다.
+      // 사진이 없는 카드라 넘어갈 장이 없다 — 줄은 `음악이 준비됐어요`다.
+      await _pumpDetail(tester);
+      expect(find.text(AppStrings.recordCardMusicReady), findsOne);
+
+      await _openMenu(tester, AppStrings.recordCardEditTitle);
+      await _reachReview(tester);
+      await tester.enterText(find.byType(TextField), '고친 글');
+      await tester.pump();
+      await _nextTwice(tester);
+
+      await tester.tap(find.text(AppStrings.recordCardPublishSave));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.recordCardMusicQueued), findsOne);
+      expect(find.text(AppStrings.recordCardMusicReady), findsNothing);
+
+      await _finishMusic(tester);
     });
 
     testWidgets('⚠️ 저장하면 작성 셋도 옛 상세도 걷힌다', (tester) async {

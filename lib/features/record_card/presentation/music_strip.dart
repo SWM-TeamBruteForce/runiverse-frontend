@@ -31,6 +31,7 @@ class MusicStrip extends ConsumerWidget {
   const MusicStrip({
     required this.cardId,
     required this.playing,
+    required this.canAdvance,
     required this.onTogglePlay,
     super.key,
   });
@@ -42,6 +43,14 @@ class MusicStrip extends ConsumerWidget {
 
   /// 포토북이 지금 넘어가고 있나. **줄은 이것의 반대를 권한다.**
   final bool playing;
+
+  /// 더 넘어갈 장이 있나.
+  ///
+  /// ⚠️ **없으면 `재생`도 `멈춤`도 거짓이다.** 사진이 없는 카드는 한 장뿐이라
+  /// 타이머를 아예 걸지 않고, 마지막 장에서는 멈춘 뒤 처음으로 돌아가지
+  /// 않는다(설계 6-5) — 그 자리에 토글을 세우면 **눌러도 아무 일도 없는
+  /// 버튼**이 된다.
+  final bool canAdvance;
 
   final VoidCallback onTogglePlay;
 
@@ -61,6 +70,12 @@ class MusicStrip extends ConsumerWidget {
             label: AppStrings.recordCardMusicError,
             action: AppStrings.recordCardMusicReload,
             onAction: () => ref.read(cardMusicProvider(cardId).notifier).load(),
+          ),
+          // ⚠️ **요청이 날아가는 동안을 먼저 가린다.** 상태는 아직 바뀌지
+          // 않았으므로, 안 가리면 같은 라벨이 그대로 서서 누른 사람에게
+          // 아무 일도 일어나지 않은 것으로 보인다.
+          CardMusicData(requesting: true) => const _Line(
+            label: AppStrings.recordCardMusicRequesting,
           ),
           CardMusicData(:final generation) => _forStatus(
             context,
@@ -93,13 +108,16 @@ class MusicStrip extends ConsumerWidget {
       ),
       // ⚠️ **지금 상태가 아니라 "누르면 될 일"을 쓴다.** 상세를 열면 책이 이미
       // 돌고 있어서, 도는 중에 `재생`을 세우면 이미 하는 것을 하라는 버튼이다.
-      MusicStatus.succeeded => _Line(
-        icon: playing ? LucideIcons.pause : LucideIcons.play,
-        label: playing
-            ? AppStrings.recordCardMusicPause
-            : AppStrings.recordCardMusicPlay,
-        onTap: onTogglePlay,
-      ),
+      // 넘어갈 장이 없으면 둘 다 거짓이라 **버튼을 두지 않는다**([canAdvance]).
+      MusicStatus.succeeded => canAdvance
+          ? _Line(
+              icon: playing ? LucideIcons.pause : LucideIcons.play,
+              label: playing
+                  ? AppStrings.recordCardMusicPause
+                  : AppStrings.recordCardMusicPlay,
+              onTap: onTogglePlay,
+            )
+          : const _Line(label: AppStrings.recordCardMusicReady),
       MusicStatus.failed => _Line(
         label: AppStrings.recordCardMusicFailed,
         action: AppStrings.recordCardMusicRetry,

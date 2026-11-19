@@ -54,6 +54,12 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
   /// 포토북이 넘어가고 있나. **열면 돌고 있다**(묶음 1에서 정했다).
   var _playing = true;
 
+  /// 지금 몇 번째 장인가. 음악 줄이 **더 넘어갈 데가 있는지** 알아야 한다.
+  var _page = 0;
+
+  /// 더 넘어갈 장이 있나. 경로 한 장 + 사진들이라 마지막 자리는 사진 수다.
+  bool get _canAdvance => _page < card.photos.length;
+
   RecordCard get card => widget.card;
 
   @override
@@ -109,6 +115,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
             card: card,
             playing: _playing,
             onPlayingChanged: (playing) => setState(() => _playing = playing),
+            onPageChanged: (page) => setState(() => _page = page),
           ),
           const SizedBox(height: AppSpacing.space3),
           // ⚠️ **글 아래다**(시안 6-5). 사진과 글 사이에 끼우면 점·캡션·회고가
@@ -116,6 +123,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
           MusicStrip(
             cardId: card.id,
             playing: _playing,
+            canAdvance: _canAdvance,
             onTogglePlay: () => setState(() => _playing = !_playing),
           ),
         ],

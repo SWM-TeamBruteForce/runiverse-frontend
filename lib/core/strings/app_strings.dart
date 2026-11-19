@@ -1659,6 +1659,10 @@ abstract final class AppStrings {
   /// 아직 만든 적이 없는 카드. **줄 전체가 버튼이다.**
   static const recordCardMusicCreate = 'AI 음악 만들기';
 
+  /// 요청이 날아가는 동안. ⚠️ **같은 라벨로 서 있으면 안 된다** — 누른
+  /// 사람에게 아무 일도 일어나지 않은 것으로 보이고, 한 번 더 누른다.
+  static const recordCardMusicRequesting = '음악을 요청하는 중…';
+
   static const recordCardMusicQueued = '음악 생성 준비 중…';
   static const recordCardMusicProcessing = '음악 만드는 중…';
 
@@ -1667,6 +1671,14 @@ abstract final class AppStrings {
   /// 하라는 버튼이 된다.
   static const recordCardMusicPlay = '재생';
   static const recordCardMusicPause = '멈춤';
+
+  /// 음악은 다 됐는데 **넘어갈 장이 없을 때.** 사진이 없는 카드이거나 마지막
+  /// 장에 닿은 것이다.
+  ///
+  /// ⚠️ **여기에 `재생`/`멈춤`을 세우면 거짓이다.** 포토북이 한 장뿐이면
+  /// 타이머를 걸지 않고(`CardMediaPager`), 마지막 장에서는 멈춘 뒤 처음으로
+  /// 되돌아가지 않는다(설계 6-5). 누를 것이 없으므로 **버튼으로 두지 않는다.**
+  static const recordCardMusicReady = '음악이 준비됐어요';
 
   /// ⚠️ **전곡이다.** 1곡만 실패해도 카드 전체가 실패이고, 다시 만들면 전곡을
   /// 다시 만든다(설계 3절).

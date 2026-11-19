@@ -35,6 +35,7 @@ class CardMediaPager extends StatefulWidget {
     required this.card,
     required this.playing,
     required this.onPlayingChanged,
+    required this.onPageChanged,
     super.key,
   });
 
@@ -60,6 +61,10 @@ class CardMediaPager extends StatefulWidget {
 
   /// 사진을 탭했다. **스스로 바꾸지 않는다** — 든 사람이 바꾼다.
   final ValueChanged<bool> onPlayingChanged;
+
+  /// 몇 번째 장으로 갔나. 음악 줄이 **더 넘어갈 데가 있는지** 알아야 한다 —
+  /// 마지막 장에서는 `멈춤`이 거짓이 된다.
+  final ValueChanged<int> onPageChanged;
 
   @override
   State<CardMediaPager> createState() => _CardMediaPagerState();
@@ -140,6 +145,7 @@ class _CardMediaPagerState extends State<CardMediaPager> {
 
   void _onPage(int page) {
     setState(() => _page = page);
+    widget.onPageChanged(page);
     // 손으로 밀었든 타이머가 넘겼든, 새 장은 처음부터 센다.
     _schedule();
   }

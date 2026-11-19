@@ -420,4 +420,25 @@ void main() {
 
     expect(pageOf(tester), 1);
   });
+
+  testWidgets('⚠️ 사진이 없으면 멈춤이라고 하지 않는다 — 넘길 데가 없다', (tester) async {
+    // 한 장뿐인 책은 타이머를 걸지 않는다. 그 위에 `멈춤`을 세우면 **아무
+    // 일도 하지 않는 버튼**이고, 눌러서 `재생`이 되어도 달라지는 것이 없다.
+    await _pump(tester);
+
+    expect(find.text(AppStrings.recordCardMusicPause), findsNothing);
+    expect(find.text(AppStrings.recordCardMusicPlay), findsNothing);
+    expect(find.text(AppStrings.recordCardMusicReady), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 마지막 장에 닿으면 멈춤이 사라진다 — 더 넘어갈 데가 없다', (tester) async {
+    await _pump(tester, photos: 1);
+    expect(find.text(AppStrings.recordCardMusicPause), findsOneWidget);
+
+    await tester.drag(find.byType(PageView), const Offset(-400, 0));
+    await tester.pumpAndSettle();
+
+    expect(pageOf(tester), 1);
+    expect(find.text(AppStrings.recordCardMusicReady), findsOneWidget);
+  });
 }
