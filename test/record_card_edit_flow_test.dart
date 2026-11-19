@@ -23,6 +23,7 @@ import 'package:runiverse/features/record_card/domain/record_card_repository.dar
 import 'package:runiverse/features/record_card/presentation/card_compose_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_detail_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
+import 'package:runiverse/features/record_card/presentation/card_music_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_photo_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_publish_page.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_page.dart';
@@ -122,6 +123,47 @@ void main() {
 
       expect(find.text(AppStrings.recordCardDeleteTitle), findsOne);
       expect(find.text(AppStrings.recordCardDeleteBody), findsOne);
+    });
+
+    // ── 음악 알림 (설계 6-6) ──────────────────────────────────
+
+    testWidgets('⚠️ 만드는 중이면 함께 사라진다고 알린다', (tester) async {
+      // ⚠️ 목 번호 **1001**은 사진이 없고 음악이 실패해 있다
+      // (`FakeRecordCardRepository._seeded`). `다시 만들기`를 눌러 **만드는
+      // 중**으로 세운 뒤 지우려 한다 — 사용자가 실제로 지나는 길이다.
+      await _pumpDetail(tester, cardId: 1001);
+      await tester.tap(find.text(AppStrings.recordCardMusicRetry));
+      await tester.pump();
+      expect(find.text(AppStrings.recordCardMusicQueued), findsOne);
+
+      await _openMenu(tester, AppStrings.recordCardDelete);
+
+      expect(find.text(AppStrings.recordCardMusicWorkingDelete), findsOne);
+
+      await tester.tap(find.text(AppStrings.recordCardDeleteCancel));
+      await tester.pumpAndSettle();
+      await _finishMusic(tester);
+    });
+
+    testWidgets('⚠️ 알리기만 하고 막지 않는다', (tester) async {
+      await _pumpDetail(tester, cardId: 1001);
+      await tester.tap(find.text(AppStrings.recordCardMusicRetry));
+      await tester.pump();
+
+      await _openMenu(tester, AppStrings.recordCardDelete);
+      await tester.tap(find.text(AppStrings.recordCardDeleteConfirm));
+      await tester.pumpAndSettle();
+
+      expect(_cards.deletes, 1);
+      expect(find.byType(CardDetailPage), findsNothing);
+    });
+
+    testWidgets('만드는 중이 아니면 삭제 시트가 음악을 말하지 않는다', (tester) async {
+      await _pumpDetail(tester);
+
+      await _openMenu(tester, AppStrings.recordCardDelete);
+
+      expect(find.text(AppStrings.recordCardMusicWorkingDelete), findsNothing);
     });
 
     testWidgets('그대로 두기를 고르면 아무 일도 없다', (tester) async {
@@ -232,6 +274,18 @@ void main() {
 // ── 도움 ──────────────────────────────────────────────────────
 
 final _today = DateTime(2026, 11, 18);
+
+/// 가짜가 보는 "지금". **음악 상태가 이 값으로 계산된다**(요청 시각과의 차).
+/// 테스트가 밀어서 생성을 끝낸다.
+var _musicNow = DateTime(2026, 11, 18, 10);
+
+/// ⚠️ **만드는 중인 음악에는 끝이 없다** — 폴링 타이머를 남기고 테스트를
+/// 끝내면 `!timersPending`으로 떨어진다. 시계를 밀어 끝 상태로 세운다.
+Future<void> _finishMusic(WidgetTester tester) async {
+  _musicNow = _musicNow.add(const Duration(seconds: 14));
+  await tester.pump(CardMusicController.pollInterval);
+  await tester.pump();
+}
 late FakeRecordCardRepository _cards;
 late GoRouter _router;
 
@@ -269,6 +323,7 @@ Future<void> _reachReview(WidgetTester tester) async {
 Future<ProviderContainer> _pumpDetail(
   WidgetTester tester, {
   Duration delay = Duration.zero,
+  int? cardId,
 }) async {
   final container = await _pumpAt(tester, AppRoutes.recordCard, delay: delay);
 
@@ -280,7 +335,9 @@ Future<ProviderContainer> _pumpDetail(
     from: _today.subtract(const Duration(days: 25)),
     to: _today,
   );
-  _card = all.firstWhere((c) => c.photos.isEmpty);
+  _card = cardId == null
+      ? all.firstWhere((c) => c.photos.isEmpty)
+      : all.firstWhere((c) => c.id == cardId);
 
   _router.push(AppRoutes.recordCardDetailOf(_card.id), extra: _card);
   await tester.pumpAndSettle();
@@ -293,13 +350,20 @@ Future<ProviderContainer> _pumpAt(
   String at, {
   Duration delay = Duration.zero,
 }) async {
+  _musicNow = DateTime(2026, 11, 18, 10);
   final container = ProviderContainer(
     overrides: [
       recordCardRepositoryProvider.overrideWithValue(
         // ⚠️ **Fake의 `delay`를 쓰지 않는다.** 그것은 `byDateRange`에도
         // 걸려 달력이 과거를 더 받는 길까지 느려지고, `pumpAndSettle`이
         // 영영 끝나지 않는다. 느리게 할 것은 **삭제뿐**이다.
-        _SlowDelete(_cards = FakeRecordCardRepository(today: _today), delay),
+        _SlowDelete(
+          _cards = FakeRecordCardRepository(
+            today: _today,
+            clock: () => _musicNow,
+          ),
+          delay,
+        ),
       ),
       runRecordRepositoryProvider.overrideWithValue(
         FakeRunRecordRepository(today: _today),
@@ -354,15 +418,12 @@ class _SlowDelete implements RecordCardRepository {
   @override
   Future<RecordCard> update(EditRecordCard card) => _inner.update(card);
 
-  /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<MusicGeneration> musicOf(int cardId) =>
-      throw UnsupportedError('이 테스트는 음악을 보지 않는다');
+  Future<MusicGeneration> musicOf(int cardId) => _inner.musicOf(cardId);
 
-  /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
   @override
   Future<MusicGeneration> requestMusic(int cardId) =>
-      throw UnsupportedError('이 테스트는 음악을 만들지 않는다');
+      _inner.requestMusic(cardId);
 }
 
 class _Cropper implements ImageCropper {

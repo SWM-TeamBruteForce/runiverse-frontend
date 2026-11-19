@@ -7,9 +7,12 @@ import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/features/record_card/domain/card_draft.dart';
+import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/music_inputs.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
+import 'package:runiverse/features/record_card/presentation/card_music_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_save_provider.dart';
 import 'package:runiverse/features/record_card/presentation/visibility_label.dart';
 
@@ -20,6 +23,12 @@ import 'package:runiverse/features/record_card/presentation/visibility_label.dar
 /// 경로 경고는 `전체 공개`·`친구 공개`에서만 뜬다. 늘 띄우면 나만 보기로 바꾼
 /// 사람에게 거짓말이 되고, 아예 안 띄우면 집이나 직장 근처가 드러나는 것을
 /// 모르고 공개한다.
+///
+/// ## ⚠️ 수정에서는 음악을 잃을 수 있다고 미리 알린다 (설계 6-6)
+///
+/// 저장을 누른 **뒤에** 말하면 이미 버려진 뒤다. 다이얼로그로 한 번 더 받지
+/// 않는 이유는, 되돌릴 수 없는 일이 아니고(음악은 다시 만들어진다) 고칠
+/// 때마다 확인을 받으면 공개범위 한 칸 바꾸는 일도 두 번 눌러야 한다.
 ///
 /// ## ⚠️ 뒤로는 묻지 않는다
 ///
@@ -119,7 +128,12 @@ class CardPublishPage extends ConsumerWidget {
             ],
             if (recordCardVisibilityShowsRoute(draft.visibility)) ...[
               const SizedBox(height: AppSpacing.space1),
-              _RouteWarning(),
+              _Warning(AppStrings.recordCardPublishRouteWarning),
+            ],
+            // ⚠️ **수정에서만 선다.** 새 카드에는 아직 잃을 음악이 없다.
+            if (_musicWarning(ref, draft) case final warning?) ...[
+              const SizedBox(height: AppSpacing.space1),
+              _Warning(warning),
             ],
             // ⚠️ **수정에서는 음악 블록을 숨긴다.** `RecordCard`에 음악
             // 상태가 없어(묶음 5) 기본값 `true`를 보여 주게 되는데, 음악을
@@ -140,6 +154,35 @@ class CardPublishPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// 저장하면 음악이 어떻게 되는지 알리는 한 줄. 없으면 `null`이다.
+  ///
+  /// | 음악 | AI 입력이 바뀜 | 줄 |
+  /// |---|---|---|
+  /// | 만드는 중 | 상관없다 | 만들던 것이 버려진다 |
+  /// | 다 됐다 | 바뀜 | 처음부터 다시 만든다 |
+  /// | 다 됐다 | 공개범위만 | **없다** — 음악은 그대로다 |
+  /// | 없다 · 실패 | 상관없다 | **없다** — 잃을 음악이 없다 |
+  ///
+  /// ⚠️ **만드는 중에는 "공개범위만 바꾸면 그대로"가 거짓이다.** 백엔드가
+  /// "생성 중 수정·삭제는 활성 요청을 무효화한다"고 적었다(설계 3절).
+  String? _musicWarning(WidgetRef ref, CardDraft draft) {
+    final editing = draft.editing;
+    if (editing == null) return null;
+
+    // ⚠️ 상태를 못 읽었거나 아직 받는 중이면 **아무 말도 하지 않는다.** 모르는
+    // 것을 경고로 지어내지 않는다.
+    if (ref.watch(cardMusicProvider(editing.id)) case CardMusicData(
+      :final generation,
+    )) {
+      if (generation.isWorking) return AppStrings.recordCardMusicWorkingEdit;
+      if (generation.status == MusicStatus.succeeded &&
+          MusicInputs.ofDraft(draft) != MusicInputs.ofCard(editing)) {
+        return AppStrings.recordCardMusicRegenerate;
+      }
+    }
+    return null;
   }
 
   /// 저장하고, 만들어졌으면 [onSaved]에 넘긴다.
@@ -238,8 +281,13 @@ class _VisibilityTile extends StatelessWidget {
   }
 }
 
-/// 공개하면 경로가 보인다는 한 줄.
-class _RouteWarning extends StatelessWidget {
+/// 경고 한 줄. **경로와 음악이 같은 모양을 쓴다** — 같은 성격의 말이 두
+/// 모양이면 하나가 덜 중요해 보인다.
+class _Warning extends StatelessWidget {
+  const _Warning(this.message);
+
+  final String message;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
@@ -251,7 +299,7 @@ class _RouteWarning extends StatelessWidget {
         const SizedBox(width: AppSpacing.space2),
         Expanded(
           child: Text(
-            AppStrings.recordCardPublishRouteWarning,
+            message,
             style: AppTypographyV2.body20.copyWith(color: colors.warning),
           ),
         ),

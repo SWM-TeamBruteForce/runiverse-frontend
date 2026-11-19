@@ -13,6 +13,7 @@ import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/presentation/card_delete_provider.dart';
+import 'package:runiverse/features/record_card/presentation/card_music_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_media_pager.dart';
 import 'package:runiverse/features/record_card/presentation/music_strip.dart';
 
@@ -161,7 +162,15 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
 
   /// ⚠️ **되돌릴 수 없다고 말하고 받는다.** 서버에 논리 삭제 컬럼이 없다
   /// (설계 3절).
+  ///
+  /// 음악을 만드는 중이면 **한 줄 더 알린다. 막지는 않는다**(설계 6-6) —
+  /// 백엔드가 "생성 중 삭제는 활성 요청을 무효화한다"고 적었다.
   Future<void> _confirmDelete(BuildContext context) async {
+    // ⚠️ **시트 안에서 provider를 읽지 않는다.** 시트의 builder는 Navigator
+    // 밑에 따로 서서, 거기서 watch해도 떠 있는 동안 다시 그려지지 않는다.
+    final music = ref.read(cardMusicProvider(card.id));
+    final working = music is CardMusicData && music.generation.isWorking;
+
     final yes = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: context.appColorsV2.bgSurface,
@@ -185,6 +194,15 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
                   color: sheet.appColorsV2.textSecondary,
                 ),
               ),
+              if (working) ...[
+                const SizedBox(height: AppSpacing.space2),
+                Text(
+                  AppStrings.recordCardMusicWorkingDelete,
+                  style: AppTypographyV2.body20.copyWith(
+                    color: sheet.appColorsV2.warning,
+                  ),
+                ),
+              ],
               const SizedBox(height: AppSpacing.space4),
               // ⚠️ **파괴를 채워진 버튼으로 두지 않는다.** "채워진 쪽을
               // 누른다"를 배운 사람이 되돌릴 수 없는 것을 누른다.
