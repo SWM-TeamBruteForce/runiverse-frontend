@@ -1677,6 +1677,12 @@ abstract final class AppStrings {
 
   static const settingsWithdraw = '회원 탈퇴';
 
+  /// iOS에서만 보이는 건강 앱 연동 안내(심사 2.5.1). 애플 HIG대로 HealthKit이라
+  /// 쓰지 않고 앱 이름을 부른다. 제목은 쓰기, 설명은 읽기 권한과 맞춘다.
+  static const settingsHealthSection = 'Apple 건강';
+  static const settingsHealthTitle = '워치 러닝을 건강 앱에 저장해요';
+  static const settingsHealthBody = '건강 앱에서 심박을 읽어 워치에 보여 줘요';
+
   // ── 설정 · 실패와 확인 ───────────────────────────────────────
 
   static const settingsLoadFailed = '설정을 불러오지 못했어요';

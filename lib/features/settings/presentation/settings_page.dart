@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -502,6 +503,21 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
               ],
             ),
+
+            // 애플워치 앱이 HealthKit을 쓰므로 심사(2.5.1)가 앱 화면에 연동
+            // 표시를 요구한다. 워치 없는 심사 기기에서도 늘 찾을 수 있게 둔다.
+            if (defaultTargetPlatform == TargetPlatform.iOS) ...[
+              const SizedBox(height: AppSpacing.space6),
+              const _SectionLabel(AppStrings.settingsHealthSection),
+              const _Card(
+                children: [
+                  _InfoRow(
+                    label: AppStrings.settingsHealthTitle,
+                    description: AppStrings.settingsHealthBody,
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -642,6 +658,46 @@ class _SwitchRow extends StatelessWidget {
           const SizedBox(width: AppSpacing.space3),
           Switch(value: value, onChanged: onChanged),
         ],
+      ),
+    );
+  }
+}
+
+/// 안내만 하는 행. 누르는 것도 값도 없다 — 글자는 [_SwitchRow]와 같다.
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.description});
+
+  final String label;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.space4,
+        vertical: AppSpacing.space3,
+      ),
+      // 카드의 Column은 가운데 정렬이라, 폭을 채워야 글자가 왼쪽에 붙는다.
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: AppTypographyV2.body07.copyWith(color: colors.textPrimary),
+            ),
+            const SizedBox(height: AppSpacing.space0),
+            Text(
+              description,
+              style: AppTypographyV2.body15.copyWith(
+                color: colors.textTertiary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
