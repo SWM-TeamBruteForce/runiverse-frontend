@@ -557,7 +557,7 @@ abstract final class AppStrings {
 
   /// 워치 앱 안내. 늘 한 바퀴에 한 번 지나가고, 소식이 없으면 이 줄에 머문다.
   /// 기기 이름을 쓰지 않는다 — `갤럭시워치로 …`는 기기 광고처럼 읽힌다.
-  static const homeNoticeWatch = '워치에서도 러니버스를 만나요';
+  static const homeNoticeWatch = '워치에서도 Runiverse를 만나요';
 
   static String homeNoticeRunningNow(int count) => '지금 $count명이 달리고 있어요';
 
@@ -1792,7 +1792,7 @@ abstract final class AppStrings {
   /// 쓸 수는 있는데 새 버전이 나와 있다. 닫을 수 있다.
   static const updateAvailableTitle = '새 버전이 나왔어요';
 
-  static const updateAvailableBody = '더 나아진 러니버스를 만나보세요.';
+  static const updateAvailableBody = '더 나아진 Runiverse를 만나보세요.';
 
   static const updateCta = '업데이트하기';
 
