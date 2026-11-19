@@ -265,6 +265,9 @@ class FakeRecordCardRepository implements RecordCardRepository {
   /// 몇 번 만들어 달라고 했나.
   var musicRequests = 0;
 
+  /// 몇 번 물었나. **폴링이 멈추는지 보는 데 쓴다.**
+  var musicCalls = 0;
+
   /// `QUEUED`에서 `PROCESSING`으로 넘어가는 시점.
   static const _toProcessing = Duration(seconds: 3);
 
@@ -273,6 +276,8 @@ class FakeRecordCardRepository implements RecordCardRepository {
 
   @override
   Future<MusicGeneration> musicOf(int cardId) async {
+    musicCalls++;
+
     if (delay > Duration.zero) await Future<void>.delayed(delay);
     if (failWith != null) throw RecordCardException(failWith!);
 
