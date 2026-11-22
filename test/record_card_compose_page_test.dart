@@ -23,7 +23,7 @@ import 'package:runiverse/features/record_card/domain/route_art.dart';
 import 'package:runiverse/features/record_card/presentation/card_compose_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
-import 'package:runiverse/features/record_card/presentation/route_art_view.dart';
+import 'package:runiverse/core/widgets/route_art_view.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 
 final _today = DateTime(2026, 9, 10);

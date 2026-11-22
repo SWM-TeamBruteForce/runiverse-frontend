@@ -15,7 +15,7 @@ import 'package:runiverse/features/record_card/presentation/card_media_pager.dar
 import 'package:runiverse/features/record_card/presentation/music_strip.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_detail_page.dart';
-import 'package:runiverse/features/record_card/presentation/route_art_view.dart';
+import 'package:runiverse/core/widgets/route_art_view.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 
 final _route = normalizeRoute([

@@ -1,14 +1,11 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
-import 'package:runiverse/core/widgets/profile_photo_image.dart';
+import 'package:runiverse/core/widgets/card_face.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
-import 'package:runiverse/features/record_card/presentation/route_art_view.dart';
 
 /// 달력의 날짜 한 칸.
 ///
@@ -83,7 +80,7 @@ class RecordCardCell extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (top != null) _Face(card: top),
+                  if (top != null) CardFace(card: top),
                   if (shoe) const RunShoeMark(),
                   if (showDayNumber)
                     Align(
@@ -110,65 +107,6 @@ class RecordCardCell extends StatelessWidget {
   }
 }
 
-/// 칸을 채우는 그림 — 썸네일이 있으면 사진, 없으면 선.
-class _Face extends StatelessWidget {
-  const _Face({required this.card});
-
-  final RecordCard card;
-
-  @override
-  Widget build(BuildContext context) {
-    final url = card.thumbnailUrl;
-    if (url == null) {
-      // ⚠️ **경로도 사진도 없는 카드가 있다.** 트레드밀이나 GPS를 못 받은
-      // 러닝이다. 그대로 두면 `RouteArtView`가 아무것도 안 그려, 칸이 **안 뛴
-      // 날과 픽셀 단위로 같아진다** — 쓴 카드를 달력에서 못 찾는다.
-      if (card.route.isEmpty) return const CardMarkDot();
-
-      return RouteArtView(
-        art: card.route,
-        color: context.appColorsV2.primary,
-        strokeWidth: 1.5,
-        padding: AppSpacing.space1,
-      );
-    }
-
-    return Image(
-      image: cardThumbnail(context, url),
-      fit: BoxFit.cover,
-      // 못 받아도 칸이 비지 않게 선으로 떨어진다.
-      errorBuilder: (context, _, _) => RouteArtView(
-        art: card.route,
-        color: context.appColorsV2.primary,
-        strokeWidth: 1.5,
-        padding: AppSpacing.space1,
-      ),
-    );
-  }
-}
-
-/// 보여 줄 것이 아무것도 없는 카드의 자국.
-///
-/// 사진도 경로도 없을 때 칸 가운데에 작은 점 하나를 남긴다. **"여기 카드가
-/// 있다"만 말하면 된다** — 빈 날과 구별되는 것이 전부다.
-class CardMarkDot extends StatelessWidget {
-  const CardMarkDot({super.key});
-
-  static const _size = 8.0;
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Container(
-      width: _size,
-      height: _size,
-      decoration: BoxDecoration(
-        color: context.appColorsV2.primary,
-        shape: BoxShape.circle,
-      ),
-    ),
-  );
-}
-
 /// 뛰었는데 기록카드를 안 쓴 날의 자국.
 ///
 /// ## ⚠️ 안 뛴 날과 갈라지는 것이 전부다
@@ -193,31 +131,6 @@ class RunShoeMark extends StatelessWidget {
   Widget build(BuildContext context) => const Center(
     child: Text('👟', style: TextStyle(fontSize: _fontSize)),
   );
-}
-
-/// 카드 사진을 띄울 [ImageProvider].
-///
-/// ## ⚠️ `assets/`로 시작하면 번들에서 읽는다
-///
-/// 서버가 없어 `FakeRecordCardRepository`가 **번들 에셋 경로**를 준다
-/// (`docs/plans/2026-11-16-record-card-calendar.md` Task 3 Ruling).
-/// **HTTP 구현체가 붙으면 이 분기를 지운다** — 안 지우면 서버가 `assets/`로
-/// 시작하는 키를 주는 날 조용히 깨진다.
-///
-/// ## ⚠️ `http`로 시작하지 않으면 기기 안 파일이다
-///
-/// 올릴 엔드포인트가 아직 없어(3차 명세에 사진 업로드가 없다) 방금 만든 카드의
-/// 사진은 **잘라 둔 임시 파일**이다. **이 분기는 HTTP 구현체가 붙어도 남는다**
-/// — 올리기 전의 카드를 그려야 한다.
-///
-/// 서명이 붙은 주소는 [ProfilePhotoImage]에 맡긴다. 조회할 때마다 서명이
-/// 달라져도 **경로가 같으면 다시 받지 않는다.**
-///
-/// 순서가 중요하다. `assets/` → 번들, `http` → 망, 나머지 → 파일.
-ImageProvider<Object> cardThumbnail(BuildContext context, String url) {
-  if (url.startsWith('assets/')) return AssetImage(url);
-  if (url.startsWith('http')) return ProfilePhotoImage(url);
-  return FileImage(File(url));
 }
 
 class _DayNumber extends StatelessWidget {

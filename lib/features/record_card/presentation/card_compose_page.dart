@@ -26,7 +26,7 @@ import 'package:runiverse/features/record_card/presentation/activity_label.dart'
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
 import 'package:runiverse/features/record_card/presentation/compose_records_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
-import 'package:runiverse/features/record_card/presentation/route_art_view.dart';
+import 'package:runiverse/core/widgets/route_art_view.dart';
 
 /// 날짜 휠에 세울 연도들. 서비스보다 앞은 뜻이 없다.
 List<int> composeYearValues(DateTime today) => [

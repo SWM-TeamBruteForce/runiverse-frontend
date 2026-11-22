@@ -9,8 +9,8 @@ import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
-import 'package:runiverse/features/record_card/presentation/record_card_cell.dart';
-import 'package:runiverse/features/record_card/presentation/route_art_view.dart';
+import 'package:runiverse/core/widgets/card_face.dart';
+import 'package:runiverse/core/widgets/route_art_view.dart';
 
 /// 카드의 포토북 — **경로 한 장 + 사진 N장**이 9:16으로 선다.
 ///

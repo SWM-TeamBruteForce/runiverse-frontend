@@ -18,7 +18,7 @@ import 'package:runiverse/features/record_card/domain/card_photo_draft.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_photo_pan.dart';
-import 'package:runiverse/features/record_card/presentation/record_card_cell.dart';
+import 'package:runiverse/core/widgets/card_face.dart';
 
 /// 기록카드 작성 2 — 사진 (설계 6-3).
 ///
