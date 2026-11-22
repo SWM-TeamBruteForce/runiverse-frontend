@@ -420,9 +420,11 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
 
   /// 기록 한 줄을 골랐다.
   ///
-  /// ⚠️ **이미 카드가 있는 기록은 고르는 것이 아니라 그 카드로 간다**(설계
-  /// 6-2). 수정 화면은 뒤 PR이라 지금은 상세로 보낸다 — 눌리는데 아무 일도
-  /// 안 일어나는 줄을 만들지 않는다.
+  /// ⚠️ **이미 카드가 있는 기록은 고르는 것이 아니라 그 카드의 수정으로
+  /// 간다**(설계 6-2 — "`카드` 표시를 붙이고, 누르면 수정으로 보낸다"). 회색으로
+  /// 죽이지 않는다 — 왜 못 고르는지 알 수 없다.
+  ///
+  /// [replace]면 이 화면을 대신한다(러닝 요약에서 미리 고른 길).
   void _pick(ComposableRecord choice, {bool replace = false}) {
     final card = choice.existingCard;
     if (card != null) {
@@ -441,8 +443,10 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
 
   /// 러닝 요약에서 왔다. **그 방에서 뛴 기록을 한 번만 미리 고른다.**
   ///
-  /// ⚠️ **쓰던 초안은 건드리지 않는다.** 이미 기록을 고른 초안을 덮으면 작성 2를
-  /// 다녀온 사람의 선택이 뒤집힌다.
+  /// ⚠️ **쓰던 초안은 건드리지 않는다.** `record`만 보지 않고 **손댄 적이
+  /// 있는지**(`isDirty`)로 가린다 — 회고만 써 둔 초안도 쓰던 것이다. 그 사람은
+  /// 들어올 때 이미 `이어 쓰기 / 새로 쓰기`를 받았다(설계 7절의 "덮어쓰기 전에
+  /// 알린다"). `새로 쓰기`를 고르면 초안이 비고, 그다음 목록에서 골라진다.
   ///
   /// ⚠️ **그 기록에 이미 카드가 있으면 수정으로 보낸다**(설계 6-2) — 작성
   /// 화면을 띄워 놓고 못 쓰게 하는 것보다 낫다.
@@ -451,15 +455,18 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
   /// 하지 않는다.** 고르는 것은 사용자가 한다.
   void _preselect(List<ComposableRecord> records) {
     if (!mounted || _preselected) return;
-    _preselected = true;
 
-    if (ref.read(cardDraftProvider(widget.cardId)).record != null) return;
+    if (ref.read(cardDraftProvider(widget.cardId)).isDirty) return;
 
     final found = records
         .where((it) => it.record.runningRoomId == widget.roomId)
         .firstOrNull;
+    // ⚠️ **못 찾았으면 깃발을 태우지 않는다.** 서버가 방금 끝난 러닝을 아직
+    // 목록에 싣지 않는 구간이 있다. 여기서 한 번 쓰고 끝내면 **그 러닝으로는
+    // 카드를 쓸 수 없다** — 목록에도 없고, 미리 고르기도 끝났다.
     if (found == null) return;
 
+    _preselected = true;
     _pick(found, replace: true);
   }
 

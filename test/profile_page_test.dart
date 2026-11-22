@@ -13,6 +13,7 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
@@ -174,6 +175,17 @@ void main() {
     final grid = tester.widget<ProfileCardGrid>(find.byType(ProfileCardGrid));
     expect(grid.mine, isTrue);
     expect(grid.userId, isNotEmpty);
+  });
+
+  testWidgets('⚠️ 그리드가 친구 줄과 같은 들여쓰기로 선다', (tester) async {
+    // 남의 프로필과 같은 값이어야 한다 — 다르면 같은 위젯이 화면마다 다른
+    // 레이아웃을 낸다(설계 6-7).
+    await pumpProfile(tester, onboarded: true);
+
+    expect(
+      tester.getTopLeft(find.byType(ProfileCardGrid)).dx,
+      AppSpacing.space4,
+    );
   });
 
   testWidgets('⚠️ 프로필에서 카드를 열고 돌아와도 프로필에 남는다', (tester) async {

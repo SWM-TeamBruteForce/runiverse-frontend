@@ -22,6 +22,7 @@ import 'package:runiverse/features/record_card/domain/record_card_visibility.dar
 import 'package:runiverse/features/record_card/domain/route_art.dart';
 import 'package:runiverse/features/record_card/presentation/card_compose_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
+import 'package:runiverse/features/record_card/presentation/compose_records_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 import 'package:runiverse/core/widgets/route_art_view.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
@@ -123,6 +124,31 @@ class _Records implements RunRecordRepository {
     required DateTime from,
     required DateTime to,
   }) async => records;
+
+  @override
+  Future<RunDetail> byRoom(int runningRoomId) async {
+    final found = detail;
+    if (found == null) {
+      throw const RunRecordException(RunRecordFailure.network);
+    }
+    return found;
+  }
+}
+
+/// **첫 조회는 비어 있고, 두 번째부터 기록이 온다.** 서버가 방금 끝난 러닝을
+/// 아직 싣지 않는 구간을 흉내낸다.
+class _LateRecords implements RunRecordRepository {
+  _LateRecords(this.records, {this.detail});
+
+  final List<RunRecord> records;
+  final RunDetail? detail;
+  var calls = 0;
+
+  @override
+  Future<List<RunRecord>> byDateRange({
+    required DateTime from,
+    required DateTime to,
+  }) async => calls++ == 0 ? const [] : records;
 
   @override
   Future<RunDetail> byRoom(int runningRoomId) async {
@@ -414,6 +440,41 @@ void main() {
       // ⚠️ **작성 화면을 남겨 두지 않는다** — 뒤로가 쓸 수 없는 화면으로
       // 돌아온다.
       expect(router.canPop(), isFalse);
+    });
+
+    testWidgets('⚠️ 처음 목록에 없었어도 다시 받으면 그때 골라진다', (tester) async {
+      // 서버가 방금 끝난 러닝을 아직 목록에 싣지 않는 구간이 있다. 한 번
+      // 못 찾고 **깃발을 태우면 그 러닝으로는 카드를 쓸 수 없다** — 목록에도
+      // 없고, 미리 고르기도 이미 끝났다.
+      final records = _LateRecords([
+        _record(id: 11),
+      ], detail: _detail(roomId: 911));
+      final container = ProviderContainer(
+        overrides: [
+          runRecordRepositoryProvider.overrideWithValue(records),
+          recordCardRepositoryProvider.overrideWithValue(_Cards(const [])),
+          recordCardClockProvider.overrideWithValue(() => _today),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: CardComposePage(day: _day, roomId: 911),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // 첫 목록은 비어 있었다 — 고른 것이 없다.
+      expect(find.byType(RouteArtView), findsNothing);
+
+      container.invalidate(composeRecordsProvider(_day));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RouteArtView), findsOne);
     });
 
     testWidgets('⚠️ 그 방이 목록에 없으면 아무 일도 하지 않는다', (tester) async {

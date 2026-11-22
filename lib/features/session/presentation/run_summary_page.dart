@@ -172,7 +172,14 @@ class RunSummaryPage extends ConsumerWidget {
                   ),
                   child: AppButtonV2(
                     label: AppStrings.runSummaryRecordCard,
-                    onPressed: () => _toRecordCard(ref, context, room?.id),
+                    // ⚠️ **확정 중에는 잠근다 — 아래 버튼과 같은 이유다.**
+                    // 서버가 `RUNNING_FINISH`를 처리하기 전에는 **방금 뛴
+                    // 기록이 목록에 없다.** 그대로 들어가면 고를 것이 없는
+                    // 작성 화면에 닿는데, 그 사이 이 요약은 닫히고 세션도
+                    // 비워져 **그 러닝으로 카드를 쓸 길이 사라진다.**
+                    onPressed: settling
+                        ? null
+                        : () => _toRecordCard(ref, context, room?.id),
                   ),
                 ),
 

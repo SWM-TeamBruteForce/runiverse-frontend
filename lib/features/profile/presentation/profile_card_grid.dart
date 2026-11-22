@@ -27,6 +27,12 @@ import 'package:runiverse/features/record_card/domain/record_card.dart';
 /// 남의 프로필에 "아직 없어요"를 띄울 이유가 없다(설계 6-7). 눌러서 들어온
 /// 전체 보기 화면만 그 말을 한다([ProfileCardsPage]).
 ///
+/// ## ⚠️ 좌우 여백은 **두는 쪽**이 정한다
+///
+/// 안쪽에 품으면 이미 여백이 있는 화면(남의 프로필의 `SingleChildScrollView`)
+/// 에서 **두 번 들어가** 같은 위젯이 내 프로필보다 좁고 더 들여써진다. 설계
+/// 6-7이 "같은 위젯"이라고 적은 뜻이 그렇게 깨진다.
+///
 /// ## ⚠️ 일곱 장을 묻고 여섯 장을 깐다
 ///
 /// 여섯 장만 물으면 **더 있는지 알 수 없어** `더 보기`를 늘 세우게 되고, 딱
@@ -48,14 +54,24 @@ class ProfileCardGrid extends ConsumerWidget {
   static const _rows = 2;
   static const _spacing = AppSpacing.space2;
 
-  /// 두 줄이 차지하는 높이.
-  ///
-  /// ⚠️ **받아 오는 동안에도 이 높이를 지킨다.** 로딩이 높이 0이면 프로필
-  /// 아래가 튀어올랐다가 카드가 오는 순간 다시 내려앉는다.
+  /// 두 줄이 차지하는 높이. 칸 하나의 폭에서 나온다.
   static double blockHeight(double width) {
     final tile = (width - _spacing * (_columns - 1)) / _columns;
     return tile * 16 / 9 * _rows + _spacing * (_rows - 1);
   }
+
+  /// 받아 오는 동안 잡아 두는 높이.
+  ///
+  /// ## ⚠️ 두 줄을 미리 잡지 않는다
+  ///
+  /// 412dp 기기에서 두 줄은 **약 440dp — 화면의 절반**이다. 그만큼 비워 두면
+  /// **카드가 한 장도 없는 사람**(새 계정이 처음 자기 프로필을 볼 때, 그리고
+  /// 그리드가 침묵해야 하는 남의 빈 프로필)에게 큰 빈 칸이 떴다가 통째로
+  /// 사라지면서 아래가 440dp 솟는다.
+  ///
+  /// 그래서 **한 줄짜리 자리만** 잡는다. 카드가 있는 사람은 받아 온 뒤 아래가
+  /// 내려가고(내용이 도착하는 모습이다), 없는 사람은 작은 자리만 걷힌다.
+  static const loadingHeight = 48.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -64,7 +80,10 @@ class ProfileCardGrid extends ConsumerWidget {
     );
 
     return switch (cards) {
-      AsyncLoading() => const _Reserved(child: CircularProgressIndicator()),
+      AsyncLoading() => const SizedBox(
+        height: loadingHeight,
+        child: Center(child: CircularProgressIndicator()),
+      ),
       AsyncError() => _Error(userId: userId),
       AsyncValue(:final value?) when value.isEmpty => const SizedBox.shrink(),
       AsyncValue(:final value?) => _Preview(
@@ -76,24 +95,6 @@ class ProfileCardGrid extends ConsumerWidget {
       ),
     };
   }
-}
-
-/// 두 줄 자리를 잡아 둔 칸. 가운데에 [child]를 둔다.
-class _Reserved extends StatelessWidget {
-  const _Reserved({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-    child: LayoutBuilder(
-      builder: (context, constraints) => SizedBox(
-        height: ProfileCardGrid.blockHeight(constraints.maxWidth),
-        child: Center(child: child),
-      ),
-    ),
-  );
 }
 
 class _Preview extends StatelessWidget {
@@ -112,26 +113,23 @@ class _Preview extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-        child: GridView.builder(
-          padding: EdgeInsets.zero,
-          // 프로필이 이미 스크롤한다. 여기서 또 스크롤하면 손가락을 빼앗는다.
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: ProfileCardGrid._columns,
-            childAspectRatio: 9 / 16,
-            crossAxisSpacing: ProfileCardGrid._spacing,
-            mainAxisSpacing: ProfileCardGrid._spacing,
-          ),
-          itemCount: cards.length,
-          itemBuilder: (context, index) => ProfileCardTile(
-            card: cards[index],
-            onTap: () => context.push(
-              AppRoutes.recordCardDetailOf(cards[index].id, mine: mine),
-              extra: cards[index],
-            ),
+      GridView.builder(
+        padding: EdgeInsets.zero,
+        // 프로필이 이미 스크롤한다. 여기서 또 스크롤하면 손가락을 빼앗는다.
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: ProfileCardGrid._columns,
+          childAspectRatio: 9 / 16,
+          crossAxisSpacing: ProfileCardGrid._spacing,
+          mainAxisSpacing: ProfileCardGrid._spacing,
+        ),
+        itemCount: cards.length,
+        itemBuilder: (context, index) => ProfileCardTile(
+          card: cards[index],
+          onTap: () => context.push(
+            AppRoutes.recordCardDetailOf(cards[index].id, mine: mine),
+            extra: cards[index],
           ),
         ),
       ),
@@ -158,28 +156,25 @@ class _Error extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColorsV2;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-      child: Column(
-        children: [
-          Text(
-            AppStrings.profileCardsError,
-            style: AppTypographyV2.body18.copyWith(color: colors.textSecondary),
+    return Column(
+      children: [
+        Text(
+          AppStrings.profileCardsError,
+          style: AppTypographyV2.body18.copyWith(color: colors.textSecondary),
+        ),
+        const SizedBox(height: AppSpacing.space2),
+        AppButtonV2(
+          label: AppStrings.recordRetry,
+          variant: AppButtonV2Variant.secondary,
+          expand: false,
+          onPressed: () => ref.invalidate(
+            profileCardsProvider((
+              userId: userId,
+              limit: ProfileCardGrid.previewCount + 1,
+            )),
           ),
-          const SizedBox(height: AppSpacing.space2),
-          AppButtonV2(
-            label: AppStrings.recordRetry,
-            variant: AppButtonV2Variant.secondary,
-            expand: false,
-            onPressed: () => ref.invalidate(
-              profileCardsProvider((
-                userId: userId,
-                limit: ProfileCardGrid.previewCount + 1,
-              )),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

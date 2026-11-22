@@ -183,7 +183,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 // 비운다.
                 if (signedIn?.userId case final userId?) ...[
                   const SizedBox(height: AppSpacing.space4),
-                  ProfileCardGrid(userId: userId, mine: true),
+                  // ⚠️ **좌우 여백을 화면이 준다.** 그리드가 품으면 이미
+                  // 여백이 있는 남의 프로필에서 두 번 들어간다. 위의
+                  // `ProfileStatRow`와 같은 값이어야 한 줄로 맞는다.
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.space4,
+                    ),
+                    child: ProfileCardGrid(userId: userId, mine: true),
+                  ),
                 ],
 
                 // ⚠️ **그 아래가 비어 있다. 빠뜨린 것이 아니다.**

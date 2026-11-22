@@ -105,13 +105,24 @@ void main() {
     expect(router.state.uri.toString(), contains('mine=false'));
   });
 
-  testWidgets('칸을 누르면 상세로 간다', (tester) async {
-    await pump(tester);
+  testWidgets('칸을 누르면 상세로 간다 — 남의 것이면 그 사실도 간다', (tester) async {
+    final router = await pump(tester, mine: false);
 
     await tester.tap(find.byType(ProfileCardTile).first);
     await tester.pumpAndSettle();
 
     expect(find.text('상세'), findsOneWidget);
+    // 안 실으면 남의 카드에 수정·삭제가 뜬다.
+    expect(router.state.uri.toString(), contains('mine=false'));
+  });
+
+  testWidgets('⚠️ 좌우 여백은 두는 쪽이 정한다 — 화면마다 다르면 안 된다', (tester) async {
+    // 안쪽에 여백을 품으면 **이미 여백이 있는 화면**(남의 프로필)에서 두 번
+    // 들어가, 같은 위젯이 내 프로필보다 좁고 더 들여써진다(설계 6-7은 "같은
+    // 위젯").
+    await pump(tester);
+
+    expect(tester.getSize(find.byType(GridView)).width, 412);
   });
 
   testWidgets('⚠️ 카드가 없으면 아무것도 그리지 않는다', (tester) async {
@@ -131,22 +142,25 @@ void main() {
     expect(find.byType(RouteArtView), findsWidgets);
   });
 
-  testWidgets('⚠️ 받는 동안에도 두 줄 자리를 지킨다 — 아래가 튀지 않는다', (tester) async {
+  testWidgets('⚠️ 받는 동안 두 줄을 미리 비워 두지 않는다', (tester) async {
+    // 두 줄은 412dp 기기에서 약 440dp — **화면의 절반**이다. 그만큼 비워 두면
+    // 카드가 없는 사람(새 계정, 남의 빈 프로필)에게 큰 빈 칸이 떴다가 통째로
+    // 사라지며 아래가 솟는다. 받는 자리는 한 줄로 잡고, 카드가 오면 내려간다.
     repo = _Cards(7, delay: const Duration(milliseconds: 50));
     await pump(tester);
 
     final loading = tester.getSize(find.byType(ProfileCardGrid)).height;
-    expect(loading, greaterThan(0));
+    expect(loading, ProfileCardGrid.loadingHeight);
+    expect(loading, lessThan(ProfileCardGrid.blockHeight(412) / 2));
 
     await tester.pump(const Duration(milliseconds: 60));
     await tester.pump();
 
     expect(find.byType(ProfileCardTile), findsNWidgets(6));
-    // 더 보기 버튼만큼 길어진다 — 칸 두 줄의 높이는 같다.
+    // 칸 두 줄이 섰다 — 그리드가 제 높이를 찾았다.
     expect(
-      tester.getSize(find.byType(ProfileCardTile).first).height * 2 +
-          8, // 줄 사이 간격
-      closeTo(loading, 0.5),
+      tester.getSize(find.byType(ProfileCardTile).first).height * 2 + 8,
+      closeTo(ProfileCardGrid.blockHeight(412), 0.5),
     );
   });
 
@@ -180,6 +194,25 @@ void main() {
         AppStrings.profileCardsOn(repo.cards.first.startedAt),
       ),
       findsOneWidget,
+    );
+
+    handle.dispose();
+  });
+
+  testWidgets('⚠️ 스크린리더로도 눌린다 — 읽히기만 하면 죽은 버튼이다', (tester) async {
+    // 칸에는 사진뿐이라 `Semantics`가 안쪽을 가린다. 가리면 탭 동작을 들고
+    // 있는 노드까지 함께 사라져, **읽히고 버튼이라고 말하지만 눌러도 아무 일도
+    // 없는 칸**이 된다. 전체 보기 화면도 같은 칸을 쓴다.
+    final handle = tester.ensureSemantics();
+    await pump(tester);
+
+    expect(
+      tester.getSemantics(
+        find.bySemanticsLabel(
+          AppStrings.profileCardsOn(repo.cards.first.startedAt),
+        ),
+      ),
+      isSemantics(isButton: true, hasTapAction: true),
     );
 
     handle.dispose();

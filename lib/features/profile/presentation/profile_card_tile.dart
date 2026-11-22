@@ -23,6 +23,10 @@ class ProfileCardTile extends StatelessWidget {
     // 없다. 탭 바에 글자 라벨이 없는 것과 같은 문제다(CLAUDE.md).
     label: AppStrings.profileCardsOn(card.startedAt),
     button: true,
+    // ⚠️ **탭 동작을 여기로 올린다.** [excludeSemantics]가 안쪽 노드를 가리면
+    // 탭을 들고 있는 것도 함께 사라져, **읽히고 "버튼"이라고 말하지만 눌러도
+    // 아무 일도 없는 칸**이 된다(달력 칸도 같은 이유로 둘을 함께 적는다).
+    onTap: onTap,
     excludeSemantics: true,
     child: GestureDetector(
       onTap: onTap,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/friend/data/fake_friend_repository.dart';
@@ -140,6 +141,12 @@ void main() {
       final grid = tester.widget<ProfileCardGrid>(find.byType(ProfileCardGrid));
       expect(grid.userId, 'u1');
       expect(grid.mine, isFalse);
+      // ⚠️ 내 프로필과 **같은 들여쓰기**다. 그리드가 자기 여백을 품으면 이
+      // 화면이 이미 둔 여백과 겹쳐 두 배가 된다.
+      expect(
+        tester.getTopLeft(find.byType(ProfileCardGrid)).dx,
+        AppSpacing.space4,
+      );
     });
 
     testWidgets('관계에 따라 버튼이 바뀐다 — 아직 아무 사이도 아니다', (tester) async {
