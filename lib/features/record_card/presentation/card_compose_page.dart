@@ -68,7 +68,13 @@ List<int> composeDayValues({
 /// 기록 조회가 실패하면 **목록 자리에만** 오류를 둔다. 화면 전체를 오류로
 /// 덮으면 날짜를 바꿀 길까지 사라져, 다른 날로 옮겨 쓰지도 못한다.
 class CardComposePage extends ConsumerStatefulWidget {
-  const CardComposePage({required this.day, this.cardId, this.card, super.key});
+  const CardComposePage({
+    required this.day,
+    this.cardId,
+    this.card,
+    this.roomId,
+    super.key,
+  });
 
   /// 고치는 카드. **`cardId`가 있으면 반드시 함께 온다** — 카드 단건 조회 API가
   /// 없어 라우트가 `extra`로 넘겨 준다(상세와 같은 방식).
@@ -80,11 +86,22 @@ class CardComposePage extends ConsumerStatefulWidget {
   /// 수정 중인 카드 번호. `null`이면 새 카드다.
   final int? cardId;
 
+  /// 러닝 요약에서 왔으면 **그 방 번호**. 그 방에서 뛴 기록을 미리 고른다
+  /// (설계 6-2).
+  ///
+  /// ⚠️ **기록 번호가 아니다.** 요약이 가진 것은 방 번호뿐이다
+  /// (`AppRoutes.recordCardNewOn`).
+  final int? roomId;
+
   @override
   ConsumerState<CardComposePage> createState() => _CardComposePageState();
 }
 
 class _CardComposePageState extends ConsumerState<CardComposePage> {
+  /// 미리 고르기를 이미 해 봤나. **한 번만 한다** — 목록이 다시 올 때마다
+  /// 고르면 사용자가 바꾼 선택을 되돌린다.
+  var _preselected = false;
+
   late DateTime _day = DateTime(
     widget.day.year,
     widget.day.month,
@@ -142,6 +159,19 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
     final draft = ref.watch(cardDraftProvider(widget.cardId));
     // 고른 기록의 경로를 받아 초안에 넣는다. 받는 동안에는 자리만 지킨다.
     _watchRoute(draft.record);
+
+    // ⚠️ **러닝 요약에서 왔으면 그 기록을 미리 고른다**(설계 6-2). 목록이
+    // 와야 할 수 있는 일이라 여기서 지켜본다 — 목록을 그리는 위젯 안에서
+    // 하면 그릴 때마다 고르게 된다.
+    if (widget.roomId != null && !_preselected) {
+      final records = ref.watch(composeRecordsProvider(_day));
+      if (records.hasValue) {
+        // 빌드 중에는 provider를 고칠 수 없다(Riverpod이 막는다).
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _preselect(records.requireValue),
+        );
+      }
+    }
 
     return PopScope(
       // ⚠️ **시스템 뒤로도 막는다.** 머리의 버튼만 막으면 안드로이드에서
@@ -393,17 +423,44 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
   /// ⚠️ **이미 카드가 있는 기록은 고르는 것이 아니라 그 카드로 간다**(설계
   /// 6-2). 수정 화면은 뒤 PR이라 지금은 상세로 보낸다 — 눌리는데 아무 일도
   /// 안 일어나는 줄을 만들지 않는다.
-  void _pick(ComposableRecord choice) {
+  void _pick(ComposableRecord choice, {bool replace = false}) {
     final card = choice.existingCard;
     if (card != null) {
-      context.push(
-        // 내가 쓴 카드다 — 내 기록 목록에서 왔다.
-        AppRoutes.recordCardDetailOf(card.id, mine: true),
-        extra: card,
-      );
+      final to = AppRoutes.recordCardEditOf(card.id);
+      // 미리 고른 길이면 **이 화면을 대신한다.** 남겨 두면 뒤로가 쓸 수 없는
+      // 작성 화면으로 돌아온다 — 그 기록에는 이미 카드가 있다.
+      if (replace) {
+        context.pushReplacement(to, extra: card);
+      } else {
+        context.push(to, extra: card);
+      }
       return;
     }
     _draft.pickRecord(choice.record);
+  }
+
+  /// 러닝 요약에서 왔다. **그 방에서 뛴 기록을 한 번만 미리 고른다.**
+  ///
+  /// ⚠️ **쓰던 초안은 건드리지 않는다.** 이미 기록을 고른 초안을 덮으면 작성 2를
+  /// 다녀온 사람의 선택이 뒤집힌다.
+  ///
+  /// ⚠️ **그 기록에 이미 카드가 있으면 수정으로 보낸다**(설계 6-2) — 작성
+  /// 화면을 띄워 놓고 못 쓰게 하는 것보다 낫다.
+  ///
+  /// 목록에 그 방이 없으면(기록이 아직 서버에 없거나 날짜가 다르다) **아무 일도
+  /// 하지 않는다.** 고르는 것은 사용자가 한다.
+  void _preselect(List<ComposableRecord> records) {
+    if (!mounted || _preselected) return;
+    _preselected = true;
+
+    if (ref.read(cardDraftProvider(widget.cardId)).record != null) return;
+
+    final found = records
+        .where((it) => it.record.runningRoomId == widget.roomId)
+        .firstOrNull;
+    if (found == null) return;
+
+    _pick(found, replace: true);
   }
 
   Future<void> _pickDay() async {

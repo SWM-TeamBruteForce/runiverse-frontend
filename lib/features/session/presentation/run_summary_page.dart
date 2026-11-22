@@ -161,6 +161,21 @@ class RunSummaryPage extends ConsumerWidget {
                   ),
                 ),
 
+                // ⚠️ **방금 한 일을 남기는 것이 먼저다.** 결과를 들여다보는
+                // 것보다 위에 둔다(설계 6-8).
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.space4,
+                    0,
+                    AppSpacing.space4,
+                    AppSpacing.space2,
+                  ),
+                  child: AppButtonV2(
+                    label: AppStrings.runSummaryRecordCard,
+                    onPressed: () => _toRecordCard(ref, context, room?.id),
+                  ),
+                ),
+
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.space4,
@@ -213,6 +228,26 @@ class RunSummaryPage extends ConsumerWidget {
       },
       child: page,
     );
+  }
+
+  /// 기록카드 작성으로 간다 (설계 6-8).
+  ///
+  /// ## ⚠️ 요약을 **닫고** 간다 — `닫기`와 같은 길이다
+  ///
+  /// 요약을 남겨 두고 작성으로 밀면, 카드를 저장할 때 상세로 가는 길이 작성
+  /// 화면들을 걷으면서 **요약까지 함께 걷는다.** 그러면 [_leave]가 불리지 않아
+  /// `reset()`이 빠지고, **다음 러닝이 이 러닝의 거리에서 이어진다.**
+  ///
+  /// ⚠️ **날짜만 정해지고 기록은 방 번호로 찾는다.** `RunDetail`에 기록 번호가
+  /// 없다(`AppRoutes.recordCardNewOn`). 방이 없으면(솔로·방 열기 실패) 그날
+  /// 목록에서 사용자가 고른다.
+  static void _toRecordCard(WidgetRef ref, BuildContext context, int? roomId) {
+    // ⚠️ **라우터를 먼저 잡는다.** `go` 뒤에는 이 화면의 `context`가 떨어져
+    // 나가 `push`를 걸 수 없다.
+    final router = GoRouter.of(context);
+    ref.read(runSessionControllerProvider.notifier).reset();
+    router.go(AppRoutes.home);
+    router.push(AppRoutes.recordCardNewOn(DateTime.now(), roomId: roomId));
   }
 
   static void _leave(WidgetRef ref, BuildContext context) {

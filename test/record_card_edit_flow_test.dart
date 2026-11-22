@@ -124,6 +124,34 @@ void main() {
       expect(find.byType(CardDetailPage), findsNothing);
     });
 
+    testWidgets('⚠️ 쓰던 새 카드 화면은 걷지 않는다 — 내 흐름만 걷는다', (tester) async {
+      // 작성 1에서 카드 있는 기록을 눌러 수정으로 간 뒤 저장하면, 전에는
+      // 스택을 바닥까지 비워 **쓰던 새 카드 화면이 함께 걷혔다.** 글은 초안에
+      // 남지만 예고 없이 쫓겨난다(묶음 4에서 미뤄 둔 것 4번).
+      await _pumpDetail(tester);
+
+      // 쓰던 새 카드 화면을 상세 아래가 아니라 **위에** 세운다 — 실제 순서는
+      // 작성 1 → (카드 있는 기록을 눌러) 수정 1 이다.
+      _router.push(AppRoutes.recordCardNew);
+      await tester.pumpAndSettle();
+      expect(find.byType(CardComposePage), findsOne);
+
+      _router.push(AppRoutes.recordCardEditOf(_card.id), extra: _card);
+      await tester.pumpAndSettle();
+      await _nextTwice(tester);
+
+      await tester.tap(find.text(AppStrings.recordCardPublishSave));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CardDetailPage), findsOne);
+
+      // 뒤로 한 번 = 쓰던 작성 화면이 그대로 있다.
+      await tester.tap(find.byTooltip(AppStrings.authBack));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CardComposePage), findsOne);
+    });
+
     testWidgets('저장하면 초안을 비운다', (tester) async {
       // 안 비우면 다음에 그 카드를 열었을 때 고치다 만 것이 되살아난다.
       final container = await _pumpDetail(tester);

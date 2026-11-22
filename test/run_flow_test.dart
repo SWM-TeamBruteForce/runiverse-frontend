@@ -21,6 +21,7 @@ import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record/domain/run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
+import 'package:runiverse/features/record_card/presentation/card_compose_page.dart';
 import 'package:runiverse/features/session/data/fake_location_repository.dart';
 import 'package:runiverse/features/session/data/fake_running_room_repository.dart';
 import 'package:runiverse/features/session/data/fake_step_repository.dart';
@@ -634,6 +635,35 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.runSummaryTitle), findsNothing);
+    });
+
+    /// 기록카드 진입점 (설계 6-8) — 묶음 6에서 이 자리에 붙었다.
+    testWidgets('⚠️ 기록카드 남기기로 작성 1에 간다 — 방 번호가 실린다', (tester) async {
+      await finish(tester);
+
+      await tester.tap(find.text(AppStrings.runSummaryRecordCard));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CardComposePage), findsOne);
+      // 요약이 가진 것은 방 번호뿐이다 — 작성 1이 그것으로 기록을 찾는다.
+      final page = tester.widget<CardComposePage>(find.byType(CardComposePage));
+      expect(page.roomId, isNotNull);
+    });
+
+    testWidgets('⚠️ 기록카드로 갈 때 러닝을 비운다 — 다음 러닝이 이어지지 않는다', (tester) async {
+      // 요약을 남겨 두고 가면, 카드를 저장할 때 상세로 가는 길이 요약까지
+      // 걷으면서 `reset()`을 건너뛴다. 그러면 다음 러닝이 이 러닝의 거리에서
+      // 이어진다(`_leave`의 주석).
+      await finish(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.text(AppStrings.runSummaryTitle)),
+      );
+
+      await tester.tap(find.text(AppStrings.runSummaryRecordCard));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.runSummaryTitle), findsNothing);
+      expect(container.read(runSessionControllerProvider), isA<RunIdle>());
     });
 
     testWidgets('뒤로가기도 닫기와 같은 길로 나가 러닝을 비운다', (tester) async {

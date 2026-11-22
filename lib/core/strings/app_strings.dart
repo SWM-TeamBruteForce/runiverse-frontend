@@ -1366,6 +1366,10 @@ abstract final class AppStrings {
   static const runSummaryClose = '닫기';
 
   /// S15에서 S16으로 들어가는 문. Figma의 secondary 버튼이다.
+  /// 설계 6-8. `run_summary_page.dart`가 "탭이 살아나면 이 위에 붙는다"고
+  /// 적어 둔 그 버튼이다.
+  static const runSummaryRecordCard = '기록카드 남기기';
+
   static const runSummaryDetail = '자세한 기록 보기';
 
   /// 종료를 알리고 서버가 기록을 확정하는 동안 [runSummaryDetail] 대신 쓴다.

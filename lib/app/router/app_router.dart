@@ -131,6 +131,9 @@ GoRouter createAppRouter({String? initialLocation}) {
           day:
               DateTime.tryParse(state.uri.queryParameters['date'] ?? '') ??
               DateTime.now(),
+          // ⚠️ **못 읽으면 `null`이다.** 미리 고르지 못할 뿐이고, 고르는 것은
+          // 사용자가 한다 — 404 를 낼 일이 아니다.
+          roomId: int.tryParse(state.uri.queryParameters['room'] ?? ''),
         ),
       ),
       // 기록카드 작성 2 — 사진. **탭 셸 밖이다.**
@@ -153,15 +156,10 @@ GoRouter createAppRouter({String? initialLocation}) {
         path: AppRoutes.recordCardNewPublish,
         name: 'record_card_new_publish',
         redirect: _needsDraft,
-        builder: (context, state) =>
-            CardPublishPage(onSaved: (card) => _toDetail(context, card)),
+        builder: (context, state) => CardPublishPage(
+          onSaved: (card) => _toDetail(context, card, editing: false),
+        ),
       ),
-      // 기록카드 한 장. **탭 셸 밖이다** — 프로필이나 러닝 요약에서 열어도
-      // 탭이 바뀌면 안 된다(`app_routes.dart`).
-      //
-      // ⚠️ **카드를 `extra`로 받는다.** 달력이 이미 들고 있는 것을 넘겨 주면
-      // 다시 받아 올 필요가 없다. 딥링크처럼 `extra` 없이 들어오면 보여 줄
-      // 것이 없으므로 탭으로 돌려보낸다 — 빈 화면을 띄우지 않는다.
       // 기록카드 수정 1·2·3. **탭 셸 밖이고, 카드를 `extra`로 받는다.**
       //
       // ⚠️ **카드 없이 들어오면 탭으로 돌려보낸다.** 단건 조회 API가 없어
@@ -190,9 +188,15 @@ GoRouter createAppRouter({String? initialLocation}) {
         redirect: _needsCard,
         builder: (context, state) => CardPublishPage(
           cardId: (state.extra! as RecordCard).id,
-          onSaved: (card) => _toDetail(context, card),
+          onSaved: (card) => _toDetail(context, card, editing: true),
         ),
       ),
+      // 기록카드 한 장. **탭 셸 밖이다** — 프로필이나 러닝 요약에서 열어도
+      // 탭이 바뀌면 안 된다(`app_routes.dart`).
+      //
+      // ⚠️ **카드를 `extra`로 받는다.** 달력이 이미 들고 있는 것을 넘겨 주면
+      // 다시 받아 올 필요가 없다. 딥링크처럼 `extra` 없이 들어오면 보여 줄
+      // 것이 없으므로 탭으로 돌려보낸다 — 빈 화면을 띄우지 않는다.
       GoRoute(
         path: AppRoutes.recordCardDetail,
         name: 'record_card_detail',
@@ -407,23 +411,38 @@ String? _needsDraft(BuildContext context, GoRouterState state) {
 String? _needsCard(BuildContext context, GoRouterState state) =>
     state.extra is RecordCard ? null : AppRoutes.recordCard;
 
-/// 만든(또는 고친) 카드의 상세로 보낸다. **작성 세 화면을 걷는다**(설계 6-4).
+/// 만든(또는 고친) 카드의 상세로 보낸다. **자기 흐름만 걷는다**(설계 6-4).
 ///
 /// ## ⚠️ `go`를 쓰지 않는다
 ///
 /// 셸 밖 라우트에 `go`로 가면 그 아래에 스택이 없어 **안드로이드 뒤로가 앱을
-/// 닫는다.** 작성 셋을 걷고 상세를 밀면 뒤로가 캘린더로 떨어진다.
+/// 닫는다.** 화면들을 걷고 상세를 밀면 뒤로가 캘린더로 떨어진다.
 ///
 /// ⚠️ **수정이면 옛 상세까지 걷힌다. 그래야 맞다** — 새 상세를 그냥 밀면
 /// 상세가 둘 쌓여 뒤로가 두 번이 되고, 밑에 깔린 것은 **고치기 전 값**을
 /// 들고 있다.
 ///
-/// ⚠️ **러닝 요약에서 들어온 경우까지 걷는다**(묶음 6). 그때 이 줄을 다시 본다.
-void _toDetail(BuildContext context, RecordCard card) {
+/// ## ⚠️ 밑에 깔린 남의 화면은 걷지 않는다
+///
+/// 전에는 `while (canPop())`로 **스택을 바닥까지 비웠다.** 그래서
+/// ① 작성 1에서 카드 있는 기록을 눌러 상세로 간 뒤 거기서 고쳐 저장하면
+/// **쓰던 새 카드 화면이 함께 걷혔고**(글은 초안에 남지만 예고 없이 쫓겨난다)
+/// ② 러닝 요약에서 들어왔으면 요약까지 걷혀 **`reset()`이 안 불렸다.**
+///
+/// 그래서 경로 앞머리로 **내 흐름만** 가린다 — 고치는 중이면
+/// `/record-card/card/...`(수정 셋 + 옛 상세), 새 카드면
+/// `/record-card/new...`다. 둘 다 아닌 화면(탭·프로필·전체 보기·러닝 요약)에
+/// 닿으면 멈춘다.
+void _toDetail(BuildContext context, RecordCard card, {required bool editing}) {
   final router = GoRouter.of(context);
-  while (router.canPop()) {
+  final mine = editing
+      ? '${AppRoutes.recordCard}/card/'
+      : AppRoutes.recordCardNew;
+
+  while (router.canPop() && router.state.matchedLocation.startsWith(mine)) {
     router.pop();
   }
+
   router.push(
     // 고치거나 만든 카드다 — 남의 것을 저장할 길은 없다.
     AppRoutes.recordCardDetailOf(card.id, mine: true),

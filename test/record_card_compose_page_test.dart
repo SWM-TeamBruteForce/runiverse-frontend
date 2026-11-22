@@ -229,17 +229,22 @@ Future<GoRouter> _pumpRouted(
   WidgetTester tester, {
   RunRecordRepository? records,
   RecordCardRepository? cards,
+  int? roomId,
 }) async {
   final router = GoRouter(
     initialLocation: '/compose',
     routes: [
       GoRoute(
         path: '/compose',
-        builder: (_, _) => CardComposePage(day: _day),
+        builder: (_, _) => CardComposePage(day: _day, roomId: roomId),
       ),
       GoRoute(
         path: AppRoutes.recordCardDetail,
         builder: (_, _) => const Scaffold(body: Text('상세')),
+      ),
+      GoRoute(
+        path: AppRoutes.recordCardEdit,
+        builder: (_, _) => const Scaffold(body: Text('수정')),
       ),
     ],
   );
@@ -364,9 +369,9 @@ void main() {
     );
   });
 
-  testWidgets('⚠️ 카드가 있는 기록을 누르면 고르지 않고 그 카드로 간다', (tester) async {
-    // 수정 화면은 뒤 PR이라 지금은 상세로 보낸다. 눌리는데 아무 일도 안
-    // 일어나는 줄을 만들지 않는다.
+  testWidgets('⚠️ 카드가 있는 기록을 누르면 고르지 않고 수정으로 간다', (tester) async {
+    // 설계 6-2 — "`카드` 표시를 붙이고, 누르면 수정으로 보낸다." 묶음 4에서
+    // 수정 화면이 생기기 전에는 상세로 보냈다.
     final router = await _pumpRouted(
       tester,
       records: _Records([_record(id: 11)]),
@@ -375,11 +380,54 @@ void main() {
 
     await _pickRecord(tester, _record(id: 11));
 
-    expect(
-      router.state.uri.toString(),
-      AppRoutes.recordCardDetailOf(500, mine: true),
-    );
-    expect(find.text('상세'), findsOne);
+    expect(router.state.uri.toString(), AppRoutes.recordCardEditOf(500));
+    expect(find.text('수정'), findsOne);
+  });
+
+  /// 러닝 요약에서 들어온 길 (설계 6-2 · 6-8).
+  group('러닝 요약에서 왔으면', () {
+    testWidgets('⚠️ 그 방에서 뛴 기록이 미리 골라진다', (tester) async {
+      // 요약이 가진 것은 방 번호뿐이다 — `RunDetail`에 기록 번호가 없다.
+      await _pumpRouted(
+        tester,
+        records: _Records([
+          _record(id: 11),
+          _record(id: 12, hour: 7),
+        ], detail: _detail(roomId: 912)),
+        roomId: 912,
+      );
+
+      // 고른 기록의 경로가 뜬다 = 골라졌다.
+      expect(find.byType(RouteArtView), findsOne);
+    });
+
+    testWidgets('⚠️ 그 기록에 이미 카드가 있으면 수정으로 보낸다', (tester) async {
+      // 작성 화면을 띄워 놓고 못 쓰게 하는 것보다 낫다(설계 6-2).
+      final router = await _pumpRouted(
+        tester,
+        records: _Records([_record(id: 11)], detail: _detail(roomId: 911)),
+        cards: _Cards([_card(id: 500, runningRecordId: 11)]),
+        roomId: 911,
+      );
+
+      expect(router.state.uri.toString(), AppRoutes.recordCardEditOf(500));
+      // ⚠️ **작성 화면을 남겨 두지 않는다** — 뒤로가 쓸 수 없는 화면으로
+      // 돌아온다.
+      expect(router.canPop(), isFalse);
+    });
+
+    testWidgets('⚠️ 그 방이 목록에 없으면 아무 일도 하지 않는다', (tester) async {
+      // 기록이 아직 서버에 없거나 날짜가 다른 경우다. 고르는 것은 사용자가
+      // 한다 — 빈 화면을 띄우거나 엉뚱한 기록을 고르지 않는다.
+      await _pumpRouted(
+        tester,
+        records: _Records([_record(id: 11)]),
+        roomId: 7777,
+      );
+
+      expect(find.byType(RouteArtView), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   testWidgets('고른 기록의 경로와 지표가 뜬다', (tester) async {

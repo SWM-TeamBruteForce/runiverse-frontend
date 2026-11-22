@@ -114,10 +114,17 @@ abstract final class AppRoutes {
   ///
   /// ⚠️ **날짜를 쿼리로 싣는다.** `extra`로 넘기면 딥링크나 프로세스 복구에서
   /// 사라지고, 그때 작성 화면이 어느 날인지 모른다.
-  static String recordCardNewOn(DateTime day) {
+  /// [roomId]를 주면 **그 방에서 뛴 기록이 미리 골라진다**(설계 6-2 "러닝
+  /// 요약에서 왔으면 날짜와 기록이 골라져 있다").
+  ///
+  /// ⚠️ **기록 번호가 아니라 방 번호다.** 러닝 요약이 가진 것은 방 번호뿐이고
+  /// (`RunDetail`에 기록 번호가 없다) `RunRecord.runningRoomId`가 그 둘을
+  /// 잇는다. 방이 없으면(솔로·방 열기 실패) 날짜만 간다.
+  static String recordCardNewOn(DateTime day, {int? roomId}) {
     final month = day.month.toString().padLeft(2, '0');
     final date = day.day.toString().padLeft(2, '0');
-    return '$recordCardNew?date=${day.year}-$month-$date';
+    final room = roomId == null ? '' : '&room=$roomId';
+    return '$recordCardNew?date=${day.year}-$month-$date$room';
   }
 
   /// 기록카드 작성 2 — 사진.
