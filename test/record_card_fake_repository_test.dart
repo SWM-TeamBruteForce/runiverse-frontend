@@ -274,7 +274,9 @@ void main() {
       final card = (await repo.musicOf(1003)).cardId;
       expect(card, 1003);
 
-      await repo.update(sameEdit(await _cardOf(repo, 1003), reviewText: '다른 글'));
+      await repo.update(
+        sameEdit(await _cardOf(repo, 1003), reviewText: '다른 글'),
+      );
 
       expect((await repo.musicOf(1003)).status, MusicStatus.queued);
     });
@@ -291,7 +293,9 @@ void main() {
     });
 
     test('⚠️ 만들지 않은 카드를 고쳐도 만들기 시작하지 않는다', () async {
-      await repo.update(sameEdit(await _cardOf(repo, 1002), reviewText: '다른 글'));
+      await repo.update(
+        sameEdit(await _cardOf(repo, 1002), reviewText: '다른 글'),
+      );
 
       expect((await repo.musicOf(1002)).status, MusicStatus.none);
     });

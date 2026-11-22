@@ -227,9 +227,7 @@ void main() {
       await _closePolling(tester, container);
     });
 
-    testWidgets('⚠️ 만드는 중이면 공개범위만 바꿔도 알린다 — 활성 요청이 무효화된다', (
-      tester,
-    ) async {
+    testWidgets('⚠️ 만드는 중이면 공개범위만 바꿔도 알린다 — 활성 요청이 무효화된다', (tester) async {
       final container = await _pump(
         tester,
         editing: true,
@@ -276,9 +274,7 @@ void main() {
       expect(find.text(AppStrings.recordCardMusicWorkingEdit), findsNothing);
     });
 
-    testWidgets('⚠️ 실패한 음악을 고치면 아무 말도 하지 않는다 — 잃을 것이 없다', (
-      tester,
-    ) async {
+    testWidgets('⚠️ 실패한 음악을 고치면 아무 말도 하지 않는다 — 잃을 것이 없다', (tester) async {
       await _pump(
         tester,
         editing: true,
@@ -480,6 +476,12 @@ Future<void> _closePolling(
 /// 고치는 카드([_editCard])는 가짜의 목에 없어서, 안 끼우면 음악 조회가
 /// `notFound`로 떨어진다.
 class _MusicOverride implements RecordCardRepository {
+  /// 이 테스트는 프로필 그리드를 그리지 않는다. 불리면 테스트가 잘못 세워진
+  /// 것이다.
+  @override
+  Future<List<RecordCard>> byUser({required String userId, int? limit}) =>
+      throw UnsupportedError('이 테스트는 사람별 카드를 묻지 않는다');
+
   _MusicOverride(this._inner, this.status);
 
   final FakeRecordCardRepository _inner;

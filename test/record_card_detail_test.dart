@@ -67,6 +67,12 @@ int pageOf(WidgetTester tester) {
 /// 음악만 답하는 저장소. **번호를 안 본다** — 상세가 어떤 카드를 들고 와도
 /// 같은 상태를 준다.
 class _MusicRepository implements RecordCardRepository {
+  /// 이 테스트는 프로필 그리드를 그리지 않는다. 불리면 테스트가 잘못 세워진
+  /// 것이다.
+  @override
+  Future<List<RecordCard>> byUser({required String userId, int? limit}) =>
+      throw UnsupportedError('이 테스트는 사람별 카드를 묻지 않는다');
+
   _MusicRepository(this.status);
 
   final MusicStatus status;
@@ -74,7 +80,8 @@ class _MusicRepository implements RecordCardRepository {
   var requests = 0;
 
   @override
-  Future<MusicGeneration> musicOf(int cardId) async => status == MusicStatus.none
+  Future<MusicGeneration> musicOf(int cardId) async =>
+      status == MusicStatus.none
       ? MusicGeneration.none(cardId)
       : MusicGeneration(cardId: cardId, status: status, trackCount: 1);
 
@@ -312,7 +319,9 @@ void main() {
     await _pump(tester, photos: 2);
 
     // 첫 장에서 한참 기다리다가 손으로 넘긴다.
-    await tester.pump(MusicGeneration.baseDuration - const Duration(seconds: 2));
+    await tester.pump(
+      MusicGeneration.baseDuration - const Duration(seconds: 2),
+    );
     await tester.drag(find.byType(PageView), const Offset(-400, 0));
     await tester.pumpAndSettle();
     expect(pageOf(tester), 1);
@@ -400,9 +409,7 @@ void main() {
     expect(find.text(AppStrings.recordCardMusicPlay), findsOneWidget);
   });
 
-  testWidgets('⚠️ 음악이 없는 카드도 책은 넘어간다 — 음악은 길이의 출처일 뿐이다', (
-    tester,
-  ) async {
+  testWidgets('⚠️ 음악이 없는 카드도 책은 넘어간다 — 음악은 길이의 출처일 뿐이다', (tester) async {
     await _pump(tester, photos: 2, music: MusicStatus.none);
     expect(find.text(AppStrings.recordCardMusicCreate), findsOneWidget);
 

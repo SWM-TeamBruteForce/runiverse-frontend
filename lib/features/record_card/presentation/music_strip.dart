@@ -109,15 +109,16 @@ class MusicStrip extends ConsumerWidget {
       // ⚠️ **지금 상태가 아니라 "누르면 될 일"을 쓴다.** 상세를 열면 책이 이미
       // 돌고 있어서, 도는 중에 `재생`을 세우면 이미 하는 것을 하라는 버튼이다.
       // 넘어갈 장이 없으면 둘 다 거짓이라 **버튼을 두지 않는다**([canAdvance]).
-      MusicStatus.succeeded => canAdvance
-          ? _Line(
-              icon: playing ? LucideIcons.pause : LucideIcons.play,
-              label: playing
-                  ? AppStrings.recordCardMusicPause
-                  : AppStrings.recordCardMusicPlay,
-              onTap: onTogglePlay,
-            )
-          : const _Line(label: AppStrings.recordCardMusicReady),
+      MusicStatus.succeeded =>
+        canAdvance
+            ? _Line(
+                icon: playing ? LucideIcons.pause : LucideIcons.play,
+                label: playing
+                    ? AppStrings.recordCardMusicPause
+                    : AppStrings.recordCardMusicPlay,
+                onTap: onTogglePlay,
+              )
+            : const _Line(label: AppStrings.recordCardMusicReady),
       MusicStatus.failed => _Line(
         label: AppStrings.recordCardMusicFailed,
         action: AppStrings.recordCardMusicRetry,

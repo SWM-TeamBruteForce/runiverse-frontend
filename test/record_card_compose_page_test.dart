@@ -147,6 +147,12 @@ class _FailingRecords implements RunRecordRepository {
 }
 
 class _Cards implements RecordCardRepository {
+  /// 이 테스트는 프로필 그리드를 그리지 않는다. 불리면 테스트가 잘못 세워진
+  /// 것이다.
+  @override
+  Future<List<RecordCard>> byUser({required String userId, int? limit}) =>
+      throw UnsupportedError('이 테스트는 사람별 카드를 묻지 않는다');
+
   _Cards(this.cards);
 
   final List<RecordCard> cards;

@@ -158,9 +158,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('⚠️ 스크린리더가 무슨 줄인지 읽는다 — 아이콘만 서는 구간이 있다', (
-    tester,
-  ) async {
+  testWidgets('⚠️ 스크린리더가 무슨 줄인지 읽는다 — 아이콘만 서는 구간이 있다', (tester) async {
     final handle = tester.ensureSemantics();
     await pump(tester, cardId: _done);
 
@@ -172,9 +170,7 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('⚠️ 요청이 날아가는 동안 줄이 그 말을 한다 — 같은 라벨로 서 있지 않는다', (
-    tester,
-  ) async {
+  testWidgets('⚠️ 요청이 날아가는 동안 줄이 그 말을 한다 — 같은 라벨로 서 있지 않는다', (tester) async {
     repo = FakeRecordCardRepository(
       today: DateTime(2026, 11, 16),
       clock: () => now,

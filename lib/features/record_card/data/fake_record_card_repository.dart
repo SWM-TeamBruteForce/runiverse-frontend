@@ -89,15 +89,49 @@ class FakeRecordCardRepository implements RecordCardRepository {
     queries.add((from: start, to: end));
 
     return [
-      // ⚠️ **고친 것이 있으면 그쪽을 준다.** `_all()`이 목을 매번 새로 만들어,
-      // 안 덮으면 고친 카드가 다음 조회에 되돌아간다.
-      for (final card in [..._all(), ..._created])
-        if (!_deletedIds.contains(card.id) &&
-            !card.day.isBefore(start) &&
-            !card.day.isAfter(end))
-          _edited[card.id] ?? card,
+      for (final card in _live())
+        if (!card.day.isBefore(start) && !card.day.isAfter(end)) card,
     ]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
   }
+
+  /// 누가 무엇을 물었나. 그리드가 7장만 묻는지 보는 데 쓴다.
+  final userQueries = <({String userId, int? limit})>[];
+
+  @override
+  Future<List<RecordCard>> byUser({required String userId, int? limit}) async {
+    calls++;
+
+    if (failWith != null) throw RecordCardException(failWith!);
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+
+    userQueries.add((userId: userId, limit: limit));
+
+    // ⚠️ **가짜가 거른다 — 서버 자리이기 때문이다.** 화면이 거르면 안 보여야
+    // 할 카드가 이미 기기에 와 있다는 뜻이 된다(설계 6-7).
+    final cards =
+        [
+          for (final card in _live())
+            if (card.visibility != RecordCardVisibility.private) card,
+        ]..sort(
+          // 최신순. 달력과 반대다.
+          (a, b) => b.startedAt.compareTo(a.startedAt),
+        );
+
+    return limit == null ? cards : cards.take(limit).toList();
+  }
+
+  /// 지금 **살아 있는** 카드 전부 — 목과 만든 것을 합치고, 고친 것으로 덮고,
+  /// 지운 것을 뺀다. 날짜도 공개범위도 보지 않는다.
+  ///
+  /// ⚠️ **조회마다 따로 모으지 않는다.** 따로 모으면 지운 카드가 한쪽에만
+  /// 남아, 달력에서는 사라졌는데 프로필에는 서는 카드가 생긴다.
+  ///
+  /// ⚠️ **고친 것이 있으면 그쪽을 준다.** `_all()`이 목을 매번 새로 만들어,
+  /// 안 덮으면 고친 카드가 다음 조회에 되돌아간다.
+  List<RecordCard> _live() => [
+    for (final card in [..._all(), ..._created])
+      if (!_deletedIds.contains(card.id)) _edited[card.id] ?? card,
+  ];
 
   /// 이 앱이 만든 카드들. **앱을 끄면 사라진다.**
   ///

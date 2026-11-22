@@ -85,9 +85,7 @@ void main() {
       await _finishMusic(tester);
     });
 
-    testWidgets('⚠️ 저장하면 상세의 음악 줄이 되돌아간다 — 전곡을 다시 만든다', (
-      tester,
-    ) async {
+    testWidgets('⚠️ 저장하면 상세의 음악 줄이 되돌아간다 — 전곡을 다시 만든다', (tester) async {
       // 작성 3이 "처음부터 다시 만듭니다"라고 알렸으면, 돌아온 상세가 그 말과
       // 같은 것을 보여야 한다. 다 된 음악 줄(`멈춤`)이 그대로 서 있으면
       // **방금 읽은 경고가 거짓**이 된다.
@@ -314,6 +312,7 @@ Future<void> _finishMusic(WidgetTester tester) async {
   await tester.pump(CardMusicController.pollInterval);
   await tester.pump();
 }
+
 late FakeRecordCardRepository _cards;
 late GoRouter _router;
 
@@ -423,6 +422,10 @@ Future<ProviderContainer> _pumpAt(
 
 /// 삭제만 느린 저장소. 나머지는 그대로 넘긴다.
 class _SlowDelete implements RecordCardRepository {
+  @override
+  Future<List<RecordCard>> byUser({required String userId, int? limit}) =>
+      _inner.byUser(userId: userId, limit: limit);
+
   _SlowDelete(this._inner, this._delay);
 
   final FakeRecordCardRepository _inner;

@@ -46,15 +46,10 @@ void main() {
 
     final state = container.read(cardMusicProvider(_done));
     expect(state, isA<CardMusicData>());
-    expect(
-      (state as CardMusicData).generation.status,
-      MusicStatus.succeeded,
-    );
+    expect((state as CardMusicData).generation.status, MusicStatus.succeeded);
   });
 
-  testWidgets('⚠️ 만드는 중이면 스스로 다시 묻는다 — 열어 둔 사람이 끝을 본다', (
-    tester,
-  ) async {
+  testWidgets('⚠️ 만드는 중이면 스스로 다시 묻는다 — 열어 둔 사람이 끝을 본다', (tester) async {
     final container = open(_noMusic);
     await container.read(cardMusicProvider(_noMusic).notifier).request();
 
@@ -138,9 +133,7 @@ void main() {
     expect((state as CardMusicError).failure, RecordCardFailure.network);
   });
 
-  testWidgets('⚠️ 오류 뒤에는 폴링하지 않는다 — 끊긴 망을 3초마다 두드리지 않는다', (
-    tester,
-  ) async {
+  testWidgets('⚠️ 오류 뒤에는 폴링하지 않는다 — 끊긴 망을 3초마다 두드리지 않는다', (tester) async {
     repo.failWith = RecordCardFailure.network;
     final container = open(_done);
     container.read(cardMusicProvider(_done));
@@ -174,9 +167,7 @@ void main() {
     expect(container.read(cardMusicProvider(_noMusic)), isA<CardMusicError>());
   });
 
-  testWidgets('⚠️ 카드마다 따로 든다 — 한 장을 열어 둔 채 다른 장을 봐도 안 섞인다', (
-    tester,
-  ) async {
+  testWidgets('⚠️ 카드마다 따로 든다 — 한 장을 열어 둔 채 다른 장을 봐도 안 섞인다', (tester) async {
     final container = open(_done);
     container.listen(cardMusicProvider(_noMusic), (_, _) {});
     await tester.pump();
