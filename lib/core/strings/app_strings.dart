@@ -984,6 +984,32 @@ abstract final class AppStrings {
   /// 제목은 그 화면의 이름이다.
   static const profileEditOpen = '프로필 편집';
 
+  // ── 프로필의 기록카드 그리드 (설계 6-7) ─────────────────────
+  //
+  // **공개한 카드만 선다** — `PUBLIC`과 `FRIENDS`다. 내 프로필에서도 비공개는
+  // 안 보인다(사용자 결정). 나만 보는 카드를 보는 자리는 기록카드 탭이다.
+
+  /// 전체 보기 화면의 제목.
+  static const profileCardsTitle = '기록카드';
+
+  /// 처음 6장 아래의 버튼. 누르면 전체 보기 화면으로 간다.
+  static const profileCardsMore = '더 보기';
+
+  /// 전체 보기 화면이 빈 경우.
+  ///
+  /// ⚠️ **그리드에는 쓰지 않는다.** 남의 프로필에 "아직 없어요"를 띄울 이유가
+  /// 없어 그 자리는 **비워 둔다**(설계 6-7). 눌러서 들어온 화면이 텅 비면
+  /// 고장으로 읽히므로 여기서만 말한다.
+  static const profileCardsEmpty = '아직 기록카드가 없어요';
+
+  static const profileCardsError = '기록카드를 읽지 못했어요';
+
+  /// 칸 하나를 읽는 말.
+  ///
+  /// ⚠️ **칸에는 사진뿐이다.** 날짜도 숫자도 없어 스크린리더가 읽을 것이 없다.
+  static String profileCardsOn(DateTime day) =>
+      '${day.month}월 ${day.day}일 기록카드';
+
   // ── 프로필 사진 ─────────────────────────────────────────────
 
   /// 아바타를 눌렀을 때 뜨는 시트의 제목.

@@ -178,6 +178,19 @@ abstract final class AppRoutes {
   static String recordCardEditPublishOf(int cardId) =>
       '${recordCardEditOf(cardId)}/publish';
 
+  /// 그 사람의 기록카드 **전체 보기** — 프로필 그리드의 `더 보기`가 가는 곳
+  /// (설계 6-7).
+  ///
+  /// ⚠️ **`/record-card/` 아래 둔다.** ① 셸 **밖**이라 남의 프로필에서 들어와도
+  /// 탭이 바뀌지 않고(설계 7절) ② 저장·삭제 뒤 되돌아가기가 경로 앞머리로
+  /// "작성·수정 흐름"을 가리는데(`app_router.dart`의 `_toDetail`) `card/`도
+  /// `new`도 아니어서 **걷히지 않는다.**
+  static const recordCardsOfUser = '/record-card/user/:userId';
+
+  /// [mine]은 상세로 그대로 흘러간다 — 남의 카드에는 `⋮`를 세우지 않는다.
+  static String recordCardsOf(String userId, {required bool mine}) =>
+      '$recordCard/user/${Uri.encodeComponent(userId)}?mine=$mine';
+
   /// 본인 프로필 (S20)
   static const profile = '/profile';
 

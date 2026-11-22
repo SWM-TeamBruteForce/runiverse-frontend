@@ -19,6 +19,7 @@ import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
 import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.dart';
+import 'package:runiverse/features/profile/presentation/profile_cards_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_edit_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
@@ -202,6 +203,15 @@ GoRouter createAppRouter({String? initialLocation}) {
         // (설계 9절의 공개범위 규칙과 같은 방향이다).
         builder: (context, state) => CardDetailPage(
           card: state.extra! as RecordCard,
+          mine: state.uri.queryParameters['mine'] == 'true',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.recordCardsOfUser,
+        name: 'record_cards_of_user',
+        builder: (context, state) => ProfileCardsPage(
+          userId: state.pathParameters['userId'] ?? '',
+          // 쿼리가 없으면 내 것이 아니다 — 상세와 같은 규칙이다.
           mine: state.uri.queryParameters['mine'] == 'true',
         ),
       ),
