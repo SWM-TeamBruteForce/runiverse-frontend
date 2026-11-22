@@ -159,6 +159,57 @@ void main() {
     });
   });
 
+  /// 대표 사진 — 달력 칸과 프로필 그리드의 얼굴이다 (사용자 결정 2026-11-22).
+  group('대표 사진', () {
+    testWidgets('⚠️ 첫 장에는 버튼이 아니라 대표 사진이라고만 적는다', (tester) async {
+      // 음악 줄에서 배운 것과 같다 — 눌러도 아무 일도 없는 버튼을 두지 않는다.
+      await _pump(tester, draft: _ready(photos: 2));
+
+      await _dragUp(tester);
+      expect(find.text(AppStrings.recordCardPhotoCover), findsOne);
+      expect(find.text(AppStrings.recordCardPhotoMakeCover), findsNothing);
+    });
+
+    testWidgets('⚠️ 대표로 지정하면 그 사진이 1번이 되고 화면이 1번으로 따라간다', (tester) async {
+      final container = await _pump(
+        tester,
+        draft: _ready(photos: 3, captions: ['ㄱ', 'ㄴ', 'ㄷ']),
+      );
+      await _goTo(tester, 1, 3);
+
+      await _tapBelow(tester, find.text(AppStrings.recordCardPhotoMakeCover));
+
+      final photos = container.read(cardDraftProvider(null)).photos;
+      expect(photos.map((p) => p.caption), ['ㄴ', 'ㄱ', 'ㄷ']);
+      // 올려 놓고 다른 장을 보여 주면 무엇이 대표가 됐는지 알 수 없다.
+      expect(_fieldText(tester), 'ㄴ');
+      expect(find.text(AppStrings.recordCardPhotoCover), findsOne);
+    });
+
+    testWidgets('⚠️ 이미 올린 사진도 대표가 된다', (tester) async {
+      // 수정은 작성 2를 그대로 다시 쓴다(설계 6-6). 올라간 사진에만 안 되면
+      // 고치러 들어온 사람은 대표를 바꿀 길이 없다.
+      final container = await _pumpEdit(
+        tester,
+        card: _card(photos: 2, captions: ['ㄱ', 'ㄴ']),
+      );
+      await _goTo(tester, 1, 2);
+
+      await _tapBelow(tester, find.text(AppStrings.recordCardPhotoMakeCover));
+
+      final photos = container.read(cardDraftProvider(7)).photos;
+      expect(photos.map((p) => (p as SavedPhoto).id), [71, 70]);
+    });
+
+    testWidgets('사진이 한 장이면 지정할 것이 없다', (tester) async {
+      await _pump(tester, draft: _ready(photos: 1));
+
+      await _dragUp(tester);
+      expect(find.text(AppStrings.recordCardPhotoMakeCover), findsNothing);
+      expect(find.text(AppStrings.recordCardPhotoCover), findsNothing);
+    });
+  });
+
   group('지우기', () {
     testWidgets('지우면 그 장이 빠진다', (tester) async {
       final container = await _pump(tester, draft: _ready(photos: 2));
@@ -348,6 +399,26 @@ Future<void> _tapBelow(WidgetTester tester, Finder finder) async {
   );
   await tester.pumpAndSettle();
   await tester.tap(finder);
+  await tester.pumpAndSettle();
+}
+
+/// 점을 눌러 그 장으로 간다.
+///
+/// ⚠️ **끌기로 넘기지 않는다.** 미리보기가 좁아(9:16, 320dp 높이) `-600`짜리
+/// 끌기가 **세 장 이상에서는 두 장을 넘어간다** — 어느 장을 보고 있는지 모르는
+/// 테스트가 된다.
+Future<void> _goTo(WidgetTester tester, int page, int count) async {
+  final handle = tester.ensureSemantics();
+  await tester.tap(
+    find.bySemanticsLabel(AppStrings.recordCardPhotoGoTo(page + 1, count)),
+  );
+  await tester.pumpAndSettle();
+  handle.dispose();
+}
+
+/// 화면 밖에 있는 것을 보이게만 끌어 올린다. [_tapBelow]와 달리 누르지 않는다.
+Future<void> _dragUp(WidgetTester tester) async {
+  await tester.drag(find.byType(ListView), const Offset(0, -240));
   await tester.pumpAndSettle();
 }
 

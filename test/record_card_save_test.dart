@@ -68,6 +68,18 @@ void main() {
       expect(card.photos[1].caption, isNull);
     });
 
+    test('⚠️ 대표로 올린 사진이 카드의 첫 사진으로 저장된다', () async {
+      // 달력 칸과 프로필 그리드가 **첫 사진**을 얼굴로 쓴다. 순서가 저장까지
+      // 가지 않으면 작성 2에서 고른 대표가 아무 뜻이 없다.
+      final world = _World();
+      world.fill(captions: ['첫째', '둘째', '셋째']);
+      world.container.read(cardDraftProvider(null).notifier).makeCover(2);
+
+      final card = await world.controller.save();
+
+      expect(card!.photos.map((p) => p.caption), ['셋째', '첫째', '둘째']);
+    });
+
     test('⚠️ 성공하면 자른 파일을 치우지 않는다', () async {
       // 올릴 엔드포인트가 없어 **그 경로가 유일한 사본**이다. 치우면 카드가
       // 가리키는 사진이 사라져, 상세에서 세 장이 전부 선 아트로 보인다.

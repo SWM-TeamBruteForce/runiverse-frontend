@@ -241,6 +241,35 @@ class _CardPhotoPageState extends ConsumerState<CardPhotoPage> {
           onChanged: (text) => _draft.setCaption(page, text),
         ),
         const SizedBox(height: AppSpacing.space4),
+        // ⚠️ **한 장뿐이면 아무 말도 하지 않는다.** 고를 것이 없는데 "대표
+        // 사진"이라고 적으면 무엇과 견준 말인지 알 수 없다.
+        if (photos.length > 1)
+          Center(
+            // ⚠️ **이미 대표인 장에는 버튼을 세우지 않는다.** 눌러도 아무 일도
+            // 없는 버튼은 고장으로 읽힌다(묶음 5의 음악 줄).
+            child: page == 0
+                ? Text(
+                    AppStrings.recordCardPhotoCover,
+                    style: AppTypographyV2.body18.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  )
+                : TextButton(
+                    // 올린 뒤 **그 장을 따라간다** — 다른 장을 보여 주면
+                    // 무엇이 대표가 됐는지 알 수 없다. `_jump`가 캡션 칸까지
+                    // 당겨 준다.
+                    onPressed: () {
+                      _draft.makeCover(page);
+                      _jump(0);
+                    },
+                    child: Text(
+                      AppStrings.recordCardPhotoMakeCover,
+                      style: AppTypographyV2.body18.copyWith(
+                        color: colors.primary,
+                      ),
+                    ),
+                  ),
+          ),
         Center(
           child: TextButton(
             onPressed: () => _remove(page),

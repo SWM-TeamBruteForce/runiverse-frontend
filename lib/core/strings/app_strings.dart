@@ -1827,6 +1827,17 @@ abstract final class AppStrings {
   static String recordCardPhotoCaptionCounter(int length, int max) =>
       '$length/$max';
 
+  /// 보고 있는 장을 **대표로** 올린다 — 달력 칸과 프로필 그리드의 얼굴이
+  /// 된다(사용자 결정 2026-11-22).
+  ///
+  /// ⚠️ "썸네일"이라고 쓰지 않는다. 사용자가 보는 자리는 달력과 프로필이고,
+  /// 그 말은 개발자의 말이다.
+  static const recordCardPhotoMakeCover = '대표 사진으로';
+
+  /// 보고 있는 장이 **이미 대표일 때.** ⚠️ **버튼이 아니다** — 눌러도 아무 일도
+  /// 없는 버튼을 두면 고장으로 읽힌다(묶음 5의 음악 줄에서 배웠다).
+  static const recordCardPhotoCover = '대표 사진';
+
   static const recordCardPhotoRemove = '이 사진 지우기';
 
   static String recordCardPhotoLimit(int max) => '사진은 $max장까지 넣을 수 있어요';

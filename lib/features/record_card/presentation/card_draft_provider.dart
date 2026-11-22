@@ -92,6 +92,32 @@ class CardDraftController extends Notifier<CardDraft> {
     photos.removeAt(index);
   });
 
+  /// [index] 자리의 사진을 **대표로 올린다** — 목록 맨 앞으로 옮기고 나머지
+  /// 순서는 그대로 둔다.
+  ///
+  /// ## ⚠️ 대표는 따로 두는 깃발이 아니라 **순서**다
+  ///
+  /// 달력 칸과 프로필 그리드가 `RecordCard.thumbnailUrl`(= **첫 사진**)을
+  /// 얼굴로 쓴다. 깃발을 따로 두면 초안·저장·수정·카드·가짜에 필드가 하나씩
+  /// 늘고, **서버에 그 컬럼이 없어** 답이 오기 전까지 가짜에서만 사는 값이
+  /// 된다. 순서로 두면 썸네일 규칙을 한 글자도 건드리지 않는다
+  /// (사용자 결정 2026-11-22).
+  ///
+  /// 대신 **포토북 넘기는 순서도 함께 바뀐다** — 대표가 첫 사진이 된다. 알고
+  /// 고른 비용이다.
+  ///
+  /// ⚠️ **사진만 옮기지 않는다.** 캡션과 밀어 둔 위치가 사진에 붙어 있어
+  /// ([CardPhotoDraft]) 통째로 간다 — 자리만 바꾸면 **남의 한마디가 붙는다.**
+  ///
+  /// ⚠️ **이미 맨 앞이거나 범위 밖이면 아무 일도 하지 않는다.** 같은 값을
+  /// 새로 쓰면 듣고 있는 화면이 헛 그려진다.
+  void makeCover(int index) {
+    if (index <= 0 || index >= state.photos.length) return;
+    final photos = [...state.photos];
+    photos.insert(0, photos.removeAt(index));
+    state = state.copyWith(photos: photos);
+  }
+
   /// [index] 자리의 캡션. **[CardPhotoDraft.captionMaxLength]에서 자른다.**
   void setCaption(int index, String text) => _withPhoto(index, (photos) {
     photos[index] = photos[index].withCaption(

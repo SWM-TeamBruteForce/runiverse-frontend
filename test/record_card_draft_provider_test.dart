@@ -243,6 +243,57 @@ void main() {
       expect(draft().photos, isEmpty);
     });
 
+    test('대표로 고른 사진이 맨 앞으로 오고 나머지 순서는 그대로다', () {
+      notifier().addPhoto(_image('/tmp/a.jpg'));
+      notifier().addPhoto(_image('/tmp/b.jpg'));
+      notifier().addPhoto(_image('/tmp/c.jpg'));
+      notifier().addPhoto(_image('/tmp/d.jpg'));
+
+      notifier().makeCover(2);
+
+      // 달력 칸과 프로필 그리드가 첫 사진을 얼굴로 쓴다.
+      expect(draft().photos.map((p) => (p as PickedPhoto).image.path), [
+        '/tmp/c.jpg',
+        '/tmp/a.jpg',
+        '/tmp/b.jpg',
+        '/tmp/d.jpg',
+      ]);
+    });
+
+    test('⚠️ 캡션과 밀어 둔 위치가 사진을 따라간다', () {
+      notifier().addPhoto(_image('/tmp/a.jpg'));
+      notifier().addPhoto(_image('/tmp/b.jpg'));
+      notifier().setCaption(1, '두 번째의 한마디');
+      notifier().setPhotoAlign(1, alignX: 0.25);
+
+      notifier().makeCover(1);
+
+      // 사진만 옮기고 캡션을 두고 가면 **남의 한마디가 붙는다.**
+      expect(draft().photos.first.caption, '두 번째의 한마디');
+      expect((draft().photos.first as PickedPhoto).alignX, 0.25);
+      expect(draft().photos.last.caption, '');
+    });
+
+    test('⚠️ 이미 맨 앞이면 상태를 다시 쓰지 않는다', () {
+      notifier().addPhoto(_image('/tmp/a.jpg'));
+      notifier().addPhoto(_image('/tmp/b.jpg'));
+      final before = draft();
+
+      notifier().makeCover(0);
+
+      // 같은 값을 새로 쓰면 듣고 있는 화면이 헛 그려진다.
+      expect(draft(), same(before));
+    });
+
+    test('⚠️ 없는 자리를 대표로 지정해도 던지지 않는다', () {
+      notifier().addPhoto(_image('/tmp/a.jpg'));
+
+      notifier().makeCover(-1);
+      notifier().makeCover(5);
+
+      expect(draft().photos, hasLength(1));
+    });
+
     test('clear가 사진까지 비운다', () {
       notifier().addPhoto(_image('/tmp/a.jpg'));
       notifier().setVisibility(RecordCardVisibility.public);
