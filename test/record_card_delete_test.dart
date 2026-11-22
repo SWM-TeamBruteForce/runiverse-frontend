@@ -6,6 +6,7 @@ import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
+import 'package:runiverse/features/profile/presentation/profile_cards_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_delete_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 
@@ -94,6 +95,19 @@ void main() {
       expect(world.state, isA<CardDeleteIdle>());
     });
 
+    test('⚠️ 지우면 프로필 그리드도 다시 받는다', () async {
+      // 안 버리면 지운 카드가 프로필에 그대로 서 있다.
+      final world = _World();
+      world.container.listen(profileCardsProvider(_gridQuery), (_, _) {});
+      await world.container.read(profileCardsProvider(_gridQuery).future);
+      expect(world.repository.userCalls, 1);
+
+      await world.delete(7);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(world.repository.userCalls, 2);
+    });
+
     test('⚠️ 실패하면 왜인지 들고 있고 다시 누를 수 있다', () async {
       final world = _World(failWith: RecordCardFailure.network);
 
@@ -112,6 +126,8 @@ void main() {
 }
 
 // ── 도움 ──────────────────────────────────────────────────────
+
+const _gridQuery = (userId: 'u-1', limit: 7);
 
 final _today = DateTime(2026, 11, 18);
 final _from = _today.subtract(const Duration(days: 20));
@@ -136,11 +152,14 @@ class _World {
 }
 
 class _Repository implements RecordCardRepository {
-  /// 이 테스트는 프로필 그리드를 그리지 않는다. 불리면 테스트가 잘못 세워진
-  /// 것이다.
+  /// 몇 번 물었나. **저장·삭제가 프로필 그리드를 버리는지** 이 수로 본다.
+  var userCalls = 0;
+
   @override
-  Future<List<RecordCard>> byUser({required String userId, int? limit}) =>
-      throw UnsupportedError('이 테스트는 사람별 카드를 묻지 않는다');
+  Future<List<RecordCard>> byUser({required String userId, int? limit}) async {
+    userCalls++;
+    return const [];
+  }
 
   _Repository({this.delay = Duration.zero, this.failWith});
 

@@ -17,6 +17,7 @@ import 'package:runiverse/features/record_card/domain/record_card_activity.dart'
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
+import 'package:runiverse/features/profile/presentation/profile_cards_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_save_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
@@ -206,6 +207,19 @@ void main() {
       expect(existing.map((c) => c.id), isNot(contains(a.id)));
       expect(existing.map((c) => c.id), isNot(contains(b.id)));
     });
+  });
+
+  test('⚠️ 저장하면 프로필 그리드도 다시 받는다', () async {
+    // 안 버리면 방금 만든 카드가 프로필에 뜨지 않는다 — 달력만 버리고 있었다.
+    final world = _World();
+    await _warmGrid(world.container);
+    expect(world.repository.userCalls, 1);
+
+    await world.save();
+    // 무효화가 돌 틈을 준다.
+    await Future<void>.delayed(Duration.zero);
+
+    expect(world.repository.userCalls, 2);
   });
 
   group('실패', () {
@@ -413,6 +427,15 @@ const _route = RouteArt(
   aspect: 1,
 );
 
+const _gridQuery = (userId: 'u-1', limit: 7);
+
+/// 그리드를 한 번 받아 둔다. **듣는 사람을 붙인다** — 안 붙이면 `read`마다
+/// 다시 받아, 무효화가 됐는지 안 됐는지 구별할 수 없다.
+Future<void> _warmGrid(ProviderContainer container) async {
+  container.listen(profileCardsProvider(_gridQuery), (_, _) {});
+  await container.read(profileCardsProvider(_gridQuery).future);
+}
+
 /// 저장 한 번을 돌리는 데 필요한 것 전부.
 class _World {
   _World({
@@ -576,11 +599,14 @@ class _Thumbnails implements CardThumbnailMaker {
 }
 
 class _Repository implements RecordCardRepository {
-  /// 이 테스트는 프로필 그리드를 그리지 않는다. 불리면 테스트가 잘못 세워진
-  /// 것이다.
+  /// 몇 번 물었나. **저장·삭제가 프로필 그리드를 버리는지** 이 수로 본다.
+  var userCalls = 0;
+
   @override
-  Future<List<RecordCard>> byUser({required String userId, int? limit}) =>
-      throw UnsupportedError('이 테스트는 사람별 카드를 묻지 않는다');
+  Future<List<RecordCard>> byUser({required String userId, int? limit}) async {
+    userCalls++;
+    return const [];
+  }
 
   _Repository({this.delay = Duration.zero, this.failWith});
 

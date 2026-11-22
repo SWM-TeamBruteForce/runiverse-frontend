@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:runiverse/features/profile/presentation/profile_cards_provider.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 
@@ -62,6 +63,14 @@ class CardDeleteController extends Notifier<CardDeleteState> {
       // 있어도 여기서 새로 세우고, 달력은 인증·dio를 거쳐 서버 주소를 찾다
       // 죽는다.
       ref.invalidate(recordCardControllerProvider);
+      // ⚠️ **프로필 그리드도 버린다 — 묶음째다.** 키에 `limit`이 들어 있어
+      // (그리드는 7장, 전체 보기는 전부) 하나만 버리면 **한쪽이 옛 목록을 들고
+      // 남는다.** 프로필에 지운 카드가 그대로 서 있는 것이 그 모습이다.
+      //
+      // ⚠️ **`profile`의 provider를 부른다.** CLAUDE.md가 막은 것은 다른
+      // feature의 **화면·위젯**이고 provider는 예외로 적혀 있다. `invalidate`는
+      // 듣는 것이 아니라 버리는 것이라 순환 의존도 생기지 않는다.
+      ref.invalidate(profileCardsProvider);
       state = const CardDeleteIdle();
       return true;
     } on RecordCardException catch (error) {
