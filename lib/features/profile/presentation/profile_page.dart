@@ -9,6 +9,7 @@ import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
+import 'package:runiverse/features/profile/presentation/profile_card_grid.dart';
 import 'package:runiverse/features/profile/presentation/profile_cover.dart';
 import 'package:runiverse/features/notification/presentation/notification_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_cover_action.dart';
@@ -173,7 +174,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ),
                 ),
 
-                // ⚠️ **아래 본문이 비어 있다. 빠뜨린 것이 아니다.**
+                // ⚠️ **공개한 기록카드가 이 자리에 선다**(설계 6-7). 비공개는
+                // 내 프로필에서도 안 보인다 — 나만 보는 카드를 보는 자리는
+                // 기록카드 탭이다.
+                //
+                // ⚠️ **`/me`가 오기 전에는 세우지 않는다.** 누구의 카드를
+                // 물을지 모른다. 카드가 한 장도 없으면 그리드가 스스로 자리를
+                // 비운다.
+                if (signedIn?.userId case final userId?) ...[
+                  const SizedBox(height: AppSpacing.space4),
+                  ProfileCardGrid(userId: userId, mine: true),
+                ],
+
+                // ⚠️ **그 아래가 비어 있다. 빠뜨린 것이 아니다.**
                 //
                 // 여기 있던 `기본 컬러 도감` · `블렌드` · `피드` 셋을
                 // 걷어냈다. 색 수집 기능은 범위에서 빠졌고(2026-10-15), 대표 기록

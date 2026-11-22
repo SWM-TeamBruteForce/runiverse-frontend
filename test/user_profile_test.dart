@@ -11,6 +11,7 @@ import 'package:runiverse/features/friend/presentation/friend_provider.dart';
 import 'package:runiverse/features/profile/data/fake_profile_repository.dart';
 import 'package:runiverse/features/profile/data/http_profile_repository.dart';
 import 'package:runiverse/features/profile/domain/profile_summary.dart';
+import 'package:runiverse/features/profile/presentation/profile_card_grid.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 import 'package:runiverse/features/profile/presentation/user_profile_page.dart';
 
@@ -130,6 +131,16 @@ void main() {
       );
       await tester.pumpAndSettle();
     }
+
+    testWidgets('⚠️ 남의 프로필에도 같은 그리드가 선다 — 남의 카드로 들어간다', (tester) async {
+      // 설계 6-7. 소유 여부는 서버가 답한 `isMe`를 그대로 쓴다 — 여기서 다시
+      // 계산하면 판단이 두 군데로 갈린다.
+      await pump(tester, relation: FriendRelation.none);
+
+      final grid = tester.widget<ProfileCardGrid>(find.byType(ProfileCardGrid));
+      expect(grid.userId, 'u1');
+      expect(grid.mine, isFalse);
+    });
 
     testWidgets('관계에 따라 버튼이 바뀐다 — 아직 아무 사이도 아니다', (tester) async {
       await pump(tester, relation: FriendRelation.none);

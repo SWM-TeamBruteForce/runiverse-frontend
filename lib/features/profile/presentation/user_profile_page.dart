@@ -13,6 +13,7 @@ import 'package:runiverse/core/widgets/v2/runner_avatar.dart';
 import 'package:runiverse/features/friend/domain/friend_relation.dart';
 import 'package:runiverse/features/friend/presentation/friend_provider.dart';
 import 'package:runiverse/features/profile/domain/profile_summary.dart';
+import 'package:runiverse/features/profile/presentation/profile_card_grid.dart';
 import 'package:runiverse/features/profile/presentation/profile_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_stat_row.dart';
 
@@ -156,6 +157,17 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage> {
               '${AppRoutes.userFriendsOf(summary.userId)}'
               '?nickname=${Uri.encodeComponent(summary.nickname ?? '')}',
             ),
+          ),
+
+          // ⚠️ **내 프로필과 같은 위젯이다**(설계 6-7). 공개범위는 서버가
+          // 거르므로 이 화면이 가릴 것이 없다.
+          //
+          // ⚠️ **소유 여부는 서버가 답한 `isMe`를 그대로 쓴다.** 여기서 다시
+          // 계산하면 판단이 두 군데로 갈린다.
+          const SizedBox(height: AppSpacing.space4),
+          ProfileCardGrid(userId: summary.userId, mine: summary.isMe),
+          SizedBox(
+            height: AppSpacing.space8 + MediaQuery.paddingOf(context).bottom,
           ),
         ],
       ),

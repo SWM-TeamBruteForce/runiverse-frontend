@@ -1,0 +1,258 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:runiverse/app/router/app_routes.dart';
+import 'package:runiverse/core/strings/app_strings.dart';
+import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/widgets/route_art_view.dart';
+import 'package:runiverse/features/profile/presentation/profile_card_grid.dart';
+import 'package:runiverse/features/profile/presentation/profile_card_tile.dart';
+import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
+import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/new_record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
+import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
+import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
+import 'package:runiverse/features/record_card/domain/route_art.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
+
+/// 프로필의 기록카드 그리드 (설계 6-7).
+void main() {
+  late _Cards repo;
+
+  setUp(() => repo = _Cards(7));
+
+  /// 그리드 하나를 세운다. 전체 보기로 가는 길을 함께 깐다.
+  Future<GoRouter> pump(
+    WidgetTester tester, {
+    bool mine = true,
+    bool light = false,
+  }) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => Scaffold(
+            body: SingleChildScrollView(
+              child: ProfileCardGrid(userId: 'u-1', mine: mine),
+            ),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.recordCardsOfUser,
+          builder: (context, state) =>
+              const Scaffold(body: Center(child: Text('전체 보기'))),
+        ),
+        GoRoute(
+          path: AppRoutes.recordCardDetail,
+          builder: (context, state) =>
+              const Scaffold(body: Center(child: Text('상세'))),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [recordCardRepositoryProvider.overrideWithValue(repo)],
+        child: MaterialApp.router(
+          theme: light ? AppTheme.light() : AppTheme.dark(),
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+    return router;
+  }
+
+  testWidgets('⚠️ 일곱 장을 묻고 여섯 장을 깐다', (tester) async {
+    await pump(tester);
+
+    expect(repo.asked.single, ProfileCardGrid.previewCount + 1);
+    expect(find.byType(ProfileCardTile), findsNWidgets(6));
+  });
+
+  testWidgets('일곱 번째가 있으면 더 보기가 선다', (tester) async {
+    await pump(tester);
+
+    expect(find.text(AppStrings.profileCardsMore), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 여섯 장 이하면 더 보기가 없다', (tester) async {
+    // 세워 두면 딱 여섯 장인 사람이 아무것도 더 없는 화면으로 간다.
+    repo = _Cards(6);
+    await pump(tester);
+
+    expect(find.byType(ProfileCardTile), findsNWidgets(6));
+    expect(find.text(AppStrings.profileCardsMore), findsNothing);
+  });
+
+  testWidgets('더 보기를 누르면 전체 보기로 간다', (tester) async {
+    final router = await pump(tester, mine: false);
+
+    await tester.tap(find.text(AppStrings.profileCardsMore));
+    await tester.pumpAndSettle();
+
+    expect(find.text('전체 보기'), findsOneWidget);
+    // 남의 프로필에서 눌렀으면 그 사실이 함께 간다.
+    expect(router.state.uri.toString(), contains('mine=false'));
+  });
+
+  testWidgets('칸을 누르면 상세로 간다', (tester) async {
+    await pump(tester);
+
+    await tester.tap(find.byType(ProfileCardTile).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('상세'), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 카드가 없으면 아무것도 그리지 않는다', (tester) async {
+    // 남의 프로필에 "아직 없어요"를 띄울 이유가 없다(설계 6-7).
+    repo = _Cards(0);
+    await pump(tester);
+
+    expect(find.byType(ProfileCardTile), findsNothing);
+    expect(find.text(AppStrings.profileCardsMore), findsNothing);
+    expect(tester.getSize(find.byType(ProfileCardGrid)).height, 0);
+  });
+
+  testWidgets('사진 없는 카드는 선 아트로 선다', (tester) async {
+    await pump(tester);
+
+    // 7장 중 홀수 번째가 사진 없는 카드다(`_Cards`).
+    expect(find.byType(RouteArtView), findsWidgets);
+  });
+
+  testWidgets('⚠️ 받는 동안에도 두 줄 자리를 지킨다 — 아래가 튀지 않는다', (tester) async {
+    repo = _Cards(7, delay: const Duration(milliseconds: 50));
+    await pump(tester);
+
+    final loading = tester.getSize(find.byType(ProfileCardGrid)).height;
+    expect(loading, greaterThan(0));
+
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pump();
+
+    expect(find.byType(ProfileCardTile), findsNWidgets(6));
+    // 더 보기 버튼만큼 길어진다 — 칸 두 줄의 높이는 같다.
+    expect(
+      tester.getSize(find.byType(ProfileCardTile).first).height * 2 +
+          8, // 줄 사이 간격
+      closeTo(loading, 0.5),
+    );
+  });
+
+  testWidgets('못 읽으면 한 줄로 말하고 다시 시도가 선다', (tester) async {
+    repo = _Cards(7, failure: RecordCardFailure.network);
+    await pump(tester);
+
+    expect(find.text(AppStrings.profileCardsError), findsOneWidget);
+
+    repo.failure = null;
+    await tester.tap(find.text(AppStrings.recordRetry));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(ProfileCardTile), findsNWidgets(6));
+  });
+
+  testWidgets('라이트 테마에서도 그려진다', (tester) async {
+    await pump(tester, light: true);
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(ProfileCardTile), findsNWidgets(6));
+  });
+
+  testWidgets('스크린리더가 무슨 칸인지 읽는다', (tester) async {
+    final handle = tester.ensureSemantics();
+    await pump(tester);
+
+    expect(
+      find.bySemanticsLabel(
+        AppStrings.profileCardsOn(repo.cards.first.startedAt),
+      ),
+      findsOneWidget,
+    );
+
+    handle.dispose();
+  });
+}
+
+/// 카드를 정해진 수만큼 주는 저장소. **장수를 손으로 쥐어야** `더 보기`가
+/// 서는 경계를 볼 수 있다.
+class _Cards implements RecordCardRepository {
+  _Cards(int count, {this.delay = Duration.zero, this.failure})
+    : cards = [
+        for (var i = 0; i < count; i++)
+          RecordCard(
+            id: 500 + i,
+            runningRecordId: 11 + i,
+            startedAt: DateTime(2026, 11, 16 - i, 7),
+            activity: RecordCardActivity.daily,
+            visibility: RecordCardVisibility.public,
+            reviewText: '$i번째',
+            // 홀수 번째는 사진이 없다 — 선 아트가 서는 자리를 본다.
+            photos: i.isEven
+                ? [RecordCardPhoto(id: 70 + i, url: 'assets/images/a$i.jpg')]
+                : const [],
+            route: const RouteArt(
+              strokes: [
+                [RoutePoint(0, 0), RoutePoint(1, 1)],
+              ],
+              aspect: 1,
+            ),
+            distanceMeters: 5400,
+            duration: const Duration(minutes: 28),
+            averagePace: const Duration(minutes: 5, seconds: 13),
+            runners: const [],
+          ),
+      ];
+
+  final List<RecordCard> cards;
+  final Duration delay;
+  RecordCardFailure? failure;
+
+  /// 몇 장씩 물었나.
+  final asked = <int?>[];
+
+  @override
+  Future<List<RecordCard>> byUser({required String userId, int? limit}) async {
+    asked.add(limit);
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (failure != null) throw RecordCardException(failure!);
+    return limit == null ? cards : cards.take(limit).toList();
+  }
+
+  @override
+  Future<List<RecordCard>> byDateRange({
+    required DateTime from,
+    required DateTime to,
+  }) => throw UnsupportedError('그리드는 달력을 받지 않는다');
+
+  @override
+  Future<RecordCard> create(NewRecordCard card) =>
+      throw UnsupportedError('그리드는 카드를 만들지 않는다');
+
+  @override
+  Future<RecordCard> update(EditRecordCard card) =>
+      throw UnsupportedError('그리드는 카드를 고치지 않는다');
+
+  @override
+  Future<void> delete(int cardId) => throw UnsupportedError('그리드는 카드를 지우지 않는다');
+
+  @override
+  Future<MusicGeneration> musicOf(int cardId) =>
+      throw UnsupportedError('그리드는 음악을 묻지 않는다');
+
+  @override
+  Future<MusicGeneration> requestMusic(int cardId) =>
+      throw UnsupportedError('그리드는 음악을 묻지 않는다');
+}
