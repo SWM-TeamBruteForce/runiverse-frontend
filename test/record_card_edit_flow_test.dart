@@ -366,7 +366,10 @@ Future<ProviderContainer> _pumpDetail(
       ? all.firstWhere((c) => c.photos.isEmpty)
       : all.firstWhere((c) => c.id == cardId);
 
-  _router.push(AppRoutes.recordCardDetailOf(_card.id), extra: _card);
+  _router.push(
+    AppRoutes.recordCardDetailOf(_card.id, mine: true),
+    extra: _card,
+  );
   await tester.pumpAndSettle();
   expect(find.byType(CardDetailPage), findsOne);
   return container;

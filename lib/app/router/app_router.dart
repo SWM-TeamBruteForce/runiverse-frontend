@@ -197,8 +197,13 @@ GoRouter createAppRouter({String? initialLocation}) {
         name: 'record_card_detail',
         redirect: (context, state) =>
             state.extra is RecordCard ? null : AppRoutes.recordCard,
-        builder: (context, state) =>
-            CardDetailPage(card: state.extra! as RecordCard),
+        // ⚠️ **쿼리가 없으면 "내 것이 아니다"로 읽는다.** 딥링크나 프로세스
+        // 복원으로 들어온 경우가 그렇다 — 모르면 손을 떼는 쪽이 안전하다
+        // (설계 9절의 공개범위 규칙과 같은 방향이다).
+        builder: (context, state) => CardDetailPage(
+          card: state.extra! as RecordCard,
+          mine: state.uri.queryParameters['mine'] == 'true',
+        ),
       ),
       GoRoute(
         path: AppRoutes.friends,
@@ -409,5 +414,9 @@ void _toDetail(BuildContext context, RecordCard card) {
   while (router.canPop()) {
     router.pop();
   }
-  router.push(AppRoutes.recordCardDetailOf(card.id), extra: card);
+  router.push(
+    // 고치거나 만든 카드다 — 남의 것을 저장할 길은 없다.
+    AppRoutes.recordCardDetailOf(card.id, mine: true),
+    extra: card,
+  );
 }

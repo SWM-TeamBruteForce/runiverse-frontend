@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
@@ -121,6 +122,7 @@ Future<void> _pump(
   bool light = false,
   MusicStatus music = MusicStatus.succeeded,
   _MusicRepository? repository,
+  bool mine = true,
 }) async {
   // ⚠️ 기본 테스트 화면(800×600)은 가로로 넓어 9:16 페이저가 화면보다 길어진다.
   // 아래 내용이 전부 밀려나 "안 보인다"로 떨어진다. 손전화 크기로 맞춘다.
@@ -143,7 +145,10 @@ Future<void> _pump(
       ],
       child: MaterialApp(
         theme: light ? AppTheme.light() : AppTheme.dark(),
-        home: CardDetailPage(card: _card(photos: photos)),
+        home: CardDetailPage(
+          card: _card(photos: photos),
+          mine: mine,
+        ),
       ),
     ),
   );
@@ -152,6 +157,43 @@ Future<void> _pump(
 }
 
 void main() {
+  /// 남의 카드 — 프로필 그리드로 들어오는 길이 묶음 6에서 열렸다.
+  group('남의 카드', () {
+    testWidgets('⚠️ 남의 카드에는 ⋮가 없다', (tester) async {
+      // 설계 6-5. 수정·삭제가 뜨면 눌러서 403을 받는다.
+      await _pump(tester, mine: false);
+
+      expect(find.byIcon(LucideIcons.ellipsisVertical), findsNothing);
+    });
+
+    testWidgets('내 카드에는 ⋮가 있다', (tester) async {
+      await _pump(tester);
+
+      expect(find.byIcon(LucideIcons.ellipsisVertical), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 남의 카드에서는 음악을 만들라고 하지 않는다', (tester) async {
+      // 남의 카드에 생성을 요청하는 것은 **쓰기**다.
+      await _pump(tester, mine: false, music: MusicStatus.none);
+
+      expect(find.text(AppStrings.recordCardMusicCreate), findsNothing);
+    });
+
+    testWidgets('⚠️ 남의 카드의 실패한 음악에 다시 만들기를 세우지 않는다', (tester) async {
+      await _pump(tester, mine: false, music: MusicStatus.failed);
+
+      expect(find.text(AppStrings.recordCardMusicRetry), findsNothing);
+      expect(find.text(AppStrings.recordCardMusicFailed), findsNothing);
+    });
+
+    testWidgets('⚠️ 남의 카드에서도 다 된 음악은 재생을 쥔다', (tester) async {
+      // 듣는 것은 읽기다.
+      await _pump(tester, mine: false, photos: 2);
+
+      expect(find.text(AppStrings.recordCardMusicPause), findsOneWidget);
+    });
+  });
+
   testWidgets('첫 장은 경로 선 아트다', (tester) async {
     await _pump(tester, photos: 2);
 

@@ -42,9 +42,17 @@ import 'package:runiverse/features/record_card/presentation/music_strip.dart';
 /// 프로필 그리드나 러닝 요약에서 열어도 탭이 바뀌면 안 된다
 /// (`app_routes.dart`의 `recordCardDetail`).
 class CardDetailPage extends ConsumerStatefulWidget {
-  const CardDetailPage({required this.card, super.key});
+  const CardDetailPage({required this.card, required this.mine, super.key});
 
   final RecordCard card;
+
+  /// 내 카드인가. **남의 카드면 손을 뗀다** — `⋮`(수정·삭제)도, 음악을 만들라는
+  /// 권유도 세우지 않는다(설계 6-5).
+  ///
+  /// ⚠️ **카드가 스스로 답하지 못한다.** 응답에 소유자가 없어(설계 10절 1번)
+  /// **들어온 길이** 말해 준다(`AppRoutes.recordCardDetailOf`). 소유자가 응답에
+  /// 생기는 날 이 값은 `card.ownerId == 내 번호`로 바뀐다.
+  final bool mine;
 
   @override
   ConsumerState<CardDetailPage> createState() => _CardDetailPageState();
@@ -82,7 +90,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
           tooltip: AppStrings.authBack,
         ),
         actions: [
-          if (deleting)
+          if (deleting && widget.mine)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: AppSpacing.space4),
               child: Center(
@@ -92,11 +100,14 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
                 ),
               ),
             ),
-          IconButton(
-            icon: const Icon(LucideIcons.ellipsisVertical),
-            tooltip: AppStrings.recordCardMore,
-            onPressed: deleting ? null : () => _openMenu(context),
-          ),
+          // ⚠️ **남의 카드에는 두지 않는다.** 두면 눌러서 수정·삭제가 뜨고,
+          // 저장할 때 403을 받는다 — 고칠 수 없는 것을 고치게 한 셈이다.
+          if (widget.mine)
+            IconButton(
+              icon: const Icon(LucideIcons.ellipsisVertical),
+              tooltip: AppStrings.recordCardMore,
+              onPressed: deleting ? null : () => _openMenu(context),
+            ),
         ],
       ),
       body: ListView(
@@ -124,6 +135,8 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
             cardId: card.id,
             playing: _playing,
             canAdvance: _canAdvance,
+            // 남의 카드에서는 **들을 수만 있다.**
+            canRequest: widget.mine,
             onTogglePlay: () => setState(() => _playing = !_playing),
           ),
         ],

@@ -396,7 +396,11 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
   void _pick(ComposableRecord choice) {
     final card = choice.existingCard;
     if (card != null) {
-      context.push(AppRoutes.recordCardDetailOf(card.id), extra: card);
+      context.push(
+        // 내가 쓴 카드다 — 내 기록 목록에서 왔다.
+        AppRoutes.recordCardDetailOf(card.id, mine: true),
+        extra: card,
+      );
       return;
     }
     _draft.pickRecord(choice.record);

@@ -36,6 +36,7 @@ void main() {
     required int cardId,
     bool playing = true,
     bool canAdvance = true,
+    bool canRequest = true,
     bool light = false,
   }) async {
     await tester.pumpWidget(
@@ -48,6 +49,7 @@ void main() {
               cardId: cardId,
               playing: playing,
               canAdvance: canAdvance,
+              canRequest: canRequest,
               onTogglePlay: () => toggles++,
             ),
           ),
@@ -56,6 +58,20 @@ void main() {
     );
     await tester.pump();
   }
+
+  testWidgets('⚠️ 요청할 수 없으면 만들 수 없는 상태에서 자리를 비운다', (tester) async {
+    // 남의 카드다. 빈 40px를 남기면 그 자리가 고장으로 읽힌다.
+    await pump(tester, cardId: _none, canRequest: false);
+
+    expect(find.text(AppStrings.recordCardMusicCreate), findsNothing);
+    expect(tester.getSize(find.byType(MusicStrip)).height, 0);
+  });
+
+  testWidgets('⚠️ 요청할 수 없어도 다 된 음악은 줄이 선다', (tester) async {
+    await pump(tester, cardId: _done, canRequest: false);
+
+    expect(find.text(AppStrings.recordCardMusicPause), findsOneWidget);
+  });
 
   testWidgets('만들지 않은 카드는 만들라고 권한다', (tester) async {
     await pump(tester, cardId: _none);

@@ -375,7 +375,10 @@ void main() {
 
     await _pickRecord(tester, _record(id: 11));
 
-    expect(router.state.uri.toString(), AppRoutes.recordCardDetailOf(500));
+    expect(
+      router.state.uri.toString(),
+      AppRoutes.recordCardDetailOf(500, mine: true),
+    );
     expect(find.text('상세'), findsOne);
   });
 

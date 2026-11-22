@@ -91,8 +91,11 @@ class _Body extends ConsumerWidget {
         child: RecordCardCalendar(
           data: data,
           // 이미 들고 있는 카드를 그대로 넘긴다 — 다시 받아 올 이유가 없다.
-          onOpen: (card) =>
-              context.push(AppRoutes.recordCardDetailOf(card.id), extra: card),
+          onOpen: (card) => context.push(
+            // 내 달력이다.
+            AppRoutes.recordCardDetailOf(card.id, mine: true),
+            extra: card,
+          ),
           // ⚠️ **뛴 날만 불린다.** 안 뛴 날은 칸이 아예 눌리지 않는다
           // (`RecordCardCalendar`). 그래서 여기서 기록 유무를 또 보지 않는다.
           onEmptyDay: (day) => context.push(AppRoutes.recordCardNewOn(day)),

@@ -145,7 +145,20 @@ abstract final class AppRoutes {
   static const recordCardDetail = '/record-card/card/:id';
 
   /// ⚠️ **카드 번호다.** 러닝 기록 번호도 방 번호도 아니다.
-  static String recordCardDetailOf(int cardId) => '$recordCard/card/$cardId';
+  ///
+  /// ## ⚠️ [mine]을 반드시 적는다
+  ///
+  /// 남의 카드면 `⋮`(수정·삭제)와 `AI 음악 만들기`를 세우지 않는다(설계 6-5).
+  /// 그런데 **카드 응답에 소유자가 없다** — 스키마가 비어 있어
+  /// (`docs/notes/2026-11-16-record-card-backend-questions.md` 1-1번) 지어
+  /// 넣으면 응답이 오는 날 도메인을 다시 짓는다. 그래서 **들어온 길이
+  /// 말한다.**
+  ///
+  /// 선택 인자로 두지 않는 이유: 기본값을 주면 새 진입점이 조용히 "내 것"으로
+  /// 들어오고, 그 결과는 **남의 카드에 뜬 수정 버튼**이다. 컴파일러가 묻게
+  /// 한다.
+  static String recordCardDetailOf(int cardId, {required bool mine}) =>
+      '$recordCard/card/$cardId?mine=$mine';
 
   /// 기록카드 수정 1·2·3 (설계 6-6).
   ///

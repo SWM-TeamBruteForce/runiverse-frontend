@@ -32,6 +32,7 @@ class MusicStrip extends ConsumerWidget {
     required this.cardId,
     required this.playing,
     required this.canAdvance,
+    required this.canRequest,
     required this.onTogglePlay,
     super.key,
   });
@@ -52,11 +53,26 @@ class MusicStrip extends ConsumerWidget {
   /// 버튼**이 된다.
   final bool canAdvance;
 
+  /// 음악을 만들라고 할 수 있나. **내 카드가 아니면 못 한다** — 생성 요청은
+  /// 쓰기다(설계 6-5 "남의 카드면 `⋮`가 없다"와 같은 선).
+  ///
+  /// ⚠️ **못 할 때는 줄을 아예 세우지 않는다**(다 된 음악만 예외). 못 하는 일을
+  /// 적어 두면 남의 카드에 쓸모없는 글이 남고, 빈 40px만 남기면 그 자리가
+  /// 고장으로 읽힌다.
+  final bool canRequest;
+
   final VoidCallback onTogglePlay;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(cardMusicProvider(cardId));
+
+    // ⚠️ **남의 카드에서는 들을 수만 있다.** 듣는 것은 읽기라 다 된 음악은
+    // 그대로 세우고, 나머지(없다·만드는 중·실패·못 읽음)는 자리를 비운다.
+    if (!canRequest &&
+        !(state is CardMusicData && state.generation.isPlayable)) {
+      return const SizedBox.shrink();
+    }
 
     return SizedBox(
       height: _height,
