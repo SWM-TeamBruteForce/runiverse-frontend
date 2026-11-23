@@ -16,7 +16,7 @@ import 'package:runiverse/features/record_card/domain/record_card_repository.dar
 /// ## ⚠️ 쓰기는 아직 가짜가 받는다
 ///
 /// 읽기(달력·상세·프로필)를 먼저 붙이는 묶음이다(사용자 결정 2026-11-24).
-/// [create]·[update]·[delete]는 [_fallback]에 그대로 넘긴다 — **저장은 서버에
+/// [create]·[update]·[delete]는 [fallback]에 그대로 넘긴다 — **저장은 서버에
 /// 가지 않는다.** 묶음 8이 이 세 줄을 9-1 → S3 → 9-2 로 바꾼다.
 ///
 /// ## 401은 한 번만 갱신한다
@@ -28,15 +28,19 @@ class HttpRecordCardRepository implements RecordCardRepository {
     this._dio,
     this._store,
     this._refresher, {
-    required FakeRecordCardRepository fallback,
-  }) : _fallback = fallback;
+    required this.fallback,
+  });
 
   final Dio _dio;
   final TokenStore _store;
   final TokenRefresher _refresher;
 
   /// 묶음 8까지 쓰기를 맡는다.
-  final FakeRecordCardRepository _fallback;
+  ///
+  /// ⚠️ **일부러 공개다.** Dart는 `_`로 시작하는 named 매개변수를 허용하지
+  /// 않고, 네 번째 위치 인자로 두면 무엇을 넘기는지 호출부에서 읽히지 않는다.
+  /// 묶음 8이 쓰기를 구현하면 이 필드가 사라진다.
+  final FakeRecordCardRepository fallback;
 
   // ── 읽기 ─────────────────────────────────────────────────────
 
@@ -61,13 +65,13 @@ class HttpRecordCardRepository implements RecordCardRepository {
   // ── 쓰기 — 묶음 8까지 가짜가 받는다 ──────────────────────────
 
   @override
-  Future<RecordCard> create(NewRecordCard card) => _fallback.create(card);
+  Future<RecordCard> create(NewRecordCard card) => fallback.create(card);
 
   @override
-  Future<RecordCard> update(EditRecordCard card) => _fallback.update(card);
+  Future<RecordCard> update(EditRecordCard card) => fallback.update(card);
 
   @override
-  Future<void> delete(String cardId) => _fallback.delete(cardId);
+  Future<void> delete(String cardId) => fallback.delete(cardId);
 
   // ── 공통 ─────────────────────────────────────────────────────
 
