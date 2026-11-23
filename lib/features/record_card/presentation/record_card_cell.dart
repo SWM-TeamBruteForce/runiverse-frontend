@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/card_face.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 
 /// 달력의 날짜 한 칸.
@@ -18,7 +20,7 @@ import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 ///
 /// 하루에 두 번 뛰면 기록이 둘이고 카드도 둘이다. 최신 것을 깔고 **오른쪽 위에
 /// 개수 배지**를 둔다. 하나뿐이면 배지를 두지 않는다 — `1`은 알려 주는 것이 없다.
-class RecordCardCell extends StatelessWidget {
+class RecordCardCell extends ConsumerWidget {
   const RecordCardCell({
     required this.day,
     required this.cards,
@@ -46,7 +48,7 @@ class RecordCardCell extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColorsV2;
     // 가장 최근 카드를 깐다.
     final top = cards.isEmpty ? null : cards.last;
@@ -84,6 +86,10 @@ class RecordCardCell extends StatelessWidget {
                     CardFace(
                       thumbnailUrl: top.thumbnailUrl,
                       route: top.route,
+                      // ⚠️ **1시간 뒤 만료된다**(가이드 7절). 그 주소를 준
+                      // 것은 달력 조회(7-1)다 — 다시 받으면 새 주소가 온다.
+                      onExpired: () =>
+                          ref.invalidate(recordCardControllerProvider),
                     ),
                   if (shoe) const RunShoeMark(),
                   if (showDayNumber)

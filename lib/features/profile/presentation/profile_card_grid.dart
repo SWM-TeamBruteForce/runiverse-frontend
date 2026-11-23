@@ -123,12 +123,7 @@ class _Preview extends StatelessWidget {
           mainAxisSpacing: ProfileCardGrid._spacing,
         ),
         itemCount: cards.length,
-        itemBuilder: (context, index) => ProfileCardTile(
-          card: cards[index],
-          onTap: () => context.push(
-            AppRoutes.recordCardDetailOf(cards[index].id),
-          ),
-        ),
+        itemBuilder: (context, index) => _Tile(cards[index], userId: userId),
       ),
       if (hasMore) ...[
         const SizedBox(height: AppSpacing.space2),
@@ -141,6 +136,28 @@ class _Preview extends StatelessWidget {
         ),
       ],
     ],
+  );
+}
+
+/// 칸 하나. 만료된 주소를 받으면 **그리드 조회를** 버린다.
+class _Tile extends ConsumerWidget {
+  const _Tile(this.card, {required this.userId});
+
+  final RecordCardListItem card;
+  final String userId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ProfileCardTile(
+    card: card,
+    onTap: () => context.push(AppRoutes.recordCardDetailOf(card.id)),
+    // ⚠️ **전체 보기와 다른 조회다.** `limit`이 키에 들어 있어, 전체 보기를
+    // 버려도 그리드는 옛 주소를 들고 남는다.
+    onExpired: () => ref.invalidate(
+      profileCardsProvider((
+        userId: userId,
+        limit: ProfileCardGrid.previewCount,
+      )),
+    ),
   );
 }
 

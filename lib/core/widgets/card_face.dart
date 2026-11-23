@@ -16,11 +16,30 @@ import 'package:runiverse/features/record_card/domain/route_art.dart';
 /// CLAUDE.md가 **다른 feature의 위젯 import를 막는다** — 공유가 필요하면
 /// `core/widgets/`로 올리라고 적혀 있다. `run_map_view.dart`가 `session/domain`
 /// 을 import하는 것과 같은 모양이다.
-class CardFace extends StatelessWidget {
-  const CardFace({required this.thumbnailUrl, required this.route, super.key});
+/// ## ⚠️ 못 받았으면 **한 번만** 알린다
+///
+/// 조회용 주소는 **1시간 뒤 만료된다**(연동 가이드 7절). `403`이면 그 주소를
+/// 준 API를 다시 불러야 하는데, 알림을 막지 않으면 **다시 받은 주소도
+/// 만료됐을 때 끝나지 않는 고리**가 된다 — 새 주소로 또 `403`, 또 재조회.
+///
+/// 깃발을 **위젯 상태에 둔다.** provider에 두면 다음 카드가 그 깃발을
+/// 물려받아, 한 장이 만료되면 다른 장들이 영영 재조회를 못 한다.
+class CardFace extends StatefulWidget {
+  const CardFace({
+    required this.thumbnailUrl,
+    required this.route,
+    this.onExpired,
+    super.key,
+  });
 
   /// 깔 그림. **없으면 [route]로 선을 긋는다.**
   final String? thumbnailUrl;
+
+  /// 사진을 못 받았다고 알린다. **한 번만 불린다.**
+  ///
+  /// 부르는 쪽은 그 주소를 준 provider를 버린다 — 달력은 달력을, 프로필
+  /// 그리드는 그리드를, 상세는 상세를.
+  final VoidCallback? onExpired;
 
   /// 썸네일이 없을 때 그릴 선. 비어 있으면 점 하나를 남긴다.
   ///
@@ -31,16 +50,34 @@ class CardFace extends StatelessWidget {
   final RouteArt route;
 
   @override
+  State<CardFace> createState() => _CardFaceState();
+}
+
+class _CardFaceState extends State<CardFace> {
+  /// 이미 알렸나. **두 번 알리지 않는다.**
+  var _reported = false;
+
+  void _expired() {
+    if (_reported) return;
+    _reported = true;
+    // ⚠️ **그리는 중에 provider를 버리지 않는다.** `errorBuilder`는 빌드
+    // 안에서 불린다 — 거기서 버리면 빌드 중에 다시 빌드가 걸린다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onExpired?.call();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final url = thumbnailUrl;
+    final url = widget.thumbnailUrl;
     if (url == null) {
       // ⚠️ **경로도 사진도 없는 카드가 있다.** 트레드밀이나 GPS를 못 받은
       // 러닝이다. 그대로 두면 `RouteArtView`가 아무것도 안 그려, 칸이 **안 뛴
       // 날과 픽셀 단위로 같아진다** — 쓴 카드를 달력에서 못 찾는다.
-      if (route.isEmpty) return const CardMarkDot();
+      if (widget.route.isEmpty) return const CardMarkDot();
 
       return RouteArtView(
-        art: route,
+        art: widget.route,
         color: context.appColorsV2.primary,
         strokeWidth: 1.5,
         padding: AppSpacing.space1,
@@ -51,12 +88,15 @@ class CardFace extends StatelessWidget {
       image: cardThumbnail(context, url),
       fit: BoxFit.cover,
       // 못 받아도 칸이 비지 않게 선으로 떨어진다.
-      errorBuilder: (context, _, _) => RouteArtView(
-        art: route,
+      errorBuilder: (context, _, _) {
+        _expired();
+        return RouteArtView(
+        art: widget.route,
         color: context.appColorsV2.primary,
-        strokeWidth: 1.5,
-        padding: AppSpacing.space1,
-      ),
+          strokeWidth: 1.5,
+          padding: AppSpacing.space1,
+        );
+      },
     );
   }
 }
