@@ -12,6 +12,7 @@ import 'package:runiverse/features/record_card/domain/card_thumbnail_maker.dart'
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
@@ -21,6 +22,8 @@ import 'package:runiverse/features/profile/presentation/profile_cards_provider.d
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_save_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
+
+import 'record_card_fixtures.dart';
 
 /// 저장 — 자르고, 썸네일을 만들고, 카드를 만든다 (설계 6-3 · 6-4).
 void main() {
@@ -184,9 +187,8 @@ void main() {
       final repository = FakeRecordCardRepository(today: _today);
 
       final card = await repository.create(_newCard());
-      final sameDay = await repository.byDateRange(
-        from: card.day,
-        to: card.day,
+      final sameDay = cardsOf(
+        await repository.runsInRange(from: card.day, to: card.day),
       );
 
       expect(sameDay.map((c) => c.id), contains(card.id));
@@ -195,9 +197,11 @@ void main() {
     test('⚠️ 만든 카드의 번호가 목 데이터와 겹치지 않는다', () async {
       // 겹치면 달력이 두 장을 한 장으로 보고, 상세가 엉뚱한 것을 연다.
       final repository = FakeRecordCardRepository(today: _today);
-      final existing = await repository.byDateRange(
-        from: _today.subtract(const Duration(days: 30)),
-        to: _today,
+      final existing = cardsOf(
+        await repository.runsInRange(
+          from: _today.subtract(const Duration(days: 30)),
+          to: _today,
+        ),
       );
 
       final a = await repository.create(_newCard());
@@ -615,7 +619,7 @@ class _Repository implements RecordCardRepository {
   var creates = 0;
 
   @override
-  Future<List<RecordCard>> byDateRange({
+  Future<List<ComposableRecord>> runsInRange({
     required DateTime from,
     required DateTime to,
   }) async => const [];

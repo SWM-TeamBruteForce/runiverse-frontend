@@ -7,6 +7,7 @@ import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
@@ -104,7 +105,7 @@ class _MusicRepository implements RecordCardRepository {
 
   /// 이 테스트는 **음악만** 본다. 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<List<RecordCard>> byDateRange({
+  Future<List<ComposableRecord>> runsInRange({
     required DateTime from,
     required DateTime to,
   }) => throw UnsupportedError('이 테스트는 목록을 받지 않는다');

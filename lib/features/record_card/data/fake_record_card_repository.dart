@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:runiverse/features/record/domain/run_record.dart';
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/music_inputs.dart';
@@ -7,6 +9,7 @@ import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
+import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
@@ -66,8 +69,20 @@ class FakeRecordCardRepository implements RecordCardRepository {
   /// 물어본 구간들. 무엇을 받아 왔는지 보는 데 쓴다.
   final queries = <({DateTime from, DateTime to})>[];
 
+  /// 러닝 기록 목록 + 카드 유무 (7-1).
+  ///
+  /// ## ⚠️ 맞춰 붙이는 일을 **여기서** 한다
+  ///
+  /// 묶음 6까지는 화면이 `joinCards`로 붙였다. 서버가 한 응답에 싣기로 하면서
+  /// 그 일은 **서버의 것**이 됐고, 가짜가 서버 자리에 선다.
+  ///
+  /// ## ⚠️ 카드 없는 러닝도 낸다
+  ///
+  /// 달력은 **뛰었는데 카드를 안 쓴 날**에 운동화를 둔다(설계 6-1). 카드가
+  /// 있는 날만 내면 그 길을 눈으로 볼 수 없다. [_runOnlyOffsets] 가 그 날들을
+  /// 정한다 — 난수로 두면 "방금 그 화면"을 다시 못 본다.
   @override
-  Future<List<RecordCard>> byDateRange({
+  Future<List<ComposableRecord>> runsInRange({
     required DateTime from,
     required DateTime to,
   }) async {
@@ -88,10 +103,72 @@ class FakeRecordCardRepository implements RecordCardRepository {
     final end = DateTime(to.year, to.month, to.day);
     queries.add((from: start, to: end));
 
-    return [
+    bool inRange(DateTime day) => !day.isBefore(start) && !day.isAfter(end);
+
+    final rows = <ComposableRecord>[
       for (final card in _live())
-        if (!card.day.isBefore(start) && !card.day.isAfter(end)) card,
-    ]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+        if (inRange(card.day))
+          ComposableRecord(
+            record: _runOf(card),
+            existingCard: summaryOf(card),
+          ),
+    ];
+
+    final withCards = {for (final row in rows) row.day};
+    for (final back in _runOnlyOffsets) {
+      final day = DateTime(_today.year, _today.month, _today.day - back);
+      if (!inRange(day) || withCards.contains(day)) continue;
+      rows.add(ComposableRecord(record: _runOnly(day, back)));
+    }
+
+    return rows
+      ..sort((a, b) => a.record.startedAt.compareTo(b.record.startedAt));
+  }
+
+  /// 카드를 안 쓴 러닝이 있는 날 — **오늘로부터 며칠 전**인가.
+  static const _runOnlyOffsets = [1, 4, 9, 17, 23, 38, 52];
+
+  /// 달력 칸이 쓰는 요약. **카드 전부가 아니다**(연동 가이드 1절).
+  ///
+  /// ⚠️ **경로를 50점으로 줄이지 않는다.** 서버는 줄여 보내지만, 줄이는 쪽을
+  /// 가짜가 흉내내면 "기기에서만 선이 거칠다"가 아니라 그 반대 — 가짜에서만
+  /// 거칠어진다. 점 수는 그리는 쪽이 견디면 되는 값이다.
+  static RecordCardSummary summaryOf(RecordCard card) => RecordCardSummary(
+    id: card.id,
+    startedAt: card.startedAt,
+    distanceMeters: card.distanceMeters,
+    thumbnailUrl: card.thumbnailUrl,
+    route: card.route,
+    activity: card.activity,
+  );
+
+  /// 카드가 매달린 러닝 한 건. 카드가 든 값을 그대로 쓴다.
+  static RunRecord _runOf(RecordCard card) => RunRecord(
+    id: card.runningRecordId,
+    // ⚠️ **방 번호를 기록 번호로 쓴다.** 가짜에는 방이 따로 없고, 러닝 요약이
+    // `runningRoomId`로 그 줄을 찾으므로(가이드 6절) 값이 있어야 한다.
+    runningRoomId: card.runningRecordId,
+    startedAt: card.startedAt,
+    distanceMeters: card.distanceMeters,
+    duration: card.duration,
+    averagePace: card.averagePace,
+    playerCount: card.runners.isEmpty ? 1 : card.runners.length + 1,
+  );
+
+  /// 카드를 안 쓴 러닝 한 건.
+  static RunRecord _runOnly(DateTime day, int seed) {
+    final startedAt = DateTime(day.year, day.month, day.day, 7, 20);
+    final meters = 3000 + seed * 137;
+    final seconds = (meters / 1000 * 330).round();
+    return RunRecord(
+      id: 50000 + seed,
+      runningRoomId: 50000 + seed,
+      startedAt: startedAt,
+      distanceMeters: meters,
+      duration: Duration(seconds: seconds),
+      averagePace: const Duration(minutes: 5, seconds: 30),
+      playerCount: 1,
+    );
   }
 
   /// 누가 무엇을 물었나. 그리드가 7장만 묻는지 보는 데 쓴다.

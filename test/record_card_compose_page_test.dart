@@ -15,6 +15,7 @@ import 'package:runiverse/features/record_card/domain/card_draft.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
@@ -26,6 +27,8 @@ import 'package:runiverse/features/record_card/presentation/compose_records_prov
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 import 'package:runiverse/core/widgets/route_art_view.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
+
+import 'record_card_fixtures.dart';
 
 final _today = DateTime(2026, 9, 10);
 final _day = DateTime(2026, 9, 2);
@@ -40,7 +43,11 @@ RunRecord _record({required int id, int hour = 18}) => RunRecord(
   playerCount: 1,
 );
 
-RecordCard _card({
+ComposableRecord _card({int id = 7, int runningRecordId = 11}) =>
+    runWith(summary(id: id), runningRecordId: runningRecordId);
+
+/// 수정 화면의 씨앗. **카드 전부**가 필요하다 — 초안이 회고와 사진까지 받는다.
+RecordCard _full({
   int id = 7,
   int runningRecordId = 11,
   String reviewText = '여행에서 뛰었다',
@@ -55,8 +62,8 @@ RecordCard _card({
   photos: const [],
   route: RouteArt.empty,
   distanceMeters: distanceMeters,
-  duration: const Duration(minutes: 18),
-  averagePace: const Duration(minutes: 5, seconds: 54),
+  duration: const Duration(minutes: 30),
+  averagePace: const Duration(minutes: 6),
   runners: const [],
 );
 
@@ -181,10 +188,10 @@ class _Cards implements RecordCardRepository {
 
   _Cards(this.cards);
 
-  final List<RecordCard> cards;
+  final List<ComposableRecord> cards;
 
   @override
-  Future<List<RecordCard>> byDateRange({
+  Future<List<ComposableRecord>> runsInRange({
     required DateTime from,
     required DateTime to,
   }) async => cards;
@@ -219,6 +226,76 @@ class _Cards implements RecordCardRepository {
       throw UnsupportedError('이 테스트는 음악을 만들지 않는다');
 }
 
+/// **첫 조회는 비어 있고, 두 번째부터 기록이 온다.** 서버가 방금 끝난 러닝을
+/// 아직 싣지 않는 구간을 흉내낸다.
+class _LateCards extends _Cards {
+  _LateCards(List<RunRecord> runs, RecordCardRepository? carded)
+    : _rows = [
+        for (final run in runs)
+          ComposableRecord(
+            record: run,
+            existingCard: carded is _Cards
+                ? {
+                    for (final row in carded.cards)
+                      row.record.id: row.existingCard,
+                  }[run.id]
+                : null,
+          ),
+      ],
+      super(const []);
+
+  final List<ComposableRecord> _rows;
+  var _calls = 0;
+
+  @override
+  Future<List<ComposableRecord>> runsInRange({
+    required DateTime from,
+    required DateTime to,
+  }) async => _calls++ == 0 ? const [] : _rows;
+}
+
+/// 조회가 깨지는 저장소. 목록 자리에 오류를 세우는 테스트가 쓴다.
+class _ThrowingCards extends _Cards {
+  _ThrowingCards() : super(const []);
+
+  @override
+  Future<List<ComposableRecord>> runsInRange({
+    required DateTime from,
+    required DateTime to,
+  }) async => throw const RecordCardException(RecordCardFailure.network);
+}
+
+/// 두 스텁을 **7-1 한 응답으로 합친다.**
+///
+/// 서버는 러닝 기록과 카드 유무를 한 응답에 싣는다(연동 가이드 1절). 테스트는
+/// `records:`로 기록을, `cards:`로 그중 어느 것에 카드가 있는지 세우던 모양을
+/// 유지한다 — 호출부를 전부 고치는 대신 **합치는 일을 하네스가 한다.**
+RecordCardRepository _merged(
+  RunRecordRepository? records,
+  RecordCardRepository? cards,
+) {
+  // 실패를 보는 테스트는 그대로 흘린다. 조회가 하나로 줄어서, 기록 조회가
+  // 실패하던 자리는 **카드 조회 실패**가 된다 — 같은 한 요청이다.
+  if (records is _FailingRecords) return _ThrowingCards();
+  // 늦게 오는 목록도 그대로 흘린다.
+  if (records is _LateRecords) {
+    return _LateCards(records.records, cards);
+  }
+
+  final runs = records is _Records
+      ? records.records
+      : [_record(id: 11)];
+  final carded = cards is _Cards ? cards.cards : const <ComposableRecord>[];
+  final byRecord = {
+    for (final row in carded) row.record.id: row.existingCard,
+  };
+
+  return _Cards([
+    for (final run in runs)
+      ComposableRecord(record: run, existingCard: byRecord[run.id]),
+  ]);
+}
+
 Future<void> _pump(
   WidgetTester tester, {
   RunRecordRepository? records,
@@ -232,7 +309,7 @@ Future<void> _pump(
     runRecordRepositoryProvider.overrideWithValue(
       records ?? _Records([_record(id: 11)], detail: _detail(roomId: 911)),
     ),
-    recordCardRepositoryProvider.overrideWithValue(cards ?? _Cards(const [])),
+    recordCardRepositoryProvider.overrideWithValue(_merged(records, cards)),
     recordCardClockProvider.overrideWithValue(() => _today),
   ];
 
@@ -285,7 +362,7 @@ Future<GoRouter> _pumpRouted(
           records ?? _Records([_record(id: 11)], detail: _detail(roomId: 911)),
         ),
         recordCardRepositoryProvider.overrideWithValue(
-          cards ?? _Cards(const []),
+          _merged(records, cards),
         ),
         recordCardClockProvider.overrideWithValue(() => _today),
       ],
@@ -456,7 +533,7 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           runRecordRepositoryProvider.overrideWithValue(records),
-          recordCardRepositoryProvider.overrideWithValue(_Cards(const [])),
+          recordCardRepositoryProvider.overrideWithValue(_merged(records, null)),
           recordCardClockProvider.overrideWithValue(() => _today),
         ],
       );
@@ -610,7 +687,9 @@ void main() {
           runRecordRepositoryProvider.overrideWithValue(
             _Records([_record(id: 11)], detail: _detail(roomId: 911)),
           ),
-          recordCardRepositoryProvider.overrideWithValue(_Cards(const [])),
+          recordCardRepositoryProvider.overrideWithValue(
+            _merged(_Records([_record(id: 11)]), null),
+          ),
           recordCardClockProvider.overrideWithValue(() => _today),
         ],
       );
@@ -727,7 +806,9 @@ void main() {
             runRecordRepositoryProvider.overrideWithValue(
               _Records([_record(id: 11)], detail: _detail(roomId: 911)),
             ),
-            recordCardRepositoryProvider.overrideWithValue(_Cards(const [])),
+            recordCardRepositoryProvider.overrideWithValue(
+              _merged(_Records([_record(id: 11)]), null),
+            ),
             recordCardClockProvider.overrideWithValue(() => _today),
           ],
           child: MaterialApp.router(
@@ -813,14 +894,14 @@ void main() {
   /// 수정은 작성 1을 그대로 다시 쓴다 (설계 6-6).
   group('카드를 고치러 들어왔을 때', () {
     testWidgets('제목이 쓰기가 아니라 고치기다', (tester) async {
-      await _pump(tester, card: _card());
+      await _pump(tester, card: _full());
 
       expect(find.text(AppStrings.recordCardEditTitle), findsOne);
       expect(find.text(AppStrings.recordCardComposeTitle), findsNothing);
     });
 
     testWidgets('카드 값이 칸에 들어와 있다', (tester) async {
-      await _pump(tester, card: _card());
+      await _pump(tester, card: _full());
       await _reachReview(tester);
 
       expect(_reviewText(tester), '여행에서 뛰었다');
@@ -830,14 +911,14 @@ void main() {
     testWidgets('⚠️ 러닝 기록은 바꿀 수 없다', (tester) async {
       // `unique(running_record_id)` 때문에 카드 있는 기록으로 옮기면 서버가
       // 거절하고, 바꾸면 지표·경로가 통째로 달라져 다른 카드가 된다(설계 6-6).
-      await _pump(tester, card: _card());
+      await _pump(tester, card: _full());
 
       expect(find.text(AppStrings.recordCardEditRecordLocked), findsOne);
     });
 
     testWidgets('⚠️ 날짜 줄을 눌러도 휠이 안 뜬다', (tester) async {
       // 날짜를 바꾸면 그날의 다른 기록으로 옮기는 길이 열린다.
-      await _pump(tester, card: _card());
+      await _pump(tester, card: _full());
 
       await tester.tap(
         find.text(AppStrings.recordCardComposeDateLabel(_card().day)),
@@ -848,7 +929,7 @@ void main() {
     });
 
     testWidgets('고를 기록 목록이 없다', (tester) async {
-      await _pump(tester, card: _card());
+      await _pump(tester, card: _full());
 
       expect(find.text(AppStrings.recordCardComposeNoRecords), findsNothing);
       // 고른 하나를 읽기 전용으로 보여 준다.
@@ -858,13 +939,13 @@ void main() {
     testWidgets('⚠️ 이어 쓰기를 묻지 않는다', (tester) async {
       // 뜬 초안은 손대지 않은 것이다. 물으면 고치러 들어온 사람에게 아무
       // 말이나 묻는 꼴이다.
-      await _pump(tester, card: _card());
+      await _pump(tester, card: _full());
 
       expect(find.text(AppStrings.recordCardComposeResumeTitle), findsNothing);
     });
 
     testWidgets('⚠️ 고친 뒤 뒤로 나가면 버릴지 묻는다', (tester) async {
-      await _pump(tester, card: _card());
+      await _pump(tester, card: _full());
 
       await _reachReview(tester);
       await tester.enterText(find.byType(TextField), '고친 글');
@@ -886,7 +967,7 @@ void main() {
       // 없는 수정 화면**에 갇힌다.
       final container = ProviderContainer();
       addTearDown(container.dispose);
-      final card = _card();
+      final card = _full();
       container.read(cardDraftProvider(card.id).notifier)
         ..seed(card)
         ..setReview('고치다 만 글');
@@ -900,7 +981,7 @@ void main() {
     testWidgets('⚠️ 버리기는 카드 값으로 되돌린다 — 수정 화면을 잠그지 않는다', (tester) async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
-      final card = _card();
+      final card = _full();
       container.read(cardDraftProvider(card.id).notifier)
         ..seed(card)
         ..setReview('고치다 만 글');
@@ -918,7 +999,7 @@ void main() {
     });
 
     testWidgets('안 고치고 나가면 묻지 않는다', (tester) async {
-      await _pump(tester, card: _card());
+      await _pump(tester, card: _full());
 
       await tester.tap(find.byIcon(LucideIcons.chevronLeft));
       await tester.pumpAndSettle();

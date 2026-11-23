@@ -5,7 +5,7 @@ import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/widgets/profile_photo_image.dart';
 import 'package:runiverse/core/widgets/route_art_view.dart';
-import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/route_art.dart';
 
 /// 칸을 채우는 그림 — 썸네일이 있으면 사진, 없으면 선.
 ///
@@ -17,21 +17,30 @@ import 'package:runiverse/features/record_card/domain/record_card.dart';
 /// `core/widgets/`로 올리라고 적혀 있다. `run_map_view.dart`가 `session/domain`
 /// 을 import하는 것과 같은 모양이다.
 class CardFace extends StatelessWidget {
-  const CardFace({required this.card, super.key});
+  const CardFace({required this.thumbnailUrl, required this.route, super.key});
 
-  final RecordCard card;
+  /// 깔 그림. **없으면 [route]로 선을 긋는다.**
+  final String? thumbnailUrl;
+
+  /// 썸네일이 없을 때 그릴 선. 비어 있으면 점 하나를 남긴다.
+  ///
+  /// ⚠️ **엔티티를 받지 않는다.** 달력은 요약(`RecordCardSummary`)을 들고
+  /// 프로필 그리드는 목록 항목을 드는데, 그 둘의 필드가 다르다 — 프로필
+  /// 항목에는 경로가 아예 없다(연동 가이드 5절). 값 두 개만 받으면 둘 다
+  /// 같은 그림을 그릴 수 있다.
+  final RouteArt route;
 
   @override
   Widget build(BuildContext context) {
-    final url = card.thumbnailUrl;
+    final url = thumbnailUrl;
     if (url == null) {
       // ⚠️ **경로도 사진도 없는 카드가 있다.** 트레드밀이나 GPS를 못 받은
       // 러닝이다. 그대로 두면 `RouteArtView`가 아무것도 안 그려, 칸이 **안 뛴
       // 날과 픽셀 단위로 같아진다** — 쓴 카드를 달력에서 못 찾는다.
-      if (card.route.isEmpty) return const CardMarkDot();
+      if (route.isEmpty) return const CardMarkDot();
 
       return RouteArtView(
-        art: card.route,
+        art: route,
         color: context.appColorsV2.primary,
         strokeWidth: 1.5,
         padding: AppSpacing.space1,
@@ -43,7 +52,7 @@ class CardFace extends StatelessWidget {
       fit: BoxFit.cover,
       // 못 받아도 칸이 비지 않게 선으로 떨어진다.
       errorBuilder: (context, _, _) => RouteArtView(
-        art: card.route,
+        art: route,
         color: context.appColorsV2.primary,
         strokeWidth: 1.5,
         padding: AppSpacing.space1,

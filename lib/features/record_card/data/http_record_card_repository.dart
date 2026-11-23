@@ -3,6 +3,8 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/data/record_card_detail_dto.dart';
+import 'package:runiverse/features/record_card/data/recorded_run_dto.dart';
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
@@ -45,11 +47,31 @@ class HttpRecordCardRepository implements RecordCardRepository {
 
   // ── 읽기 ─────────────────────────────────────────────────────
 
+  /// 러닝 기록 목록 + 카드 유무 (7-1).
   @override
-  Future<List<RecordCard>> byDateRange({
+  Future<List<ComposableRecord>> runsInRange({
     required DateTime from,
     required DateTime to,
-  }) => throw UnimplementedError('묶음 7 작업 3이 7-1로 바꾼다');
+  }) async {
+    // ⚠️ **서버에 묻기 전에 걸러 낸다.** 400을 받고 나서야 아는 것보다 낫고,
+    // 무엇보다 이건 사용자 입력이 아니라 **앱의 버그**다.
+    if (from.isAfter(to)) {
+      throw const RecordCardException(RecordCardFailure.invalidRequest);
+    }
+    // 가이드 1절: 시작일과 종료일을 **포함해** 최대 31일이다.
+    if (to.difference(from).inDays >= RecordCardRepository.maxRangeDays) {
+      throw const RecordCardException(RecordCardFailure.invalidRequest);
+    }
+
+    final body = await authorized(
+      (token) => _dio.get<Map<String, dynamic>>(
+        '/api/v1/users/me/running-records',
+        queryParameters: {'from': day(from), 'to': day(to)},
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      ),
+    );
+    return RecordedRunDto.listFrom(body);
+  }
 
   @override
   Future<List<RecordCard>> byUser({required String userId, int? limit}) =>

@@ -14,7 +14,6 @@ import 'package:runiverse/features/record_card/domain/record_card_repository.dar
 import 'package:runiverse/features/record_card/domain/route_art.dart';
 import 'package:runiverse/features/profile/presentation/profile_cards_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
-import 'package:runiverse/features/record_card/presentation/card_detail_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_music_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 
@@ -198,11 +197,9 @@ class CardSaveController extends Notifier<CardSaveState> {
       // 옛 상세가 전환이 끝날 때까지 살아 있어 provider가 버려지지 않으므로,
       // 여기서 직접 버린다.
       if (editing != null) ref.invalidate(cardMusicProvider(editing.id));
-      // ⚠️ **상세도 버린다.** 상세가 번호로 8-1을 읽으므로(묶음 7 작업 4),
-      // 안 버리면 **고친 글이 안 보인다** — 저장하고 돌아온 화면이 수정 전
-      // 카드를 그대로 세운다. 옛 상세가 전환이 끝날 때까지 살아 있어
-      // `autoDispose`가 스스로 버리지도 않는다.
-      if (editing != null) ref.invalidate(cardDetailProvider(editing.id));
+      // ⚠️ **상세는 여기서 버리지 않는다.** 작성 화면들이 아직 걷히는 중이라
+      // 그 위에서 상세가 다시 그려지면 프레임워크가 빌드 범위를 어긴다.
+      // 걷기가 끝난 뒤 `app_router.dart`의 `_toDetail`이 버린다.
       state = const CardSaveIdle();
       // ⚠️ **자른 파일을 치우지 않는다.** 카드가 그 경로를 들고 갔고, 올릴
       // 엔드포인트가 없어 **그것이 유일한 사본**이다. 치우면 상세에서 사진이

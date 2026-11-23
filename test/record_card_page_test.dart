@@ -8,19 +8,21 @@ import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
-import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record/domain/run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/presentation/activity_filter.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_calendar.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_page.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
+
+import 'record_card_fixtures.dart';
 
 final _today = DateTime(2026, 11, 16);
 
@@ -30,31 +32,17 @@ class _Auth extends AuthController {
 }
 
 /// 9월 9일에만 뛴 기록이 있는 저장소. 그날은 카드가 없어 운동화가 선다.
-class _OneRun implements RunRecordRepository {
+/// **뛴 날이 하나 있고 카드는 없는** 저장소. 운동화 칸을 보는 길이다.
+class _OneRunNoCard extends _EmptyRepository {
   @override
-  Future<List<RunRecord>> byDateRange({
+  Future<List<ComposableRecord>> runsInRange({
     required DateTime from,
     required DateTime to,
   }) async {
-    const day = 9;
-    final at = DateTime(2026, 11, day, 8);
+    final at = DateTime(2026, 11, 9, 8);
     if (at.isBefore(from) || at.isAfter(to)) return const [];
-    return [
-      RunRecord(
-        id: 11,
-        runningRoomId: 911,
-        startedAt: at,
-        distanceMeters: 5400,
-        duration: const Duration(minutes: 28),
-        averagePace: const Duration(minutes: 5),
-        playerCount: 1,
-      ),
-    ];
+    return [runOnly(at, id: 11)];
   }
-
-  @override
-  Future<Never> byRoom(int runningRoomId) =>
-      throw UnimplementedError('이 테스트는 상세를 부르지 않는다');
 }
 
 /// 카드가 한 장도 없는 저장소.
@@ -66,7 +54,7 @@ class _EmptyRepository implements RecordCardRepository {
       throw UnsupportedError('이 테스트는 사람별 카드를 묻지 않는다');
 
   @override
-  Future<List<RecordCard>> byDateRange({
+  Future<List<ComposableRecord>> runsInRange({
     required DateTime from,
     required DateTime to,
   }) async => const [];
@@ -203,8 +191,8 @@ void main() {
     // 1번 PR 에서는 아무 일도 하지 않았다 — 눌리는데 반응이 없는 칸이었다.
     final router = await _pumpRouted(
       tester,
-      repository: _EmptyRepository(),
-      records: _OneRun(),
+      // 뛴 날과 카드 유무가 **한 응답**에 온다(연동 가이드 1절).
+      repository: _OneRunNoCard(),
     );
 
     await tester.tap(

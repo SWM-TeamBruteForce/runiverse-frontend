@@ -4,11 +4,14 @@ import 'package:runiverse/features/record_card/data/fake_record_card_repository.
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/profile/presentation/profile_cards_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_delete_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
+
+import 'record_card_fixtures.dart';
 
 /// 카드 삭제 (설계 6-6).
 ///
@@ -19,12 +22,12 @@ import 'package:runiverse/features/record_card/presentation/record_card_provider
 void main() {
   test('지우면 그 카드가 목록에서 빠진다', () async {
     final repository = FakeRecordCardRepository(today: _today);
-    final before = await repository.byDateRange(from: _from, to: _today);
+    final before = cardsOf(await repository.runsInRange(from: _from, to: _today));
     final target = before.first;
 
     await repository.delete(target.id);
 
-    final after = await repository.byDateRange(from: _from, to: _today);
+    final after = cardsOf(await repository.runsInRange(from: _from, to: _today));
     expect(after.map((c) => c.id), isNot(contains(target.id)));
     expect(after, hasLength(before.length - 1));
   });
@@ -33,14 +36,13 @@ void main() {
     // `_all()`이 매번 목을 새로 만든다 — 거르지 않으면 지운 카드가 다음
     // 조회에 되살아난다.
     final repository = FakeRecordCardRepository(today: _today);
-    final target = (await repository.byDateRange(
-      from: _from,
-      to: _today,
-    )).first;
+    final target = cardsOf(
+      await repository.runsInRange(from: _from, to: _today),
+    ).first;
 
     await repository.delete(target.id);
-    await repository.byDateRange(from: _from, to: _today);
-    final again = await repository.byDateRange(from: _from, to: _today);
+    cardsOf(await repository.runsInRange(from: _from, to: _today));
+    final again = cardsOf(await repository.runsInRange(from: _from, to: _today));
 
     expect(again.map((c) => c.id), isNot(contains(target.id)));
   });
@@ -181,7 +183,7 @@ class _Repository implements RecordCardRepository {
   }
 
   @override
-  Future<List<RecordCard>> byDateRange({
+  Future<List<ComposableRecord>> runsInRange({
     required DateTime from,
     required DateTime to,
   }) async => const [];

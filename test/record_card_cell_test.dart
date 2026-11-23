@@ -3,14 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/core/widgets/profile_photo_image.dart';
-import 'package:runiverse/features/record_card/domain/record_card.dart';
-import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
-import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
+import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
 import 'package:runiverse/core/widgets/card_face.dart';
 import 'package:runiverse/core/widgets/route_art_view.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_cell.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
+
+import 'record_card_fixtures.dart';
 
 final _route = normalizeRoute([
   [
@@ -27,28 +27,19 @@ final _route = normalizeRoute([
   ],
 ]);
 
-RecordCard _card({
+RecordCardSummary _card({
   required int id,
-  List<RecordCardPhoto> photos = const [],
+  String? thumbnailUrl,
   RouteArt? route,
-}) => RecordCard(
-  id: 'card-$id',
-  runningRecordId: id + 100,
-  startedAt: DateTime(2026, 9, 2, 18, 54),
-  activity: RecordCardActivity.daily,
-  visibility: RecordCardVisibility.friends,
-  reviewText: '회고',
-  photos: photos,
+}) => summary(
+  id: id,
+  thumbnailUrl: thumbnailUrl,
   route: route ?? _route,
-  distanceMeters: 5000,
-  duration: const Duration(minutes: 30),
-  averagePace: const Duration(minutes: 6),
-  runners: const [],
 );
 
 Future<void> _pump(
   WidgetTester tester, {
-  required List<RecordCard> cards,
+  required List<RecordCardSummary> cards,
   bool showDayNumber = true,
   bool hasUnwrittenRun = false,
   bool light = false,
@@ -79,12 +70,7 @@ void main() {
     await _pump(
       tester,
       cards: [
-        _card(
-          id: 1,
-          photos: const [
-            RecordCardPhoto(id: 'img-1', url: 'assets/images/onboarding_record.jpg'),
-          ],
-        ),
+        _card(id: 1, thumbnailUrl: 'assets/images/onboarding_record.jpg'),
       ],
     );
 

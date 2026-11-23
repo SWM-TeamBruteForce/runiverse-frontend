@@ -1,7 +1,9 @@
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 
 /// 기록카드를 읽는다.
 ///
@@ -23,10 +25,22 @@ abstract interface class RecordCardRepository {
   /// 기기에서는 400**이 나는 구간이 생긴다.
   static const maxRangeDays = 31;
 
-  /// 날짜 구간의 카드 전부. [from]·[to]는 KST 달력 날짜이고 **양 끝을 포함**한다.
+  /// 날짜 구간의 **러닝 기록과 그 기록에 쓴 카드**.
   ///
-  /// 결과는 **시작 시각 오름차순**이고, 없으면 **빈 목록**이다 — 오류가 아니다.
-  Future<List<RecordCard>> byDateRange({
+  /// [from]·[to]는 KST 달력 날짜이고 **양 끝을 포함**한다. 결과는 **시작 시각
+  /// 오름차순**이고, 없으면 **빈 목록**이다 — 오류가 아니다.
+  ///
+  /// ## ⚠️ 카드만 묻는 길이 없다
+  ///
+  /// 서버에 카드 목록 API가 없다. 달력은 **러닝 기록 목록(7-1) 하나**로 카드
+  /// 유무까지 받는다(연동 가이드 1절) — 묶음 6까지 달마다 던졌던 두 요청이
+  /// 하나로 줄었다.
+  ///
+  /// 그래서 돌려주는 카드는 **요약**이다([RecordCardSummary]). 회고·사진·
+  /// 파티원·음악은 [detailOf]로 따로 받는다.
+  ///
+  /// 내 비공개 카드도 포함된다 — 기록카드 탭은 내가 내 것을 보는 자리다.
+  Future<List<ComposableRecord>> runsInRange({
     required DateTime from,
     required DateTime to,
   });

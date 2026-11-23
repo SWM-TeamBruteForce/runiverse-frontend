@@ -1,7 +1,7 @@
+import 'package:runiverse/features/record_card/data/route_art_wire.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
-import 'package:runiverse/features/record_card/domain/route_art.dart';
 
 /// `GET /api/v1/record-cards/{recordCardId}` 응답을 엔티티로 옮긴다 (8-1).
 ///
@@ -38,7 +38,7 @@ abstract final class RecordCardDetailDto {
           for (final image in images)
             if (image is Map<String, dynamic>) _photo(image),
       ],
-      route: _route(record['routeArt']),
+      route: routeArtFrom(record['routeArt']),
       distanceMeters: record['totalDistanceMeters'] as int? ?? 0,
       duration: Duration(seconds: record['totalDurationSeconds'] as int? ?? 0),
       averagePace: Duration(
@@ -72,40 +72,6 @@ abstract final class RecordCardDetailDto {
     nickname: json['nickname'] as String? ?? '',
     profileImageUrl: json['profileImageUrl'] as String?,
   );
-
-  /// 서버가 보낸 `0~1` 좌표를 [RouteArt]로.
-  ///
-  /// ## ⚠️ y를 뒤집지 않는다
-  ///
-  /// `normalizeRoute`는 위도를 받아 뒤집어 넣지만, 서버는 **이미 화면
-  /// 방향**(아래로 증가)으로 준다. 한 번 더 뒤집으면 경로가 상하로 거울이 된다.
-  ///
-  /// ## ⚠️ 조각 사이를 잇지 않는다
-  ///
-  /// 일시정지로 끊긴 자리가 직선으로 이어지면 **가 본 적 없는 길**이 생긴다.
-  /// 조각을 따로 담는 것이 그것을 막는다.
-  static RouteArt _route(Object? wire) {
-    if (wire is! List) return RouteArt.empty;
-
-    final strokes = <List<RoutePoint>>[];
-    for (final stroke in wire) {
-      if (stroke is! List) continue;
-      final points = <RoutePoint>[];
-      for (final point in stroke) {
-        // `[x, y]` 두 칸이다. 모양이 다르면 **그 점만** 버린다 — 한 점 때문에
-        // 경로 전체를 날리지 않는다.
-        if (point is! List || point.length < 2) continue;
-        final x = point[0];
-        final y = point[1];
-        if (x is! num || y is! num) continue;
-        points.add(RoutePoint(x.toDouble(), y.toDouble()));
-      }
-      // 빈 조각은 버린다 — 그릴 것이 없다.
-      if (points.isNotEmpty) strokes.add(points);
-    }
-
-    return RouteArt.fromNormalized(strokes);
-  }
 
   static Map<String, dynamic> _map(Object? wire) =>
       wire is Map<String, dynamic> ? wire : const {};

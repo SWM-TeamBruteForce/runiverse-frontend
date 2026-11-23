@@ -11,6 +11,7 @@ import 'package:runiverse/features/record_card/data/fake_record_card_repository.
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
@@ -505,10 +506,10 @@ class _MusicOverride implements RecordCardRepository {
       _inner.requestMusic(cardId);
 
   @override
-  Future<List<RecordCard>> byDateRange({
+  Future<List<ComposableRecord>> runsInRange({
     required DateTime from,
     required DateTime to,
-  }) => _inner.byDateRange(from: from, to: to);
+  }) => _inner.runsInRange(from: from, to: to);
 
   @override
   Future<RecordCard> create(NewRecordCard card) => _inner.create(card);

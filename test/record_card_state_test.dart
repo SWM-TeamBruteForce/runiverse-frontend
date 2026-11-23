@@ -1,37 +1,24 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
-import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
-import 'package:runiverse/features/record_card/domain/route_art.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_state.dart';
 
-RecordCard _card({
+import 'record_card_fixtures.dart';
+
+ComposableRecord _run({
   required int id,
   required DateTime startedAt,
-  RecordCardActivity activity = RecordCardActivity.daily,
-}) => RecordCard(
-  id: 'card-$id',
-  runningRecordId: id + 100,
-  startedAt: startedAt,
-  activity: activity,
-  visibility: RecordCardVisibility.friends,
-  reviewText: '회고 $id',
-  photos: const [],
-  route: RouteArt.empty,
-  distanceMeters: 5000,
-  duration: const Duration(minutes: 30),
-  averagePace: const Duration(minutes: 6),
-  runners: const [],
-);
+  RecordCardActivity? activity = RecordCardActivity.daily,
+}) => runWith(summary(id: id, startedAt: startedAt, activity: activity));
 
 void main() {
   group('MonthCards', () {
     test('카드를 날짜별로 묶는다', () {
       final month = MonthCards(
         month: DateTime(2026, 9),
-        cards: [
-          _card(id: 1, startedAt: DateTime(2026, 9, 2, 18, 54)),
-          _card(id: 2, startedAt: DateTime(2026, 9, 7, 7, 10)),
+        runs: [
+          _run(id: 1, startedAt: DateTime(2026, 9, 2, 18, 54)),
+          _run(id: 2, startedAt: DateTime(2026, 9, 7, 7, 10)),
         ],
       );
 
@@ -46,7 +33,7 @@ void main() {
     test('⚠️ 자정 직전에 시작한 러닝도 그날 칸에 붙는다', () {
       final month = MonthCards(
         month: DateTime(2026, 9),
-        cards: [_card(id: 1, startedAt: DateTime(2026, 9, 2, 23, 50))],
+        runs: [_run(id: 1, startedAt: DateTime(2026, 9, 2, 23, 50))],
       );
 
       expect(month.byDay[DateTime(2026, 9, 2)], hasLength(1));
@@ -56,9 +43,9 @@ void main() {
     test('⚠️ 하루에 둘이면 한 키에 둘이 담긴다', () {
       final month = MonthCards(
         month: DateTime(2026, 9),
-        cards: [
-          _card(id: 1, startedAt: DateTime(2026, 9, 2, 8)),
-          _card(id: 2, startedAt: DateTime(2026, 9, 2, 21)),
+        runs: [
+          _run(id: 1, startedAt: DateTime(2026, 9, 2, 8)),
+          _run(id: 2, startedAt: DateTime(2026, 9, 2, 21)),
         ],
       );
 
@@ -68,10 +55,10 @@ void main() {
     test('필터를 걸면 그 유형만 남고 카드 수도 따라 준다', () {
       final month = MonthCards(
         month: DateTime(2026, 9),
-        cards: [
-          _card(id: 1, startedAt: DateTime(2026, 9, 2)),
-          _card(id: 2, startedAt: DateTime(2026, 9, 3)),
-          _card(
+        runs: [
+          _run(id: 1, startedAt: DateTime(2026, 9, 2)),
+          _run(id: 2, startedAt: DateTime(2026, 9, 3)),
+          _run(
             id: 3,
             startedAt: DateTime(2026, 9, 4),
             activity: RecordCardActivity.race,
@@ -89,14 +76,14 @@ void main() {
       RecordCardActivity activity = RecordCardActivity.daily,
     }) => MonthCards(
       month: DateTime(2026, 9),
-      cards: [
-        _card(id: 1, startedAt: DateTime(2026, 9, 2), activity: activity),
+      runs: [
+        _run(id: 1, startedAt: DateTime(2026, 9, 2), activity: activity),
       ],
     );
 
     MonthCards october() => MonthCards(
       month: DateTime(2026, 10),
-      cards: [_card(id: 2, startedAt: DateTime(2026, 10, 5))],
+      runs: [_run(id: 2, startedAt: DateTime(2026, 10, 5))],
     );
 
     test('달은 오름차순이다', () {
@@ -120,8 +107,8 @@ void main() {
       // 더 받기가 빈 달을 붙여 놓으면 바닥에 아무것도 없는 달력이 늘어선다.
       final data = RecordCardData(
         months: [
-          MonthCards(month: DateTime(2026, 7), cards: const []),
-          MonthCards(month: DateTime(2026, 8), cards: const []),
+          MonthCards(month: DateTime(2026, 7), runs: const []),
+          MonthCards(month: DateTime(2026, 8), runs: const []),
           september(),
           october(),
         ],
@@ -139,10 +126,10 @@ void main() {
       final data = RecordCardData(
         months: [
           september(),
-          MonthCards(month: DateTime(2026, 10), cards: const []),
+          MonthCards(month: DateTime(2026, 10), runs: const []),
           MonthCards(
             month: DateTime(2026, 11),
-            cards: [_card(id: 3, startedAt: DateTime(2026, 11, 2))],
+            runs: [_run(id: 3, startedAt: DateTime(2026, 11, 2))],
           ),
         ],
       );
@@ -153,8 +140,8 @@ void main() {
     test('⚠️ 카드가 하나도 없으면 받은 달을 그대로 보여준다 — 달력이 통째로 비면 안 된다', () {
       final data = RecordCardData(
         months: [
-          MonthCards(month: DateTime(2026, 9), cards: const []),
-          MonthCards(month: DateTime(2026, 10), cards: const []),
+          MonthCards(month: DateTime(2026, 9), runs: const []),
+          MonthCards(month: DateTime(2026, 10), runs: const []),
         ],
       );
 
@@ -183,7 +170,7 @@ void main() {
 
     test('⚠️ 카드가 하나도 없는 것과 필터로 0장인 것을 가른다', () {
       final empty = RecordCardData(
-        months: [MonthCards(month: DateTime(2026, 9), cards: const [])],
+        months: [MonthCards(month: DateTime(2026, 9), runs: const [])],
       );
       final filteredOut = RecordCardData(
         months: [september()],
@@ -219,8 +206,11 @@ void main() {
         months: [
           MonthCards(
             month: DateTime(2026, 9),
-            cards: [_card(id: 7, startedAt: DateTime(2026, 9, 7, 8))],
-            recordDays: {DateTime(2026, 9, 7), DateTime(2026, 9, 9)},
+            runs: [
+              _run(id: 7, startedAt: DateTime(2026, 9, 7, 8)),
+              // 9일은 뛰었는데 카드가 없다 — 운동화가 선다.
+              runOnly(DateTime(2026, 9, 9, 7)),
+            ],
           ),
         ],
       );
@@ -236,8 +226,11 @@ void main() {
         months: [
           MonthCards(
             month: DateTime(2026, 9),
-            cards: [_card(id: 7, startedAt: DateTime(2026, 9, 7, 8))],
-            recordDays: {DateTime(2026, 9, 7), DateTime(2026, 9, 9)},
+            runs: [
+              _run(id: 7, startedAt: DateTime(2026, 9, 7, 8)),
+              // 9일은 뛰었는데 카드가 없다 — 운동화가 선다.
+              runOnly(DateTime(2026, 9, 9, 7)),
+            ],
           ),
         ],
         filter: RecordCardActivity.race,
@@ -250,7 +243,7 @@ void main() {
 
     test('러닝 기록을 못 받은 달은 운동화가 없다', () {
       final data = RecordCardData(
-        months: [MonthCards(month: DateTime(2026, 9), cards: const [])],
+        months: [MonthCards(month: DateTime(2026, 9), runs: const [])],
       );
 
       expect(data.shoeDays, isEmpty);
@@ -262,14 +255,22 @@ void main() {
         months: [
           MonthCards(
             month: DateTime(2026, 9),
-            cards: [_card(id: 7, startedAt: DateTime(2026, 9, 7, 8))],
-            recordDays: {DateTime(2026, 9, 9)},
+            runs: [
+              _run(id: 7, startedAt: DateTime(2026, 9, 7, 8)),
+              runOnly(DateTime(2026, 9, 9, 7)),
+            ],
           ),
         ],
         filter: RecordCardActivity.race,
       );
 
-      expect(data.visible.single.recordDays, {DateTime(2026, 9, 9)});
+      // 유형이 안 맞는 카드는 빠지지만 **뛴 날은 남는다** — 거르면
+      // 필터를 켠 순간 운동화가 전부 사라진다.
+      expect(data.visible.single.byDay, isEmpty);
+      expect(data.visible.single.recordDays, {
+        DateTime(2026, 9, 7),
+        DateTime(2026, 9, 9),
+      });
     });
   });
 

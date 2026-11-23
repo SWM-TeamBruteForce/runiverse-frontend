@@ -5,10 +5,13 @@ import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
+
+import 'record_card_fixtures.dart';
 
 final _today = DateTime(2026, 11, 16);
 
@@ -16,25 +19,34 @@ DateTime _firstOf(DateTime month) => DateTime(month.year, month.month, 1);
 DateTime _lastOf(DateTime month) => DateTime(month.year, month.month + 1, 0);
 
 /// 두 달치를 **달마다 따로** 받아 합친다. 한 번에 31일을 넘길 수 없다.
-Future<List<RecordCard>> _twoMonths(FakeRecordCardRepository fake) async {
+Future<List<RecordCardSummary>> _twoMonths(FakeRecordCardRepository fake) async {
   final thisMonth = DateTime(_today.year, _today.month);
   final lastMonth = DateTime(_today.year, _today.month - 1);
   return [
-    ...await fake.byDateRange(
-      from: _firstOf(lastMonth),
-      to: _lastOf(lastMonth),
+    ...cardsOf(
+      await fake.runsInRange(
+        from: _firstOf(lastMonth),
+        to: _lastOf(lastMonth),
+      ),
     ),
-    ...await fake.byDateRange(
-      from: _firstOf(thisMonth),
-      to: _lastOf(thisMonth),
+    ...cardsOf(
+      await fake.runsInRange(
+        from: _firstOf(thisMonth),
+        to: _lastOf(thisMonth),
+      ),
     ),
   ];
 }
 
-/// 목에서 번호로 한 장. **단건 조회가 없어** 구간으로 받아 고른다.
-Future<RecordCard> _cardOf(FakeRecordCardRepository repo, String id) async {
-  final cards = await _twoMonths(repo);
-  return cards.firstWhere((card) => card.id == id);
+/// 목에서 번호로 한 장 **전부**. 상세(8-1)가 주는 것과 같다.
+Future<RecordCard> _cardOf(FakeRecordCardRepository repo, String id) =>
+    repo.detailOf(id);
+
+/// 두 달치 카드를 **전부** 받는다. 요약에는 사진·회고·공개범위가 없어서
+/// 그것을 보는 테스트는 상세를 한 장씩 읽어야 한다.
+Future<List<RecordCard>> _twoMonthsFull(FakeRecordCardRepository fake) async {
+  final cards = await _twoMonths(fake);
+  return [for (final card in cards) await fake.detailOf(card.id)];
 }
 
 NewRecordCard _newCard() => NewRecordCard(
@@ -61,7 +73,7 @@ void main() {
 
   test('구간 밖의 카드는 안 준다', () async {
     final thisMonth = DateTime(_today.year, _today.month);
-    final cards = await fake.byDateRange(
+    final cards = await fake.runsInRange(
       from: _firstOf(thisMonth),
       to: _lastOf(thisMonth),
     );
@@ -76,7 +88,7 @@ void main() {
   test('⚠️ 31일을 넘기면 진짜처럼 거절한다', () async {
     // 가짜가 뭐든 받아 주면 화면이 구간을 넓혀도 테스트가 다 통과한다.
     expect(
-      () => fake.byDateRange(
+      () => fake.runsInRange(
         from: _today.subtract(const Duration(days: 40)),
         to: _today,
       ),
@@ -92,7 +104,7 @@ void main() {
 
   test('시작일이 끝일보다 늦어도 거절한다', () async {
     expect(
-      () => fake.byDateRange(
+      () => fake.runsInRange(
         from: _today,
         to: _today.subtract(const Duration(days: 3)),
       ),
@@ -107,7 +119,7 @@ void main() {
     );
 
     expect(
-      () => failing.byDateRange(from: _firstOf(_today), to: _lastOf(_today)),
+      () => failing.runsInRange(from: _firstOf(_today), to: _lastOf(_today)),
       throwsA(
         isA<RecordCardException>().having(
           (e) => e.failure,
@@ -119,14 +131,14 @@ void main() {
   });
 
   test('물어본 구간을 적어 둔다', () async {
-    await fake.byDateRange(from: _firstOf(_today), to: _lastOf(_today));
+    await fake.runsInRange(from: _firstOf(_today), to: _lastOf(_today));
 
     expect(fake.calls, 1);
     expect(fake.queries.single.from, _firstOf(_today));
   });
 
   test('⚠️ 사진이 0장인 카드와 5장인 카드가 둘 다 있다', () async {
-    final cards = await _twoMonths(fake);
+    final cards = await _twoMonthsFull(fake);
 
     expect(cards.where((c) => c.photos.isEmpty), isNotEmpty);
     expect(cards.where((c) => c.photos.length == 5), isNotEmpty);
@@ -150,7 +162,7 @@ void main() {
   });
 
   test('공개범위 셋이 모두 나온다', () async {
-    final cards = await _twoMonths(fake);
+    final cards = await _twoMonthsFull(fake);
 
     expect(cards.map((c) => c.visibility).toSet(), hasLength(3));
   });
@@ -166,7 +178,7 @@ void main() {
   });
 
   test('회고가 비어 있는 카드는 없다', () async {
-    final cards = await _twoMonths(fake);
+    final cards = await _twoMonthsFull(fake);
 
     for (final card in cards) {
       expect(card.reviewText.trim(), isNotEmpty);

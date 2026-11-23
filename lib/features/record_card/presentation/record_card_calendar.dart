@@ -4,7 +4,7 @@ import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
-import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 import 'package:runiverse/features/record_card/presentation/day_cards_sheet.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_cell.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_state.dart';
@@ -41,7 +41,7 @@ class RecordCardCalendar extends StatelessWidget {
   final RecordCardData data;
 
   /// 카드 한 장을 열었다.
-  final ValueChanged<RecordCard> onOpen;
+  final ValueChanged<RecordCardSummary> onOpen;
 
   /// 카드가 없는 날을 눌렀다. **그날 러닝 기록이 있는지는 부르는 쪽이 본다.**
   final ValueChanged<DateTime> onEmptyDay;
@@ -148,7 +148,7 @@ class _MonthSection extends StatelessWidget {
   /// 뛰었는데 카드를 안 쓴 날. **달 전체가 아니라 상태가 들고 있는 것**을
   /// 그대로 받는다 — 유형 필터를 따르지 않아야 해서다(`RecordCardData.shoeDays`).
   final Set<DateTime> shoeDays;
-  final ValueChanged<RecordCard> onOpen;
+  final ValueChanged<RecordCardSummary> onOpen;
   final ValueChanged<DateTime> onEmptyDay;
 
   /// 분기 보기에서 그리드를 얼마로 줄이나.
@@ -229,7 +229,7 @@ class _MonthSection extends StatelessWidget {
     required bool compact,
   }) {
     final day = DateTime(month.month.year, month.month.month, dayOfMonth);
-    final cards = month.byDay[day] ?? const <RecordCard>[];
+    final cards = month.byDay[day] ?? const <RecordCardSummary>[];
     final hasUnwrittenRun = shoeDays.contains(day);
 
     return RecordCardCell(

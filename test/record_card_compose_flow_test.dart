@@ -135,7 +135,10 @@ void main() {
     final after = container.read(recordCardControllerProvider);
     expect(after, isA<RecordCardData>());
     expect(
-      (after as RecordCardData).visible.expand((m) => m.cards).map((c) => c.id),
+      (after as RecordCardData).visible
+          .expand((m) => m.byDay.values)
+          .expand((cards) => cards)
+          .map((c) => c.id),
       contains(startsWith('new-')),
       reason: '방금 만든 카드(`new-`)가 달력에 들어와야 한다',
     );

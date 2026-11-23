@@ -5,7 +5,7 @@ import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/card_face.dart';
-import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 
 /// 달력의 날짜 한 칸.
 ///
@@ -32,7 +32,7 @@ class RecordCardCell extends StatelessWidget {
   final DateTime day;
 
   /// 이 날의 카드. 비어 있으면 날짜만 그린다.
-  final List<RecordCard> cards;
+  final List<RecordCardSummary> cards;
 
   /// 분기 보기에서는 칸이 26dp쯤이라 숫자가 안 읽힌다. 그때 `false`다.
   final bool showDayNumber;
@@ -80,7 +80,11 @@ class RecordCardCell extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (top != null) CardFace(card: top),
+                  if (top != null)
+                    CardFace(
+                      thumbnailUrl: top.thumbnailUrl,
+                      route: top.route,
+                    ),
                   if (shoe) const RunShoeMark(),
                   if (showDayNumber)
                     Align(

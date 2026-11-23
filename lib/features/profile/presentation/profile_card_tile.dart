@@ -36,7 +36,7 @@ class ProfileCardTile extends StatelessWidget {
         // 한다. 바탕이 없으면 빈 자리와 구별되지 않는다.
         child: ColoredBox(
           color: context.appColorsV2.bgSurface,
-          child: CardFace(card: card),
+          child: CardFace(thumbnailUrl: card.thumbnailUrl, route: card.route),
         ),
       ),
     ),

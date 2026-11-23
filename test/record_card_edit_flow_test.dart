@@ -18,7 +18,9 @@ import 'package:runiverse/features/record_card/data/fake_record_card_repository.
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/presentation/card_compose_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_detail_page.dart';
@@ -29,6 +31,8 @@ import 'package:runiverse/features/record_card/presentation/card_publish_page.da
 import 'package:runiverse/features/record_card/presentation/record_card_page.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_state.dart';
+
+import 'record_card_fixtures.dart';
 
 /// 상세에서 고치고 지우는 길 (설계 6-6).
 ///
@@ -149,7 +153,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(CardComposePage), findsOne);
 
-      _router.push(AppRoutes.recordCardEditOf(_card.id), extra: _card);
+      _router.push(AppRoutes.recordCardEditOf(_full.id), extra: _full);
       await tester.pumpAndSettle();
       await _nextTwice(tester);
 
@@ -315,7 +319,7 @@ void main() {
 
       final state = container.read(recordCardControllerProvider);
       final ids = state is RecordCardData
-          ? state.visible.expand((m) => m.cards).map((c) => c.id)
+          ? state.visible.expand((m) => m.byDay.values).expand((cards) => cards).map((c) => c.id)
           : const <int>[];
       expect(ids, isNot(contains(_card.id)));
     });
@@ -359,7 +363,11 @@ late GoRouter _router;
 
 /// 상세에 띄운 카드. ⚠️ **가짜 저장소에 실제로 있는 것**이어야 한다 — 지어낸
 /// 번호를 쓰면 고치기·지우기가 `notFound`로 떨어진다.
-late RecordCard _card;
+late RecordCardSummary _card;
+
+/// 그 카드 **전부**. 수정 라우트가 `extra`로 요구한다 — 상세에서 들어오는
+/// 길이 유일하고, 그 화면은 8-1로 받은 카드를 들고 있다.
+late RecordCard _full;
 
 /// `⋮`를 열고 한 줄을 누른다.
 Future<void> _openMenu(WidgetTester tester, String item) async {
@@ -399,13 +407,18 @@ Future<ProviderContainer> _pumpDetail(
   // 네트워크를 탄다.
   // ⚠️ **31일을 넘기지 않는다** — 가짜도 진짜와 같은 규칙으로 거절한다
   // (`RecordCardRepository.maxRangeDays`).
-  final all = await _cards.byDateRange(
-    from: _today.subtract(const Duration(days: 25)),
-    to: _today,
+  final all = cardsOf(
+    await _cards.runsInRange(
+      from: _today.subtract(const Duration(days: 25)),
+      to: _today,
+    ),
   );
   _card = cardId == null
-      ? all.firstWhere((c) => c.photos.isEmpty)
+      // 사진이 없으면 썸네일도 없다 — 주소를 받으러 나가지 않는다.
+      ? all.firstWhere((c) => c.thumbnailUrl == null)
       : all.firstWhere((c) => c.id == cardId);
+
+  _full = await _cards.detailOf(_card.id);
 
   // ⚠️ **번호만 넘긴다.** 상세가 8-1로 다시 읽고 `isMine`도 거기서 온다.
   _router.push(AppRoutes.recordCardDetailOf(_card.id));
@@ -483,10 +496,10 @@ class _SlowDelete implements RecordCardRepository {
   }
 
   @override
-  Future<List<RecordCard>> byDateRange({
+  Future<List<ComposableRecord>> runsInRange({
     required DateTime from,
     required DateTime to,
-  }) => _inner.byDateRange(from: from, to: to);
+  }) => _inner.runsInRange(from: from, to: to);
 
   @override
   Future<RecordCard> create(NewRecordCard card) => _inner.create(card);

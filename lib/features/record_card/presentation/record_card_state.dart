@@ -1,4 +1,5 @@
-import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
+import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 
@@ -23,58 +24,65 @@ CalendarZoom zoomFor(CalendarZoom current, double scale) {
   return current;
 }
 
-/// 한 달치 카드.
+/// 한 달치 — **그 달의 러닝 기록과 거기 쓴 카드**.
 ///
 /// ⚠️ **묶는 일은 생성자에서 끝낸다.** 위젯이 매 빌드마다 다시 묶으면 스크롤할
 /// 때마다 같은 계산이 반복된다(`docs/implementation-notes.md` 5-3,
 /// `RecordData`가 같은 이유를 적어 두었다).
 class MonthCards {
-  MonthCards({
-    required this.month,
-    required this.cards,
-    this.recordDays = const {},
-  }) : byDay = _groupByDay(cards);
+  MonthCards({required this.month, required this.runs})
+    : byDay = _groupByDay(runs),
+      recordDays = {for (final run in runs) run.day};
 
   /// 이 묶음이 가리키는 달. 항상 그 달 **1일 0시**다.
   final DateTime month;
 
-  /// 이 달의 카드 전부. 시작 시각 오름차순.
-  final List<RecordCard> cards;
-
-  /// 날짜별로 묶은 것. **키는 시·분을 자른 날짜**다.
+  /// 이 달의 러닝 기록 전부. 카드가 없는 것도 들어 있다. 시작 시각 오름차순.
   ///
-  /// 하루에 두 번 뛰면 값이 둘이다 — 러닝 기록 1건당 카드가 1개라서,
+  /// ⚠️ **한 조회에서 온다**(`GET /users/me/running-records`, 7-1). 묶음 6까지는
+  /// 카드와 기록을 따로 받아 달마다 요청이 둘이었다.
+  final List<ComposableRecord> runs;
+
+  /// 날짜별 **카드**. 키는 시·분을 자른 날짜다. 카드가 없는 기록은 빠진다.
+  ///
+  /// 하루에 두 번 뛰면 값이 둘일 수 있다 — 러닝 기록 1건당 카드가 1개라서,
   /// **하루당 카드 1개가 아니다.**
-  final Map<DateTime, List<RecordCard>> byDay;
+  final Map<DateTime, List<RecordCardSummary>> byDay;
 
-  /// 이 달에 **뛴 날들**. 카드가 있는지와는 무관하다. 키는 시·분을 자른 날짜다.
+  /// 이 달에 **뛴 날들**. 카드가 있는지와는 무관하다.
   ///
-  /// ⚠️ **카드 조회와 다른 요청에서 온다**(`GET /users/me/running-records`).
-  /// 그 조회가 실패한 달은 비어 있다 — 달력을 오류로 덮는 대신 운동화만
-  /// 빠진다(`RecordCardController._fetch`).
+  /// ⚠️ **이제 카드와 같은 응답에서 온다.** 따로 받던 때는 그 조회만 실패하면
+  /// 운동화가 빠졌는데, 지금은 둘이 함께 오거나 함께 실패한다.
   final Set<DateTime> recordDays;
 
-  int get cardCount => cards.length;
+  int get cardCount => byDay.values.fold(0, (sum, cards) => sum + cards.length);
 
   /// [activity]만 남긴 같은 달. `null`이면 그대로 돌려준다.
+  ///
+  /// ⚠️ **러닝 기록은 거르지 않는다.** 카드가 없는 기록에는 유형이 없어서
+  /// (가이드 1절) 거르면 **필터를 켠 순간 운동화가 전부 사라진다.** 빼는 것은
+  /// 카드뿐이다.
   MonthCards filtered(RecordCardActivity? activity) {
     if (activity == null) return this;
     return MonthCards(
       month: month,
-      cards: [
-        for (final card in cards)
-          if (card.activity == activity) card,
+      runs: [
+        for (final run in runs)
+          if (run.existingCard?.activity == activity)
+            run
+          else
+            ComposableRecord(record: run.record),
       ],
-      // ⚠️ **그대로 넘긴다.** 떨어뜨리면 `visible`을 읽는 다음 사람이 빈
-      // 집합을 받고 "이 달은 안 뛰었다"로 조용히 틀린다.
-      recordDays: recordDays,
     );
   }
 
-  static Map<DateTime, List<RecordCard>> _groupByDay(List<RecordCard> cards) {
-    final byDay = <DateTime, List<RecordCard>>{};
-    for (final card in cards) {
-      (byDay[card.day] ??= []).add(card);
+  static Map<DateTime, List<RecordCardSummary>> _groupByDay(
+    List<ComposableRecord> runs,
+  ) {
+    final byDay = <DateTime, List<RecordCardSummary>>{};
+    for (final run in runs) {
+      final card = run.existingCard;
+      if (card != null) (byDay[run.day] ??= []).add(card);
     }
     return byDay;
   }
