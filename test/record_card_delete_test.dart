@@ -46,11 +46,11 @@ void main() {
     expect(again.map((c) => c.id), isNot(contains(target.id)));
   });
 
-  test('없는 카드를 지우면 없다고 한다', () async {
+  test('⚠️ 저장소는 없는 카드에 없다고 한다', () async {
     final repository = FakeRecordCardRepository(today: _today);
 
     expect(
-      () => repository.delete('card-999999'),
+      () => repository.delete('card-없음'),
       throwsA(
         isA<RecordCardException>().having(
           (e) => e.failure,
@@ -122,6 +122,38 @@ void main() {
 
       world.repository.failWith = null;
       expect(await world.delete('card-7'), isTrue);
+    });
+  });
+
+  group('이미 지워진 카드', () {
+    test('⚠️ 404를 받아도 삭제 흐름을 마친다', () async {
+      // 가이드 4절: "같은 카드의 삭제를 재시도해 404가 와도 삭제 흐름을
+      // 마쳐 주세요." 실패로 다루면 사용자가 **없는 카드를 못 지웠다는 말**을
+      // 듣고 화면에 남는다 — 다시 눌러도 같은 답이다.
+      final world = _World(failWith: RecordCardFailure.notFound);
+
+      expect(await world.delete('card-7'), isTrue);
+      expect(world.state, isA<CardDeleteIdle>());
+    });
+
+    test('⚠️ 그때도 프로필 그리드를 버린다 — 지워진 것이 남지 않게', () async {
+      final world = _World(failWith: RecordCardFailure.notFound);
+      world.container.listen(profileCardsProvider(_gridQuery), (_, _) {});
+      await world.container.read(profileCardsProvider(_gridQuery).future);
+      expect(world.repository.userCalls, 1);
+
+      await world.delete('card-7');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(world.repository.userCalls, 2);
+    });
+
+    test('⚠️ 다른 실패는 그대로 실패다', () async {
+      // 망이 끊긴 것과 이미 지워진 것은 다르다 — 전자는 다시 해 볼 일이다.
+      final world = _World(failWith: RecordCardFailure.network);
+
+      expect(await world.delete('card-7'), isFalse);
+      expect(world.state, isA<CardDeleteFailed>());
     });
   });
 }
