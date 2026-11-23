@@ -38,14 +38,11 @@ import 'package:runiverse/features/record_card/domain/record_card.dart';
 /// 여섯 장만 물으면 **더 있는지 알 수 없어** `더 보기`를 늘 세우게 되고, 딱
 /// 여섯 장인 사람이 눌렀을 때 아무것도 더 없는 화면으로 간다.
 class ProfileCardGrid extends ConsumerWidget {
-  const ProfileCardGrid({required this.userId, required this.mine, super.key});
+  const ProfileCardGrid({required this.userId, super.key});
 
   /// 누구의 프로필인가.
   final String userId;
 
-  /// 내 카드들인가. **상세로 그대로 넘긴다** — 남의 카드에서는 상세가 `⋮`를
-  /// 세우지 않는다(`AppRoutes.recordCardDetailOf`).
-  final bool mine;
 
   /// 깔 장수. 3열 2줄이다.
   static const previewCount = 6;
@@ -91,7 +88,6 @@ class ProfileCardGrid extends ConsumerWidget {
         // 일곱 번째가 왔다 = 더 있다.
         hasMore: value.length > previewCount,
         userId: userId,
-        mine: mine,
       ),
     };
   }
@@ -102,13 +98,11 @@ class _Preview extends StatelessWidget {
     required this.cards,
     required this.hasMore,
     required this.userId,
-    required this.mine,
   });
 
   final List<RecordCard> cards;
   final bool hasMore;
   final String userId;
-  final bool mine;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -128,8 +122,7 @@ class _Preview extends StatelessWidget {
         itemBuilder: (context, index) => ProfileCardTile(
           card: cards[index],
           onTap: () => context.push(
-            AppRoutes.recordCardDetailOf(cards[index].id, mine: mine),
-            extra: cards[index],
+            AppRoutes.recordCardDetailOf(cards[index].id),
           ),
         ),
       ),
@@ -140,7 +133,7 @@ class _Preview extends StatelessWidget {
           variant: AppButtonV2Variant.secondary,
           expand: false,
           onPressed: () =>
-              context.push(AppRoutes.recordCardsOf(userId, mine: mine)),
+              context.push(AppRoutes.recordCardsOf(userId)),
         ),
       ],
     ],

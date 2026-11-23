@@ -12,6 +12,8 @@ import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
+import 'package:runiverse/features/record_card/presentation/card_detail_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_delete_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_music_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_media_pager.dart';
@@ -41,24 +43,120 @@ import 'package:runiverse/features/record_card/presentation/music_strip.dart';
 ///
 /// 프로필 그리드나 러닝 요약에서 열어도 탭이 바뀌면 안 된다
 /// (`app_routes.dart`의 `recordCardDetail`).
-class CardDetailPage extends ConsumerStatefulWidget {
-  const CardDetailPage({required this.card, required this.mine, super.key});
+/// 번호로 카드를 받아 와 세 갈래를 가린다.
+///
+/// ## ⚠️ 받아 오는 중에는 `⋮`를 그리지 않는다
+///
+/// 내 카드인지 **서버가 답한다**([RecordCard.isMine]). 받기 전에 그리면
+/// 남의 카드에도 수정 버튼이 한 프레임 섰다 사라진다.
+class CardDetailPage extends ConsumerWidget {
+  const CardDetailPage({required this.cardId, super.key});
+
+  final String cardId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.appColorsV2;
+
+    return ref.watch(cardDetailProvider(cardId)).when(
+      data: (card) => _Loaded(card: card),
+      loading: () => const _Shell(
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, _) => _Shell(
+        child: _Error(
+          // ⚠️ **`404`에는 다시 시도를 두지 않는다.** 지워졌거나 볼 수 없는
+          // 카드이고, 열 번 더 물어도 같은 답이다(가이드 2절).
+          gone:
+              error is RecordCardException &&
+              error.failure == RecordCardFailure.notFound,
+          onRetry: () => ref.invalidate(cardDetailProvider(cardId)),
+          colors: colors,
+        ),
+      ),
+    );
+  }
+}
+
+/// 받아 오는 중과 실패를 담는 틀. **뒤로 가기만 있다.**
+class _Shell extends StatelessWidget {
+  const _Shell({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Scaffold(
+      backgroundColor: colors.bgBase,
+      appBar: AppBar(
+        backgroundColor: colors.bgBase,
+        leading: IconButton(
+          icon: const AppIcon(AppIcons.left),
+          onPressed: () => Navigator.of(context).maybePop(),
+          tooltip: AppStrings.authBack,
+        ),
+      ),
+      body: child,
+    );
+  }
+}
+
+class _Error extends StatelessWidget {
+  const _Error({
+    required this.gone,
+    required this.onRetry,
+    required this.colors,
+  });
+
+  final bool gone;
+  final VoidCallback onRetry;
+  final AppColorsV2 colors;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.space6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            LucideIcons.circleAlert,
+            size: AppSpacing.space7,
+            color: colors.textTertiary,
+          ),
+          const SizedBox(height: AppSpacing.space3),
+          Text(
+            gone ? AppStrings.recordCardGone : AppStrings.recordCardError,
+            textAlign: TextAlign.center,
+            style: AppTypographyV2.body07.copyWith(color: colors.textSecondary),
+          ),
+          if (!gone) ...[
+            const SizedBox(height: AppSpacing.space4),
+            AppButtonV2(
+              label: AppStrings.recordRetry,
+              variant: AppButtonV2Variant.secondary,
+              expand: false,
+              onPressed: onRetry,
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
+}
+
+class _Loaded extends ConsumerStatefulWidget {
+  const _Loaded({required this.card});
 
   final RecordCard card;
 
-  /// 내 카드인가. **남의 카드면 손을 뗀다** — `⋮`(수정·삭제)도, 음악을 만들라는
-  /// 권유도 세우지 않는다(설계 6-5).
-  ///
-  /// ⚠️ **카드가 스스로 답하지 못한다.** 응답에 소유자가 없어(설계 10절 1번)
-  /// **들어온 길이** 말해 준다(`AppRoutes.recordCardDetailOf`). 소유자가 응답에
-  /// 생기는 날 이 값은 `card.ownerId == 내 번호`로 바뀐다.
-  final bool mine;
-
   @override
-  ConsumerState<CardDetailPage> createState() => _CardDetailPageState();
+  ConsumerState<_Loaded> createState() => _CardDetailPageState();
 }
 
-class _CardDetailPageState extends ConsumerState<CardDetailPage> {
+class _CardDetailPageState extends ConsumerState<_Loaded> {
   /// 포토북이 넘어가고 있나. **열면 돌고 있다**(묶음 1에서 정했다).
   var _playing = true;
 
@@ -90,7 +188,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
           tooltip: AppStrings.authBack,
         ),
         actions: [
-          if (deleting && widget.mine)
+          if (deleting && card.isMine)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: AppSpacing.space4),
               child: Center(
@@ -102,7 +200,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
             ),
           // ⚠️ **남의 카드에는 두지 않는다.** 두면 눌러서 수정·삭제가 뜨고,
           // 저장할 때 403을 받는다 — 고칠 수 없는 것을 고치게 한 셈이다.
-          if (widget.mine)
+          if (card.isMine)
             IconButton(
               icon: const Icon(LucideIcons.ellipsisVertical),
               tooltip: AppStrings.recordCardMore,
@@ -136,7 +234,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
             playing: _playing,
             canAdvance: _canAdvance,
             // 남의 카드에서는 **들을 수만 있다.**
-            canRequest: widget.mine,
+            canRequest: card.isMine,
             onTogglePlay: () => setState(() => _playing = !_playing),
           ),
         ],

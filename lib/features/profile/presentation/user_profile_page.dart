@@ -165,7 +165,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage> {
           // ⚠️ **소유 여부는 서버가 답한 `isMe`를 그대로 쓴다.** 여기서 다시
           // 계산하면 판단이 두 군데로 갈린다.
           const SizedBox(height: AppSpacing.space4),
-          ProfileCardGrid(userId: summary.userId, mine: summary.isMe),
+          ProfileCardGrid(userId: summary.userId),
           SizedBox(
             height: AppSpacing.space8 + MediaQuery.paddingOf(context).bottom,
           ),

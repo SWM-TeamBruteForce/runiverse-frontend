@@ -37,7 +37,7 @@ void main() {
         overrides: [recordCardRepositoryProvider.overrideWithValue(repo)],
         child: MaterialApp(
           theme: light ? AppTheme.light() : AppTheme.dark(),
-          home: ProfileCardsPage(userId: 'u-1', mine: mine),
+          home: const ProfileCardsPage(userId: 'u-1'),
         ),
       ),
     );
@@ -119,8 +119,8 @@ void main() {
   });
 
   group('칸을 누르면', () {
-    /// 진짜 라우터로 세운다 — 상세로 가는 길과 `mine`이 흘러가는지 본다.
-    Future<void> pumpRouted(WidgetTester tester, {required bool mine}) async {
+    /// 진짜 라우터로 세운다 — 상세로 가는 길을 본다.
+    Future<void> pumpRouted(WidgetTester tester) async {
       tester.view.physicalSize = const Size(412, 915);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -132,7 +132,7 @@ void main() {
       addTearDown(container.dispose);
 
       final router = createAppRouter(
-        initialLocation: AppRoutes.recordCardsOf('u-1', mine: mine),
+        initialLocation: AppRoutes.recordCardsOf('u-1'),
       );
       addTearDown(router.dispose);
 
@@ -148,21 +148,28 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('⚠️ 남의 카드로 열린다 — 고칠 수 없다', (tester) async {
-      await pumpRouted(tester, mine: false);
+    testWidgets('⚠️ 남의 카드에는 ⋮가 없다 — 서버가 그렇게 답한다', (tester) async {
+      // 묶음 6까지는 라우트 쿼리가 소유자를 말했다. 지금은 상세(8-1)의
+      // `isMine`이 정본이다.
+      await pumpRouted(tester);
 
       // ⚠️ **첫 칸을 누르지 않는다.** 목 카드 1000번은 음악이 "만드는 중"으로
       // 심겨 있고 요청 기록이 없어 **영영 끝나지 않는다** — 상세를 열면 폴링
       // 타이머가 남아 `!timersPending`으로 죽는다(묶음 5에서 미뤄 둔 것 11번).
-      await tester.tap(find.byType(ProfileCardTile).at(1));
+      final tile = find.byType(ProfileCardTile).at(1);
+      // ⚠️ **번호를 짐작하지 않는다.** 그리드는 최신순이라 둘째 칸이 어느 목
+      // 카드인지 날짜에 달려 있다 — 누를 칸에서 직접 읽는다.
+      repo.notMineIds.add(tester.widget<ProfileCardTile>(tile).card.id);
+
+      await tester.tap(tile);
       await tester.pumpAndSettle();
 
       expect(find.byType(CardDetailPage), findsOneWidget);
       expect(find.byIcon(LucideIcons.ellipsisVertical), findsNothing);
     });
 
-    testWidgets('내 카드로 들어왔으면 고칠 수 있다', (tester) async {
-      await pumpRouted(tester, mine: true);
+    testWidgets('내 카드면 고칠 수 있다', (tester) async {
+      await pumpRouted(tester);
 
       await tester.tap(find.byType(ProfileCardTile).at(1));
       await tester.pumpAndSettle();

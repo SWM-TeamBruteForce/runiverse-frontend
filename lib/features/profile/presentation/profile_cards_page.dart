@@ -25,13 +25,10 @@ import 'package:runiverse/features/record_card/domain/record_card.dart';
 ///
 /// 남의 프로필에서 들어와도 기록카드 탭으로 바뀌면 안 된다(설계 7절).
 class ProfileCardsPage extends ConsumerWidget {
-  const ProfileCardsPage({required this.userId, required this.mine, super.key});
+  const ProfileCardsPage({required this.userId, super.key});
 
   final String userId;
 
-  /// 내 카드들인가. **상세로 그대로 넘긴다** — 남의 카드에서는 상세가 `⋮`를
-  /// 세우지 않는다(`AppRoutes.recordCardDetailOf`).
-  final bool mine;
 
   /// 3열. 설계 6-7의 그리드와 같은 칸이다.
   static const _columns = 3;
@@ -71,7 +68,7 @@ class ProfileCardsPage extends ConsumerWidget {
               ),
             ),
           ),
-          AsyncValue(:final value?) => _Grid(cards: value, mine: mine),
+          AsyncValue(:final value?) => _Grid(cards: value),
         },
       ),
     );
@@ -79,10 +76,9 @@ class ProfileCardsPage extends ConsumerWidget {
 }
 
 class _Grid extends StatelessWidget {
-  const _Grid({required this.cards, required this.mine});
+  const _Grid({required this.cards});
 
   final List<RecordCard> cards;
-  final bool mine;
 
   @override
   Widget build(BuildContext context) => GridView.builder(
@@ -97,10 +93,8 @@ class _Grid extends StatelessWidget {
     itemCount: cards.length,
     itemBuilder: (context, index) => ProfileCardTile(
       card: cards[index],
-      onTap: () => context.push(
-        AppRoutes.recordCardDetailOf(cards[index].id, mine: mine),
-        extra: cards[index],
-      ),
+      onTap: () =>
+          context.push(AppRoutes.recordCardDetailOf(cards[index].id)),
     ),
   );
 }

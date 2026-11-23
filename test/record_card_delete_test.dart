@@ -169,6 +169,10 @@ class _Repository implements RecordCardRepository {
   final deleted = <String>[];
 
   @override
+  Future<RecordCard> detailOf(String cardId) =>
+      throw UnsupportedError('이 테스트는 상세를 열지 않는다');
+
+  @override
   Future<void> delete(String cardId) async {
     if (delay > Duration.zero) await Future<void>.delayed(delay);
     final failure = failWith;

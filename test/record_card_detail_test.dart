@@ -34,7 +34,7 @@ final _route = normalizeRoute([
   ],
 ]);
 
-RecordCard _card({int photos = 0}) => RecordCard(
+RecordCard _card({int photos = 0, bool mine = true}) => RecordCard(
   id: 'card-7',
   runningRecordId: 107,
   startedAt: DateTime(2026, 9, 2, 18, 54),
@@ -57,6 +57,9 @@ RecordCard _card({int photos = 0}) => RecordCard(
     CardRunner(userId: 'u-1', nickname: '동완러너'),
     CardRunner(userId: 'u-2', nickname: '바람'),
   ],
+  // ⚠️ **서버가 답하는 값이다**(8-1의 `isMine`). 묶음 6까지는 라우트 쿼리로
+  // 들려 보냈다.
+  isMine: mine,
 );
 
 /// 지금 몇 번째 장인가.
@@ -74,9 +77,12 @@ class _MusicRepository implements RecordCardRepository {
   Future<List<RecordCard>> byUser({required String userId, int? limit}) =>
       throw UnsupportedError('이 테스트는 사람별 카드를 묻지 않는다');
 
-  _MusicRepository(this.status);
+  _MusicRepository(this.status, {this.card});
 
   final MusicStatus status;
+
+  /// 상세가 번호로 물으면 돌려줄 카드. `null`이면 `404`를 흉내낸다.
+  final RecordCard? card;
 
   var requests = 0;
 
@@ -114,6 +120,17 @@ class _MusicRepository implements RecordCardRepository {
   @override
   Future<void> delete(String cardId) =>
       throw UnsupportedError('이 테스트는 카드를 지우지 않는다');
+
+  /// ⚠️ **번호를 안 본다.** 어떤 번호로 물어도 세워 둔 카드를 준다 — 이
+  /// 테스트가 보는 것은 음악과 소유자 표시다.
+  @override
+  Future<RecordCard> detailOf(String cardId) async {
+    final found = card;
+    if (found == null) {
+      throw const RecordCardException(RecordCardFailure.notFound);
+    }
+    return found;
+  }
 }
 
 Future<void> _pump(
@@ -124,6 +141,7 @@ Future<void> _pump(
   _MusicRepository? repository,
   bool mine = true,
 }) async {
+  final card = _card(photos: photos, mine: mine);
   // ⚠️ 기본 테스트 화면(800×600)은 가로로 넓어 9:16 페이저가 화면보다 길어진다.
   // 아래 내용이 전부 밀려나 "안 보인다"로 떨어진다. 손전화 크기로 맞춘다.
   tester.view.physicalSize = const Size(412, 915);
@@ -140,23 +158,72 @@ Future<void> _pump(
     ProviderScope(
       overrides: [
         recordCardRepositoryProvider.overrideWithValue(
-          repository ?? _MusicRepository(music),
+          repository ?? _MusicRepository(music, card: card),
         ),
       ],
       child: MaterialApp(
         theme: light ? AppTheme.light() : AppTheme.dark(),
-        home: CardDetailPage(
-          card: _card(photos: photos),
-          mine: mine,
-        ),
+        home: const CardDetailPage(cardId: 'card-7'),
       ),
     ),
   );
-  // 음악 상태가 한 프레임 뒤에 선다.
+  // ⚠️ **두 번 민다.** 첫 프레임은 카드를 받아 오는 중이고, 음악 상태는 그
+  // 다음에 선다.
+  await tester.pump();
   await tester.pump();
 }
 
 void main() {
+  /// 번호로 받아 오는 세 갈래 (묶음 7 작업 4).
+  group('받아 오기', () {
+    testWidgets('⚠️ 받아 오는 중에는 ⋮를 그리지 않는다', (tester) async {
+      // 내 카드인지 **서버가 답한다.** 받기 전에 그리면 남의 카드에도 수정
+      // 버튼이 한 프레임 섰다 사라진다.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            recordCardRepositoryProvider.overrideWithValue(
+              _MusicRepository(MusicStatus.succeeded, card: _card()),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const CardDetailPage(cardId: 'card-7'),
+          ),
+        ),
+      );
+      // 첫 프레임이다 — 아직 답이 오지 않았다.
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byIcon(LucideIcons.ellipsisVertical), findsNothing);
+
+      await tester.pumpAndSettle();
+      expect(find.byIcon(LucideIcons.ellipsisVertical), findsOneWidget);
+    });
+
+    testWidgets('⚠️ 404면 찾을 수 없다고 하고 다시 시도를 두지 않는다', (tester) async {
+      // 삭제·권한 없음·작성자 탈퇴를 서버가 한 응답으로 묶었다(가이드 2절).
+      // 열 번 더 물어도 같은 답이라 `다시 시도`는 거짓 희망이다.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            recordCardRepositoryProvider.overrideWithValue(
+              _MusicRepository(MusicStatus.succeeded),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const CardDetailPage(cardId: 'card-없음'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.recordCardGone), findsOneWidget);
+      expect(find.text(AppStrings.recordRetry), findsNothing);
+      expect(find.byIcon(LucideIcons.ellipsisVertical), findsNothing);
+    });
+  });
+
   /// 남의 카드 — 프로필 그리드로 들어오는 길이 묶음 6에서 열렸다.
   group('남의 카드', () {
     testWidgets('⚠️ 남의 카드에는 ⋮가 없다', (tester) async {

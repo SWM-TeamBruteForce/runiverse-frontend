@@ -635,6 +635,10 @@ class _Repository implements RecordCardRepository {
 
   /// 이 테스트는 지우지 않는다.
   @override
+  Future<RecordCard> detailOf(String cardId) =>
+      throw UnsupportedError('이 테스트는 상세를 열지 않는다');
+
+  @override
   Future<void> delete(String cardId) =>
       throw UnsupportedError('이 테스트는 카드를 지우지 않는다');
 

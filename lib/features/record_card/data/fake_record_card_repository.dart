@@ -142,6 +142,46 @@ class FakeRecordCardRepository implements RecordCardRepository {
   /// 몇 번 만들었나. 저장을 두 번 누르지 않았는지 보는 데 쓴다.
   var creates = 0;
 
+  /// 카드 한 장 전부 (8-1).
+  ///
+  /// ⚠️ **목 카드는 전부 내 것이다.** 달력이 내 카드를 보여 주는 화면이고,
+  /// 남의 카드를 흉내내는 것은 테스트가 [notMineIds]로 따로 지정한다.
+  @override
+  Future<RecordCard> detailOf(String cardId) async {
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (failWith != null) throw RecordCardException(failWith!);
+
+    final found = _find(cardId);
+    if (found == null) {
+      throw const RecordCardException(RecordCardFailure.notFound);
+    }
+    return _withMine(found, !notMineIds.contains(cardId));
+  }
+
+  /// 남의 카드로 보이게 할 번호들. 테스트가 채운다.
+  final notMineIds = <String>{};
+
+  /// [RecordCard]에 `copyWith`가 없다 — 한 필드만 바꿔 다시 짓는다.
+  ///
+  /// `copyWith`를 더하지 않는 이유: 카드는 **서버가 주는 것을 그대로 드는**
+  /// 값이라, 앱이 한 칸씩 고칠 일이 없다. 가짜가 소유자를 흉내내는 이 자리
+  /// 하나뿐이다.
+  static RecordCard _withMine(RecordCard card, bool mine) => RecordCard(
+    id: card.id,
+    runningRecordId: card.runningRecordId,
+    startedAt: card.startedAt,
+    activity: card.activity,
+    visibility: card.visibility,
+    reviewText: card.reviewText,
+    photos: card.photos,
+    route: card.route,
+    distanceMeters: card.distanceMeters,
+    duration: card.duration,
+    averagePace: card.averagePace,
+    runners: card.runners,
+    isMine: mine,
+  );
+
   @override
   Future<RecordCard> create(NewRecordCard card) async {
     creates++;

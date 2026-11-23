@@ -190,7 +190,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.space4,
                     ),
-                    child: ProfileCardGrid(userId: userId, mine: true),
+                    child: ProfileCardGrid(userId: userId),
                   ),
                 ],
 

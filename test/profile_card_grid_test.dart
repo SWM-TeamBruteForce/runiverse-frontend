@@ -27,7 +27,6 @@ void main() {
   /// 그리드 하나를 세운다. 전체 보기로 가는 길을 함께 깐다.
   Future<GoRouter> pump(
     WidgetTester tester, {
-    bool mine = true,
     bool light = false,
   }) async {
     tester.view.physicalSize = const Size(412, 915);
@@ -41,7 +40,7 @@ void main() {
           path: '/',
           builder: (context, state) => Scaffold(
             body: SingleChildScrollView(
-              child: ProfileCardGrid(userId: 'u-1', mine: mine),
+              child: const ProfileCardGrid(userId: 'u-1'),
             ),
           ),
         ),
@@ -95,25 +94,26 @@ void main() {
   });
 
   testWidgets('더 보기를 누르면 전체 보기로 간다', (tester) async {
-    final router = await pump(tester, mine: false);
+    final router = await pump(tester);
 
     await tester.tap(find.text(AppStrings.profileCardsMore));
     await tester.pumpAndSettle();
 
     expect(find.text('전체 보기'), findsOneWidget);
-    // 남의 프로필에서 눌렀으면 그 사실이 함께 간다.
-    expect(router.state.uri.toString(), contains('mine=false'));
+    // ⚠️ **소유자를 쿼리로 싣지 않는다.** 상세가 8-1의 `isMine`으로 안다
+    // (2026-11-24). 쿼리를 남기면 두 출처가 어긋날 수 있다.
+    expect(router.state.uri.toString(), isNot(contains('mine')));
   });
 
-  testWidgets('칸을 누르면 상세로 간다 — 남의 것이면 그 사실도 간다', (tester) async {
-    final router = await pump(tester, mine: false);
+  testWidgets('⚠️ 칸을 누르면 그 카드 번호로 상세에 간다', (tester) async {
+    final router = await pump(tester);
 
     await tester.tap(find.byType(ProfileCardTile).first);
     await tester.pumpAndSettle();
 
     expect(find.text('상세'), findsOneWidget);
-    // 안 실으면 남의 카드에 수정·삭제가 뜬다.
-    expect(router.state.uri.toString(), contains('mine=false'));
+    // 첫 칸은 가장 최근 카드다(`_Cards`가 날짜를 내림차순으로 짓는다).
+    expect(router.state.uri.path, contains('card-500'));
   });
 
   testWidgets('⚠️ 좌우 여백은 두는 쪽이 정한다 — 화면마다 다르면 안 된다', (tester) async {
@@ -277,6 +277,10 @@ class _Cards implements RecordCardRepository {
   @override
   Future<RecordCard> update(EditRecordCard card) =>
       throw UnsupportedError('그리드는 카드를 고치지 않는다');
+
+  @override
+  Future<RecordCard> detailOf(String cardId) =>
+      throw UnsupportedError('이 테스트는 상세를 열지 않는다');
 
   @override
   Future<void> delete(String cardId) => throw UnsupportedError('그리드는 카드를 지우지 않는다');

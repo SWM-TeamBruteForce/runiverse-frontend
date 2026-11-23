@@ -83,6 +83,10 @@ class _EmptyRepository implements RecordCardRepository {
 
   /// 이 테스트는 **읽기만** 본다. 불리면 테스트가 잘못 세워진 것이다.
   @override
+  Future<RecordCard> detailOf(String cardId) =>
+      throw UnsupportedError('이 테스트는 상세를 열지 않는다');
+
+  @override
   Future<void> delete(String cardId) =>
       throw UnsupportedError('이 테스트는 카드를 지우지 않는다');
 

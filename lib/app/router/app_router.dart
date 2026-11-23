@@ -197,26 +197,20 @@ GoRouter createAppRouter({String? initialLocation}) {
       // ⚠️ **카드를 `extra`로 받는다.** 달력이 이미 들고 있는 것을 넘겨 주면
       // 다시 받아 올 필요가 없다. 딥링크처럼 `extra` 없이 들어오면 보여 줄
       // 것이 없으므로 탭으로 돌려보낸다 — 빈 화면을 띄우지 않는다.
+      // ⚠️ **번호만 받는다.** 묶음 6까지는 카드를 `extra`로 들려 보내고 없으면
+      // 탭으로 돌려보냈는데, 상세(8-1)가 생겨 번호 하나로 열린다. 그래서
+      // **딥링크와 프로세스 복원으로도 열린다** — 돌려보낼 이유가 없다.
       GoRoute(
         path: AppRoutes.recordCardDetail,
         name: 'record_card_detail',
-        redirect: (context, state) =>
-            state.extra is RecordCard ? null : AppRoutes.recordCard,
-        // ⚠️ **쿼리가 없으면 "내 것이 아니다"로 읽는다.** 딥링크나 프로세스
-        // 복원으로 들어온 경우가 그렇다 — 모르면 손을 떼는 쪽이 안전하다
-        // (설계 9절의 공개범위 규칙과 같은 방향이다).
-        builder: (context, state) => CardDetailPage(
-          card: state.extra! as RecordCard,
-          mine: state.uri.queryParameters['mine'] == 'true',
-        ),
+        builder: (context, state) =>
+            CardDetailPage(cardId: state.pathParameters['id'] ?? ''),
       ),
       GoRoute(
         path: AppRoutes.recordCardsOfUser,
         name: 'record_cards_of_user',
         builder: (context, state) => ProfileCardsPage(
           userId: state.pathParameters['userId'] ?? '',
-          // 쿼리가 없으면 내 것이 아니다 — 상세와 같은 규칙이다.
-          mine: state.uri.queryParameters['mine'] == 'true',
         ),
       ),
       GoRoute(
@@ -443,9 +437,7 @@ void _toDetail(BuildContext context, RecordCard card, {required bool editing}) {
     router.pop();
   }
 
-  router.push(
-    // 고치거나 만든 카드다 — 남의 것을 저장할 길은 없다.
-    AppRoutes.recordCardDetailOf(card.id, mine: true),
-    extra: card,
-  );
+  // ⚠️ **저장한 카드를 들려 보내지 않는다.** 상세가 번호로 8-1을 다시 읽는다
+  // — 저장 응답이 들고 있는 것보다 **서버가 방금 건 음악까지** 실려 온다.
+  router.push(AppRoutes.recordCardDetailOf(card.id));
 }

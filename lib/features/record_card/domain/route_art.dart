@@ -32,6 +32,73 @@ class RoutePoint {
 class RouteArt {
   const RouteArt({required this.strokes, required this.aspect});
 
+  /// **서버가 `0~1`로 정규화해 보낸 경로.** 비는 받은 점에서 되찾는다.
+  ///
+  /// ## ⚠️ 서버가 비를 주지 않는다
+  ///
+  /// 응답에 가로/세로 비 필드가 없다(연동 가이드 2절). 그대로 상자에 늘려
+  /// 그리면 모양이 찌그러진다 — [aspect]가 막으려던 바로 그것이다.
+  ///
+  /// **받은 점들의 바운딩 박스를 재면 두 경우가 한 규칙으로 덮인다.**
+  ///
+  /// | 서버가 한 일 | 짧은 축의 폭 | 이 함수가 내는 값 |
+  /// |---|---|---|
+  /// | 비를 보존해 정규화 | `1`보다 작다 | **실제 비** — 정확하다 |
+  /// | 축마다 따로 늘림 | `1`에 닿는다 | `1.0` — 어차피 쓸 기본값 |
+  ///
+  /// 어느 쪽인지 **몰라도 되고, `1.0`보다 나쁠 수가 없다.** 그래서 백엔드 답을
+  /// 기다리지 않는다.
+  ///
+  /// ## ⚠️ 되찾지 못하는 것
+  ///
+  /// 서버가 경도에 `cos(위도)`를 곱했는지는 알 수 없다. 응답에 좌표가 없고,
+  /// 그게 루트 아트의 설계 의도다(설계 3절 — 어디를 뛰었는지 알기 어렵게).
+  /// 보정이 빠졌으면 한국에서 경로가 **동서로 최대 1.26배** 늘어난 채 선다
+  /// (cos 37.5° ≈ 0.793). 백엔드에 그 한 줄을 물어 두었다
+  /// (`docs/notes/2026-11-16-record-card-backend-questions.md` 10번).
+  ///
+  /// ## ⚠️ 조각마다 재지 않는다
+  ///
+  /// 전 조각을 **합쳐서** 잰다. 조각별로 재면 한 카드의 경로가 조각마다 다른
+  /// 비로 그려져 모양이 어긋난다.
+  factory RouteArt.fromNormalized(List<List<RoutePoint>> strokes) {
+    var minX = double.infinity;
+    var maxX = double.negativeInfinity;
+    var minY = double.infinity;
+    var maxY = double.negativeInfinity;
+    var seen = false;
+
+    for (final stroke in strokes) {
+      for (final point in stroke) {
+        seen = true;
+        if (point.x < minX) minX = point.x;
+        if (point.x > maxX) maxX = point.x;
+        if (point.y < minY) minY = point.y;
+        if (point.y > maxY) maxY = point.y;
+      }
+    }
+
+    if (!seen) return empty;
+
+    final width = maxX - minX;
+    final height = maxY - minY;
+    // ⚠️ **정규화 값이라 `_eps`를 쓰지 않는다.** 그쪽은 위경도 도 단위다.
+    final flatX = width < _normalizedEps;
+    final flatY = height < _normalizedEps;
+
+    return RouteArt(
+      strokes: strokes,
+      // 한 점으로 뭉친 경로(트레드밀)는 `1.0`이다 — 0으로 나누지 않는다.
+      aspect: flatX && flatY
+          ? 1.0
+          : flatY
+          ? _flatAspect
+          : flatX
+          ? 1 / _flatAspect
+          : width / height,
+    );
+  }
+
   /// 그릴 것이 없는 경로.
   static const empty = RouteArt(strokes: [], aspect: 1);
 
@@ -52,6 +119,12 @@ class RouteArt {
 
 /// 한 축이 0에 가까운지 보는 기준. 위경도 도 단위다.
 const _eps = 1e-9;
+
+/// 같은 기준이지만 **이미 `0~1`로 정규화된 값**에 쓴다.
+///
+/// ⚠️ `_eps`(`1e-9`)를 그대로 쓰면 안 된다. 그쪽은 위경도 도 단위라, 정규화
+/// 좌표에서는 거의 모든 경로가 "납작하지 않다"로 읽힌다.
+const _normalizedEps = 1e-6;
 
 /// 한 축이 납작할 때 쓰는 비. `100:1`이면 눈에는 선으로 보인다.
 ///

@@ -407,10 +407,8 @@ Future<ProviderContainer> _pumpDetail(
       ? all.firstWhere((c) => c.photos.isEmpty)
       : all.firstWhere((c) => c.id == cardId);
 
-  _router.push(
-    AppRoutes.recordCardDetailOf(_card.id, mine: true),
-    extra: _card,
-  );
+  // ⚠️ **번호만 넘긴다.** 상세가 8-1로 다시 읽고 `isMine`도 거기서 온다.
+  _router.push(AppRoutes.recordCardDetailOf(_card.id));
   await tester.pumpAndSettle();
   expect(find.byType(CardDetailPage), findsOne);
   return container;
@@ -469,6 +467,9 @@ class _SlowDelete implements RecordCardRepository {
   @override
   Future<List<RecordCard>> byUser({required String userId, int? limit}) =>
       _inner.byUser(userId: userId, limit: limit);
+
+  @override
+  Future<RecordCard> detailOf(String cardId) => _inner.detailOf(cardId);
 
   _SlowDelete(this._inner, this._delay);
 

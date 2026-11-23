@@ -517,5 +517,9 @@ class _MusicOverride implements RecordCardRepository {
   Future<RecordCard> update(EditRecordCard card) => _inner.update(card);
 
   @override
+  Future<RecordCard> detailOf(String cardId) =>
+      throw UnsupportedError('이 테스트는 상세를 열지 않는다');
+
+  @override
   Future<void> delete(String cardId) => _inner.delete(cardId);
 }

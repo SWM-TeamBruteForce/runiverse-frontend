@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
+import 'package:runiverse/features/record_card/data/record_card_detail_dto.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
@@ -53,6 +54,22 @@ class HttpRecordCardRepository implements RecordCardRepository {
   @override
   Future<List<RecordCard>> byUser({required String userId, int? limit}) =>
       throw UnimplementedError('묶음 7 작업 6이 10-3으로 바꾼다');
+
+  /// 카드 한 장 전부 (8-1).
+  @override
+  Future<RecordCard> detailOf(String cardId) async {
+    // ⚠️ **번호를 경로에 그대로 붙이지 않는다.** UUID라 지금은 안전하지만,
+    // 서버가 형식을 바꾸면 `/`가 들어온 번호 하나가 경로를 갈라 **다른
+    // 엔드포인트를 부른다.**
+    final path = '/api/v1/record-cards/${Uri.encodeComponent(cardId)}';
+    final body = await authorized(
+      (token) => _dio.get<Map<String, dynamic>>(
+        path,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      ),
+    );
+    return RecordCardDetailDto.from(body);
+  }
 
   @override
   Future<MusicGeneration> musicOf(String cardId) =>

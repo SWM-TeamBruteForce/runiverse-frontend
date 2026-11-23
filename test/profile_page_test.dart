@@ -173,7 +173,6 @@ void main() {
     await pumpProfile(tester, onboarded: true);
 
     final grid = tester.widget<ProfileCardGrid>(find.byType(ProfileCardGrid));
-    expect(grid.mine, isTrue);
     expect(grid.userId, isNotEmpty);
   });
 
