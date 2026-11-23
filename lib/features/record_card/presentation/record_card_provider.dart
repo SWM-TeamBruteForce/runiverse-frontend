@@ -4,16 +4,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
+import 'package:runiverse/features/record_card/data/http_record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_state.dart';
 
 /// 기록카드를 누가 읽어 오나.
 ///
-/// ⚠️ **아직 가짜다.** 3차 API 명세서의 `record-card` 엔드포인트 여섯 줄이 본문
-/// 없이 등록만 돼 있다. 스키마가 채워지면 `HttpRecordCardRepository`로 바꾼다.
+/// ## ⚠️ **저장만 아직 가짜다**
+///
+/// 읽기(달력 7-1 · 상세 8-1 · 프로필 10-3)와 삭제(9-4) · 음악 재요청(9-6)은
+/// 진짜 서버로 간다. **새 카드 저장과 수정은 서버에 가지 않는다** — 9-1 → S3
+/// → 9-2 흐름이 묶음 8이다. 앱을 끄면 그렇게 만든 카드는 사라진다.
+///
+/// 기기에서 볼 때 그 차이를 기억해야 한다: 달력·상세·프로필은 **서버가 가진
+/// 것**이고, 저장한 카드는 **이 기기 안에만** 있다.
 final recordCardRepositoryProvider = Provider<RecordCardRepository>(
-  (ref) => FakeRecordCardRepository(),
+  (ref) => HttpRecordCardRepository(
+    ref.watch(dioProvider),
+    ref.watch(tokenStoreProvider),
+    ref.watch(tokenRefresherProvider),
+    // 묶음 8까지 저장·수정을 맡는다.
+    fallback: FakeRecordCardRepository(),
+  ),
 );
 
 /// "오늘"이 언제인가. 테스트가 고정된 날짜를 넣는다.

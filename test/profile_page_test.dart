@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
+import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/friend/data/fake_friend_repository.dart';
 import 'package:runiverse/features/friend/presentation/friend_provider.dart';
 import 'package:runiverse/app/app.dart';
@@ -109,6 +111,11 @@ void main() {
           // 프로필의 `친구 · N` 줄이 받은 요청 수를 세려고 친구 목록을
           // 받는다. 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
           friendRepositoryProvider.overrideWithValue(FakeFriendRepository()),
+          // ⚠️ **기록카드 저장소도 가짜로 둔다.** 2026-11-24에 진짜가
+          // 꽂혀서, 안 두면 dio 가 서버 주소를 찾다 죽는다.
+          recordCardRepositoryProvider.overrideWithValue(
+            FakeRecordCardRepository(today: DateTime(2026, 11, 16)),
+          ),
           tokenStoreProvider.overrideWithValue(store),
           signInMemoryStoreProvider.overrideWithValue(
             InMemorySignInMemoryStore(),

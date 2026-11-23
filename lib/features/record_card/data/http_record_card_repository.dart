@@ -20,8 +20,12 @@ import 'package:runiverse/features/record_card/domain/record_card_repository.dar
 /// ## ⚠️ 쓰기는 아직 가짜가 받는다
 ///
 /// 읽기(달력·상세·프로필)를 먼저 붙이는 묶음이다(사용자 결정 2026-11-24).
-/// [create]·[update]·[delete]는 [fallback]에 그대로 넘긴다 — **저장은 서버에
-/// 가지 않는다.** 묶음 8이 이 세 줄을 9-1 → S3 → 9-2 로 바꾼다.
+/// [create]와 [update]만 [fallback]에 넘긴다 — **저장은 서버에 가지 않는다.**
+/// 묶음 8이 그 둘을 9-1 → S3 → 9-2, 9-3 으로 바꾼다.
+///
+/// [delete]는 **진짜로 보낸다.** 가짜로 넘기면 서버 번호를 못 찾아 `404`가
+/// 나고, 화면이 그것을 "이미 지워졌다"로 받아 **지워지지 않은 카드를 지웠다고
+/// 말한다.**
 ///
 /// ## 401은 한 번만 갱신한다
 ///
@@ -132,8 +136,23 @@ class HttpRecordCardRepository implements RecordCardRepository {
   @override
   Future<RecordCard> update(EditRecordCard card) => fallback.update(card);
 
+  /// 카드를 영구 삭제한다 (9-4). 본문이 없고 `204`가 온다.
+  ///
+  /// ## ⚠️ 가짜로 넘기지 않는다
+  ///
+  /// 쓰기 중 **삭제만 진짜로 보낸다.** 가짜로 넘기면 서버가 준 번호를 못 찾아
+  /// `404`가 나고, 화면은 그것을 **"이미 지워졌다"로 받아 성공으로 끝낸다**
+  /// (`CardDeleteController`) — 지워지지 않았는데 지워졌다고 말하고, 다시
+  /// 받아 보면 그대로 있다.
+  ///
+  /// 음악 생성 중에도 지울 수 있다. 되돌릴 수 없고, 확인은 화면이 먼저 받는다.
   @override
-  Future<void> delete(String cardId) => fallback.delete(cardId);
+  Future<void> delete(String cardId) => authorizedVoid(
+    (token) => _dio.delete<void>(
+      '/api/v1/record-cards/${Uri.encodeComponent(cardId)}',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    ),
+  );
 
   // ── 공통 ─────────────────────────────────────────────────────
 
