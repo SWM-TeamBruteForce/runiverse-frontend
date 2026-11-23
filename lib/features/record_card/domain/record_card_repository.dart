@@ -2,6 +2,7 @@ import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_list_item.dart';
 import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 
 /// 기록카드를 읽는다.
@@ -44,26 +45,35 @@ abstract interface class RecordCardRepository {
     required DateTime to,
   });
 
-  /// **이 사람의 공개된 카드.** 프로필 그리드와 전체 보기가 읽는다(설계 6-7).
+  /// **그 사람의 기록카드 한 페이지** (10-3). 프로필 그리드와 전체 보기가
+  /// 읽는다.
   ///
-  /// 결과는 **최신순**(시작 시각 내림차순)이고, 없으면 **빈 목록**이다 —
-  /// 오류가 아니다. 달력([byDateRange])이 오름차순인 것과 반대다. 달력은 칸을
-  /// 날짜로 채우고, 그리드는 **최근 것이 위**다.
+  /// 결과는 **카드 생성 최신순**이고, 없으면 빈 페이지다 — 오류가 아니다.
+  /// 달력([runsInRange])이 오름차순인 것과 반대다: 달력은 칸을 날짜로 채우고
+  /// 그리드는 **최근 것이 위**다.
   ///
   /// ## ⚠️ 거르는 것은 서버다
   ///
-  /// 비공개 카드는 **응답에 오지 않는다.** 앱이 거르면 "안 보여야 할 카드가
-  /// 이미 기기에 와 있다"는 뜻이 되고, 내려받은 뒤 가리는 것은 가린 것이
-  /// 아니다. 내 프로필에서도 비공개는 안 보인다(사용자 결정) — 나만 보는
-  /// 카드를 보는 자리는 기록카드 탭이다.
+  /// 보는 사람과 작성자의 관계로 서버가 인가를 적용한다(연동 가이드 5절) —
+  /// 앱은 받은 것을 그대로 세운다. 앱이 거르면 "안 보여야 할 카드가 이미
+  /// 기기에 와 있다"는 뜻이 되고, 내려받은 뒤 가리는 것은 가린 것이 아니다.
   ///
-  /// ## ⚠️ [limit]이 `int?`인 이유
+  /// **본인에게는 비공개 카드도 온다**(사용자 결정 2026-11-24). 항목에
+  /// `visibility`가 없어 앱이 가려낼 근거도 없다 — 2026-11-19의 "비공개는
+  /// 프로필에 안 보인다"는 그래서 철회됐다.
   ///
-  /// `GET /users/{userId}/record-cards`가 기간·커서를 받는지, 상한이 몇인지
-  /// **아직 모른다**(`docs/notes/2026-11-16-record-card-backend-questions.md`
-  /// 1-3번). 그리드는 7장만 묻고(6장 + "더 있나" 한 장), 전체 보기는 주지
-  /// 않는다 — 서버 기본값에 맡긴다. **커서가 정해지면 여기서 이어 받는다.**
-  Future<List<RecordCard>> byUser({required String userId, int? limit});
+  /// ## ⚠️ 커서로 이어 받는다
+  ///
+  /// [limit]은 서버 기본값 20, 최대 50이다(넘기면 50으로 깎인다). [cursor]를
+  /// 주면 그다음부터 오고, `RecordCardListPage.nextCursor`가 `null`이면 끝이다.
+  /// 1 미만이나 잘못된 커서는 `400`이다.
+  ///
+  /// 내 프로필도 같은 경로다 — `GET /users/me`에서 받은 내 번호를 넣는다.
+  Future<RecordCardListPage> cardsOf({
+    required String userId,
+    int? limit,
+    String? cursor,
+  });
 
   /// 카드 한 장 전부 — 경로·지표·파티원·음악까지(8-1).
   ///

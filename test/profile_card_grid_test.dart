@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/widgets/card_face.dart';
 import 'package:runiverse/core/widgets/route_art_view.dart';
 import 'package:runiverse/features/profile/presentation/profile_card_grid.dart';
 import 'package:runiverse/features/profile/presentation/profile_card_tile.dart';
@@ -12,6 +13,7 @@ import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_list_item.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
@@ -71,14 +73,16 @@ void main() {
     return router;
   }
 
-  testWidgets('⚠️ 일곱 장을 묻고 여섯 장을 깐다', (tester) async {
+  testWidgets('⚠️ 여섯 장만 묻는다 — 한 장 더 받아 가늠하지 않는다', (tester) async {
+    // 묶음 6까지는 일곱 장을 받아 "더 있나"를 가늠했다. 서버가 `nextCursor`를
+    // 주면서 그 꾀가 필요 없어졌다(연동 가이드 5절 1번).
     await pump(tester);
 
-    expect(repo.asked.single, ProfileCardGrid.previewCount + 1);
+    expect(repo.asked.single, ProfileCardGrid.previewCount);
     expect(find.byType(ProfileCardTile), findsNWidgets(6));
   });
 
-  testWidgets('일곱 번째가 있으면 더 보기가 선다', (tester) async {
+  testWidgets('⚠️ 서버가 커서를 주면 더 보기가 선다', (tester) async {
     await pump(tester);
 
     expect(find.text(AppStrings.profileCardsMore), findsOneWidget);
@@ -135,11 +139,13 @@ void main() {
     expect(tester.getSize(find.byType(ProfileCardGrid)).height, 0);
   });
 
-  testWidgets('사진 없는 카드는 선 아트로 선다', (tester) async {
+  testWidgets('⚠️ 사진 없는 카드는 점 하나로 선다 — 여기엔 경로가 없다', (tester) async {
     await pump(tester);
 
-    // 7장 중 홀수 번째가 사진 없는 카드다(`_Cards`).
-    expect(find.byType(RouteArtView), findsWidgets);
+    // 7장 중 홀수 번째가 사진 없는 카드다(`_Cards`). 10-3 항목에는 경로가
+    // 없어(연동 가이드 5절) 선을 그을 수 없다 — 달력 칸은 선을 긋는다.
+    expect(find.byType(RouteArtView), findsNothing);
+    expect(find.byType(CardMarkDot), findsWidgets);
   });
 
   testWidgets('⚠️ 받는 동안 두 줄을 미리 비워 두지 않는다', (tester) async {
@@ -172,8 +178,8 @@ void main() {
 
     repo.failure = null;
     await tester.tap(find.text(AppStrings.recordRetry));
-    await tester.pump();
-    await tester.pump();
+    // 버리고 다시 받는다 — 한 프레임으로는 안 된다.
+    await tester.pumpAndSettle();
 
     expect(find.byType(ProfileCardTile), findsNWidgets(6));
   });
@@ -257,11 +263,31 @@ class _Cards implements RecordCardRepository {
   final asked = <int?>[];
 
   @override
-  Future<List<RecordCard>> byUser({required String userId, int? limit}) async {
+  Future<RecordCardListPage> cardsOf({
+    required String userId,
+    int? limit,
+    String? cursor,
+  }) async {
     asked.add(limit);
     if (delay > Duration.zero) await Future<void>.delayed(delay);
     if (failure != null) throw RecordCardException(failure!);
-    return limit == null ? cards : cards.take(limit).toList();
+
+    final size = limit ?? cards.length;
+    return RecordCardListPage(
+      items: [
+        for (final card in cards.take(size))
+          RecordCardListItem(
+            id: card.id,
+            startedAt: card.startedAt,
+            distanceMeters: card.distanceMeters,
+            imageCount: card.photos.length,
+            thumbnailUrl: card.thumbnailUrl,
+          ),
+      ],
+      // ⚠️ **더 있으면 커서를 준다.** `더 보기`가 이것으로 선다 — 묶음 6까지는
+      // 한 장 더 받아 가늠했다.
+      nextCursor: cards.length > size ? '$size' : null,
+    );
   }
 
   @override

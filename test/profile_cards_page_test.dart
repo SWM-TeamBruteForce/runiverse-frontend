@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:runiverse/features/record_card/domain/record_card_list_item.dart';
 import 'package:runiverse/app/router/app_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
+import 'package:runiverse/core/widgets/card_face.dart';
 import 'package:runiverse/core/widgets/route_art_view.dart';
 import 'package:runiverse/features/profile/presentation/profile_card_tile.dart';
 import 'package:runiverse/features/profile/presentation/profile_cards_page.dart';
@@ -62,22 +64,26 @@ void main() {
   testWidgets('공개된 카드가 칸으로 선다', (tester) async {
     await pump(tester);
 
-    final all = await repo.byUser(userId: 'u-1');
+    final all = await repo.cardsOf(userId: 'u-1', limit: 50);
     // 한 화면에 다 들어오지 않아 **만들어진 칸만** 센다.
     expect(find.byType(ProfileCardTile), findsWidgets);
-    expect(all.length, greaterThan(6));
+    expect(all.items.length, greaterThan(6));
   });
 
-  testWidgets('사진 없는 카드는 선 아트로 선다', (tester) async {
+  testWidgets('⚠️ 사진 없는 카드는 점 하나로 선다 — 여기엔 경로가 없다', (tester) async {
+    // 10-3 항목에는 경로가 없다(연동 가이드 5절: "경로 선은 달력·상세 응답에서
+    // 제공됩니다"). 달력 칸은 같은 카드에 선을 긋는다 — 두 화면이 달라 보이는
+    // 자리이고, 경로를 이 응답에 실어 주면 같아진다.
     await pump(tester);
 
-    expect(find.byType(RouteArtView), findsWidgets);
+    expect(find.byType(RouteArtView), findsNothing);
+    expect(find.byType(CardMarkDot), findsWidgets);
   });
 
   testWidgets('⚠️ 카드가 없으면 한 줄로 알린다 — 눌러서 들어온 화면이다', (tester) async {
     // 그리드는 침묵하지만(설계 6-7) 이 화면이 텅 비면 고장으로 읽힌다.
-    for (final card in await repo.byUser(userId: 'u-1')) {
-      await repo.delete(card.id);
+    for (final item in (await repo.cardsOf(userId: 'u-1', limit: 50)).items) {
+      await repo.delete(item.id);
     }
     await pump(tester);
 
@@ -109,13 +115,58 @@ void main() {
     final handle = tester.ensureSemantics();
     await pump(tester);
 
-    final card = (await repo.byUser(userId: 'u-1')).first;
+    final card = (await repo.cardsOf(userId: 'u-1', limit: 50)).items.first;
     expect(
       find.bySemanticsLabel(AppStrings.profileCardsOn(card.startedAt)),
       findsOneWidget,
     );
 
     handle.dispose();
+  });
+
+  group('커서로 이어 받는다', () {
+    testWidgets('⚠️ 첫 요청은 커서 없이 보낸다 — 그리드의 커서를 물려받지 않는다', (tester) async {
+      // 그리드가 떠 있었는지에 따라 첫 요청이 달라지면 같은 화면이 두 가지로
+      // 돈다(연동 가이드 5절 2번).
+      await pump(tester);
+
+      expect(repo.userQueries.first.cursor, isNull);
+    });
+
+    testWidgets('⚠️ 바닥에 닿으면 다음 페이지를 붙인다', (tester) async {
+      // 목 카드는 스무 장이고 서버 기본값도 스무 장이라 **다음 페이지가
+      // 없다.** 페이지가 여럿인 사람을 따로 세운다.
+      repo = _ManyCards(today: today);
+      await pump(tester);
+      final first = find.byType(ProfileCardTile).evaluate().length;
+      expect(repo.userQueries, hasLength(1));
+
+      await tester.drag(find.byType(GridView), const Offset(0, -6000));
+      await tester.pumpAndSettle();
+
+      expect(repo.userQueries.length, greaterThan(1));
+      expect(repo.userQueries[1].cursor, isNotNull);
+      expect(
+        find.byType(ProfileCardTile).evaluate().length,
+        greaterThanOrEqualTo(first),
+      );
+    });
+
+    testWidgets('⚠️ 스크롤하는 내내 요청을 쏟지 않는다', (tester) async {
+      // 바닥에 닿으면 매 프레임 불린다 — 막는 일은 컨트롤러가 한다
+      // (`ProfileCardsController._loadingMore`).
+      repo = _ManyCards(today: today);
+      await pump(tester);
+
+      for (var i = 0; i < 5; i++) {
+        await tester.drag(find.byType(GridView), const Offset(0, -6000));
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+
+      // 60장을 스무 장씩이면 세 번이다. 훨씬 많이 물으면 쏟은 것이다.
+      expect(repo.userQueries.length, lessThanOrEqualTo(4));
+    });
   });
 
   group('칸을 누르면', () {
@@ -178,3 +229,37 @@ void main() {
     });
   });
 }
+/// 페이지가 여럿인 사람. **가짜의 목은 스무 장이라 한 페이지로 끝난다.**
+class _ManyCards extends FakeRecordCardRepository {
+  _ManyCards({required super.today});
+
+  static const _total = 60;
+  static const _size = 20;
+
+  @override
+  Future<RecordCardListPage> cardsOf({
+    required String userId,
+    int? limit,
+    String? cursor,
+  }) async {
+    userQueries.add((userId: userId, limit: limit, cursor: cursor));
+
+    final from = int.tryParse(cursor ?? '0') ?? 0;
+    final size = limit ?? _size;
+    final end = (from + size).clamp(0, _total);
+
+    return RecordCardListPage(
+      items: [
+        for (var i = from; i < end; i++)
+          RecordCardListItem(
+            id: 'card-many-$i',
+            startedAt: DateTime(2026, 11, 16).subtract(Duration(days: i)),
+            distanceMeters: 5000,
+            imageCount: 0,
+          ),
+      ],
+      nextCursor: end < _total ? '$end' : null,
+    );
+  }
+}
+

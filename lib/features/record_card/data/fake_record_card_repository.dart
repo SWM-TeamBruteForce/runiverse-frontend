@@ -8,6 +8,7 @@ import 'package:runiverse/features/record_card/domain/music_inputs.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
+import 'package:runiverse/features/record_card/domain/record_card_list_item.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
@@ -171,30 +172,72 @@ class FakeRecordCardRepository implements RecordCardRepository {
     );
   }
 
-  /// 누가 무엇을 물었나. 그리드가 7장만 묻는지 보는 데 쓴다.
-  final userQueries = <({String userId, int? limit})>[];
+  /// 누가 무엇을 물었나. 그리드가 여섯 장만 묻는지 보는 데 쓴다.
+  final userQueries = <({String userId, int? limit, String? cursor})>[];
 
+  /// 한 번에 줄 수 있는 최대. 서버와 같은 값이다(연동 가이드 5절 3번).
+  static const maxLimit = 50;
+
+  /// 서버가 쓰는 기본값.
+  static const defaultLimit = 20;
+
+  /// 그 사람의 카드 한 페이지 (10-3).
+  ///
+  /// ⚠️ **커서는 "다음에 줄 첫 칸의 자리"다.** 카드 번호를 커서로 쓰면 그
+  /// 사이에 그 카드가 지워졌을 때 이어 받을 데를 잃는다 — 가짜는 자리로 센다.
+  ///
+  /// ⚠️ **비공개도 준다.** 본인이 보는 자리라서다(사용자 결정 2026-11-24).
+  /// 묶음 6까지는 가짜가 걸렀는데, 항목에 `visibility`가 없어 **앱이 가려낼
+  /// 근거도 없다** — 서버가 보내면 그대로 선다.
   @override
-  Future<List<RecordCard>> byUser({required String userId, int? limit}) async {
+  Future<RecordCardListPage> cardsOf({
+    required String userId,
+    int? limit,
+    String? cursor,
+  }) async {
     calls++;
 
     if (failWith != null) throw RecordCardException(failWith!);
     if (delay > Duration.zero) await Future<void>.delayed(delay);
 
-    userQueries.add((userId: userId, limit: limit));
+    userQueries.add((userId: userId, limit: limit, cursor: cursor));
 
-    // ⚠️ **가짜가 거른다 — 서버 자리이기 때문이다.** 화면이 거르면 안 보여야
-    // 할 카드가 이미 기기에 와 있다는 뜻이 된다(설계 6-7).
-    final cards =
-        [
-          for (final card in _live())
-            if (card.visibility != RecordCardVisibility.private) card,
-        ]..sort(
-          // 최신순. 달력과 반대다.
-          (a, b) => b.startedAt.compareTo(a.startedAt),
-        );
+    final from = cursor == null ? 0 : int.tryParse(cursor);
+    // 잘못된 커서와 1 미만은 `400`이다 — 진짜와 같은 규칙으로 거절한다.
+    if (from == null || from < 0) {
+      throw const RecordCardException(RecordCardFailure.invalidRequest);
+    }
+    if (limit != null && limit < 1) {
+      throw const RecordCardException(RecordCardFailure.invalidRequest);
+    }
 
-    return limit == null ? cards : cards.take(limit).toList();
+    // 넘기면 깎는다 — 거절이 아니다(가이드 5절 3번).
+    final size = (limit ?? defaultLimit).clamp(1, maxLimit);
+
+    final all = _live()
+      ..sort(
+        // 최신순. 달력과 반대다.
+        (a, b) => b.startedAt.compareTo(a.startedAt),
+      );
+
+    final page = all.skip(from).take(size).toList();
+    final next = from + page.length;
+
+    return RecordCardListPage(
+      items: [
+        for (final card in page)
+          RecordCardListItem(
+            id: card.id,
+            startedAt: card.startedAt,
+            distanceMeters: card.distanceMeters,
+            imageCount: card.photos.length,
+            thumbnailUrl: card.thumbnailUrl,
+          ),
+      ],
+      // ⚠️ **끝에 닿았으면 `null`이다.** 빈 문자열을 주면 "더 있다"로 읽혀
+      // 끝나지 않는 목록이 된다.
+      nextCursor: next < all.length ? '$next' : null,
+    );
   }
 
   /// 지금 **살아 있는** 카드 전부 — 목과 만든 것을 합치고, 고친 것으로 덮고,

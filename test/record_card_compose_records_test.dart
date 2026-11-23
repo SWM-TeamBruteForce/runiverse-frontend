@@ -4,6 +4,7 @@ import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_list_item.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/presentation/compose_records_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
@@ -32,7 +33,11 @@ class _Cards implements RecordCardRepository {
   /// 이 테스트는 프로필 그리드를 그리지 않는다. 불리면 테스트가 잘못 세워진
   /// 것이다.
   @override
-  Future<List<RecordCard>> byUser({required String userId, int? limit}) =>
+  Future<RecordCardListPage> cardsOf({
+    required String userId,
+    int? limit,
+    String? cursor,
+  }) =>
       throw UnsupportedError('이 테스트는 사람별 카드를 묻지 않는다');
 
   _Cards(this.cards);
@@ -78,7 +83,11 @@ class _FailingCards implements RecordCardRepository {
   /// 이 테스트는 프로필 그리드를 그리지 않는다. 불리면 테스트가 잘못 세워진
   /// 것이다.
   @override
-  Future<List<RecordCard>> byUser({required String userId, int? limit}) =>
+  Future<RecordCardListPage> cardsOf({
+    required String userId,
+    int? limit,
+    String? cursor,
+  }) =>
       throw UnsupportedError('이 테스트는 사람별 카드를 묻지 않는다');
 
   @override

@@ -19,6 +19,7 @@ import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_list_item.dart';
 import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/presentation/card_compose_page.dart';
@@ -481,8 +482,11 @@ Future<ProviderContainer> _pumpAt(
 /// 삭제만 느린 저장소. 나머지는 그대로 넘긴다.
 class _SlowDelete implements RecordCardRepository {
   @override
-  Future<List<RecordCard>> byUser({required String userId, int? limit}) =>
-      _inner.byUser(userId: userId, limit: limit);
+  Future<RecordCardListPage> cardsOf({
+    required String userId,
+    int? limit,
+    String? cursor,
+  }) => _inner.cardsOf(userId: userId, limit: limit, cursor: cursor);
 
   @override
   Future<RecordCard> detailOf(String cardId) => _inner.detailOf(cardId);

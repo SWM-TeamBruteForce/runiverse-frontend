@@ -3,11 +3,13 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/data/record_card_detail_dto.dart';
+import 'package:runiverse/features/record_card/data/record_card_list_dto.dart';
 import 'package:runiverse/features/record_card/data/recorded_run_dto.dart';
 import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_list_item.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 
 /// 진짜 서버를 부르는 [RecordCardRepository].
@@ -72,9 +74,30 @@ class HttpRecordCardRepository implements RecordCardRepository {
     return RecordedRunDto.listFrom(body);
   }
 
+  /// 그 사람의 카드 한 페이지 (10-3).
   @override
-  Future<List<RecordCard>> byUser({required String userId, int? limit}) =>
-      throw UnimplementedError('묶음 7 작업 6이 10-3으로 바꾼다');
+  Future<RecordCardListPage> cardsOf({
+    required String userId,
+    int? limit,
+    String? cursor,
+  }) async {
+    // ⚠️ **번호를 경로에 그대로 붙이지 않는다.** 닉네임이 번호로 쓰이는 날
+    // `/`가 든 값 하나가 경로를 갈라 **다른 엔드포인트를 부른다.**
+    final path =
+        '/api/v1/users/${Uri.encodeComponent(userId)}/record-cards';
+    final body = await authorized(
+      (token) => _dio.get<Map<String, dynamic>>(
+        path,
+        queryParameters: {
+          // ⚠️ **`null`을 싣지 않는다.** `?limit=null`은 400이다.
+          'limit': ?limit,
+          'cursor': ?cursor,
+        },
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      ),
+    );
+    return RecordCardListDto.from(body);
+  }
 
   /// 카드 한 장 전부 (8-1).
   @override
