@@ -7,7 +7,7 @@ import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/card_music.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/core/widgets/card_face.dart';
 import 'package:runiverse/core/widgets/route_art_view.dart';
@@ -132,7 +132,7 @@ class _CardMediaPagerState extends State<CardMediaPager> {
     _advance = Timer(
       // ⚠️ **길이의 출처는 음악 계약이다.** 여기에 상수를 두면 계약이 바뀔 때
       // 화면과 도메인이 갈라진다.
-      MusicGeneration.durationOfPage(_page),
+      CardMusicTiming.durationOfPage(_page),
       () {
         if (!mounted) return;
         _controller.nextPage(

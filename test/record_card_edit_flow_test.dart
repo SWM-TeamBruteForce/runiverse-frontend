@@ -17,7 +17,6 @@ import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
@@ -119,7 +118,7 @@ void main() {
       await tester.tap(find.text(AppStrings.recordCardPublishSave));
       await tester.pumpAndSettle();
 
-      expect(find.text(AppStrings.recordCardMusicQueued), findsOne);
+      expect(find.text(AppStrings.recordCardMusicProcessing), findsOne);
       expect(find.text(AppStrings.recordCardMusicReady), findsNothing);
 
       await _finishMusic(tester);
@@ -204,8 +203,12 @@ void main() {
       // 중**으로 세운 뒤 지우려 한다 — 사용자가 실제로 지나는 길이다.
       await _pumpDetail(tester, cardId: 'card-1001');
       await tester.tap(find.text(AppStrings.recordCardMusicRetry));
+      // ⚠️ **세 프레임이다.** 요청이 떠나고(`음악을 요청하는 중…`), 상세를
+      // 다시 읽고, 그 답이 줄에 선다.
       await tester.pump();
-      expect(find.text(AppStrings.recordCardMusicQueued), findsOne);
+      await tester.pump();
+      await tester.pump();
+      expect(find.text(AppStrings.recordCardMusicProcessing), findsOne);
 
       await _openMenu(tester, AppStrings.recordCardDelete);
 
@@ -354,7 +357,7 @@ var _musicNow = DateTime(2026, 11, 18, 10);
 /// 끝내면 `!timersPending`으로 떨어진다. 시계를 밀어 끝 상태로 세운다.
 Future<void> _finishMusic(WidgetTester tester) async {
   _musicNow = _musicNow.add(const Duration(seconds: 14));
-  await tester.pump(CardMusicController.pollInterval);
+  await tester.pump(CardMusicController.firstInterval);
   await tester.pump();
 }
 
@@ -508,11 +511,7 @@ class _SlowDelete implements RecordCardRepository {
   Future<RecordCard> update(EditRecordCard card) => _inner.update(card);
 
   @override
-  Future<MusicGeneration> musicOf(String cardId) => _inner.musicOf(cardId);
-
-  @override
-  Future<MusicGeneration> requestMusic(String cardId) =>
-      _inner.requestMusic(cardId);
+  Future<void> retryMusic(String cardId) => _inner.retryMusic(cardId);
 }
 
 class _Cropper implements ImageCropper {

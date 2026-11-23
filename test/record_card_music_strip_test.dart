@@ -1,40 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
-import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
-import 'package:runiverse/features/record_card/presentation/card_music_provider.dart';
+import 'package:runiverse/features/record_card/domain/card_music.dart';
 import 'package:runiverse/features/record_card/presentation/music_strip.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 
-/// 목 카드 번호. 상태가 심어져 있다(`FakeRecordCardRepository._seeded`).
-const _processing = 'card-1000';
-const _failed = 'card-1001';
-const _none = 'card-1002';
-const _done = 'card-1003';
-
+/// 음악 줄 (설계 6-5) — **지금 보고 있는 장의 곡**을 말한다.
+///
+/// 곡이 장마다 하나다(연동 가이드 2절). 묶음 5까지는 카드 하나에 상태가
+/// 하나여서 줄도 카드 하나에 하나였다.
 void main() {
-  late DateTime now;
   late FakeRecordCardRepository repo;
-  late int toggles;
 
   setUp(() {
-    now = DateTime(2026, 11, 16, 10);
-    toggles = 0;
-    repo = FakeRecordCardRepository(
-      today: DateTime(2026, 11, 16),
-      clock: () => now,
-    );
+    repo = FakeRecordCardRepository(today: DateTime(2026, 11, 16));
   });
 
-  /// 줄 하나를 세운다. **`pumpAndSettle`을 쓰지 않는다** — 진행 표시가 서면
-  /// 영영 끝나지 않는다.
   Future<void> pump(
     WidgetTester tester, {
-    required String cardId,
-    bool playing = true,
+    CardMusic? music,
+    bool hasFailed = false,
+    bool playing = false,
     bool canAdvance = true,
     bool canRequest = true,
     bool light = false,
@@ -46,11 +36,13 @@ void main() {
           theme: light ? AppTheme.light() : AppTheme.dark(),
           home: Scaffold(
             body: MusicStrip(
-              cardId: cardId,
+              cardId: 'card-1003',
+              music: music,
+              hasFailed: hasFailed,
               playing: playing,
               canAdvance: canAdvance,
               canRequest: canRequest,
-              onTogglePlay: () => toggles++,
+              onTogglePlay: () {},
             ),
           ),
         ),
@@ -59,182 +51,111 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('⚠️ 요청할 수 없으면 만들 수 없는 상태에서 자리를 비운다', (tester) async {
-    // 남의 카드다. 빈 40px를 남기면 그 자리가 고장으로 읽힌다.
-    await pump(tester, cardId: _none, canRequest: false);
+  group('남의 카드', () {
+    testWidgets('⚠️ 다 된 곡만 선다 — 나머지는 자리를 비운다', (tester) async {
+      // 생성 요청은 쓰기다. 못 하는 일을 적어 두면 쓸모없는 글이 남고,
+      // 빈 40px만 남기면 그 자리가 고장으로 읽힌다.
+      await pump(
+        tester,
+        music: const CardMusic(status: MusicStatus.failed),
+        canRequest: false,
+      );
+      expect(find.byType(SizedBox).evaluate(), isNotEmpty);
+      expect(find.text(AppStrings.recordCardMusicFailed), findsNothing);
 
-    expect(find.text(AppStrings.recordCardMusicCreate), findsNothing);
-    expect(tester.getSize(find.byType(MusicStrip)).height, 0);
+      await pump(
+        tester,
+        music: const CardMusic(status: MusicStatus.generating),
+        canRequest: false,
+      );
+      expect(find.text(AppStrings.recordCardMusicProcessing), findsNothing);
+    });
+
+    testWidgets('다 된 곡은 남의 카드에서도 들을 수 있다', (tester) async {
+      await pump(
+        tester,
+        music: const CardMusic(status: MusicStatus.completed, url: 'https://x'),
+        canRequest: false,
+      );
+
+      expect(find.text(AppStrings.recordCardMusicPlay), findsOne);
+    });
   });
 
-  testWidgets('⚠️ 요청할 수 없어도 다 된 음악은 줄이 선다', (tester) async {
-    await pump(tester, cardId: _done, canRequest: false);
+  group('지금 장의 곡', () {
+    testWidgets('만드는 중이면 그렇게 말한다', (tester) async {
+      await pump(
+        tester,
+        music: const CardMusic(status: MusicStatus.generating),
+      );
 
-    expect(find.text(AppStrings.recordCardMusicPause), findsOneWidget);
+      expect(find.text(AppStrings.recordCardMusicProcessing), findsOne);
+    });
+
+    testWidgets('⚠️ 아직 안 온 곡에는 아무 말도 하지 않는다', (tester) async {
+      // 한 프레임일 수도 있는 구간에 글자를 세우면 열 때마다 번쩍인다.
+      await pump(tester);
+
+      expect(find.text(AppStrings.recordCardMusicProcessing), findsNothing);
+      expect(find.text(AppStrings.recordCardMusicFailed), findsNothing);
+      expect(find.text(AppStrings.recordCardMusicReady), findsNothing);
+    });
+
+    testWidgets('⚠️ 실패한 장에서는 다시 만들기를 준다', (tester) async {
+      await pump(
+        tester,
+        music: const CardMusic(status: MusicStatus.failed),
+        hasFailed: true,
+      );
+
+      expect(find.text(AppStrings.recordCardMusicFailed), findsOne);
+      expect(find.text(AppStrings.recordCardMusicRetry), findsOne);
+    });
+
+    testWidgets('⚠️ 이 장이 안 왔어도 다른 장이 실패했으면 다시 걸 수 있다', (tester) async {
+      // 재요청은 `FAILED`인 곡 전부를 다시 거는 것이다(가이드 4절). 이 장이
+      // 아직 안 왔다고 그 길이 사라지면, 실패한 장으로 넘어가야만 누를 수 있다.
+      await pump(tester, hasFailed: true);
+
+      expect(find.text(AppStrings.recordCardMusicRetry), findsOne);
+    });
   });
 
-  testWidgets('만들지 않은 카드는 만들라고 권한다', (tester) async {
-    await pump(tester, cardId: _none);
+  group('다 된 곡', () {
+    testWidgets('⚠️ 도는 중에는 멈춤을, 멈춰 있으면 재생을 권한다', (tester) async {
+      const done = CardMusic(status: MusicStatus.completed, url: 'https://x');
 
-    expect(find.text(AppStrings.recordCardMusicCreate), findsOneWidget);
-  });
+      await pump(tester, music: done, playing: true);
+      expect(find.text(AppStrings.recordCardMusicPause), findsOne);
+      expect(find.byIcon(LucideIcons.pause), findsOne);
 
-  testWidgets('누르면 요청이 나간다', (tester) async {
-    await pump(tester, cardId: _none);
+      await pump(tester, music: done);
+      expect(find.text(AppStrings.recordCardMusicPlay), findsOne);
+      expect(find.byIcon(LucideIcons.play), findsOne);
+    });
 
-    await tester.tap(find.text(AppStrings.recordCardMusicCreate));
-    await tester.pump();
+    testWidgets('⚠️ 넘어갈 장이 없으면 버튼을 두지 않는다', (tester) async {
+      // 사진이 없는 카드는 한 장뿐이라 타이머를 아예 걸지 않는다 — 그 자리에
+      // 토글을 세우면 눌러도 아무 일도 없는 버튼이 된다.
+      await pump(
+        tester,
+        music: const CardMusic(status: MusicStatus.completed, url: 'https://x'),
+        canAdvance: false,
+      );
 
-    expect(repo.musicRequests, 1);
-    expect(find.text(AppStrings.recordCardMusicQueued), findsOneWidget);
-  });
+      expect(find.text(AppStrings.recordCardMusicReady), findsOne);
+      expect(find.text(AppStrings.recordCardMusicPlay), findsNothing);
+    });
 
-  testWidgets('⚠️ 만드는 중은 말만 한다 — 누를 것이 없다', (tester) async {
-    await pump(tester, cardId: _processing);
+    testWidgets('라이트에서도 그려진다', (tester) async {
+      await pump(
+        tester,
+        music: const CardMusic(status: MusicStatus.completed, url: 'https://x'),
+        light: true,
+      );
 
-    expect(find.text(AppStrings.recordCardMusicProcessing), findsOneWidget);
-    expect(find.text(AppStrings.recordCardMusicRetry), findsNothing);
-    expect(find.text(AppStrings.recordCardMusicPlay), findsNothing);
-  });
-
-  testWidgets('⚠️ 도는 중이면 멈춤이고, 멈춰 있으면 재생이다', (tester) async {
-    await pump(tester, cardId: _done);
-    expect(find.text(AppStrings.recordCardMusicPause), findsOneWidget);
-    expect(find.text(AppStrings.recordCardMusicPlay), findsNothing);
-
-    await pump(tester, cardId: _done, playing: false);
-    expect(find.text(AppStrings.recordCardMusicPlay), findsOneWidget);
-    expect(find.text(AppStrings.recordCardMusicPause), findsNothing);
-  });
-
-  testWidgets('재생을 누르면 바깥이 듣는다', (tester) async {
-    await pump(tester, cardId: _done, playing: false);
-
-    await tester.tap(find.text(AppStrings.recordCardMusicPlay));
-    await tester.pump();
-
-    expect(toggles, 1);
-  });
-
-  testWidgets('실패하면 다시 만들기가 선다', (tester) async {
-    await pump(tester, cardId: _failed);
-
-    expect(find.text(AppStrings.recordCardMusicFailed), findsOneWidget);
-    expect(find.text(AppStrings.recordCardMusicRetry), findsOneWidget);
-  });
-
-  testWidgets('다시 만들기를 누르면 요청이 나간다', (tester) async {
-    await pump(tester, cardId: _failed);
-
-    await tester.tap(find.text(AppStrings.recordCardMusicRetry));
-    await tester.pump();
-
-    expect(repo.musicRequests, 1);
-    expect(find.text(AppStrings.recordCardMusicQueued), findsOneWidget);
-
-    // 폴링 타이머를 남기지 않는다.
-    now = now.add(const Duration(seconds: 13));
-    await tester.pump(CardMusicController.pollInterval);
-  });
-
-  testWidgets('못 읽었으면 오류를 말하고 다시 묻게 한다', (tester) async {
-    repo.failWith = RecordCardFailure.network;
-    await pump(tester, cardId: _done);
-
-    expect(find.text(AppStrings.recordCardMusicError), findsOneWidget);
-
-    repo.failWith = null;
-    await tester.tap(find.text(AppStrings.recordCardMusicReload));
-    await tester.pump();
-
-    expect(find.text(AppStrings.recordCardMusicPause), findsOneWidget);
-  });
-
-  testWidgets('⚠️ 받는 동안에도 줄 높이가 같다 — 아래가 튀지 않는다', (tester) async {
-    repo = FakeRecordCardRepository(
-      today: DateTime(2026, 11, 16),
-      clock: () => now,
-      delay: const Duration(milliseconds: 50),
-    );
-    await pump(tester, cardId: _done);
-
-    final loading = tester.getSize(find.byType(MusicStrip)).height;
-
-    await tester.pump(const Duration(milliseconds: 60));
-    await tester.pump();
-
-    expect(find.text(AppStrings.recordCardMusicPause), findsOneWidget);
-    expect(tester.getSize(find.byType(MusicStrip)).height, loading);
-  });
-
-  testWidgets('라이트 테마에서도 그려진다', (tester) async {
-    await pump(tester, cardId: _failed, light: true);
-
-    expect(find.text(AppStrings.recordCardMusicFailed), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('⚠️ 스크린리더가 무슨 줄인지 읽는다 — 아이콘만 서는 구간이 있다', (tester) async {
-    final handle = tester.ensureSemantics();
-    await pump(tester, cardId: _done);
-
-    expect(
-      find.bySemanticsLabel(RegExp(AppStrings.recordCardMusicSemantics)),
-      findsWidgets,
-    );
-
-    handle.dispose();
-  });
-
-  testWidgets('⚠️ 요청이 날아가는 동안 줄이 그 말을 한다 — 같은 라벨로 서 있지 않는다', (tester) async {
-    repo = FakeRecordCardRepository(
-      today: DateTime(2026, 11, 16),
-      clock: () => now,
-      delay: const Duration(milliseconds: 50),
-    );
-    await pump(tester, cardId: _none);
-    await tester.pump(const Duration(milliseconds: 60));
-    await tester.pump();
-
-    await tester.tap(find.text(AppStrings.recordCardMusicCreate));
-    await tester.pump();
-
-    expect(find.text(AppStrings.recordCardMusicRequesting), findsOneWidget);
-    expect(find.text(AppStrings.recordCardMusicCreate), findsNothing);
-
-    await tester.pump(const Duration(milliseconds: 60));
-    await tester.pump();
-    expect(find.text(AppStrings.recordCardMusicQueued), findsOneWidget);
-
-    now = now.add(const Duration(seconds: 13));
-    await tester.pump(CardMusicController.pollInterval);
-    await tester.pump(const Duration(milliseconds: 60));
-    await tester.pump();
-  });
-
-  testWidgets('⚠️ 요청 중에는 다시 눌려도 아무 일도 없다', (tester) async {
-    repo = FakeRecordCardRepository(
-      today: DateTime(2026, 11, 16),
-      clock: () => now,
-      delay: const Duration(milliseconds: 50),
-    );
-    await pump(tester, cardId: _none);
-    await tester.pump(const Duration(milliseconds: 60));
-    await tester.pump();
-
-    await tester.tap(find.text(AppStrings.recordCardMusicCreate));
-    await tester.pump();
-    // 줄이 버튼이 아니므로 두 번째 탭이 들어갈 자리가 없다.
-    await tester.tap(find.text(AppStrings.recordCardMusicRequesting));
-    await tester.pump();
-
-    await tester.pump(const Duration(milliseconds: 60));
-    await tester.pump();
-    expect(repo.musicRequests, 1);
-
-    now = now.add(const Duration(seconds: 13));
-    await tester.pump(CardMusicController.pollInterval);
-    await tester.pump(const Duration(milliseconds: 60));
-    await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.text(AppStrings.recordCardMusicPlay), findsOne);
+    });
   });
 }

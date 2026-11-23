@@ -1,6 +1,5 @@
 import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
@@ -110,35 +109,26 @@ abstract interface class RecordCardRepository {
   /// 지우려 한 것이다.
   Future<void> delete(String cardId);
 
-  /// 이 카드의 음악이 어디까지 갔나.
+  /// **못 만든 곡을 다시 만들어 달라고 한다** (9-6).
   ///
-  /// ## ⚠️ 붙일 엔드포인트가 **하나도 없다**
+  /// ## ⚠️ 상태를 돌려주지 않는다
   ///
-  /// 생성 요청·재요청·상태 조회가 3차 명세의 어디에도 없다
-  /// (`docs/notes/2026-11-16-record-card-backend-questions.md` 4번). 그래서
-  /// 지금은 가짜만 답한다.
+  /// 서버는 `204`만 준다. 어디까지 갔는지는 **상세(8-1)를 다시 읽어** 본다 —
+  /// 음악이 카드 응답에 실려 오므로 따로 묻는 길이 없다(연동 가이드 4절).
   ///
-  /// ## ⚠️ 카드 응답에 싣지 않고 따로 묻는다
+  /// ## ⚠️ 실패한 곡이 없어도 성공한다
   ///
-  /// 음악이 **카드 응답에 실릴지, 따로 조회할지도 모른다.** 어디에 올지 모르는
-  /// 값을 [RecordCard]의 필드로 지어 넣으면, 따로 오는 것으로 정해지는 날
-  /// 도메인과 화면을 다시 짓는다. 따로 묻는 쪽은 그 반대로 — 카드에 실려 오면
-  /// 이 메서드가 **이미 받은 값을 돌려주는 것**으로 줄어든다.
+  /// 서버가 `FAILED`인 곡만 골라 다시 건다. 하나도 없으면 아무것도 하지 않고
+  /// `204`다 — 화면이 "재요청할 것이 없다"를 따로 가릴 필요가 없다.
   ///
-  /// 한 번도 요청하지 않았으면 [MusicStatus.none]이다 — 오류가 아니다.
-  /// 없는 카드면 [RecordCardFailure.notFound]로 던진다.
-  Future<MusicGeneration> musicOf(String cardId);
-
-  /// **전곡을** 만들어 달라고 한다. 처음 만드는 것과 다시 만드는 것이 같다.
+  /// ## ⚠️ 기본곡도 함께 바뀐다
   ///
-  /// ## ⚠️ 곡 하나만 다시 만드는 길이 없다
+  /// 사진 곡 하나만 다시 걸어도 결과가 오면 **기본곡이 교체된다**(가이드 4절).
+  /// 이미 완료된 기본곡은 기다리는 동안 기존 주소로 틀 수 있고, 결과가
+  /// 실패하면 `FAILED`로 바뀔 수 있다.
   ///
-  /// 상태가 묶음 하나에 하나라서(설계 3절) 1곡만 실패해도 카드 전체가
-  /// [MusicStatus.failed]이고, 다시 만들기는 전곡이다.
-  ///
-  /// 돌려주는 것은 **요청 직후 상태**([MusicStatus.queued])다 — 부르는 쪽이
-  /// 바로 줄을 바꿔 세워야 하고, 다시 묻는 것은 그다음 일이다.
-  Future<MusicGeneration> requestMusic(String cardId);
+  /// 남의 카드에 보내면 `404`다.
+  Future<void> retryMusic(String cardId);
 }
 
 /// 카드를 못 읽은 이유.

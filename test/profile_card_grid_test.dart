@@ -9,7 +9,6 @@ import 'package:runiverse/core/widgets/route_art_view.dart';
 import 'package:runiverse/features/profile/presentation/profile_card_grid.dart';
 import 'package:runiverse/features/profile/presentation/profile_card_tile.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
@@ -286,11 +285,9 @@ class _Cards implements RecordCardRepository {
   @override
   Future<void> delete(String cardId) => throw UnsupportedError('그리드는 카드를 지우지 않는다');
 
+  /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<MusicGeneration> musicOf(String cardId) =>
-      throw UnsupportedError('그리드는 음악을 묻지 않는다');
+  Future<void> retryMusic(String cardId) =>
+      throw UnsupportedError('이 테스트는 음악을 다시 만들지 않는다');
 
-  @override
-  Future<MusicGeneration> requestMusic(String cardId) =>
-      throw UnsupportedError('그리드는 음악을 묻지 않는다');
 }

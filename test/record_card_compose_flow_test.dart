@@ -225,13 +225,13 @@ final _today = DateTime(2026, 11, 18);
 var _musicNow = DateTime(2026, 11, 18, 10);
 
 /// ⚠️ **저장하면 상세가 음악을 묻기 시작한다** — 음악을 켜고 저장했으면
-/// `QUEUED`이고, 끝날 때까지 다시 묻는다(설계 3절: 큐에서 6시간). 폴링 타이머를
-/// 남기고 테스트를 끝내면 `!timersPending`으로 떨어지므로, 시계를 밀어 끝
-/// 상태로 세운다.
+/// 만드는 중이고, 끝날 때까지 상세를 다시 읽는다. 폴링 타이머를 남기고
+/// 테스트를 끝내면 `!timersPending`으로 떨어지므로, 시계를 밀어 끝 상태로
+/// 세운다.
 Future<void> _finishMusic(WidgetTester tester) async {
   _musicNow = _musicNow.add(const Duration(seconds: 14));
-  await tester.pump(CardMusicController.pollInterval);
-  await tester.pump();
+  await tester.pump(CardMusicController.firstInterval);
+  await tester.pumpAndSettle();
 }
 
 /// 방금 세운 카드 저장소. 만든 횟수를 본다.

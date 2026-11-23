@@ -7,12 +7,11 @@ import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/features/record_card/domain/card_draft.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/card_music.dart';
 import 'package:runiverse/features/record_card/domain/music_inputs.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
-import 'package:runiverse/features/record_card/presentation/card_music_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_save_provider.dart';
 import 'package:runiverse/features/record_card/presentation/visibility_label.dart';
 
@@ -165,16 +164,14 @@ class CardPublishPage extends ConsumerWidget {
     final editing = draft.editing;
     if (editing == null) return null;
 
-    // ⚠️ 상태를 못 읽었거나 아직 받는 중이면 **아무 말도 하지 않는다.** 모르는
-    // 것을 경고로 지어내지 않는다.
-    if (ref.watch(cardMusicProvider(editing.id)) case CardMusicData(
-      :final generation,
-    )) {
-      if (generation.isWorking) return AppStrings.recordCardMusicWorkingEdit;
-      if (generation.status == MusicStatus.succeeded &&
-          MusicInputs.ofDraft(draft) != MusicInputs.ofCard(editing)) {
-        return AppStrings.recordCardMusicRegenerate;
-      }
+    // ⚠️ **고치러 들어올 때 받은 카드가 든 곡을 본다.** 묶음 5까지는 음악을
+    // 따로 조회해서 "아직 받는 중"이라는 구간이 있었는데, 지금은 곡이 카드
+    // 응답에 실려 와 그 구간이 없다 — 카드가 있으면 곡도 있다(또는 서버가
+    // 아직 안 줬다는 것을 `null`로 안다).
+    if (editing.isMusicWorking) return AppStrings.recordCardMusicWorkingEdit;
+    if (editing.baseMusic?.status == MusicStatus.completed &&
+        MusicInputs.ofDraft(draft) != MusicInputs.ofCard(editing)) {
+      return AppStrings.recordCardMusicRegenerate;
     }
     return null;
   }

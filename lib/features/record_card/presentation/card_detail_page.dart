@@ -15,7 +15,6 @@ import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/presentation/card_detail_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_delete_provider.dart';
-import 'package:runiverse/features/record_card/presentation/card_music_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_media_pager.dart';
 import 'package:runiverse/features/record_card/presentation/music_strip.dart';
 
@@ -231,6 +230,9 @@ class _CardDetailPageState extends ConsumerState<_Loaded> {
           // 밀려 한 화면에 안 들어온다.
           MusicStrip(
             cardId: card.id,
+            // ⚠️ **지금 장의 곡**이다. 곡이 장마다 하나다(가이드 2절).
+            music: card.musicOfPage(_page),
+            hasFailed: card.hasFailedMusic,
             playing: _playing,
             canAdvance: _canAdvance,
             // 남의 카드에서는 **들을 수만 있다.**
@@ -287,8 +289,9 @@ class _CardDetailPageState extends ConsumerState<_Loaded> {
   Future<void> _confirmDelete(BuildContext context) async {
     // ⚠️ **시트 안에서 provider를 읽지 않는다.** 시트의 builder는 Navigator
     // 밑에 따로 서서, 거기서 watch해도 떠 있는 동안 다시 그려지지 않는다.
-    final music = ref.read(cardMusicProvider(card.id));
-    final working = music is CardMusicData && music.generation.isWorking;
+    // ⚠️ **곡 하나라도 만들고 있으면 알린다.** 지금 장만 보면, 다른 장을
+    // 만들고 있는 카드를 지울 때 "만들던 것이 사라진다"를 말하지 않는다.
+    final working = card.isMusicWorking;
 
     final yes = await showModalBottomSheet<bool>(
       context: context,

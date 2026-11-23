@@ -5,7 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/card_music.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
@@ -80,27 +80,18 @@ class _MusicRepository implements RecordCardRepository {
 
   _MusicRepository(this.status, {this.card});
 
-  final MusicStatus status;
+  /// 모든 곡에 심을 상태. `null`이면 **서버가 아직 곡을 안 준 것**이다.
+  final MusicStatus? status;
 
   /// 상세가 번호로 물으면 돌려줄 카드. `null`이면 `404`를 흉내낸다.
   final RecordCard? card;
 
+  /// 몇 번 다시 만들어 달라고 했나.
   var requests = 0;
 
   @override
-  Future<MusicGeneration> musicOf(String cardId) async =>
-      status == MusicStatus.none
-      ? MusicGeneration.none(cardId)
-      : MusicGeneration(cardId: cardId, status: status, trackCount: 1);
-
-  @override
-  Future<MusicGeneration> requestMusic(String cardId) async {
+  Future<void> retryMusic(String cardId) async {
     requests++;
-    return MusicGeneration(
-      cardId: cardId,
-      status: MusicStatus.queued,
-      trackCount: 1,
-    );
   }
 
   /// 이 테스트는 **음악만** 본다. 불리면 테스트가 잘못 세워진 것이다.
@@ -132,17 +123,54 @@ class _MusicRepository implements RecordCardRepository {
     }
     return found;
   }
+
+  /// 곡을 심은 카드. 상태를 안 주면 곡이 아예 없는 카드다.
+  static RecordCard withMusic(RecordCard card, MusicStatus? status) {
+    final music = status == null
+        ? null
+        : CardMusic(
+            status: status,
+            url: status == MusicStatus.completed ? 'https://x/m.m4a' : null,
+          );
+    return RecordCard(
+      id: card.id,
+      runningRecordId: card.runningRecordId,
+      startedAt: card.startedAt,
+      activity: card.activity,
+      visibility: card.visibility,
+      reviewText: card.reviewText,
+      photos: [
+        for (final photo in card.photos)
+          RecordCardPhoto(
+            id: photo.id,
+            url: photo.url,
+            caption: photo.caption,
+            music: music,
+          ),
+      ],
+      route: card.route,
+      distanceMeters: card.distanceMeters,
+      duration: card.duration,
+      averagePace: card.averagePace,
+      runners: card.runners,
+      isMine: card.isMine,
+      baseMusic: music,
+    );
+  }
 }
 
 Future<void> _pump(
   WidgetTester tester, {
   int photos = 0,
   bool light = false,
-  MusicStatus music = MusicStatus.succeeded,
+  MusicStatus? music = MusicStatus.completed,
   _MusicRepository? repository,
   bool mine = true,
 }) async {
-  final card = _card(photos: photos, mine: mine);
+  final card = _MusicRepository.withMusic(
+    _card(photos: photos, mine: mine),
+    music,
+  );
   // ⚠️ 기본 테스트 화면(800×600)은 가로로 넓어 9:16 페이저가 화면보다 길어진다.
   // 아래 내용이 전부 밀려나 "안 보인다"로 떨어진다. 손전화 크기로 맞춘다.
   tester.view.physicalSize = const Size(412, 915);
@@ -184,7 +212,13 @@ void main() {
         ProviderScope(
           overrides: [
             recordCardRepositoryProvider.overrideWithValue(
-              _MusicRepository(MusicStatus.succeeded, card: _card()),
+              _MusicRepository(
+                MusicStatus.completed,
+                card: _MusicRepository.withMusic(
+                  _card(),
+                  MusicStatus.completed,
+                ),
+              ),
             ),
           ],
           child: MaterialApp(
@@ -208,7 +242,7 @@ void main() {
         ProviderScope(
           overrides: [
             recordCardRepositoryProvider.overrideWithValue(
-              _MusicRepository(MusicStatus.succeeded),
+              _MusicRepository(MusicStatus.completed),
             ),
           ],
           child: MaterialApp(
@@ -242,9 +276,9 @@ void main() {
 
     testWidgets('⚠️ 남의 카드에서는 음악을 만들라고 하지 않는다', (tester) async {
       // 남의 카드에 생성을 요청하는 것은 **쓰기**다.
-      await _pump(tester, mine: false, music: MusicStatus.none);
+      await _pump(tester, mine: false, music: null);
 
-      expect(find.text(AppStrings.recordCardMusicCreate), findsNothing);
+      expect(find.text(AppStrings.recordCardMusicProcessing), findsNothing);
     });
 
     testWidgets('⚠️ 남의 카드의 실패한 음악에 다시 만들기를 세우지 않는다', (tester) async {
@@ -379,12 +413,12 @@ void main() {
     await _pump(tester, photos: 2);
 
     // 첫 장(경로)은 기본 음악 길이만큼 선다.
-    await tester.pump(MusicGeneration.baseDuration);
+    await tester.pump(CardMusicTiming.baseDuration);
     await tester.pumpAndSettle();
     expect(pageOf(tester), 1);
 
     // 사진 장은 사진 음악 길이만큼.
-    await tester.pump(MusicGeneration.photoDuration);
+    await tester.pump(CardMusicTiming.photoDuration);
     await tester.pumpAndSettle();
     expect(pageOf(tester), 2);
   });
@@ -392,11 +426,11 @@ void main() {
   testWidgets('⚠️ 마지막 장에서는 멈춘다 — 처음으로 되돌아가지 않는다', (tester) async {
     await _pump(tester, photos: 1);
 
-    await tester.pump(MusicGeneration.baseDuration);
+    await tester.pump(CardMusicTiming.baseDuration);
     await tester.pumpAndSettle();
     expect(pageOf(tester), 1);
 
-    await tester.pump(MusicGeneration.photoDuration * 3);
+    await tester.pump(CardMusicTiming.photoDuration * 3);
     await tester.pumpAndSettle();
     expect(pageOf(tester), 1);
   });
@@ -404,7 +438,7 @@ void main() {
   testWidgets('⚠️ 사진이 없으면 아예 넘어가지 않는다', (tester) async {
     await _pump(tester);
 
-    await tester.pump(MusicGeneration.baseDuration * 2);
+    await tester.pump(CardMusicTiming.baseDuration * 2);
     await tester.pumpAndSettle();
     expect(pageOf(tester), 0);
   });
@@ -414,13 +448,13 @@ void main() {
 
     await tester.tap(find.byType(PageView));
     await tester.pump();
-    await tester.pump(MusicGeneration.baseDuration * 2);
+    await tester.pump(CardMusicTiming.baseDuration * 2);
     await tester.pumpAndSettle();
     expect(pageOf(tester), 0, reason: '멈췄는데 넘어갔다');
 
     await tester.tap(find.byType(PageView));
     await tester.pump();
-    await tester.pump(MusicGeneration.baseDuration);
+    await tester.pump(CardMusicTiming.baseDuration);
     await tester.pumpAndSettle();
     expect(pageOf(tester), 1);
   });
@@ -430,7 +464,7 @@ void main() {
 
     // 첫 장에서 한참 기다리다가 손으로 넘긴다.
     await tester.pump(
-      MusicGeneration.baseDuration - const Duration(seconds: 2),
+      CardMusicTiming.baseDuration - const Duration(seconds: 2),
     );
     await tester.drag(find.byType(PageView), const Offset(-400, 0));
     await tester.pumpAndSettle();
@@ -441,7 +475,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(pageOf(tester), 1);
 
-    await tester.pump(MusicGeneration.photoDuration);
+    await tester.pump(CardMusicTiming.photoDuration);
     await tester.pumpAndSettle();
     expect(pageOf(tester), 2);
   });
@@ -489,7 +523,7 @@ void main() {
     await tester.tap(find.text(AppStrings.recordCardMusicPause));
     await tester.pump();
 
-    await tester.pump(MusicGeneration.baseDuration * 2);
+    await tester.pump(CardMusicTiming.baseDuration * 2);
     await tester.pumpAndSettle();
 
     expect(pageOf(tester), 0, reason: '멈췄는데 넘어갔다');
@@ -503,7 +537,7 @@ void main() {
     await tester.tap(find.text(AppStrings.recordCardMusicPlay));
     await tester.pump();
 
-    await tester.pump(MusicGeneration.baseDuration);
+    await tester.pump(CardMusicTiming.baseDuration);
     await tester.pumpAndSettle();
 
     expect(pageOf(tester), 1);
@@ -519,20 +553,22 @@ void main() {
     expect(find.text(AppStrings.recordCardMusicPlay), findsOneWidget);
   });
 
-  testWidgets('⚠️ 음악이 없는 카드도 책은 넘어간다 — 음악은 길이의 출처일 뿐이다', (tester) async {
-    await _pump(tester, photos: 2, music: MusicStatus.none);
-    expect(find.text(AppStrings.recordCardMusicCreate), findsOneWidget);
+  testWidgets('⚠️ 곡이 안 온 카드도 책은 넘어간다 — 음악은 길이의 출처일 뿐이다', (tester) async {
+    // 서버가 아직 아무 곡도 주지 않은 카드다. 음악이 다 될 때까지 책을
+    // 세워 두면 **실패한 카드의 포토북이 영영 첫 장에 멈춘다.**
+    await _pump(tester, photos: 2, music: null);
+    expect(find.text(AppStrings.recordCardMusicProcessing), findsNothing);
 
-    await tester.pump(MusicGeneration.baseDuration);
+    await tester.pump(CardMusicTiming.baseDuration);
     await tester.pumpAndSettle();
 
     expect(pageOf(tester), 1);
   });
 
   testWidgets('⚠️ 만드는 중인 카드도 책은 넘어간다', (tester) async {
-    await _pump(tester, photos: 2, music: MusicStatus.processing);
+    await _pump(tester, photos: 2, music: MusicStatus.generating);
 
-    await tester.pump(MusicGeneration.baseDuration);
+    await tester.pump(CardMusicTiming.baseDuration);
     await tester.pumpAndSettle();
 
     expect(pageOf(tester), 1);

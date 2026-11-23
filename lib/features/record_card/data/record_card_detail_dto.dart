@@ -1,4 +1,5 @@
 import 'package:runiverse/features/record_card/data/route_art_wire.dart';
+import 'package:runiverse/features/record_card/domain/card_music.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
@@ -51,6 +52,7 @@ abstract final class RecordCardDetailDto {
       ],
       // ⚠️ **서버가 답한다.** 없으면 `false` — 모르면 손을 뗀다.
       isMine: json['isMine'] == true,
+      baseMusic: _music(json['baseMusic']),
     );
   }
 
@@ -60,7 +62,24 @@ abstract final class RecordCardDetailDto {
     url: json['imageUrl'] as String? ?? '',
     caption: json['caption'] as String?,
     isThumbnail: json['isThumbnail'] == true,
+    music: _music(json['music']),
   );
+
+  /// 곡 하나. **없으면 `null`이다** — 못 만든 것과 다르다.
+  static CardMusic? _music(Object? wire) {
+    if (wire is! Map) return null;
+    final status = switch (wire['status']) {
+      'GENERATING' => MusicStatus.generating,
+      'COMPLETED' => MusicStatus.completed,
+      'FAILED' => MusicStatus.failed,
+      // ⚠️ **모르는 값을 완료로 보지 않는다.** 완료로 읽으면 주소가 없는 곡을
+      // 틀려 하고, 만드는 중으로 읽으면 끝나지 않는 폴링이 된다. 모르면
+      // 아무 말도 하지 않는다.
+      _ => null,
+    };
+    if (status == null) return null;
+    return CardMusic(status: status, url: wire['musicUrl'] as String?);
+  }
 
   /// 함께 뛴 사람 하나.
   ///

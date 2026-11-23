@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
@@ -196,13 +195,10 @@ class _Repository implements RecordCardRepository {
   Future<RecordCard> update(EditRecordCard card) =>
       throw UnsupportedError('이 테스트는 카드를 고치지 않는다');
 
-  /// ⚠️ **상세가 음악 줄을 세운다.** 던지면 삭제 테스트가 음악 때문에
-  /// 떨어진다. 이 테스트의 카드는 음악이 없는 것으로 둔다.
+  /// ⚠️ **곡은 카드가 들고 온다**(묶음 7 작업 5). 이 테스트는 삭제만 보므로
+  /// 다시 만들 일이 없다.
   @override
-  Future<MusicGeneration> musicOf(String cardId) async =>
-      MusicGeneration.none(cardId);
+  Future<void> retryMusic(String cardId) =>
+      throw UnsupportedError('이 테스트는 음악을 다시 만들지 않는다');
 
-  @override
-  Future<MusicGeneration> requestMusic(String cardId) =>
-      throw UnsupportedError('이 테스트는 음악을 만들지 않는다');
 }

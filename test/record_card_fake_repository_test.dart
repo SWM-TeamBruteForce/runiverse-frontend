@@ -3,7 +3,7 @@ import 'package:runiverse/features/record_card/data/fake_record_card_repository.
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/card_music.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
@@ -221,52 +221,79 @@ void main() {
       ],
     );
 
-    test('목 카드가 네 상태를 한 번씩 보여 준다', () async {
-      expect((await repo.musicOf('card-1000')).status, MusicStatus.processing);
-      expect((await repo.musicOf('card-1001')).status, MusicStatus.failed);
-      expect((await repo.musicOf('card-1002')).status, MusicStatus.none);
-      expect((await repo.musicOf('card-1003')).status, MusicStatus.succeeded);
+    /// 그 카드의 곡들. 0번이 기본곡이다.
+    Future<List<CardMusic?>> tracks(String id) async {
+      final card = await repo.detailOf(id);
+      return [card.baseMusic, for (final photo in card.photos) photo.music];
+    }
+
+    test('⚠️ 목 카드가 곡별로 다른 상태를 보여 준다', () async {
+      // 곡별 상태가 생긴 뒤에야 볼 수 있는 모양이다 — `card-1000`은 기본곡은
+      // 다 됐고 첫 사진만 만드는 중이다.
+      final mixed = await tracks('card-1000');
+      expect(mixed.first!.status, MusicStatus.completed);
+      expect(mixed[1]!.status, MusicStatus.generating);
+
+      // 실패한 카드와, 서버가 아직 곡을 안 준 카드.
+      expect((await tracks('card-1001')).first!.status, MusicStatus.failed);
+      expect((await tracks('card-1002')).first, isNull);
+      expect((await tracks('card-1003')).first!.status, MusicStatus.completed);
     });
 
-    test('⚠️ 사진 없는 카드도 한 곡이다', () async {
+    test('⚠️ 사진 없는 카드도 기본곡 하나는 있다', () async {
       // 번호 1001은 사진이 0장이다.
-      expect((await repo.musicOf('card-1001')).trackCount, 1);
+      expect(await tracks('card-1001'), hasLength(1));
     });
 
-    test('만들지 않은 카드는 곡이 0개다', () async {
-      expect((await repo.musicOf('card-1002')).trackCount, 0);
+    test('⚠️ 못 만든 곡이 있으면 카드가 그렇다고 답한다', () async {
+      expect((await repo.detailOf('card-1001')).hasFailedMusic, isTrue);
+      expect((await repo.detailOf('card-1003')).hasFailedMusic, isFalse);
     });
 
-    test('요청하면 준비 중이고, 3초 뒤 만드는 중, 13초 뒤 끝난다', () async {
-      expect((await repo.requestMusic('card-1002')).status, MusicStatus.queued);
-
-      now = now.add(const Duration(seconds: 3));
-      expect((await repo.musicOf('card-1002')).status, MusicStatus.processing);
-
-      now = now.add(const Duration(seconds: 10));
-      expect((await repo.musicOf('card-1002')).status, MusicStatus.succeeded);
+    test('⚠️ 만드는 중인 곡이 하나라도 있으면 카드가 그렇다고 답한다', () async {
+      // 기본곡은 다 됐는데 첫 사진이 만드는 중인 카드다.
+      expect((await repo.detailOf('card-1000')).isMusicWorking, isTrue);
+      expect((await repo.detailOf('card-1003')).isMusicWorking, isFalse);
     });
 
-    test('요청하면 곡 수가 선다 — 사진 5장이면 6곡', () async {
-      // 번호 1002는 사진이 5장이다.
-      expect((await repo.requestMusic('card-1002')).trackCount, 6);
+    test('다시 만들어 달라고 하면 만드는 중이 되고, 13초 뒤 끝난다', () async {
+      await repo.retryMusic('card-1001');
+      expect((await tracks('card-1001')).first!.status, MusicStatus.generating);
+
+      now = now.add(const Duration(seconds: 13));
+      expect((await tracks('card-1001')).first!.status, MusicStatus.completed);
+    });
+
+    test('⚠️ 다 되면 재생 주소가 붙는다', () async {
+      await repo.retryMusic('card-1001');
+      now = now.add(const Duration(seconds: 13));
+
+      expect((await tracks('card-1001')).first!.url, isNotNull);
     });
 
     test('⚠️ 스무 번째 요청은 거치고 나서 실패한다 — 즉시가 아니다', () async {
       for (var i = 0; i < 19; i++) {
-        await repo.requestMusic('card-1002');
+        await repo.retryMusic('card-1002');
       }
-      expect((await repo.requestMusic('card-1002')).status, MusicStatus.queued);
+      await repo.retryMusic('card-1002');
+      expect((await tracks('card-1002')).first!.status, MusicStatus.generating);
 
-      now = now.add(const Duration(seconds: 3));
-      expect((await repo.musicOf('card-1002')).status, MusicStatus.processing);
-
-      now = now.add(const Duration(seconds: 10));
-      expect((await repo.musicOf('card-1002')).status, MusicStatus.failed);
+      now = now.add(const Duration(seconds: 13));
+      expect((await tracks('card-1002')).first!.status, MusicStatus.failed);
     });
 
-    test('실패한 뒤 다시 만들면 준비 중으로 돌아간다', () async {
-      expect((await repo.requestMusic('card-1001')).status, MusicStatus.queued);
+    test('⚠️ AI가 실패하면 그 요청의 곡이 함께 실패한다', () async {
+      // 가이드 4절: 한 요청에 든 사진 곡과 기본곡이 함께 실패한다.
+      for (var i = 0; i < 20; i++) {
+        await repo.retryMusic('card-1002');
+      }
+      now = now.add(const Duration(seconds: 13));
+
+      final all = await tracks('card-1002');
+      expect(all, hasLength(6));
+      for (final music in all) {
+        expect(music!.status, MusicStatus.failed);
+      }
     });
 
     test('⚠️ 저장하면 늘 음악을 요청한다', () async {
@@ -275,18 +302,15 @@ void main() {
       // "껐는데도 만들어진다"는 기기에서만 보이는 차이가 생긴다.
       final made = await repo.create(_newCard());
 
-      expect((await repo.musicOf(made.id)).status, MusicStatus.queued);
+      expect((await tracks(made.id)).first!.status, MusicStatus.generating);
     });
 
     test('⚠️ 회고를 고치면 다 된 음악이 처음으로 돌아간다', () async {
-      final card = (await repo.musicOf('card-1003')).cardId;
-      expect(card, 'card-1003');
-
       await repo.update(
         sameEdit(await _cardOf(repo, 'card-1003'), reviewText: '다른 글'),
       );
 
-      expect((await repo.musicOf('card-1003')).status, MusicStatus.queued);
+      expect((await tracks('card-1003')).first!.status, MusicStatus.generating);
     });
 
     test('⚠️ 공개범위만 바꾸면 음악은 그대로다', () async {
@@ -297,22 +321,25 @@ void main() {
         ),
       );
 
-      expect((await repo.musicOf('card-1003')).status, MusicStatus.succeeded);
+      expect((await tracks('card-1003')).first!.status, MusicStatus.completed);
     });
 
-    test('⚠️ 만들지 않은 카드를 고쳐도 만들기 시작하지 않는다', () async {
+    test('⚠️ 서버가 곡을 안 준 카드를 고치면 그때 만들기 시작한다', () async {
+      // 저장이 늘 생성을 걸므로(가이드 3절) 수정도 같다 — AI가 읽는 값이
+      // 바뀌면 다시 만든다. 묶음 5까지는 "안 만든 카드는 고쳐도 안 만든다"가
+      // 규칙이었는데, 끄는 길이 없어지면서 그 구분도 사라졌다.
       await repo.update(
         sameEdit(await _cardOf(repo, 'card-1002'), reviewText: '다른 글'),
       );
 
-      expect((await repo.musicOf('card-1002')).status, MusicStatus.none);
+      expect((await tracks('card-1002')).first!.status, MusicStatus.generating);
     });
 
-    test('지운 카드의 음악은 없는 카드로 답한다', () async {
+    test('지운 카드는 없는 카드로 답한다', () async {
       await repo.delete('card-1003');
 
       expect(
-        () => repo.musicOf('card-1003'),
+        () => repo.detailOf('card-1003'),
         throwsA(
           isA<RecordCardException>().having(
             (e) => e.failure,
@@ -324,14 +351,27 @@ void main() {
     });
 
     test('모르는 카드도 없는 카드다', () async {
-      expect(() => repo.musicOf('card-77'), throwsA(isA<RecordCardException>()));
-      expect(() => repo.requestMusic('card-77'), throwsA(isA<RecordCardException>()));
+      expect(
+        () => repo.detailOf('card-77'),
+        throwsA(isA<RecordCardException>()),
+      );
+      expect(
+        () => repo.retryMusic('card-77'),
+        throwsA(isA<RecordCardException>()),
+      );
     });
 
-    test('실패를 걸어 두면 음악도 못 읽는다 — 오류 줄을 눈으로 보는 길이다', () async {
+    test('실패를 걸어 두면 상세도 못 읽는다 — 오류 줄을 눈으로 보는 길이다', () async {
       repo.failWith = RecordCardFailure.network;
 
-      expect(() => repo.musicOf('card-1003'), throwsA(isA<RecordCardException>()));
+      expect(
+        () => repo.detailOf('card-1003'),
+        throwsA(isA<RecordCardException>()),
+      );
+      expect(
+        () => repo.retryMusic('card-1003'),
+        throwsA(isA<RecordCardException>()),
+      );
     });
   });
 }

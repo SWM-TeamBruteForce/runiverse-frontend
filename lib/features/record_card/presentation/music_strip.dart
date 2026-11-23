@@ -5,15 +5,19 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/card_music.dart';
 import 'package:runiverse/features/record_card/presentation/card_music_provider.dart';
 
 /// 카드 상세의 **음악 한 줄** (설계 6-5).
 ///
-/// ## ⚠️ 줄이 하나다
+/// ## ⚠️ 줄은 **지금 보고 있는 장**의 곡을 말한다
 ///
-/// 상태가 카드 하나에 하나라서(설계 3절) "3번 사진 음악만 다시"가 없다. 그래서
-/// 줄도 하나이고, `다시 만들기`는 **전곡**을 다시 만든다.
+/// 곡이 장마다 하나다(연동 가이드 2절) — 기본곡 하나 + 사진마다 하나. 그래서
+/// 줄도 장을 넘길 때마다 달라진다. 묶음 5까지는 상태가 카드 하나에 하나여서
+/// 줄도 카드 하나에 하나였다.
+///
+/// `다시 만들기`는 **못 만든 곡 전부**를 다시 건다 — 서버가 `FAILED`인 것만
+/// 골라서, 어느 장에서 눌러도 결과가 같다(가이드 4절).
 ///
 /// ## ⚠️ 진행바를 두지 않는다
 ///
@@ -30,6 +34,8 @@ import 'package:runiverse/features/record_card/presentation/card_music_provider.
 class MusicStrip extends ConsumerWidget {
   const MusicStrip({
     required this.cardId,
+    required this.music,
+    required this.hasFailed,
     required this.playing,
     required this.canAdvance,
     required this.canRequest,
@@ -41,6 +47,19 @@ class MusicStrip extends ConsumerWidget {
   static const _height = 40.0;
 
   final String cardId;
+
+  /// **지금 보고 있는 장**의 곡. 서버가 안 줬으면 `null`이다.
+  ///
+  /// ⚠️ `null`과 실패는 다르다 — 못 만든 것과 아직 모르는 것을 같이 보면,
+  /// 받아 오는 중인 카드에 "못 만들었어요"가 선다.
+  final CardMusic? music;
+
+  /// 이 카드에 **못 만든 곡이 하나라도** 있나.
+  ///
+  /// ⚠️ **지금 장이 아니라 카드 전체를 본다.** 재요청은 `FAILED`인 곡 전부를
+  /// 다시 거는 것이라(가이드 4절), 다 된 장에 서 있어도 다른 장이 실패했으면
+  /// 다시 걸 일이 있다.
+  final bool hasFailed;
 
   /// 포토북이 지금 넘어가고 있나. **줄은 이것의 반대를 권한다.**
   final bool playing;
@@ -65,67 +84,62 @@ class MusicStrip extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(cardMusicProvider(cardId));
+    final retry = ref.watch(cardMusicProvider(cardId));
+    final playable = music?.isPlayable ?? false;
 
-    // ⚠️ **남의 카드에서는 들을 수만 있다.** 듣는 것은 읽기라 다 된 음악은
-    // 그대로 세우고, 나머지(없다·만드는 중·실패·못 읽음)는 자리를 비운다.
-    if (!canRequest &&
-        !(state is CardMusicData && state.generation.isPlayable)) {
-      return const SizedBox.shrink();
-    }
+    // ⚠️ **남의 카드에서는 들을 수만 있다.** 듣는 것은 읽기라 다 된 곡은
+    // 그대로 세우고, 나머지(없다·만드는 중·실패)는 자리를 비운다.
+    if (!canRequest && !playable) return const SizedBox.shrink();
 
     return SizedBox(
       height: _height,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-        child: switch (state) {
-          // ⚠️ 받아 오는 동안 **아무 말도 하지 않는다.** 한 프레임일 수도 있는
-          // 구간에 글자를 세우면 열 때마다 글자가 번쩍인다. 자리만 지킨다.
-          CardMusicLoading() => const _Line(),
-          CardMusicError() => _Line(
-            label: AppStrings.recordCardMusicError,
-            action: AppStrings.recordCardMusicReload,
-            onAction: () => ref.read(cardMusicProvider(cardId).notifier).load(),
-          ),
+        child: switch (retry) {
           // ⚠️ **요청이 날아가는 동안을 먼저 가린다.** 상태는 아직 바뀌지
           // 않았으므로, 안 가리면 같은 라벨이 그대로 서서 누른 사람에게
           // 아무 일도 일어나지 않은 것으로 보인다.
-          CardMusicData(requesting: true) => const _Line(
+          CardMusicRetrying() => const _Line(
             label: AppStrings.recordCardMusicRequesting,
           ),
-          CardMusicData(:final generation) => _forStatus(
-            context,
-            ref,
-            generation,
+          CardMusicRetryFailed() => _Line(
+            label: AppStrings.recordCardMusicError,
+            action: AppStrings.recordCardMusicReload,
+            onAction: () => ref.read(cardMusicProvider(cardId).notifier).retry(),
           ),
+          CardMusicIdle() => _forMusic(context, ref),
         },
       ),
     );
   }
 
-  Widget _forStatus(
-    BuildContext context,
-    WidgetRef ref,
-    MusicGeneration music,
-  ) {
-    void request() => ref.read(cardMusicProvider(cardId).notifier).request();
+  Widget _forMusic(BuildContext context, WidgetRef ref) {
+    void retry() => ref.read(cardMusicProvider(cardId).notifier).retry();
 
-    return switch (music.status) {
-      // 줄 전체가 버튼이다 — 누르는 곳이 글자뿐이면 어디를 누를지 헷갈린다.
-      MusicStatus.none => _Line(
-        label: AppStrings.recordCardMusicCreate,
-        onTap: request,
-      ),
-      MusicStatus.queued => const _Line(
-        label: AppStrings.recordCardMusicQueued,
-      ),
-      MusicStatus.processing => const _Line(
+    // ⚠️ **아직 안 온 곡에는 아무 말도 하지 않는다.** 한 프레임일 수도 있는
+    // 구간에 글자를 세우면 열 때마다 글자가 번쩍인다. 자리만 지킨다.
+    //
+    // 다만 **다른 장이 실패했으면** 다시 걸 길은 남긴다 — 이 장이 아직
+    // 안 왔다고 그 길이 사라지면, 실패한 장으로 넘어가야만 누를 수 있다.
+    final here = music;
+    if (here == null) {
+      return hasFailed
+          ? _Line(
+              label: AppStrings.recordCardMusicFailed,
+              action: AppStrings.recordCardMusicRetry,
+              onAction: retry,
+            )
+          : const _Line();
+    }
+
+    return switch (here.status) {
+      MusicStatus.generating => const _Line(
         label: AppStrings.recordCardMusicProcessing,
       ),
       // ⚠️ **지금 상태가 아니라 "누르면 될 일"을 쓴다.** 상세를 열면 책이 이미
       // 돌고 있어서, 도는 중에 `재생`을 세우면 이미 하는 것을 하라는 버튼이다.
       // 넘어갈 장이 없으면 둘 다 거짓이라 **버튼을 두지 않는다**([canAdvance]).
-      MusicStatus.succeeded =>
+      MusicStatus.completed =>
         canAdvance
             ? _Line(
                 icon: playing ? LucideIcons.pause : LucideIcons.play,
@@ -138,7 +152,7 @@ class MusicStrip extends ConsumerWidget {
       MusicStatus.failed => _Line(
         label: AppStrings.recordCardMusicFailed,
         action: AppStrings.recordCardMusicRetry,
-        onAction: request,
+        onAction: retry,
       ),
     };
   }

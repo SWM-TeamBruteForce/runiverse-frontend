@@ -6,7 +6,6 @@ import 'package:runiverse/features/record_card/data/record_card_detail_dto.dart'
 import 'package:runiverse/features/record_card/data/recorded_run_dto.dart';
 import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
@@ -93,13 +92,14 @@ class HttpRecordCardRepository implements RecordCardRepository {
     return RecordCardDetailDto.from(body);
   }
 
+  /// 못 만든 곡을 다시 만들어 달라고 한다 (9-6). 본문이 없고 `204`가 온다.
   @override
-  Future<MusicGeneration> musicOf(String cardId) =>
-      throw UnimplementedError('묶음 7 작업 5가 상세 응답에서 읽는다');
-
-  @override
-  Future<MusicGeneration> requestMusic(String cardId) =>
-      throw UnimplementedError('묶음 7 작업 5가 9-6 retry로 바꾼다');
+  Future<void> retryMusic(String cardId) => authorizedVoid(
+    (token) => _dio.post<void>(
+      '/api/v1/record-cards/${Uri.encodeComponent(cardId)}/retry',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    ),
+  );
 
   // ── 쓰기 — 묶음 8까지 가짜가 받는다 ──────────────────────────
 
@@ -134,6 +134,33 @@ class HttpRecordCardRepository implements RecordCardRepository {
       }
       try {
         return _body(await send(await _refreshed()));
+      } on DioException catch (retried) {
+        throw exceptionOf(retried);
+      }
+    }
+  }
+
+  /// 본문이 없는 요청(`204`)을 보낸다. 401 규칙은 [authorized]와 같다.
+  ///
+  /// ⚠️ **[authorized]를 쓰지 않는다.** 그쪽은 본문을 요구해서, 본문 없는
+  /// `204`를 **서버 오류로** 읽는다.
+  Future<void> authorizedVoid(
+    Future<Response<void>> Function(String token) send,
+  ) async {
+    final stored = await _store.read();
+    final accessToken = stored.accessToken;
+    if (accessToken == null) {
+      throw const RecordCardException(RecordCardFailure.sessionExpired);
+    }
+
+    try {
+      await send(accessToken);
+    } on DioException catch (error) {
+      if (error.response?.statusCode != 401) {
+        throw exceptionOf(error);
+      }
+      try {
+        await send(await _refreshed());
       } on DioException catch (retried) {
         throw exceptionOf(retried);
       }

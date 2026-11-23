@@ -1,3 +1,4 @@
+import 'package:runiverse/features/record_card/domain/card_music.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
@@ -10,6 +11,7 @@ class RecordCardPhoto {
     this.thumbnailUrl,
     this.caption,
     this.isThumbnail = false,
+    this.music,
   });
 
   /// `record_card_image_id`. **UUID 문자열이다**(연동 가이드 2절). AI가
@@ -45,6 +47,12 @@ class RecordCardPhoto {
   /// 읽어 두는 이유는 **서버가 주는 값을 DTO가 흘리지 않게** 하려는 것이다.
   /// 나중에 더하면 그때 DTO를 다시 고친다.
   final bool isThumbnail;
+
+  /// 이 사진의 곡. **서버가 안 줬으면 `null`이다.**
+  ///
+  /// ⚠️ `null`과 [MusicStatus.failed]는 다르다 — 못 만든 것과 아직 모르는
+  /// 것을 같이 보면, 받아 오는 중인 카드에 "못 만들었어요"가 선다.
+  final CardMusic? music;
 }
 
 /// 함께 뛴 사람.
@@ -98,6 +106,7 @@ class RecordCard {
     required this.averagePace,
     required this.runners,
     this.isMine = false,
+    this.baseMusic,
   });
 
   /// `recordCardId`. **UUID 문자열이다**(연동 가이드 공통 요청 규칙).
@@ -150,6 +159,30 @@ class RecordCard {
   /// 상세(8-1)만 이 값을 싣는다. 달력·프로필 목록 응답에는 없다 — 그 자리에는
   /// 애초에 `⋮`가 없다.
   final bool isMine;
+
+  /// 경로 장에 깔리는 **기본곡.** 회고와 러닝 지표로 만든다.
+  ///
+  /// ⚠️ **사진이 없는 카드에도 있다**(가이드 3절). 서버가 안 줬으면 `null`이다.
+  final CardMusic? baseMusic;
+
+  /// 포토북 [page]번째 장의 곡. 0번이 경로 장이다.
+  CardMusic? musicOfPage(int page) =>
+      page == 0 ? baseMusic : photos.elementAtOrNull(page - 1)?.music;
+
+  /// 만들고 있는 곡이 하나라도 있나. **이 동안 상세를 다시 읽는다.**
+  bool get isMusicWorking =>
+      _tracks.any((music) => music?.isWorking ?? false);
+
+  /// 못 만든 곡이 하나라도 있나. **재요청 버튼이 이것으로 선다**(가이드 4절 —
+  /// 서버는 `FAILED`인 곡만 재요청 대상으로 고른다).
+  bool get hasFailedMusic =>
+      _tracks.any((music) => music?.hasFailed ?? false);
+
+  /// 기본곡 + 사진별 곡. **사진 수가 아니라 곡 수**다.
+  Iterable<CardMusic?> get _tracks => [
+    baseMusic,
+    for (final photo in photos) photo.music,
+  ];
 
   /// [startedAt]에서 시·분을 자른 날짜. **달력이 이것으로 묶는다.**
   DateTime get day => DateTime(startedAt.year, startedAt.month, startedAt.day);
