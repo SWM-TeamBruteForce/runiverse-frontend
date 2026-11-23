@@ -49,14 +49,14 @@ class CardSaveFailed extends CardSaveState {
 /// 초안을 카드로 만든다. **인자는 카드 번호이고, `null`이 새 카드다** —
 /// `cardDraftProvider`와 같은 열쇠다.
 final cardSaveProvider =
-    NotifierProvider.family<CardSaveController, CardSaveState, int?>(
+    NotifierProvider.family<CardSaveController, CardSaveState, String?>(
       CardSaveController.new,
     );
 
 class CardSaveController extends Notifier<CardSaveState> {
   CardSaveController(this.cardId);
 
-  final int? cardId;
+  final String? cardId;
 
   @override
   CardSaveState build() => const CardSaveIdle();
@@ -90,7 +90,7 @@ class CardSaveController extends Notifier<CardSaveState> {
       final photos =
           <
             ({
-              int? savedId,
+              String? savedId,
               String? path,
               String? thumbnailPath,
               String? caption,

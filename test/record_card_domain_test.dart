@@ -8,7 +8,7 @@ RecordCard _card({
   DateTime? startedAt,
   List<RecordCardPhoto> photos = const [],
 }) => RecordCard(
-  id: 1,
+  id: 'card-1',
   runningRecordId: 10,
   startedAt: startedAt ?? DateTime(2026, 9, 2, 18, 54),
   activity: RecordCardActivity.daily,
@@ -72,11 +72,11 @@ void main() {
       final card = _card(
         photos: const [
           RecordCardPhoto(
-            id: 1,
+            id: 'img-1',
             url: 'full-1.jpg',
             thumbnailUrl: 'thumb-1.jpg',
           ),
-          RecordCardPhoto(id: 2, url: 'full-2.jpg'),
+          RecordCardPhoto(id: 'img-2', url: 'full-2.jpg'),
         ],
       );
 
@@ -85,7 +85,7 @@ void main() {
 
     test('작은 쪽이 없으면 원본을 쓴다', () {
       final card = _card(
-        photos: const [RecordCardPhoto(id: 1, url: 'full-1.jpg')],
+        photos: const [RecordCardPhoto(id: 'img-1', url: 'full-1.jpg')],
       );
 
       expect(card.thumbnailUrl, 'full-1.jpg');

@@ -38,7 +38,7 @@ class CardPublishPage extends ConsumerWidget {
   const CardPublishPage({this.cardId, this.onSaved, super.key});
 
   /// 수정 중인 카드 번호. `null`이면 새 카드다.
-  final int? cardId;
+  final String? cardId;
 
   /// 만든 카드를 어디로 보낼까. **라우트를 아는 쪽이 정한다**(다음 Task) —
   /// 여기서 `context.push`를 부르면 이 화면이 라우터에 매여 테스트가 무거워진다.

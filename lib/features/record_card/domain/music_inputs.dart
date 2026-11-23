@@ -68,7 +68,7 @@ class MusicInputs {
   /// **접두사가 갈라서** 번호 `12`와 경로 `12`가 같은 것으로 읽히지 않는다.
   final List<String> photos;
 
-  static String _saved(int id, String? caption) => 's$id|${caption ?? ''}';
+  static String _saved(String id, String? caption) => 's$id|${caption ?? ''}';
 
   static String _added(String path, String? caption) =>
       'n$path|${caption ?? ''}';

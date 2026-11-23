@@ -447,7 +447,7 @@ class _Cropper implements ImageCropper {
 
 /// 고치는 카드. ⚠️ **음악 상태가 없다** — `RecordCard`에 그 필드가 없다.
 final _editCard = RecordCard(
-  id: 7,
+  id: 'card-7',
   runningRecordId: 11,
   startedAt: DateTime(2026, 11, 2, 7),
   activity: RecordCardActivity.travel,
@@ -495,13 +495,13 @@ class _MusicOverride implements RecordCardRepository {
   MusicStatus status;
 
   @override
-  Future<MusicGeneration> musicOf(int cardId) async =>
+  Future<MusicGeneration> musicOf(String cardId) async =>
       status == MusicStatus.none
       ? MusicGeneration.none(cardId)
       : MusicGeneration(cardId: cardId, status: status, trackCount: 1);
 
   @override
-  Future<MusicGeneration> requestMusic(int cardId) =>
+  Future<MusicGeneration> requestMusic(String cardId) =>
       _inner.requestMusic(cardId);
 
   @override
@@ -517,5 +517,5 @@ class _MusicOverride implements RecordCardRepository {
   Future<RecordCard> update(EditRecordCard card) => _inner.update(card);
 
   @override
-  Future<void> delete(int cardId) => _inner.delete(cardId);
+  Future<void> delete(String cardId) => _inner.delete(cardId);
 }

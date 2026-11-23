@@ -34,7 +34,7 @@ import 'package:runiverse/features/record_card/domain/route_art.dart';
 /// | 작성 1에서 뒤로 | 쓴 것이 있으면 확인을 받고 [CardDraftController.clear] |
 /// | 앱을 죽였다 켬 | **사라진다.** 영속화하지 않는다 |
 final cardDraftProvider =
-    NotifierProvider.family<CardDraftController, CardDraft, int?>(
+    NotifierProvider.family<CardDraftController, CardDraft, String?>(
       CardDraftController.new,
     );
 
@@ -42,7 +42,7 @@ class CardDraftController extends Notifier<CardDraft> {
   CardDraftController(this.cardId);
 
   /// 수정 중인 카드의 번호. **`null`이면 새 카드다.**
-  final int? cardId;
+  final String? cardId;
 
   @override
   CardDraft build() => const CardDraft();

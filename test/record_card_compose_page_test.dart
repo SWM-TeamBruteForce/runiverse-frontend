@@ -46,7 +46,7 @@ RecordCard _card({
   String reviewText = '여행에서 뛰었다',
   int distanceMeters = 3050,
 }) => RecordCard(
-  id: id,
+  id: 'card-$id',
   runningRecordId: runningRecordId,
   startedAt: DateTime(2026, 9, 2, 18),
   activity: RecordCardActivity.travel,
@@ -201,17 +201,17 @@ class _Cards implements RecordCardRepository {
 
   /// 이 테스트는 **읽기만** 본다. 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<void> delete(int cardId) =>
+  Future<void> delete(String cardId) =>
       throw UnsupportedError('이 테스트는 카드를 지우지 않는다');
 
   /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<MusicGeneration> musicOf(int cardId) =>
+  Future<MusicGeneration> musicOf(String cardId) =>
       throw UnsupportedError('이 테스트는 음악을 보지 않는다');
 
   /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<MusicGeneration> requestMusic(int cardId) =>
+  Future<MusicGeneration> requestMusic(String cardId) =>
       throw UnsupportedError('이 테스트는 음악을 만들지 않는다');
 }
 
@@ -406,7 +406,7 @@ void main() {
 
     await _pickRecord(tester, _record(id: 11));
 
-    expect(router.state.uri.toString(), AppRoutes.recordCardEditOf(500));
+    expect(router.state.uri.toString(), AppRoutes.recordCardEditOf('card-500'));
     expect(find.text('수정'), findsOne);
   });
 
@@ -436,7 +436,7 @@ void main() {
         roomId: 911,
       );
 
-      expect(router.state.uri.toString(), AppRoutes.recordCardEditOf(500));
+      expect(router.state.uri.toString(), AppRoutes.recordCardEditOf('card-500'));
       // ⚠️ **작성 화면을 남겨 두지 않는다** — 뒤로가 쓸 수 없는 화면으로
       // 돌아온다.
       expect(router.canPop(), isFalse);

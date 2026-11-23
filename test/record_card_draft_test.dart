@@ -29,16 +29,16 @@ PickedImage _image() =>
     PickedImage.validated(path: '/tmp/a.jpg', sizeBytes: 1024);
 
 RecordCard _card({int id = 7}) => RecordCard(
-  id: id,
+  id: 'card-$id',
   runningRecordId: 11,
   startedAt: DateTime(2026, 11, 2, 7),
   activity: RecordCardActivity.travel,
   visibility: RecordCardVisibility.public,
   reviewText: '여행에서 뛰었다',
   photos: const [
-    RecordCardPhoto(id: 70, url: 'https://x/a.jpg', caption: '첫째'),
+    RecordCardPhoto(id: 'img-70', url: 'https://x/a.jpg', caption: '첫째'),
     RecordCardPhoto(
-      id: 71,
+      id: 'img-71',
       url: 'https://x/b.jpg',
       thumbnailUrl: 'https://x/b_s.jpg',
     ),
@@ -249,13 +249,13 @@ void main() {
   group('사진은 올린 것과 고른 것으로 갈린다', () {
     test('이미 올린 사진은 주소와 번호를 든다', () {
       const photo = SavedPhoto(
-        id: 7,
+        id: 'img-7',
         url: 'https://x/a.jpg',
         thumbnailUrl: 'https://x/a_s.jpg',
         caption: '바다',
       );
 
-      expect(photo.id, 7);
+      expect(photo.id, 'img-7');
       expect(photo.url, 'https://x/a.jpg');
       expect(photo.thumbnailUrl, 'https://x/a_s.jpg');
       expect(photo.caption, '바다');
@@ -270,7 +270,7 @@ void main() {
     });
 
     test('캡션은 종류와 상관없이 바뀐다', () {
-      expect(const SavedPhoto(id: 7, url: 'u').withCaption('가').caption, '가');
+      expect(const SavedPhoto(id: 'img-7', url: 'u').withCaption('가').caption, '가');
       expect(PickedPhoto(image: _image()).withCaption('가').caption, '가');
     });
 
@@ -279,8 +279,8 @@ void main() {
       // ⚠️ 돌려주는 타입이 **자식 그대로**라 캐스트가 필요 없다 —
       // `CardPhotoDraft`로 좁아지면 여기서 캐스트가 생기고, 그것이 종류를
       // 잃었다는 신호다.
-      final saved = const SavedPhoto(id: 7, url: 'u').withCaption('가');
-      expect(saved.id, 7);
+      final saved = const SavedPhoto(id: 'img-7', url: 'u').withCaption('가');
+      expect(saved.id, 'img-7');
       expect(saved.url, 'u');
 
       final picked = PickedPhoto(image: _image(), alignX: 0.3).withCaption('가');

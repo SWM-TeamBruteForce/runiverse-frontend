@@ -7,8 +7,8 @@ import 'package:runiverse/features/record_card/presentation/card_music_provider.
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 
 /// 목 카드 번호. 1002는 음악이 없고, 1003은 다 돼 있다.
-const _noMusic = 1002;
-const _done = 1003;
+const _noMusic = 'card-1002';
+const _done = 'card-1003';
 
 void main() {
   late DateTime now;
@@ -20,7 +20,7 @@ void main() {
   /// ⚠️ **구독을 걸어 둔다.** 이 provider는 `autoDispose`라, 듣는 사람이
   /// 없으면 `read` 직후 버려지고 다음 `read`가 **처음부터 다시** 세운다 —
   /// 화면에서는 위젯이 듣고 있어서 그 일이 없다.
-  ProviderContainer open(int cardId) {
+  ProviderContainer open(String cardId) {
     final container = ProviderContainer(
       overrides: [recordCardRepositoryProvider.overrideWithValue(repo)],
     );

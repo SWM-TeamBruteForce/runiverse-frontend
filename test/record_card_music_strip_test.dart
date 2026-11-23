@@ -10,10 +10,10 @@ import 'package:runiverse/features/record_card/presentation/music_strip.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 
 /// 목 카드 번호. 상태가 심어져 있다(`FakeRecordCardRepository._seeded`).
-const _processing = 1000;
-const _failed = 1001;
-const _none = 1002;
-const _done = 1003;
+const _processing = 'card-1000';
+const _failed = 'card-1001';
+const _none = 'card-1002';
+const _done = 'card-1003';
 
 void main() {
   late DateTime now;
@@ -33,7 +33,7 @@ void main() {
   /// 영영 끝나지 않는다.
   Future<void> pump(
     WidgetTester tester, {
-    required int cardId,
+    required String cardId,
     bool playing = true,
     bool canAdvance = true,
     bool canRequest = true,

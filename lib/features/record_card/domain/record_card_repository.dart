@@ -79,7 +79,7 @@ abstract interface class RecordCardRepository {
   ///
   /// 없는 카드면 [RecordCardFailure.notFound]로 던진다 — 이미 지워진 것을 또
   /// 지우려 한 것이다.
-  Future<void> delete(int cardId);
+  Future<void> delete(String cardId);
 
   /// 이 카드의 음악이 어디까지 갔나.
   ///
@@ -98,7 +98,7 @@ abstract interface class RecordCardRepository {
   ///
   /// 한 번도 요청하지 않았으면 [MusicStatus.none]이다 — 오류가 아니다.
   /// 없는 카드면 [RecordCardFailure.notFound]로 던진다.
-  Future<MusicGeneration> musicOf(int cardId);
+  Future<MusicGeneration> musicOf(String cardId);
 
   /// **전곡을** 만들어 달라고 한다. 처음 만드는 것과 다시 만드는 것이 같다.
   ///
@@ -109,7 +109,7 @@ abstract interface class RecordCardRepository {
   ///
   /// 돌려주는 것은 **요청 직후 상태**([MusicStatus.queued])다 — 부르는 쪽이
   /// 바로 줄을 바꿔 세워야 하고, 다시 묻는 것은 그다음 일이다.
-  Future<MusicGeneration> requestMusic(int cardId);
+  Future<MusicGeneration> requestMusic(String cardId);
 }
 
 /// 카드를 못 읽은 이유.

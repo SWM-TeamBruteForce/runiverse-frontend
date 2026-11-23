@@ -226,7 +226,7 @@ class _Cards implements RecordCardRepository {
     : cards = [
         for (var i = 0; i < count; i++)
           RecordCard(
-            id: 500 + i,
+            id: 'card-${500 + i}',
             runningRecordId: 11 + i,
             startedAt: DateTime(2026, 11, 16 - i, 7),
             activity: RecordCardActivity.daily,
@@ -234,7 +234,7 @@ class _Cards implements RecordCardRepository {
             reviewText: '$i번째',
             // 홀수 번째는 사진이 없다 — 선 아트가 서는 자리를 본다.
             photos: i.isEven
-                ? [RecordCardPhoto(id: 70 + i, url: 'assets/images/a$i.jpg')]
+                ? [RecordCardPhoto(id: 'img-${70 + i}', url: 'assets/images/a$i.jpg')]
                 : const [],
             route: const RouteArt(
               strokes: [
@@ -279,13 +279,13 @@ class _Cards implements RecordCardRepository {
       throw UnsupportedError('그리드는 카드를 고치지 않는다');
 
   @override
-  Future<void> delete(int cardId) => throw UnsupportedError('그리드는 카드를 지우지 않는다');
+  Future<void> delete(String cardId) => throw UnsupportedError('그리드는 카드를 지우지 않는다');
 
   @override
-  Future<MusicGeneration> musicOf(int cardId) =>
+  Future<MusicGeneration> musicOf(String cardId) =>
       throw UnsupportedError('그리드는 음악을 묻지 않는다');
 
   @override
-  Future<MusicGeneration> requestMusic(int cardId) =>
+  Future<MusicGeneration> requestMusic(String cardId) =>
       throw UnsupportedError('그리드는 음악을 묻지 않는다');
 }

@@ -28,7 +28,7 @@ RunRecord _record({required int id, int hour = 18}) => RunRecord(
 );
 
 RecordCard _card({required int id, required int runningRecordId}) => RecordCard(
-  id: id,
+  id: 'card-$id',
   runningRecordId: runningRecordId,
   startedAt: DateTime(2026, 9, 2, 18),
   activity: RecordCardActivity.daily,
@@ -113,17 +113,17 @@ class _Cards implements RecordCardRepository {
 
   /// 이 테스트는 **읽기만** 본다. 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<void> delete(int cardId) =>
+  Future<void> delete(String cardId) =>
       throw UnsupportedError('이 테스트는 카드를 지우지 않는다');
 
   /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<MusicGeneration> musicOf(int cardId) =>
+  Future<MusicGeneration> musicOf(String cardId) =>
       throw UnsupportedError('이 테스트는 음악을 보지 않는다');
 
   /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<MusicGeneration> requestMusic(int cardId) =>
+  Future<MusicGeneration> requestMusic(String cardId) =>
       throw UnsupportedError('이 테스트는 음악을 만들지 않는다');
 }
 
@@ -152,17 +152,17 @@ class _FailingCards implements RecordCardRepository {
 
   /// 이 테스트는 **읽기만** 본다. 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<void> delete(int cardId) =>
+  Future<void> delete(String cardId) =>
       throw UnsupportedError('이 테스트는 카드를 지우지 않는다');
 
   /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<MusicGeneration> musicOf(int cardId) =>
+  Future<MusicGeneration> musicOf(String cardId) =>
       throw UnsupportedError('이 테스트는 음악을 보지 않는다');
 
   /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<MusicGeneration> requestMusic(int cardId) =>
+  Future<MusicGeneration> requestMusic(String cardId) =>
       throw UnsupportedError('이 테스트는 음악을 만들지 않는다');
 }
 
@@ -206,7 +206,7 @@ void main() {
 
     expect(joined.map((r) => r.record.id), [11, 12]);
     expect(joined[0].hasCard, isFalse);
-    expect(joined[1].existingCardId, 500);
+    expect(joined[1].existingCardId, 'card-500');
   });
 
   test('⚠️ 하루치만 묻는다 — from과 to가 같은 날이다', () async {

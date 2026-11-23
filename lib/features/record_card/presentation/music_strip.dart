@@ -40,7 +40,7 @@ class MusicStrip extends ConsumerWidget {
   /// 줄 높이. **세 갈래가 같은 높이여야** 받아 오는 동안 아래가 튀지 않는다.
   static const _height = 40.0;
 
-  final int cardId;
+  final String cardId;
 
   /// 포토북이 지금 넘어가고 있나. **줄은 이것의 반대를 권한다.**
   final bool playing;

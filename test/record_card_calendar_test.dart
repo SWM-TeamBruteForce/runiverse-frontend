@@ -16,7 +16,7 @@ RecordCard _card({
   required DateTime startedAt,
   RecordCardActivity activity = RecordCardActivity.daily,
 }) => RecordCard(
-  id: id,
+  id: 'card-$id',
   runningRecordId: id + 100,
   startedAt: startedAt,
   activity: activity,
@@ -130,7 +130,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(opened?.id, 7);
+    expect(opened?.id, 'card-7');
     expect(find.byType(DayCardsSheet), findsNothing);
   });
 
@@ -174,7 +174,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(opened?.id, 12);
+    expect(opened?.id, 'card-12');
   });
 
   testWidgets('⚠️ 안 뛴 빈 날은 눌리지 않는다', (tester) async {

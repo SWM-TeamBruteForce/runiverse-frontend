@@ -18,7 +18,7 @@ class ComposableRecord {
   /// 들고 있는 값이고, 번호만 남기면 열 수 없는 번호가 된다.
   final RecordCard? existingCard;
 
-  int? get existingCardId => existingCard?.id;
+  String? get existingCardId => existingCard?.id;
 
   bool get hasCard => existingCard != null;
 }

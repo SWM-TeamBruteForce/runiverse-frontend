@@ -57,6 +57,19 @@ void main() {
       // 카드 값이 들어와 있다.
       expect(find.text(AppStrings.recordCardEditRecordLocked), findsOne);
     });
+
+    testWidgets('⚠️ 서버가 주는 문자열 카드 번호로 상세를 연다', (tester) async {
+      // `recordCardId`는 UUID 문자열이다(연동 가이드 공통 요청 규칙). 번호로
+      // 들고 있으면 라우트에 담기지 못하고 **상세가 열리지 않는다.**
+      //
+      // ⚠️ **`card-1000`을 쓰지 않는다.** 그 목 카드는 음악이 `processing`으로
+      // 멈춰 있어 폴링이 끝나지 않고 `!timersPending`으로 죽는다. `card-1001`은
+      // 음악이 실패해 있어 더 묻지 않는다.
+      await _pumpDetail(tester, cardId: 'card-1001');
+
+      expect(find.byType(CardDetailPage), findsOne);
+      expect(_router.state.uri.path, contains('card-1001'));
+    });
   });
 
   group('수정 저장', () {
@@ -185,7 +198,7 @@ void main() {
       // ⚠️ 목 번호 **1001**은 사진이 없고 음악이 실패해 있다
       // (`FakeRecordCardRepository._seeded`). `다시 만들기`를 눌러 **만드는
       // 중**으로 세운 뒤 지우려 한다 — 사용자가 실제로 지나는 길이다.
-      await _pumpDetail(tester, cardId: 1001);
+      await _pumpDetail(tester, cardId: 'card-1001');
       await tester.tap(find.text(AppStrings.recordCardMusicRetry));
       await tester.pump();
       expect(find.text(AppStrings.recordCardMusicQueued), findsOne);
@@ -200,7 +213,7 @@ void main() {
     });
 
     testWidgets('⚠️ 알리기만 하고 막지 않는다', (tester) async {
-      await _pumpDetail(tester, cardId: 1001);
+      await _pumpDetail(tester, cardId: 'card-1001');
       await tester.tap(find.text(AppStrings.recordCardMusicRetry));
       await tester.pump();
 
@@ -311,9 +324,9 @@ void main() {
   group('⚠️ 카드 없이 수정 라우트에 떨어지면 탭으로 돌려보낸다', () {
     // 딥링크나 프로세스 복원이다. 카드 단건 조회 API가 없어 보여 줄 것이 없다.
     for (final route in [
-      AppRoutes.recordCardEditOf(1000),
-      AppRoutes.recordCardEditPhotosOf(1000),
-      AppRoutes.recordCardEditPublishOf(1000),
+      AppRoutes.recordCardEditOf('card-1000'),
+      AppRoutes.recordCardEditPhotosOf('card-1000'),
+      AppRoutes.recordCardEditPublishOf('card-1000'),
     ]) {
       testWidgets(route, (tester) async {
         await _pumpAt(tester, route);
@@ -378,7 +391,7 @@ Future<void> _reachReview(WidgetTester tester) async {
 Future<ProviderContainer> _pumpDetail(
   WidgetTester tester, {
   Duration delay = Duration.zero,
-  int? cardId,
+  String? cardId,
 }) async {
   final container = await _pumpAt(tester, AppRoutes.recordCard, delay: delay);
 
@@ -463,7 +476,7 @@ class _SlowDelete implements RecordCardRepository {
   final Duration _delay;
 
   @override
-  Future<void> delete(int cardId) async {
+  Future<void> delete(String cardId) async {
     if (_delay > Duration.zero) await Future<void>.delayed(_delay);
     return _inner.delete(cardId);
   }
@@ -481,10 +494,10 @@ class _SlowDelete implements RecordCardRepository {
   Future<RecordCard> update(EditRecordCard card) => _inner.update(card);
 
   @override
-  Future<MusicGeneration> musicOf(int cardId) => _inner.musicOf(cardId);
+  Future<MusicGeneration> musicOf(String cardId) => _inner.musicOf(cardId);
 
   @override
-  Future<MusicGeneration> requestMusic(int cardId) =>
+  Future<MusicGeneration> requestMusic(String cardId) =>
       _inner.requestMusic(cardId);
 }
 

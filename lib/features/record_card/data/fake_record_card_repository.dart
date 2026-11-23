@@ -150,9 +150,10 @@ class FakeRecordCardRepository implements RecordCardRepository {
     if (failWith != null) throw RecordCardException(failWith!);
 
     // ⚠️ **목 데이터와 번호가 겹치면 안 된다.** 겹치면 달력이 두 장을 한 장으로
-    // 보고 상세가 엉뚱한 것을 연다. 목은 `1000 +`, 사진은 `index * 10 +`을
-    // 쓰므로 한참 위에서 센다.
-    final id = _nextCardId++;
+    // 보고 상세가 엉뚱한 것을 연다. 목은 `card-`로 시작하고 여기는 `new-`라
+    // **접두사만으로 겹칠 수 없다** — 숫자로 셀 때처럼 "9000 위에서 센다"는
+    // 약속을 지킬 필요가 없다.
+    final id = 'new-${_nextCardId++}';
     final made = RecordCard(
       id: id,
       runningRecordId: card.record.id,
@@ -163,7 +164,7 @@ class FakeRecordCardRepository implements RecordCardRepository {
       photos: [
         for (var i = 0; i < card.photos.length; i++)
           RecordCardPhoto(
-            id: id * 10 + i,
+            id: '$id-img$i',
             url: card.photos[i].path,
             thumbnailUrl: card.photos[i].thumbnailPath,
             caption: card.photos[i].caption,
@@ -185,12 +186,13 @@ class FakeRecordCardRepository implements RecordCardRepository {
     return made;
   }
 
-  /// 다음 카드 번호. 목 데이터(`1000 +`)와 겹치지 않는 자리에서 시작한다.
-  var _nextCardId = 9000;
+  /// 만든 카드에 붙일 다음 번호. `new-1`, `new-2`로 센다 — 목 데이터는
+  /// `card-`로 시작해 겹치지 않는다.
+  var _nextCardId = 1;
 
   /// 고쳐진 카드들. **목 데이터도 고칠 수 있어야 한다** — `_all()`이 매번 목을
   /// 새로 만들어서, 여기 없으면 고친 것이 다음 조회에 되돌아간다.
-  final _edited = <int, RecordCard>{};
+  final _edited = <String, RecordCard>{};
 
   /// 몇 번 고쳤나.
   var updates = 0;
@@ -255,7 +257,7 @@ class FakeRecordCardRepository implements RecordCardRepository {
       );
     }
     return RecordCardPhoto(
-      id: before.id * 10 + 100 + index,
+      id: '${before.id}-add$index',
       url: photo.path!,
       thumbnailUrl: photo.thumbnailPath,
       caption: photo.caption,
@@ -266,13 +268,13 @@ class FakeRecordCardRepository implements RecordCardRepository {
   ///
   /// ⚠️ **목 데이터도 지울 수 있어야 한다.** `_all()`이 매번 목을 새로 만들어,
   /// 거르지 않으면 지운 카드가 다음 조회에 되살아난다.
-  final _deletedIds = <int>{};
+  final _deletedIds = <String>{};
 
   /// 몇 번 지웠나.
   var deletes = 0;
 
   @override
-  Future<void> delete(int cardId) async {
+  Future<void> delete(String cardId) async {
     deletes++;
 
     if (delay > Duration.zero) await Future<void>.delayed(delay);
@@ -292,10 +294,10 @@ class FakeRecordCardRepository implements RecordCardRepository {
   // ── 음악 흉내 (설계 8절) ───────────────────────────────────────
 
   /// 카드별 **마지막 요청 시각**. 없으면 한 번도 요청하지 않은 것이다.
-  final _musicRequestedAt = <int, DateTime>{};
+  final _musicRequestedAt = <String, DateTime>{};
 
   /// 이 요청은 끝에서 떨어뜨릴 것. [musicRequests]의 20번째다.
-  final _musicWillFail = <int>{};
+  final _musicWillFail = <String>{};
 
   /// 몇 번 만들어 달라고 했나.
   var musicRequests = 0;
@@ -310,7 +312,7 @@ class FakeRecordCardRepository implements RecordCardRepository {
   static const _toDone = Duration(seconds: 13);
 
   @override
-  Future<MusicGeneration> musicOf(int cardId) async {
+  Future<MusicGeneration> musicOf(String cardId) async {
     musicCalls++;
 
     if (delay > Duration.zero) await Future<void>.delayed(delay);
@@ -349,7 +351,7 @@ class FakeRecordCardRepository implements RecordCardRepository {
   }
 
   @override
-  Future<MusicGeneration> requestMusic(int cardId) async {
+  Future<MusicGeneration> requestMusic(String cardId) async {
     musicRequests++;
 
     if (delay > Duration.zero) await Future<void>.delayed(delay);
@@ -382,14 +384,13 @@ class FakeRecordCardRepository implements RecordCardRepository {
   /// `SUCCEEDED`면 `만드는 중…`·`만들지 못했어요`·`AI 음악 만들기` 줄을 한 번도
   /// 못 보고 넘어간다. `QUEUED`는 눌러서 본다.
   ///
-  /// 앱이 만든 카드(번호 `9000 +`)는 저장할 때 음악을 켰는지로 갈린다 —
-  /// 여기 걸리지 않는다.
+  /// 앱이 만든 카드(`new-`)는 저장이 음악을 걸어 뒀으므로 여기 걸리지 않는다.
   MusicGeneration _seeded(RecordCard card) {
     final status = switch (card.id) {
-      1000 => MusicStatus.processing,
-      1001 => MusicStatus.failed,
-      1002 => MusicStatus.none,
-      _ when card.id >= 9000 => MusicStatus.none,
+      'card-1000' => MusicStatus.processing,
+      'card-1001' => MusicStatus.failed,
+      'card-1002' => MusicStatus.none,
+      _ when card.id.startsWith('new-') => MusicStatus.none,
       _ => MusicStatus.succeeded,
     };
     if (status == MusicStatus.none) return MusicGeneration.none(card.id);
@@ -402,7 +403,7 @@ class FakeRecordCardRepository implements RecordCardRepository {
   }
 
   /// 지금 있는 그 카드. 고친 것이 있으면 그쪽이고, 지워졌으면 `null`이다.
-  RecordCard? _find(int id) {
+  RecordCard? _find(String id) {
     if (_deletedIds.contains(id)) return null;
     return _edited[id] ??
         [..._all(), ..._created].where((c) => c.id == id).firstOrNull;
@@ -667,7 +668,7 @@ class FakeRecordCardRepository implements RecordCardRepository {
     final duration = Duration(seconds: spec.seconds);
 
     return RecordCard(
-      id: 1000 + index,
+      id: 'card-${1000 + index}',
       runningRecordId: 2000 + index,
       startedAt: startedAt,
       activity: spec.activity,
@@ -676,7 +677,7 @@ class FakeRecordCardRepository implements RecordCardRepository {
       photos: [
         for (var p = 0; p < spec.photos; p++)
           RecordCardPhoto(
-            id: index * 10 + p,
+            id: 'img-$index-$p',
             url: _photoPool[(index + p) % _photoPool.length],
             // ⚠️ 사람이 쓴 말처럼 둔다. `그날의 한 장` 같은 꼬리표를 넣으면
             // 캡션이 아니라 화면이 붙인 글자로 읽힌다 — 기기에서 그렇게 보였다.

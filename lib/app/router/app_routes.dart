@@ -164,7 +164,7 @@ abstract final class AppRoutes {
   /// 선택 인자로 두지 않는 이유: 기본값을 주면 새 진입점이 조용히 "내 것"으로
   /// 들어오고, 그 결과는 **남의 카드에 뜬 수정 버튼**이다. 컴파일러가 묻게
   /// 한다.
-  static String recordCardDetailOf(int cardId, {required bool mine}) =>
+  static String recordCardDetailOf(String cardId, {required bool mine}) =>
       '$recordCard/card/$cardId?mine=$mine';
 
   /// 기록카드 수정 1·2·3 (설계 6-6).
@@ -179,10 +179,11 @@ abstract final class AppRoutes {
   static const recordCardEditPhotos = '/record-card/card/:id/edit/photos';
   static const recordCardEditPublish = '/record-card/card/:id/edit/publish';
 
-  static String recordCardEditOf(int cardId) => '$recordCard/card/$cardId/edit';
-  static String recordCardEditPhotosOf(int cardId) =>
+  static String recordCardEditOf(String cardId) =>
+      '$recordCard/card/$cardId/edit';
+  static String recordCardEditPhotosOf(String cardId) =>
       '${recordCardEditOf(cardId)}/photos';
-  static String recordCardEditPublishOf(int cardId) =>
+  static String recordCardEditPublishOf(String cardId) =>
       '${recordCardEditOf(cardId)}/publish';
 
   /// 그 사람의 기록카드 **전체 보기** — 프로필 그리드의 `더 보기`가 가는 곳

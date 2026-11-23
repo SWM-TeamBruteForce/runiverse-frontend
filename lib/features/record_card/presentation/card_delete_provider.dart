@@ -49,7 +49,7 @@ class CardDeleteController extends Notifier<CardDeleteState> {
   ///
   /// 서버에 논리 삭제 컬럼이 없다(설계 3절). **확인은 화면이 먼저 받는다** —
   /// 여기까지 왔으면 사용자가 이미 "지우기"를 골랐다는 뜻이다.
-  Future<bool> delete(int cardId) async {
+  Future<bool> delete(String cardId) async {
     // ⚠️ **두 번 가면 두 번째는 404를 받는다.** 첫 번째가 이미 지웠다.
     if (state is CardDeleting) return false;
 

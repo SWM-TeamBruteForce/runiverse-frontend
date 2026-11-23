@@ -83,17 +83,17 @@ class _EmptyRepository implements RecordCardRepository {
 
   /// 이 테스트는 **읽기만** 본다. 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<void> delete(int cardId) =>
+  Future<void> delete(String cardId) =>
       throw UnsupportedError('이 테스트는 카드를 지우지 않는다');
 
   /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<MusicGeneration> musicOf(int cardId) =>
+  Future<MusicGeneration> musicOf(String cardId) =>
       throw UnsupportedError('이 테스트는 음악을 보지 않는다');
 
   /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<MusicGeneration> requestMusic(int cardId) =>
+  Future<MusicGeneration> requestMusic(String cardId) =>
       throw UnsupportedError('이 테스트는 음악을 만들지 않는다');
 }
 

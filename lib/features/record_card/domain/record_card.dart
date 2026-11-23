@@ -11,8 +11,9 @@ class RecordCardPhoto {
     this.caption,
   });
 
-  /// `record_card_image_id`. AI가 사진별 음악을 이 번호로 돌려준다.
-  final int id;
+  /// `record_card_image_id`. **UUID 문자열이다**(연동 가이드 2절). AI가
+  /// 사진별 음악을 이 번호로 돌려준다.
+  final String id;
 
   /// 원본 열람 주소. **9:16으로 잘린 결과**다 — 앱이 자른 것을 올린다.
   final String url;
@@ -80,8 +81,11 @@ class RecordCard {
     required this.runners,
   });
 
-  /// `card_id`.
-  final int id;
+  /// `recordCardId`. **UUID 문자열이다**(연동 가이드 공통 요청 규칙).
+  ///
+  /// ⚠️ **숫자로 읽지 않는다.** `019aa100-0000-7000-8000-000000000001` 꼴로
+  /// 오므로 `int.parse`는 던지고, 비교·정렬을 숫자로 하면 뜻이 달라진다.
+  final String id;
 
   /// 이 카드가 매달린 러닝 기록.
   final int runningRecordId;

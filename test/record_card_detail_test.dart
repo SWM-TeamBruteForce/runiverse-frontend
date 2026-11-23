@@ -35,7 +35,7 @@ final _route = normalizeRoute([
 ]);
 
 RecordCard _card({int photos = 0}) => RecordCard(
-  id: 7,
+  id: 'card-7',
   runningRecordId: 107,
   startedAt: DateTime(2026, 9, 2, 18, 54),
   activity: RecordCardActivity.daily,
@@ -44,7 +44,7 @@ RecordCard _card({int photos = 0}) => RecordCard(
   photos: [
     for (var i = 0; i < photos; i++)
       RecordCardPhoto(
-        id: i,
+        id: 'img-$i',
         url: 'assets/images/sign_in_hero.png',
         caption: '사진 $i의 한마디',
       ),
@@ -81,13 +81,13 @@ class _MusicRepository implements RecordCardRepository {
   var requests = 0;
 
   @override
-  Future<MusicGeneration> musicOf(int cardId) async =>
+  Future<MusicGeneration> musicOf(String cardId) async =>
       status == MusicStatus.none
       ? MusicGeneration.none(cardId)
       : MusicGeneration(cardId: cardId, status: status, trackCount: 1);
 
   @override
-  Future<MusicGeneration> requestMusic(int cardId) async {
+  Future<MusicGeneration> requestMusic(String cardId) async {
     requests++;
     return MusicGeneration(
       cardId: cardId,
@@ -112,7 +112,7 @@ class _MusicRepository implements RecordCardRepository {
       throw UnsupportedError('이 테스트는 카드를 고치지 않는다');
 
   @override
-  Future<void> delete(int cardId) =>
+  Future<void> delete(String cardId) =>
       throw UnsupportedError('이 테스트는 카드를 지우지 않는다');
 }
 

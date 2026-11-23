@@ -10,7 +10,7 @@ RecordCard _card({
   required DateTime startedAt,
   RecordCardActivity activity = RecordCardActivity.daily,
 }) => RecordCard(
-  id: id,
+  id: 'card-$id',
   runningRecordId: id + 100,
   startedAt: startedAt,
   activity: activity,

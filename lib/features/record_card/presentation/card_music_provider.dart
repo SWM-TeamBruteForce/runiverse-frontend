@@ -42,7 +42,7 @@ class CardMusicData extends CardMusicState {
 /// 기본이 `isAutoDispose = false`다(`chat_provider.dart`가 같은 함정을 적어
 /// 두었다).
 final cardMusicProvider =
-    NotifierProvider.family<CardMusicController, CardMusicState, int>(
+    NotifierProvider.family<CardMusicController, CardMusicState, String>(
       CardMusicController.new,
       isAutoDispose: true,
     );
@@ -71,7 +71,7 @@ class CardMusicController extends Notifier<CardMusicState> {
   /// 묻는 것은 통지 방식이 정해지면 바꿀 임시 값이다.
   static const pollInterval = Duration(seconds: 3);
 
-  final int cardId;
+  final String cardId;
 
   Timer? _poll;
 

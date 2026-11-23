@@ -49,7 +49,7 @@ void main() {
     final repository = FakeRecordCardRepository(today: _today);
 
     expect(
-      () => repository.delete(999999),
+      () => repository.delete('card-999999'),
       throwsA(
         isA<RecordCardException>().having(
           (e) => e.failure,
@@ -64,10 +64,10 @@ void main() {
     test('지우면 끝난 상태로 돌아온다', () async {
       final world = _World();
 
-      final gone = await world.delete(7);
+      final gone = await world.delete('card-7');
 
       expect(gone, isTrue);
-      expect(world.repository.deleted, [7]);
+      expect(world.repository.deleted, ['card-7']);
       expect(world.state, isA<CardDeleteIdle>());
     });
 
@@ -79,16 +79,16 @@ void main() {
       // 되돌릴 수 없는 일이다. 두 번 가면 두 번째는 404를 받는다.
       final world = _World(delay: const Duration(milliseconds: 50));
 
-      final both = await Future.wait([world.delete(7), world.delete(7)]);
+      final both = await Future.wait([world.delete('card-7'), world.delete('card-7')]);
 
-      expect(world.repository.deleted, [7]);
+      expect(world.repository.deleted, ['card-7']);
       expect(both.where((ok) => ok), hasLength(1));
     });
 
     test('도는 동안 상태가 Deleting이다', () async {
       final world = _World(delay: const Duration(milliseconds: 50));
 
-      final soon = world.delete(7);
+      final soon = world.delete('card-7');
       expect(world.state, isA<CardDeleting>());
 
       await soon;
@@ -102,7 +102,7 @@ void main() {
       await world.container.read(profileCardsProvider(_gridQuery).future);
       expect(world.repository.userCalls, 1);
 
-      await world.delete(7);
+      await world.delete('card-7');
       await Future<void>.delayed(Duration.zero);
 
       expect(world.repository.userCalls, 2);
@@ -111,7 +111,7 @@ void main() {
     test('⚠️ 실패하면 왜인지 들고 있고 다시 누를 수 있다', () async {
       final world = _World(failWith: RecordCardFailure.network);
 
-      final gone = await world.delete(7);
+      final gone = await world.delete('card-7');
 
       expect(gone, isFalse);
       expect(
@@ -120,7 +120,7 @@ void main() {
       );
 
       world.repository.failWith = null;
-      expect(await world.delete(7), isTrue);
+      expect(await world.delete('card-7'), isTrue);
     });
   });
 }
@@ -147,7 +147,7 @@ class _World {
 
   CardDeleteState get state => container.read(cardDeleteProvider);
 
-  Future<bool> delete(int id) =>
+  Future<bool> delete(String id) =>
       container.read(cardDeleteProvider.notifier).delete(id);
 }
 
@@ -166,10 +166,10 @@ class _Repository implements RecordCardRepository {
   final Duration delay;
   RecordCardFailure? failWith;
 
-  final deleted = <int>[];
+  final deleted = <String>[];
 
   @override
-  Future<void> delete(int cardId) async {
+  Future<void> delete(String cardId) async {
     if (delay > Duration.zero) await Future<void>.delayed(delay);
     final failure = failWith;
     if (failure != null) throw RecordCardException(failure);
@@ -193,10 +193,10 @@ class _Repository implements RecordCardRepository {
   /// ⚠️ **상세가 음악 줄을 세운다.** 던지면 삭제 테스트가 음악 때문에
   /// 떨어진다. 이 테스트의 카드는 음악이 없는 것으로 둔다.
   @override
-  Future<MusicGeneration> musicOf(int cardId) async =>
+  Future<MusicGeneration> musicOf(String cardId) async =>
       MusicGeneration.none(cardId);
 
   @override
-  Future<MusicGeneration> requestMusic(int cardId) =>
+  Future<MusicGeneration> requestMusic(String cardId) =>
       throw UnsupportedError('이 테스트는 음악을 만들지 않는다');
 }

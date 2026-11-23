@@ -32,7 +32,7 @@ RecordCard _card({
   List<RecordCardPhoto> photos = const [],
   RouteArt? route,
 }) => RecordCard(
-  id: id,
+  id: 'card-$id',
   runningRecordId: id + 100,
   startedAt: DateTime(2026, 9, 2, 18, 54),
   activity: RecordCardActivity.daily,
@@ -82,7 +82,7 @@ void main() {
         _card(
           id: 1,
           photos: const [
-            RecordCardPhoto(id: 1, url: 'assets/images/onboarding_record.jpg'),
+            RecordCardPhoto(id: 'img-1', url: 'assets/images/onboarding_record.jpg'),
           ],
         ),
       ],

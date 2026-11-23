@@ -84,7 +84,7 @@ class CardComposePage extends ConsumerStatefulWidget {
   final DateTime day;
 
   /// 수정 중인 카드 번호. `null`이면 새 카드다.
-  final int? cardId;
+  final String? cardId;
 
   /// 러닝 요약에서 왔으면 **그 방 번호**. 그 방에서 뛴 기록을 미리 고른다
   /// (설계 6-2).

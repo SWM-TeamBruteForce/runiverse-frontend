@@ -55,7 +55,7 @@ class MusicGeneration {
   /// 사진 한 장의 음악 길이. **그 사진과 캡션으로 만든다.**
   static const photoDuration = Duration(seconds: 10);
 
-  final int cardId;
+  final String cardId;
 
   final MusicStatus status;
 

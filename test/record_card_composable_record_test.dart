@@ -17,7 +17,7 @@ RunRecord _record({required int id, int hour = 18}) => RunRecord(
 );
 
 RecordCard _card({required int id, required int runningRecordId}) => RecordCard(
-  id: id,
+  id: 'card-$id',
   runningRecordId: runningRecordId,
   startedAt: DateTime(2026, 9, 2, 18),
   activity: RecordCardActivity.daily,
@@ -42,7 +42,7 @@ void main() {
     expect(joined.map((r) => r.record.id), [11, 12]);
     expect(joined[0].existingCardId, isNull);
     expect(joined[0].hasCard, isFalse);
-    expect(joined[1].existingCardId, 500);
+    expect(joined[1].existingCardId, 'card-500');
     expect(joined[1].hasCard, isTrue);
   });
 
@@ -57,7 +57,7 @@ void main() {
       ],
     );
 
-    expect(joined.single.existingCardId, 500);
+    expect(joined.single.existingCardId, 'card-500');
   });
 
   test('기록이 없으면 빈 목록이다 — 카드가 있어도', () {
@@ -87,8 +87,8 @@ void main() {
       cards: [_card(id: 500, runningRecordId: 11)],
     );
 
-    expect(joined.single.existingCard?.id, 500);
-    expect(joined.single.existingCardId, 500);
+    expect(joined.single.existingCard?.id, 'card-500');
+    expect(joined.single.existingCardId, 'card-500');
   });
 
   test('⚠️ 그날 기록과 상관없는 카드는 아무 기록에도 안 붙는다', () {

@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/record_card/domain/music_generation.dart';
 
 MusicGeneration _generation(MusicStatus status) =>
-    MusicGeneration(cardId: 7, status: status, trackCount: 3);
+    MusicGeneration(cardId: 'card-7', status: status, trackCount: 3);
 
 void main() {
   test('⚠️ 곡 수는 사진 수 + 1이다 — 사진이 없어도 기본 음악 한 곡이 있다', () {
@@ -39,7 +39,7 @@ void main() {
   });
 
   test('⚠️ 만들지 않은 카드는 곡이 0개다 — 상태가 아니라 수로도 드러난다', () {
-    expect(MusicGeneration.none(7).status, MusicStatus.none);
-    expect(MusicGeneration.none(7).trackCount, 0);
+    expect(MusicGeneration.none('card-7').status, MusicStatus.none);
+    expect(MusicGeneration.none('card-7').trackCount, 0);
   });
 }

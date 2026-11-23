@@ -305,7 +305,7 @@ void main() {
 
       expect(world.repository.creates, 0);
       expect(world.repository.updates, 1);
-      expect(world.repository.lastEdit!.cardId, 7);
+      expect(world.repository.lastEdit!.cardId, 'card-7');
     });
 
     // ⚠️ Review Focus 2
@@ -336,7 +336,7 @@ void main() {
 
       final sent = world.repository.lastEdit!.photos;
       expect(sent, hasLength(2));
-      expect(sent.first.savedId, 70);
+      expect(sent.first.savedId, 'img-70');
       expect(sent.first.path, isNull);
       expect(sent.last.savedId, isNull);
       expect(sent.last.path, isNotNull);
@@ -635,7 +635,7 @@ class _Repository implements RecordCardRepository {
 
   /// 이 테스트는 지우지 않는다.
   @override
-  Future<void> delete(int cardId) =>
+  Future<void> delete(String cardId) =>
       throw UnsupportedError('이 테스트는 카드를 지우지 않는다');
 
   @override
@@ -644,22 +644,22 @@ class _Repository implements RecordCardRepository {
     if (delay > Duration.zero) await Future<void>.delayed(delay);
     final failure = failWith;
     if (failure != null) throw RecordCardException(failure);
-    return _built(card, id: 7000 + creates);
+    return _built(card, id: 'new-$creates');
   }
 
   /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<MusicGeneration> musicOf(int cardId) =>
+  Future<MusicGeneration> musicOf(String cardId) =>
       throw UnsupportedError('이 테스트는 음악을 보지 않는다');
 
   /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<MusicGeneration> requestMusic(int cardId) =>
+  Future<MusicGeneration> requestMusic(String cardId) =>
       throw UnsupportedError('이 테스트는 음악을 만들지 않는다');
 }
 
 /// `_Repository`가 만드는 카드. Fake와 같은 모양이어야 화면이 같게 그린다.
-RecordCard _built(NewRecordCard card, {required int id}) => RecordCard(
+RecordCard _built(NewRecordCard card, {required String id}) => RecordCard(
   id: id,
   runningRecordId: card.record.id,
   startedAt: card.record.startedAt,
@@ -669,7 +669,7 @@ RecordCard _built(NewRecordCard card, {required int id}) => RecordCard(
   photos: [
     for (var i = 0; i < card.photos.length; i++)
       RecordCardPhoto(
-        id: id * 10 + i,
+        id: '$id-img$i',
         url: card.photos[i].path,
         thumbnailUrl: card.photos[i].thumbnailPath,
         caption: card.photos[i].caption,
@@ -693,7 +693,7 @@ RecordCard _edited(EditRecordCard card) => RecordCard(
   photos: [
     for (var i = 0; i < card.photos.length; i++)
       RecordCardPhoto(
-        id: card.photos[i].savedId ?? 9000 + i,
+        id: 'img-${card.photos[i].savedId ?? 9000 + i}',
         url: card.photos[i].path ?? 'https://x/$i.jpg',
         caption: card.photos[i].caption,
       ),
@@ -731,7 +731,7 @@ class _EditWorld {
     }
   }
 
-  static const cardId = 7;
+  static const cardId = 'card-7';
 
   final cropper = _Cropper();
   final _Repository repository;
@@ -767,7 +767,7 @@ RecordCard _savedCard({int photos = 0}) => RecordCard(
   reviewText: '여행에서 뛰었다',
   photos: [
     for (var i = 0; i < photos; i++)
-      RecordCardPhoto(id: 70 + i, url: 'https://x/$i.jpg'),
+      RecordCardPhoto(id: 'img-${70 + i}', url: 'https://x/$i.jpg'),
   ],
   route: RouteArt.empty,
   distanceMeters: 3050,
