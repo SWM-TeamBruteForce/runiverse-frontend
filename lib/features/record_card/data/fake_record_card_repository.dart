@@ -178,9 +178,10 @@ class FakeRecordCardRepository implements RecordCardRepository {
       runners: const [],
     );
     _created.add(made);
-    // 서버가 `musicEnabled`로 생성 요청을 건다(`NewRecordCard`). 가짜도 같은
-    // 자리에서 건다 — 저장하고 상세로 가면 줄이 `준비 중…`으로 서 있다.
-    if (card.musicEnabled) _musicRequestedAt[id] = clock();
+    // ⚠️ **늘 건다.** 서버는 카드를 확정할 때 기본곡과 사진별 곡 생성을
+    // 항상 요청한다(연동 가이드 3절) — 끄는 길이 없다. 가짜도 같은 자리에서
+    // 같이 건다. 저장하고 상세로 가면 줄이 `준비 중…`으로 서 있다.
+    _musicRequestedAt[id] = clock();
     return made;
   }
 

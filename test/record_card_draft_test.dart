@@ -60,7 +60,6 @@ CardDraft _draft({
   String reviewText = '',
   List<CardPhotoDraft> photos = const [],
   RecordCardVisibility visibility = RecordCardVisibility.friends,
-  bool musicEnabled = true,
 }) => CardDraft(
   record: record,
   route: route,
@@ -68,7 +67,6 @@ CardDraft _draft({
   reviewText: reviewText,
   photos: photos,
   visibility: visibility,
-  musicEnabled: musicEnabled,
 );
 
 void main() {
@@ -310,34 +308,30 @@ void main() {
     });
   });
 
-  group('공개범위와 음악', () {
-    test('기본값은 친구 공개와 음악 켜짐이다', () {
+  group('공개범위', () {
+    test('기본값은 친구 공개다', () {
       // 설계 6-4가 정한 값이다.
       expect(const CardDraft().visibility, RecordCardVisibility.friends);
-      expect(const CardDraft().musicEnabled, isTrue);
     });
 
     test('⚠️ 기본값에서 바뀌면 버리기 전에 묻는다', () {
       // 고른 공개범위를 안 세면, 나만 보기로 바꿔 둔 사람이 뒤로 눌렀을 때
       // 아무 경고 없이 그 선택이 사라진다.
       expect(_draft(visibility: RecordCardVisibility.private).isDirty, isTrue);
-      expect(_draft(musicEnabled: false).isDirty, isTrue);
     });
 
     test('기본값 그대로면 묻지 않는다', () {
       expect(const CardDraft().isDirty, isFalse);
     });
 
-    test('copyWith가 셋을 함께 옮긴다', () {
+    test('copyWith가 둘을 함께 옮긴다', () {
       final next = const CardDraft().copyWith(
         photos: [_photo()],
         visibility: RecordCardVisibility.public,
-        musicEnabled: false,
       );
 
       expect(next.photos, hasLength(1));
       expect(next.visibility, RecordCardVisibility.public);
-      expect(next.musicEnabled, isFalse);
     });
   });
 }

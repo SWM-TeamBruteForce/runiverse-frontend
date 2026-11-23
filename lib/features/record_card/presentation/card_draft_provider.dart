@@ -140,9 +140,6 @@ class CardDraftController extends Notifier<CardDraft> {
   void setVisibility(RecordCardVisibility visibility) =>
       state = state.copyWith(visibility: visibility);
 
-  void setMusicEnabled(bool enabled) =>
-      state = state.copyWith(musicEnabled: enabled);
-
   /// 고른 기록을 푼다. **경로도 함께 비운다** — 기록 없는 경로는 뜻이 없다.
   ///
   /// 유형과 회고는 남긴다. 날짜를 잘못 골라 되돌리는 사람의 글을 버리지 않는다.

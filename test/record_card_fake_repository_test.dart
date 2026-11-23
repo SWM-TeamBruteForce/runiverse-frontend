@@ -37,7 +37,7 @@ Future<RecordCard> _cardOf(FakeRecordCardRepository repo, int id) async {
   return cards.firstWhere((card) => card.id == id);
 }
 
-NewRecordCard _newCard({required bool musicEnabled}) => NewRecordCard(
+NewRecordCard _newCard() => NewRecordCard(
   record: RunRecord(
     id: 11,
     runningRoomId: 911,
@@ -52,7 +52,6 @@ NewRecordCard _newCard({required bool musicEnabled}) => NewRecordCard(
   visibility: RecordCardVisibility.friends,
   reviewText: '좋았다',
   photos: const [],
-  musicEnabled: musicEnabled,
 );
 
 void main() {
@@ -258,16 +257,13 @@ void main() {
       expect((await repo.requestMusic(1001)).status, MusicStatus.queued);
     });
 
-    test('음악을 켜고 만든 카드는 준비 중으로 선다', () async {
-      final made = await repo.create(_newCard(musicEnabled: true));
+    test('⚠️ 저장하면 늘 음악을 요청한다', () async {
+      // 서버는 카드를 확정할 때 기본곡과 사진별 곡 생성을 **항상** 요청한다
+      // (연동 가이드 3절) — 끄는 인자가 요청에 없다. 가짜가 조건을 달면
+      // "껐는데도 만들어진다"는 기기에서만 보이는 차이가 생긴다.
+      final made = await repo.create(_newCard());
 
       expect((await repo.musicOf(made.id)).status, MusicStatus.queued);
-    });
-
-    test('음악을 끄고 만든 카드는 만들지 않는다', () async {
-      final made = await repo.create(_newCard(musicEnabled: false));
-
-      expect((await repo.musicOf(made.id)).status, MusicStatus.none);
     });
 
     test('⚠️ 회고를 고치면 다 된 음악이 처음으로 돌아간다', () async {

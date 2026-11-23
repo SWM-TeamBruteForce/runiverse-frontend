@@ -135,20 +135,14 @@ class CardPublishPage extends ConsumerWidget {
               const SizedBox(height: AppSpacing.space1),
               _Warning(warning),
             ],
-            // ⚠️ **수정에서는 음악 블록을 숨긴다.** `RecordCard`에 음악
-            // 상태가 없어(묶음 5) 기본값 `true`를 보여 주게 되는데, 음악을
-            // **끄고 만든 카드**를 고치러 온 사람에게 켜진 스위치가 서고
-            // 저장하면 거절했던 생성이 수정 한 번으로 켜진다. 모르는 상태를
-            // 조작 가능한 컨트롤로 지어내지 않는다 — 묶음 5가 진짜 상태와
-            // 함께 되살린다.
+            // ⚠️ **수정에서는 숨긴다.** 고치러 온 사람에게 "만듭니다"는 낡은
+            // 말이다 — 음악은 이미 있거나 만들어지는 중이고, 그 카드에
+            // 무슨 일이 생기는지는 위의 `_musicWarning`이 말한다.
             if (draft.editing == null) ...[
               const SizedBox(height: AppSpacing.space5),
               Divider(color: colors.bgSurface, height: 1),
               const SizedBox(height: AppSpacing.space5),
-              _MusicToggle(
-                enabled: draft.musicEnabled,
-                onChanged: saving ? null : controller.setMusicEnabled,
-              ),
+              const _MusicNote(),
             ],
           ],
         ),
@@ -308,14 +302,18 @@ class _Warning extends StatelessWidget {
   }
 }
 
-/// AI 음악을 만들까. **기본은 켜짐**이고, 무엇을 얼마나 만드는지 아래에 둔다.
-class _MusicToggle extends StatelessWidget {
-  const _MusicToggle({required this.enabled, required this.onChanged});
-
-  final bool enabled;
-
-  /// `null`이면 저장이 도는 중이다 — 바꿔도 이미 보낸 값에 반영되지 않는다.
-  final ValueChanged<bool>? onChanged;
+/// 저장하면 음악이 만들어진다고 **알리는 줄.** 고를 것이 없다.
+///
+/// ## ⚠️ 스위치가 아니다
+///
+/// 서버는 카드를 확정할 때 **늘** 기본곡과 사진별 곡 생성을 요청한다(연동
+/// 가이드 3절: "현재 API는 음악 생성을 항상 요청하므로"). 끌 수 있는 것처럼
+/// 보여 주면 **끄고 저장한 사람이 음악이 만들어지는 것을 보게 된다.**
+///
+/// 그래도 글은 남긴다 — 지우면 저장하는 사람이 **모르는 사이에** AI가 회고와
+/// 사진을 읽어 곡을 만든다. 고를 수 없는 것과 알리지 않는 것은 다르다.
+class _MusicNote extends StatelessWidget {
+  const _MusicNote();
 
   @override
   Widget build(BuildContext context) {
@@ -324,18 +322,9 @@ class _MusicToggle extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                AppStrings.recordCardPublishMusicTitle,
-                style: AppTypographyV2.body07.copyWith(
-                  color: colors.textPrimary,
-                ),
-              ),
-            ),
-            Switch(value: enabled, onChanged: onChanged),
-          ],
+        Text(
+          AppStrings.recordCardPublishMusicTitle,
+          style: AppTypographyV2.body07.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: AppSpacing.space2),
         Text(

@@ -1913,7 +1913,11 @@ abstract final class AppStrings {
   /// 말하면 보이지도 않는 것을 경고하는 셈이다.
   static const recordCardPublishRouteWarning = '공개하면 달린 경로가 선으로 함께 보입니다';
 
-  static const recordCardPublishMusicTitle = 'AI 음악 만들기';
+  /// ⚠️ **버튼이 아니라 알림이다.** 서버가 저장할 때 늘 음악을 만들어서
+  /// 끄는 길이 없다(연동 가이드 3절). `AI 음악 만들기`로 적으면 누를 수 있는
+  /// 것처럼 보이고, 상세 화면의 같은 문구(`recordCardMusicCreate`)는 **진짜
+  /// 누르는 버튼**이라 둘이 헷갈린다.
+  static const recordCardPublishMusicTitle = 'AI 음악이 함께 만들어집니다';
 
   /// ⚠️ **"몇 분"으로 끝내지 않는다.** 서버가 큐에서 6시간까지 기다릴 수 있다
   /// (설계 3절). "조금만 기다리세요"로 적으면 지키지 못할 약속이 된다.

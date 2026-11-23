@@ -297,13 +297,11 @@ void main() {
     test('clear가 사진까지 비운다', () {
       notifier().addPhoto(_image('/tmp/a.jpg'));
       notifier().setVisibility(RecordCardVisibility.public);
-      notifier().setMusicEnabled(false);
 
       notifier().clear();
 
       expect(draft().photos, isEmpty);
       expect(draft().visibility, RecordCardVisibility.friends);
-      expect(draft().musicEnabled, isTrue);
     });
   });
 
@@ -369,14 +367,6 @@ void main() {
       notifier().setVisibility(RecordCardVisibility.private);
 
       expect(draft().visibility, RecordCardVisibility.private);
-    });
-
-    test('음악을 껐다 켤 수 있다', () {
-      notifier().setMusicEnabled(false);
-      expect(draft().musicEnabled, isFalse);
-
-      notifier().setMusicEnabled(true);
-      expect(draft().musicEnabled, isTrue);
     });
 
     test('⚠️ 카드별로 따로 둔다', () {

@@ -417,7 +417,6 @@ NewRecordCard _newCard() => NewRecordCard(
   visibility: RecordCardVisibility.friends,
   reviewText: '좋았다',
   photos: const [],
-  musicEnabled: true,
 );
 
 const _route = RouteArt(

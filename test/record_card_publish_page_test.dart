@@ -31,7 +31,7 @@ import 'package:runiverse/features/record_card/presentation/visibility_label.dar
 /// 공개한다.
 void main() {
   group('기본값', () {
-    testWidgets('친구 공개와 음악 켜짐이다', (tester) async {
+    testWidgets('친구 공개다', (tester) async {
       await _pump(tester);
 
       expect(
@@ -39,7 +39,15 @@ void main() {
         isTrue,
         reason: '설계 6-4가 친구 공개를 기본으로 정했다',
       );
-      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+    });
+
+    testWidgets('저장하면 음악이 만들어진다고 알린다', (tester) async {
+      // 고를 수 없는 것과 알리지 않는 것은 다르다. 글을 지우면 저장하는
+      // 사람이 **모르는 사이에** AI가 회고와 사진을 읽어 곡을 만든다.
+      await _pump(tester);
+
+      expect(find.text(AppStrings.recordCardPublishMusicTitle), findsOne);
+      expect(find.text(AppStrings.recordCardPublishMusicBody), findsOne);
     });
 
     testWidgets('셋이 모두 이름과 설명을 보인다', (tester) async {
@@ -51,11 +59,16 @@ void main() {
       }
     });
 
-    testWidgets('음악이 무엇을 만드는지 말한다', (tester) async {
+    testWidgets('⚠️ 음악 생성 토글이 없다', (tester) async {
+      // 서버는 **저장하면 늘 음악을 만든다**(연동 가이드 3절: "현재 API는
+      // 음악 생성을 항상 요청하므로"). 끌 수 없는 것을 스위치로 보여 주면,
+      // 끄고 저장한 사람이 음악이 만들어지는 것을 보게 된다.
       await _pump(tester);
 
-      expect(find.text(AppStrings.recordCardPublishMusicTitle), findsOne);
-      expect(find.text(AppStrings.recordCardPublishMusicBody), findsOne);
+      // 이 화면의 스위치는 음악 토글 하나였다.
+      expect(find.byType(Switch), findsNothing);
+      // 화면을 잘못 찾은 것이 아니라는 확인.
+      expect(find.text(AppStrings.recordCardPublishVisibilitySection), findsOne);
     });
 
     testWidgets('라이트에서도 그려진다', (tester) async {
@@ -108,14 +121,6 @@ void main() {
       expect(_selected(tester, RecordCardVisibility.private), isTrue);
     });
 
-    testWidgets('음악 토글', (tester) async {
-      final container = await _pump(tester);
-
-      await tester.tap(find.byType(Switch));
-      await tester.pumpAndSettle();
-
-      expect(container.read(cardDraftProvider(null)).musicEnabled, isFalse);
-    });
   });
 
   group('저장 버튼', () {
@@ -198,14 +203,14 @@ void main() {
   });
 
   group('카드를 고칠 때', () {
-    testWidgets('⚠️ 음악 토글을 보여 주지 않는다', (tester) async {
-      // `RecordCard`에 음악 상태가 없다(묶음 5). 기본값 `true`를 보여 주면
-      // **음악을 끄고 만든 카드**를 고치러 들어온 사람에게 켜진 스위치가
-      // 서고, 저장하면 거절했던 생성이 수정 한 번으로 켜진다.
+    testWidgets('⚠️ 음악 안내를 보여 주지 않는다', (tester) async {
+      // 고치러 온 사람에게 "만들어집니다"는 낡은 말이다 — 음악은 이미
+      // 있거나 만들어지는 중이고, 그 카드에 무슨 일이 생기는지는 위의
+      // 음악 경고가 말한다.
       await _pump(tester, editing: true);
 
-      expect(find.byType(Switch), findsNothing);
       expect(find.text(AppStrings.recordCardPublishMusicTitle), findsNothing);
+      expect(find.text(AppStrings.recordCardPublishMusicBody), findsNothing);
     });
 
     testWidgets('⚠️ 새 카드에는 아무 음악 경고도 없다', (tester) async {

@@ -42,7 +42,6 @@ void main() {
     visibility: visibility,
     reviewText: '좋았다',
     photos: const [],
-    musicEnabled: false,
   );
 
   EditRecordCard hide(RecordCard card) => EditRecordCard(
