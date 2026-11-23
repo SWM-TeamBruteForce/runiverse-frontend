@@ -25,6 +25,7 @@ class RunDetail {
     required this.distanceMeters,
     required this.duration,
     required this.rawSplits,
+    this.startedAt,
     this.track = const [],
     this.averagePace,
     this.cadenceSpm,
@@ -35,6 +36,19 @@ class RunDetail {
   });
 
   final int runningRoomId;
+
+  /// 이 러닝이 **시작한** 시각. 6-1이 싣는다.
+  ///
+  /// ## ⚠️ 끝난 시각이 아니다
+  ///
+  /// 기록카드는 **시작한 날**에 붙는다(연동 가이드 1절: "앞 10자리로 묶으면
+  /// 자정을 넘긴 러닝도 시작한 날짜에 표시된다"). 11월 22일 23시 50분에
+  /// 출발해 23일에 끝난 러닝은 **22일 카드**다 — 끝난 시각으로 열면 23일
+  /// 목록에서 그 기록을 못 찾는다.
+  ///
+  /// 서버가 안 주면 `null`이다. 그때는 기록카드 버튼을 **숨긴다**(가이드 6절) —
+  /// 어느 날로 열어야 할지 모른다.
+  final DateTime? startedAt;
 
   /// 같은 방에서 달린 사람 전원. **나도 들어 있다**([RunPlayerResult.isMe]).
   ///
