@@ -33,17 +33,10 @@
 | 연동까지 끝내고 PR을 올린다 | 2026-11-24 | 묶음 1~6은 PR 전에 이 묶음이 덮는다. ID 타입이 바뀌므로 먼저 올리면 리뷰 중 통째로 바뀐다 |
 | 읽기 먼저, 쓰기는 다음 묶음 | 2026-11-24 | 쓰기 두 메서드는 Fake에 위임해 남긴다 (Task 2) |
 | 대표 사진은 **고른 것을 맨 앞으로** | 2026-11-23 | 가이드가 그 UI에 `thumbnailIndex: 0`을 적어 뒀다 — `makeCover()`는 그대로 두고 쓰기 묶음에서 필드만 싣는다 |
-| 비공개 카드는 프로필에 안 보인다 | 2026-11-19 | **지금 지킬 수 없다** — 아래 미결 참고 |
+| **비공개 카드도 프로필에 보인다** (2026-11-19 결정을 뒤집었다) | 2026-11-24 | Task 6이 10-3 응답을 **그대로** 표시한다. 거를 코드도, 백엔드 요청도 없다 |
+| **음악 생성 on/off 토글을 없앤다** — 저장하면 자동 요청 | 2026-11-24 | Task 0. 가이드 3절 "현재 API는 음악 생성을 항상 요청한다"와 맞는다 |
 
-### ⚠️ 미결 — 내 프로필의 비공개 카드
-
-10-3은 **본인에게 `PRIVATE`까지 보낸다**(가이드 5절 표). 그런데 항목에 들어오는 값은 `recordCardId`·`thumbnailUrl`·`imageCount`·`startedAt`·`totalDistanceMeters`뿐이고 **`visibility`가 없다** — 앱이 가려낼 근거가 없다. 세 길뿐이다.
-
-1. 백엔드에 항목에 `visibility`를 넣어 달라고 하거나 `visibility` 필터 파라미터를 요청한다.
-2. 결정을 뒤집어 내 프로필에도 비공개를 보여준다.
-3. 그리드 항목마다 8-1을 불러 `visibility`를 본다 — **여섯 번 왕복이라 하지 않는다.**
-
-**Task 6은 서버가 주는 대로 보여주는 것으로 적었다**(가이드대로). 사용자 결정이 오면 그 자리에 한 줄이 붙거나, 백엔드 답이 오면 필터가 붙는다.
+> 2026-11-19의 "비공개는 프로필에 안 보인다"는 **철회됐다.** 10-3 항목에 `visibility`가 없어 앱이 가려낼 근거가 없었고(항목마다 8-1을 부르면 여섯 번 왕복이다), 백엔드 요청 대신 기획을 맞췄다. `record_card_repository.dart`의 `byUser` 주석에 그 결정이 적혀 있으니 **Task 6에서 함께 고친다.**
 
 ## Review Focus
 
@@ -54,6 +47,36 @@
 3. **상세의 `routeArt`가 200점을 넘겨 올 때** 그리는 쪽이 점 수에 상한을 두거나 느려지지 않는지. 가이드가 "조금 넘을 수 있다"고 적었다. → Task 4
 4. **음악 폴링이 화면을 떠난 뒤에도 도는지**, 그리고 **재진입 때 기본곡 교체를 잡는지**. 가이드: 교체 중에도 `COMPLETED`로 보여 `GENERATING`만 보는 폴링은 시점을 놓친다. → Task 5
 5. **만료된 URL의 403 재조회가 루프를 만들지 않는지** — 재조회 → 또 403 → 또 재조회. 한 번만 시도해야 한다. → Task 7
+
+---
+
+### Task 0: 음악 생성 토글을 없앤다
+
+**저장하면 서버가 늘 음악을 만든다**(가이드 3절: "현재 API는 음악 생성을 항상 요청하므로"). 끌 길이 없는 것을 끄는 스위치로 보여 주면, 끄고 저장한 사람은 **음악이 만들어지는 것을 보게 된다.** 지우는 것이 맞다.
+
+다른 아홉 작업과 **아무것도 공유하지 않는다.** 코드를 덜어 내므로 먼저 한다 — 뒤의 작업들이 들고 갈 것이 줄어든다.
+
+**Files:**
+- Modify: `lib/features/record_card/presentation/card_publish_page.dart` (`_MusicToggle` 위젯과 그것을 세우는 `if (draft.editing == null)` 블록 + 구분선 **삭제**)
+- Modify: `lib/features/record_card/domain/card_draft.dart` (`musicEnabled` 필드·기본값·`copyWith` 인자 삭제, `isDirty`의 `!musicEnabled` 항 삭제)
+- Modify: `lib/features/record_card/domain/new_record_card.dart` (`musicEnabled` 삭제)
+- Modify: `lib/features/record_card/presentation/card_draft_provider.dart` (`setMusicEnabled` 삭제)
+- Modify: `lib/features/record_card/presentation/card_save_provider.dart` (`musicEnabled:` 인자 삭제)
+- Modify: `lib/features/record_card/data/fake_record_card_repository.dart` (**늘** `_musicRequestedAt[id] = clock()`)
+- Modify: `lib/core/strings/app_strings.dart` (`recordCardPublishMusicTitle`·`recordCardPublishMusicBody` 삭제)
+- Test: `test/record_card_publish_page_test.dart`, `test/record_card_draft_test.dart`, `test/record_card_save_test.dart`
+
+**Interfaces:**
+- Produces: `CardDraft`와 `NewRecordCard`에 **`musicEnabled`가 없다.** Task 5가 `MusicStatus.none`("음악을 끄고 저장했거나")을 지우는 것과 같은 방향이다
+
+**⚠️ `_musicWarning`은 남긴다.** 수정할 때 만들던 음악이 버려진다는 경고이고, 토글과 무관하다. `recordCardMusicWorkingEdit`·`recordCardMusicRegenerate`도 그대로다.
+
+- [ ] **Step 1: 실패하는 테스트를 쓴다** — `test/record_card_publish_page_test.dart`에 `'⚠️ 음악 생성 토글이 없다'`: 발행 화면에 `find.byType(Switch)`가 없고 `find.text(AppStrings.recordCardPublishMusicTitle)`에 해당하던 문구가 보이지 않는지. 그리고 `test/record_card_save_test.dart`에 `'⚠️ 저장하면 늘 음악을 요청한다'`: 저장 뒤 가짜 저장소의 음악 요청 시각이 찍혀 있는지.
+- [ ] **Step 2: 실패를 본다** — `.fvm\flutter_sdk\bin\flutter.bat test test/record_card_publish_page_test.dart test/record_card_save_test.dart`. 기대: FAIL(토글이 아직 있고, `recordCardPublishMusicTitle`이 아직 존재해 컴파일된다).
+- [ ] **Step 3: 위 Files 목록에서 토글을 걷어 낸다.**
+- [ ] **Step 4: 통과를 본다** — 같은 명령. 기대: PASS.
+- [ ] **Step 5: 전체 테스트를 돌린다** — `.fvm\flutter_sdk\bin\flutter.bat test`. 기대: 전부 PASS. **토글을 검증했던 테스트가 몇 개 줄어든다** — 줄어든 수와 지운 테스트 이름을 커밋 메시지에 적는다.
+- [ ] **Step 6: analyze 0을 확인하고 커밋** — `✂️ Remove: 끌 수 없는 음악 생성 스위치를 걷어낸다`
 
 ---
 
@@ -242,7 +265,7 @@
   - `'⚠️ 썸네일이 없으면 기본 이미지다'`
   - `'⚠️ 볼 수 있는 카드가 없으면 빈 상태다'` — `items: []`는 오류가 아니다
 - [ ] **Step 2: 실패를 본다.** 기대: FAIL.
-- [ ] **Step 3: 커서 페이지로 갈아탄다.** 그리드는 `limit: 6`을 묻는다(7장 받던 것을 **되돌린다**).
+- [ ] **Step 3: 커서 페이지로 갈아탄다.** 그리드는 `limit: 6`을 묻는다(7장 받던 것을 **되돌린다**). `record_card_repository.dart`의 **"비공개 카드는 응답에 오지 않는다 · 내 프로필에서도 비공개는 안 보인다"는 주석을 고친다** — 2026-11-24에 뒤집혔다. 서버는 본인에게 `PRIVATE`까지 보내고 앱은 그대로 보여준다.
 - [ ] **Step 4: 통과를 본다.** 기대: PASS.
 - [ ] **Step 5: 전체 테스트 + analyze 0을 확인하고 커밋** — `📍 Feat: 프로필 카드 목록을 커서로 이어 받는다`
 
@@ -327,7 +350,7 @@
 
 | PR | 작업 | 내용 |
 |---|---|---|
-| 1 | Task 1~2 | 카드 번호 문자열화 + 오류 매퍼 + Http 골격 |
+| 1 | Task 0~2 | 음악 토글 제거 + 카드 번호 문자열화 + 오류 매퍼 + Http 골격 |
 | 2 | Task 3~5 | 달력 7-1 · 상세 8-1 · 음악 곡별 |
 | 3 | Task 6~10 | 프로필 커서 · 만료 URL · 요약 날짜 · 삭제 404 · 실제 연결 |
 
@@ -335,7 +358,7 @@
 
 ## Self-review
 
-**가이드 절별 덮임**: 1절 달력 → Task 3 · 2절 상세·포토북 → Task 4 · 3절 작성 → **묶음 8** · 4절 수정 → **묶음 8** · 4절 삭제 → Task 9 · 4절 음악 재요청 → Task 5 · 5절 프로필 → Task 6 · 6절 러닝 요약 → Task 8 · 7절 오류 복구 → Task 2(읽기 코드만), 쓰기 코드 5개는 묶음 8 · 7절 URL 만료 → Task 7 · 7절 음악 완료 확인 → Task 5.
+**가이드 절별 덮임**: 1절 달력 → Task 3 · 2절 상세·포토북 → Task 4 · 3절 작성 → **묶음 8** · 3절 "음악 생성을 항상 요청한다" → Task 0 · 4절 수정 → **묶음 8** · 4절 삭제 → Task 9 · 4절 음악 재요청 → Task 5 · 5절 프로필 → Task 6 · 6절 러닝 요약 → Task 8 · 7절 오류 복구 → Task 2(읽기 코드만), 쓰기 코드 5개는 묶음 8 · 7절 URL 만료 → Task 7 · 7절 음악 완료 확인 → Task 5.
 
 **빠뜨린 것 하나**: 회고 길이를 입력 포매터가 grapheme으로 세는데 서버는 UTF-16(`String.length`)이다. 이모지가 많으면 **포매터는 통과하고 서버가 400**이다. 저장할 때 걸리는 값이라 **묶음 8로 미룬다** — 읽기에서는 드러나지 않는다.
 
