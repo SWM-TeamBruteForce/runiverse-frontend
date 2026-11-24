@@ -1,6 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/features/auth/domain/token_refresher.dart';
+import 'package:runiverse/features/profile/domain/picked_image.dart';
+import 'package:runiverse/features/record_card/data/card_photo_uploader.dart';
+import 'package:runiverse/features/record_card/data/record_card_draft_dto.dart';
+import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
+import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/data/record_card_detail_dto.dart';
 import 'package:runiverse/features/record_card/data/record_card_list_dto.dart';
@@ -31,13 +36,72 @@ import 'package:runiverse/features/record_card/domain/record_card_repository.dar
 ///
 /// `HttpRunRecordRepository`와 같은 규칙이고, 갱신은 반드시 [TokenRefresher]를
 /// 거친다. 저장소마다 재시도를 적으면 한쪽만 고쳐지는 일이 생긴다.
+/// 확정을 **한 번 더** 해 볼 만한 실패. 밖으로 나가지 않는다.
+class _RetryComplete {
+  const _RetryComplete({required this.uploadAgain});
+
+  /// 빠진 파일을 먼저 올려야 하나.
+  final bool uploadAgain;
+}
+
 class HttpRecordCardRepository implements RecordCardRepository {
   HttpRecordCardRepository(
     this._dio,
     this._store,
     this._refresher, {
     required this.fallback,
-  });
+    CardPhotoUploader? uploader,
+  }) : _uploader = uploader ?? CardPhotoUploader();
+
+  /// S3에 직접 올리는 쪽. 인증이 붙지 않은 [Dio]를 따로 든다.
+  final CardPhotoUploader _uploader;
+
+  /// 카드 경로. 작성·확정·수정·삭제가 모두 여기서 갈린다.
+  static const _cards = '/api/v1/record-cards';
+
+  /// 서버가 받는 활동 유형. **대문자다**(가이드 3절).
+  static String activityWire(RecordCardActivity activity) => switch (activity) {
+    RecordCardActivity.daily => 'DAILY',
+    RecordCardActivity.race => 'RACE',
+    RecordCardActivity.travel => 'TRAVEL',
+  };
+
+  /// 서버가 받는 공개 범위. **대문자다.**
+  static String visibilityWire(RecordCardVisibility visibility) =>
+      switch (visibility) {
+        RecordCardVisibility.friends => 'FRIENDS',
+        RecordCardVisibility.public => 'PUBLIC',
+        RecordCardVisibility.private => 'PRIVATE',
+      };
+
+  /// 새 사진 한 장의 메타데이터.
+  ///
+  /// ⚠️ **`fileName`은 필수**이고 경로 구분자와 제어 문자를 넣을 수 없다
+  /// (가이드 3절). 100자를 넘으면 서버가 거절하므로 뒤를 자른다 — 앞을
+  /// 자르면 확장자가 날아간다.
+  ///
+  /// ⚠️ **빈 캡션은 보내지 않는다.** 공백만 보내도 서버가 `null`로 저장하지만,
+  /// 보내지 않는 쪽이 "안 썼다"는 뜻에 가깝다.
+  static Map<String, Object?> imageWire(
+    PickedImage file,
+    PickedImage thumbnail,
+    String? caption,
+  ) => {
+    'mimeType': file.mimeType,
+    'fileSizeBytes': file.sizeBytes,
+    'thumbnailFileSizeBytes': thumbnail.sizeBytes,
+    'fileName': fileNameOf(file.path),
+    if (caption != null && caption.trim().isNotEmpty) 'caption': caption,
+  };
+
+  /// 경로에서 보낼 파일 이름을 뽑는다. 최대 100자.
+  static String fileNameOf(String path) {
+    final last = path.split(RegExp(r'[/\\]')).last;
+    // 제어 문자는 서버가 막는다. 남기면 400 하나를 더 받을 뿐이다.
+    final clean = last.replaceAll(RegExp(r'[\x00-\x1f]'), '');
+    final name = clean.isEmpty ? 'photo.jpg' : clean;
+    return name.length <= 100 ? name : name.substring(name.length - 100);
+  }
 
   final Dio _dio;
   final TokenStore _store;
@@ -130,7 +194,145 @@ class HttpRecordCardRepository implements RecordCardRepository {
   // ── 쓰기 — 묶음 8까지 가짜가 받는다 ──────────────────────────
 
   @override
-  Future<RecordCard> create(NewRecordCard card) => fallback.create(card);
+  Future<RecordCard> create(NewRecordCard card) async {
+    final body = await authorized(
+      (token) => _dio.post<Map<String, dynamic>>(
+        _cards,
+        data: {
+          'runningRecordId': card.record.id,
+          'activityType': activityWire(card.activity),
+          'memo': card.reviewText,
+          'visibility': visibilityWire(card.visibility),
+          if (card.photos.isNotEmpty) ...{
+            'images': [
+              for (final photo in card.photos)
+                imageWire(photo.file, photo.thumbnail, photo.caption),
+            ],
+            // 대표는 **늘 첫 장**이다 — 화면이 `makeCover`로 순서를 바꿔
+            // 대표를 맨 앞에 둔다(`CardPhotoSlide`).
+            'thumbnailIndex': 0,
+          },
+        },
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      ),
+    );
+
+    final draft = RecordCardDraftDto.from(body);
+    await _uploadAll(card.photos, draft.uploads);
+    final cardId = await _complete(
+      draft,
+      onMissing: () => _uploadAll(card.photos, draft.uploads),
+    );
+    // ⚠️ **상세를 다시 읽는다.** 확정은 번호만 준다(가이드 3절). 여기서
+    // 카드를 지어 내면 서버가 채운 값(경로·파티원·음악)이 비어서 돌아간다.
+    return detailOf(cardId);
+  }
+
+  /// 새 사진마다 크롭본과 썸네일을 올린다.
+  ///
+  /// ⚠️ **`uploads[i]`는 요청에 실은 새 사진 순서 그대로**다(가이드 3절).
+  Future<void> _uploadAll(
+    List<Object?> photos,
+    List<CardUploadSlot> slots,
+  ) async {
+    for (var i = 0; i < slots.length; i++) {
+      final slot = slots[i];
+      // ⚠️ **조각내 올리는 길이 없다.** 조용히 한 번에 올리면 S3는 받아
+      // 주고 확정이 거절하는데, 그때는 어느 사진인지 알 수 없다.
+      if (!slot.isSingle) {
+        throw const RecordCardException(RecordCardFailure.invalidRequest);
+      }
+      final pair = _pairAt(photos, i);
+      await _uploader.put(
+        url: slot.uploadUrl,
+        path: pair.file.path,
+        mimeType: pair.file.mimeType,
+        sizeBytes: pair.file.sizeBytes,
+      );
+      final thumbnailUrl = slot.thumbnailUploadUrl;
+      if (thumbnailUrl == null) continue;
+      await _uploader.put(
+        url: thumbnailUrl,
+        path: pair.thumbnail.path,
+        mimeType: pair.thumbnail.mimeType,
+        sizeBytes: pair.thumbnail.sizeBytes,
+      );
+    }
+  }
+
+  /// 올릴 자리 [index]에 해당하는 새 사진. 작성은 전부 새 사진이고, 수정은
+  /// 새 사진만 추려서 넘긴다.
+  static ({PickedImage file, PickedImage thumbnail}) _pairAt(
+    List<Object?> photos,
+    int index,
+  ) {
+    final photo = photos[index];
+    return switch (photo) {
+      NewCardPhoto() => (file: photo.file, thumbnail: photo.thumbnail),
+      EditCardPhoto() => (file: photo.file!, thumbnail: photo.thumbnail!),
+      _ => throw StateError('올릴 사진이 아니다'),
+    };
+  }
+
+  /// 초안을 확정한다 (9-2).
+  ///
+  /// ## ⚠️ 두 가지만 **한 번** 다시 해 본다
+  ///
+  /// `409 RECORD_CARD_DRAFT_IN_PROGRESS`는 잠시 뒤 같은 초안으로 다시 부르면
+  /// 되고, `400 RECORD_CARD_IMAGE_NOT_UPLOADED`는 빠진 파일을 올린 뒤 같은
+  /// 초안으로 다시 부르면 된다(가이드 7절). **두 번째도 실패하면 던진다** —
+  /// 끝없이 다시 걸면 망이 죽었을 때 저장 표시가 영원히 돈다.
+  Future<String> _complete(
+    CardDraftIssued draft, {
+    required Future<void> Function() onMissing,
+  }) async {
+    try {
+      return await _completeOnce(draft.draftId, allowRetry: true);
+    } on _RetryComplete catch (retry) {
+      if (retry.uploadAgain) await onMissing();
+      // ⚠️ **마지막 시도다.** 여기서도 같은 답이 오면 그대로 실패로 올린다 —
+      // 끝없이 다시 걸면 망이 죽었을 때 저장 표시가 영원히 돈다.
+      return _completeOnce(draft.draftId, allowRetry: false);
+    }
+  }
+
+  Future<String> _completeOnce(
+    String draftId, {
+    required bool allowRetry,
+  }) async {
+    final stored = await _store.read();
+    final token = stored.accessToken;
+    if (token == null) {
+      throw const RecordCardException(RecordCardFailure.sessionExpired);
+    }
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '$_cards/drafts/$draftId/complete',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return response.data!['recordCardId'] as String;
+    } on DioException catch (error) {
+      // ⚠️ **`authorized`를 쓰지 않는다.** 그쪽은 `DioException`을 삼켜
+      // `RecordCardException`으로 바꾸는데, 여기서는 **다시 해 볼 실패인지**
+      // 보려고 원본이 필요하다. 401 갱신은 9-1에서 이미 지났다.
+      throw allowRetry ? _retryOrFail(error) : exceptionOf(error);
+    }
+  }
+
+  /// 다시 해 볼 만한 실패인가.
+  static Object _retryOrFail(DioException error) {
+    final body = error.response?.data;
+    final code = body is Map ? body['code'] : null;
+    return switch (code) {
+      'RECORD_CARD_DRAFT_IN_PROGRESS' => const _RetryComplete(
+        uploadAgain: false,
+      ),
+      'RECORD_CARD_IMAGE_NOT_UPLOADED' => const _RetryComplete(
+        uploadAgain: true,
+      ),
+      _ => exceptionOf(error),
+    };
+  }
 
   @override
   Future<RecordCard> update(EditRecordCard card) => fallback.update(card);
