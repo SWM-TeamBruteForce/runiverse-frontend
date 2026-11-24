@@ -79,7 +79,9 @@ void main() {
       // 그 러닝에 이미 카드가 있다(가이드 7절). 다시 눌러도 같은 답이라,
       // server 로 뭉치면 화면이 "잠시 뒤 다시"를 권한다.
       expect(
-        failureOf(badResponse(409, body: {'code': 'RECORD_CARD_ALREADY_EXISTS'})),
+        failureOf(
+          badResponse(409, body: {'code': 'RECORD_CARD_ALREADY_EXISTS'}),
+        ),
         RecordCardFailure.alreadyExists,
       );
     });
@@ -93,7 +95,9 @@ void main() {
         RecordCardFailure.changed,
       );
       expect(
-        failureOf(badResponse(400, body: {'code': 'INVALID_RECORD_CARD_IMAGE'})),
+        failureOf(
+          badResponse(400, body: {'code': 'INVALID_RECORD_CARD_IMAGE'}),
+        ),
         RecordCardFailure.changed,
       );
     });
