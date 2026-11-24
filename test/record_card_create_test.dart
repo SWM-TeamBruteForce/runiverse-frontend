@@ -8,7 +8,6 @@ import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record_card/data/card_photo_uploader.dart';
-import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/data/http_record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
@@ -78,8 +77,6 @@ void main() {
         dio,
         store,
         TokenRefresher(FakeAuthRepository(), store),
-        // 작업 7 이 이 자리를 걷어낸다 — 아직 생성자가 요구한다.
-        fallback: FakeRecordCardRepository(),
         uploader: uploader,
       ),
       dio: dio,

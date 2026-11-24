@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/record_card/domain/card_draft.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/music_inputs.dart';
@@ -143,7 +144,10 @@ void main() {
           savedId: card.photos.first.id,
           caption: card.photos.first.caption,
         ),
-        const EditCardPhoto.added(path: '/tmp/b.jpg', thumbnailPath: null),
+        EditCardPhoto.added(
+          file: _file('/tmp/b.jpg'),
+          thumbnail: _file('/tmp/b_t.jpg'),
+        ),
       ],
     );
 
@@ -176,9 +180,9 @@ void main() {
         visibility: RecordCardVisibility.friends,
         reviewText: '글',
         photos: [
-          const EditCardPhoto.added(
-            path: '12',
-            thumbnailPath: null,
+          EditCardPhoto.added(
+            file: _file('12'),
+            thumbnail: _file('12_t'),
             caption: '한마디',
           ),
         ],
@@ -188,3 +192,7 @@ void main() {
     expect(saved, isNot(added));
   });
 }
+
+/// 올릴 파일 하나. 음악 입력은 **경로만** 보므로 크기는 아무 값이어도 된다.
+PickedImage _file(String name) =>
+    PickedImage.validated(path: '$name.jpg', sizeBytes: 1);

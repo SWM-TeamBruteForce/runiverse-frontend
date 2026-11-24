@@ -10,6 +10,7 @@ import 'package:runiverse/features/record_card/domain/card_draft.dart';
 import 'package:runiverse/features/record_card/domain/card_music.dart';
 import 'package:runiverse/features/record_card/domain/music_inputs.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_save_provider.dart';
@@ -199,16 +200,26 @@ class CardPublishPage extends ConsumerWidget {
       // 호출이 그냥 돌아온 경우에도 `null`이다 — 그때 실패를 띄우면 저장은
       // 됐는데 "저장하지 못했어요"를 본 직후 상세로 떨어진다. 상태가
       // 실패라고 말할 때만 말한다.
-      if (ref.read(cardSaveProvider(cardId)) is CardSaveFailed) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text(AppStrings.recordCardPublishSaveFailed)),
-        );
+      // ⚠️ **할 일이 다른 실패는 다르게 말한다.** 셋 다 "저장하지 못했어요"로
+      // 뭉치면, 다시 눌러도 달라지지 않는 두 가지에서 사람이 같은 버튼을
+      // 되풀이해 누른다.
+      if (ref.read(cardSaveProvider(cardId)) case CardSaveFailed(
+        :final failure,
+      )) {
+        messenger.showSnackBar(SnackBar(content: Text(_messageOf(failure))));
       }
       return;
     }
     onSaved?.call(card);
   }
 }
+
+/// 저장 실패를 사람이 **할 일**로 옮긴다.
+String _messageOf(RecordCardFailure failure) => switch (failure) {
+  RecordCardFailure.alreadyExists => AppStrings.recordCardSaveAlreadyExists,
+  RecordCardFailure.changed => AppStrings.recordCardSaveChanged,
+  _ => AppStrings.recordCardPublishSaveFailed,
+};
 
 /// 공개범위 한 줄. **이름과 "누구에게 보이는지"를 함께 둔다** — 이름만으로는
 /// `친구 공개`와 `나만 보기`의 차이를 짐작해야 한다.

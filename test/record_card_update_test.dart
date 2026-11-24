@@ -7,7 +7,6 @@ import 'package:runiverse/features/auth/data/fake_auth_repository.dart';
 import 'package:runiverse/features/auth/domain/token_refresher.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/record_card/data/card_photo_uploader.dart';
-import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/data/http_record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
@@ -65,7 +64,6 @@ void main() {
         dio,
         store,
         TokenRefresher(FakeAuthRepository(), store),
-        fallback: FakeRecordCardRepository(),
         uploader: uploader,
       ),
       dio: dio,

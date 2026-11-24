@@ -6,7 +6,6 @@ import 'package:runiverse/features/record_card/data/card_photo_uploader.dart';
 import 'package:runiverse/features/record_card/data/record_card_draft_dto.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
-import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/data/record_card_detail_dto.dart';
 import 'package:runiverse/features/record_card/data/record_card_list_dto.dart';
 import 'package:runiverse/features/record_card/data/recorded_run_dto.dart';
@@ -22,15 +21,10 @@ import 'package:runiverse/features/record_card/domain/record_card_repository.dar
 /// 계약은 **「💾 [1.3.2] 기록 카드 프론트엔드 연동 가이드」**가 정본이다.
 /// `docs/specs/2026-11-16-record-card-design.md` 3절·10절의 추측은 낡았다.
 ///
-/// ## ⚠️ 쓰기는 아직 가짜가 받는다
+/// ## 사진은 우리 서버를 거치지 않는다
 ///
-/// 읽기(달력·상세·프로필)를 먼저 붙이는 묶음이다(사용자 결정 2026-11-24).
-/// [create]와 [update]만 [fallback]에 넘긴다 — **저장은 서버에 가지 않는다.**
-/// 묶음 8이 그 둘을 9-1 → S3 → 9-2, 9-3 으로 바꾼다.
-///
-/// [delete]는 **진짜로 보낸다.** 가짜로 넘기면 서버 번호를 못 찾아 `404`가
-/// 나고, 화면이 그것을 "이미 지워졌다"로 받아 **지워지지 않은 카드를 지웠다고
-/// 말한다.**
+/// 작성·수정은 **초안 발급 → S3에 직접 PUT → 확정** 세 걸음이다. 가운데가
+/// [CardPhotoUploader]이고, 거기에는 인증 헤더가 붙지 않는다.
 ///
 /// ## 401은 한 번만 갱신한다
 ///
@@ -49,7 +43,6 @@ class HttpRecordCardRepository implements RecordCardRepository {
     this._dio,
     this._store,
     this._refresher, {
-    required this.fallback,
     CardPhotoUploader? uploader,
   }) : _uploader = uploader ?? CardPhotoUploader();
 
@@ -106,13 +99,6 @@ class HttpRecordCardRepository implements RecordCardRepository {
   final Dio _dio;
   final TokenStore _store;
   final TokenRefresher _refresher;
-
-  /// 묶음 8까지 쓰기를 맡는다.
-  ///
-  /// ⚠️ **일부러 공개다.** Dart는 `_`로 시작하는 named 매개변수를 허용하지
-  /// 않고, 네 번째 위치 인자로 두면 무엇을 넘기는지 호출부에서 읽히지 않는다.
-  /// 묶음 8이 쓰기를 구현하면 이 필드가 사라진다.
-  final FakeRecordCardRepository fallback;
 
   // ── 읽기 ─────────────────────────────────────────────────────
 
