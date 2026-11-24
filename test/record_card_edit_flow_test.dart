@@ -26,7 +26,6 @@ import 'package:runiverse/features/record_card/presentation/card_compose_page.da
 import 'package:runiverse/features/record_card/presentation/card_detail_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_music_provider.dart';
-import 'package:runiverse/features/record_card/presentation/card_photo_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_publish_page.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_page.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
@@ -77,17 +76,13 @@ void main() {
   });
 
   group('수정 저장', () {
-    testWidgets('⚠️ 세 화면을 거쳐 저장하면 고친 값이 상세에 보인다', (tester) async {
+    testWidgets('⚠️ 두 화면을 거쳐 저장하면 고친 값이 상세에 보인다', (tester) async {
       await _pumpDetail(tester);
       await _openMenu(tester, AppStrings.recordCardEditTitle);
 
       await _reachReview(tester);
       await tester.enterText(find.byType(TextField), '고친 글');
       await tester.pump();
-      await tester.tap(find.text(AppStrings.recordCardComposeNext));
-      await tester.pumpAndSettle();
-      expect(find.byType(CardPhotoPage), findsOne);
-
       await tester.tap(find.text(AppStrings.recordCardComposeNext));
       await tester.pumpAndSettle();
       expect(find.byType(CardPublishPage), findsOne);
@@ -114,7 +109,7 @@ void main() {
       await _reachReview(tester);
       await tester.enterText(find.byType(TextField), '고친 글');
       await tester.pump();
-      await _nextTwice(tester);
+      await _toPublish(tester);
 
       await tester.tap(find.text(AppStrings.recordCardPublishSave));
       await tester.pumpAndSettle();
@@ -130,7 +125,7 @@ void main() {
       // 깔린 것은 **고치기 전 값**을 들고 있다.
       await _pumpDetail(tester);
       await _openMenu(tester, AppStrings.recordCardEditTitle);
-      await _nextTwice(tester);
+      await _toPublish(tester);
 
       await tester.tap(find.text(AppStrings.recordCardPublishSave));
       await tester.pumpAndSettle();
@@ -155,7 +150,7 @@ void main() {
 
       _router.push(AppRoutes.recordCardEditOf(_full.id), extra: _full);
       await tester.pumpAndSettle();
-      await _nextTwice(tester);
+      await _toPublish(tester);
 
       await tester.tap(find.text(AppStrings.recordCardPublishSave));
       await tester.pumpAndSettle();
@@ -173,7 +168,7 @@ void main() {
       // 안 비우면 다음에 그 카드를 열었을 때 고치다 만 것이 되살아난다.
       final container = await _pumpDetail(tester);
       await _openMenu(tester, AppStrings.recordCardEditTitle);
-      await _nextTwice(tester);
+      await _toPublish(tester);
 
       await tester.tap(find.text(AppStrings.recordCardPublishSave));
       await tester.pumpAndSettle();
@@ -333,7 +328,6 @@ void main() {
     // 딥링크나 프로세스 복원이다. 카드 단건 조회 API가 없어 보여 줄 것이 없다.
     for (final route in [
       AppRoutes.recordCardEditOf('card-1000'),
-      AppRoutes.recordCardEditPhotosOf('card-1000'),
       AppRoutes.recordCardEditPublishOf('card-1000'),
     ]) {
       testWidgets(route, (tester) async {
@@ -381,19 +375,20 @@ Future<void> _openMenu(WidgetTester tester, String item) async {
   await tester.pumpAndSettle();
 }
 
-/// 작성 1 → 2 → 3.
-Future<void> _nextTwice(WidgetTester tester) async {
-  for (var i = 0; i < 2; i++) {
-    await tester.tap(find.text(AppStrings.recordCardComposeNext));
-    await tester.pumpAndSettle();
-  }
+/// 작성 → 저장하기. **한 걸음이다** — 사진은 같은 화면의 장이 됐다
+/// (사용자 결정 2026-11-24).
+Future<void> _toPublish(WidgetTester tester) async {
+  await tester.tap(find.text(AppStrings.recordCardComposeNext));
+  await tester.pumpAndSettle();
 }
 
 /// 회고 칸을 화면 안으로 끌어 올린다 — 수정 모드는 경로·지표가 들어가 더 길다.
 Future<void> _reachReview(WidgetTester tester) async {
   await tester.dragUntilVisible(
     find.byType(TextField),
-    find.byType(ListView),
+    // ⚠️ **`PageView`를 끈다.** 장마다 목록이 있어 `ListView` 로는 여럿이
+    // 잡힌다. 가로 끌기만 `PageView` 가 가져가고 세로는 그대로 내려간다.
+    find.byType(PageView),
     const Offset(0, -120),
   );
   await tester.pumpAndSettle();

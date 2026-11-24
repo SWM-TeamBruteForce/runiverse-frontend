@@ -19,7 +19,7 @@ import 'package:runiverse/features/record_card/presentation/card_compose_page.da
 import 'package:runiverse/features/record_card/presentation/card_detail_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_music_provider.dart';
-import 'package:runiverse/features/record_card/presentation/card_photo_page.dart';
+import 'package:runiverse/features/record_card/presentation/card_photo_slide.dart';
 import 'package:runiverse/features/record_card/presentation/card_publish_page.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_page.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
@@ -34,7 +34,9 @@ import 'package:runiverse/features/record_card/presentation/record_card_state.da
 /// 없다")이 여기서 함께 덮인다.
 void main() {
   group('화면을 잇는다', () {
-    testWidgets('작성 1의 다음이 사진으로 간다', (tester) async {
+    testWidgets('⚠️ 작성의 다음이 바로 저장하기로 간다', (tester) async {
+      // 사진은 같은 화면의 장이다(사용자 결정 2026-11-24) — 사이에 화면이
+      // 하나 더 서면 밀어서 넣은 사람이 같은 걸음을 두 번 걷는다.
       await _pump(tester, at: AppRoutes.recordCardNew, filled: true);
       await _keepDraft(tester);
       expect(find.byType(CardComposePage), findsOne);
@@ -42,17 +44,17 @@ void main() {
       await tester.tap(find.text(AppStrings.recordCardComposeNext));
       await tester.pumpAndSettle();
 
-      expect(find.byType(CardPhotoPage), findsOne);
+      expect(find.byType(CardPublishPage), findsOne);
     });
 
-    testWidgets('사진의 다음이 공개범위로 간다', (tester) async {
-      await _pump(tester, at: AppRoutes.recordCardNewPhotos, filled: true);
-      expect(find.byType(CardPhotoPage), findsOne);
+    testWidgets('사진은 작성 화면을 옆으로 밀어 넣는다', (tester) async {
+      await _pump(tester, at: AppRoutes.recordCardNew, filled: true);
+      await _keepDraft(tester);
 
-      await tester.tap(find.text(AppStrings.recordCardComposeNext));
+      await tester.drag(find.byType(PageView), const Offset(-600, 0));
       await tester.pumpAndSettle();
 
-      expect(find.byType(CardPublishPage), findsOne);
+      expect(find.byType(CardAddPhotoSlide), findsOne);
     });
 
     testWidgets('⚠️ 날짜 쿼리가 작성 1까지 간다', (tester) async {
@@ -76,15 +78,11 @@ void main() {
   group('⚠️ 초안 없이 중간에 떨어지면 탭으로 돌려보낸다', () {
     // 딥링크나 프로세스 복원으로 들어오는 길이다. 작성 1을 거치지 않았으면
     // 고를 기록도, 쓴 회고도 없어 보여 줄 것이 없다.
-    for (final route in [
-      AppRoutes.recordCardNewPhotos,
-      AppRoutes.recordCardNewPublish,
-    ]) {
+    for (final route in [AppRoutes.recordCardNewPublish]) {
       testWidgets(route, (tester) async {
         await _pump(tester, at: route);
 
         expect(find.byType(RecordCardPage), findsOne, reason: route);
-        expect(find.byType(CardPhotoPage), findsNothing);
         expect(find.byType(CardPublishPage), findsNothing);
       });
     }
@@ -104,7 +102,6 @@ void main() {
 
     expect(find.byType(CardDetailPage), findsOne);
     expect(find.byType(CardPublishPage), findsNothing);
-    expect(find.byType(CardPhotoPage), findsNothing);
     expect(find.byType(CardComposePage), findsNothing);
     // 저장이 끝났으면 초안은 비어 있다 — 다음 작성이 남의 글로 시작하면 안 된다.
     expect(container.read(cardDraftProvider(null)).record, isNull);
@@ -195,10 +192,6 @@ Future<ProviderContainer> _walkToPublish(
   await tester.tap(find.byTooltip(AppStrings.recordCardEmptyAction).first);
   await tester.pumpAndSettle();
   await _keepDraft(tester);
-
-  await tester.tap(find.text(AppStrings.recordCardComposeNext));
-  await tester.pumpAndSettle();
-  expect(find.byType(CardPhotoPage), findsOne);
 
   await tester.tap(find.text(AppStrings.recordCardComposeNext));
   await tester.pumpAndSettle();

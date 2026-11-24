@@ -28,7 +28,6 @@ import 'package:runiverse/features/record_card/presentation/card_compose_page.da
 import 'package:runiverse/features/record_card/presentation/card_detail_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_detail_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
-import 'package:runiverse/features/record_card/presentation/card_photo_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_publish_page.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_page.dart';
 import 'package:runiverse/features/session/presentation/run_prepare_page.dart';
@@ -137,18 +136,14 @@ GoRouter createAppRouter({String? initialLocation}) {
           roomId: int.tryParse(state.uri.queryParameters['room'] ?? ''),
         ),
       ),
-      // 기록카드 작성 2 — 사진. **탭 셸 밖이다.**
+      // 기록카드 작성 2 — 공개범위 · 음악 · 저장. **탭 셸 밖이다.**
+      //
+      // ⚠️ **사진은 라우트가 아니다.** 작성 화면을 옆으로 밀어 넣는 같은
+      // 화면의 장이다(사용자 결정 2026-11-24).
       //
       // ⚠️ **초안이 비어 있으면 탭으로 돌려보낸다.** 딥링크나 프로세스 복원으로
       // 여기 바로 떨어지면 고를 기록도, 쓴 회고도 없다 — 카드 상세가 `extra`
       // 없이 들어온 것과 같은 꼴이다. 빈 화면을 띄우지 않는다.
-      GoRoute(
-        path: AppRoutes.recordCardNewPhotos,
-        name: 'record_card_new_photos',
-        redirect: _needsDraft,
-        builder: (context, state) => const CardPhotoPage(),
-      ),
-      // 기록카드 작성 3 — 공개범위 · 음악 · 저장. **탭 셸 밖이다.**
       //
       // ⚠️ **저장하면 작성 셋을 걷고 상세를 민다.** `go`로 가면 셸 밖 라우트
       // 아래에 스택이 없어 안드로이드 뒤로가 앱을 닫는다. 걷어 내면 뒤로가
@@ -161,7 +156,7 @@ GoRouter createAppRouter({String? initialLocation}) {
           onSaved: (card) => _toDetail(context, card, editing: false),
         ),
       ),
-      // 기록카드 수정 1·2·3. **탭 셸 밖이고, 카드를 `extra`로 받는다.**
+      // 기록카드 수정 1·2. **탭 셸 밖이고, 카드를 `extra`로 받는다.**
       //
       // ⚠️ **카드 없이 들어오면 탭으로 돌려보낸다.** 단건 조회 API가 없어
       // 보여 줄 것이 없다 — 상세가 `extra` 없이 들어온 것과 같은 꼴이다.
@@ -172,15 +167,6 @@ GoRouter createAppRouter({String? initialLocation}) {
         builder: (context, state) {
           final card = state.extra! as RecordCard;
           return CardComposePage(day: card.day, cardId: card.id, card: card);
-        },
-      ),
-      GoRoute(
-        path: AppRoutes.recordCardEditPhotos,
-        name: 'record_card_edit_photos',
-        redirect: _needsCard,
-        builder: (context, state) {
-          final card = state.extra! as RecordCard;
-          return CardPhotoPage(cardId: card.id, card: card);
         },
       ),
       GoRoute(

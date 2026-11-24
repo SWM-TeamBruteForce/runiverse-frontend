@@ -127,7 +127,10 @@ abstract final class AppRoutes {
     return '$recordCardNew?date=${day.year}-$month-$date$room';
   }
 
-  /// 기록카드 작성 2 — 사진.
+  /// 기록카드 작성 2 — 공개범위 · 음악 · 저장.
+  ///
+  /// ⚠️ **사진에는 라우트가 없다.** 작성 화면을 옆으로 밀어 넣는 같은 화면의
+  /// 장이다(사용자 결정 2026-11-24).
   ///
   /// ⚠️ **날짜를 싣지 않는다.** 어느 날인지는 작성 1이 이미 초안에 꽂았다
   /// (`cardDraftProvider`의 `record`). 여기서 다시 받으면 두 곳이 갈라져,
@@ -136,12 +139,6 @@ abstract final class AppRoutes {
   /// ⚠️ **초안이 비어 있으면 탭으로 돌려보낸다.** 작성 1을 거치지 않고
   /// 떨어지면 고를 기록도 쓴 회고도 없다 — 카드 상세가 `extra` 없이 들어온
   /// 것과 같은 꼴이다.
-  static const recordCardNewPhotos = '/record-card/new/photos';
-
-  /// 기록카드 작성 3 — 공개범위 · 음악 · 저장.
-  ///
-  /// [recordCardNewPhotos]와 같은 규칙이다 — 날짜를 싣지 않고, 초안이 비면
-  /// 탭으로 돌려보낸다.
   static const recordCardNewPublish = '/record-card/new/publish';
 
   /// 기록카드 한 장 (읽기 전용).
@@ -171,13 +168,10 @@ abstract final class AppRoutes {
   /// ⚠️ **카드를 `extra`로 받는다.** 카드 단건 조회 API가 없어 상세와 같은
   /// 방식이다. 없이 들어오면 탭으로 돌려보낸다.
   static const recordCardEdit = '/record-card/card/:id/edit';
-  static const recordCardEditPhotos = '/record-card/card/:id/edit/photos';
   static const recordCardEditPublish = '/record-card/card/:id/edit/publish';
 
   static String recordCardEditOf(String cardId) =>
       '$recordCard/card/$cardId/edit';
-  static String recordCardEditPhotosOf(String cardId) =>
-      '${recordCardEditOf(cardId)}/photos';
   static String recordCardEditPublishOf(String cardId) =>
       '${recordCardEditOf(cardId)}/publish';
 
