@@ -100,6 +100,21 @@ class _CardMediaPagerState extends State<CardMediaPager> {
       ? widget.card.reviewText
       : widget.card.photos[_page - 1].caption;
 
+  /// 보고 있는 장. **카드가 바뀌면 범위 안으로 당긴다.**
+  ///
+  /// ⚠️ **수정으로 사진이 줄면 보던 자리가 사라진다.** 그대로 두면 상세가
+  /// 통째로 빨간 화면이 된다 — 2026-11-24 에뮬레이터에서 사진 두 장 중
+  /// 하나를 지우고 저장했을 때 실제로 그렇게 터졌다(RangeError).
+  void _clampPage() {
+    final last = _count - 1;
+    if (_page <= last) return;
+    _page = last;
+    // 그리는 중이라 여기서 state 를 건드리지 않는다. 페이저도 함께 당긴다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _controller.hasClients) _controller.jumpToPage(last);
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -111,6 +126,7 @@ class _CardMediaPagerState extends State<CardMediaPager> {
   @override
   void didUpdateWidget(CardMediaPager oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _clampPage();
     if (oldWidget.playing != widget.playing) _schedule();
   }
 
