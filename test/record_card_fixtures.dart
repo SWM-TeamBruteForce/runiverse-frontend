@@ -1,4 +1,6 @@
 import 'package:runiverse/features/record/domain/run_record.dart';
+import 'package:runiverse/features/record_card/domain/card_audio_player.dart';
+import 'package:runiverse/features/record_card/presentation/card_audio_provider.dart';
 import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
@@ -77,4 +79,37 @@ RunRecord _run({
   duration: const Duration(minutes: 30),
   averagePace: const Duration(minutes: 6),
   playerCount: 1,
+);
+
+/// 아무 소리도 내지 않는 플레이어.
+///
+/// 상세 화면을 띄우는 테스트는 전부 이것을 끼워야 한다 — 안 끼우면 진짜
+/// [CardAudioPlayer] 가 서고, 테스트 환경에는 오디오 플러그인이 없어 곡을
+/// 못 물어 **음악 줄이 영영 `재생`에 머문다.**
+///
+/// 무엇을 시켰는지 보고 싶으면 그 테스트가 자기 가짜를 따로 둔다
+/// (`record_card_audio_test.dart`).
+class SilentAudioPlayer implements CardAudioPlayer {
+  @override
+  Future<void> load(String url) async {}
+
+  @override
+  Future<void> play() async {}
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<bool> otherAudioPlaying() async => false;
+
+  @override
+  Future<void> dispose() async {}
+}
+
+/// 상세를 띄우는 테스트가 `ProviderScope`에 얹을 것.
+///
+/// ⚠️ **타입을 적지 않는다.** Riverpod 3은 `Override`를 공개로 내보내지
+/// 않는다 — 적으면 "Type 'Override' not found"가 난다.
+final silentAudio = cardAudioPlayerProvider.overrideWithValue(
+  SilentAudioPlayer(),
 );

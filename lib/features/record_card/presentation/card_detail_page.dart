@@ -14,6 +14,7 @@ import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/presentation/card_detail_provider.dart';
+import 'package:runiverse/features/record_card/presentation/card_audio_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_delete_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_media_pager.dart';
 import 'package:runiverse/features/record_card/presentation/music_strip.dart';
@@ -157,11 +158,39 @@ class _Loaded extends ConsumerStatefulWidget {
 }
 
 class _CardDetailPageState extends ConsumerState<_Loaded> {
-  /// 소리가 나고 있나. **열면 난다**(묶음 1에서 정했다).
-  var _playing = true;
-
   /// 지금 몇 번째 장인가. 음악 줄이 **그 장의 곡**을 말해야 한다.
   var _page = 0;
+
+  CardAudio get _audio => ref.read(cardAudioProvider(card.id).notifier);
+
+  /// 보고 있는 장의 곡을 소리 쪽에 알린다.
+  ///
+  /// 들어올 때, 장을 넘길 때, **카드가 다시 와서 곡이 달라졌을 때** 부른다.
+  /// 같은 곡이면 알려도 아무 일이 없다.
+  ///
+  /// ⚠️ **늘 프레임 뒤로 미룬다.** `didUpdateWidget`은 그리는 중이고, 거기서
+  /// provider 를 건드리면 Riverpod 이 막는다. `show`는 틀 것이 없는 장에서
+  /// 기다리는 데 없이 상태를 바꾸므로 비동기라고 안심할 수 없다.
+  void _syncAudio() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_audio.show(page: _page, music: card.musicOfPage(_page)));
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _syncAudio();
+  }
+
+  /// ⚠️ **폴링이 카드를 새로 가져오면 여기로 온다.** 만드는 중이던 곡이
+  /// 완성됐을 수 있다 — 그 자리에서 바로 나야 한다(설계 7-2).
+  @override
+  void didUpdateWidget(_Loaded oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncAudio();
+  }
 
   RecordCard get card => widget.card;
 
@@ -219,8 +248,11 @@ class _CardDetailPageState extends ConsumerState<_Loaded> {
           // 때만 선다. 사진 장에서는 그 자리에 캡션이 대신 든다.
           CardMediaPager(
             card: card,
-            onTap: () => setState(() => _playing = !_playing),
-            onPageChanged: (page) => setState(() => _page = page),
+            onTap: () => unawaited(_audio.toggle()),
+            onPageChanged: (page) {
+              setState(() => _page = page);
+              _syncAudio();
+            },
           ),
           const SizedBox(height: AppSpacing.space3),
           // ⚠️ **글 아래다**(시안 6-5). 사진과 글 사이에 끼우면 점·캡션·회고가
@@ -230,10 +262,10 @@ class _CardDetailPageState extends ConsumerState<_Loaded> {
             // ⚠️ **지금 장의 곡**이다. 곡이 장마다 하나다(가이드 2절).
             music: card.musicOfPage(_page),
             hasFailed: card.hasFailedMusic,
-            playing: _playing,
+            playing: ref.watch(cardAudioProvider(card.id)).playing,
             // 남의 카드에서는 **들을 수만 있다.**
             canRequest: card.isMine,
-            onTogglePlay: () => setState(() => _playing = !_playing),
+            onTogglePlay: () => unawaited(_audio.toggle()),
           ),
         ],
       ),

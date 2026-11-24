@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'record_card_fixtures.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
@@ -190,6 +191,7 @@ Future<void> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        silentAudio,
         recordCardRepositoryProvider.overrideWithValue(
           repository ?? _MusicRepository(music, card: card),
         ),
@@ -215,6 +217,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+        silentAudio,
             recordCardRepositoryProvider.overrideWithValue(
               _MusicRepository(
                 MusicStatus.completed,
@@ -245,6 +248,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+        silentAudio,
             recordCardRepositoryProvider.overrideWithValue(
               _MusicRepository(MusicStatus.completed),
             ),

@@ -437,6 +437,7 @@ Future<ProviderContainer> _pumpAt(
   _musicNow = DateTime(2026, 11, 18, 10);
   final container = ProviderContainer(
     overrides: [
+        silentAudio,
       recordCardRepositoryProvider.overrideWithValue(
         // ⚠️ **Fake의 `delay`를 쓰지 않는다.** 그것은 `byDateRange`에도
         // 걸려 달력이 과거를 더 받는 길까지 느려지고, `pumpAndSettle`이
