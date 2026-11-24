@@ -183,6 +183,9 @@ void main() {
       expect(photos.map((p) => p.caption), ['ㄴ', 'ㄱ', 'ㄷ']);
       // 올려 놓고 다른 장을 보여 주면 무엇이 대표가 됐는지 알 수 없다.
       expect(_fieldText(tester), 'ㄴ');
+      // ⚠️ **새 장은 처음부터 보인다.** 장마다 제 목록을 들어 앞 장에서 내려
+      // 둔 자리를 물려받지 않는다 — 대표 표시는 아래쪽이라 끌어 올려야 보인다.
+      await _dragUp(tester);
       expect(find.text(AppStrings.recordCardPhotoCover), findsOne);
     });
 
@@ -383,8 +386,15 @@ bool _nextEnabled(WidgetTester tester) {
   return button.onPressed != null;
 }
 
-String _fieldText(WidgetTester tester) =>
-    tester.widget<TextField>(find.byType(TextField)).controller!.text;
+/// 지금 보고 있는 장의 캡션 칸.
+///
+/// ⚠️ **칸이 여럿이다.** 장마다 제 캡션 칸을 들고, `PageView`는 이웃 장을
+/// 함께 만들어 둔다 — 보이는 것만 고른다.
+String _fieldText(WidgetTester tester) => tester
+    .widgetList<TextField>(find.byType(TextField).hitTestable())
+    .first
+    .controller!
+    .text;
 
 /// 화면 밖에 있는 것을 끌어 올려 누른다.
 ///
@@ -392,9 +402,12 @@ String _fieldText(WidgetTester tester) =>
 /// 미리보기(320dp)에 점·안내·캡션 칸이 쌓이면 지우기 버튼이 600dp 테스트
 /// 화면 밑으로 내려간다 — 기기(915dp)에서는 보이는 자리다.
 Future<void> _tapBelow(WidgetTester tester, Finder finder) async {
+  // ⚠️ **`PageView`를 끈다.** 장마다 `ListView`가 있어 그 이름으로는 여럿이
+  // 잡힌다. `PageView`는 가로 끌기만 가져가므로 세로 끌기는 보고 있는 장의
+  // 목록으로 그대로 내려간다.
   await tester.dragUntilVisible(
     finder,
-    find.byType(ListView),
+    find.byType(PageView),
     const Offset(0, -80),
   );
   await tester.pumpAndSettle();
@@ -418,7 +431,7 @@ Future<void> _goTo(WidgetTester tester, int page, int count) async {
 
 /// 화면 밖에 있는 것을 보이게만 끌어 올린다. [_tapBelow]와 달리 누르지 않는다.
 Future<void> _dragUp(WidgetTester tester) async {
-  await tester.drag(find.byType(ListView), const Offset(0, -240));
+  await tester.drag(find.byType(PageView), const Offset(0, -240));
   await tester.pumpAndSettle();
 }
 

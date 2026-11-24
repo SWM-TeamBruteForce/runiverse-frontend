@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
-import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
-import 'package:runiverse/core/widgets/v2/app_input.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
@@ -17,8 +14,7 @@ import 'package:runiverse/features/record_card/domain/card_draft.dart';
 import 'package:runiverse/features/record_card/domain/card_photo_draft.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
-import 'package:runiverse/features/record_card/presentation/card_photo_pan.dart';
-import 'package:runiverse/core/widgets/card_face.dart';
+import 'package:runiverse/features/record_card/presentation/card_photo_slide.dart';
 
 /// 기록카드 작성 2 — 사진 (설계 6-3).
 ///
@@ -126,166 +122,73 @@ class _CardPhotoPageState extends ConsumerState<CardPhotoPage> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: draft.photos.isEmpty
-            ? _empty(colors)
-            : _filled(colors, draft.photos),
-      ),
+      body: SafeArea(child: _pages(colors, draft.photos)),
     );
   }
 
-  /// 사진 없음. **괜찮다고 말하고 `+` 하나를 둔다.**
-  Widget _empty(AppColorsV2 colors) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(AppSpacing.space4),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            AppStrings.recordCardPhotoEmpty,
-            textAlign: TextAlign.center,
-            style: AppTypographyV2.body18.copyWith(color: colors.textSecondary),
-          ),
-          const SizedBox(height: AppSpacing.space4),
-          _AddTile(onTap: _add, big: true),
-        ],
-      ),
-    ),
-  );
-
-  Widget _filled(AppColorsV2 colors, List<CardPhotoDraft> photos) {
+  /// 사진 장들과 **맨 뒤의 넣기 장**. 사진이 없으면 넣기 장 하나다.
+  ///
+  /// ⚠️ **넣기 장을 끝에 둔다.** 다섯 장이 차면 사라지는데, 그때는 `+`를
+  /// 눌러도 상한을 말할 뿐이라 둘 자리가 없다(`_add`).
+  Widget _pages(AppColorsV2 colors, List<CardPhotoDraft> photos) {
     // 지운 뒤 한 프레임 동안 옛 자리를 가리킬 수 있다. 그리기 전에 당긴다.
-    final page = _page.clamp(0, photos.length - 1);
+    final last = photos.length - (photos.length < CardDraft.maxPhotos ? 0 : 1);
+    final page = _page.clamp(0, last < 0 ? 0 : last);
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.space4,
-        AppSpacing.space2,
-        AppSpacing.space4,
-        AppSpacing.space8,
-      ),
+    return Column(
       children: [
-        SizedBox(
-          height: _previewHeight,
-          child: Center(
-            child: AspectRatio(
-              aspectRatio: CardPhotoDraft.aspectRatio,
-              child: ClipRRect(
-                borderRadius: AppRadius.md,
-                child: PageView.builder(
-                  controller: _pager,
-                  onPageChanged: _onPage,
-                  itemCount: photos.length,
-                  itemBuilder: (context, index) => Semantics(
-                    label: AppStrings.recordCardPhotoSemantics(
-                      index + 1,
-                      photos.length,
+        if (photos.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.space2),
+          // ⚠️ **점을 눌러 넘기는 길을 둔다.** 미는 사진 위에서는 가로 끌기를
+          // 사진이 먼저 가져가 장이 넘어가지 않는다.
+          _Dots(
+            count: photos.length,
+            current: page,
+            onJump: _jump,
+            onAdd: _add,
+          ),
+        ],
+        Expanded(
+          child: PageView.builder(
+            controller: _pager,
+            onPageChanged: _onPage,
+            itemCount: photos.length + (photos.length < CardDraft.maxPhotos ? 1 : 0),
+            itemBuilder: (context, index) => index >= photos.length
+                ? CardAddPhotoSlide(first: photos.isEmpty, onPick: _add)
+                : CardPhotoSlide(
+                    // ⚠️ **열쇠를 준다.** 안 주면 장을 지웠을 때 옆 장의 캡션
+                    // 컨트롤러가 그 자리에 그대로 남아 **지워진 장의 글이**
+                    // 다음 사진에 붙는다.
+                    key: ValueKey(_photoKey(photos[index], index)),
+                    photo: photos[index],
+                    index: index,
+                    total: photos.length,
+                    isCover: index == 0,
+                    onAlign: ({alignX, alignY}) => _draft.setPhotoAlign(
+                      index,
+                      alignX: alignX,
+                      alignY: alignY,
                     ),
-                    child: switch (photos[index]) {
-                      // 이미 올린 사진은 **밀 수 없다** — 9:16으로 잘려
-                      // 나갔으므로 틀 안에서 옮길 데가 없다.
-                      final SavedPhoto saved => Image(
-                        image: cardThumbnail(context, saved.url),
-                        fit: BoxFit.cover,
-                        // ⚠️ **서명이 만료되면 못 받는다.** 고치는 중에
-                        // 화면이 터지면 쓰던 것을 통째로 잃는다 — 못 받은
-                        // 자리만 말하고 나머지는 계속 고칠 수 있게 둔다.
-                        errorBuilder: (context, _, _) =>
-                            const UnreadablePhoto(),
-                      ),
-                      final PickedPhoto picked => CardPhotoPan(
-                        photo: picked,
-                        // 넘기는 중에는 끄지 않는다 — `PageView`가 가로
-                        // 끌기를 먼저 가져가므로, 미는 사진에서는 장을 넘길
-                        // 수 없다. 점을 눌러 넘기는 길을 아래에 둔다.
-                        onAlign: ({alignX, alignY}) => _draft.setPhotoAlign(
-                          index,
-                          alignX: alignX,
-                          alignY: alignY,
-                        ),
-                      ),
-                    },
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.space2),
-        // ⚠️ `+`는 다섯 장이 차도 **그대로 둔다.** 사라지면 왜 더 못 넣는지
-        // 알 길이 없다 — 누르면 상한을 말한다(`_add`).
-        _Dots(count: photos.length, current: page, onJump: _jump, onAdd: _add),
-        const SizedBox(height: AppSpacing.space2),
-        // ⚠️ **보고 있는 장이 밀리는 것일 때만 말한다.** 이미 올린 사진에
-        // "밀어 보세요"라고 하면 거짓말이다 — 9:16으로 잘려 나가 옮길 데가 없다.
-        if (photos[page] is PickedPhoto)
-          Text(
-            AppStrings.recordCardPhotoPanHint,
-            textAlign: TextAlign.center,
-            style: AppTypographyV2.body20.copyWith(color: colors.textSecondary),
-          ),
-        const SizedBox(height: AppSpacing.space5),
-        AppInputV2(
-          controller: _caption,
-          hint: AppStrings.recordCardPhotoCaptionHint,
-          helper: AppStrings.recordCardPhotoCaptionNote,
-          counter: AppStrings.recordCardPhotoCaptionCounter(
-            photos[page].caption.characters.length,
-            CardPhotoDraft.captionMaxLength,
-          ),
-          maxLines: 3,
-          // 칸에서 막고 초안에서 한 번 더 자른다.
-          inputFormatters: [
-            LengthLimitingTextInputFormatter(CardPhotoDraft.captionMaxLength),
-          ],
-          onChanged: (text) => _draft.setCaption(page, text),
-        ),
-        const SizedBox(height: AppSpacing.space4),
-        // ⚠️ **한 장뿐이면 아무 말도 하지 않는다.** 고를 것이 없는데 "대표
-        // 사진"이라고 적으면 무엇과 견준 말인지 알 수 없다.
-        if (photos.length > 1)
-          Center(
-            // ⚠️ **이미 대표인 장에는 버튼을 세우지 않는다.** 눌러도 아무 일도
-            // 없는 버튼은 고장으로 읽힌다(묶음 5의 음악 줄).
-            child: page == 0
-                ? Text(
-                    AppStrings.recordCardPhotoCover,
-                    style: AppTypographyV2.body18.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                  )
-                : TextButton(
-                    // 올린 뒤 **그 장을 따라간다** — 다른 장을 보여 주면
-                    // 무엇이 대표가 됐는지 알 수 없다. `_jump`가 캡션 칸까지
-                    // 당겨 준다.
-                    onPressed: () {
-                      _draft.makeCover(page);
+                    onCaption: (text) => _draft.setCaption(index, text),
+                    onMakeCover: () {
+                      _draft.makeCover(index);
                       _jump(0);
                     },
-                    child: Text(
-                      AppStrings.recordCardPhotoMakeCover,
-                      style: AppTypographyV2.body18.copyWith(
-                        color: colors.primary,
-                      ),
-                    ),
+                    onRemove: () => _remove(index),
                   ),
-          ),
-        Center(
-          child: TextButton(
-            onPressed: () => _remove(page),
-            child: Text(
-              AppStrings.recordCardPhotoRemove,
-              style: AppTypographyV2.body18.copyWith(color: colors.error),
-            ),
           ),
         ),
       ],
     );
   }
 
-  /// 9:16을 폭에 꽉 채우면 화면보다 높아져 캡션이 한 화면에 안 들어온다 —
-  /// 작성 1의 경로 미리보기와 같은 값이다.
-  static const _previewHeight = 320.0;
+  /// 장을 가리는 열쇠. 이미 올린 사진은 번호가, 새 사진은 고른 파일 경로가
+  /// 그 장을 가린다 — 자리(index)로 가리면 지웠을 때 뒤 장이 앞 장의 캡션
+  /// 컨트롤러를 물려받는다.
+  static String _photoKey(CardPhotoDraft photo, int index) => switch (photo) {
+    SavedPhoto(:final id) => id,
+    PickedPhoto(:final image) => image.path,
+  };
 
   void _onPage(int page) {
     setState(() => _page = page);
@@ -422,18 +325,15 @@ class _Dots extends StatelessWidget {
 
 /// 사진 한 장 더. **아이콘뿐이라 `Tooltip`으로 이름을 준다.**
 class _AddTile extends StatelessWidget {
-  const _AddTile({required this.onTap, this.big = false});
+  const _AddTile({required this.onTap});
 
   final VoidCallback onTap;
-
-  /// 빈 상태에서는 크게 둔다 — 그 화면의 유일한 할 일이다.
-  final bool big;
 
   @override
   Widget build(BuildContext context) => IconButton(
     tooltip: AppStrings.recordCardPhotoAdd,
     onPressed: onTap,
-    iconSize: big ? 40 : 24,
+    iconSize: 24,
     icon: Icon(LucideIcons.plus, color: context.appColorsV2.textPrimary),
   );
 }
