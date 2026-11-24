@@ -44,3 +44,26 @@ class CardMusic {
 
   bool get hasFailed => status == MusicStatus.failed;
 }
+
+/// 플레이어에 물려 있는 곡이 무엇인지 가르는 값. [page]번째 장의 [music]이다.
+///
+/// ## ⚠️ 주소를 그대로 비교하면 안 된다
+///
+/// 서명 주소는 **같은 파일이어도 읽을 때마다 달라진다.** 만드는 중인 카드는
+/// 상세를 1분마다 다시 읽으므로, 주소로 견주면 1분마다 플레이어를 다시 물어
+/// **소리가 끊긴다**(설계 7-1).
+///
+/// 그래서 **`?` 앞만** 본다 — 사진이 쓰는 방법과 같다
+/// (`ProfilePhotoImage.cacheKeyOf`).
+///
+/// ## ⚠️ 상태도 함께 본다
+///
+/// 서버가 다시 만들면서 **같은 오브젝트 키를 덮어쓸 수 있다.** 그때 경로만
+/// 보면 새로 만든 곡을 영영 안 튼다. 다시 만들기는 `COMPLETED` → `GENERATING`
+/// → `COMPLETED`를 지나가므로, 상태를 끼워 두면 그 길에 신원이 달라진다.
+String trackIdOf({required int page, required CardMusic music}) {
+  final url = music.url ?? '';
+  final query = url.indexOf('?');
+  final path = query < 0 ? url : url.substring(0, query);
+  return '$page|${music.status.name}|$path';
+}
