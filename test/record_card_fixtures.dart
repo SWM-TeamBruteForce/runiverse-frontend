@@ -90,20 +90,23 @@ RunRecord _run({
 /// 무엇을 시켰는지 보고 싶으면 그 테스트가 자기 가짜를 따로 둔다
 /// (`record_card_audio_test.dart`).
 class SilentAudioPlayer implements CardAudioPlayer {
-  @override
-  Future<void> load(String url) async {}
+  /// 무엇을 시켰나. 보지 않는 테스트는 그냥 둔다.
+  final calls = <String>[];
 
   @override
-  Future<void> play() async {}
+  Future<void> load(String url) async => calls.add('load');
 
   @override
-  Future<void> pause() async {}
+  Future<void> play() async => calls.add('play');
+
+  @override
+  Future<void> pause() async => calls.add('pause');
 
   @override
   Future<bool> otherAudioPlaying() async => false;
 
   @override
-  Future<void> dispose() async {}
+  Future<void> dispose() async => calls.add('dispose');
 }
 
 /// 상세를 띄우는 테스트가 `ProviderScope`에 얹을 것.

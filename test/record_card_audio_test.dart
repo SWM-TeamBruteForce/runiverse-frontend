@@ -152,6 +152,67 @@ void main() {
     expect(fake.calls, ['load']);
     expect(find.text(AppStrings.recordCardMusicPlay), findsOneWidget);
   });
+
+  testWidgets('⚠️ 두 번 실패해도 상세를 한 번만 다시 읽는다', (tester) async {
+    // 만료된 주소는 403 이지만 ExoPlayer 오류에서 그것을 가려낼 수 없다 —
+    // 어떤 실패든 "만료일 수 있다"로 보고 한 번만 다시 읽는다(설계 7-3).
+    fake.loadThrows = Exception('못 물었다');
+
+    await open(tester);
+
+    // 처음 읽기 + 못 물어서 다시 읽기.
+    expect(repo.reads, 2);
+
+    // 새 주소를 받았는데 또 만료였다. 같은 곡이라 다시 물지 않고, 다시
+    // 읽지도 않는다 — 여기서 고리가 생기면 끝나지 않는다.
+    await refreshDetail(
+      tester,
+      _cardWith(baseUrl: 'https://cdn.invalid/base.m4a?sig=BBB'),
+    );
+
+    expect(repo.reads, 3, reason: '다시 읽기가 또 돌았다');
+  });
+
+  testWidgets('⚠️ 앱이 배경으로 가면 멈추고 돌아와도 안 튼다', (tester) async {
+    await open(tester);
+    fake.calls.clear();
+
+    // ⚠️ **실제 순서를 그대로 흉내 낸다.** `resumed → paused` 로 건너뛰면
+    // 프레임워크가 "Invalid state transition" 으로 막는다.
+    for (final step in const [
+      AppLifecycleState.inactive,
+      AppLifecycleState.hidden,
+      AppLifecycleState.paused,
+    ]) {
+      tester.binding.handleAppLifecycleStateChanged(step);
+    }
+    await tester.pumpAndSettle();
+    expect(fake.calls, ['pause']);
+
+    for (final step in const [
+      AppLifecycleState.hidden,
+      AppLifecycleState.inactive,
+      AppLifecycleState.resumed,
+    ]) {
+      tester.binding.handleAppLifecycleStateChanged(step);
+    }
+    await tester.pumpAndSettle();
+
+    expect(fake.calls, ['pause'], reason: '돌아왔다고 저절로 났다');
+    expect(find.text(AppStrings.recordCardMusicPlay), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 시트를 열어도 계속 난다', (tester) async {
+    // ⋮ 메뉴는 잠깐 열었다 닫는 것이다 — 화면을 떠나는 것이 아니다.
+    await open(tester);
+    fake.calls.clear();
+
+    await tester.tap(find.byTooltip(AppStrings.recordCardMore));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.recordCardEditTitle), findsOneWidget);
+    expect(fake.calls, isEmpty);
+  });
 }
 
 /// 곡을 심은 카드. 사진은 [photoUrl]을 주면 한 장 생긴다.

@@ -178,10 +178,27 @@ class _CardDetailPageState extends ConsumerState<_Loaded> {
     });
   }
 
+  /// 앱이 배경으로 갈 때 소리를 멈추려고 듣는다.
+  ///
+  /// ⚠️ **없으면 홈 버튼을 눌러도 음악이 계속 난다.** 백그라운드 재생을 안
+  /// 넣기로 했으니(설계 3절) 여기서 멈춰야 한다.
+  late final AppLifecycleListener _lifecycle;
+
   @override
   void initState() {
     super.initState();
     _syncAudio();
+    _lifecycle = AppLifecycleListener(
+      // `inactive` 는 알림창을 내리기만 해도 온다 — 그때까지 멈추면
+      // 성가시다. 실제로 가려진 `paused` 에서만 멈춘다.
+      onPause: () => unawaited(_audio.suspend()),
+    );
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
   }
 
   /// ⚠️ **폴링이 카드를 새로 가져오면 여기로 온다.** 만드는 중이던 곡이
@@ -302,6 +319,11 @@ class _CardDetailPageState extends ConsumerState<_Loaded> {
 
     switch (picked) {
       case _CardAction.edit:
+        // ⚠️ **떠나기 전에 멈춘다.** 수정 화면이 위에 쌓일 뿐 상세는 살아
+        // 있어서(`dispose`가 안 불린다) 그냥 두면 고치는 내내 소리가 난다.
+        // 돌아와도 저절로 다시 틀지 않는다 — `suspend`의 약속이다.
+        await _audio.suspend();
+        if (!context.mounted) return;
         // ⚠️ **카드를 `extra`로 들려 보낸다.** 단건 조회 API가 없다.
         await context.push(AppRoutes.recordCardEditOf(card.id), extra: card);
       case _CardAction.delete:

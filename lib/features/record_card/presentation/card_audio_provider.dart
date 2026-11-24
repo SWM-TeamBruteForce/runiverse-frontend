@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/record_card/data/just_audio_player.dart';
 import 'package:runiverse/features/record_card/domain/card_audio_player.dart';
 import 'package:runiverse/features/record_card/domain/card_music.dart';
+import 'package:runiverse/features/record_card/presentation/card_detail_provider.dart';
 
 /// 소리가 지금 어떤가. **보고 있는 장 하나**를 말한다.
 class CardAudioState {
@@ -64,6 +65,16 @@ class CardAudio extends Notifier<CardAudioState> {
   /// 뜻을 이어 간다 — 멈춰 둔 채로 장을 넘기면 멈춘 채로 둔다.
   var _decided = false;
 
+  /// 못 물어서 상세를 다시 읽어 본 곡.
+  ///
+  /// ⚠️ **곡마다 한 번이다.** 새 주소도 만료였으면 조용히 접는다 — 안 그러면
+  /// 다시 읽기와 다시 물기가 서로를 부르는 고리가 된다. 사진이 같은 함정을
+  /// 겪었다(`card_media_pager.dart`의 `_Photo`).
+  ///
+  /// provider 가 `family` + `autoDispose` 라 다음 카드로 넘어가지 않고,
+  /// 신원에 매달아 두어 장이 바뀌면 저절로 풀린다.
+  String? _retriedFor;
+
   CardAudioPlayer get _player => ref.read(cardAudioPlayerProvider);
 
   @override
@@ -96,7 +107,21 @@ class CardAudio extends Notifier<CardAudioState> {
     _decided = true;
     if (!_alive) return;
 
-    await _player.load(music.url!);
+    try {
+      await _player.load(music.url!);
+    } catch (_) {
+      // ⚠️ **무엇 때문인지 가르지 않는다.** 안드로이드에서 올라오는 것은
+      // ExoPlayer 오류라 403 을 믿고 가려낼 수 없다(설계 7-3). 주소도 적지
+      // 않는다 — 서명이 붙어 있다.
+      if (!_alive) return;
+      state = CardAudioState(trackId: id);
+      if (_retriedFor != id) {
+        _retriedFor = id;
+        // 만료였다면 새 주소를 받아 온다. 아니면 이 장은 소리 없이 선다.
+        ref.invalidate(cardDetailProvider(cardId));
+      }
+      return;
+    }
     if (!_alive) return;
 
     if (wanted) await _player.play();
