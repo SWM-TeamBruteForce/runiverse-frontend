@@ -27,10 +27,12 @@ import 'package:runiverse/features/record_card/presentation/card_music_provider.
 /// 여기서 막대를 되살리면 그 결정을 조용히 뒤집는다. **점이 몇 번째 장인지
 /// 말하고, 이 줄은 음악을 말한다.**
 ///
-/// ## ⚠️ 소리가 없다
+/// ## ⚠️ 이 줄은 오디오를 모른다
 ///
-/// 오디오 패키지를 안 넣는다(설계 9절). `재생`은 **포토북이 장을 넘기는
-/// 것**이고, 음악이 붙으면 넘기는 길이의 출처만 바뀐다.
+/// `재생`/`멈춤`은 **소리**를 쥐지만(2026-11-25부터 `just_audio`로 실제로
+/// 난다), 트는 일은 상세 화면이 한다. 이 줄은 [playing]을 받아 글자를 고르고
+/// 눌린 것을 [onTogglePlay]로 올려 보낼 뿐이다 — 설계 6-1이 "두 군데서 몰면
+/// 어긋난다"고 적은 그 선이다.
 class MusicStrip extends ConsumerWidget {
   const MusicStrip({
     required this.cardId,
@@ -60,7 +62,8 @@ class MusicStrip extends ConsumerWidget {
   /// 다시 걸 일이 있다.
   final bool hasFailed;
 
-  /// 포토북이 지금 넘어가고 있나. **줄은 이것의 반대를 권한다.**
+  /// 소리가 지금 나고 있나. **줄은 이것의 반대를 권한다** — 나고 있으면
+  /// `멈춤`, 멈춰 있으면 `재생`이다.
   final bool playing;
 
   /// 음악을 만들라고 할 수 있나. **내 카드가 아니면 못 한다** — 생성 요청은

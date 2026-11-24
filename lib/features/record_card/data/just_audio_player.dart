@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
@@ -18,15 +16,19 @@ import 'package:runiverse/features/record_card/domain/card_audio_player.dart';
 /// 멈춘다. 자동 재생을 접을지는 **부르는 쪽**이 [otherAudioPlaying]으로 먼저
 /// 가린다(설계 6-2). 여기서 막으면 사람이 직접 누른 `재생`까지 막힌다.
 class JustAudioPlayer implements CardAudioPlayer {
-  JustAudioPlayer() {
-    // 물리기 전에 걸어 둔다. 곡마다 다시 걸 필요가 없다.
-    unawaited(_player.setLoopMode(LoopMode.one));
-  }
-
   final _player = AudioPlayer();
+
+  /// 반복을 걸어 뒀나. **곡마다 다시 걸 필요는 없다.**
+  var _looping = false;
 
   @override
   Future<void> load(String url) async {
+    // ⚠️ **기다려서 건다.** 생성자에서 던져 두면 실패해도 아무도 모르고,
+    // 그러면 이 기능의 핵심인 반복이 조용히 빠진다.
+    if (!_looping) {
+      await _player.setLoopMode(LoopMode.one);
+      _looping = true;
+    }
     // ⚠️ **주소를 로그에 남기지 않는다.** 서명이 붙어 있다. 예외도 그대로
     // 올려 보내고 메시지에 주소를 붙이지 않는다.
     await _player.setUrl(url);

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,8 +30,12 @@ void main() {
   late _FakePlayer fake;
   late _Repo repo;
 
+  /// 플레이어 provider 가 몇 번 세워졌나. **한 번이어야 한다.**
+  late int built;
+
   setUp(() {
     fake = _FakePlayer();
+    built = 0;
     repo = _Repo(_cardWith(baseUrl: 'https://cdn.invalid/base.m4a?sig=AAA'));
   });
 
@@ -40,18 +46,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          recordCardRepositoryProvider.overrideWithValue(repo),
-          cardAudioPlayerProvider.overrideWithValue(fake),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.dark(),
-          home: const CardDetailPage(cardId: 'card-1'),
-        ),
-      ),
-    );
+    await tester.pumpWidget(_app(repo, fake, () => built++));
     await tester.pump();
     await tester.pump();
     await tester.pumpAndSettle();
@@ -213,6 +208,120 @@ void main() {
     expect(find.text(AppStrings.recordCardEditTitle), findsOneWidget);
     expect(fake.calls, isEmpty);
   });
+
+  testWidgets('⚠️ 플레이어를 한 번만 세운다', (tester) async {
+    // `ref.read` 는 듣는 사람을 만들지 않는다 — `autoDispose` provider 는
+    // 읽은 직후 버려지고 다음 읽기가 **새 플레이어**를 세운다. 그러면
+    // `load` 와 `play` 가 서로 다른 플레이어로 가 소리가 안 난다.
+    await open(tester);
+
+    expect(built, 1, reason: '플레이어가 읽을 때마다 다시 세워진다');
+  });
+
+  testWidgets('⚠️ 만료된 주소를 다시 받으면 한 번 더 물어 본다', (tester) async {
+    // 못 물려서 상세를 다시 읽는 까닭이 **새 주소를 받아 틀기 위해서**다.
+    // 받고도 안 물면 그 왕복은 헛일이다(설계 7-3).
+    fake.loadThrows = Exception('만료');
+    await open(tester);
+    expect(repo.reads, 2);
+
+    fake.loadThrows = null;
+    fake.calls.clear();
+    await refreshDetail(
+      tester,
+      _cardWith(baseUrl: 'https://cdn.invalid/base.m4a?sig=BBB'),
+    );
+
+    expect(fake.calls, ['load', 'play']);
+  });
+
+  testWidgets('⚠️ 못 물린 장에서 재생을 누르면 다시 물어 본다', (tester) async {
+    // 버튼이 서 있는데 눌러도 아무 일이 없으면 안 된다(설계 9절).
+    fake.loadThrows = Exception('한 번 실패');
+    await open(tester);
+    expect(find.text(AppStrings.recordCardMusicPlay), findsOneWidget);
+
+    fake.loadThrows = null;
+    fake.calls.clear();
+    await tester.tap(find.text(AppStrings.recordCardMusicPlay));
+    await tester.pumpAndSettle();
+
+    expect(fake.calls, ['load', 'play']);
+    expect(find.text(AppStrings.recordCardMusicPause), findsOneWidget);
+  });
+
+  testWidgets('⚠️ 물리는 중에 배경으로 가면 틀지 않는다', (tester) async {
+    // 멈추라고 했을 때 아직 안 물린 상태였다고 해서, 다 물린 뒤에 나면
+    // 안 된다 — 가려진 앱에서 소리가 난다.
+    final gate = Completer<void>();
+    fake.loadGate = gate;
+
+    await tester.pumpWidget(_app(repo, fake, () => built++));
+    await tester.pump();
+    await tester.pump();
+
+    for (final step in const [
+      AppLifecycleState.inactive,
+      AppLifecycleState.hidden,
+      AppLifecycleState.paused,
+    ]) {
+      tester.binding.handleAppLifecycleStateChanged(step);
+    }
+    await tester.pump();
+
+    gate.complete();
+    await tester.pumpAndSettle();
+
+    expect(fake.calls, isNot(contains('play')));
+  });
+
+  testWidgets('⚠️ 빠르게 넘겨도 마지막 장이 이긴다', (tester) async {
+    // 한 장을 무는 동안 다음 장으로 넘어가면, 뒤늦게 끝난 앞 장의 결과가
+    // 상태를 덮어써 **줄이 죽은 버튼**이 된다.
+    repo.card = _cardWith(
+      baseUrl: 'https://cdn.invalid/base.m4a?sig=AAA',
+      photoUrl: 'https://cdn.invalid/photo.m4a?sig=AAA',
+    );
+    final gate = Completer<void>();
+    fake.loadGate = gate;
+
+    await tester.pumpWidget(_app(repo, fake, () => built++));
+    await tester.pump();
+    await tester.pump();
+
+    // 첫 장이 아직 물리는 중인데 사진 장으로 민다.
+    await tester.drag(find.byType(PageView), const Offset(-600, 0));
+    await tester.pump();
+    gate.complete();
+    await tester.pumpAndSettle();
+
+    // 사진 장이 서 있고, 줄은 살아 있다.
+    expect(find.text('결승선'), findsOneWidget);
+    expect(find.text(AppStrings.recordCardMusicPause), findsOneWidget);
+    // ⚠️ **뒤늦게 끝난 앞 장이 한 번 더 틀면 안 된다.**
+    expect(fake.calls.where((call) => call == 'play'), hasLength(1));
+  });
+}
+
+/// 상세 하나만 띄운 앱.
+///
+/// ⚠️ **`overrideWithValue` 를 쓰지 않는다.** 그것은 늘 같은 것을 돌려줘서
+/// provider 가 몇 번 세워졌는지 보이지 않는다 — 플레이어가 읽을 때마다 다시
+/// 서는 결함을 테스트가 못 본다.
+Widget _app(_Repo repo, _FakePlayer fake, void Function() onBuilt) {
+  return ProviderScope(
+    overrides: [
+      recordCardRepositoryProvider.overrideWithValue(repo),
+      cardAudioPlayerProvider.overrideWith((ref) {
+        onBuilt();
+        return fake;
+      }),
+    ],
+    child: MaterialApp(
+      theme: AppTheme.dark(),
+      home: const CardDetailPage(cardId: 'card-1'),
+    ),
+  );
 }
 
 /// 곡을 심은 카드. 사진은 [photoUrl]을 주면 한 장 생긴다.
@@ -253,9 +362,17 @@ class _FakePlayer implements CardAudioPlayer {
   bool othersPlaying = false;
   Object? loadThrows;
 
+  /// 물리는 일을 붙잡아 둘 문. 열어 줄 때까지 `load`가 안 끝난다.
+  Completer<void>? loadGate;
+
   @override
   Future<void> load(String url) async {
     calls.add('load');
+    final gate = loadGate;
+    if (gate != null) {
+      loadGate = null;
+      await gate.future;
+    }
     final boom = loadThrows;
     if (boom != null) throw boom;
   }

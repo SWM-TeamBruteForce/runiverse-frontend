@@ -20,8 +20,6 @@ import 'package:runiverse/core/widgets/route_art_view.dart';
 /// (`docs/specs/2026-11-25-record-card-audio-design.md` 2절). 곡이 끝나지
 /// 않으니 넘길 신호가 없다 — **저절로 넘어가던 타이머를 걷었다.**
 ///
-/// 그 전에는 "그 장의 길이만큼 지나면" 넘겼고, 길이는 `CardMusicTiming`이
-/// 들고 있었다. 둘 다 없다.
 ///
 /// ## ⚠️ 소리를 모른다
 ///

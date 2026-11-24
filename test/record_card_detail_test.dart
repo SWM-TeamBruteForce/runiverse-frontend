@@ -217,7 +217,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-        silentAudio,
+            silentAudio,
             recordCardRepositoryProvider.overrideWithValue(
               _MusicRepository(
                 MusicStatus.completed,
@@ -248,7 +248,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-        silentAudio,
+            silentAudio,
             recordCardRepositoryProvider.overrideWithValue(
               _MusicRepository(MusicStatus.completed),
             ),
