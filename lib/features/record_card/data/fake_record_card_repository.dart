@@ -322,8 +322,8 @@ class FakeRecordCardRepository implements RecordCardRepository {
         for (var i = 0; i < card.photos.length; i++)
           RecordCardPhoto(
             id: '$id-img$i',
-            url: card.photos[i].path,
-            thumbnailUrl: card.photos[i].thumbnailPath,
+            url: card.photos[i].file.path,
+            thumbnailUrl: card.photos[i].thumbnail.path,
             caption: card.photos[i].caption,
           ),
       ],
@@ -412,8 +412,8 @@ class FakeRecordCardRepository implements RecordCardRepository {
     }
     return RecordCardPhoto(
       id: '${before.id}-add$index',
-      url: photo.path!,
-      thumbnailUrl: photo.thumbnailPath,
+      url: photo.file!.path,
+      thumbnailUrl: photo.thumbnail?.path,
       caption: photo.caption,
     );
   }

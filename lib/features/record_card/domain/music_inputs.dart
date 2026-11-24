@@ -53,7 +53,7 @@ class MusicInputs {
         if (photo.savedId case final savedId?)
           _saved(savedId, photo.caption)
         else
-          _added(photo.path!, photo.caption),
+          _added(photo.file!.path, photo.caption),
     ],
   );
 
