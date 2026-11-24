@@ -335,7 +335,50 @@ class HttpRecordCardRepository implements RecordCardRepository {
   }
 
   @override
-  Future<RecordCard> update(EditRecordCard card) => fallback.update(card);
+  Future<RecordCard> update(EditRecordCard card) async {
+    // ⚠️ **러닝 기록을 보내지 않는다.** 수정에서 바꿀 수 없다(가이드 4절) —
+    // 보내지 않으면 서버가 건드릴 일도 없다.
+    //
+    // ⚠️ **`images`는 남길 전체다.** 빈 배열은 "전부 지웠다"는 뜻이고,
+    // 필드를 빼야 "안 바꿨다"가 된다. 화면은 늘 전체를 들고 오므로 늘 싣는다.
+    final body = await authorized(
+      (token) => _dio.patch<Map<String, dynamic>>(
+        '$_cards/${Uri.encodeComponent(card.cardId)}',
+        data: {
+          'memo': card.reviewText,
+          'activityType': activityWire(card.activity),
+          'visibility': visibilityWire(card.visibility),
+          'images': [
+            for (final photo in card.photos)
+              if (photo.savedId case final savedId?)
+                // ⚠️ **캡션을 다시 보낸다.** 생략하면 `null`로 저장되고,
+                // 설명이 지워진 사진의 곡도 다시 만들어진다.
+                {'recordCardImageId': savedId, 'caption': photo.caption}
+              else
+                imageWire(photo.file!, photo.thumbnail!, photo.caption),
+          ],
+          // 대표는 늘 첫 장이다 — 화면이 순서로 정한다.
+          if (card.photos.isNotEmpty) 'thumbnailIndex': 0,
+        },
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      ),
+    );
+
+    // ⚠️ **`draft`가 없으면 저장이 끝난 것이다**(가이드 4절). 있으면 응답의
+    // `recordCard`는 **수정 전 상태**라 그대로 쓰면 고친 값이 안 보인다.
+    final draft = RecordCardDraftDto.draftOf(body);
+    if (draft != null) {
+      final added = [
+        for (final photo in card.photos)
+          if (photo.savedId == null) photo,
+      ];
+      await _uploadAll(added, draft.uploads);
+      await _complete(draft, onMissing: () => _uploadAll(added, draft.uploads));
+    }
+
+    // 끝나면 다시 읽는다 — 파서를 한 벌만 둔다.
+    return detailOf(card.cardId);
+  }
 
   /// 카드를 영구 삭제한다 (9-4). 본문이 없고 `204`가 온다.
   ///
