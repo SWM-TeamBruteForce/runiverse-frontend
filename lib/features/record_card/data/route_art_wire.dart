@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
 
 /// 서버가 보낸 `routeArt`를 [RouteArt]로. 달력(7-1)과 상세(8-1)가 같이 쓴다.
@@ -38,5 +39,34 @@ RouteArt routeArtFrom(Object? wire) {
   }
 
   // 가로/세로 비는 받은 점에서 되찾는다 — 서버가 주지 않는다.
-  return RouteArt.fromNormalized(strokes);
+  final art = RouteArt.fromNormalized(strokes);
+  _probe(strokes, art);
+  return art;
+}
+
+/// ⚠️ **임시 관찰 코드다. 커밋하지 않는다.**
+///
+/// 서버가 비를 보존해 정규화했는지(짧은 축의 폭이 `1`보다 작다) 축마다 따로
+/// 늘렸는지(둘 다 `1`에 닿는다) 눈으로 보려고 둔다. **폭만 찍는다** — 좌표는
+/// 찍지 않는다.
+void _probe(List<List<RoutePoint>> strokes, RouteArt art) {
+  if (strokes.isEmpty) return;
+  var minX = double.infinity, maxX = double.negativeInfinity;
+  var minY = double.infinity, maxY = double.negativeInfinity;
+  var count = 0;
+  for (final stroke in strokes) {
+    for (final p in stroke) {
+      count++;
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    }
+  }
+  debugPrint(
+    '[routeArt] strokes=${strokes.length} points=$count '
+    'xSpan=${(maxX - minX).toStringAsFixed(4)} '
+    'ySpan=${(maxY - minY).toStringAsFixed(4)} '
+    'aspect=${art.aspect.toStringAsFixed(4)}',
+  );
 }

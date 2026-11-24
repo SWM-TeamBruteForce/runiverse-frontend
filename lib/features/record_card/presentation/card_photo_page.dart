@@ -152,7 +152,8 @@ class _CardPhotoPageState extends ConsumerState<CardPhotoPage> {
           child: PageView.builder(
             controller: _pager,
             onPageChanged: _onPage,
-            itemCount: photos.length + (photos.length < CardDraft.maxPhotos ? 1 : 0),
+            itemCount:
+                photos.length + (photos.length < CardDraft.maxPhotos ? 1 : 0),
             itemBuilder: (context, index) => index >= photos.length
                 ? CardAddPhotoSlide(first: photos.isEmpty, onPick: _add)
                 : CardPhotoSlide(

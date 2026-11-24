@@ -7,6 +7,7 @@ import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/core/widgets/v2/app_input.dart';
+import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record/domain/run_record_repository.dart';
@@ -23,6 +24,7 @@ import 'package:runiverse/features/record_card/domain/record_card_visibility.dar
 import 'package:runiverse/features/record_card/domain/route_art.dart';
 import 'package:runiverse/features/record_card/presentation/card_compose_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
+import 'package:runiverse/features/record_card/presentation/card_photo_slide.dart';
 import 'package:runiverse/features/record_card/presentation/compose_records_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 import 'package:runiverse/core/widgets/route_art_view.dart';
@@ -1004,6 +1006,172 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.recordCardComposeDiscardTitle), findsNothing);
+    });
+  });
+
+  /// 작성 1과 사진이 **한 화면의 좌우 장**이 된 뒤의 일들
+  /// (사용자 결정 2026-11-24).
+  group('옆으로 미는 사진', () {
+    Future<ProviderContainer> pumpPaged(
+      WidgetTester tester, {
+      void Function(CardDraftController draft)? seed,
+    }) async {
+      final container = ProviderContainer(
+        overrides: [
+          runRecordRepositoryProvider.overrideWithValue(
+            _Records([_record(id: 11)], detail: _detail(roomId: 911)),
+          ),
+          recordCardRepositoryProvider.overrideWithValue(
+            _merged(_Records([_record(id: 11)]), null),
+          ),
+          recordCardClockProvider.overrideWithValue(() => _today),
+        ],
+      );
+      addTearDown(container.dispose);
+      seed?.call(container.read(cardDraftProvider(null).notifier));
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: CardComposePage(day: _day),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return container;
+    }
+
+    /// 작성 1을 통과한 초안에 사진 [photos]장.
+    void ready(CardDraftController draft, {int photos = 0}) {
+      draft
+        ..pickRecord(_record(id: 11))
+        ..setActivity(RecordCardActivity.daily)
+        ..setReview('좋았다');
+      for (var i = 0; i < photos; i++) {
+        draft.addPhoto(
+          PickedImage.validated(path: '/tmp/p$i.jpg', sizeBytes: 1024),
+        );
+      }
+    }
+
+    /// ⚠️ **반 장보다 넉넉히 민다.** 시험 화면이 800 넓이라 `-400`은 딱
+    /// 절반이고, 거기서는 넘어갈지 돌아갈지가 갈린다.
+    Future<void> swipeLeft(WidgetTester tester) async {
+      await tester.drag(find.byType(PageView), const Offset(-600, 0));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('옆으로 밀면 사진 장이 나온다', (tester) async {
+      await pumpPaged(tester);
+
+      await swipeLeft(tester);
+
+      expect(find.byType(CardAddPhotoSlide), findsOne);
+    });
+
+    testWidgets('다음은 사진이 아니라 저장하기로 간다', (tester) async {
+      final router = GoRouter(
+        initialLocation: '/compose',
+        routes: [
+          GoRoute(
+            path: '/compose',
+            builder: (_, _) => CardComposePage(day: _day),
+          ),
+          GoRoute(
+            path: AppRoutes.recordCardNewPublish,
+            builder: (_, _) => const Scaffold(body: Text('저장하기')),
+          ),
+        ],
+      );
+      final container = ProviderContainer(
+        overrides: [
+          runRecordRepositoryProvider.overrideWithValue(
+            _Records([_record(id: 11)], detail: _detail(roomId: 911)),
+          ),
+          recordCardRepositoryProvider.overrideWithValue(
+            _merged(_Records([_record(id: 11)]), null),
+          ),
+          recordCardClockProvider.overrideWithValue(() => _today),
+        ],
+      );
+      addTearDown(container.dispose);
+      ready(container.read(cardDraftProvider(null).notifier));
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            theme: AppTheme.dark(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // 쓰던 초안이 있으면 이어 쓰기를 묻는다 — 이어 쓴다.
+      if (find.text(AppStrings.recordCardComposeResume).evaluate().isNotEmpty) {
+        await tester.tap(find.text(AppStrings.recordCardComposeResume));
+        await tester.pumpAndSettle();
+      }
+
+      await tester.tap(find.text(AppStrings.recordCardComposeNext));
+      await tester.pumpAndSettle();
+
+      expect(router.state.uri.toString(), AppRoutes.recordCardNewPublish);
+    });
+
+    testWidgets('⚠️ 사진 장에서 뒤로 눌러도 버릴지 묻는다', (tester) async {
+      // 버릴지 묻는 문은 작성 1에만 있었다. 한 화면이 되면 사진 장에서 눌러도
+      // 그 문을 지나야 한다 — 안 그러면 쓴 글이 조용히 사라진다.
+      await pumpPaged(tester, seed: (draft) => ready(draft));
+      if (find.text(AppStrings.recordCardComposeResume).evaluate().isNotEmpty) {
+        await tester.tap(find.text(AppStrings.recordCardComposeResume));
+        await tester.pumpAndSettle();
+      }
+
+      await swipeLeft(tester);
+      await tester.tap(find.byIcon(LucideIcons.chevronLeft));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.recordCardComposeDiscardTitle), findsOne);
+    });
+
+    testWidgets('⚠️ 마지막 사진을 지우면 넣기 장으로 당겨진다', (tester) async {
+      // 장 수가 줄어 보고 있던 자리가 범위를 벗어나면 빈 화면이 선다.
+      final container = await pumpPaged(
+        tester,
+        seed: (draft) => ready(draft, photos: 1),
+      );
+      if (find.text(AppStrings.recordCardComposeResume).evaluate().isNotEmpty) {
+        await tester.tap(find.text(AppStrings.recordCardComposeResume));
+        await tester.pumpAndSettle();
+      }
+
+      await swipeLeft(tester);
+      expect(find.byType(CardPhotoSlide), findsOne);
+
+      // ⚠️ **끌어 올려야 닿는다.** 지우기 줄은 600dp 시험 화면 바로 밑에
+      // 있다(기기 915dp에서는 보이는 자리다).
+      await tester.drag(find.byType(PageView), const Offset(0, -200));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.recordCardPhotoRemove));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(container.read(cardDraftProvider(null)).photos, isEmpty);
+      expect(find.byType(CardAddPhotoSlide), findsOne);
+    });
+
+    testWidgets('⚠️ 첫 장을 세로로 끌어도 장이 넘어가지 않는다', (tester) async {
+      // 첫 장은 세로로 길다. 세로로 끌었는데 사진으로 넘어가면 회고를 읽다가
+      // 화면이 바뀐다.
+      await pumpPaged(tester);
+
+      await tester.drag(find.byType(PageView), const Offset(0, -300));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CardAddPhotoSlide), findsNothing);
     });
   });
 }

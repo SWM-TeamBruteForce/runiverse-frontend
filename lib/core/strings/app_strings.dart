@@ -1749,6 +1749,10 @@ abstract final class AppStrings {
   // ── 기록카드 작성 1 (기록·유형·회고) ─────────────────────────
 
   static const recordCardComposeTitle = '기록카드 쓰기';
+
+  /// 작성 화면의 장 표시 점 이름표. 점뿐이라 스크린리더가 읽을 것이 없다.
+  static const recordCardComposeGoToAdd = '사진 넣는 장으로';
+  static const recordCardComposeGoToForm = '기록과 회고 쓰는 장으로';
   static const recordCardComposeNext = '다음';
 
   /// 기록 고르기 묶음의 머리.

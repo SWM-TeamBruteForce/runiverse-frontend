@@ -23,6 +23,11 @@ import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
 import 'package:runiverse/features/record_card/presentation/activity_label.dart';
+import 'package:runiverse/features/profile/domain/picked_image.dart';
+import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
+import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
+import 'package:runiverse/features/record_card/domain/card_photo_draft.dart';
+import 'package:runiverse/features/record_card/presentation/card_photo_slide.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
 import 'package:runiverse/features/record_card/presentation/compose_records_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
@@ -110,6 +115,15 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
 
   final _review = TextEditingController();
 
+  /// 장을 넘기는 손잡이. **0장이 기록·유형·회고**, 그 뒤가 사진이다.
+  final _pager = PageController();
+
+  /// 보고 있는 장.
+  var _page = 0;
+
+  /// 사진을 고르는 중인가. 도는 동안 또 누르면 앨범이 두 번 열린다.
+  var _picking = false;
+
   @override
   void initState() {
     super.initState();
@@ -141,6 +155,7 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
   @override
   void dispose() {
     _review.dispose();
+    _pager.dispose();
     super.dispose();
   }
 
@@ -193,93 +208,230 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
           icon: const Icon(LucideIcons.chevronLeft),
           onPressed: _leave,
         ),
+        // 보고 있는 장이 제목이다 — 사진 장에서는 몇 장째인지가 더 급하다.
         title: Text(
-          _editing
-              ? AppStrings.recordCardEditTitle
-              : AppStrings.recordCardComposeTitle,
+          _page == 0
+              ? (_editing
+                    ? AppStrings.recordCardEditTitle
+                    : AppStrings.recordCardComposeTitle)
+              : AppStrings.recordCardPhotoTitle(
+                  draft.photos.length,
+                  CardDraft.maxPhotos,
+                ),
           style: AppTypographyV2.body07.copyWith(color: colors.textPrimary),
         ),
         centerTitle: true,
         actions: [
           TextButton(
-            // ⚠️ **초안만 들고 간다.** 사진 화면은 날짜를 쿼리로 받지 않는다 —
-            // 어느 날인지는 초안의 `record`가 안다. 두 곳에 두면 갈라진다.
-            // ⚠️ **수정이면 카드를 들고 간다.** 사진·공개범위 라우트가
-            // `extra`로 그것을 받아야 초안을 어느 번호로 가를지 안다.
+            // ⚠️ **사진이 아니라 저장하기로 간다.** 사진은 옆으로 밀어 넣는
+            // 같은 화면의 장이다(사용자 결정 2026-11-24).
+            // ⚠️ **초안만 들고 간다.** 공개범위 화면은 날짜를 쿼리로 받지
+            // 않는다 — 어느 날인지는 초안의 `record`가 안다.
+            // ⚠️ **수정이면 카드를 들고 간다.** 공개범위 라우트가 `extra`로
+            // 그것을 받아야 초안을 어느 번호로 가를지 안다.
             onPressed: draft.canProceed
                 ? () => _editing
                       ? context.push(
-                          AppRoutes.recordCardEditPhotosOf(widget.card!.id),
+                          AppRoutes.recordCardEditPublishOf(widget.card!.id),
                           extra: widget.card,
                         )
-                      : context.push(AppRoutes.recordCardNewPhotos)
+                      : context.push(AppRoutes.recordCardNewPublish)
                 : null,
             child: Text(AppStrings.recordCardComposeNext),
           ),
         ],
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.space4,
-            AppSpacing.space2,
-            AppSpacing.space4,
-            AppSpacing.space8,
-          ),
+        child: Column(
           children: [
-            _SectionLabel(AppStrings.recordCardComposeRecordSection),
-            // ⚠️ **수정이면 날짜도 기록도 못 고른다**(설계 6-6). 날짜를 열어
-            // 두면 그날의 다른 기록으로 옮기는 길이 함께 열린다.
-            _DateRow(day: _day, onTap: _editing ? null : _pickDay),
-            const SizedBox(height: AppSpacing.space2),
-            if (_editing) ...[
-              _Locked(AppStrings.recordCardEditRecordLocked),
-              const SizedBox(height: AppSpacing.space4),
-              _SavedRoute(card: widget.card!),
-              const SizedBox(height: AppSpacing.space3),
-              _SavedMetrics(card: widget.card!),
-            ] else ...[
-              _RecordList(
-                day: _day,
-                selectedId: draft.record?.id,
-                onPick: _pick,
-              ),
-              if (draft.record != null) ...[
-                const SizedBox(height: AppSpacing.space4),
-                _RoutePreview(record: draft.record!, route: draft.route),
-                const SizedBox(height: AppSpacing.space3),
-                _Metrics(record: draft.record!),
-              ],
-            ],
-            const SizedBox(height: AppSpacing.space6),
-            _SectionLabel(AppStrings.recordCardComposeActivitySection),
-            _ActivityChoice(
-              selected: draft.activity,
-              onChanged: _draft.setActivity,
+            _PageDots(
+              photos: draft.photos.length,
+              current: _page,
+              onJump: _jump,
             ),
-            const SizedBox(height: AppSpacing.space6),
-            _SectionLabel(AppStrings.recordCardReview),
-            AppInputV2(
-              controller: _review,
-              hint: AppStrings.recordCardComposeReviewHint,
-              minLines: 4,
-              maxLines: 8,
-              counter: AppStrings.recordCardComposeReviewCounter(
-                draft.reviewText.length,
-                CardDraft.reviewMaxLength,
+            Expanded(
+              child: PageView.builder(
+                controller: _pager,
+                onPageChanged: _onPage,
+                // 0장 + 사진들 + (더 넣을 수 있으면) 넣기 장.
+                itemCount: _pageCount(draft.photos.length),
+                itemBuilder: (context, index) => index == 0
+                    ? _form(colors, draft)
+                    : _photoPage(draft.photos, index - 1),
               ),
-              // ⚠️ 칸에서 막고 초안에서 한 번 더 자른다. 통째로 담으면
-              // 저장에서 거절당하고 쓴 글을 잃는다.
-              inputFormatters: [
-                LengthLimitingTextInputFormatter(CardDraft.reviewMaxLength),
-              ],
-              onChanged: _draft.setReview,
             ),
           ],
         ),
       ),
     );
   }
+
+  /// 장 수. 사진이 상한까지 차면 넣기 장이 사라진다.
+  int _pageCount(int photos) =>
+      1 + photos + (photos < CardDraft.maxPhotos ? 1 : 0);
+
+  /// 사진 장 하나. [at]이 사진 수와 같으면 **넣기 장**이다.
+  Widget _photoPage(List<CardPhotoDraft> photos, int at) => at >= photos.length
+      ? CardAddPhotoSlide(first: photos.isEmpty, onPick: _addPhoto)
+      : CardPhotoSlide(
+          // ⚠️ **열쇠를 준다.** 안 주면 장을 지웠을 때 옆 장의 캡션
+          // 컨트롤러가 그 자리에 남아 지워진 장의 글이 다음 사진에 붙는다.
+          key: ValueKey(_photoKey(photos[at])),
+          photo: photos[at],
+          index: at,
+          total: photos.length,
+          isCover: at == 0,
+          onAlign: ({alignX, alignY}) =>
+              _draft.setPhotoAlign(at, alignX: alignX, alignY: alignY),
+          onCaption: (text) => _draft.setCaption(at, text),
+          onMakeCover: () {
+            _draft.makeCover(at);
+            // 올린 뒤 **그 장을 따라간다** — 다른 장을 보여 주면 무엇이
+            // 대표가 됐는지 알 수 없다. 사진 1번은 장으로는 1이다.
+            _jump(1);
+          },
+          onRemove: () => _removePhoto(at),
+        );
+
+  /// 장을 가리는 열쇠. 자리로 가리면 지웠을 때 뒤 장이 앞 장의 캡션
+  /// 컨트롤러를 물려받는다.
+  static String _photoKey(CardPhotoDraft photo) => switch (photo) {
+    SavedPhoto(:final id) => id,
+    PickedPhoto(:final image) => image.path,
+  };
+
+  /// 0장 — 기록·유형·회고.
+  Widget _form(AppColorsV2 colors, CardDraft draft) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.space4,
+        AppSpacing.space2,
+        AppSpacing.space4,
+        AppSpacing.space8,
+      ),
+      children: [
+        _SectionLabel(AppStrings.recordCardComposeRecordSection),
+        // ⚠️ **수정이면 날짜도 기록도 못 고른다**(설계 6-6). 날짜를 열어
+        // 두면 그날의 다른 기록으로 옮기는 길이 함께 열린다.
+        _DateRow(day: _day, onTap: _editing ? null : _pickDay),
+        const SizedBox(height: AppSpacing.space2),
+        if (_editing) ...[
+          _Locked(AppStrings.recordCardEditRecordLocked),
+          const SizedBox(height: AppSpacing.space4),
+          _SavedRoute(card: widget.card!),
+          const SizedBox(height: AppSpacing.space3),
+          _SavedMetrics(card: widget.card!),
+        ] else ...[
+          _RecordList(day: _day, selectedId: draft.record?.id, onPick: _pick),
+          if (draft.record != null) ...[
+            const SizedBox(height: AppSpacing.space4),
+            _RoutePreview(record: draft.record!, route: draft.route),
+            const SizedBox(height: AppSpacing.space3),
+            _Metrics(record: draft.record!),
+          ],
+        ],
+        const SizedBox(height: AppSpacing.space6),
+        _SectionLabel(AppStrings.recordCardComposeActivitySection),
+        _ActivityChoice(
+          selected: draft.activity,
+          onChanged: _draft.setActivity,
+        ),
+        const SizedBox(height: AppSpacing.space6),
+        _SectionLabel(AppStrings.recordCardReview),
+        AppInputV2(
+          controller: _review,
+          hint: AppStrings.recordCardComposeReviewHint,
+          minLines: 4,
+          maxLines: 8,
+          counter: AppStrings.recordCardComposeReviewCounter(
+            draft.reviewText.length,
+            CardDraft.reviewMaxLength,
+          ),
+          // ⚠️ 칸에서 막고 초안에서 한 번 더 자른다. 통째로 담으면
+          // 저장에서 거절당하고 쓴 글을 잃는다.
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(CardDraft.reviewMaxLength),
+          ],
+          onChanged: _draft.setReview,
+        ),
+      ],
+    );
+  }
+
+  /// 장이 바뀌었다.
+  ///
+  /// ⚠️ **키보드를 내린다.** 회고를 쓰다 밀면 포커스가 캡션 칸으로 끌려가,
+  /// 치던 글자가 엉뚱한 장에 들어간다.
+  void _onPage(int page) {
+    FocusScope.of(context).unfocus();
+    setState(() => _page = page);
+  }
+
+  void _jump(int page) {
+    if (_pager.hasClients) _pager.jumpToPage(page);
+    _onPage(page);
+  }
+
+  /// 사진 한 장 더. **거절도 말한다** — 조용히 아무 일도 안 하면 고장이다.
+  Future<void> _addPhoto() async {
+    if (_picking) return;
+
+    if (!ref.read(cardDraftProvider(widget.cardId)).canAddPhoto) {
+      _say(AppStrings.recordCardPhotoLimit(CardDraft.maxPhotos));
+      return;
+    }
+
+    _picking = true;
+    final PickedImage? image;
+    try {
+      image = await ref.read(photoPickerProvider).pick();
+    } on ProfileImageException catch (error) {
+      if (mounted) _say(_photoMessageOf(error.failure));
+      return;
+    } on Object {
+      if (mounted) _say(AppStrings.recordCardPhotoPickFailed);
+      return;
+    } finally {
+      _picking = false;
+    }
+
+    // ⚠️ **취소는 실패가 아니다.** 올릴 생각을 접었을 뿐인 사람에게
+    // "못 가져왔다"고 하면 거짓말이다.
+    if (image == null || !mounted) return;
+
+    _draft.addPhoto(image);
+    // 방금 넣은 장을 보여 준다 — 안 넘기면 무엇이 들어왔는지 모른다.
+    final last = ref.read(cardDraftProvider(widget.cardId)).photos.length;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _jump(last);
+    });
+  }
+
+  /// 사진을 지운다.
+  ///
+  /// ⚠️ **장 수가 줄어든다.** 보고 있던 자리가 범위를 벗어나면 빈 장을
+  /// 그리려다 죽는다 — 마지막 장이면 그 앞(또는 넣기 장)으로 당긴다.
+  void _removePhoto(int at) {
+    _draft.removePhotoAt(at);
+    final left = ref.read(cardDraftProvider(widget.cardId)).photos.length;
+    final next = (at + 1).clamp(0, _pageCount(left) - 1);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _jump(next);
+    });
+  }
+
+  /// `ProfileImageFailure`를 **카드 사진의 말**로 옮긴다. 프로필 문구를 그대로
+  /// 쓰면 "프로필 사진"이라는 말이 카드 작성 화면에 나온다.
+  String _photoMessageOf(ProfileImageFailure failure) => switch (failure) {
+    ProfileImageFailure.unsupportedFormat =>
+      AppStrings.recordCardPhotoUnsupported,
+    ProfileImageFailure.tooLarge => AppStrings.recordCardPhotoTooLarge,
+    _ => AppStrings.recordCardPhotoPickFailed,
+  };
+
+  void _say(String message) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(message)));
 
   /// 뒤로. 쓴 것이 있으면 **버릴지 묻는다.**
   Future<void> _leave() async {
@@ -513,6 +665,70 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
     // 날의 기록을 들고 있고, 그 아래 경로와 지표도 앞 날 것이다. `다음`이
     // 켜진 채라 그대로 저장하면 **엉뚱한 러닝에 카드가 붙는다.**
     _draft.clearRecord();
+  }
+}
+
+/// 장 표시 점. **눌러서 넘어간다.**
+///
+/// ⚠️ **미는 사진 위에서는 가로 끌기가 사진에 먹힌다.** 점이 없으면 그 장에
+/// 갇힌다.
+///
+/// ⚠️ **이름표를 붙인다.** 점뿐이라 스크린리더가 읽을 것이 없다 — 탭 바에서
+/// 배운 것과 같다(CLAUDE.md).
+class _PageDots extends StatelessWidget {
+  const _PageDots({
+    required this.photos,
+    required this.current,
+    required this.onJump,
+  });
+
+  /// 사진 수. 장 수는 이보다 하나(기록 장)에서 둘(+ 넣기 장) 많다.
+  final int photos;
+
+  final int current;
+  final ValueChanged<int> onJump;
+
+  static const _size = 8.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+    final count = 1 + photos + (photos < CardDraft.maxPhotos ? 1 : 0);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.space2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (var i = 0; i < count; i++)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.space1,
+              ),
+              child: Semantics(
+                button: true,
+                selected: i == current,
+                label: switch (i) {
+                  0 => AppStrings.recordCardComposeGoToForm,
+                  _ when i > photos => AppStrings.recordCardComposeGoToAdd,
+                  _ => AppStrings.recordCardPhotoGoTo(i, photos),
+                },
+                child: GestureDetector(
+                  onTap: () => onJump(i),
+                  child: Container(
+                    width: _size,
+                    height: _size,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: i == current ? colors.primary : colors.bgSurface,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 
