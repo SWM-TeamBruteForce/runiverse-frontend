@@ -72,9 +72,38 @@ void main() {
     });
 
     test('⚠️ 모르는 상태 코드를 성공으로 보지 않는다', () {
-      // 쓰기 코드(409 등)는 묶음 8이 가른다. 그때까지도 **실패로는 선다.**
-      expect(failureOf(badResponse(409)), RecordCardFailure.server);
       expect(failureOf(badResponse(418)), RecordCardFailure.server);
+    });
+
+    test('⚠️ 409 RECORD_CARD_ALREADY_EXISTS는 수정으로 보내야 하는 실패다', () {
+      // 그 러닝에 이미 카드가 있다(가이드 7절). 다시 눌러도 같은 답이라,
+      // server 로 뭉치면 화면이 "잠시 뒤 다시"를 권한다.
+      expect(
+        failureOf(badResponse(409, body: {'code': 'RECORD_CARD_ALREADY_EXISTS'})),
+        RecordCardFailure.alreadyExists,
+      );
+    });
+
+    test('⚠️ 다시 읽어야 하는 실패 둘을 한 값으로 묶는다', () {
+      // 409 RECORD_CARD_CHANGED 는 남이 먼저 고쳤다는 뜻이고,
+      // 400 INVALID_RECORD_CARD_IMAGE 는 남긴 사진 번호가 그 카드 것이
+      // 아니라는 뜻이다. 앱이 할 일은 둘 다 "8-1 을 다시 읽어라"다.
+      expect(
+        failureOf(badResponse(409, body: {'code': 'RECORD_CARD_CHANGED'})),
+        RecordCardFailure.changed,
+      );
+      expect(
+        failureOf(badResponse(400, body: {'code': 'INVALID_RECORD_CARD_IMAGE'})),
+        RecordCardFailure.changed,
+      );
+    });
+
+    test('⚠️ 모르는 code 는 지어내지 않고 상태 코드로 떨어진다', () {
+      expect(
+        failureOf(badResponse(409, body: {'code': 'WHAT_IS_THIS'})),
+        RecordCardFailure.server,
+      );
+      expect(failureOf(badResponse(409)), RecordCardFailure.server);
     });
 
     test('⚠️ 403 APP_UPDATE_REQUIRED를 여기서 가르지 않는다', () {

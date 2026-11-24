@@ -263,6 +263,19 @@ class HttpRecordCardRepository implements RecordCardRepository {
 
     final status = error.response?.statusCode ?? 0;
 
+    // ⚠️ **`code`를 먼저 본다**(공통 요청 규칙). 같은 `409`가 "이미 있다"와
+    // "먼저 고쳐졌다"로 갈리고, 앱이 할 일이 다르다. **모르는 `code`는
+    // 지어내지 않고** 아래 상태 코드 규칙으로 떨어진다.
+    final body = error.response?.data;
+    final code = body is Map ? body['code'] : null;
+    final byCode = switch (code) {
+      'RECORD_CARD_ALREADY_EXISTS' => RecordCardFailure.alreadyExists,
+      'RECORD_CARD_CHANGED' => RecordCardFailure.changed,
+      'INVALID_RECORD_CARD_IMAGE' => RecordCardFailure.changed,
+      _ => null,
+    };
+    if (byCode != null) return byCode;
+
     return switch (status) {
       400 => RecordCardFailure.invalidRequest,
       401 => RecordCardFailure.sessionExpired,
