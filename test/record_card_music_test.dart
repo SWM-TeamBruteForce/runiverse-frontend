@@ -113,12 +113,4 @@ void main() {
       expect(card.isMusicWorking, isTrue);
     });
   });
-
-  group('장이 서 있는 길이', () {
-    test('⚠️ 0번은 30초, 사진은 10초다 — AI 계약이 정한 값이다', () {
-      expect(CardMusicTiming.durationOfPage(0), const Duration(seconds: 30));
-      expect(CardMusicTiming.durationOfPage(1), const Duration(seconds: 10));
-      expect(CardMusicTiming.durationOfPage(5), const Duration(seconds: 10));
-    });
-  });
 }

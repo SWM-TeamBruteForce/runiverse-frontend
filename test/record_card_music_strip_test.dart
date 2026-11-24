@@ -25,7 +25,6 @@ void main() {
     CardMusic? music,
     bool hasFailed = false,
     bool playing = false,
-    bool canAdvance = true,
     bool canRequest = true,
     bool light = false,
   }) async {
@@ -40,7 +39,6 @@ void main() {
               music: music,
               hasFailed: hasFailed,
               playing: playing,
-              canAdvance: canAdvance,
               canRequest: canRequest,
               onTogglePlay: () {},
             ),
@@ -98,7 +96,7 @@ void main() {
 
       expect(find.text(AppStrings.recordCardMusicProcessing), findsNothing);
       expect(find.text(AppStrings.recordCardMusicFailed), findsNothing);
-      expect(find.text(AppStrings.recordCardMusicReady), findsNothing);
+      expect(find.text(AppStrings.recordCardMusicPlay), findsNothing);
     });
 
     testWidgets('⚠️ 실패한 장에서는 다시 만들기를 준다', (tester) async {
@@ -134,17 +132,15 @@ void main() {
       expect(find.byIcon(LucideIcons.play), findsOne);
     });
 
-    testWidgets('⚠️ 넘어갈 장이 없으면 버튼을 두지 않는다', (tester) async {
-      // 사진이 없는 카드는 한 장뿐이라 타이머를 아예 걸지 않는다 — 그 자리에
-      // 토글을 세우면 눌러도 아무 일도 없는 버튼이 된다.
+    testWidgets('⚠️ 마지막 장에도 버튼이 선다', (tester) async {
+      // 넘어갈 장이 없어도 **틀 것은 있다.** 장을 넘기던 버튼이 소리를 쥐게
+      // 되면서 `canAdvance`가 없어졌다(설계 2절).
       await pump(
         tester,
         music: const CardMusic(status: MusicStatus.completed, url: 'https://x'),
-        canAdvance: false,
       );
 
-      expect(find.text(AppStrings.recordCardMusicReady), findsOne);
-      expect(find.text(AppStrings.recordCardMusicPlay), findsNothing);
+      expect(find.text(AppStrings.recordCardMusicPlay), findsOne);
     });
 
     testWidgets('라이트에서도 그려진다', (tester) async {

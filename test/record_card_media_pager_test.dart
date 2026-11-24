@@ -41,14 +41,31 @@ void main() {
         home: Scaffold(
           body: CardMediaPager(
             card: value,
-            playing: false,
-            onPlayingChanged: (_) {},
+            onTap: () {},
             onPageChanged: (_) {},
           ),
         ),
       ),
     ),
   );
+
+  testWidgets('⚠️ 가만히 두어도 장이 넘어가지 않는다', (tester) async {
+    // 곡이 끝나면 반복한다 — 넘길 신호가 없다(설계 2절). 장은 손으로만
+    // 넘어간다.
+    await pump(tester, card(photos: 2));
+    // 경로 장 아래에는 회고가 선다.
+    expect(find.text('좋았다'), findsOneWidget);
+
+    await tester.pump(const Duration(minutes: 2));
+    await tester.pumpAndSettle();
+
+    expect(find.text('좋았다'), findsOneWidget);
+
+    // ⚠️ 곡이 없어도 손으로는 넘어간다 — 음악이 안 돼도 카드는 쓸 수 있다.
+    await tester.drag(find.byType(PageView), const Offset(-600, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('사진 0'), findsOneWidget);
+  });
 
   testWidgets('⚠️ 보던 장의 사진이 수정으로 사라져도 터지지 않는다', (tester) async {
     // 수정에서 사진을 지우면 상세가 다시 읽혀 장 수가 줄어든다. 보고 있던

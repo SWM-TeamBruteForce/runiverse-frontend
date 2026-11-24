@@ -101,9 +101,9 @@ void main() {
       // 작성 3이 "처음부터 다시 만듭니다"라고 알렸으면, 돌아온 상세가 그 말과
       // 같은 것을 보여야 한다. 다 된 음악 줄(`멈춤`)이 그대로 서 있으면
       // **방금 읽은 경고가 거짓**이 된다.
-      // 사진이 없는 카드라 넘어갈 장이 없다 — 줄은 `음악이 준비됐어요`다.
+      // 사진이 없는 카드지만 틀 것은 있다 — 줄은 `멈춤`이다(열면 난다).
       await _pumpDetail(tester);
-      expect(find.text(AppStrings.recordCardMusicReady), findsOne);
+      expect(find.text(AppStrings.recordCardMusicPause), findsOne);
 
       await _openMenu(tester, AppStrings.recordCardEditTitle);
       await _reachReview(tester);
@@ -115,7 +115,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.recordCardMusicProcessing), findsOne);
-      expect(find.text(AppStrings.recordCardMusicReady), findsNothing);
+      expect(find.text(AppStrings.recordCardMusicPause), findsNothing);
 
       await _finishMusic(tester);
     });

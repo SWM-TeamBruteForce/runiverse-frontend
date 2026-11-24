@@ -37,7 +37,6 @@ class MusicStrip extends ConsumerWidget {
     required this.music,
     required this.hasFailed,
     required this.playing,
-    required this.canAdvance,
     required this.canRequest,
     required this.onTogglePlay,
     super.key,
@@ -63,14 +62,6 @@ class MusicStrip extends ConsumerWidget {
 
   /// 포토북이 지금 넘어가고 있나. **줄은 이것의 반대를 권한다.**
   final bool playing;
-
-  /// 더 넘어갈 장이 있나.
-  ///
-  /// ⚠️ **없으면 `재생`도 `멈춤`도 거짓이다.** 사진이 없는 카드는 한 장뿐이라
-  /// 타이머를 아예 걸지 않고, 마지막 장에서는 멈춘 뒤 처음으로 돌아가지
-  /// 않는다(설계 6-5) — 그 자리에 토글을 세우면 **눌러도 아무 일도 없는
-  /// 버튼**이 된다.
-  final bool canAdvance;
 
   /// 음악을 만들라고 할 수 있나. **내 카드가 아니면 못 한다** — 생성 요청은
   /// 쓰기다(설계 6-5 "남의 카드면 `⋮`가 없다"와 같은 선).
@@ -137,19 +128,19 @@ class MusicStrip extends ConsumerWidget {
       MusicStatus.generating => const _Line(
         label: AppStrings.recordCardMusicProcessing,
       ),
-      // ⚠️ **지금 상태가 아니라 "누르면 될 일"을 쓴다.** 상세를 열면 책이 이미
-      // 돌고 있어서, 도는 중에 `재생`을 세우면 이미 하는 것을 하라는 버튼이다.
-      // 넘어갈 장이 없으면 둘 다 거짓이라 **버튼을 두지 않는다**([canAdvance]).
-      MusicStatus.completed =>
-        canAdvance
-            ? _Line(
-                icon: playing ? LucideIcons.pause : LucideIcons.play,
-                label: playing
-                    ? AppStrings.recordCardMusicPause
-                    : AppStrings.recordCardMusicPlay,
-                onTap: onTogglePlay,
-              )
-            : const _Line(label: AppStrings.recordCardMusicReady),
+      // ⚠️ **지금 상태가 아니라 "누르면 될 일"을 쓴다.** 상세를 열면 소리가
+      // 이미 나고 있어서, 나는 중에 `재생`을 세우면 이미 하는 것을 하라는
+      // 버튼이다.
+      //
+      // ⚠️ **마지막 장에도 선다.** 곡이 끝나면 반복하므로 "넘어갈 장이
+      // 있나"는 더 이상 묻지 않는다(설계 2절).
+      MusicStatus.completed => _Line(
+        icon: playing ? LucideIcons.pause : LucideIcons.play,
+        label: playing
+            ? AppStrings.recordCardMusicPause
+            : AppStrings.recordCardMusicPlay,
+        onTap: onTogglePlay,
+      ),
       MusicStatus.failed => _Line(
         label: AppStrings.recordCardMusicFailed,
         action: AppStrings.recordCardMusicRetry,

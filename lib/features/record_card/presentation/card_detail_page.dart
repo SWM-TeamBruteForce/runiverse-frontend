@@ -157,14 +157,11 @@ class _Loaded extends ConsumerStatefulWidget {
 }
 
 class _CardDetailPageState extends ConsumerState<_Loaded> {
-  /// 포토북이 넘어가고 있나. **열면 돌고 있다**(묶음 1에서 정했다).
+  /// 소리가 나고 있나. **열면 난다**(묶음 1에서 정했다).
   var _playing = true;
 
-  /// 지금 몇 번째 장인가. 음악 줄이 **더 넘어갈 데가 있는지** 알아야 한다.
+  /// 지금 몇 번째 장인가. 음악 줄이 **그 장의 곡**을 말해야 한다.
   var _page = 0;
-
-  /// 더 넘어갈 장이 있나. 경로 한 장 + 사진들이라 마지막 자리는 사진 수다.
-  bool get _canAdvance => _page < card.photos.length;
 
   RecordCard get card => widget.card;
 
@@ -222,8 +219,7 @@ class _CardDetailPageState extends ConsumerState<_Loaded> {
           // 때만 선다. 사진 장에서는 그 자리에 캡션이 대신 든다.
           CardMediaPager(
             card: card,
-            playing: _playing,
-            onPlayingChanged: (playing) => setState(() => _playing = playing),
+            onTap: () => setState(() => _playing = !_playing),
             onPageChanged: (page) => setState(() => _page = page),
           ),
           const SizedBox(height: AppSpacing.space3),
@@ -235,7 +231,6 @@ class _CardDetailPageState extends ConsumerState<_Loaded> {
             music: card.musicOfPage(_page),
             hasFailed: card.hasFailedMusic,
             playing: _playing,
-            canAdvance: _canAdvance,
             // 남의 카드에서는 **들을 수만 있다.**
             canRequest: card.isMine,
             onTogglePlay: () => setState(() => _playing = !_playing),

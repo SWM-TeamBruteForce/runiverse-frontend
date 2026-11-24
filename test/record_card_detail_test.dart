@@ -413,77 +413,6 @@ void main() {
     expect(find.text('사진 0의 한마디'), findsOneWidget);
   });
 
-  testWidgets('⚠️ 그 장의 길이가 지나면 다음 장으로 넘어간다', (tester) async {
-    await _pump(tester, photos: 2);
-
-    // 첫 장(경로)은 기본 음악 길이만큼 선다.
-    await tester.pump(CardMusicTiming.baseDuration);
-    await tester.pumpAndSettle();
-    expect(pageOf(tester), 1);
-
-    // 사진 장은 사진 음악 길이만큼.
-    await tester.pump(CardMusicTiming.photoDuration);
-    await tester.pumpAndSettle();
-    expect(pageOf(tester), 2);
-  });
-
-  testWidgets('⚠️ 마지막 장에서는 멈춘다 — 처음으로 되돌아가지 않는다', (tester) async {
-    await _pump(tester, photos: 1);
-
-    await tester.pump(CardMusicTiming.baseDuration);
-    await tester.pumpAndSettle();
-    expect(pageOf(tester), 1);
-
-    await tester.pump(CardMusicTiming.photoDuration * 3);
-    await tester.pumpAndSettle();
-    expect(pageOf(tester), 1);
-  });
-
-  testWidgets('⚠️ 사진이 없으면 아예 넘어가지 않는다', (tester) async {
-    await _pump(tester);
-
-    await tester.pump(CardMusicTiming.baseDuration * 2);
-    await tester.pumpAndSettle();
-    expect(pageOf(tester), 0);
-  });
-
-  testWidgets('탭하면 멈추고 다시 탭하면 이어간다', (tester) async {
-    await _pump(tester, photos: 2);
-
-    await tester.tap(find.byType(PageView));
-    await tester.pump();
-    await tester.pump(CardMusicTiming.baseDuration * 2);
-    await tester.pumpAndSettle();
-    expect(pageOf(tester), 0, reason: '멈췄는데 넘어갔다');
-
-    await tester.tap(find.byType(PageView));
-    await tester.pump();
-    await tester.pump(CardMusicTiming.baseDuration);
-    await tester.pumpAndSettle();
-    expect(pageOf(tester), 1);
-  });
-
-  testWidgets('⚠️ 손으로 밀면 그 장부터 다시 센다', (tester) async {
-    await _pump(tester, photos: 2);
-
-    // 첫 장에서 한참 기다리다가 손으로 넘긴다.
-    await tester.pump(
-      CardMusicTiming.baseDuration - const Duration(seconds: 2),
-    );
-    await tester.drag(find.byType(PageView), const Offset(-400, 0));
-    await tester.pumpAndSettle();
-    expect(pageOf(tester), 1);
-
-    // 남은 2초로 넘어가면 안 된다. 사진 장의 길이를 새로 센다.
-    await tester.pump(const Duration(seconds: 3));
-    await tester.pumpAndSettle();
-    expect(pageOf(tester), 1);
-
-    await tester.pump(CardMusicTiming.photoDuration);
-    await tester.pumpAndSettle();
-    expect(pageOf(tester), 2);
-  });
-
   testWidgets('⚠️ 스크린리더가 몇 번째 장인지 읽는다', (tester) async {
     final handle = tester.ensureSemantics();
     await _pump(tester, photos: 2);
@@ -521,32 +450,6 @@ void main() {
     expect(strip.top, greaterThanOrEqualTo(memo.bottom));
   });
 
-  testWidgets('⚠️ 줄의 멈춤을 누르면 책이 안 넘어간다', (tester) async {
-    await _pump(tester, photos: 2);
-
-    await tester.tap(find.text(AppStrings.recordCardMusicPause));
-    await tester.pump();
-
-    await tester.pump(CardMusicTiming.baseDuration * 2);
-    await tester.pumpAndSettle();
-
-    expect(pageOf(tester), 0, reason: '멈췄는데 넘어갔다');
-  });
-
-  testWidgets('⚠️ 다시 누르면 이어간다', (tester) async {
-    await _pump(tester, photos: 2);
-
-    await tester.tap(find.text(AppStrings.recordCardMusicPause));
-    await tester.pump();
-    await tester.tap(find.text(AppStrings.recordCardMusicPlay));
-    await tester.pump();
-
-    await tester.pump(CardMusicTiming.baseDuration);
-    await tester.pumpAndSettle();
-
-    expect(pageOf(tester), 1);
-  });
-
   testWidgets('⚠️ 사진을 탭해 멈추면 줄도 재생으로 바뀐다 — 둘이 한 상태다', (tester) async {
     await _pump(tester, photos: 2);
     expect(find.text(AppStrings.recordCardMusicPause), findsOneWidget);
@@ -557,38 +460,15 @@ void main() {
     expect(find.text(AppStrings.recordCardMusicPlay), findsOneWidget);
   });
 
-  testWidgets('⚠️ 곡이 안 온 카드도 책은 넘어간다 — 음악은 길이의 출처일 뿐이다', (tester) async {
-    // 서버가 아직 아무 곡도 주지 않은 카드다. 음악이 다 될 때까지 책을
-    // 세워 두면 **실패한 카드의 포토북이 영영 첫 장에 멈춘다.**
-    await _pump(tester, photos: 2, music: null);
-    expect(find.text(AppStrings.recordCardMusicProcessing), findsNothing);
-
-    await tester.pump(CardMusicTiming.baseDuration);
-    await tester.pumpAndSettle();
-
-    expect(pageOf(tester), 1);
-  });
-
-  testWidgets('⚠️ 만드는 중인 카드도 책은 넘어간다', (tester) async {
-    await _pump(tester, photos: 2, music: MusicStatus.generating);
-
-    await tester.pump(CardMusicTiming.baseDuration);
-    await tester.pumpAndSettle();
-
-    expect(pageOf(tester), 1);
-  });
-
-  testWidgets('⚠️ 사진이 없으면 멈춤이라고 하지 않는다 — 넘길 데가 없다', (tester) async {
-    // 한 장뿐인 책은 타이머를 걸지 않는다. 그 위에 `멈춤`을 세우면 **아무
-    // 일도 하지 않는 버튼**이고, 눌러서 `재생`이 되어도 달라지는 것이 없다.
+  testWidgets('⚠️ 사진이 없어도 버튼은 선다 — 틀 것이 있다', (tester) async {
+    // 한 장뿐인 책이라 넘어갈 데는 없지만 곡은 있다. 버튼이 쥐는 것이
+    // 장 넘김에서 소리로 바뀌었다(설계 2절).
     await _pump(tester);
 
-    expect(find.text(AppStrings.recordCardMusicPause), findsNothing);
-    expect(find.text(AppStrings.recordCardMusicPlay), findsNothing);
-    expect(find.text(AppStrings.recordCardMusicReady), findsOneWidget);
+    expect(find.text(AppStrings.recordCardMusicPause), findsOneWidget);
   });
 
-  testWidgets('⚠️ 마지막 장에 닿으면 멈춤이 사라진다 — 더 넘어갈 데가 없다', (tester) async {
+  testWidgets('⚠️ 마지막 장에서도 버튼이 남는다', (tester) async {
     await _pump(tester, photos: 1);
     expect(find.text(AppStrings.recordCardMusicPause), findsOneWidget);
 
@@ -596,6 +476,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(pageOf(tester), 1);
-    expect(find.text(AppStrings.recordCardMusicReady), findsOneWidget);
+    expect(find.text(AppStrings.recordCardMusicPause), findsOneWidget);
   });
 }
