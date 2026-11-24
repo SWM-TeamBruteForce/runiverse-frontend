@@ -27,10 +27,7 @@ void main() {
   setUp(() => repo = _Cards(7));
 
   /// 그리드 하나를 세운다. 전체 보기로 가는 길을 함께 깐다.
-  Future<GoRouter> pump(
-    WidgetTester tester, {
-    bool light = false,
-  }) async {
+  Future<GoRouter> pump(WidgetTester tester, {bool light = false}) async {
     tester.view.physicalSize = const Size(412, 915);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -240,7 +237,12 @@ class _Cards implements RecordCardRepository {
             reviewText: '$i번째',
             // 홀수 번째는 사진이 없다 — 선 아트가 서는 자리를 본다.
             photos: i.isEven
-                ? [RecordCardPhoto(id: 'img-${70 + i}', url: 'assets/images/a$i.jpg')]
+                ? [
+                    RecordCardPhoto(
+                      id: 'img-${70 + i}',
+                      url: 'assets/images/a$i.jpg',
+                    ),
+                  ]
                 : const [],
             route: const RouteArt(
               strokes: [
@@ -309,11 +311,11 @@ class _Cards implements RecordCardRepository {
       throw UnsupportedError('이 테스트는 상세를 열지 않는다');
 
   @override
-  Future<void> delete(String cardId) => throw UnsupportedError('그리드는 카드를 지우지 않는다');
+  Future<void> delete(String cardId) =>
+      throw UnsupportedError('그리드는 카드를 지우지 않는다');
 
   /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
   @override
   Future<void> retryMusic(String cardId) =>
       throw UnsupportedError('이 테스트는 음악을 다시 만들지 않는다');
-
 }

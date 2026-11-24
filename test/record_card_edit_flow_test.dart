@@ -318,7 +318,10 @@ void main() {
 
       final state = container.read(recordCardControllerProvider);
       final ids = state is RecordCardData
-          ? state.visible.expand((m) => m.byDay.values).expand((cards) => cards).map((c) => c.id)
+          ? state.visible
+                .expand((m) => m.byDay.values)
+                .expand((cards) => cards)
+                .map((c) => c.id)
           : const <int>[];
       expect(ids, isNot(contains(_card.id)));
     });

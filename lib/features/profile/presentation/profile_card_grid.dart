@@ -46,7 +46,6 @@ class ProfileCardGrid extends ConsumerWidget {
   /// 누구의 프로필인가.
   final String userId;
 
-
   /// 깔 장수. 3열 2줄이다.
   static const previewCount = 6;
 
@@ -131,8 +130,7 @@ class _Preview extends StatelessWidget {
           label: AppStrings.profileCardsMore,
           variant: AppButtonV2Variant.secondary,
           expand: false,
-          onPressed: () =>
-              context.push(AppRoutes.recordCardsOf(userId)),
+          onPressed: () => context.push(AppRoutes.recordCardsOf(userId)),
         ),
       ],
     ],

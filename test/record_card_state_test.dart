@@ -76,9 +76,7 @@ void main() {
       RecordCardActivity activity = RecordCardActivity.daily,
     }) => MonthCards(
       month: DateTime(2026, 9),
-      runs: [
-        _run(id: 1, startedAt: DateTime(2026, 9, 2), activity: activity),
-      ],
+      runs: [_run(id: 1, startedAt: DateTime(2026, 9, 2), activity: activity)],
     );
 
     MonthCards october() => MonthCards(

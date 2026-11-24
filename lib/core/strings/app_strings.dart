@@ -1846,7 +1846,7 @@ abstract final class AppStrings {
   static const recordCardDeleteCancel = '그대로 두기';
   static const recordCardDeleteFailed = '지우지 못했어요';
 
-  // ── 기록카드 작성 2 — 사진 (설계 6-3) ────────────────────────
+  // ── 기록카드 작성 화면의 사진 장 (설계 6-3) ──────────────────
   //
   // **사진은 선택이다.** 한 장도 없이 다음으로 간다. 그래서 빈 상태가
   // 권유가 아니라 **괜찮다는 말**이어야 한다.
@@ -1903,7 +1903,7 @@ abstract final class AppStrings {
   static const recordCardPhotoUnsupported = '이 형식의 사진은 넣을 수 없어요';
   static const recordCardPhotoTooLarge = '사진이 너무 커요';
 
-  // ── 기록카드 작성 3 — 공개범위 · 음악 (설계 6-4) ─────────────
+  // ── 기록카드 작성 2 — 공개범위 · 음악 (설계 6-4) ─────────────
   //
   // ⚠️ **"친구"라는 말을 쓴다.** CLAUDE.md는 쓰지 말라고 적었지만 사용자가
   // 공개범위를 `Friends`로 확정했고, 코드에 이미 `features/friend/`와

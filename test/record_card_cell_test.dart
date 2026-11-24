@@ -31,11 +31,7 @@ RecordCardSummary _card({
   required int id,
   String? thumbnailUrl,
   RouteArt? route,
-}) => summary(
-  id: id,
-  thumbnailUrl: thumbnailUrl,
-  route: route ?? _route,
-);
+}) => summary(id: id, thumbnailUrl: thumbnailUrl, route: route ?? _route);
 
 Future<void> _pump(
   WidgetTester tester, {

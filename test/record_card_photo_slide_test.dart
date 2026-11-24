@@ -10,10 +10,7 @@ import 'package:runiverse/features/record_card/presentation/card_photo_slide.dar
 /// 화면 상태(어느 장을 보고 있나·고르는 중인가)는 들지 않는다 — 부르는 쪽이
 /// 든다. 여기서 보는 것은 **한 장이 혼자 옳게 서는가**다.
 void main() {
-  const saved = SavedPhoto(
-    id: 'photo-1',
-    url: 'https://example.invalid/a.jpg',
-  );
+  const saved = SavedPhoto(id: 'photo-1', url: 'https://example.invalid/a.jpg');
 
   Future<void> pump(WidgetTester tester, Widget slide) => tester.pumpWidget(
     MaterialApp(

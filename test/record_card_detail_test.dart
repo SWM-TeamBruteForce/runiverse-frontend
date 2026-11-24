@@ -80,8 +80,7 @@ class _MusicRepository implements RecordCardRepository {
     required String userId,
     int? limit,
     String? cursor,
-  }) =>
-      throw UnsupportedError('이 테스트는 사람별 카드를 묻지 않는다');
+  }) => throw UnsupportedError('이 테스트는 사람별 카드를 묻지 않는다');
 
   _MusicRepository(this.status, {this.card});
 

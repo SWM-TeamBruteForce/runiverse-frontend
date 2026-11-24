@@ -156,8 +156,7 @@ abstract final class AppRoutes {
   /// 지금은 상세(8-1)가 `isMine`을 싣는다. 쿼리를 남겨 두면 **두 출처가
   /// 어긋날 수 있고**(남의 카드 링크에 `?mine=true`를 붙이면 수정 버튼이
   /// 선다) 서버 값이 정본이다.
-  static String recordCardDetailOf(String cardId) =>
-      '$recordCard/card/$cardId';
+  static String recordCardDetailOf(String cardId) => '$recordCard/card/$cardId';
 
   /// 기록카드 수정 1·2·3 (설계 6-6).
   ///

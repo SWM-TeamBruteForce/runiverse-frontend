@@ -22,12 +22,16 @@ import 'record_card_fixtures.dart';
 void main() {
   test('지우면 그 카드가 목록에서 빠진다', () async {
     final repository = FakeRecordCardRepository(today: _today);
-    final before = cardsOf(await repository.runsInRange(from: _from, to: _today));
+    final before = cardsOf(
+      await repository.runsInRange(from: _from, to: _today),
+    );
     final target = before.first;
 
     await repository.delete(target.id);
 
-    final after = cardsOf(await repository.runsInRange(from: _from, to: _today));
+    final after = cardsOf(
+      await repository.runsInRange(from: _from, to: _today),
+    );
     expect(after.map((c) => c.id), isNot(contains(target.id)));
     expect(after, hasLength(before.length - 1));
   });
@@ -42,7 +46,9 @@ void main() {
 
     await repository.delete(target.id);
     cardsOf(await repository.runsInRange(from: _from, to: _today));
-    final again = cardsOf(await repository.runsInRange(from: _from, to: _today));
+    final again = cardsOf(
+      await repository.runsInRange(from: _from, to: _today),
+    );
 
     expect(again.map((c) => c.id), isNot(contains(target.id)));
   });
@@ -81,7 +87,10 @@ void main() {
       // 되돌릴 수 없는 일이다. 두 번 가면 두 번째는 404를 받는다.
       final world = _World(delay: const Duration(milliseconds: 50));
 
-      final both = await Future.wait([world.delete('card-7'), world.delete('card-7')]);
+      final both = await Future.wait([
+        world.delete('card-7'),
+        world.delete('card-7'),
+      ]);
 
       expect(world.repository.deleted, ['card-7']);
       expect(both.where((ok) => ok), hasLength(1));
@@ -237,5 +246,4 @@ class _Repository implements RecordCardRepository {
   @override
   Future<void> retryMusic(String cardId) =>
       throw UnsupportedError('이 테스트는 음악을 다시 만들지 않는다');
-
 }

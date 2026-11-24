@@ -91,8 +91,8 @@ class _CardFaceState extends State<CardFace> {
       errorBuilder: (context, _, _) {
         _expired();
         return RouteArtView(
-        art: widget.route,
-        color: context.appColorsV2.primary,
+          art: widget.route,
+          color: context.appColorsV2.primary,
           strokeWidth: 1.5,
           padding: AppSpacing.space1,
         );

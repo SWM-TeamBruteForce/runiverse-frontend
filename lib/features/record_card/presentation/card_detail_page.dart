@@ -57,23 +57,24 @@ class CardDetailPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColorsV2;
 
-    return ref.watch(cardDetailProvider(cardId)).when(
-      data: (card) => _Loaded(card: card),
-      loading: () => const _Shell(
-        child: Center(child: CircularProgressIndicator()),
-      ),
-      error: (error, _) => _Shell(
-        child: _Error(
-          // ⚠️ **`404`에는 다시 시도를 두지 않는다.** 지워졌거나 볼 수 없는
-          // 카드이고, 열 번 더 물어도 같은 답이다(가이드 2절).
-          gone:
-              error is RecordCardException &&
-              error.failure == RecordCardFailure.notFound,
-          onRetry: () => ref.invalidate(cardDetailProvider(cardId)),
-          colors: colors,
-        ),
-      ),
-    );
+    return ref
+        .watch(cardDetailProvider(cardId))
+        .when(
+          data: (card) => _Loaded(card: card),
+          loading: () =>
+              const _Shell(child: Center(child: CircularProgressIndicator())),
+          error: (error, _) => _Shell(
+            child: _Error(
+              // ⚠️ **`404`에는 다시 시도를 두지 않는다.** 지워졌거나 볼 수 없는
+              // 카드이고, 열 번 더 물어도 같은 답이다(가이드 2절).
+              gone:
+                  error is RecordCardException &&
+                  error.failure == RecordCardFailure.notFound,
+              onRetry: () => ref.invalidate(cardDetailProvider(cardId)),
+              colors: colors,
+            ),
+          ),
+        );
   }
 }
 

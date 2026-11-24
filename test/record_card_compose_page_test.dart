@@ -7,6 +7,9 @@ import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/core/widgets/v2/app_input.dart';
+import 'package:runiverse/features/profile/domain/photo_picker.dart';
+import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
+import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/record/domain/run_detail.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
@@ -31,6 +34,9 @@ import 'package:runiverse/core/widgets/route_art_view.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
 
 import 'record_card_fixtures.dart';
+
+/// 작성 화면 0장의 목록 열쇠. 화면이 `PageStorageKey` 로 쓰는 값과 같다.
+const composeFormKey = 'record-card-compose-form';
 
 final _today = DateTime(2026, 9, 10);
 final _day = DateTime(2026, 9, 2);
@@ -189,8 +195,7 @@ class _Cards implements RecordCardRepository {
     required String userId,
     int? limit,
     String? cursor,
-  }) =>
-      throw UnsupportedError('이 테스트는 사람별 카드를 묻지 않는다');
+  }) => throw UnsupportedError('이 테스트는 사람별 카드를 묻지 않는다');
 
   _Cards(this.cards);
 
@@ -283,13 +288,9 @@ RecordCardRepository _merged(
     return _LateCards(records.records, cards);
   }
 
-  final runs = records is _Records
-      ? records.records
-      : [_record(id: 11)];
+  final runs = records is _Records ? records.records : [_record(id: 11)];
   final carded = cards is _Cards ? cards.cards : const <ComposableRecord>[];
-  final byRecord = {
-    for (final row in carded) row.record.id: row.existingCard,
-  };
+  final byRecord = {for (final row in carded) row.record.id: row.existingCard};
 
   return _Cards([
     for (final run in runs)
@@ -362,9 +363,7 @@ Future<GoRouter> _pumpRouted(
         runRecordRepositoryProvider.overrideWithValue(
           records ?? _Records([_record(id: 11)], detail: _detail(roomId: 911)),
         ),
-        recordCardRepositoryProvider.overrideWithValue(
-          _merged(records, cards),
-        ),
+        recordCardRepositoryProvider.overrideWithValue(_merged(records, cards)),
         recordCardClockProvider.overrideWithValue(() => _today),
       ],
       child: MaterialApp.router(theme: AppTheme.dark(), routerConfig: router),
@@ -395,7 +394,16 @@ Future<void> _reach(WidgetTester tester, Finder target) async {
   await tester.scrollUntilVisible(
     target,
     200,
-    scrollable: find.byType(Scrollable).first,
+    // ⚠️ **폼 목록을 집어서 끈다.** `find.byType(Scrollable).first` 로는 가로
+    // `PageView` 가 먼저 잡혀 장만 넘어가고 찾는 것에는 영영 닿지 않는다.
+    // ⚠️ `.first` — 폼 안에 칩 줄 같은 작은 스크롤이 더 있다. 바깥의 것이
+    // 목록 자신이다.
+    scrollable: find
+        .descendant(
+          of: find.byKey(const PageStorageKey(composeFormKey)),
+          matching: find.byType(Scrollable),
+        )
+        .first,
   );
   await tester.pumpAndSettle();
 }
@@ -518,7 +526,10 @@ void main() {
         roomId: 911,
       );
 
-      expect(router.state.uri.toString(), AppRoutes.recordCardEditOf('card-500'));
+      expect(
+        router.state.uri.toString(),
+        AppRoutes.recordCardEditOf('card-500'),
+      );
       // ⚠️ **작성 화면을 남겨 두지 않는다** — 뒤로가 쓸 수 없는 화면으로
       // 돌아온다.
       expect(router.canPop(), isFalse);
@@ -534,7 +545,9 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           runRecordRepositoryProvider.overrideWithValue(records),
-          recordCardRepositoryProvider.overrideWithValue(_merged(records, null)),
+          recordCardRepositoryProvider.overrideWithValue(
+            _merged(records, null),
+          ),
           recordCardClockProvider.overrideWithValue(() => _today),
         ],
       );
@@ -1163,6 +1176,96 @@ void main() {
       expect(find.byType(CardAddPhotoSlide), findsOne);
     });
 
+    testWidgets('⚠️ 사진 장에 갔다 와도 첫 장의 스크롤 자리가 남는다', (tester) async {
+      // 옛 흐름에서는 사진이 위에 쌓인 다른 라우트라 작성 1이 살아 있었다.
+      // 한 화면이 되면서 장 0이 버려지면, 회고를 쓰다 사진을 넣고 돌아온
+      // 사람이 **맨 위로 튕겨** 쓰던 자리를 다시 찾아야 한다.
+      await pumpPaged(tester, seed: (draft) => ready(draft));
+      if (find.text(AppStrings.recordCardComposeResume).evaluate().isNotEmpty) {
+        await tester.tap(find.text(AppStrings.recordCardComposeResume));
+        await tester.pumpAndSettle();
+      }
+
+      final form = find.byType(PageView);
+      await tester.drag(form, const Offset(0, -300));
+      await tester.pumpAndSettle();
+      final scrolled = tester
+          .widget<Scrollable>(find.byType(Scrollable).at(1))
+          .controller!
+          .position
+          .pixels;
+      expect(scrolled, greaterThan(0));
+
+      await swipeLeft(tester);
+      await tester.drag(find.byType(PageView), const Offset(600, 0));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<Scrollable>(find.byType(Scrollable).at(1))
+            .controller!
+            .position
+            .pixels,
+        scrolled,
+      );
+    });
+
+    testWidgets('⚠️ 점은 손가락으로 누를 만큼 넓다', (tester) async {
+      // 미는 사진 위에서는 가로 끌기를 사진이 먹어, 점이 사실상 유일한
+      // 통로다(card_photo_pan.dart). 8dp 점을 그대로 과녁으로 쓰면 닿지 않는다.
+      await pumpPaged(tester);
+
+      final handle = tester.ensureSemantics();
+
+      final dot = find.bySemanticsLabel(AppStrings.recordCardComposeGoToAdd);
+      final size = tester.getSize(
+        find.descendant(of: dot, matching: find.byType(GestureDetector)).first,
+      );
+      handle.dispose();
+
+      expect(size.width, greaterThanOrEqualTo(44));
+      expect(size.height, greaterThanOrEqualTo(44));
+    });
+
+    testWidgets('⚠️ 회고를 쓰다 밀면 키보드가 따라오지 않는다', (tester) async {
+      // 포커스가 캡션 칸으로 끌려가면 치던 글자가 엉뚱한 장에 들어간다.
+      await pumpPaged(tester);
+      await _reach(tester, find.byType(AppInputV2));
+      await tester.tap(find.byType(AppInputV2));
+      await tester.pumpAndSettle();
+      expect(FocusManager.instance.primaryFocus?.hasFocus, isTrue);
+
+      await swipeLeft(tester);
+
+      expect(
+        FocusManager.instance.primaryFocus?.context?.widget,
+        isNot(isA<EditableText>()),
+      );
+    });
+
+    testWidgets('⚠️ 마지막 사진을 지우면 남은 사진으로 당겨진다', (tester) async {
+      // 넣기 장으로 튀면 남은 사진을 두고 빈 화면을 본다.
+      final container = await pumpPaged(
+        tester,
+        seed: (draft) => ready(draft, photos: 2),
+      );
+      if (find.text(AppStrings.recordCardComposeResume).evaluate().isNotEmpty) {
+        await tester.tap(find.text(AppStrings.recordCardComposeResume));
+        await tester.pumpAndSettle();
+      }
+
+      await swipeLeft(tester);
+      await swipeLeft(tester);
+      await tester.drag(find.byType(PageView), const Offset(0, -200));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.recordCardPhotoRemove));
+      await tester.pumpAndSettle();
+
+      expect(container.read(cardDraftProvider(null)).photos, hasLength(1));
+      expect(find.byType(CardPhotoSlide), findsOne);
+      expect(find.byType(CardAddPhotoSlide), findsNothing);
+    });
+
     testWidgets('⚠️ 첫 장을 세로로 끌어도 장이 넘어가지 않는다', (tester) async {
       // 첫 장은 세로로 길다. 세로로 끌었는데 사진으로 넘어가면 회고를 읽다가
       // 화면이 바뀐다.
@@ -1174,4 +1277,243 @@ void main() {
       expect(find.byType(CardAddPhotoSlide), findsNothing);
     });
   });
+
+  /// 지운 사진 화면 테스트에서 작성 화면으로 **옮겨 온 동작들**
+  /// (2026-11-24 리뷰).
+  group('사진 넣기', () {
+    Future<ProviderContainer> pumpWithPicker(
+      WidgetTester tester, {
+      required PhotoPicker picker,
+      int photos = 0,
+    }) async {
+      final container = ProviderContainer(
+        overrides: [
+          runRecordRepositoryProvider.overrideWithValue(
+            _Records([_record(id: 11)], detail: _detail(roomId: 911)),
+          ),
+          recordCardRepositoryProvider.overrideWithValue(
+            _merged(_Records([_record(id: 11)]), null),
+          ),
+          recordCardClockProvider.overrideWithValue(() => _today),
+          photoPickerProvider.overrideWithValue(picker),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final draft = container.read(cardDraftProvider(null).notifier);
+      for (var i = 0; i < photos; i++) {
+        draft.addPhoto(
+          PickedImage.validated(path: '/tmp/seed\$i.jpg', sizeBytes: 1024),
+        );
+      }
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: CardComposePage(day: _day),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      if (find.text(AppStrings.recordCardComposeResume).evaluate().isNotEmpty) {
+        await tester.tap(find.text(AppStrings.recordCardComposeResume));
+        await tester.pumpAndSettle();
+      }
+      return container;
+    }
+
+    /// 넣기 장으로 가서 더하기를 누른다.
+    Future<void> tapAdd(WidgetTester tester) async {
+      await tester.tap(
+        find.bySemanticsLabel(AppStrings.recordCardComposeGoToAdd),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(LucideIcons.plus));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('넣으면 그 장으로 넘어간다', (tester) async {
+      final handle = tester.ensureSemantics();
+      final container = await pumpWithPicker(
+        tester,
+        picker: _Picker(
+          PickedImage.validated(path: '/tmp/a.jpg', sizeBytes: 9),
+        ),
+      );
+
+      await tapAdd(tester);
+      handle.dispose();
+
+      expect(container.read(cardDraftProvider(null)).photos, hasLength(1));
+      // 안 넘기면 무엇이 들어왔는지 모른다.
+      expect(find.byType(CardPhotoSlide), findsOne);
+    });
+
+    testWidgets('⚠️ 취소는 실패가 아니다', (tester) async {
+      // 올릴 생각을 접었을 뿐인 사람에게 "못 가져왔다"고 하면 거짓말이다.
+      final handle = tester.ensureSemantics();
+      final container = await pumpWithPicker(
+        tester,
+        picker: const _Picker(null),
+      );
+
+      await tapAdd(tester);
+      handle.dispose();
+
+      expect(container.read(cardDraftProvider(null)).photos, isEmpty);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('⚠️ 너무 큰 사진은 카드의 말로 거절한다', (tester) async {
+      // 프로필 문구를 그대로 쓰면 "프로필 사진"이 카드 작성 화면에 나온다.
+      final handle = tester.ensureSemantics();
+      await pumpWithPicker(
+        tester,
+        picker: const _Picker.throwing(ProfileImageFailure.tooLarge),
+      );
+
+      await tapAdd(tester);
+      handle.dispose();
+
+      expect(find.text(AppStrings.recordCardPhotoTooLarge), findsOne);
+    });
+
+    testWidgets('⚠️ 대표로 지정하면 그 사진이 1번이 되고 화면이 따라간다', (tester) async {
+      final container = await pumpWithPicker(
+        tester,
+        picker: const _Picker(null),
+        photos: 2,
+      );
+      final draft = container.read(cardDraftProvider(null).notifier);
+      draft.setCaption(0, 'ㄱ');
+      draft.setCaption(1, 'ㄴ');
+      await tester.pumpAndSettle();
+
+      // 둘째 사진 장으로 간다.
+      await tester.drag(find.byType(PageView), const Offset(-600, 0));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(PageView), const Offset(-600, 0));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(PageView), const Offset(0, -200));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.recordCardPhotoMakeCover));
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(cardDraftProvider(null)).photos.map((p) => p.caption),
+        ['ㄴ', 'ㄱ'],
+      );
+      // 올려 놓고 다른 장을 보여 주면 무엇이 대표가 됐는지 알 수 없다.
+      expect(_visibleCaption(tester), 'ㄴ');
+    });
+
+    testWidgets('⚠️ 장마다 제 캡션을 든다', (tester) async {
+      // 컨트롤러 하나를 돌려 쓰면 이웃 장이 함께 서 있어 한쪽 글자가 다른
+      // 쪽 칸에도 뜬다(2026-11-24 ruling).
+      final container = await pumpWithPicker(
+        tester,
+        picker: const _Picker(null),
+        photos: 2,
+      );
+      final draft = container.read(cardDraftProvider(null).notifier);
+      draft.setCaption(0, 'ㄱ');
+      draft.setCaption(1, 'ㄴ');
+      await tester.pumpAndSettle();
+
+      await tester.drag(find.byType(PageView), const Offset(-600, 0));
+      await tester.pumpAndSettle();
+      expect(_visibleCaption(tester), 'ㄱ');
+
+      await tester.drag(find.byType(PageView), const Offset(0, -200));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(PageView), const Offset(-600, 0));
+      await tester.pumpAndSettle();
+      expect(_visibleCaption(tester), 'ㄴ');
+    });
+
+    testWidgets('⚠️ 사진 장에 몇 번째인지 이름표가 붙는다', (tester) async {
+      // 미리보기는 그림뿐이라 스크린리더가 읽을 것이 없다.
+      final handle = tester.ensureSemantics();
+      await pumpWithPicker(tester, picker: const _Picker(null), photos: 2);
+
+      await tester.drag(find.byType(PageView), const Offset(-600, 0));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsLabel(AppStrings.recordCardPhotoSemantics(1, 2)),
+        findsOne,
+      );
+      handle.dispose();
+    });
+
+    testWidgets('라이트 테마에서도 사진 장이 그려진다', (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          runRecordRepositoryProvider.overrideWithValue(
+            _Records([_record(id: 11)], detail: _detail(roomId: 911)),
+          ),
+          recordCardRepositoryProvider.overrideWithValue(
+            _merged(_Records([_record(id: 11)]), null),
+          ),
+          recordCardClockProvider.overrideWithValue(() => _today),
+        ],
+      );
+      addTearDown(container.dispose);
+      container
+          .read(cardDraftProvider(null).notifier)
+          .addPhoto(
+            PickedImage.validated(path: '/tmp/light.jpg', sizeBytes: 1024),
+          );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.light(),
+            home: CardComposePage(day: _day),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      if (find.text(AppStrings.recordCardComposeResume).evaluate().isNotEmpty) {
+        await tester.tap(find.text(AppStrings.recordCardComposeResume));
+        await tester.pumpAndSettle();
+      }
+      await tester.drag(find.byType(PageView), const Offset(-600, 0));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CardPhotoSlide), findsOne);
+      expect(tester.takeException(), isNull);
+    });
+  });
+}
+
+/// 지금 보이는 장의 캡션 칸 글.
+///
+/// ⚠️ **칸이 여럿이다.** 장마다 제 칸을 들고 PageView 는 이웃 장을 함께
+/// 만들어 둔다 — 눌릴 수 있는 것만 고른다.
+String _visibleCaption(WidgetTester tester) => tester
+    .widgetList<TextField>(find.byType(TextField).hitTestable())
+    .last
+    .controller!
+    .text;
+
+/// 고르기를 흉내 낸다. 던지게 하려면 [_Picker.throwing].
+class _Picker implements PhotoPicker {
+  const _Picker(this._image) : _failure = null;
+  const _Picker.throwing(ProfileImageFailure failure)
+    : _image = null,
+      _failure = failure;
+
+  final PickedImage? _image;
+  final ProfileImageFailure? _failure;
+
+  @override
+  Future<PickedImage?> pick() async {
+    final failure = _failure;
+    if (failure != null) throw ProfileImageException(failure);
+    return _image;
+  }
 }

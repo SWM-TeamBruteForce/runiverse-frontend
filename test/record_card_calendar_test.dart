@@ -38,7 +38,8 @@ RecordCardData _data({
                 ])
           runWith(card),
         // 9일은 뛰었는데 카드가 없다 — 운동화가 서고 눌린다.
-        for (final day in runDays ?? const [9]) runOnly(DateTime(2026, 9, day, 7)),
+        for (final day in runDays ?? const [9])
+          runOnly(DateTime(2026, 9, day, 7)),
       ],
     ),
   ],
@@ -49,7 +50,9 @@ RecordCardData _data({
 /// 카드도 러닝도 없는 달들. **쌓이는 방향만** 보려고 쓴다 — 칸이 비어 있어야
 /// 달 머리의 위아래 자리가 내용에 흔들리지 않는다.
 RecordCardData _emptyMonths(List<DateTime> months) => RecordCardData(
-  months: [for (final month in months) MonthCards(month: month, runs: const [])],
+  months: [
+    for (final month in months) MonthCards(month: month, runs: const []),
+  ],
   zoom: CalendarZoom.month,
 );
 
@@ -320,16 +323,54 @@ void main() {
 
   group('쌓이는 방향', () {
     testWidgets('이번 달이 지난달보다 아래에 있다', (tester) async {
-      await _pump(tester, data: _emptyMonths([DateTime(2026, 10), DateTime(2026, 11)]));
+      await _pump(
+        tester,
+        data: _emptyMonths([DateTime(2026, 10), DateTime(2026, 11)]),
+      );
 
       final october = tester
-          .getTopLeft(find.text(AppStrings.recordMonthLabel(DateTime(2026, 10))))
+          .getTopLeft(
+            find.text(AppStrings.recordMonthLabel(DateTime(2026, 10))),
+          )
           .dy;
       final november = tester
-          .getTopLeft(find.text(AppStrings.recordMonthLabel(DateTime(2026, 11))))
+          .getTopLeft(
+            find.text(AppStrings.recordMonthLabel(DateTime(2026, 11))),
+          )
           .dy;
 
       expect(november, greaterThan(october));
+    });
+
+    testWidgets('⚠️ 위로 올리면 과거를 더 받는다', (tester) async {
+      // 기기 크기 화면이다. `_tallScreen` 을 깔면 끌 것이 없어 이 방아쇠가
+      // 아예 당겨지지 않는다 — 뒤집은 목록에서 maxScrollExtent 가 위쪽
+      // 끝이라는 것을 지키는 자리다.
+      var asked = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(),
+          home: Scaffold(
+            body: RecordCardCalendar(
+              data: _emptyMonths([DateTime(2026, 10), DateTime(2026, 11)]),
+              onOpen: (_) {},
+              onEmptyDay: (_) {},
+              onZoom: (_) {},
+              onLoadOlder: () => asked++,
+            ),
+          ),
+        ),
+      );
+
+      // ⚠️ **아래로 끈다.** 뒤집힌 목록에서 손가락을 내리면 위쪽(과거)이
+      // 드러난다. 끝까지 가야 방아쇠에 닿는다.
+      // 두 번 끈다 — 한 번으로는 끝(가장 과거)에 못 닿는다.
+      for (var i = 0; i < 2; i++) {
+        await tester.drag(find.byType(Scrollable).first, const Offset(0, 1200));
+        await tester.pumpAndSettle();
+      }
+
+      expect(asked, greaterThan(0));
     });
 
     testWidgets('⚠️ 더 받기 줄은 맨 위다', (tester) async {
@@ -340,7 +381,9 @@ void main() {
           .getTopLeft(find.text(AppStrings.recordCardLoadOlder))
           .dy;
       final november = tester
-          .getTopLeft(find.text(AppStrings.recordMonthLabel(DateTime(2026, 11))))
+          .getTopLeft(
+            find.text(AppStrings.recordMonthLabel(DateTime(2026, 11))),
+          )
           .dy;
 
       expect(footer, lessThan(november));

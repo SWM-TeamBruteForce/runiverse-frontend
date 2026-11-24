@@ -196,9 +196,8 @@ GoRouter createAppRouter({String? initialLocation}) {
       GoRoute(
         path: AppRoutes.recordCardsOfUser,
         name: 'record_cards_of_user',
-        builder: (context, state) => ProfileCardsPage(
-          userId: state.pathParameters['userId'] ?? '',
-        ),
+        builder: (context, state) =>
+            ProfileCardsPage(userId: state.pathParameters['userId'] ?? ''),
       ),
       GoRoute(
         path: AppRoutes.friends,

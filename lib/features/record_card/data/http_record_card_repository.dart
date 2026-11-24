@@ -87,8 +87,7 @@ class HttpRecordCardRepository implements RecordCardRepository {
   }) async {
     // ⚠️ **번호를 경로에 그대로 붙이지 않는다.** 닉네임이 번호로 쓰이는 날
     // `/`가 든 값 하나가 경로를 갈라 **다른 엔드포인트를 부른다.**
-    final path =
-        '/api/v1/users/${Uri.encodeComponent(userId)}/record-cards';
+    final path = '/api/v1/users/${Uri.encodeComponent(userId)}/record-cards';
     final body = await authorized(
       (token) => _dio.get<Map<String, dynamic>>(
         path,

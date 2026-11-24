@@ -129,7 +129,7 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
     super.initState();
     // ⚠️ **`initState`에서 provider를 고칠 수 없다**(Riverpod이 막는다).
     // 고치러 들어왔으면 첫 프레임 뒤에 뿌린다. 이미 손댄 초안이면 `seed`가
-    // 아무 일도 하지 않는다 — 사진 화면에서 돌아올 때마다 고친 것이
+    // 아무 일도 하지 않는다 — 공개범위 화면에서 돌아올 때마다 고친 것이
     // 되돌아가면 안 된다.
     final card = widget.card;
     if (card != null) {
@@ -139,7 +139,8 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
         _review.text = ref.read(cardDraftProvider(widget.cardId)).reviewText;
       });
     }
-    // 초안에 쓰던 글이 있으면 칸에 되돌려 놓는다 — 사진 화면에서 돌아왔을 때다.
+    // 초안에 쓰던 글이 있으면 칸에 되돌려 놓는다 — 공개범위 화면에서
+    // 돌아왔거나, 이어 쓰기를 고른 때다.
     _review.text = ref.read(cardDraftProvider(widget.cardId)).reviewText;
     // ⚠️ **들어올 때 쓰던 것이 있으면 묻는다**(설계 7절). 초안은 앱을 끄면
     // 사라지므로, 조용히 덮으면 되돌릴 길이 없다. 첫 프레임 뒤에 띄운다 —
@@ -245,6 +246,7 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
         child: Column(
           children: [
             _PageDots(
+              count: _pageCount(draft.photos.length),
               photos: draft.photos.length,
               current: _page,
               onJump: _jump,
@@ -301,8 +303,14 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
   };
 
   /// 0장 — 기록·유형·회고.
+  ///
+  /// ⚠️ **스크롤 자리를 기억시킨다.** `PageView`는 보이지 않는 장을 버리므로,
+  /// 열쇠가 없으면 사진 장에 갔다 온 사람이 **맨 위로 튕긴다** — 회고를 쓰다
+  /// 사진을 넣고 돌아오면 쓰던 자리를 다시 찾아야 한다. 라우트가 셋이던
+  /// 때에는 사진이 위에 쌓일 뿐이라 없던 일이다.
   Widget _form(AppColorsV2 colors, CardDraft draft) {
     return ListView(
+      key: const PageStorageKey('record-card-compose-form'),
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.space4,
         AppSpacing.space2,
@@ -410,11 +418,16 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
   /// 사진을 지운다.
   ///
   /// ⚠️ **장 수가 줄어든다.** 보고 있던 자리가 범위를 벗어나면 빈 장을
-  /// 그리려다 죽는다 — 마지막 장이면 그 앞(또는 넣기 장)으로 당긴다.
+  /// 그리려다 죽는다.
+  ///
+  /// ⚠️ **남은 사진이 있으면 그 사진을 보여 준다.** 지운 자리의 사진이
+  /// 당겨 올라오므로 장 번호는 그대로가 맞고, 마지막 장을 지웠을 때만 한
+  /// 칸 앞으로 간다. 넣기 장으로 튀면 **남은 사진을 두고 빈 화면**을 보게
+  /// 된다.
   void _removePhoto(int at) {
     _draft.removePhotoAt(at);
     final left = ref.read(cardDraftProvider(widget.cardId)).photos.length;
-    final next = (at + 1).clamp(0, _pageCount(left) - 1);
+    final next = left == 0 ? 1 : (at + 1).clamp(1, left);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _jump(next);
     });
@@ -677,44 +690,55 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
 /// 배운 것과 같다(CLAUDE.md).
 class _PageDots extends StatelessWidget {
   const _PageDots({
+    required this.count,
     required this.photos,
     required this.current,
     required this.onJump,
   });
 
-  /// 사진 수. 장 수는 이보다 하나(기록 장)에서 둘(+ 넣기 장) 많다.
+  /// 장 수. **부르는 쪽이 센다** — 여기서 또 세면 한쪽만 고쳐졌을 때 점과
+  /// 장이 어긋난다.
+  final int count;
+
+  /// 사진 수. 이름표가 "n번째 사진"을 말하려면 필요하다.
   final int photos;
 
   final int current;
   final ValueChanged<int> onJump;
 
+  /// 보이는 점의 지름.
   static const _size = 8.0;
+
+  /// 손가락이 닿아야 하는 넓이. **점 크기와 다르다** — 점만 과녁으로 쓰면
+  /// 8dp라 닿지 않는데, 미는 사진 위에서는 이 점이 장을 넘기는 유일한
+  /// 통로다(`card_photo_pan.dart`가 가로 끌기를 먹는다).
+  static const _tapSize = 44.0;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColorsV2;
-    final count = 1 + photos + (photos < CardDraft.maxPhotos ? 1 : 0);
 
-    return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.space2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (var i = 0; i < count; i++)
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.space1,
-              ),
-              child: Semantics(
-                button: true,
-                selected: i == current,
-                label: switch (i) {
-                  0 => AppStrings.recordCardComposeGoToForm,
-                  _ when i > photos => AppStrings.recordCardComposeGoToAdd,
-                  _ => AppStrings.recordCardPhotoGoTo(i, photos),
-                },
-                child: GestureDetector(
-                  onTap: () => onJump(i),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < count; i++)
+          Semantics(
+            button: true,
+            selected: i == current,
+            label: switch (i) {
+              0 => AppStrings.recordCardComposeGoToForm,
+              _ when i > photos => AppStrings.recordCardComposeGoToAdd,
+              _ => AppStrings.recordCardPhotoGoTo(i, photos),
+            },
+            child: GestureDetector(
+              // ⚠️ **빈 자리에서도 받는다.** 기본값은 자식이 그린 데만
+              // 받아서, 넓혀 둔 과녁의 바깥쪽이 죽는다.
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onJump(i),
+              child: SizedBox(
+                width: _tapSize,
+                height: _tapSize,
+                child: Center(
                   child: Container(
                     width: _size,
                     height: _size,
@@ -726,8 +750,8 @@ class _PageDots extends StatelessWidget {
                 ),
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }

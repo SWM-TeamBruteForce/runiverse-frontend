@@ -349,11 +349,7 @@ void main() {
       // 고를 것이 없는 화면에 닿는다.
       for (final wire in [null, '', 'x', 7]) {
         final detail = RoomResultDto.merge(
-          results: {
-            'runningRoomId': 1,
-            'startedAt': wire,
-            'players': const [],
-          },
+          results: {'runningRoomId': 1, 'startedAt': wire, 'players': const []},
           splitResults: const {},
         );
         expect(detail.startedAt, isNull, reason: '$wire');

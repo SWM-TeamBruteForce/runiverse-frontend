@@ -92,9 +92,7 @@ class _Body extends ConsumerWidget {
           data: data,
           // ⚠️ **번호만 넘긴다.** 달력이 든 것은 칸을 그릴 만큼이고, 상세는
           // 경로·지표·파티원·음악까지 필요하다 — 8-1이 그것을 준다.
-          onOpen: (card) => context.push(
-            AppRoutes.recordCardDetailOf(card.id),
-          ),
+          onOpen: (card) => context.push(AppRoutes.recordCardDetailOf(card.id)),
           // ⚠️ **뛴 날만 불린다.** 안 뛴 날은 칸이 아예 눌리지 않는다
           // (`RecordCardCalendar`). 그래서 여기서 기록 유무를 또 보지 않는다.
           onEmptyDay: (day) => context.push(AppRoutes.recordCardNewOn(day)),

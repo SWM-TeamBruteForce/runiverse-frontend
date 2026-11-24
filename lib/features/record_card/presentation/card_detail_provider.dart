@@ -24,6 +24,5 @@ import 'package:runiverse/features/record_card/presentation/record_card_provider
 final cardDetailProvider = FutureProvider.autoDispose
     .family<RecordCard, String>(
       retry: (_, _) => null,
-      (ref, cardId) =>
-          ref.read(recordCardRepositoryProvider).detailOf(cardId),
+      (ref, cardId) => ref.read(recordCardRepositoryProvider).detailOf(cardId),
     );

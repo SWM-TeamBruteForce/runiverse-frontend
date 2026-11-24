@@ -93,11 +93,10 @@ class ProfileCardsData extends ProfileCardsState {
 /// ("전체 보기를 빈 목록으로 시작한다면 첫 요청은 커서 없이"). 값: 첫 여섯
 /// 장을 한 번 더 받는다.
 final profileCardsPageProvider =
-    NotifierProvider.family<
-      ProfileCardsController,
-      ProfileCardsState,
-      String
-    >(ProfileCardsController.new, isAutoDispose: true);
+    NotifierProvider.family<ProfileCardsController, ProfileCardsState, String>(
+      ProfileCardsController.new,
+      isAutoDispose: true,
+    );
 
 class ProfileCardsController extends Notifier<ProfileCardsState> {
   ProfileCardsController(this.userId);
@@ -129,10 +128,7 @@ class ProfileCardsController extends Notifier<ProfileCardsState> {
           .read(recordCardRepositoryProvider)
           .cardsOf(userId: userId);
       if (!_alive) return;
-      state = ProfileCardsData(
-        items: page.items,
-        nextCursor: page.nextCursor,
-      );
+      state = ProfileCardsData(items: page.items, nextCursor: page.nextCursor);
     } on RecordCardException catch (error) {
       if (!_alive) return;
       state = ProfileCardsError(error.failure);
