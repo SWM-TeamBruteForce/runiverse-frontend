@@ -270,7 +270,10 @@ void main() {
     });
 
     test('캡션은 종류와 상관없이 바뀐다', () {
-      expect(const SavedPhoto(id: 'img-7', url: 'u').withCaption('가').caption, '가');
+      expect(
+        const SavedPhoto(id: 'img-7', url: 'u').withCaption('가').caption,
+        '가',
+      );
       expect(PickedPhoto(image: _image()).withCaption('가').caption, '가');
     });
 

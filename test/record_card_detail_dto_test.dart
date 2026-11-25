@@ -193,7 +193,9 @@ void main() {
       final card = RecordCardDetailDto.from(
         body(
           routeArt: [
-            [for (var i = 0; i < 260; i++) [i / 260, 0.5]],
+            [
+              for (var i = 0; i < 260; i++) [i / 260, 0.5],
+            ],
           ],
         ),
       );

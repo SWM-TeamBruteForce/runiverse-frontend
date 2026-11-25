@@ -91,7 +91,9 @@ void main() {
 
     test('⚠️ 날짜와 거리는 행 바깥에서 온다 — 카드 안에는 없다', () {
       final rows = RecordedRunDto.listFrom(
-        body([row(recordCard: {'recordCardId': 'card-99'})]),
+        body([
+          row(recordCard: {'recordCardId': 'card-99'}),
+        ]),
       );
 
       final card = rows.single.existingCard!;

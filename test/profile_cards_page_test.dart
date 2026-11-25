@@ -229,6 +229,7 @@ void main() {
     });
   });
 }
+
 /// 페이지가 여럿인 사람. **가짜의 목은 스무 장이라 한 페이지로 끝난다.**
 class _ManyCards extends FakeRecordCardRepository {
   _ManyCards({required super.today});
@@ -262,4 +263,3 @@ class _ManyCards extends FakeRecordCardRepository {
     );
   }
 }
-

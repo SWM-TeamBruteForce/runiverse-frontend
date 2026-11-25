@@ -54,8 +54,7 @@ class _EmptyRepository implements RecordCardRepository {
     required String userId,
     int? limit,
     String? cursor,
-  }) =>
-      throw UnsupportedError('이 테스트는 사람별 카드를 묻지 않는다');
+  }) => throw UnsupportedError('이 테스트는 사람별 카드를 묻지 않는다');
 
   @override
   Future<List<ComposableRecord>> runsInRange({
@@ -88,11 +87,23 @@ class _EmptyRepository implements RecordCardRepository {
       throw UnsupportedError('이 테스트는 음악을 다시 만들지 않는다');
 }
 
+/// 시험 화면을 길게 잡는다.
+///
+/// ⚠️ **달력이 아래에서 위로 쌓이면서 필요해졌다**(2026-11-24). 한 달 그리드가
+/// 기본 시험 화면(600px)보다 높아, 바닥에 붙은 목록에서는 **그 달의 윗줄
+/// 날짜가 아예 만들어지지 않는다.** 기기에서는 올려서 닿는 자리다.
+void _tallScreen(WidgetTester tester) {
+  tester.view.physicalSize = const Size(800, 2400);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+}
+
 Future<void> _pump(
   WidgetTester tester, {
   RecordCardRepository? repository,
   bool light = false,
 }) async {
+  _tallScreen(tester);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -134,6 +145,7 @@ Future<GoRouter> _pumpRouted(
       ),
     ],
   );
+  _tallScreen(tester);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [

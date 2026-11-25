@@ -15,7 +15,10 @@ import 'package:runiverse/features/record_card/presentation/card_draft_provider.
 import 'package:runiverse/features/record_card/presentation/card_save_provider.dart';
 import 'package:runiverse/features/record_card/presentation/visibility_label.dart';
 
-/// 기록카드 작성 3 — 공개범위 · 음악 (설계 6-4).
+/// 기록카드 작성 2 — 공개범위 · 음악 (설계 6-4).
+///
+/// 앞 화면은 기록·유형·회고와 **사진 장들이 한데 묶인** 작성 화면이다
+/// (사용자 결정 2026-11-24).
 ///
 /// ## ⚠️ 경고가 공개범위에 매여 있다
 ///
@@ -31,8 +34,9 @@ import 'package:runiverse/features/record_card/presentation/visibility_label.dar
 ///
 /// ## ⚠️ 뒤로는 묻지 않는다
 ///
-/// 작성 2와 같다 — 버릴지 묻는 것은 **작성 1의 뒤로가기에서만** 한다
-/// (설계 7절).
+/// 버릴지 묻는 것은 **작성 화면의 뒤로가기**가 한다(설계 7절) — 거기서는
+/// 어느 장에 있든 그 문을 지난다. 여기서 또 물으면 공개범위를 보러 들어왔다
+/// 나가는 사람이 화면마다 막힌다.
 class CardPublishPage extends ConsumerWidget {
   const CardPublishPage({this.cardId, this.onSaved, super.key});
 

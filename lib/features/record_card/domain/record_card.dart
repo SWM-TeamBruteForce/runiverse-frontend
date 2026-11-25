@@ -170,13 +170,11 @@ class RecordCard {
       page == 0 ? baseMusic : photos.elementAtOrNull(page - 1)?.music;
 
   /// 만들고 있는 곡이 하나라도 있나. **이 동안 상세를 다시 읽는다.**
-  bool get isMusicWorking =>
-      _tracks.any((music) => music?.isWorking ?? false);
+  bool get isMusicWorking => _tracks.any((music) => music?.isWorking ?? false);
 
   /// 못 만든 곡이 하나라도 있나. **재요청 버튼이 이것으로 선다**(가이드 4절 —
   /// 서버는 `FAILED`인 곡만 재요청 대상으로 고른다).
-  bool get hasFailedMusic =>
-      _tracks.any((music) => music?.hasFailed ?? false);
+  bool get hasFailedMusic => _tracks.any((music) => music?.hasFailed ?? false);
 
   /// 기본곡 + 사진별 곡. **사진 수가 아니라 곡 수**다.
   Iterable<CardMusic?> get _tracks => [

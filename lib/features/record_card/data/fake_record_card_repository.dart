@@ -109,10 +109,7 @@ class FakeRecordCardRepository implements RecordCardRepository {
     final rows = <ComposableRecord>[
       for (final card in _live())
         if (inRange(card.day))
-          ComposableRecord(
-            record: _runOf(card),
-            existingCard: summaryOf(card),
-          ),
+          ComposableRecord(record: _runOf(card), existingCard: summaryOf(card)),
     ];
 
     final withCards = {for (final row in rows) row.day};

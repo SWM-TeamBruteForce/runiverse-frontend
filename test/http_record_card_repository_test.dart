@@ -29,7 +29,10 @@ void main() {
       ]) {
         expect(
           failureOf(
-            DioException(requestOptions: RequestOptions(path: '/x'), type: type),
+            DioException(
+              requestOptions: RequestOptions(path: '/x'),
+              type: type,
+            ),
           ),
           RecordCardFailure.network,
           reason: '$type',

@@ -38,7 +38,8 @@ RecordCardData _data({
                 ])
           runWith(card),
         // 9일은 뛰었는데 카드가 없다 — 운동화가 서고 눌린다.
-        for (final day in runDays ?? const [9]) runOnly(DateTime(2026, 9, day, 7)),
+        for (final day in runDays ?? const [9])
+          runOnly(DateTime(2026, 9, day, 7)),
       ],
     ),
   ],
@@ -46,26 +47,50 @@ RecordCardData _data({
   zoom: zoom,
 );
 
+/// 카드도 러닝도 없는 달들. **쌓이는 방향만** 보려고 쓴다 — 칸이 비어 있어야
+/// 달 머리의 위아래 자리가 내용에 흔들리지 않는다.
+RecordCardData _emptyMonths(List<DateTime> months) => RecordCardData(
+  months: [
+    for (final month in months) MonthCards(month: month, runs: const []),
+  ],
+  zoom: CalendarZoom.month,
+);
+
+/// 시험 화면을 길게 잡는다.
+///
+/// ⚠️ **달력이 아래에서 위로 쌓이면서 필요해졌다.** 한 달 그리드가 기본 시험
+/// 화면(600px)보다 높아, 바닥에 붙은 목록에서는 **그 달의 윗줄 날짜와 그 위
+/// `더 받기` 줄이 아예 만들어지지 않는다.** 기기에서는 스크롤해서 닿는 자리지만
+/// 시험은 스크롤하지 않으므로 화면을 키워 둔다.
+void _tallScreen(WidgetTester tester) {
+  tester.view.physicalSize = const Size(800, 2400);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+}
+
 Future<void> _pump(
   WidgetTester tester, {
   RecordCardData? data,
   ValueChanged<RecordCardSummary>? onOpen,
   ValueChanged<DateTime>? onEmptyDay,
   bool light = false,
-}) => tester.pumpWidget(
-  MaterialApp(
-    theme: light ? AppTheme.light() : AppTheme.dark(),
-    home: Scaffold(
-      body: RecordCardCalendar(
-        data: data ?? _data(),
-        onOpen: onOpen ?? (_) {},
-        onEmptyDay: onEmptyDay ?? (_) {},
-        onZoom: (_) {},
-        onLoadOlder: () {},
+}) {
+  _tallScreen(tester);
+  return tester.pumpWidget(
+    MaterialApp(
+      theme: light ? AppTheme.light() : AppTheme.dark(),
+      home: Scaffold(
+        body: RecordCardCalendar(
+          data: data ?? _data(),
+          onOpen: onOpen ?? (_) {},
+          onEmptyDay: onEmptyDay ?? (_) {},
+          onZoom: (_) {},
+          onLoadOlder: () {},
+        ),
       ),
     ),
-  ),
-);
+  );
+}
 
 void main() {
   group('leadingBlanks', () {
@@ -214,6 +239,9 @@ void main() {
     // 안드로이드에서는 스크롤할 것이 없으면 ScrollUpdateNotification 자체가
     // 나오지 않는다. 그것만 방아쇠로 두면 과거 카드에 닿을 길이 앱 안에 없다.
     var asked = 0;
+    // 한 달과 더 받기 줄이 **통째로 들어가는** 화면이다. 끌 것이 없는 상태를
+    // 만들어 두고, 그래도 버튼이 있고 눌리는지 본다.
+    _tallScreen(tester);
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.dark(),
@@ -229,11 +257,6 @@ void main() {
       ),
     );
 
-    await tester.scrollUntilVisible(
-      find.text(AppStrings.recordCardLoadOlder),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
     await tester.tap(find.text(AppStrings.recordCardLoadOlder));
     await tester.pump();
 
@@ -296,5 +319,74 @@ void main() {
 
     expect(opened?.id, 'card-1');
     expect(opened?.activity, RecordCardActivity.race);
+  });
+
+  group('쌓이는 방향', () {
+    testWidgets('이번 달이 지난달보다 아래에 있다', (tester) async {
+      await _pump(
+        tester,
+        data: _emptyMonths([DateTime(2026, 10), DateTime(2026, 11)]),
+      );
+
+      final october = tester
+          .getTopLeft(
+            find.text(AppStrings.recordMonthLabel(DateTime(2026, 10))),
+          )
+          .dy;
+      final november = tester
+          .getTopLeft(
+            find.text(AppStrings.recordMonthLabel(DateTime(2026, 11))),
+          )
+          .dy;
+
+      expect(november, greaterThan(october));
+    });
+
+    testWidgets('⚠️ 위로 올리면 과거를 더 받는다', (tester) async {
+      // 기기 크기 화면이다. `_tallScreen` 을 깔면 끌 것이 없어 이 방아쇠가
+      // 아예 당겨지지 않는다 — 뒤집은 목록에서 maxScrollExtent 가 위쪽
+      // 끝이라는 것을 지키는 자리다.
+      var asked = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(),
+          home: Scaffold(
+            body: RecordCardCalendar(
+              data: _emptyMonths([DateTime(2026, 10), DateTime(2026, 11)]),
+              onOpen: (_) {},
+              onEmptyDay: (_) {},
+              onZoom: (_) {},
+              onLoadOlder: () => asked++,
+            ),
+          ),
+        ),
+      );
+
+      // ⚠️ **아래로 끈다.** 뒤집힌 목록에서 손가락을 내리면 위쪽(과거)이
+      // 드러난다. 끝까지 가야 방아쇠에 닿는다.
+      // 두 번 끈다 — 한 번으로는 끝(가장 과거)에 못 닿는다.
+      for (var i = 0; i < 2; i++) {
+        await tester.drag(find.byType(Scrollable).first, const Offset(0, 1200));
+        await tester.pumpAndSettle();
+      }
+
+      expect(asked, greaterThan(0));
+    });
+
+    testWidgets('⚠️ 더 받기 줄은 맨 위다', (tester) async {
+      // 달이 하나뿐이면 스크롤할 것이 없다. 그때도 과거로 가는 길이 있어야 한다.
+      await _pump(tester, data: _emptyMonths([DateTime(2026, 11)]));
+
+      final footer = tester
+          .getTopLeft(find.text(AppStrings.recordCardLoadOlder))
+          .dy;
+      final november = tester
+          .getTopLeft(
+            find.text(AppStrings.recordMonthLabel(DateTime(2026, 11))),
+          )
+          .dy;
+
+      expect(footer, lessThan(november));
+    });
   });
 }

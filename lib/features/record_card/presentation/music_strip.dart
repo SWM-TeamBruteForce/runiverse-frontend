@@ -105,7 +105,8 @@ class MusicStrip extends ConsumerWidget {
           CardMusicRetryFailed() => _Line(
             label: AppStrings.recordCardMusicError,
             action: AppStrings.recordCardMusicReload,
-            onAction: () => ref.read(cardMusicProvider(cardId).notifier).retry(),
+            onAction: () =>
+                ref.read(cardMusicProvider(cardId).notifier).retry(),
           ),
           CardMusicIdle() => _forMusic(context, ref),
         },

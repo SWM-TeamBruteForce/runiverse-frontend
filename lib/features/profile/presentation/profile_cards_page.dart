@@ -127,9 +127,8 @@ class _Grid extends ConsumerWidget {
               // ⚠️ **1시간 뒤 만료된다**(가이드 7절). 이어 받은 페이지까지
               // 통째로 다시 받는다 — 커서를 들고 한 페이지만 고치는 길이 없고,
               // 만료는 한 장만의 일이 아니다.
-              onExpired: () => ref
-                  .read(profileCardsPageProvider(userId).notifier)
-                  .load(),
+              onExpired: () =>
+                  ref.read(profileCardsPageProvider(userId).notifier).load(),
             );
           },
         ),

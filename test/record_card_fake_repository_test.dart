@@ -19,21 +19,17 @@ DateTime _firstOf(DateTime month) => DateTime(month.year, month.month, 1);
 DateTime _lastOf(DateTime month) => DateTime(month.year, month.month + 1, 0);
 
 /// 두 달치를 **달마다 따로** 받아 합친다. 한 번에 31일을 넘길 수 없다.
-Future<List<RecordCardSummary>> _twoMonths(FakeRecordCardRepository fake) async {
+Future<List<RecordCardSummary>> _twoMonths(
+  FakeRecordCardRepository fake,
+) async {
   final thisMonth = DateTime(_today.year, _today.month);
   final lastMonth = DateTime(_today.year, _today.month - 1);
   return [
     ...cardsOf(
-      await fake.runsInRange(
-        from: _firstOf(lastMonth),
-        to: _lastOf(lastMonth),
-      ),
+      await fake.runsInRange(from: _firstOf(lastMonth), to: _lastOf(lastMonth)),
     ),
     ...cardsOf(
-      await fake.runsInRange(
-        from: _firstOf(thisMonth),
-        to: _lastOf(thisMonth),
-      ),
+      await fake.runsInRange(from: _firstOf(thisMonth), to: _lastOf(thisMonth)),
     ),
   ];
 }

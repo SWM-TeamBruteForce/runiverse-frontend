@@ -15,19 +15,20 @@ import 'package:runiverse/features/record_card/domain/record_card_list_item.dart
 abstract final class RecordCardListDto {
   const RecordCardListDto._();
 
-  static RecordCardListPage from(Map<String, dynamic> json) => RecordCardListPage(
-    items: [
-      if (json['items'] case final List items)
-        for (final item in items)
-          if (item is Map<String, dynamic>) _item(item),
-    ],
-    // ⚠️ **빈 문자열을 커서로 쓰지 않는다.** 그대로 다음 요청에 넣으면
-    // `400`이고(가이드 5절 3번), "더 있다"로 읽히면 끝나지 않는 목록이 된다.
-    nextCursor: switch (json['nextCursor']) {
-      final String cursor when cursor.isNotEmpty => cursor,
-      _ => null,
-    },
-  );
+  static RecordCardListPage from(Map<String, dynamic> json) =>
+      RecordCardListPage(
+        items: [
+          if (json['items'] case final List items)
+            for (final item in items)
+              if (item is Map<String, dynamic>) _item(item),
+        ],
+        // ⚠️ **빈 문자열을 커서로 쓰지 않는다.** 그대로 다음 요청에 넣으면
+        // `400`이고(가이드 5절 3번), "더 있다"로 읽히면 끝나지 않는 목록이 된다.
+        nextCursor: switch (json['nextCursor']) {
+          final String cursor when cursor.isNotEmpty => cursor,
+          _ => null,
+        },
+      );
 
   static RecordCardListItem _item(Map<String, dynamic> json) =>
       RecordCardListItem(

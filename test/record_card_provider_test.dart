@@ -237,7 +237,10 @@ void main() {
     );
     await _settle();
 
-    expect(container.read(recordCardControllerProvider), isA<RecordCardError>());
+    expect(
+      container.read(recordCardControllerProvider),
+      isA<RecordCardError>(),
+    );
   });
 
   test('⚠️ 계정이 바뀌면 앞 사람 카드를 버리고 다시 읽는다', () async {

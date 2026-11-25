@@ -18,11 +18,14 @@ int leadingBlanks(DateTime month) =>
 
 /// 세로로 이어지는 월 달력.
 ///
-/// ## ⚠️ 최신 달이 위다
+/// ## ⚠️ 최신 달이 **맨 아래**다
 ///
-/// 설계 스케치는 과거가 위였는데, 그러면 탭을 열 때마다 **이번 달이 화면 밖에**
-/// 있다. 가장 자주 보는 것은 이번 달이라 위에 둔다. 아래로 내려가면 과거이고,
-/// 끝에 닿으면 더 받는다.
+/// 과거를 보려면 **위로 올린다**(사용자 결정 2026-11-24). 뒤집어 놓았으므로
+/// 스크롤 0이 곧 바닥이고, 탭을 열면 이번 달이 그 자리에 떠 있다 — 가장 자주
+/// 보는 것이 이번 달이라는 전제는 그대로다.
+///
+/// ⚠️ **`더 받기` 줄도 함께 맨 위로 간다.** 뒤집힌 목록에서 `maxScrollExtent`는
+/// 위쪽 끝이라, 더 받는 방아쇠 조건은 바꾸지 않아도 그대로 맞는다.
 ///
 /// ## ⚠️ 좌우로 넘기지 않는다
 ///
@@ -68,8 +71,11 @@ class RecordCardCalendar extends StatelessWidget {
           return false;
         },
         child: ListView.builder(
-          padding: const EdgeInsets.only(bottom: AppSpacing.space8),
-          // 마지막 한 칸은 더 받기 줄이다.
+          // ⚠️ **아래에서 위로 쌓는다.** index 0이 바닥에 놓여 최신 달이 거기
+          // 선다. 열었을 때 보이는 것이 이번 달이어야 한다.
+          reverse: true,
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.space8),
+          // 마지막 한 칸은 더 받기 줄이다 — 뒤집혀서 **맨 위**에 놓인다.
           itemCount: months.length + 1,
           itemBuilder: (context, index) => index == months.length
               ? _Footer(atOldest: data.atOldest, onLoadOlder: onLoadOlder)

@@ -65,7 +65,10 @@ void main() {
       // 이 화면의 스위치는 음악 토글 하나였다.
       expect(find.byType(Switch), findsNothing);
       // 화면을 잘못 찾은 것이 아니라는 확인.
-      expect(find.text(AppStrings.recordCardPublishVisibilitySection), findsOne);
+      expect(
+        find.text(AppStrings.recordCardPublishVisibilitySection),
+        findsOne,
+      );
     });
 
     testWidgets('라이트에서도 그려진다', (tester) async {
@@ -117,7 +120,6 @@ void main() {
       );
       expect(_selected(tester, RecordCardVisibility.private), isTrue);
     });
-
   });
 
   group('저장 버튼', () {
@@ -241,10 +243,7 @@ void main() {
       await _pump(
         tester,
         editing: true,
-        music: const CardMusic(
-          status: MusicStatus.completed,
-          url: 'https://x',
-        ),
+        music: const CardMusic(status: MusicStatus.completed, url: 'https://x'),
         changed: true,
       );
 
@@ -255,10 +254,7 @@ void main() {
       await _pump(
         tester,
         editing: true,
-        music: const CardMusic(
-          status: MusicStatus.completed,
-          url: 'https://x',
-        ),
+        music: const CardMusic(status: MusicStatus.completed, url: 'https://x'),
       );
 
       await tester.tap(

@@ -15,7 +15,11 @@ RecordCard _card({CardMusic? base, List<CardMusic?> photos = const []}) =>
       reviewText: '좋았다',
       photos: [
         for (var i = 0; i < photos.length; i++)
-          RecordCardPhoto(id: 'img-$i', url: 'https://x/$i.jpg', music: photos[i]),
+          RecordCardPhoto(
+            id: 'img-$i',
+            url: 'https://x/$i.jpg',
+            music: photos[i],
+          ),
       ],
       route: RouteArt.empty,
       distanceMeters: 5000,

@@ -59,7 +59,8 @@ void main() {
   CardDraftController notifier([String? cardId]) =>
       container.read(cardDraftProvider(cardId).notifier);
 
-  CardDraft draft([String? cardId]) => container.read(cardDraftProvider(cardId));
+  CardDraft draft([String? cardId]) =>
+      container.read(cardDraftProvider(cardId));
 
   test('새 초안은 비어 있다', () {
     expect(draft().record, isNull);

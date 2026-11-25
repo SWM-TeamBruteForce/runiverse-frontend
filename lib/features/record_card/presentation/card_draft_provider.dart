@@ -21,17 +21,16 @@ import 'package:runiverse/features/record_card/domain/route_art.dart';
 ///
 /// ## ⚠️ `autoDispose`를 붙이지 않는다
 ///
-/// 작성이 세 화면이라 라우트를 넘나든다. 붙이면 **사진 화면으로 가는 순간
-/// 작성 1의 구독이 끊겨 쓴 것이 사라진다**(`docs/implementation-notes.md`
-/// §5-1). 이 저장소의 수동 provider는 기본이 keepAlive라, 붙이지 않는 것이
-/// 곧 명시다.
+/// 작성 화면에서 공개범위로 라우트를 넘나든다. 붙이면 **그 순간 작성 화면의
+/// 구독이 끊겨 쓴 것이 사라진다**(`docs/implementation-notes.md` §5-1). 이
+/// 저장소의 수동 provider는 기본이 keepAlive라, 붙이지 않는 것이 곧 명시다.
 ///
 /// 수명(설계 7절):
 ///
 /// | 언제 | 어떻게 |
 /// |---|---|
 /// | 저장 성공 | [CardDraftController.clear] |
-/// | 작성 1에서 뒤로 | 쓴 것이 있으면 확인을 받고 [CardDraftController.clear] |
+/// | 작성 화면에서 뒤로 | 쓴 것이 있으면 확인을 받고 [CardDraftController.clear] |
 /// | 앱을 죽였다 켬 | **사라진다.** 영속화하지 않는다 |
 final cardDraftProvider =
     NotifierProvider.family<CardDraftController, CardDraft, String?>(
@@ -150,8 +149,8 @@ class CardDraftController extends Notifier<CardDraft> {
   ///
   /// ## ⚠️ 이미 손댄 초안은 건드리지 않는다
   ///
-  /// 화면이 들어올 때마다 부른다. 안 막으면 사진 화면에 갔다 돌아올 때마다
-  /// 다시 뿌려 **고친 것이 되돌아간다.**
+  /// 화면이 들어올 때마다 부른다. 안 막으면 공개범위 화면에 갔다 돌아올
+  /// 때마다 다시 뿌려 **고친 것이 되돌아간다.**
   void seed(RecordCard card) {
     if (state.isDirty) return;
     state = CardDraft.fromCard(card);

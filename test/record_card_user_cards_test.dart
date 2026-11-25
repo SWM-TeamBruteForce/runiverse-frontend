@@ -45,7 +45,6 @@ void main() {
     photos: const [],
   );
 
-
   test('⚠️ 비공개도 온다 — 본인이 보는 자리다', () async {
     // 2026-11-24에 뒤집혔다. 10-3 항목에 `visibility`가 없어 **앱이 가려낼
     // 근거도 없다** — 서버가 보내면 그대로 선다.
@@ -196,10 +195,6 @@ void main() {
   test('누가 무엇을 물었는지 적어 둔다', () async {
     await repo.cardsOf(userId: 'u-7', limit: 6, cursor: '6');
 
-    expect(repo.userQueries.single, (
-      userId: 'u-7',
-      limit: 6,
-      cursor: '6',
-    ));
+    expect(repo.userQueries.single, (userId: 'u-7', limit: 6, cursor: '6'));
   });
 }
