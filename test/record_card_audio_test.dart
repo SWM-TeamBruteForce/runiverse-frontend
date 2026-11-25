@@ -66,14 +66,14 @@ void main() {
     // 서명 주소는 읽을 때마다 달라진다. 그대로 비교하면 **1분마다 소리가
     // 끊긴다**(설계 7-1).
     await open(tester);
-    expect(fake.calls, ['otherAudioPlaying', 'load', 'play']);
+    expect(fake.calls, ['load', 'play']);
 
     await refreshDetail(
       tester,
       _cardWith(baseUrl: 'https://cdn.invalid/base.m4a?sig=BBB'),
     );
 
-    expect(fake.calls, ['otherAudioPlaying', 'load', 'play']);
+    expect(fake.calls, ['load', 'play']);
   });
 
   testWidgets('⚠️ 서 있는 동안 곡이 완성되면 바로 난다', (tester) async {
@@ -88,17 +88,17 @@ void main() {
       _cardWith(baseUrl: 'https://cdn.invalid/base.m4a?sig=AAA'),
     );
 
-    expect(fake.calls, ['otherAudioPlaying', 'load', 'play']);
+    expect(fake.calls, ['load', 'play']);
   });
 
-  testWidgets('⚠️ 다른 앱이 소리를 내고 있으면 자동 재생을 접는다', (tester) async {
-    // 듣던 음악이 카드를 연다고 멈추면 안 된다. 물려는 두어 누르면 바로 난다.
-    fake.othersPlaying = true;
-
+  testWidgets('⚠️ 열면 무조건 난다 — 남의 소리를 묻지 않는다', (tester) async {
+    // 전에는 `isMusicActive()` 로 남의 소리를 보고 접었다. 그 값이 아무도
+    // 소리를 내지 않는데도 참이라(2026-11-25 에뮬레이터) 자동 재생이 영영
+    // 일어나지 않았다. 물어보는 일 자체를 걷어냈다.
     await open(tester);
 
-    expect(fake.calls, ['otherAudioPlaying', 'load']);
-    expect(find.text(AppStrings.recordCardMusicPlay), findsOneWidget);
+    expect(fake.calls, ['load', 'play']);
+    expect(find.text(AppStrings.recordCardMusicPause), findsOneWidget);
   });
 
   testWidgets('장을 넘기면 그 장의 곡이 처음부터 난다', (tester) async {
@@ -385,7 +385,6 @@ RecordCard _cardWith({
 
 class _FakePlayer implements CardAudioPlayer {
   final calls = <String>[];
-  bool othersPlaying = false;
   Object? loadThrows;
 
   /// 물리는 일을 붙잡아 둘 문. 열어 줄 때까지 `load`가 안 끝난다.
@@ -418,12 +417,6 @@ class _FakePlayer implements CardAudioPlayer {
 
   @override
   Future<void> pause() async => calls.add('pause');
-
-  @override
-  Future<bool> otherAudioPlaying() async {
-    calls.add('otherAudioPlaying');
-    return othersPlaying;
-  }
 
   @override
   Future<void> dispose() async => calls.add('dispose');

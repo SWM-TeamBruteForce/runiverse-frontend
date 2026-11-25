@@ -71,15 +71,15 @@ class CardAudio extends Notifier<CardAudioState> {
   var _page = 0;
   CardMusic? _music;
 
-  /// 틀 뜻이 있나.
+  /// 틀 뜻이 있나. **열면 틀 뜻이 있는 것으로 시작한다** — 카드를 연 사람은
+  /// 소리를 들으러 온 것이다(설계 9절).
   ///
   /// ⚠️ **[state]가 아니라 이것으로 판단한다.** `state.playing`은 기다린 뒤에야
   /// 바뀌어서, 물리는 동안 들어온 [suspend]나 두 번째 [toggle]을 놓친다.
-  var _wantPlaying = false;
-
-  /// [_wantPlaying]을 한 번이라도 정했나. 처음 틀 수 있게 된 순간에만 남의
-  /// 소리를 본다 — 그다음부터는 사람의 뜻을 이어 간다.
-  var _decided = false;
+  ///
+  /// 한 번 꺾이면(멈춤·배경) 그 뜻을 이어 간다 — 장을 넘겨도 저절로 나지
+  /// 않는다.
+  var _wantPlaying = true;
 
   /// 몇 번째 요청인가.
   ///
@@ -118,14 +118,12 @@ class CardAudio extends Notifier<CardAudioState> {
       final music = _music;
       if (music == null || !music.isPlayable) return;
       _wantPlaying = true;
-      _decided = true;
       await _open(trackIdOf(page: _page, music: music), music);
       return;
     }
 
     final next = !_wantPlaying;
     _wantPlaying = next;
-    _decided = true;
     // ⚠️ **트는 것은 기다리지 않는다**(인터페이스 계약). 기다리면 줄이 영영
     // `재생`이고, [suspend]가 "나고 있지 않다"고 읽어 가려진 앱에서 소리가
     // 계속 난다. 멈추는 것은 금방 끝나므로 기다린다.
@@ -147,7 +145,6 @@ class CardAudio extends Notifier<CardAudioState> {
   /// 뒤에 가려진 앱에서 소리가 난다.
   Future<void> suspend() async {
     _wantPlaying = false;
-    _decided = true;
     if (!state.playing) return;
     await _player.pause();
     if (!_alive) return;
@@ -167,13 +164,6 @@ class CardAudio extends Notifier<CardAudioState> {
       if (stale()) return;
       state = const CardAudioState();
       return;
-    }
-
-    if (!_decided) {
-      final others = await _player.otherAudioPlaying();
-      if (stale()) return;
-      _decided = true;
-      _wantPlaying = !others;
     }
 
     try {

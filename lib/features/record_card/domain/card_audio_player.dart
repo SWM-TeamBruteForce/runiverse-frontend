@@ -31,11 +31,5 @@ abstract interface class CardAudioPlayer {
   /// 멈춘다. 자리는 지킨다.
   Future<void> pause();
 
-  /// 다른 앱이 지금 소리를 내고 있나. **자동 재생을 접을지 가르는 값이다** —
-  /// 듣던 음악이 카드를 연다고 멈추면 안 된다(설계 3절 반목표).
-  ///
-  /// 안드로이드가 아니면 `false`다.
-  Future<bool> otherAudioPlaying();
-
   Future<void> dispose();
 }

@@ -118,8 +118,8 @@ dependencies:
   # 버전이 달라질 수 있다.
   facebook_app_events: ^0.31.0
   korean_profanity: ^0.1.0
+  # 기록카드 음악을 튼다. `audio_session`을 함께 끌어오지만 직접 쓰지 않는다.
   just_audio: ^0.10.6
-  audio_session: ^0.2.4
 
 dev_dependencies:
   flutter_test:

@@ -103,9 +103,6 @@ class SilentAudioPlayer implements CardAudioPlayer {
   Future<void> pause() async => calls.add('pause');
 
   @override
-  Future<bool> otherAudioPlaying() async => false;
-
-  @override
   Future<void> dispose() async => calls.add('dispose');
 }
 

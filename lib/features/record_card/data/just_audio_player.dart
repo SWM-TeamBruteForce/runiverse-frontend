@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:audio_session/audio_session.dart';
-import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:runiverse/features/record_card/domain/card_audio_player.dart';
 
@@ -12,11 +10,12 @@ import 'package:runiverse/features/record_card/domain/card_audio_player.dart';
 /// 끝 신호를 받아 다시 트는 대신 [LoopMode.one]을 건다. 받아서 다시 틀면
 /// 곡과 곡 사이에 빈 틈이 생기고, 그 틈에 장을 넘기면 두 번 튼다.
 ///
-/// ## ⚠️ 포커스를 여기서 막지 않는다
+/// ## ⚠️ 포커스를 가져간다
 ///
 /// `just_audio`의 `play()`는 **오디오 포커스를 가져간다** — 남이 듣던 음악이
-/// 멈춘다. 자동 재생을 접을지는 **부르는 쪽**이 [otherAudioPlaying]으로 먼저
-/// 가린다(설계 6-2). 여기서 막으면 사람이 직접 누른 `재생`까지 막힌다.
+/// 멈춘다. 전에는 `isMusicActive()`로 남의 소리를 보고 자동 재생을 접었는데,
+/// 그 값이 아무도 소리를 내지 않는데도 참이라 자동 재생이 영영 일어나지
+/// 않았다(2026-11-25). 묻는 일을 걷어냈다 — 카드를 열면 난다.
 class JustAudioPlayer implements CardAudioPlayer {
   final _player = AudioPlayer();
 
@@ -49,14 +48,6 @@ class JustAudioPlayer implements CardAudioPlayer {
 
   @override
   Future<void> pause() => _player.pause();
-
-  /// ⚠️ **안드로이드 전용 채널이다.** 다른 플랫폼에서 부르면 터진다 — iOS는
-  /// 이번 범위 밖이라(설계 3절) 묻지 않고 `false`를 낸다.
-  @override
-  Future<bool> otherAudioPlaying() async {
-    if (defaultTargetPlatform != TargetPlatform.android) return false;
-    return AndroidAudioManager().isMusicActive();
-  }
 
   @override
   Future<void> dispose() => _player.dispose();
