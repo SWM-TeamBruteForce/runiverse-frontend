@@ -42,7 +42,6 @@ class NewRecordCard {
     required this.visibility,
     required this.reviewText,
     required this.photos,
-    required this.musicEnabled,
   });
 
   final RunRecord record;
@@ -57,6 +56,7 @@ class NewRecordCard {
   /// 최대 다섯 장. 없을 수 있다.
   final List<NewCardPhoto> photos;
 
-  /// AI 음악을 만들까. 서버가 이 값으로 생성 요청을 건다.
-  final bool musicEnabled;
+  // ⚠️ **음악 설정이 없다.** 서버는 카드를 확정할 때(9-2) 기본곡과 사진별 곡
+  // 생성을 **늘** 요청한다 — 켜고 끄는 인자가 요청에 없다(연동 가이드 3절).
+  // 보낼 곳 없는 값을 들고 있으면 "보냈는데 안 먹었다"로 읽힌다.
 }

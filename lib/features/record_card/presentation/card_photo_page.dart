@@ -43,7 +43,7 @@ class CardPhotoPage extends ConsumerStatefulWidget {
   const CardPhotoPage({this.cardId, this.card, super.key});
 
   /// 수정 중인 카드 번호. `null`이면 새 카드다.
-  final int? cardId;
+  final String? cardId;
 
   /// 고치는 카드. **다음 화면으로 들고 가야 한다** — 공개범위 라우트가
   /// `extra`로 받아야 초안을 어느 번호로 가를지 안다.

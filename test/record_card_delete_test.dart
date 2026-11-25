@@ -3,12 +3,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_list_item.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/profile/presentation/profile_cards_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_delete_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
+
+import 'record_card_fixtures.dart';
 
 /// 카드 삭제 (설계 6-6).
 ///
@@ -19,12 +22,12 @@ import 'package:runiverse/features/record_card/presentation/record_card_provider
 void main() {
   test('지우면 그 카드가 목록에서 빠진다', () async {
     final repository = FakeRecordCardRepository(today: _today);
-    final before = await repository.byDateRange(from: _from, to: _today);
+    final before = cardsOf(await repository.runsInRange(from: _from, to: _today));
     final target = before.first;
 
     await repository.delete(target.id);
 
-    final after = await repository.byDateRange(from: _from, to: _today);
+    final after = cardsOf(await repository.runsInRange(from: _from, to: _today));
     expect(after.map((c) => c.id), isNot(contains(target.id)));
     expect(after, hasLength(before.length - 1));
   });
@@ -33,23 +36,22 @@ void main() {
     // `_all()`이 매번 목을 새로 만든다 — 거르지 않으면 지운 카드가 다음
     // 조회에 되살아난다.
     final repository = FakeRecordCardRepository(today: _today);
-    final target = (await repository.byDateRange(
-      from: _from,
-      to: _today,
-    )).first;
+    final target = cardsOf(
+      await repository.runsInRange(from: _from, to: _today),
+    ).first;
 
     await repository.delete(target.id);
-    await repository.byDateRange(from: _from, to: _today);
-    final again = await repository.byDateRange(from: _from, to: _today);
+    cardsOf(await repository.runsInRange(from: _from, to: _today));
+    final again = cardsOf(await repository.runsInRange(from: _from, to: _today));
 
     expect(again.map((c) => c.id), isNot(contains(target.id)));
   });
 
-  test('없는 카드를 지우면 없다고 한다', () async {
+  test('⚠️ 저장소는 없는 카드에 없다고 한다', () async {
     final repository = FakeRecordCardRepository(today: _today);
 
     expect(
-      () => repository.delete(999999),
+      () => repository.delete('card-없음'),
       throwsA(
         isA<RecordCardException>().having(
           (e) => e.failure,
@@ -64,10 +66,10 @@ void main() {
     test('지우면 끝난 상태로 돌아온다', () async {
       final world = _World();
 
-      final gone = await world.delete(7);
+      final gone = await world.delete('card-7');
 
       expect(gone, isTrue);
-      expect(world.repository.deleted, [7]);
+      expect(world.repository.deleted, ['card-7']);
       expect(world.state, isA<CardDeleteIdle>());
     });
 
@@ -79,16 +81,16 @@ void main() {
       // 되돌릴 수 없는 일이다. 두 번 가면 두 번째는 404를 받는다.
       final world = _World(delay: const Duration(milliseconds: 50));
 
-      final both = await Future.wait([world.delete(7), world.delete(7)]);
+      final both = await Future.wait([world.delete('card-7'), world.delete('card-7')]);
 
-      expect(world.repository.deleted, [7]);
+      expect(world.repository.deleted, ['card-7']);
       expect(both.where((ok) => ok), hasLength(1));
     });
 
     test('도는 동안 상태가 Deleting이다', () async {
       final world = _World(delay: const Duration(milliseconds: 50));
 
-      final soon = world.delete(7);
+      final soon = world.delete('card-7');
       expect(world.state, isA<CardDeleting>());
 
       await soon;
@@ -102,7 +104,7 @@ void main() {
       await world.container.read(profileCardsProvider(_gridQuery).future);
       expect(world.repository.userCalls, 1);
 
-      await world.delete(7);
+      await world.delete('card-7');
       await Future<void>.delayed(Duration.zero);
 
       expect(world.repository.userCalls, 2);
@@ -111,7 +113,7 @@ void main() {
     test('⚠️ 실패하면 왜인지 들고 있고 다시 누를 수 있다', () async {
       final world = _World(failWith: RecordCardFailure.network);
 
-      final gone = await world.delete(7);
+      final gone = await world.delete('card-7');
 
       expect(gone, isFalse);
       expect(
@@ -120,7 +122,39 @@ void main() {
       );
 
       world.repository.failWith = null;
-      expect(await world.delete(7), isTrue);
+      expect(await world.delete('card-7'), isTrue);
+    });
+  });
+
+  group('이미 지워진 카드', () {
+    test('⚠️ 404를 받아도 삭제 흐름을 마친다', () async {
+      // 가이드 4절: "같은 카드의 삭제를 재시도해 404가 와도 삭제 흐름을
+      // 마쳐 주세요." 실패로 다루면 사용자가 **없는 카드를 못 지웠다는 말**을
+      // 듣고 화면에 남는다 — 다시 눌러도 같은 답이다.
+      final world = _World(failWith: RecordCardFailure.notFound);
+
+      expect(await world.delete('card-7'), isTrue);
+      expect(world.state, isA<CardDeleteIdle>());
+    });
+
+    test('⚠️ 그때도 프로필 그리드를 버린다 — 지워진 것이 남지 않게', () async {
+      final world = _World(failWith: RecordCardFailure.notFound);
+      world.container.listen(profileCardsProvider(_gridQuery), (_, _) {});
+      await world.container.read(profileCardsProvider(_gridQuery).future);
+      expect(world.repository.userCalls, 1);
+
+      await world.delete('card-7');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(world.repository.userCalls, 2);
+    });
+
+    test('⚠️ 다른 실패는 그대로 실패다', () async {
+      // 망이 끊긴 것과 이미 지워진 것은 다르다 — 전자는 다시 해 볼 일이다.
+      final world = _World(failWith: RecordCardFailure.network);
+
+      expect(await world.delete('card-7'), isFalse);
+      expect(world.state, isA<CardDeleteFailed>());
     });
   });
 }
@@ -147,7 +181,7 @@ class _World {
 
   CardDeleteState get state => container.read(cardDeleteProvider);
 
-  Future<bool> delete(int id) =>
+  Future<bool> delete(String id) =>
       container.read(cardDeleteProvider.notifier).delete(id);
 }
 
@@ -156,9 +190,13 @@ class _Repository implements RecordCardRepository {
   var userCalls = 0;
 
   @override
-  Future<List<RecordCard>> byUser({required String userId, int? limit}) async {
+  Future<RecordCardListPage> cardsOf({
+    required String userId,
+    int? limit,
+    String? cursor,
+  }) async {
     userCalls++;
-    return const [];
+    return RecordCardListPage.empty;
   }
 
   _Repository({this.delay = Duration.zero, this.failWith});
@@ -166,10 +204,14 @@ class _Repository implements RecordCardRepository {
   final Duration delay;
   RecordCardFailure? failWith;
 
-  final deleted = <int>[];
+  final deleted = <String>[];
 
   @override
-  Future<void> delete(int cardId) async {
+  Future<RecordCard> detailOf(String cardId) =>
+      throw UnsupportedError('이 테스트는 상세를 열지 않는다');
+
+  @override
+  Future<void> delete(String cardId) async {
     if (delay > Duration.zero) await Future<void>.delayed(delay);
     final failure = failWith;
     if (failure != null) throw RecordCardException(failure);
@@ -177,7 +219,7 @@ class _Repository implements RecordCardRepository {
   }
 
   @override
-  Future<List<RecordCard>> byDateRange({
+  Future<List<ComposableRecord>> runsInRange({
     required DateTime from,
     required DateTime to,
   }) async => const [];
@@ -190,13 +232,10 @@ class _Repository implements RecordCardRepository {
   Future<RecordCard> update(EditRecordCard card) =>
       throw UnsupportedError('이 테스트는 카드를 고치지 않는다');
 
-  /// ⚠️ **상세가 음악 줄을 세운다.** 던지면 삭제 테스트가 음악 때문에
-  /// 떨어진다. 이 테스트의 카드는 음악이 없는 것으로 둔다.
+  /// ⚠️ **곡은 카드가 들고 온다**(묶음 7 작업 5). 이 테스트는 삭제만 보므로
+  /// 다시 만들 일이 없다.
   @override
-  Future<MusicGeneration> musicOf(int cardId) async =>
-      MusicGeneration.none(cardId);
+  Future<void> retryMusic(String cardId) =>
+      throw UnsupportedError('이 테스트는 음악을 다시 만들지 않는다');
 
-  @override
-  Future<MusicGeneration> requestMusic(int cardId) =>
-      throw UnsupportedError('이 테스트는 음악을 만들지 않는다');
 }

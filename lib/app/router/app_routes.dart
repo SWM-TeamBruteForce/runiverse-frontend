@@ -153,19 +153,14 @@ abstract final class AppRoutes {
 
   /// ⚠️ **카드 번호다.** 러닝 기록 번호도 방 번호도 아니다.
   ///
-  /// ## ⚠️ [mine]을 반드시 적는다
+  /// ## ⚠️ `mine` 쿼리가 없어졌다 (2026-11-24)
   ///
-  /// 남의 카드면 `⋮`(수정·삭제)와 `AI 음악 만들기`를 세우지 않는다(설계 6-5).
-  /// 그런데 **카드 응답에 소유자가 없다** — 스키마가 비어 있어
-  /// (`docs/notes/2026-11-16-record-card-backend-questions.md` 1-1번) 지어
-  /// 넣으면 응답이 오는 날 도메인을 다시 짓는다. 그래서 **들어온 길이
-  /// 말한다.**
-  ///
-  /// 선택 인자로 두지 않는 이유: 기본값을 주면 새 진입점이 조용히 "내 것"으로
-  /// 들어오고, 그 결과는 **남의 카드에 뜬 수정 버튼**이다. 컴파일러가 묻게
-  /// 한다.
-  static String recordCardDetailOf(int cardId, {required bool mine}) =>
-      '$recordCard/card/$cardId?mine=$mine';
+  /// 묶음 6까지는 소유자를 알 길이 없어 **들어온 길이** 내 카드인지 말했다.
+  /// 지금은 상세(8-1)가 `isMine`을 싣는다. 쿼리를 남겨 두면 **두 출처가
+  /// 어긋날 수 있고**(남의 카드 링크에 `?mine=true`를 붙이면 수정 버튼이
+  /// 선다) 서버 값이 정본이다.
+  static String recordCardDetailOf(String cardId) =>
+      '$recordCard/card/$cardId';
 
   /// 기록카드 수정 1·2·3 (설계 6-6).
   ///
@@ -179,10 +174,11 @@ abstract final class AppRoutes {
   static const recordCardEditPhotos = '/record-card/card/:id/edit/photos';
   static const recordCardEditPublish = '/record-card/card/:id/edit/publish';
 
-  static String recordCardEditOf(int cardId) => '$recordCard/card/$cardId/edit';
-  static String recordCardEditPhotosOf(int cardId) =>
+  static String recordCardEditOf(String cardId) =>
+      '$recordCard/card/$cardId/edit';
+  static String recordCardEditPhotosOf(String cardId) =>
       '${recordCardEditOf(cardId)}/photos';
-  static String recordCardEditPublishOf(int cardId) =>
+  static String recordCardEditPublishOf(String cardId) =>
       '${recordCardEditOf(cardId)}/publish';
 
   /// 그 사람의 기록카드 **전체 보기** — 프로필 그리드의 `더 보기`가 가는 곳
@@ -194,9 +190,10 @@ abstract final class AppRoutes {
   /// `new`도 아니어서 **걷히지 않는다.**
   static const recordCardsOfUser = '/record-card/user/:userId';
 
-  /// [mine]은 상세로 그대로 흘러간다 — 남의 카드에는 `⋮`를 세우지 않는다.
-  static String recordCardsOf(String userId, {required bool mine}) =>
-      '$recordCard/user/${Uri.encodeComponent(userId)}?mine=$mine';
+  /// ⚠️ **`mine` 쿼리가 없어졌다 (2026-11-24).** 그리드가 상세로 소유자를
+  /// 실어 보내던 길인데, 상세(8-1)가 `isMine`을 직접 싣는다.
+  static String recordCardsOf(String userId) =>
+      '$recordCard/user/${Uri.encodeComponent(userId)}';
 
   /// 본인 프로필 (S20)
   static const profile = '/profile';

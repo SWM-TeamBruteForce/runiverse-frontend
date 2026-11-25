@@ -9,7 +9,7 @@ import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/core/widgets/v2/app_button.dart';
 import 'package:runiverse/features/profile/presentation/profile_card_tile.dart';
 import 'package:runiverse/features/profile/presentation/profile_cards_provider.dart';
-import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_list_item.dart';
 
 /// 프로필의 기록카드 그리드 — **3열 · 9:16 · 최신순 · 처음 6장**(설계 6-7).
 ///
@@ -35,17 +35,17 @@ import 'package:runiverse/features/record_card/domain/record_card.dart';
 ///
 /// ## ⚠️ 일곱 장을 묻고 여섯 장을 깐다
 ///
-/// 여섯 장만 물으면 **더 있는지 알 수 없어** `더 보기`를 늘 세우게 되고, 딱
-/// 여섯 장인 사람이 눌렀을 때 아무것도 더 없는 화면으로 간다.
+/// ## ⚠️ 여섯 장만 묻는다
+///
+/// 묶음 6까지는 **한 장 더** 받아 "더 있나"를 가늠했다. 서버가 `nextCursor`를
+/// 주면서 그 꾀가 필요 없어졌다 — 딱 여섯 장인 사람에게 `더 보기`가 서지
+/// 않는다(연동 가이드 5절 1번).
 class ProfileCardGrid extends ConsumerWidget {
-  const ProfileCardGrid({required this.userId, required this.mine, super.key});
+  const ProfileCardGrid({required this.userId, super.key});
 
   /// 누구의 프로필인가.
   final String userId;
 
-  /// 내 카드들인가. **상세로 그대로 넘긴다** — 남의 카드에서는 상세가 `⋮`를
-  /// 세우지 않는다(`AppRoutes.recordCardDetailOf`).
-  final bool mine;
 
   /// 깔 장수. 3열 2줄이다.
   static const previewCount = 6;
@@ -76,7 +76,7 @@ class ProfileCardGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cards = ref.watch(
-      profileCardsProvider((userId: userId, limit: previewCount + 1)),
+      profileCardsProvider((userId: userId, limit: previewCount)),
     );
 
     return switch (cards) {
@@ -85,13 +85,13 @@ class ProfileCardGrid extends ConsumerWidget {
         child: Center(child: CircularProgressIndicator()),
       ),
       AsyncError() => _Error(userId: userId),
-      AsyncValue(:final value?) when value.isEmpty => const SizedBox.shrink(),
+      AsyncValue(:final value?) when value.items.isEmpty =>
+        const SizedBox.shrink(),
       AsyncValue(:final value?) => _Preview(
-        cards: value.take(previewCount).toList(),
-        // 일곱 번째가 왔다 = 더 있다.
-        hasMore: value.length > previewCount,
+        cards: value.items,
+        // 서버가 다음 커서를 줬다 = 더 있다.
+        hasMore: value.hasMore,
         userId: userId,
-        mine: mine,
       ),
     };
   }
@@ -102,13 +102,11 @@ class _Preview extends StatelessWidget {
     required this.cards,
     required this.hasMore,
     required this.userId,
-    required this.mine,
   });
 
-  final List<RecordCard> cards;
+  final List<RecordCardListItem> cards;
   final bool hasMore;
   final String userId;
-  final bool mine;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -125,13 +123,7 @@ class _Preview extends StatelessWidget {
           mainAxisSpacing: ProfileCardGrid._spacing,
         ),
         itemCount: cards.length,
-        itemBuilder: (context, index) => ProfileCardTile(
-          card: cards[index],
-          onTap: () => context.push(
-            AppRoutes.recordCardDetailOf(cards[index].id, mine: mine),
-            extra: cards[index],
-          ),
-        ),
+        itemBuilder: (context, index) => _Tile(cards[index], userId: userId),
       ),
       if (hasMore) ...[
         const SizedBox(height: AppSpacing.space2),
@@ -140,10 +132,32 @@ class _Preview extends StatelessWidget {
           variant: AppButtonV2Variant.secondary,
           expand: false,
           onPressed: () =>
-              context.push(AppRoutes.recordCardsOf(userId, mine: mine)),
+              context.push(AppRoutes.recordCardsOf(userId)),
         ),
       ],
     ],
+  );
+}
+
+/// 칸 하나. 만료된 주소를 받으면 **그리드 조회를** 버린다.
+class _Tile extends ConsumerWidget {
+  const _Tile(this.card, {required this.userId});
+
+  final RecordCardListItem card;
+  final String userId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ProfileCardTile(
+    card: card,
+    onTap: () => context.push(AppRoutes.recordCardDetailOf(card.id)),
+    // ⚠️ **전체 보기와 다른 조회다.** `limit`이 키에 들어 있어, 전체 보기를
+    // 버려도 그리드는 옛 주소를 들고 남는다.
+    onExpired: () => ref.invalidate(
+      profileCardsProvider((
+        userId: userId,
+        limit: ProfileCardGrid.previewCount,
+      )),
+    ),
   );
 }
 
@@ -170,7 +184,7 @@ class _Error extends ConsumerWidget {
           onPressed: () => ref.invalidate(
             profileCardsProvider((
               userId: userId,
-              limit: ProfileCardGrid.previewCount + 1,
+              limit: ProfileCardGrid.previewCount,
             )),
           ),
         ),

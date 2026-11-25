@@ -17,8 +17,10 @@ import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_list_item.dart';
+import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/presentation/card_compose_page.dart';
 import 'package:runiverse/features/record_card/presentation/card_detail_page.dart';
@@ -29,6 +31,8 @@ import 'package:runiverse/features/record_card/presentation/card_publish_page.da
 import 'package:runiverse/features/record_card/presentation/record_card_page.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_state.dart';
+
+import 'record_card_fixtures.dart';
 
 /// 상세에서 고치고 지우는 길 (설계 6-6).
 ///
@@ -56,6 +60,19 @@ void main() {
       expect(find.byType(CardComposePage), findsOne);
       // 카드 값이 들어와 있다.
       expect(find.text(AppStrings.recordCardEditRecordLocked), findsOne);
+    });
+
+    testWidgets('⚠️ 서버가 주는 문자열 카드 번호로 상세를 연다', (tester) async {
+      // `recordCardId`는 UUID 문자열이다(연동 가이드 공통 요청 규칙). 번호로
+      // 들고 있으면 라우트에 담기지 못하고 **상세가 열리지 않는다.**
+      //
+      // ⚠️ **`card-1000`을 쓰지 않는다.** 그 목 카드는 음악이 `processing`으로
+      // 멈춰 있어 폴링이 끝나지 않고 `!timersPending`으로 죽는다. `card-1001`은
+      // 음악이 실패해 있어 더 묻지 않는다.
+      await _pumpDetail(tester, cardId: 'card-1001');
+
+      expect(find.byType(CardDetailPage), findsOne);
+      expect(_router.state.uri.path, contains('card-1001'));
     });
   });
 
@@ -102,7 +119,7 @@ void main() {
       await tester.tap(find.text(AppStrings.recordCardPublishSave));
       await tester.pumpAndSettle();
 
-      expect(find.text(AppStrings.recordCardMusicQueued), findsOne);
+      expect(find.text(AppStrings.recordCardMusicProcessing), findsOne);
       expect(find.text(AppStrings.recordCardMusicReady), findsNothing);
 
       await _finishMusic(tester);
@@ -136,7 +153,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(CardComposePage), findsOne);
 
-      _router.push(AppRoutes.recordCardEditOf(_card.id), extra: _card);
+      _router.push(AppRoutes.recordCardEditOf(_full.id), extra: _full);
       await tester.pumpAndSettle();
       await _nextTwice(tester);
 
@@ -185,10 +202,14 @@ void main() {
       // ⚠️ 목 번호 **1001**은 사진이 없고 음악이 실패해 있다
       // (`FakeRecordCardRepository._seeded`). `다시 만들기`를 눌러 **만드는
       // 중**으로 세운 뒤 지우려 한다 — 사용자가 실제로 지나는 길이다.
-      await _pumpDetail(tester, cardId: 1001);
+      await _pumpDetail(tester, cardId: 'card-1001');
       await tester.tap(find.text(AppStrings.recordCardMusicRetry));
+      // ⚠️ **세 프레임이다.** 요청이 떠나고(`음악을 요청하는 중…`), 상세를
+      // 다시 읽고, 그 답이 줄에 선다.
       await tester.pump();
-      expect(find.text(AppStrings.recordCardMusicQueued), findsOne);
+      await tester.pump();
+      await tester.pump();
+      expect(find.text(AppStrings.recordCardMusicProcessing), findsOne);
 
       await _openMenu(tester, AppStrings.recordCardDelete);
 
@@ -200,7 +221,7 @@ void main() {
     });
 
     testWidgets('⚠️ 알리기만 하고 막지 않는다', (tester) async {
-      await _pumpDetail(tester, cardId: 1001);
+      await _pumpDetail(tester, cardId: 'card-1001');
       await tester.tap(find.text(AppStrings.recordCardMusicRetry));
       await tester.pump();
 
@@ -302,7 +323,7 @@ void main() {
 
       final state = container.read(recordCardControllerProvider);
       final ids = state is RecordCardData
-          ? state.visible.expand((m) => m.cards).map((c) => c.id)
+          ? state.visible.expand((m) => m.byDay.values).expand((cards) => cards).map((c) => c.id)
           : const <int>[];
       expect(ids, isNot(contains(_card.id)));
     });
@@ -311,9 +332,9 @@ void main() {
   group('⚠️ 카드 없이 수정 라우트에 떨어지면 탭으로 돌려보낸다', () {
     // 딥링크나 프로세스 복원이다. 카드 단건 조회 API가 없어 보여 줄 것이 없다.
     for (final route in [
-      AppRoutes.recordCardEditOf(1000),
-      AppRoutes.recordCardEditPhotosOf(1000),
-      AppRoutes.recordCardEditPublishOf(1000),
+      AppRoutes.recordCardEditOf('card-1000'),
+      AppRoutes.recordCardEditPhotosOf('card-1000'),
+      AppRoutes.recordCardEditPublishOf('card-1000'),
     ]) {
       testWidgets(route, (tester) async {
         await _pumpAt(tester, route);
@@ -337,7 +358,7 @@ var _musicNow = DateTime(2026, 11, 18, 10);
 /// 끝내면 `!timersPending`으로 떨어진다. 시계를 밀어 끝 상태로 세운다.
 Future<void> _finishMusic(WidgetTester tester) async {
   _musicNow = _musicNow.add(const Duration(seconds: 14));
-  await tester.pump(CardMusicController.pollInterval);
+  await tester.pump(CardMusicController.firstInterval);
   await tester.pump();
 }
 
@@ -346,7 +367,11 @@ late GoRouter _router;
 
 /// 상세에 띄운 카드. ⚠️ **가짜 저장소에 실제로 있는 것**이어야 한다 — 지어낸
 /// 번호를 쓰면 고치기·지우기가 `notFound`로 떨어진다.
-late RecordCard _card;
+late RecordCardSummary _card;
+
+/// 그 카드 **전부**. 수정 라우트가 `extra`로 요구한다 — 상세에서 들어오는
+/// 길이 유일하고, 그 화면은 8-1로 받은 카드를 들고 있다.
+late RecordCard _full;
 
 /// `⋮`를 열고 한 줄을 누른다.
 Future<void> _openMenu(WidgetTester tester, String item) async {
@@ -378,7 +403,7 @@ Future<void> _reachReview(WidgetTester tester) async {
 Future<ProviderContainer> _pumpDetail(
   WidgetTester tester, {
   Duration delay = Duration.zero,
-  int? cardId,
+  String? cardId,
 }) async {
   final container = await _pumpAt(tester, AppRoutes.recordCard, delay: delay);
 
@@ -386,18 +411,21 @@ Future<ProviderContainer> _pumpDetail(
   // 네트워크를 탄다.
   // ⚠️ **31일을 넘기지 않는다** — 가짜도 진짜와 같은 규칙으로 거절한다
   // (`RecordCardRepository.maxRangeDays`).
-  final all = await _cards.byDateRange(
-    from: _today.subtract(const Duration(days: 25)),
-    to: _today,
+  final all = cardsOf(
+    await _cards.runsInRange(
+      from: _today.subtract(const Duration(days: 25)),
+      to: _today,
+    ),
   );
   _card = cardId == null
-      ? all.firstWhere((c) => c.photos.isEmpty)
+      // 사진이 없으면 썸네일도 없다 — 주소를 받으러 나가지 않는다.
+      ? all.firstWhere((c) => c.thumbnailUrl == null)
       : all.firstWhere((c) => c.id == cardId);
 
-  _router.push(
-    AppRoutes.recordCardDetailOf(_card.id, mine: true),
-    extra: _card,
-  );
+  _full = await _cards.detailOf(_card.id);
+
+  // ⚠️ **번호만 넘긴다.** 상세가 8-1로 다시 읽고 `isMine`도 거기서 온다.
+  _router.push(AppRoutes.recordCardDetailOf(_card.id));
   await tester.pumpAndSettle();
   expect(find.byType(CardDetailPage), findsOne);
   return container;
@@ -454,8 +482,14 @@ Future<ProviderContainer> _pumpAt(
 /// 삭제만 느린 저장소. 나머지는 그대로 넘긴다.
 class _SlowDelete implements RecordCardRepository {
   @override
-  Future<List<RecordCard>> byUser({required String userId, int? limit}) =>
-      _inner.byUser(userId: userId, limit: limit);
+  Future<RecordCardListPage> cardsOf({
+    required String userId,
+    int? limit,
+    String? cursor,
+  }) => _inner.cardsOf(userId: userId, limit: limit, cursor: cursor);
+
+  @override
+  Future<RecordCard> detailOf(String cardId) => _inner.detailOf(cardId);
 
   _SlowDelete(this._inner, this._delay);
 
@@ -463,16 +497,16 @@ class _SlowDelete implements RecordCardRepository {
   final Duration _delay;
 
   @override
-  Future<void> delete(int cardId) async {
+  Future<void> delete(String cardId) async {
     if (_delay > Duration.zero) await Future<void>.delayed(_delay);
     return _inner.delete(cardId);
   }
 
   @override
-  Future<List<RecordCard>> byDateRange({
+  Future<List<ComposableRecord>> runsInRange({
     required DateTime from,
     required DateTime to,
-  }) => _inner.byDateRange(from: from, to: to);
+  }) => _inner.runsInRange(from: from, to: to);
 
   @override
   Future<RecordCard> create(NewRecordCard card) => _inner.create(card);
@@ -481,11 +515,7 @@ class _SlowDelete implements RecordCardRepository {
   Future<RecordCard> update(EditRecordCard card) => _inner.update(card);
 
   @override
-  Future<MusicGeneration> musicOf(int cardId) => _inner.musicOf(cardId);
-
-  @override
-  Future<MusicGeneration> requestMusic(int cardId) =>
-      _inner.requestMusic(cardId);
+  Future<void> retryMusic(String cardId) => _inner.retryMusic(cardId);
 }
 
 class _Cropper implements ImageCropper {

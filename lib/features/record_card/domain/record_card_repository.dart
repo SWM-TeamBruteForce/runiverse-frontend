@@ -1,7 +1,9 @@
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_list_item.dart';
+import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 
 /// 기록카드를 읽는다.
 ///
@@ -23,34 +25,70 @@ abstract interface class RecordCardRepository {
   /// 기기에서는 400**이 나는 구간이 생긴다.
   static const maxRangeDays = 31;
 
-  /// 날짜 구간의 카드 전부. [from]·[to]는 KST 달력 날짜이고 **양 끝을 포함**한다.
+  /// 날짜 구간의 **러닝 기록과 그 기록에 쓴 카드**.
   ///
-  /// 결과는 **시작 시각 오름차순**이고, 없으면 **빈 목록**이다 — 오류가 아니다.
-  Future<List<RecordCard>> byDateRange({
+  /// [from]·[to]는 KST 달력 날짜이고 **양 끝을 포함**한다. 결과는 **시작 시각
+  /// 오름차순**이고, 없으면 **빈 목록**이다 — 오류가 아니다.
+  ///
+  /// ## ⚠️ 카드만 묻는 길이 없다
+  ///
+  /// 서버에 카드 목록 API가 없다. 달력은 **러닝 기록 목록(7-1) 하나**로 카드
+  /// 유무까지 받는다(연동 가이드 1절) — 묶음 6까지 달마다 던졌던 두 요청이
+  /// 하나로 줄었다.
+  ///
+  /// 그래서 돌려주는 카드는 **요약**이다([RecordCardSummary]). 회고·사진·
+  /// 파티원·음악은 [detailOf]로 따로 받는다.
+  ///
+  /// 내 비공개 카드도 포함된다 — 기록카드 탭은 내가 내 것을 보는 자리다.
+  Future<List<ComposableRecord>> runsInRange({
     required DateTime from,
     required DateTime to,
   });
 
-  /// **이 사람의 공개된 카드.** 프로필 그리드와 전체 보기가 읽는다(설계 6-7).
+  /// **그 사람의 기록카드 한 페이지** (10-3). 프로필 그리드와 전체 보기가
+  /// 읽는다.
   ///
-  /// 결과는 **최신순**(시작 시각 내림차순)이고, 없으면 **빈 목록**이다 —
-  /// 오류가 아니다. 달력([byDateRange])이 오름차순인 것과 반대다. 달력은 칸을
-  /// 날짜로 채우고, 그리드는 **최근 것이 위**다.
+  /// 결과는 **카드 생성 최신순**이고, 없으면 빈 페이지다 — 오류가 아니다.
+  /// 달력([runsInRange])이 오름차순인 것과 반대다: 달력은 칸을 날짜로 채우고
+  /// 그리드는 **최근 것이 위**다.
   ///
   /// ## ⚠️ 거르는 것은 서버다
   ///
-  /// 비공개 카드는 **응답에 오지 않는다.** 앱이 거르면 "안 보여야 할 카드가
-  /// 이미 기기에 와 있다"는 뜻이 되고, 내려받은 뒤 가리는 것은 가린 것이
-  /// 아니다. 내 프로필에서도 비공개는 안 보인다(사용자 결정) — 나만 보는
-  /// 카드를 보는 자리는 기록카드 탭이다.
+  /// 보는 사람과 작성자의 관계로 서버가 인가를 적용한다(연동 가이드 5절) —
+  /// 앱은 받은 것을 그대로 세운다. 앱이 거르면 "안 보여야 할 카드가 이미
+  /// 기기에 와 있다"는 뜻이 되고, 내려받은 뒤 가리는 것은 가린 것이 아니다.
   ///
-  /// ## ⚠️ [limit]이 `int?`인 이유
+  /// **본인에게는 비공개 카드도 온다**(사용자 결정 2026-11-24). 항목에
+  /// `visibility`가 없어 앱이 가려낼 근거도 없다 — 2026-11-19의 "비공개는
+  /// 프로필에 안 보인다"는 그래서 철회됐다.
   ///
-  /// `GET /users/{userId}/record-cards`가 기간·커서를 받는지, 상한이 몇인지
-  /// **아직 모른다**(`docs/notes/2026-11-16-record-card-backend-questions.md`
-  /// 1-3번). 그리드는 7장만 묻고(6장 + "더 있나" 한 장), 전체 보기는 주지
-  /// 않는다 — 서버 기본값에 맡긴다. **커서가 정해지면 여기서 이어 받는다.**
-  Future<List<RecordCard>> byUser({required String userId, int? limit});
+  /// ## ⚠️ 커서로 이어 받는다
+  ///
+  /// [limit]은 서버 기본값 20, 최대 50이다(넘기면 50으로 깎인다). [cursor]를
+  /// 주면 그다음부터 오고, `RecordCardListPage.nextCursor`가 `null`이면 끝이다.
+  /// 1 미만이나 잘못된 커서는 `400`이다.
+  ///
+  /// 내 프로필도 같은 경로다 — `GET /users/me`에서 받은 내 번호를 넣는다.
+  Future<RecordCardListPage> cardsOf({
+    required String userId,
+    int? limit,
+    String? cursor,
+  });
+
+  /// 카드 한 장 전부 — 경로·지표·파티원·음악까지(8-1).
+  ///
+  /// ## ⚠️ 내 카드와 남의 공개 카드가 같은 길이다
+  ///
+  /// 서버가 보는 사람과의 관계로 인가를 적용하고 [RecordCard.isMine]으로
+  /// 답한다. 앱이 "내 것인지"를 따로 알아낼 필요가 없다 — 묶음 6에서 라우트에
+  /// `mine` 쿼리를 실어 보냈던 것은 이 응답이 없을 때의 임시였다.
+  ///
+  /// ## ⚠️ `404`는 한 가지다
+  ///
+  /// 삭제·권한 없음·작성자 탈퇴를 **같은 응답으로** 묶는다(가이드 2절).
+  /// 갈라 보이면 없는 카드의 작성자가 탈퇴했는지를 남에게 알려 주는 셈이다.
+  /// 화면은 "찾을 수 없거나 볼 수 없어요"로 안내한다.
+  Future<RecordCard> detailOf(String cardId);
 
   /// 카드를 만든다. **만들어진 카드를 그대로 돌려준다** — 부르는 쪽이 바로
   /// 상세로 보내야 하고, 상세 라우트가 카드를 `extra`로 요구한다.
@@ -79,37 +117,28 @@ abstract interface class RecordCardRepository {
   ///
   /// 없는 카드면 [RecordCardFailure.notFound]로 던진다 — 이미 지워진 것을 또
   /// 지우려 한 것이다.
-  Future<void> delete(int cardId);
+  Future<void> delete(String cardId);
 
-  /// 이 카드의 음악이 어디까지 갔나.
+  /// **못 만든 곡을 다시 만들어 달라고 한다** (9-6).
   ///
-  /// ## ⚠️ 붙일 엔드포인트가 **하나도 없다**
+  /// ## ⚠️ 상태를 돌려주지 않는다
   ///
-  /// 생성 요청·재요청·상태 조회가 3차 명세의 어디에도 없다
-  /// (`docs/notes/2026-11-16-record-card-backend-questions.md` 4번). 그래서
-  /// 지금은 가짜만 답한다.
+  /// 서버는 `204`만 준다. 어디까지 갔는지는 **상세(8-1)를 다시 읽어** 본다 —
+  /// 음악이 카드 응답에 실려 오므로 따로 묻는 길이 없다(연동 가이드 4절).
   ///
-  /// ## ⚠️ 카드 응답에 싣지 않고 따로 묻는다
+  /// ## ⚠️ 실패한 곡이 없어도 성공한다
   ///
-  /// 음악이 **카드 응답에 실릴지, 따로 조회할지도 모른다.** 어디에 올지 모르는
-  /// 값을 [RecordCard]의 필드로 지어 넣으면, 따로 오는 것으로 정해지는 날
-  /// 도메인과 화면을 다시 짓는다. 따로 묻는 쪽은 그 반대로 — 카드에 실려 오면
-  /// 이 메서드가 **이미 받은 값을 돌려주는 것**으로 줄어든다.
+  /// 서버가 `FAILED`인 곡만 골라 다시 건다. 하나도 없으면 아무것도 하지 않고
+  /// `204`다 — 화면이 "재요청할 것이 없다"를 따로 가릴 필요가 없다.
   ///
-  /// 한 번도 요청하지 않았으면 [MusicStatus.none]이다 — 오류가 아니다.
-  /// 없는 카드면 [RecordCardFailure.notFound]로 던진다.
-  Future<MusicGeneration> musicOf(int cardId);
-
-  /// **전곡을** 만들어 달라고 한다. 처음 만드는 것과 다시 만드는 것이 같다.
+  /// ## ⚠️ 기본곡도 함께 바뀐다
   ///
-  /// ## ⚠️ 곡 하나만 다시 만드는 길이 없다
+  /// 사진 곡 하나만 다시 걸어도 결과가 오면 **기본곡이 교체된다**(가이드 4절).
+  /// 이미 완료된 기본곡은 기다리는 동안 기존 주소로 틀 수 있고, 결과가
+  /// 실패하면 `FAILED`로 바뀔 수 있다.
   ///
-  /// 상태가 묶음 하나에 하나라서(설계 3절) 1곡만 실패해도 카드 전체가
-  /// [MusicStatus.failed]이고, 다시 만들기는 전곡이다.
-  ///
-  /// 돌려주는 것은 **요청 직후 상태**([MusicStatus.queued])다 — 부르는 쪽이
-  /// 바로 줄을 바꿔 세워야 하고, 다시 묻는 것은 그다음 일이다.
-  Future<MusicGeneration> requestMusic(int cardId);
+  /// 남의 카드에 보내면 `404`다.
+  Future<void> retryMusic(String cardId);
 }
 
 /// 카드를 못 읽은 이유.

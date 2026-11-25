@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
+import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
@@ -40,6 +42,11 @@ void main() {
           ),
           runRecordRepositoryProvider.overrideWithValue(
             FakeRunRecordRepository(today: DateTime(2026, 9, 3)),
+          ),
+          // ⚠️ **기록카드 저장소도 가짜로 둔다.** 2026-11-24에 진짜가
+          // 꽂혀서, 안 두면 dio 가 서버 주소를 찾다 죽는다.
+          recordCardRepositoryProvider.overrideWithValue(
+            FakeRecordCardRepository(today: DateTime(2026, 11, 16)),
           ),
           // 셸이 앱 스트림을 만들고, 로그인돼 있으면 첫
           // 페이지도 받는다. 진짜를 두면 dio가 서버 주소를 찾다 죽는다.

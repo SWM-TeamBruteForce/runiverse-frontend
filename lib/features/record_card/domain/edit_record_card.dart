@@ -18,8 +18,8 @@ class EditCardPhoto {
     this.caption,
   }) : savedId = null;
 
-  /// `record_card_image_id`. 새 사진이면 `null`이다.
-  final int? savedId;
+  /// `record_card_image_id`(UUID 문자열). 새 사진이면 `null`이다.
+  final String? savedId;
 
   /// 올릴 파일. 이미 있던 사진이면 `null`이다.
   final String? path;
@@ -61,7 +61,7 @@ class EditRecordCard {
     required this.photos,
   });
 
-  final int cardId;
+  final String cardId;
   final RecordCardActivity activity;
   final RecordCardVisibility visibility;
   final String reviewText;

@@ -11,8 +11,9 @@ import 'package:runiverse/features/record_card/domain/card_photo_draft.dart';
 import 'package:runiverse/features/record_card/domain/card_thumbnail_maker.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_list_item.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
@@ -21,6 +22,8 @@ import 'package:runiverse/features/profile/presentation/profile_cards_provider.d
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_save_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
+
+import 'record_card_fixtures.dart';
 
 /// 저장 — 자르고, 썸네일을 만들고, 카드를 만든다 (설계 6-3 · 6-4).
 void main() {
@@ -184,9 +187,8 @@ void main() {
       final repository = FakeRecordCardRepository(today: _today);
 
       final card = await repository.create(_newCard());
-      final sameDay = await repository.byDateRange(
-        from: card.day,
-        to: card.day,
+      final sameDay = cardsOf(
+        await repository.runsInRange(from: card.day, to: card.day),
       );
 
       expect(sameDay.map((c) => c.id), contains(card.id));
@@ -195,9 +197,11 @@ void main() {
     test('⚠️ 만든 카드의 번호가 목 데이터와 겹치지 않는다', () async {
       // 겹치면 달력이 두 장을 한 장으로 보고, 상세가 엉뚱한 것을 연다.
       final repository = FakeRecordCardRepository(today: _today);
-      final existing = await repository.byDateRange(
-        from: _today.subtract(const Duration(days: 30)),
-        to: _today,
+      final existing = cardsOf(
+        await repository.runsInRange(
+          from: _today.subtract(const Duration(days: 30)),
+          to: _today,
+        ),
       );
 
       final a = await repository.create(_newCard());
@@ -305,7 +309,7 @@ void main() {
 
       expect(world.repository.creates, 0);
       expect(world.repository.updates, 1);
-      expect(world.repository.lastEdit!.cardId, 7);
+      expect(world.repository.lastEdit!.cardId, 'card-7');
     });
 
     // ⚠️ Review Focus 2
@@ -336,7 +340,7 @@ void main() {
 
       final sent = world.repository.lastEdit!.photos;
       expect(sent, hasLength(2));
-      expect(sent.first.savedId, 70);
+      expect(sent.first.savedId, 'img-70');
       expect(sent.first.path, isNull);
       expect(sent.last.savedId, isNull);
       expect(sent.last.path, isNotNull);
@@ -417,7 +421,6 @@ NewRecordCard _newCard() => NewRecordCard(
   visibility: RecordCardVisibility.friends,
   reviewText: '좋았다',
   photos: const [],
-  musicEnabled: true,
 );
 
 const _route = RouteArt(
@@ -603,9 +606,13 @@ class _Repository implements RecordCardRepository {
   var userCalls = 0;
 
   @override
-  Future<List<RecordCard>> byUser({required String userId, int? limit}) async {
+  Future<RecordCardListPage> cardsOf({
+    required String userId,
+    int? limit,
+    String? cursor,
+  }) async {
     userCalls++;
-    return const [];
+    return RecordCardListPage.empty;
   }
 
   _Repository({this.delay = Duration.zero, this.failWith});
@@ -616,7 +623,7 @@ class _Repository implements RecordCardRepository {
   var creates = 0;
 
   @override
-  Future<List<RecordCard>> byDateRange({
+  Future<List<ComposableRecord>> runsInRange({
     required DateTime from,
     required DateTime to,
   }) async => const [];
@@ -636,7 +643,11 @@ class _Repository implements RecordCardRepository {
 
   /// 이 테스트는 지우지 않는다.
   @override
-  Future<void> delete(int cardId) =>
+  Future<RecordCard> detailOf(String cardId) =>
+      throw UnsupportedError('이 테스트는 상세를 열지 않는다');
+
+  @override
+  Future<void> delete(String cardId) =>
       throw UnsupportedError('이 테스트는 카드를 지우지 않는다');
 
   @override
@@ -645,22 +656,17 @@ class _Repository implements RecordCardRepository {
     if (delay > Duration.zero) await Future<void>.delayed(delay);
     final failure = failWith;
     if (failure != null) throw RecordCardException(failure);
-    return _built(card, id: 7000 + creates);
+    return _built(card, id: 'new-$creates');
   }
 
   /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
   @override
-  Future<MusicGeneration> musicOf(int cardId) =>
-      throw UnsupportedError('이 테스트는 음악을 보지 않는다');
-
-  /// 이 테스트는 **음악을 보지 않는다.** 불리면 테스트가 잘못 세워진 것이다.
-  @override
-  Future<MusicGeneration> requestMusic(int cardId) =>
-      throw UnsupportedError('이 테스트는 음악을 만들지 않는다');
+  Future<void> retryMusic(String cardId) =>
+      throw UnsupportedError('이 테스트는 음악을 다시 만들지 않는다');
 }
 
 /// `_Repository`가 만드는 카드. Fake와 같은 모양이어야 화면이 같게 그린다.
-RecordCard _built(NewRecordCard card, {required int id}) => RecordCard(
+RecordCard _built(NewRecordCard card, {required String id}) => RecordCard(
   id: id,
   runningRecordId: card.record.id,
   startedAt: card.record.startedAt,
@@ -670,7 +676,7 @@ RecordCard _built(NewRecordCard card, {required int id}) => RecordCard(
   photos: [
     for (var i = 0; i < card.photos.length; i++)
       RecordCardPhoto(
-        id: id * 10 + i,
+        id: '$id-img$i',
         url: card.photos[i].path,
         thumbnailUrl: card.photos[i].thumbnailPath,
         caption: card.photos[i].caption,
@@ -694,7 +700,7 @@ RecordCard _edited(EditRecordCard card) => RecordCard(
   photos: [
     for (var i = 0; i < card.photos.length; i++)
       RecordCardPhoto(
-        id: card.photos[i].savedId ?? 9000 + i,
+        id: 'img-${card.photos[i].savedId ?? 9000 + i}',
         url: card.photos[i].path ?? 'https://x/$i.jpg',
         caption: card.photos[i].caption,
       ),
@@ -732,7 +738,7 @@ class _EditWorld {
     }
   }
 
-  static const cardId = 7;
+  static const cardId = 'card-7';
 
   final cropper = _Cropper();
   final _Repository repository;
@@ -768,7 +774,7 @@ RecordCard _savedCard({int photos = 0}) => RecordCard(
   reviewText: '여행에서 뛰었다',
   photos: [
     for (var i = 0; i < photos; i++)
-      RecordCardPhoto(id: 70 + i, url: 'https://x/$i.jpg'),
+      RecordCardPhoto(id: 'img-${70 + i}', url: 'https://x/$i.jpg'),
   ],
   route: RouteArt.empty,
   distanceMeters: 3050,

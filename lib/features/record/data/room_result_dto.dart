@@ -23,6 +23,12 @@ abstract final class RoomResultDto {
 
     return RunDetail(
       runningRoomId: results['runningRoomId'] as int,
+      // ⚠️ **오프셋 없는 KST다.** `.toUtc()`를 붙이면 9시간 밀려 기록카드가
+      // 다른 날짜로 열린다. 서버가 안 주면 `null`이다.
+      startedAt: switch (results['startedAt']) {
+        final String at => DateTime.tryParse(at),
+        _ => null,
+      },
       // ⚠️ 두 API가 총 거리를 각각 준다. **18번 쪽이 구간과 맞는 값**이다
       // (마지막 10m 경계에서 끊은 값). 17번은 기록 그대로라 미세하게 다를
       // 수 있어, 구간 합계와 어긋나지 않도록 18번을 먼저 본다.

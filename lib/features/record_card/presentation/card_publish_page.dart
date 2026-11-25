@@ -7,12 +7,11 @@ import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
 import 'package:runiverse/features/record_card/domain/card_draft.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/card_music.dart';
 import 'package:runiverse/features/record_card/domain/music_inputs.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
-import 'package:runiverse/features/record_card/presentation/card_music_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_save_provider.dart';
 import 'package:runiverse/features/record_card/presentation/visibility_label.dart';
 
@@ -38,7 +37,7 @@ class CardPublishPage extends ConsumerWidget {
   const CardPublishPage({this.cardId, this.onSaved, super.key});
 
   /// 수정 중인 카드 번호. `null`이면 새 카드다.
-  final int? cardId;
+  final String? cardId;
 
   /// 만든 카드를 어디로 보낼까. **라우트를 아는 쪽이 정한다**(다음 Task) —
   /// 여기서 `context.push`를 부르면 이 화면이 라우터에 매여 테스트가 무거워진다.
@@ -135,20 +134,14 @@ class CardPublishPage extends ConsumerWidget {
               const SizedBox(height: AppSpacing.space1),
               _Warning(warning),
             ],
-            // ⚠️ **수정에서는 음악 블록을 숨긴다.** `RecordCard`에 음악
-            // 상태가 없어(묶음 5) 기본값 `true`를 보여 주게 되는데, 음악을
-            // **끄고 만든 카드**를 고치러 온 사람에게 켜진 스위치가 서고
-            // 저장하면 거절했던 생성이 수정 한 번으로 켜진다. 모르는 상태를
-            // 조작 가능한 컨트롤로 지어내지 않는다 — 묶음 5가 진짜 상태와
-            // 함께 되살린다.
+            // ⚠️ **수정에서는 숨긴다.** 고치러 온 사람에게 "만듭니다"는 낡은
+            // 말이다 — 음악은 이미 있거나 만들어지는 중이고, 그 카드에
+            // 무슨 일이 생기는지는 위의 `_musicWarning`이 말한다.
             if (draft.editing == null) ...[
               const SizedBox(height: AppSpacing.space5),
               Divider(color: colors.bgSurface, height: 1),
               const SizedBox(height: AppSpacing.space5),
-              _MusicToggle(
-                enabled: draft.musicEnabled,
-                onChanged: saving ? null : controller.setMusicEnabled,
-              ),
+              const _MusicNote(),
             ],
           ],
         ),
@@ -171,16 +164,14 @@ class CardPublishPage extends ConsumerWidget {
     final editing = draft.editing;
     if (editing == null) return null;
 
-    // ⚠️ 상태를 못 읽었거나 아직 받는 중이면 **아무 말도 하지 않는다.** 모르는
-    // 것을 경고로 지어내지 않는다.
-    if (ref.watch(cardMusicProvider(editing.id)) case CardMusicData(
-      :final generation,
-    )) {
-      if (generation.isWorking) return AppStrings.recordCardMusicWorkingEdit;
-      if (generation.status == MusicStatus.succeeded &&
-          MusicInputs.ofDraft(draft) != MusicInputs.ofCard(editing)) {
-        return AppStrings.recordCardMusicRegenerate;
-      }
+    // ⚠️ **고치러 들어올 때 받은 카드가 든 곡을 본다.** 묶음 5까지는 음악을
+    // 따로 조회해서 "아직 받는 중"이라는 구간이 있었는데, 지금은 곡이 카드
+    // 응답에 실려 와 그 구간이 없다 — 카드가 있으면 곡도 있다(또는 서버가
+    // 아직 안 줬다는 것을 `null`로 안다).
+    if (editing.isMusicWorking) return AppStrings.recordCardMusicWorkingEdit;
+    if (editing.baseMusic?.status == MusicStatus.completed &&
+        MusicInputs.ofDraft(draft) != MusicInputs.ofCard(editing)) {
+      return AppStrings.recordCardMusicRegenerate;
     }
     return null;
   }
@@ -308,14 +299,18 @@ class _Warning extends StatelessWidget {
   }
 }
 
-/// AI 음악을 만들까. **기본은 켜짐**이고, 무엇을 얼마나 만드는지 아래에 둔다.
-class _MusicToggle extends StatelessWidget {
-  const _MusicToggle({required this.enabled, required this.onChanged});
-
-  final bool enabled;
-
-  /// `null`이면 저장이 도는 중이다 — 바꿔도 이미 보낸 값에 반영되지 않는다.
-  final ValueChanged<bool>? onChanged;
+/// 저장하면 음악이 만들어진다고 **알리는 줄.** 고를 것이 없다.
+///
+/// ## ⚠️ 스위치가 아니다
+///
+/// 서버는 카드를 확정할 때 **늘** 기본곡과 사진별 곡 생성을 요청한다(연동
+/// 가이드 3절: "현재 API는 음악 생성을 항상 요청하므로"). 끌 수 있는 것처럼
+/// 보여 주면 **끄고 저장한 사람이 음악이 만들어지는 것을 보게 된다.**
+///
+/// 그래도 글은 남긴다 — 지우면 저장하는 사람이 **모르는 사이에** AI가 회고와
+/// 사진을 읽어 곡을 만든다. 고를 수 없는 것과 알리지 않는 것은 다르다.
+class _MusicNote extends StatelessWidget {
+  const _MusicNote();
 
   @override
   Widget build(BuildContext context) {
@@ -324,18 +319,9 @@ class _MusicToggle extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                AppStrings.recordCardPublishMusicTitle,
-                style: AppTypographyV2.body07.copyWith(
-                  color: colors.textPrimary,
-                ),
-              ),
-            ),
-            Switch(value: enabled, onChanged: onChanged),
-          ],
+        Text(
+          AppStrings.recordCardPublishMusicTitle,
+          style: AppTypographyV2.body07.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: AppSpacing.space2),
         Text(

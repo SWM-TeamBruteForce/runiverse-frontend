@@ -154,4 +154,96 @@ void main() {
       }
     });
   });
+
+  group('서버가 준 경로의 비를 되찾는다', () {
+    RouteArt art(List<List<List<double>>> strokes) => RouteArt.fromNormalized([
+      for (final stroke in strokes)
+        [for (final p in stroke) RoutePoint(p[0], p[1])],
+    ]);
+
+    test('⚠️ 짧은 축이 0~1을 다 쓰지 않으면 그 비가 답이다', () {
+      // 서버가 비를 보존해 정규화한 경우다. 가로가 세로의 두 배다.
+      expect(
+        art([
+          [
+            [0.0, 0.0],
+            [1.0, 0.5],
+          ],
+        ]).aspect,
+        closeTo(2.0, 1e-9),
+      );
+    });
+
+    test('⚠️ 두 축이 다 0~1이면 1.0이다 — 어차피 쓸 기본값이다', () {
+      // 서버가 축마다 따로 늘린 경우다. 되찾을 비가 없고, 이 값이
+      // 기본값보다 나쁠 수가 없다.
+      expect(
+        art([
+          [
+            [0.0, 0.0],
+            [1.0, 1.0],
+          ],
+        ]).aspect,
+        closeTo(1.0, 1e-9),
+      );
+    });
+
+    test('⚠️ 조각이 여러 개면 전부 합쳐서 잰다', () {
+      // 조각마다 재면 한 카드의 경로가 조각별로 다른 비로 그려진다.
+      expect(
+        art([
+          [
+            [0.0, 0.4],
+            [0.2, 0.5],
+          ],
+          [
+            [0.8, 0.45],
+            [1.0, 0.6],
+          ],
+        ]).aspect,
+        closeTo(5.0, 1e-9),
+      );
+    });
+
+    test('⚠️ 한 축이 납작하면 100:1로 본다 — 0으로 나누지 않는다', () {
+      // 남북 직선. `normalizeRoute`가 쓰는 값과 같아야 같은 모양으로 선다.
+      expect(
+        art([
+          [
+            [0.5, 0.0],
+            [0.5, 1.0],
+          ],
+        ]).aspect,
+        closeTo(0.01, 1e-9),
+      );
+      // 동서 직선.
+      expect(
+        art([
+          [
+            [0.0, 0.5],
+            [1.0, 0.5],
+          ],
+        ]).aspect,
+        closeTo(100.0, 1e-9),
+      );
+    });
+
+    test('⚠️ 한 점으로 뭉친 경로는 1.0이다', () {
+      // 트레드밀이나 GPS를 못 받은 러닝이다.
+      expect(
+        art([
+          [
+            [0.5, 0.5],
+            [0.5, 0.5],
+          ],
+        ]).aspect,
+        closeTo(1.0, 1e-9),
+      );
+    });
+
+    test('빈 조각만 오면 그릴 것이 없다', () {
+      expect(RouteArt.fromNormalized(const []).isEmpty, isTrue);
+      expect(RouteArt.fromNormalized(const [[]]).isEmpty, isTrue);
+    });
+  });
 }

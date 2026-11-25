@@ -1,12 +1,16 @@
 import 'dart:math' as math;
 
+import 'package:runiverse/features/record/domain/run_record.dart';
+import 'package:runiverse/features/record_card/domain/card_music.dart';
+import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
 import 'package:runiverse/features/record_card/domain/music_inputs.dart';
 import 'package:runiverse/features/record_card/domain/new_record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
+import 'package:runiverse/features/record_card/domain/record_card_list_item.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
+import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
 import 'package:runiverse/features/session/domain/geo_point.dart';
@@ -66,8 +70,20 @@ class FakeRecordCardRepository implements RecordCardRepository {
   /// 물어본 구간들. 무엇을 받아 왔는지 보는 데 쓴다.
   final queries = <({DateTime from, DateTime to})>[];
 
+  /// 러닝 기록 목록 + 카드 유무 (7-1).
+  ///
+  /// ## ⚠️ 맞춰 붙이는 일을 **여기서** 한다
+  ///
+  /// 묶음 6까지는 화면이 `joinCards`로 붙였다. 서버가 한 응답에 싣기로 하면서
+  /// 그 일은 **서버의 것**이 됐고, 가짜가 서버 자리에 선다.
+  ///
+  /// ## ⚠️ 카드 없는 러닝도 낸다
+  ///
+  /// 달력은 **뛰었는데 카드를 안 쓴 날**에 운동화를 둔다(설계 6-1). 카드가
+  /// 있는 날만 내면 그 길을 눈으로 볼 수 없다. [_runOnlyOffsets] 가 그 날들을
+  /// 정한다 — 난수로 두면 "방금 그 화면"을 다시 못 본다.
   @override
-  Future<List<RecordCard>> byDateRange({
+  Future<List<ComposableRecord>> runsInRange({
     required DateTime from,
     required DateTime to,
   }) async {
@@ -88,36 +104,140 @@ class FakeRecordCardRepository implements RecordCardRepository {
     final end = DateTime(to.year, to.month, to.day);
     queries.add((from: start, to: end));
 
-    return [
+    bool inRange(DateTime day) => !day.isBefore(start) && !day.isAfter(end);
+
+    final rows = <ComposableRecord>[
       for (final card in _live())
-        if (!card.day.isBefore(start) && !card.day.isAfter(end)) card,
-    ]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+        if (inRange(card.day))
+          ComposableRecord(
+            record: _runOf(card),
+            existingCard: summaryOf(card),
+          ),
+    ];
+
+    final withCards = {for (final row in rows) row.day};
+    for (final back in _runOnlyOffsets) {
+      final day = DateTime(_today.year, _today.month, _today.day - back);
+      if (!inRange(day) || withCards.contains(day)) continue;
+      rows.add(ComposableRecord(record: _runOnly(day, back)));
+    }
+
+    return rows
+      ..sort((a, b) => a.record.startedAt.compareTo(b.record.startedAt));
   }
 
-  /// 누가 무엇을 물었나. 그리드가 7장만 묻는지 보는 데 쓴다.
-  final userQueries = <({String userId, int? limit})>[];
+  /// 카드를 안 쓴 러닝이 있는 날 — **오늘로부터 며칠 전**인가.
+  static const _runOnlyOffsets = [1, 4, 9, 17, 23, 38, 52];
 
+  /// 달력 칸이 쓰는 요약. **카드 전부가 아니다**(연동 가이드 1절).
+  ///
+  /// ⚠️ **경로를 50점으로 줄이지 않는다.** 서버는 줄여 보내지만, 줄이는 쪽을
+  /// 가짜가 흉내내면 "기기에서만 선이 거칠다"가 아니라 그 반대 — 가짜에서만
+  /// 거칠어진다. 점 수는 그리는 쪽이 견디면 되는 값이다.
+  static RecordCardSummary summaryOf(RecordCard card) => RecordCardSummary(
+    id: card.id,
+    startedAt: card.startedAt,
+    distanceMeters: card.distanceMeters,
+    thumbnailUrl: card.thumbnailUrl,
+    route: card.route,
+    activity: card.activity,
+  );
+
+  /// 카드가 매달린 러닝 한 건. 카드가 든 값을 그대로 쓴다.
+  static RunRecord _runOf(RecordCard card) => RunRecord(
+    id: card.runningRecordId,
+    // ⚠️ **방 번호를 기록 번호로 쓴다.** 가짜에는 방이 따로 없고, 러닝 요약이
+    // `runningRoomId`로 그 줄을 찾으므로(가이드 6절) 값이 있어야 한다.
+    runningRoomId: card.runningRecordId,
+    startedAt: card.startedAt,
+    distanceMeters: card.distanceMeters,
+    duration: card.duration,
+    averagePace: card.averagePace,
+    playerCount: card.runners.isEmpty ? 1 : card.runners.length + 1,
+  );
+
+  /// 카드를 안 쓴 러닝 한 건.
+  static RunRecord _runOnly(DateTime day, int seed) {
+    final startedAt = DateTime(day.year, day.month, day.day, 7, 20);
+    final meters = 3000 + seed * 137;
+    final seconds = (meters / 1000 * 330).round();
+    return RunRecord(
+      id: 50000 + seed,
+      runningRoomId: 50000 + seed,
+      startedAt: startedAt,
+      distanceMeters: meters,
+      duration: Duration(seconds: seconds),
+      averagePace: const Duration(minutes: 5, seconds: 30),
+      playerCount: 1,
+    );
+  }
+
+  /// 누가 무엇을 물었나. 그리드가 여섯 장만 묻는지 보는 데 쓴다.
+  final userQueries = <({String userId, int? limit, String? cursor})>[];
+
+  /// 한 번에 줄 수 있는 최대. 서버와 같은 값이다(연동 가이드 5절 3번).
+  static const maxLimit = 50;
+
+  /// 서버가 쓰는 기본값.
+  static const defaultLimit = 20;
+
+  /// 그 사람의 카드 한 페이지 (10-3).
+  ///
+  /// ⚠️ **커서는 "다음에 줄 첫 칸의 자리"다.** 카드 번호를 커서로 쓰면 그
+  /// 사이에 그 카드가 지워졌을 때 이어 받을 데를 잃는다 — 가짜는 자리로 센다.
+  ///
+  /// ⚠️ **비공개도 준다.** 본인이 보는 자리라서다(사용자 결정 2026-11-24).
+  /// 묶음 6까지는 가짜가 걸렀는데, 항목에 `visibility`가 없어 **앱이 가려낼
+  /// 근거도 없다** — 서버가 보내면 그대로 선다.
   @override
-  Future<List<RecordCard>> byUser({required String userId, int? limit}) async {
+  Future<RecordCardListPage> cardsOf({
+    required String userId,
+    int? limit,
+    String? cursor,
+  }) async {
     calls++;
 
     if (failWith != null) throw RecordCardException(failWith!);
     if (delay > Duration.zero) await Future<void>.delayed(delay);
 
-    userQueries.add((userId: userId, limit: limit));
+    userQueries.add((userId: userId, limit: limit, cursor: cursor));
 
-    // ⚠️ **가짜가 거른다 — 서버 자리이기 때문이다.** 화면이 거르면 안 보여야
-    // 할 카드가 이미 기기에 와 있다는 뜻이 된다(설계 6-7).
-    final cards =
-        [
-          for (final card in _live())
-            if (card.visibility != RecordCardVisibility.private) card,
-        ]..sort(
-          // 최신순. 달력과 반대다.
-          (a, b) => b.startedAt.compareTo(a.startedAt),
-        );
+    final from = cursor == null ? 0 : int.tryParse(cursor);
+    // 잘못된 커서와 1 미만은 `400`이다 — 진짜와 같은 규칙으로 거절한다.
+    if (from == null || from < 0) {
+      throw const RecordCardException(RecordCardFailure.invalidRequest);
+    }
+    if (limit != null && limit < 1) {
+      throw const RecordCardException(RecordCardFailure.invalidRequest);
+    }
 
-    return limit == null ? cards : cards.take(limit).toList();
+    // 넘기면 깎는다 — 거절이 아니다(가이드 5절 3번).
+    final size = (limit ?? defaultLimit).clamp(1, maxLimit);
+
+    final all = _live()
+      ..sort(
+        // 최신순. 달력과 반대다.
+        (a, b) => b.startedAt.compareTo(a.startedAt),
+      );
+
+    final page = all.skip(from).take(size).toList();
+    final next = from + page.length;
+
+    return RecordCardListPage(
+      items: [
+        for (final card in page)
+          RecordCardListItem(
+            id: card.id,
+            startedAt: card.startedAt,
+            distanceMeters: card.distanceMeters,
+            imageCount: card.photos.length,
+            thumbnailUrl: card.thumbnailUrl,
+          ),
+      ],
+      // ⚠️ **끝에 닿았으면 `null`이다.** 빈 문자열을 주면 "더 있다"로 읽혀
+      // 끝나지 않는 목록이 된다.
+      nextCursor: next < all.length ? '$next' : null,
+    );
   }
 
   /// 지금 **살아 있는** 카드 전부 — 목과 만든 것을 합치고, 고친 것으로 덮고,
@@ -142,6 +262,46 @@ class FakeRecordCardRepository implements RecordCardRepository {
   /// 몇 번 만들었나. 저장을 두 번 누르지 않았는지 보는 데 쓴다.
   var creates = 0;
 
+  /// 카드 한 장 전부 (8-1).
+  ///
+  /// ⚠️ **목 카드는 전부 내 것이다.** 달력이 내 카드를 보여 주는 화면이고,
+  /// 남의 카드를 흉내내는 것은 테스트가 [notMineIds]로 따로 지정한다.
+  @override
+  Future<RecordCard> detailOf(String cardId) async {
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (failWith != null) throw RecordCardException(failWith!);
+
+    final found = _find(cardId);
+    if (found == null) {
+      throw const RecordCardException(RecordCardFailure.notFound);
+    }
+    return _withMusic(_withMine(found, !notMineIds.contains(cardId)));
+  }
+
+  /// 남의 카드로 보이게 할 번호들. 테스트가 채운다.
+  final notMineIds = <String>{};
+
+  /// [RecordCard]에 `copyWith`가 없다 — 한 필드만 바꿔 다시 짓는다.
+  ///
+  /// `copyWith`를 더하지 않는 이유: 카드는 **서버가 주는 것을 그대로 드는**
+  /// 값이라, 앱이 한 칸씩 고칠 일이 없다. 가짜가 소유자를 흉내내는 이 자리
+  /// 하나뿐이다.
+  static RecordCard _withMine(RecordCard card, bool mine) => RecordCard(
+    id: card.id,
+    runningRecordId: card.runningRecordId,
+    startedAt: card.startedAt,
+    activity: card.activity,
+    visibility: card.visibility,
+    reviewText: card.reviewText,
+    photos: card.photos,
+    route: card.route,
+    distanceMeters: card.distanceMeters,
+    duration: card.duration,
+    averagePace: card.averagePace,
+    runners: card.runners,
+    isMine: mine,
+  );
+
   @override
   Future<RecordCard> create(NewRecordCard card) async {
     creates++;
@@ -150,9 +310,10 @@ class FakeRecordCardRepository implements RecordCardRepository {
     if (failWith != null) throw RecordCardException(failWith!);
 
     // ⚠️ **목 데이터와 번호가 겹치면 안 된다.** 겹치면 달력이 두 장을 한 장으로
-    // 보고 상세가 엉뚱한 것을 연다. 목은 `1000 +`, 사진은 `index * 10 +`을
-    // 쓰므로 한참 위에서 센다.
-    final id = _nextCardId++;
+    // 보고 상세가 엉뚱한 것을 연다. 목은 `card-`로 시작하고 여기는 `new-`라
+    // **접두사만으로 겹칠 수 없다** — 숫자로 셀 때처럼 "9000 위에서 센다"는
+    // 약속을 지킬 필요가 없다.
+    final id = 'new-${_nextCardId++}';
     final made = RecordCard(
       id: id,
       runningRecordId: card.record.id,
@@ -163,7 +324,7 @@ class FakeRecordCardRepository implements RecordCardRepository {
       photos: [
         for (var i = 0; i < card.photos.length; i++)
           RecordCardPhoto(
-            id: id * 10 + i,
+            id: '$id-img$i',
             url: card.photos[i].path,
             thumbnailUrl: card.photos[i].thumbnailPath,
             caption: card.photos[i].caption,
@@ -178,18 +339,20 @@ class FakeRecordCardRepository implements RecordCardRepository {
       runners: const [],
     );
     _created.add(made);
-    // 서버가 `musicEnabled`로 생성 요청을 건다(`NewRecordCard`). 가짜도 같은
-    // 자리에서 건다 — 저장하고 상세로 가면 줄이 `준비 중…`으로 서 있다.
-    if (card.musicEnabled) _musicRequestedAt[id] = clock();
+    // ⚠️ **늘 건다.** 서버는 카드를 확정할 때 기본곡과 사진별 곡 생성을
+    // 항상 요청한다(연동 가이드 3절) — 끄는 길이 없다. 가짜도 같은 자리에서
+    // 같이 건다. 저장하고 상세로 가면 줄이 `준비 중…`으로 서 있다.
+    _musicRequestedAt[id] = clock();
     return made;
   }
 
-  /// 다음 카드 번호. 목 데이터(`1000 +`)와 겹치지 않는 자리에서 시작한다.
-  var _nextCardId = 9000;
+  /// 만든 카드에 붙일 다음 번호. `new-1`, `new-2`로 센다 — 목 데이터는
+  /// `card-`로 시작해 겹치지 않는다.
+  var _nextCardId = 1;
 
   /// 고쳐진 카드들. **목 데이터도 고칠 수 있어야 한다** — `_all()`이 매번 목을
   /// 새로 만들어서, 여기 없으면 고친 것이 다음 조회에 되돌아간다.
-  final _edited = <int, RecordCard>{};
+  final _edited = <String, RecordCard>{};
 
   /// 몇 번 고쳤나.
   var updates = 0;
@@ -227,10 +390,7 @@ class FakeRecordCardRepository implements RecordCardRepository {
     _edited[made.id] = made;
     // ⚠️ **활성 요청을 무효화하고 전곡을 다시 만든다**(설계 3절). 입력이
     // 그대로면(공개범위만 바꿨다면) 건드리지 않는다.
-    // ⚠️ **요청 기록이 있는지로 가리면 안 된다.** 목에 심어 둔 카드는 다 된
-    // 음악을 들고도 기록이 없다 — 그러면 목 카드는 고쳐도 영영 안 다시 만든다.
-    if (_generationOf(before).status != MusicStatus.none &&
-        MusicInputs.ofEdit(card) != MusicInputs.ofCard(before)) {
+    if (MusicInputs.ofEdit(card) != MusicInputs.ofCard(before)) {
       _musicWillFail.remove(made.id);
       _musicRequestedAt[made.id] = clock();
     }
@@ -254,7 +414,7 @@ class FakeRecordCardRepository implements RecordCardRepository {
       );
     }
     return RecordCardPhoto(
-      id: before.id * 10 + 100 + index,
+      id: '${before.id}-add$index',
       url: photo.path!,
       thumbnailUrl: photo.thumbnailPath,
       caption: photo.caption,
@@ -265,13 +425,13 @@ class FakeRecordCardRepository implements RecordCardRepository {
   ///
   /// ⚠️ **목 데이터도 지울 수 있어야 한다.** `_all()`이 매번 목을 새로 만들어,
   /// 거르지 않으면 지운 카드가 다음 조회에 되살아난다.
-  final _deletedIds = <int>{};
+  final _deletedIds = <String>{};
 
   /// 몇 번 지웠나.
   var deletes = 0;
 
   @override
-  Future<void> delete(int cardId) async {
+  Future<void> delete(String cardId) async {
     deletes++;
 
     if (delay > Duration.zero) await Future<void>.delayed(delay);
@@ -291,10 +451,10 @@ class FakeRecordCardRepository implements RecordCardRepository {
   // ── 음악 흉내 (설계 8절) ───────────────────────────────────────
 
   /// 카드별 **마지막 요청 시각**. 없으면 한 번도 요청하지 않은 것이다.
-  final _musicRequestedAt = <int, DateTime>{};
+  final _musicRequestedAt = <String, DateTime>{};
 
   /// 이 요청은 끝에서 떨어뜨릴 것. [musicRequests]의 20번째다.
-  final _musicWillFail = <int>{};
+  final _musicWillFail = <String>{};
 
   /// 몇 번 만들어 달라고 했나.
   var musicRequests = 0;
@@ -302,53 +462,15 @@ class FakeRecordCardRepository implements RecordCardRepository {
   /// 몇 번 물었나. **폴링이 멈추는지 보는 데 쓴다.**
   var musicCalls = 0;
 
-  /// `QUEUED`에서 `PROCESSING`으로 넘어가는 시점.
-  static const _toProcessing = Duration(seconds: 3);
-
-  /// `PROCESSING`이 끝나는 시점. **요청 시각 기준**이다.
+  /// 요청한 곡이 다 되는 데 걸리는 시간. **요청 시각 기준**이다.
   static const _toDone = Duration(seconds: 13);
 
+  /// 못 만든 곡을 다시 만들어 달라고 한다 (9-6).
+  ///
+  /// ⚠️ **실패한 곡이 없어도 성공한다.** 진짜 서버가 `FAILED`인 곡만 골라
+  /// 다시 걸고, 하나도 없으면 아무것도 하지 않고 `204`를 준다.
   @override
-  Future<MusicGeneration> musicOf(int cardId) async {
-    musicCalls++;
-
-    if (delay > Duration.zero) await Future<void>.delayed(delay);
-    if (failWith != null) throw RecordCardException(failWith!);
-
-    final card = _find(cardId);
-    if (card == null) {
-      throw const RecordCardException(RecordCardFailure.notFound);
-    }
-
-    return _generationOf(card);
-  }
-
-  /// 지금 이 카드의 음악. **[musicOf]와 수정 판정이 같은 길을 타게** 한 곳에
-  /// 둔다 — 갈라 두면 "조회는 다 됐다는데 고쳐도 다시 안 만드는" 틈이 생긴다.
-  MusicGeneration _generationOf(RecordCard card) {
-    final requestedAt = _musicRequestedAt[card.id];
-    // 요청한 적이 없으면 목에 심어 둔 상태를 그대로 쓴다.
-    if (requestedAt == null) return _seeded(card);
-
-    final elapsed = clock().difference(requestedAt);
-    final status = switch (elapsed) {
-      _ when elapsed < _toProcessing => MusicStatus.queued,
-      _ when elapsed < _toDone => MusicStatus.processing,
-      // ⚠️ **실패도 거쳐서 온다.** 요청 즉시 실패로 떨구면 진짜와 다르다 —
-      // 큐와 처리를 지난 뒤에 실패한다.
-      _ when _musicWillFail.contains(card.id) => MusicStatus.failed,
-      _ => MusicStatus.succeeded,
-    };
-
-    return MusicGeneration(
-      cardId: card.id,
-      status: status,
-      trackCount: MusicGeneration.trackCountFor(card.photos.length),
-    );
-  }
-
-  @override
-  Future<MusicGeneration> requestMusic(int cardId) async {
+  Future<void> retryMusic(String cardId) async {
     musicRequests++;
 
     if (delay > Duration.zero) await Future<void>.delayed(delay);
@@ -367,41 +489,90 @@ class FakeRecordCardRepository implements RecordCardRepository {
       _musicWillFail.remove(cardId);
     }
     _musicRequestedAt[cardId] = clock();
+  }
 
-    return MusicGeneration(
-      cardId: cardId,
-      status: MusicStatus.queued,
-      trackCount: MusicGeneration.trackCountFor(card.photos.length),
+  /// 이 카드의 곡들을 지금 상태로 얹어 돌려준다.
+  ///
+  /// ⚠️ **상세가 음악을 싣는다**(연동 가이드 2절). 따로 묻는 길이 없으므로
+  /// 가짜도 상세에 실어 준다.
+  RecordCard _withMusic(RecordCard card) {
+    final base = _trackOf(card, 0);
+    return RecordCard(
+      id: card.id,
+      runningRecordId: card.runningRecordId,
+      startedAt: card.startedAt,
+      activity: card.activity,
+      visibility: card.visibility,
+      reviewText: card.reviewText,
+      photos: [
+        for (var i = 0; i < card.photos.length; i++)
+          RecordCardPhoto(
+            id: card.photos[i].id,
+            url: card.photos[i].url,
+            thumbnailUrl: card.photos[i].thumbnailUrl,
+            caption: card.photos[i].caption,
+            isThumbnail: card.photos[i].isThumbnail,
+            music: _trackOf(card, i + 1),
+          ),
+      ],
+      route: card.route,
+      distanceMeters: card.distanceMeters,
+      duration: card.duration,
+      averagePace: card.averagePace,
+      runners: card.runners,
+      isMine: card.isMine,
+      baseMusic: base,
     );
   }
 
-  /// 목 카드에 심어 둔 상태.
+  /// 곡 하나. [track]이 0이면 기본곡, 그 뒤가 사진 순서다.
   ///
-  /// ⚠️ **다섯 상태를 기다리지 않고 보려고** 일부러 갈라 둔다 — 전부
-  /// `SUCCEEDED`면 `만드는 중…`·`만들지 못했어요`·`AI 음악 만들기` 줄을 한 번도
-  /// 못 보고 넘어간다. `QUEUED`는 눌러서 본다.
-  ///
-  /// 앱이 만든 카드(번호 `9000 +`)는 저장할 때 음악을 켰는지로 갈린다 —
-  /// 여기 걸리지 않는다.
-  MusicGeneration _seeded(RecordCard card) {
-    final status = switch (card.id) {
-      1000 => MusicStatus.processing,
-      1001 => MusicStatus.failed,
-      1002 => MusicStatus.none,
-      _ when card.id >= 9000 => MusicStatus.none,
-      _ => MusicStatus.succeeded,
-    };
-    if (status == MusicStatus.none) return MusicGeneration.none(card.id);
+  /// ⚠️ **요청 기록이 있으면 그쪽이 먼저다.** 목에 심어 둔 상태는 한 번도
+  /// 요청하지 않은 카드에만 쓴다 — 안 그러면 재요청해도 심어 둔 실패가 그대로
+  /// 남아 "눌렀는데 아무 일도 없다"가 된다.
+  CardMusic? _trackOf(RecordCard card, int track) {
+    final requestedAt = _musicRequestedAt[card.id];
+    if (requestedAt == null) return _seededTrack(card, track);
 
-    return MusicGeneration(
-      cardId: card.id,
-      status: status,
-      trackCount: MusicGeneration.trackCountFor(card.photos.length),
+    if (clock().difference(requestedAt) < _toDone) {
+      return const CardMusic(status: MusicStatus.generating);
+    }
+    if (_musicWillFail.contains(card.id)) {
+      // ⚠️ **AI가 실패하면 그 요청에 든 사진 곡과 기본곡이 함께 실패한다**
+      // (가이드 4절). 한 곡만 떨구면 진짜와 다르다.
+      return const CardMusic(status: MusicStatus.failed);
+    }
+    return CardMusic(
+      status: MusicStatus.completed,
+      url: _musicUrl(card.id, track),
     );
   }
+
+  /// 목 카드에 심어 둔 곡.
+  ///
+  /// ⚠️ **세 상태를 기다리지 않고 보려고** 일부러 갈라 둔다 — 전부 완료면
+  /// `만드는 중…`·`만들지 못했어요` 줄을 한 번도 못 보고 넘어간다.
+  ///
+  /// `card-1000`은 **기본곡은 다 됐고 첫 사진만 만드는 중**이다. 곡별 상태가
+  /// 생긴 뒤에야 볼 수 있는 모양이라, 그것을 눈으로 확인하는 자리다.
+  CardMusic? _seededTrack(RecordCard card, int track) => switch (card.id) {
+    'card-1000' when track == 1 => const CardMusic(
+      status: MusicStatus.generating,
+    ),
+    'card-1001' => const CardMusic(status: MusicStatus.failed),
+    // 서버가 아직 아무 곡도 주지 않은 카드. 받아 오는 중과 구별하는 자리다.
+    'card-1002' => null,
+    _ => CardMusic(
+      status: MusicStatus.completed,
+      url: _musicUrl(card.id, track),
+    ),
+  };
+
+  static String _musicUrl(String cardId, int track) =>
+      'https://example.invalid/music/$cardId/$track.m4a';
 
   /// 지금 있는 그 카드. 고친 것이 있으면 그쪽이고, 지워졌으면 `null`이다.
-  RecordCard? _find(int id) {
+  RecordCard? _find(String id) {
     if (_deletedIds.contains(id)) return null;
     return _edited[id] ??
         [..._all(), ..._created].where((c) => c.id == id).firstOrNull;
@@ -666,7 +837,7 @@ class FakeRecordCardRepository implements RecordCardRepository {
     final duration = Duration(seconds: spec.seconds);
 
     return RecordCard(
-      id: 1000 + index,
+      id: 'card-${1000 + index}',
       runningRecordId: 2000 + index,
       startedAt: startedAt,
       activity: spec.activity,
@@ -675,7 +846,7 @@ class FakeRecordCardRepository implements RecordCardRepository {
       photos: [
         for (var p = 0; p < spec.photos; p++)
           RecordCardPhoto(
-            id: index * 10 + p,
+            id: 'img-$index-$p',
             url: _photoPool[(index + p) % _photoPool.length],
             // ⚠️ 사람이 쓴 말처럼 둔다. `그날의 한 장` 같은 꼬리표를 넣으면
             // 캡션이 아니라 화면이 붙인 글자로 읽힌다 — 기기에서 그렇게 보였다.

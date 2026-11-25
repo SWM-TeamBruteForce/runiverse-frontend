@@ -197,8 +197,8 @@ void main() {
 
       await _tapBelow(tester, find.text(AppStrings.recordCardPhotoMakeCover));
 
-      final photos = container.read(cardDraftProvider(7)).photos;
-      expect(photos.map((p) => (p as SavedPhoto).id), [71, 70]);
+      final photos = container.read(cardDraftProvider('card-7')).photos;
+      expect(photos.map((p) => (p as SavedPhoto).id), ['img-71', 'img-70']);
     });
 
     testWidgets('사진이 한 장이면 지정할 것이 없다', (tester) async {
@@ -326,7 +326,7 @@ void main() {
 
       await _tapBelow(tester, find.text(AppStrings.recordCardPhotoRemove));
 
-      expect(container.read(cardDraftProvider(7)).photos, hasLength(1));
+      expect(container.read(cardDraftProvider('card-7')).photos, hasLength(1));
     });
 
     testWidgets('올린 사진 위에 더 고를 수 있다', (tester) async {
@@ -339,7 +339,7 @@ void main() {
       await tester.tap(find.byTooltip(AppStrings.recordCardPhotoAdd));
       await tester.pumpAndSettle();
 
-      final photos = container.read(cardDraftProvider(7)).photos;
+      final photos = container.read(cardDraftProvider('card-7')).photos;
       expect(photos, hasLength(2));
       expect(photos.first, isA<SavedPhoto>());
       expect(photos.last, isA<PickedPhoto>());
@@ -502,7 +502,7 @@ class _Picker implements PhotoPicker {
 
 RecordCard _card({int photos = 0, List<String>? captions, int id = 7}) =>
     RecordCard(
-      id: id,
+      id: 'card-$id',
       runningRecordId: 11,
       startedAt: DateTime(2026, 11, 2, 7),
       activity: RecordCardActivity.travel,
@@ -511,7 +511,7 @@ RecordCard _card({int photos = 0, List<String>? captions, int id = 7}) =>
       photos: [
         for (var i = 0; i < photos; i++)
           RecordCardPhoto(
-            id: 70 + i,
+            id: 'img-${70 + i}',
             url: 'https://x/$i.jpg',
             caption: captions == null ? null : captions[i],
           ),

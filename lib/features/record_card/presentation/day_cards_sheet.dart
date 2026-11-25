@@ -3,7 +3,7 @@ import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
-import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_summary.dart';
 import 'package:runiverse/features/record_card/presentation/activity_label.dart';
 
 /// 하루에 카드가 둘 이상일 때 고르는 시트.
@@ -21,8 +21,8 @@ class DayCardsSheet extends StatelessWidget {
   });
 
   final DateTime day;
-  final List<RecordCard> cards;
-  final ValueChanged<RecordCard> onOpen;
+  final List<RecordCardSummary> cards;
+  final ValueChanged<RecordCardSummary> onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +67,7 @@ class DayCardsSheet extends StatelessWidget {
 class _Row extends StatelessWidget {
   const _Row({required this.card, required this.onTap});
 
-  final RecordCard card;
+  final RecordCardSummary card;
   final VoidCallback onTap;
 
   @override
@@ -95,12 +95,17 @@ class _Row extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            Text(
-              recordCardActivityLabel(card.activity),
-              style: AppTypographyV2.body18.copyWith(
-                color: colors.textTertiary,
+            // ⚠️ **유형을 못 읽은 카드는 자리를 비운다.** 일상으로 적으면
+            // 대회에서 뛴 카드가 일상으로 보이고, `유형 없음` 같은 말을 넣으면
+            // 사용자가 고르지 않은 상태를 새로 만든다 — 작성에는 유형이
+            // 필수라 그런 카드는 **우리가 못 읽은 것**이다.
+            if (card.activity case final activity?)
+              Text(
+                recordCardActivityLabel(activity),
+                style: AppTypographyV2.body18.copyWith(
+                  color: colors.textTertiary,
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -112,8 +117,8 @@ class _Row extends StatelessWidget {
 Future<void> showDayCardsSheet(
   BuildContext context, {
   required DateTime day,
-  required List<RecordCard> cards,
-  required ValueChanged<RecordCard> onOpen,
+  required List<RecordCardSummary> cards,
+  required ValueChanged<RecordCardSummary> onOpen,
 }) => showModalBottomSheet<void>(
   context: context,
   backgroundColor: context.appColorsV2.bgElevated,

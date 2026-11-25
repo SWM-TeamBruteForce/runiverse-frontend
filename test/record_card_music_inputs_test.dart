@@ -8,7 +8,7 @@ import 'package:runiverse/features/record_card/domain/record_card_visibility.dar
 import 'package:runiverse/features/record_card/domain/route_art.dart';
 
 RecordCard _card({int photos = 0, String? caption}) => RecordCard(
-  id: 7,
+  id: 'card-7',
   runningRecordId: 107,
   startedAt: DateTime(2026, 9, 2, 18, 54),
   activity: RecordCardActivity.daily,
@@ -17,7 +17,7 @@ RecordCard _card({int photos = 0, String? caption}) => RecordCard(
   photos: [
     for (var i = 0; i < photos; i++)
       RecordCardPhoto(
-        id: 10 + i,
+        id: 'img-${10 + i}',
         url: 'assets/images/sign_in_hero.png',
         caption: caption ?? '사진 $i의 한마디',
       ),
@@ -92,13 +92,13 @@ void main() {
 
   test('⚠️ 캡션을 안 쓴 사진은 빈 글과 같다 — 카드는 null, 초안은 빈 문자열이다', () {
     final card = RecordCard(
-      id: 7,
+      id: 'card-7',
       runningRecordId: 107,
       startedAt: DateTime(2026, 9, 2),
       activity: RecordCardActivity.daily,
       visibility: RecordCardVisibility.friends,
       reviewText: '글',
-      photos: const [RecordCardPhoto(id: 10, url: 'a.png')],
+      photos: const [RecordCardPhoto(id: 'img-10', url: 'a.png')],
       route: RouteArt.empty,
       distanceMeters: 1,
       duration: Duration.zero,
@@ -162,16 +162,16 @@ void main() {
   test('⚠️ 번호 12와 경로 12가 섞이지 않는다', () {
     final saved = MusicInputs.ofEdit(
       EditRecordCard(
-        cardId: 7,
+        cardId: 'card-7',
         activity: RecordCardActivity.daily,
         visibility: RecordCardVisibility.friends,
         reviewText: '글',
-        photos: [const EditCardPhoto.saved(savedId: 12, caption: '한마디')],
+        photos: [const EditCardPhoto.saved(savedId: 'img-12', caption: '한마디')],
       ),
     );
     final added = MusicInputs.ofEdit(
       EditRecordCard(
-        cardId: 7,
+        cardId: 'card-7',
         activity: RecordCardActivity.daily,
         visibility: RecordCardVisibility.friends,
         reviewText: '글',

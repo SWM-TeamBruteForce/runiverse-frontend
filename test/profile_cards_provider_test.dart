@@ -2,9 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/profile/presentation/profile_cards_provider.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
-import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_list_item.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
-import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 
 /// 프로필이 그 사람의 카드를 묻는다 (설계 6-7).
@@ -22,20 +21,19 @@ void main() {
 
   /// ⚠️ **듣는 사람을 붙인다.** `autoDispose`는 구독이 없으면 `read`마다 다시
   /// 만들어져, 두 번 읽으면 조회가 두 번 나간다(묶음 5에서 걸렸다).
-  Future<List<RecordCard>> read(ProfileCardsQuery query) {
+  Future<RecordCardListPage> read(ProfileCardsQuery query) {
     container.listen(profileCardsProvider(query), (_, _) {});
     return container.read(profileCardsProvider(query).future);
   }
 
-  test('공개된 카드를 최신순으로 돌려준다', () async {
-    final cards = await read((userId: 'u-1', limit: null));
+  test('카드를 최신순으로 돌려준다', () async {
+    final page = await read((userId: 'u-1', limit: null));
 
-    expect(cards, isNotEmpty);
+    expect(page.items, isNotEmpty);
     expect(
-      cards.every((c) => c.visibility != RecordCardVisibility.private),
+      page.items.first.startedAt.isAfter(page.items.last.startedAt),
       isTrue,
     );
-    expect(cards.first.startedAt.isAfter(cards.last.startedAt), isTrue);
   });
 
   test('⚠️ 실패하면 바로 오류다 — 다시 부르지 않는다', () async {

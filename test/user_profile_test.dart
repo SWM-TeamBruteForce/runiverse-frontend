@@ -140,7 +140,6 @@ void main() {
 
       final grid = tester.widget<ProfileCardGrid>(find.byType(ProfileCardGrid));
       expect(grid.userId, 'u1');
-      expect(grid.mine, isFalse);
       // ⚠️ 내 프로필과 **같은 들여쓰기**다. 그리드가 자기 여백을 품으면 이
       // 화면이 이미 둔 여백과 겹쳐 두 배가 된다.
       expect(

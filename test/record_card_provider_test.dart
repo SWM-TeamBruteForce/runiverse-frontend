@@ -2,9 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runiverse/features/auth/presentation/auth_provider.dart';
 import 'package:runiverse/features/auth/presentation/auth_state.dart';
-import 'package:runiverse/features/record/domain/run_record.dart';
-import 'package:runiverse/features/record/domain/run_record_repository.dart';
-import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
@@ -24,66 +21,6 @@ class _Auth extends AuthController {
   void set(AuthState next) => state = next;
 }
 
-/// 그날 뛴 기록만 돌려주는 작은 저장소. 가짜 저장소는 "오늘" 기준으로 목
-/// 데이터를 만들어 어느 날에 기록이 있는지 단정할 수 없다.
-class _Records implements RunRecordRepository {
-  _Records(this.days);
-
-  /// 기록이 있는 날들.
-  final Set<DateTime> days;
-
-  @override
-  Future<List<RunRecord>> byDateRange({
-    required DateTime from,
-    required DateTime to,
-  }) async => [
-    for (final day in days)
-      if (!day.isBefore(from) && !day.isAfter(to))
-        RunRecord(
-          id: day.day,
-          runningRoomId: day.day + 900,
-          startedAt: DateTime(day.year, day.month, day.day, 8),
-          distanceMeters: 5000,
-          duration: const Duration(minutes: 30),
-          averagePace: const Duration(minutes: 6),
-          playerCount: 1,
-        ),
-  ];
-
-  @override
-  Future<Never> byRoom(int runningRoomId) =>
-      throw UnimplementedError('이 테스트는 상세를 부르지 않는다');
-}
-
-/// `RunRecordException`이 **아닌** 것으로 깨지는 저장소.
-///
-/// `RunRecordDto.recordFrom`은 `as int`와 `DateTime.parse`를 그대로 쓴다 —
-/// 서버가 한 칸만 null 로 주면 `TypeError`지 `RunRecordException`이 아니다.
-class _BrokenRecords implements RunRecordRepository {
-  @override
-  Future<List<RunRecord>> byDateRange({
-    required DateTime from,
-    required DateTime to,
-  }) async => throw TypeError();
-
-  @override
-  Future<Never> byRoom(int runningRoomId) =>
-      throw UnimplementedError('이 테스트는 상세를 부르지 않는다');
-}
-
-/// 러닝 기록 조회가 늘 실패하는 저장소.
-class _FailingRecords implements RunRecordRepository {
-  @override
-  Future<List<RunRecord>> byDateRange({
-    required DateTime from,
-    required DateTime to,
-  }) async => throw const RunRecordException(RunRecordFailure.network);
-
-  @override
-  Future<Never> byRoom(int runningRoomId) =>
-      throw UnimplementedError('이 테스트는 상세를 부르지 않는다');
-}
-
 /// 떠난 조회가 끝날 때까지 기다린다. 가짜는 지연이 0이라 한 바퀴면 된다.
 Future<void> _settle() => Future<void>.delayed(Duration.zero);
 
@@ -92,20 +29,15 @@ void main() {
   late ProviderContainer container;
   late _Auth auth;
 
-  ProviderContainer build({
-    FakeRecordCardRepository? repository,
-    RunRecordRepository? records,
-  }) {
+  ProviderContainer build({FakeRecordCardRepository? repository}) {
     fake = repository ?? FakeRecordCardRepository(today: _today);
     auth = _Auth(const AuthSignedIn('u-1', isOnboarded: true));
     final made = ProviderContainer(
       overrides: [
+        // ⚠️ **저장소가 하나다.** 7-1이 러닝 기록과 카드 유무를 함께 주므로
+        // (연동 가이드 1절) 묶음 6까지 함께 끼웠던 러닝 기록 저장소가
+        // 필요 없어졌다.
         recordCardRepositoryProvider.overrideWithValue(fake),
-        // ⚠️ 달력이 러닝 기록도 받는다. 실제 구현을 그대로 두면 테스트가
-        // dio와 토큰 저장소를 끌어온다.
-        runRecordRepositoryProvider.overrideWithValue(
-          records ?? _Records(const {}),
-        ),
         recordCardClockProvider.overrideWithValue(() => _today),
         authControllerProvider.overrideWith(() => auth),
       ],
@@ -276,47 +208,36 @@ void main() {
     expect((state as RecordCardError).failure, RecordCardFailure.network);
   });
 
-  test('달마다 카드와 러닝 기록을 함께 받는다', () async {
-    container = build(
-      records: _Records({DateTime(2026, 11, 5), DateTime(2026, 10, 20)}),
-    );
+  test('⚠️ 카드와 뛴 날이 한 응답에서 온다', () async {
+    // 묶음 6까지는 달마다 요청이 둘이었다(카드 + 러닝 기록). 7-1 하나로
+    // 줄었고, 그래서 **둘이 함께 오거나 함께 실패한다.**
+    container = build();
     await _settle();
 
     final data = container.read(recordCardControllerProvider) as RecordCardData;
     final november = data.months.firstWhere(
       (month) => month.month == DateTime(2026, 11),
     );
-    expect(november.recordDays, contains(DateTime(2026, 11, 5)));
-    final october = data.months.firstWhere(
-      (month) => month.month == DateTime(2026, 10),
+
+    // 카드를 안 쓴 날에도 기록이 선다(가짜의 `_runOnlyOffsets`).
+    expect(november.recordDays, contains(DateTime(2026, 11, 15)));
+    expect(november.cardCount, greaterThan(0));
+    // 11월 묶음이 10월 날짜를 끌어오면 구간이 새는 것이다.
+    for (final day in november.recordDays) {
+      expect(day.month, 11, reason: '$day');
+    }
+  });
+
+  test('⚠️ 조회가 하나라 실패하면 달력이 오류를 그린다', () async {
+    // 묶음 6까지는 러닝 기록 조회만 깨지면 **운동화만 빠지고** 달력은 살았다.
+    // 지금은 한 요청이라 그 중간 상태가 없다 — 있는 척하면 거짓말이다.
+    container = build(
+      repository: FakeRecordCardRepository(today: _today)
+        ..failWith = RecordCardFailure.network,
     );
-    expect(october.recordDays, contains(DateTime(2026, 10, 20)));
-    // 11월 조회가 10월 기록을 끌어오면 구간이 새는 것이다.
-    expect(november.recordDays, isNot(contains(DateTime(2026, 10, 20))));
-  });
-
-  test('⚠️ 러닝 기록 조회가 실패해도 달력은 산다 — 운동화만 빠진다', () async {
-    // 카드를 보는 것이 이 탭의 본업이다. 기록 조회 하나로 달력을 오류 화면으로
-    // 날리면 1번 PR에서 고친 결함을 되살린다.
-    container = build(records: _FailingRecords());
     await _settle();
 
-    final state = container.read(recordCardControllerProvider);
-    expect(state, isA<RecordCardData>());
-    expect((state as RecordCardData).shoeDays, isEmpty);
-    expect(state.months, hasLength(3));
-  });
-
-  test('⚠️ 러닝 기록이 RunRecordException 아닌 것으로 깨져도 달력은 산다', () async {
-    // 안 받으면 두 가지가 한꺼번에 터진다 — 아무도 안 받은 비동기 오류가 되고,
-    // 상태가 RecordCardLoading 에 영원히 머물러 탭이 빈 화면에서 돈다.
-    container = build(records: _BrokenRecords());
-    await _settle();
-
-    final state = container.read(recordCardControllerProvider);
-    expect(state, isA<RecordCardData>());
-    expect((state as RecordCardData).months, hasLength(3));
-    expect(state.shoeDays, isEmpty);
+    expect(container.read(recordCardControllerProvider), isA<RecordCardError>());
   });
 
   test('⚠️ 계정이 바뀌면 앞 사람 카드를 버리고 다시 읽는다', () async {

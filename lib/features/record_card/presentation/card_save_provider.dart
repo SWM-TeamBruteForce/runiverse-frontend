@@ -14,7 +14,6 @@ import 'package:runiverse/features/record_card/domain/record_card_repository.dar
 import 'package:runiverse/features/record_card/domain/route_art.dart';
 import 'package:runiverse/features/profile/presentation/profile_cards_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
-import 'package:runiverse/features/record_card/presentation/card_music_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 
 final cardThumbnailMakerProvider = Provider<CardThumbnailMaker>(
@@ -49,14 +48,14 @@ class CardSaveFailed extends CardSaveState {
 /// 초안을 카드로 만든다. **인자는 카드 번호이고, `null`이 새 카드다** —
 /// `cardDraftProvider`와 같은 열쇠다.
 final cardSaveProvider =
-    NotifierProvider.family<CardSaveController, CardSaveState, int?>(
+    NotifierProvider.family<CardSaveController, CardSaveState, String?>(
       CardSaveController.new,
     );
 
 class CardSaveController extends Notifier<CardSaveState> {
   CardSaveController(this.cardId);
 
-  final int? cardId;
+  final String? cardId;
 
   @override
   CardSaveState build() => const CardSaveIdle();
@@ -90,7 +89,7 @@ class CardSaveController extends Notifier<CardSaveState> {
       final photos =
           <
             ({
-              int? savedId,
+              String? savedId,
               String? path,
               String? thumbnailPath,
               String? caption,
@@ -144,7 +143,6 @@ class CardSaveController extends Notifier<CardSaveState> {
                       caption: photo.caption,
                     ),
                 ],
-                musicEnabled: draft.musicEnabled,
               ),
             )
           : await repository.update(
@@ -190,14 +188,12 @@ class CardSaveController extends Notifier<CardSaveState> {
       // feature의 **화면·위젯**이고 provider는 예외로 적혀 있다. `invalidate`는
       // 듣는 것이 아니라 버리는 것이라 순환 의존도 생기지 않는다.
       ref.invalidate(profileCardsProvider);
-      // ⚠️ **고친 카드의 음악 상태도 버린다.** AI가 읽는 값이 바뀌면 서버가
-      // 전곡을 다시 만들기 시작하는데(설계 3절), 들고 있던 `SUCCEEDED`는
-      // 폴링이 멈춘 상태라 스스로 고쳐지지 않는다 — 돌아온 상세가 `멈춤`을
-      // 세워 **방금 읽은 "처음부터 다시 만듭니다"가 거짓**이 된다.
-      //
-      // 옛 상세가 전환이 끝날 때까지 살아 있어 provider가 버려지지 않으므로,
-      // 여기서 직접 버린다.
-      if (editing != null) ref.invalidate(cardMusicProvider(editing.id));
+      // ⚠️ **음악은 따로 버릴 것이 없다.** 곡이 카드 응답에 실려 오므로
+      // (묶음 7 작업 5) 상세를 다시 읽으면 곡도 함께 새로 온다 — 그 일은
+      // `app_router.dart`의 `_toDetail`이 한다.
+      // ⚠️ **상세는 여기서 버리지 않는다.** 작성 화면들이 아직 걷히는 중이라
+      // 그 위에서 상세가 다시 그려지면 프레임워크가 빌드 범위를 어긴다.
+      // 걷기가 끝난 뒤 `app_router.dart`의 `_toDetail`이 버린다.
       state = const CardSaveIdle();
       // ⚠️ **자른 파일을 치우지 않는다.** 카드가 그 경로를 들고 갔고, 올릴
       // 엔드포인트가 없어 **그것이 유일한 사본**이다. 치우면 상세에서 사진이

@@ -45,8 +45,9 @@ class SavedPhoto extends CardPhotoDraft {
     super.caption = '',
   });
 
-  /// `record_card_image_id`. 수정할 때 **이 번호로 "남긴다"고 말한다.**
-  final int id;
+  /// `record_card_image_id`(UUID 문자열). 수정할 때 **이 번호로 "남긴다"고
+  /// 말한다.**
+  final String id;
 
   /// 원본 열람 주소. 9:16으로 잘린 결과다.
   final String url;

@@ -2,13 +2,15 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
 import 'package:runiverse/core/theme/v2/app_radius.dart';
 import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/theme/v2/app_typography.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/card_music.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/presentation/card_detail_provider.dart';
 import 'package:runiverse/core/widgets/card_face.dart';
 import 'package:runiverse/core/widgets/route_art_view.dart';
 
@@ -132,7 +134,7 @@ class _CardMediaPagerState extends State<CardMediaPager> {
     _advance = Timer(
       // ⚠️ **길이의 출처는 음악 계약이다.** 여기에 상수를 두면 계약이 바뀔 때
       // 화면과 도메인이 갈라진다.
-      MusicGeneration.durationOfPage(_page),
+      CardMusicTiming.durationOfPage(_page),
       () {
         if (!mounted) return;
         _controller.nextPage(
@@ -236,17 +238,58 @@ class _Page extends StatelessWidget {
                 strokeWidth: 3,
                 padding: AppSpacing.space6,
               )
-            : Image(
-                image: cardThumbnail(context, photo!.url),
-                fit: BoxFit.cover,
-                errorBuilder: (context, _, _) => RouteArtView(
-                  art: card.route,
-                  color: colors.primary,
-                  strokeWidth: 3,
-                  padding: AppSpacing.space6,
-                ),
-              ),
+            : _Photo(card: card, url: photo!.url),
       ),
+    );
+  }
+}
+
+/// 포토북의 사진 한 장.
+///
+/// ## ⚠️ 못 받았으면 **한 번만** 다시 받는다
+///
+/// 조회용 주소는 1시간 뒤 만료된다(연동 가이드 7절). `403`이면 그 주소를 준
+/// 상세(8-1)를 다시 불러야 하는데, 막지 않으면 **새 주소도 만료됐을 때 끝나지
+/// 않는 고리**가 된다. 깃발은 위젯 상태에 둔다 — provider에 두면 다음 카드가
+/// 그것을 물려받는다.
+class _Photo extends ConsumerStatefulWidget {
+  const _Photo({required this.card, required this.url});
+
+  final RecordCard card;
+  final String url;
+
+  @override
+  ConsumerState<_Photo> createState() => _PhotoState();
+}
+
+class _PhotoState extends ConsumerState<_Photo> {
+  var _reported = false;
+
+  void _expired() {
+    if (_reported) return;
+    _reported = true;
+    // ⚠️ **그리는 중에 버리지 않는다.** `errorBuilder`는 빌드 안에서 불린다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.invalidate(cardDetailProvider(widget.card.id));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColorsV2;
+
+    return Image(
+      image: cardThumbnail(context, widget.url),
+      fit: BoxFit.cover,
+      errorBuilder: (context, _, _) {
+        _expired();
+        return RouteArtView(
+          art: widget.card.route,
+          color: colors.primary,
+          strokeWidth: 3,
+          padding: AppSpacing.space6,
+        );
+      },
     );
   }
 }

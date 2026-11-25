@@ -163,25 +163,35 @@ class RunSummaryPage extends ConsumerWidget {
 
                 // ⚠️ **방금 한 일을 남기는 것이 먼저다.** 결과를 들여다보는
                 // 것보다 위에 둔다(설계 6-8).
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.space4,
-                    0,
-                    AppSpacing.space4,
-                    AppSpacing.space2,
+                //
+                // ⚠️ **시작 시각을 모르면 숨긴다**(연동 가이드 6절). 카드는
+                // 시작한 날에 붙는데, 그 날짜를 모르면 어느 날 목록을 열어야
+                // 할지 알 수 없다 — 아무 날로 열면 고를 것이 없는 화면에 닿는다.
+                if (detail?.startedAt case final startedAt?)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.space4,
+                      0,
+                      AppSpacing.space4,
+                      AppSpacing.space2,
+                    ),
+                    child: AppButtonV2(
+                      label: AppStrings.runSummaryRecordCard,
+                      // ⚠️ **확정 중에는 잠근다 — 아래 버튼과 같은 이유다.**
+                      // 서버가 `RUNNING_FINISH`를 처리하기 전에는 **방금 뛴
+                      // 기록이 목록에 없다.** 그대로 들어가면 고를 것이 없는
+                      // 작성 화면에 닿는데, 그 사이 이 요약은 닫히고 세션도
+                      // 비워져 **그 러닝으로 카드를 쓸 길이 사라진다.**
+                      onPressed: settling
+                          ? null
+                          : () => _toRecordCard(
+                              ref,
+                              context,
+                              room?.id,
+                              startedAt,
+                            ),
+                    ),
                   ),
-                  child: AppButtonV2(
-                    label: AppStrings.runSummaryRecordCard,
-                    // ⚠️ **확정 중에는 잠근다 — 아래 버튼과 같은 이유다.**
-                    // 서버가 `RUNNING_FINISH`를 처리하기 전에는 **방금 뛴
-                    // 기록이 목록에 없다.** 그대로 들어가면 고를 것이 없는
-                    // 작성 화면에 닿는데, 그 사이 이 요약은 닫히고 세션도
-                    // 비워져 **그 러닝으로 카드를 쓸 길이 사라진다.**
-                    onPressed: settling
-                        ? null
-                        : () => _toRecordCard(ref, context, room?.id),
-                  ),
-                ),
 
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
@@ -248,13 +258,30 @@ class RunSummaryPage extends ConsumerWidget {
   /// ⚠️ **날짜만 정해지고 기록은 방 번호로 찾는다.** `RunDetail`에 기록 번호가
   /// 없다(`AppRoutes.recordCardNewOn`). 방이 없으면(솔로·방 열기 실패) 그날
   /// 목록에서 사용자가 고른다.
-  static void _toRecordCard(WidgetRef ref, BuildContext context, int? roomId) {
+  ///
+  /// ## ⚠️ **오늘이 아니라 시작한 날**이다
+  ///
+  /// `DateTime.now()`를 쓰면 **자정을 넘긴 러닝에서 기록을 못 찾는다** —
+  /// 11월 22일 23시 50분에 출발해 23일에 끝났으면 기록은 **22일** 목록에
+  /// 있다(연동 가이드 6절이 그 예를 든다). 끝난 지금이 23일이라 23일 목록을
+  /// 열면 고를 것이 없다.
+  static void _toRecordCard(
+    WidgetRef ref,
+    BuildContext context,
+    int? roomId,
+    DateTime startedAt,
+  ) {
     // ⚠️ **라우터를 먼저 잡는다.** `go` 뒤에는 이 화면의 `context`가 떨어져
     // 나가 `push`를 걸 수 없다.
     final router = GoRouter.of(context);
     ref.read(runSessionControllerProvider.notifier).reset();
     router.go(AppRoutes.home);
-    router.push(AppRoutes.recordCardNewOn(DateTime.now(), roomId: roomId));
+    router.push(
+      AppRoutes.recordCardNewOn(
+        DateTime(startedAt.year, startedAt.month, startedAt.day),
+        roomId: roomId,
+      ),
+    );
   }
 
   static void _leave(WidgetRef ref, BuildContext context) {

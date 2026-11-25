@@ -1,8 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:runiverse/features/record/domain/run_record.dart';
-import 'package:runiverse/features/record/presentation/record_provider.dart';
 import 'package:runiverse/features/record_card/domain/composable_record.dart';
-import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 
 /// 그날 기록카드를 쓸 수 있는 러닝 기록들. **인자는 날짜다.**
@@ -35,28 +32,14 @@ final composeRecordsProvider = FutureProvider.autoDispose
     ) async {
       final day = DateTime(when.year, when.month, when.day);
 
-      final recordsSoon = ref
-          .read(runRecordRepositoryProvider)
-          .byDateRange(from: day, to: day);
-      final cardsSoon = ref
+      // ⚠️ **요잭이 하나다.** 7-1이 러닝 기록과 카드 유무를 함깘 줍니다(연동
+      // 가이드 1절). 묶음 6까지는 기록과 카드를 따로 받아 `joinCards`로 맞추
+      // 붙였는데, 그 일은 **서버의 것**이 됐다.
+      //
+      // ⚠️ **카드 유무를 삼키지 않는다.** 카드가 있는 기록을 "없음"으로 보여
+      // 주면 중붙 작성으로 끌고 가고, 저장에서 거절당해 쓴 글을 잇는다. 한
+      // 요잭이라 삼힐 길도 없어졌다 — 실패하면 화면이 오류를 그린다.
+      return ref
           .read(recordCardRepositoryProvider)
-          .byDateRange(from: day, to: day);
-
-      // ⚠️ **`Future.wait`로 묶는다.** `await`를 한 줄씩 쓰면, 먼저 기다리는
-      // 쪽이 끝나기 전에 다른 쪽이 깨질 때 그 오류를 **아무도 받지 않는다** —
-      // 핸들러 없는 비동기 오류가 되어 터진다. `Future.wait`는 양쪽에 손을
-      // 얹고 첫 오류만 올려 준다.
-      //
-      // ⚠️ 레코드 문법 `(a, b).wait`를 쓰지 않는다 — 오류를
-      // `ParallelWaitError`로 싸서 화면의 실패 분기에 안 걸린다.
-      //
-      // ⚠️ **카드 조회 실패를 삼키지 않는다.** 카드가 있는 기록을 "없음"으로
-      // 보여 주면 중복 작성으로 끌고 가고, 저장에서 거절당해 쓴 글을 잃는다.
-      // 한 줄 오류와 다시 시도가 낫다.
-      final both = await Future.wait<Object>([recordsSoon, cardsSoon]);
-
-      return joinCards(
-        records: both[0] as List<RunRecord>,
-        cards: both[1] as List<RecordCard>,
-      );
+          .runsInRange(from: day, to: day);
     });

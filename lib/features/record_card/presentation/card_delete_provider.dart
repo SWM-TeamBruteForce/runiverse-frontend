@@ -49,8 +49,9 @@ class CardDeleteController extends Notifier<CardDeleteState> {
   ///
   /// 서버에 논리 삭제 컬럼이 없다(설계 3절). **확인은 화면이 먼저 받는다** —
   /// 여기까지 왔으면 사용자가 이미 "지우기"를 골랐다는 뜻이다.
-  Future<bool> delete(int cardId) async {
-    // ⚠️ **두 번 가면 두 번째는 404를 받는다.** 첫 번째가 이미 지웠다.
+  Future<bool> delete(String cardId) async {
+    // ⚠️ **두 번 가면 두 번째는 404를 받는다.** 첫 번째가 이미 지웠다 —
+    // 아래에서 그것을 성공으로 받는다.
     if (state is CardDeleting) return false;
 
     state = const CardDeleting();
@@ -74,6 +75,16 @@ class CardDeleteController extends Notifier<CardDeleteState> {
       state = const CardDeleteIdle();
       return true;
     } on RecordCardException catch (error) {
+      // ⚠️ **이미 지워진 카드는 지워진 것이다.** 가이드 4절: "같은 카드의
+      // 삭제를 재시도해 404가 와도 삭제 흐름을 마쳐 주세요." 실패로 다루면
+      // 사용자가 **없는 카드를 못 지웠다는 말**을 듣고 화면에 남는다 — 다시
+      // 눌러도 같은 답이다.
+      if (error.failure == RecordCardFailure.notFound) {
+        ref.invalidate(recordCardControllerProvider);
+        ref.invalidate(profileCardsProvider);
+        state = const CardDeleteIdle();
+        return true;
+      }
       state = CardDeleteFailed(error.failure);
       return false;
     } on Object {

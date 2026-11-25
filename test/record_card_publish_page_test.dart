@@ -8,16 +8,13 @@ import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
-import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
-import 'package:runiverse/features/record_card/domain/music_generation.dart';
-import 'package:runiverse/features/record_card/domain/new_record_card.dart';
+import 'package:runiverse/features/record_card/domain/card_music.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
-import 'package:runiverse/features/record_card/presentation/card_music_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_publish_page.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 import 'package:runiverse/features/record_card/presentation/visibility_label.dart';
@@ -31,7 +28,7 @@ import 'package:runiverse/features/record_card/presentation/visibility_label.dar
 /// 공개한다.
 void main() {
   group('기본값', () {
-    testWidgets('친구 공개와 음악 켜짐이다', (tester) async {
+    testWidgets('친구 공개다', (tester) async {
       await _pump(tester);
 
       expect(
@@ -39,7 +36,15 @@ void main() {
         isTrue,
         reason: '설계 6-4가 친구 공개를 기본으로 정했다',
       );
-      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+    });
+
+    testWidgets('저장하면 음악이 만들어진다고 알린다', (tester) async {
+      // 고를 수 없는 것과 알리지 않는 것은 다르다. 글을 지우면 저장하는
+      // 사람이 **모르는 사이에** AI가 회고와 사진을 읽어 곡을 만든다.
+      await _pump(tester);
+
+      expect(find.text(AppStrings.recordCardPublishMusicTitle), findsOne);
+      expect(find.text(AppStrings.recordCardPublishMusicBody), findsOne);
     });
 
     testWidgets('셋이 모두 이름과 설명을 보인다', (tester) async {
@@ -51,11 +56,16 @@ void main() {
       }
     });
 
-    testWidgets('음악이 무엇을 만드는지 말한다', (tester) async {
+    testWidgets('⚠️ 음악 생성 토글이 없다', (tester) async {
+      // 서버는 **저장하면 늘 음악을 만든다**(연동 가이드 3절: "현재 API는
+      // 음악 생성을 항상 요청하므로"). 끌 수 없는 것을 스위치로 보여 주면,
+      // 끄고 저장한 사람이 음악이 만들어지는 것을 보게 된다.
       await _pump(tester);
 
-      expect(find.text(AppStrings.recordCardPublishMusicTitle), findsOne);
-      expect(find.text(AppStrings.recordCardPublishMusicBody), findsOne);
+      // 이 화면의 스위치는 음악 토글 하나였다.
+      expect(find.byType(Switch), findsNothing);
+      // 화면을 잘못 찾은 것이 아니라는 확인.
+      expect(find.text(AppStrings.recordCardPublishVisibilitySection), findsOne);
     });
 
     testWidgets('라이트에서도 그려진다', (tester) async {
@@ -108,14 +118,6 @@ void main() {
       expect(_selected(tester, RecordCardVisibility.private), isTrue);
     });
 
-    testWidgets('음악 토글', (tester) async {
-      final container = await _pump(tester);
-
-      await tester.tap(find.byType(Switch));
-      await tester.pumpAndSettle();
-
-      expect(container.read(cardDraftProvider(null)).musicEnabled, isFalse);
-    });
   });
 
   group('저장 버튼', () {
@@ -198,14 +200,14 @@ void main() {
   });
 
   group('카드를 고칠 때', () {
-    testWidgets('⚠️ 음악 토글을 보여 주지 않는다', (tester) async {
-      // `RecordCard`에 음악 상태가 없다(묶음 5). 기본값 `true`를 보여 주면
-      // **음악을 끄고 만든 카드**를 고치러 들어온 사람에게 켜진 스위치가
-      // 서고, 저장하면 거절했던 생성이 수정 한 번으로 켜진다.
+    testWidgets('⚠️ 음악 안내를 보여 주지 않는다', (tester) async {
+      // 고치러 온 사람에게 "만들어집니다"는 낡은 말이다 — 음악은 이미
+      // 있거나 만들어지는 중이고, 그 카드에 무슨 일이 생기는지는 위의
+      // 음악 경고가 말한다.
       await _pump(tester, editing: true);
 
-      expect(find.byType(Switch), findsNothing);
       expect(find.text(AppStrings.recordCardPublishMusicTitle), findsNothing);
+      expect(find.text(AppStrings.recordCardPublishMusicBody), findsNothing);
     });
 
     testWidgets('⚠️ 새 카드에는 아무 음악 경고도 없다', (tester) async {
@@ -216,34 +218,33 @@ void main() {
     });
 
     testWidgets('만드는 중인 카드를 고치면 버려진다고 알린다', (tester) async {
-      final container = await _pump(
+      await _pump(
         tester,
         editing: true,
-        music: MusicStatus.processing,
+        music: const CardMusic(status: MusicStatus.generating),
       );
 
       expect(find.text(AppStrings.recordCardMusicWorkingEdit), findsOne);
-
-      await _closePolling(tester, container);
     });
 
     testWidgets('⚠️ 만드는 중이면 공개범위만 바꿔도 알린다 — 활성 요청이 무효화된다', (tester) async {
-      final container = await _pump(
+      await _pump(
         tester,
         editing: true,
-        music: MusicStatus.queued,
+        music: const CardMusic(status: MusicStatus.generating),
       );
 
       expect(find.text(AppStrings.recordCardMusicWorkingEdit), findsOne);
-
-      await _closePolling(tester, container);
     });
 
     testWidgets('다 된 음악인데 회고를 고치면 다시 만든다고 알린다', (tester) async {
       await _pump(
         tester,
         editing: true,
-        music: MusicStatus.succeeded,
+        music: const CardMusic(
+          status: MusicStatus.completed,
+          url: 'https://x',
+        ),
         changed: true,
       );
 
@@ -251,7 +252,14 @@ void main() {
     });
 
     testWidgets('⚠️ 다 된 음악인데 공개범위만 바꾸면 아무 말도 하지 않는다', (tester) async {
-      await _pump(tester, editing: true, music: MusicStatus.succeeded);
+      await _pump(
+        tester,
+        editing: true,
+        music: const CardMusic(
+          status: MusicStatus.completed,
+          url: 'https://x',
+        ),
+      );
 
       await tester.tap(
         find.text(recordCardVisibilityLabel(RecordCardVisibility.private)),
@@ -266,7 +274,7 @@ void main() {
       await _pump(
         tester,
         editing: true,
-        music: MusicStatus.none,
+        // 서버가 아직 곡을 주지 않았다.
         changed: true,
       );
 
@@ -278,7 +286,7 @@ void main() {
       await _pump(
         tester,
         editing: true,
-        music: MusicStatus.failed,
+        music: const CardMusic(status: MusicStatus.failed),
         changed: true,
       );
 
@@ -372,19 +380,16 @@ Future<ProviderContainer> _pump(
   RecordCardFailure? failWith,
   void Function(RecordCard card)? onSaved,
   bool editing = false,
-  MusicStatus music = MusicStatus.none,
+  CardMusic? music,
   bool changed = false,
 }) async {
   final container = ProviderContainer(
     overrides: [
       recordCardRepositoryProvider.overrideWithValue(
-        _MusicOverride(
-          FakeRecordCardRepository(
-            today: DateTime(2026, 11, 18),
-            delay: delay,
-            failWith: failWith,
-          ),
-          music,
+        FakeRecordCardRepository(
+          today: DateTime(2026, 11, 18),
+          delay: delay,
+          failWith: failWith,
         ),
       ),
       // 진짜는 `dart:ui`와 플랫폼 플러그인을 써서 테스트 환경에 없다.
@@ -399,9 +404,10 @@ Future<ProviderContainer> _pump(
   );
   addTearDown(handle.close);
 
-  final cardId = editing ? _editCard.id : null;
+  final editCard = _editCardWith(music);
+  final cardId = editing ? editCard.id : null;
   if (editing) {
-    container.read(cardDraftProvider(cardId).notifier).seed(_editCard);
+    container.read(cardDraftProvider(cardId).notifier).seed(editCard);
     // AI가 읽는 값을 하나 고친다 — 전곡 재생성을 부르는 입력이다.
     if (changed) {
       container.read(cardDraftProvider(cardId).notifier).setReview('다른 글');
@@ -441,8 +447,10 @@ class _Cropper implements ImageCropper {
 }
 
 /// 고치는 카드. ⚠️ **음악 상태가 없다** — `RecordCard`에 그 필드가 없다.
-final _editCard = RecordCard(
-  id: 7,
+/// 고치러 들어온 카드. **곡을 함께 든다** — 작성 3의 경고가 이 값을 본다
+/// (묶음 5까지는 음악을 따로 조회했다).
+RecordCard _editCardWith(CardMusic? music) => RecordCard(
+  id: 'card-7',
   runningRecordId: 11,
   startedAt: DateTime(2026, 11, 2, 7),
   activity: RecordCardActivity.travel,
@@ -454,63 +462,5 @@ final _editCard = RecordCard(
   duration: const Duration(minutes: 18),
   averagePace: const Duration(minutes: 5, seconds: 54),
   runners: const [],
+  baseMusic: music,
 );
-
-/// ⚠️ **폴링 타이머를 남기고 끝내면 테스트가 실패한다**(`!timersPending`).
-///
-/// 만드는 중인 음악에는 끝이 없다 — 가짜가 아니라 **진짜가 그렇다**(큐에서
-/// 6시간, 설계 3절). 화면을 걷어 provider를 버린다.
-Future<void> _closePolling(
-  WidgetTester tester,
-  ProviderContainer container,
-) async {
-  // 다 된 것으로 바꾸고 한 번 더 묻게 한다 — 끝 상태에서는 폴링이 멈춘다.
-  (container.read(recordCardRepositoryProvider) as _MusicOverride).status =
-      MusicStatus.succeeded;
-  await tester.pump(CardMusicController.pollInterval);
-  await tester.pump();
-}
-
-/// 음악 상태만 갈아 끼운 저장소. **나머지는 가짜에 그대로 넘긴다.**
-///
-/// 고치는 카드([_editCard])는 가짜의 목에 없어서, 안 끼우면 음악 조회가
-/// `notFound`로 떨어진다.
-class _MusicOverride implements RecordCardRepository {
-  /// 이 테스트는 프로필 그리드를 그리지 않는다. 불리면 테스트가 잘못 세워진
-  /// 것이다.
-  @override
-  Future<List<RecordCard>> byUser({required String userId, int? limit}) =>
-      throw UnsupportedError('이 테스트는 사람별 카드를 묻지 않는다');
-
-  _MusicOverride(this._inner, this.status);
-
-  final FakeRecordCardRepository _inner;
-
-  /// 도중에 바꿀 수 있다 — 테스트가 폴링을 끝내는 데 쓴다.
-  MusicStatus status;
-
-  @override
-  Future<MusicGeneration> musicOf(int cardId) async =>
-      status == MusicStatus.none
-      ? MusicGeneration.none(cardId)
-      : MusicGeneration(cardId: cardId, status: status, trackCount: 1);
-
-  @override
-  Future<MusicGeneration> requestMusic(int cardId) =>
-      _inner.requestMusic(cardId);
-
-  @override
-  Future<List<RecordCard>> byDateRange({
-    required DateTime from,
-    required DateTime to,
-  }) => _inner.byDateRange(from: from, to: to);
-
-  @override
-  Future<RecordCard> create(NewRecordCard card) => _inner.create(card);
-
-  @override
-  Future<RecordCard> update(EditRecordCard card) => _inner.update(card);
-
-  @override
-  Future<void> delete(int cardId) => _inner.delete(cardId);
-}

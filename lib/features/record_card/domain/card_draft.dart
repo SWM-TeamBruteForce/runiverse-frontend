@@ -24,7 +24,6 @@ class CardDraft {
     this.reviewText = '',
     this.photos = const [],
     this.visibility = RecordCardVisibility.friends,
-    this.musicEnabled = true,
     this.editing,
     this.seeded = false,
   });
@@ -77,8 +76,9 @@ class CardDraft {
   /// 누가 볼 수 있나. 기본값은 **친구 공개**다(설계 6-4).
   final RecordCardVisibility visibility;
 
-  /// AI 음악을 만들까. 기본값은 **켜짐**이다(설계 6-4).
-  final bool musicEnabled;
+  // ⚠️ **음악 설정이 없다.** 서버가 카드를 확정할 때 늘 생성을 요청한다
+  // (연동 가이드 3절). 끌 수 없는 값을 초안에 들고 있으면 저장할 때 보낼
+  // 곳도 없고, 화면은 고를 수 있는 것처럼 보인다. 2026-11-24에 걷어냈다.
 
   /// 회고 상한. 서버 `review_text`가 받는 길이이고, 입력 칸도 여기서 멈춘다.
   static const reviewMaxLength = 1000;
@@ -122,11 +122,11 @@ class CardDraft {
   /// 둘은 **앱이 꽂아 준 것**이다 — 달력의 운동화를 누르거나 러닝 요약에서
   /// 들어오면 고르지 않아도 차 있다. 그것만 보고 확인을 받으면 잘못 들어온
   /// 사람이 나갈 때마다 막힌다. 사용자가 손으로 넣은 것은 유형·회고·사진과
-  /// **기본값에서 바꾼 공개범위·음악**이다.
+  /// **기본값에서 바꾼 공개범위**도 센다.
   ///
-  /// ⚠️ 공개범위와 음악은 기본값이 있어 "비었는지"로 못 가린다. 기본값과
-  /// 비교한다 — 안 세면 나만 보기로 바꿔 둔 사람이 뒤로 눌렀을 때 그 선택이
-  /// 조용히 사라진다.
+  /// ⚠️ 공개범위는 기본값이 있어 "비었는지"로 못 가린다. 기본값과 비교한다 —
+  /// 안 세면 나만 보기로 바꿔 둔 사람이 뒤로 눌렀을 때 그 선택이 조용히
+  /// 사라진다.
   /// ⚠️ **카드에서 막 뜬 초안은 손댄 것이 아니다**([seeded]). 값이 다 차 있어도
   /// 사용자가 넣은 것이 아니라 앱이 꽂아 준 것이다.
   bool get isDirty =>
@@ -134,8 +134,7 @@ class CardDraft {
       (activity != null ||
           reviewText.trim().isNotEmpty ||
           photos.isNotEmpty ||
-          visibility != RecordCardVisibility.friends ||
-          !musicEnabled);
+          visibility != RecordCardVisibility.friends);
 
   /// ⚠️ **비우려면 `clear*`를 쓴다.** `record: null`은 "안 바꾼다"와 구별되지
   /// 않는다. `RecordCardData.copyWith(clearFilter:)`와 같은 꼴이다.
@@ -148,7 +147,6 @@ class CardDraft {
     String? reviewText,
     List<CardPhotoDraft>? photos,
     RecordCardVisibility? visibility,
-    bool? musicEnabled,
   }) => CardDraft(
     // ⚠️ **[seeded]를 들고 가지 않는다.** 모든 고치기가 여기를 지나므로,
     // 기본값 `false`가 곧 "사용자가 손댔다"가 된다.
@@ -159,6 +157,5 @@ class CardDraft {
     reviewText: reviewText ?? this.reviewText,
     photos: photos ?? this.photos,
     visibility: visibility ?? this.visibility,
-    musicEnabled: musicEnabled ?? this.musicEnabled,
   );
 }
