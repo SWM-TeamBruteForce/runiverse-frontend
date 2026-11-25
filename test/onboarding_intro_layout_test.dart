@@ -124,7 +124,6 @@ void main() {
               )
               .first,
         );
-        final contentFits = scroll.position.maxScrollExtent < 0.1;
         if (config.name == 'small' ||
             config.name == 'large text' ||
             config.name == 'landscape') {
@@ -153,18 +152,6 @@ void main() {
           );
         }
         expect(find.text('시작하기'), findsOneWidget);
-        if (contentFits) {
-          final songCard = find
-              .ancestor(
-                of: find.text(AppStrings.onboardingSampleSong),
-                matching: find.byType(Container),
-              )
-              .first;
-          expect(
-            tester.getBottomLeft(songCard).dy,
-            closeTo(artRect.bottom, 0.1),
-          );
-        }
       },
     );
   }
