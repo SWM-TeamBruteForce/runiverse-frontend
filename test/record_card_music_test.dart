@@ -114,11 +114,53 @@ void main() {
     });
   });
 
-  group('장이 서 있는 길이', () {
-    test('⚠️ 0번은 30초, 사진은 10초다 — AI 계약이 정한 값이다', () {
-      expect(CardMusicTiming.durationOfPage(0), const Duration(seconds: 30));
-      expect(CardMusicTiming.durationOfPage(1), const Duration(seconds: 10));
-      expect(CardMusicTiming.durationOfPage(5), const Duration(seconds: 10));
+  group('곡의 신원', () {
+    const playable = CardMusic(
+      status: MusicStatus.completed,
+      url: 'https://cdn.invalid/music/abc.m4a?sig=AAA&exp=1',
+    );
+
+    test('⚠️ 서명이 달라져도 같은 곡이다', () {
+      // 폴링이 1분마다 새 주소를 준다. 주소를 그대로 비교하면 1분마다
+      // 플레이어를 다시 물어 소리가 끊긴다(설계 7-1).
+      const again = CardMusic(
+        status: MusicStatus.completed,
+        url: 'https://cdn.invalid/music/abc.m4a?sig=BBB&exp=2',
+      );
+
+      expect(
+        trackIdOf(page: 1, music: again),
+        trackIdOf(page: 1, music: playable),
+      );
+    });
+
+    test('장이 다르면 다른 곡이다', () {
+      expect(
+        trackIdOf(page: 2, music: playable),
+        isNot(trackIdOf(page: 1, music: playable)),
+      );
+    });
+
+    test('⚠️ 다시 만들면 상태가 바뀌어 다른 곡이 된다', () {
+      // 서버가 같은 오브젝트 키를 덮어써도 GENERATING 을 지나가므로 다시 문다.
+      const making = CardMusic(status: MusicStatus.generating);
+
+      expect(
+        trackIdOf(page: 1, music: making),
+        isNot(trackIdOf(page: 1, music: playable)),
+      );
+    });
+
+    test('쿼리가 없는 주소도 된다', () {
+      const bare = CardMusic(
+        status: MusicStatus.completed,
+        url: 'https://cdn.invalid/music/abc.m4a',
+      );
+
+      expect(
+        trackIdOf(page: 1, music: bare),
+        trackIdOf(page: 1, music: playable),
+      );
     });
   });
 }

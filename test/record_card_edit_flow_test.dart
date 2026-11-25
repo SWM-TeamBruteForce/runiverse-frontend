@@ -31,6 +31,7 @@ import 'package:runiverse/features/record_card/presentation/record_card_page.dar
 import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
 import 'package:runiverse/features/record_card/presentation/record_card_state.dart';
 
+import 'package:runiverse/features/record_card/presentation/card_audio_provider.dart';
 import 'record_card_fixtures.dart';
 
 /// 상세에서 고치고 지우는 길 (설계 6-6).
@@ -97,13 +98,25 @@ void main() {
       await _finishMusic(tester);
     });
 
+    testWidgets('⚠️ 수정 화면으로 가면 음악이 멈춘다', (tester) async {
+      // 수정은 상세 **위에** 쌓일 뿐이라 상세가 `dispose` 되지 않는다. 그냥
+      // 두면 고치는 내내 소리가 난다(설계 6-3).
+      await _pumpDetail(tester);
+      expect(find.text(AppStrings.recordCardMusicPause), findsOne);
+      _audio.calls.clear();
+
+      await _openMenu(tester, AppStrings.recordCardEditTitle);
+
+      expect(_audio.calls, contains('pause'));
+    });
+
     testWidgets('⚠️ 저장하면 상세의 음악 줄이 되돌아간다 — 전곡을 다시 만든다', (tester) async {
       // 작성 3이 "처음부터 다시 만듭니다"라고 알렸으면, 돌아온 상세가 그 말과
       // 같은 것을 보여야 한다. 다 된 음악 줄(`멈춤`)이 그대로 서 있으면
       // **방금 읽은 경고가 거짓**이 된다.
-      // 사진이 없는 카드라 넘어갈 장이 없다 — 줄은 `음악이 준비됐어요`다.
+      // 사진이 없는 카드지만 틀 것은 있다 — 줄은 `멈춤`이다(열면 난다).
       await _pumpDetail(tester);
-      expect(find.text(AppStrings.recordCardMusicReady), findsOne);
+      expect(find.text(AppStrings.recordCardMusicPause), findsOne);
 
       await _openMenu(tester, AppStrings.recordCardEditTitle);
       await _reachReview(tester);
@@ -115,7 +128,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.recordCardMusicProcessing), findsOne);
-      expect(find.text(AppStrings.recordCardMusicReady), findsNothing);
+      expect(find.text(AppStrings.recordCardMusicPause), findsNothing);
 
       await _finishMusic(tester);
     });
@@ -361,6 +374,7 @@ Future<void> _finishMusic(WidgetTester tester) async {
 
 late FakeRecordCardRepository _cards;
 late GoRouter _router;
+late SilentAudioPlayer _audio;
 
 /// 상세에 띄운 카드. ⚠️ **가짜 저장소에 실제로 있는 것**이어야 한다 — 지어낸
 /// 번호를 쓰면 고치기·지우기가 `notFound`로 떨어진다.
@@ -437,6 +451,7 @@ Future<ProviderContainer> _pumpAt(
   _musicNow = DateTime(2026, 11, 18, 10);
   final container = ProviderContainer(
     overrides: [
+      cardAudioPlayerProvider.overrideWithValue(_audio = SilentAudioPlayer()),
       recordCardRepositoryProvider.overrideWithValue(
         // ⚠️ **Fake의 `delay`를 쓰지 않는다.** 그것은 `byDateRange`에도
         // 걸려 달력이 과거를 더 받는 길까지 느려지고, `pumpAndSettle`이

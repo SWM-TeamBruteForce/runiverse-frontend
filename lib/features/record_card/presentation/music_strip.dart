@@ -27,17 +27,18 @@ import 'package:runiverse/features/record_card/presentation/card_music_provider.
 /// 여기서 막대를 되살리면 그 결정을 조용히 뒤집는다. **점이 몇 번째 장인지
 /// 말하고, 이 줄은 음악을 말한다.**
 ///
-/// ## ⚠️ 소리가 없다
+/// ## ⚠️ 이 줄은 오디오를 모른다
 ///
-/// 오디오 패키지를 안 넣는다(설계 9절). `재생`은 **포토북이 장을 넘기는
-/// 것**이고, 음악이 붙으면 넘기는 길이의 출처만 바뀐다.
+/// `재생`/`멈춤`은 **소리**를 쥐지만(2026-11-25부터 `just_audio`로 실제로
+/// 난다), 트는 일은 상세 화면이 한다. 이 줄은 [playing]을 받아 글자를 고르고
+/// 눌린 것을 [onTogglePlay]로 올려 보낼 뿐이다 — 설계 6-1이 "두 군데서 몰면
+/// 어긋난다"고 적은 그 선이다.
 class MusicStrip extends ConsumerWidget {
   const MusicStrip({
     required this.cardId,
     required this.music,
     required this.hasFailed,
     required this.playing,
-    required this.canAdvance,
     required this.canRequest,
     required this.onTogglePlay,
     super.key,
@@ -61,16 +62,9 @@ class MusicStrip extends ConsumerWidget {
   /// 다시 걸 일이 있다.
   final bool hasFailed;
 
-  /// 포토북이 지금 넘어가고 있나. **줄은 이것의 반대를 권한다.**
+  /// 소리가 지금 나고 있나. **줄은 이것의 반대를 권한다** — 나고 있으면
+  /// `멈춤`, 멈춰 있으면 `재생`이다.
   final bool playing;
-
-  /// 더 넘어갈 장이 있나.
-  ///
-  /// ⚠️ **없으면 `재생`도 `멈춤`도 거짓이다.** 사진이 없는 카드는 한 장뿐이라
-  /// 타이머를 아예 걸지 않고, 마지막 장에서는 멈춘 뒤 처음으로 돌아가지
-  /// 않는다(설계 6-5) — 그 자리에 토글을 세우면 **눌러도 아무 일도 없는
-  /// 버튼**이 된다.
-  final bool canAdvance;
 
   /// 음악을 만들라고 할 수 있나. **내 카드가 아니면 못 한다** — 생성 요청은
   /// 쓰기다(설계 6-5 "남의 카드면 `⋮`가 없다"와 같은 선).
@@ -137,19 +131,19 @@ class MusicStrip extends ConsumerWidget {
       MusicStatus.generating => const _Line(
         label: AppStrings.recordCardMusicProcessing,
       ),
-      // ⚠️ **지금 상태가 아니라 "누르면 될 일"을 쓴다.** 상세를 열면 책이 이미
-      // 돌고 있어서, 도는 중에 `재생`을 세우면 이미 하는 것을 하라는 버튼이다.
-      // 넘어갈 장이 없으면 둘 다 거짓이라 **버튼을 두지 않는다**([canAdvance]).
-      MusicStatus.completed =>
-        canAdvance
-            ? _Line(
-                icon: playing ? LucideIcons.pause : LucideIcons.play,
-                label: playing
-                    ? AppStrings.recordCardMusicPause
-                    : AppStrings.recordCardMusicPlay,
-                onTap: onTogglePlay,
-              )
-            : const _Line(label: AppStrings.recordCardMusicReady),
+      // ⚠️ **지금 상태가 아니라 "누르면 될 일"을 쓴다.** 상세를 열면 소리가
+      // 이미 나고 있어서, 나는 중에 `재생`을 세우면 이미 하는 것을 하라는
+      // 버튼이다.
+      //
+      // ⚠️ **마지막 장에도 선다.** 곡이 끝나면 반복하므로 "넘어갈 장이
+      // 있나"는 더 이상 묻지 않는다(설계 2절).
+      MusicStatus.completed => _Line(
+        icon: playing ? LucideIcons.pause : LucideIcons.play,
+        label: playing
+            ? AppStrings.recordCardMusicPause
+            : AppStrings.recordCardMusicPlay,
+        onTap: onTogglePlay,
+      ),
       MusicStatus.failed => _Line(
         label: AppStrings.recordCardMusicFailed,
         action: AppStrings.recordCardMusicRetry,

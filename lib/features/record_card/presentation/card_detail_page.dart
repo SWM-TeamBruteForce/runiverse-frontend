@@ -14,6 +14,7 @@ import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
 import 'package:runiverse/features/record_card/presentation/card_detail_provider.dart';
+import 'package:runiverse/features/record_card/presentation/card_audio_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_delete_provider.dart';
 import 'package:runiverse/features/record_card/presentation/card_media_pager.dart';
 import 'package:runiverse/features/record_card/presentation/music_strip.dart';
@@ -25,18 +26,19 @@ import 'package:runiverse/features/record_card/presentation/music_strip.dart';
 /// 날짜와 기록은 **위 가운데**, 캡션은 **아래 가운데**다(시안). 가운데는
 /// 사진 한 장이 크게 차지한다 — 숫자를 사진 옆에 늘어놓으면 둘 다 묻힌다.
 ///
-/// ## ⚠️ 재생은 **한 상태**다
+/// ## ⚠️ 소리를 모는 유일한 곳이다
 ///
-/// 음악 줄과 포토북이 같은 `playing`을 본다. 각자 들면 줄은 `재생`인데 책은
-/// 넘어가거나, 사진을 탭해 멈췄는데 줄은 `멈춤`으로 남는다. provider로 올리지
-/// 않는 이유는 **이 화면을 넘지 않는 상태**라서다 — 카드를 닫으면 사라져야
-/// 한다.
+/// 페이저도 음악 줄도 플레이어를 부르지 않는다. 두 군데서 몰면 줄은 `재생`
+/// 인데 소리는 나는 어긋남이 생긴다 — 이 화면이 `_page`·카드·탭을 다 들고
+/// 있어서 혼자 몰 수 있다(설계 6-1).
 ///
-/// ## ⚠️ 음악이 자동 넘김을 막지 않는다
+/// 상태는 `cardAudioProvider`가 든다. `autoDispose` + `family`라 카드를
+/// 닫으면 플레이어까지 함께 버려진다.
 ///
-/// 음악이 다 되지 않았을 때 책을 세워 두면, 음악을 **끈 카드**와 **실패한
-/// 카드**의 포토북이 영영 첫 장에 멈춘다. 음악이 붙으면 바뀌는 것은 설계가
-/// 적은 대로 **길이의 출처뿐**이다(6-5).
+/// ## ⚠️ 곡이 없어도 카드는 그대로 쓴다
+///
+/// 만드는 중이거나 못 만든 장은 **소리 없이 선다.** 장은 손으로 넘기므로
+/// 음악이 안 돼도 포토북이 막히지 않는다.
 ///
 /// ## ⚠️ 탭 셸 밖이다
 ///
@@ -157,14 +159,56 @@ class _Loaded extends ConsumerStatefulWidget {
 }
 
 class _CardDetailPageState extends ConsumerState<_Loaded> {
-  /// 포토북이 넘어가고 있나. **열면 돌고 있다**(묶음 1에서 정했다).
-  var _playing = true;
-
-  /// 지금 몇 번째 장인가. 음악 줄이 **더 넘어갈 데가 있는지** 알아야 한다.
+  /// 지금 몇 번째 장인가. 음악 줄이 **그 장의 곡**을 말해야 한다.
   var _page = 0;
 
-  /// 더 넘어갈 장이 있나. 경로 한 장 + 사진들이라 마지막 자리는 사진 수다.
-  bool get _canAdvance => _page < card.photos.length;
+  CardAudio get _audio => ref.read(cardAudioProvider(card.id).notifier);
+
+  /// 보고 있는 장의 곡을 소리 쪽에 알린다.
+  ///
+  /// 들어올 때, 장을 넘길 때, **카드가 다시 와서 곡이 달라졌을 때** 부른다.
+  /// 같은 곡이면 알려도 아무 일이 없다.
+  ///
+  /// ⚠️ **늘 프레임 뒤로 미룬다.** `didUpdateWidget`은 그리는 중이고, 거기서
+  /// provider 를 건드리면 Riverpod 이 막는다. `show`는 틀 것이 없는 장에서
+  /// 기다리는 데 없이 상태를 바꾸므로 비동기라고 안심할 수 없다.
+  void _syncAudio() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_audio.show(page: _page, music: card.musicOfPage(_page)));
+    });
+  }
+
+  /// 앱이 배경으로 갈 때 소리를 멈추려고 듣는다.
+  ///
+  /// ⚠️ **없으면 홈 버튼을 눌러도 음악이 계속 난다.** 백그라운드 재생을 안
+  /// 넣기로 했으니(설계 3절) 여기서 멈춰야 한다.
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncAudio();
+    _lifecycle = AppLifecycleListener(
+      // `inactive` 는 알림창을 내리기만 해도 온다 — 그때까지 멈추면
+      // 성가시다. 실제로 가려진 `paused` 에서만 멈춘다.
+      onPause: () => unawaited(_audio.suspend()),
+    );
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  /// ⚠️ **폴링이 카드를 새로 가져오면 여기로 온다.** 만드는 중이던 곡이
+  /// 완성됐을 수 있다 — 그 자리에서 바로 나야 한다(설계 7-2).
+  @override
+  void didUpdateWidget(_Loaded oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncAudio();
+  }
 
   RecordCard get card => widget.card;
 
@@ -222,9 +266,11 @@ class _CardDetailPageState extends ConsumerState<_Loaded> {
           // 때만 선다. 사진 장에서는 그 자리에 캡션이 대신 든다.
           CardMediaPager(
             card: card,
-            playing: _playing,
-            onPlayingChanged: (playing) => setState(() => _playing = playing),
-            onPageChanged: (page) => setState(() => _page = page),
+            onTap: () => unawaited(_audio.toggle()),
+            onPageChanged: (page) {
+              setState(() => _page = page);
+              _syncAudio();
+            },
           ),
           const SizedBox(height: AppSpacing.space3),
           // ⚠️ **글 아래다**(시안 6-5). 사진과 글 사이에 끼우면 점·캡션·회고가
@@ -234,11 +280,10 @@ class _CardDetailPageState extends ConsumerState<_Loaded> {
             // ⚠️ **지금 장의 곡**이다. 곡이 장마다 하나다(가이드 2절).
             music: card.musicOfPage(_page),
             hasFailed: card.hasFailedMusic,
-            playing: _playing,
-            canAdvance: _canAdvance,
+            playing: ref.watch(cardAudioProvider(card.id)).playing,
             // 남의 카드에서는 **들을 수만 있다.**
             canRequest: card.isMine,
-            onTogglePlay: () => setState(() => _playing = !_playing),
+            onTogglePlay: () => unawaited(_audio.toggle()),
           ),
         ],
       ),
@@ -275,6 +320,11 @@ class _CardDetailPageState extends ConsumerState<_Loaded> {
 
     switch (picked) {
       case _CardAction.edit:
+        // ⚠️ **떠나기 전에 멈춘다.** 수정 화면이 위에 쌓일 뿐 상세는 살아
+        // 있어서(`dispose`가 안 불린다) 그냥 두면 고치는 내내 소리가 난다.
+        // 돌아와도 저절로 다시 틀지 않는다 — `suspend`의 약속이다.
+        await _audio.suspend();
+        if (!context.mounted) return;
         // ⚠️ **카드를 `extra`로 들려 보낸다.** 단건 조회 API가 없다.
         await context.push(AppRoutes.recordCardEditOf(card.id), extra: card);
       case _CardAction.delete:

@@ -1743,14 +1743,6 @@ abstract final class AppStrings {
   static const recordCardMusicPlay = '재생';
   static const recordCardMusicPause = '멈춤';
 
-  /// 음악은 다 됐는데 **넘어갈 장이 없을 때.** 사진이 없는 카드이거나 마지막
-  /// 장에 닿은 것이다.
-  ///
-  /// ⚠️ **여기에 `재생`/`멈춤`을 세우면 거짓이다.** 포토북이 한 장뿐이면
-  /// 타이머를 걸지 않고(`CardMediaPager`), 마지막 장에서는 멈춘 뒤 처음으로
-  /// 되돌아가지 않는다(설계 6-5). 누를 것이 없으므로 **버튼으로 두지 않는다.**
-  static const recordCardMusicReady = '음악이 준비됐어요';
-
   /// ⚠️ **전곡이다.** 1곡만 실패해도 카드 전체가 실패이고, 다시 만들면 전곡을
   /// 다시 만든다(설계 3절).
   static const recordCardMusicFailed = '음악을 만들지 못했어요';
@@ -1849,7 +1841,7 @@ abstract final class AppStrings {
   // 수정은 작성 세 화면을 그대로 다시 쓴다. 다른 것은 **제목**과 **러닝 기록을
   // 못 바꾼다는 것** 둘뿐이다.
 
-  static const recordCardEditTitle = '기록카드 고치기';
+  static const recordCardEditTitle = '기록카드 편집';
 
   /// ⚠️ **왜 못 바꾸는지 말한다.** 그냥 잠가 두면 고장으로 읽힌다.
   ///
