@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runiverse/features/record_card/data/just_audio_player.dart';
 import 'package:runiverse/features/record_card/domain/card_audio_player.dart';
@@ -124,8 +126,11 @@ class CardAudio extends Notifier<CardAudioState> {
     final next = !_wantPlaying;
     _wantPlaying = next;
     _decided = true;
+    // ⚠️ **트는 것은 기다리지 않는다**(인터페이스 계약). 기다리면 줄이 영영
+    // `재생`이고, [suspend]가 "나고 있지 않다"고 읽어 가려진 앱에서 소리가
+    // 계속 난다. 멈추는 것은 금방 끝나므로 기다린다.
     if (next) {
-      await _player.play();
+      unawaited(_player.play());
     } else {
       await _player.pause();
     }
@@ -192,8 +197,8 @@ class CardAudio extends Notifier<CardAudioState> {
     if (stale()) return;
     _loaded = id;
 
-    if (_wantPlaying) await _player.play();
-    if (stale()) return;
+    // ⚠️ 여기서도 기다리지 않는다. 위 [toggle]과 같은 이유다.
+    if (_wantPlaying) unawaited(_player.play());
     state = CardAudioState(playable: true, playing: _wantPlaying);
   }
 }

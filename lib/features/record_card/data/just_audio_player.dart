@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
@@ -34,8 +36,16 @@ class JustAudioPlayer implements CardAudioPlayer {
     await _player.setUrl(url);
   }
 
+  /// ⚠️ **기다리지 않고 돌아온다.** `just_audio`의 `play()`가 돌려주는 Future는
+  /// "재생이 끝나거나 멈출 때" 끝난다(패키지 문서). 반복을 걸어 뒀으니 영영
+  /// 끝나지 않는다 — 그것을 기다리면 화면은 소리가 난 것을 모르고, 화면을
+  /// 떠날 때 멈출 줄도 모른다(2026-11-25 기기 확인에서 실제로 그랬다).
   @override
-  Future<void> play() => _player.play();
+  Future<void> play() async {
+    // 떨군 Future가 오류로 끝나면 받을 사람이 없다. 여기서 받아 삼킨다 —
+    // 소리가 왜 끊겼는지는 주소가 붙은 메시지라 적지 않는다.
+    unawaited(_player.play().catchError((Object _) {}));
+  }
 
   @override
   Future<void> pause() => _player.pause();

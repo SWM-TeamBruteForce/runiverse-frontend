@@ -168,6 +168,32 @@ void main() {
     expect(repo.reads, 3, reason: '다시 읽기가 또 돌았다');
   });
 
+  testWidgets('⚠️ 끝나지 않는 play 를 기다리느라 멈추지 못하면 안 된다', (tester) async {
+    // 진짜 플레이어의 `play()`는 곡이 끝나야 끝난다(2026-11-25 기기 확인).
+    // 그것을 기다리면 줄은 영영 `재생`이고, 배경으로 가도 **소리가 계속
+    // 난다** — `suspend`가 "나고 있지 않다"고 읽기 때문이다.
+    fake.playNeverEnds = true;
+    await open(tester);
+
+    expect(
+      find.text(AppStrings.recordCardMusicPause),
+      findsOneWidget,
+      reason: '트는 중인데 줄이 재생이라고 한다',
+    );
+
+    fake.calls.clear();
+    for (final step in const [
+      AppLifecycleState.inactive,
+      AppLifecycleState.hidden,
+      AppLifecycleState.paused,
+    ]) {
+      tester.binding.handleAppLifecycleStateChanged(step);
+    }
+    await tester.pumpAndSettle();
+
+    expect(fake.calls, ['pause'], reason: '가려졌는데 소리가 그대로다');
+  });
+
   testWidgets('⚠️ 앱이 배경으로 가면 멈추고 돌아와도 안 튼다', (tester) async {
     await open(tester);
     fake.calls.clear();
@@ -377,8 +403,18 @@ class _FakePlayer implements CardAudioPlayer {
     if (boom != null) throw boom;
   }
 
+  /// 틀어 놓으면 **끝나지 않는** 플레이어인가.
+  ///
+  /// 진짜 `just_audio`가 그렇다 — `play()`가 돌려주는 Future는 곡이 끝나거나
+  /// 멈출 때 끝난다. 반복을 걸어 뒀으니 영영 끝나지 않는다.
+  bool playNeverEnds = false;
+
   @override
-  Future<void> play() async => calls.add('play');
+  Future<void> play() {
+    calls.add('play');
+    if (playNeverEnds) return Completer<void>().future;
+    return Future.value();
+  }
 
   @override
   Future<void> pause() async => calls.add('pause');
