@@ -529,7 +529,7 @@ abstract final class AppStrings {
   /// 앞에 선다. ⚠️ **알릴 기능이 있는 운영 릴리스 때 이 문장과 날짜만 바꾼다**
   /// (`docs/release.md`). 기간이 지나면 저절로 빠져서 깜빡해도 옛 소식이
   /// 남지 않는다.
-  static const homeNoticeUpdate = '출발 전에 파티원과 채팅할 수 있어요';
+  static const homeNoticeUpdate = '달린 날을 기록카드로 남길 수 있어요';
 
   /// 워치 앱 안내. 늘 한 바퀴에 한 번 지나가고, 소식이 없으면 이 줄에 머문다.
   /// 기기 이름을 쓰지 않는다 — `갤럭시워치로 …`는 기기 광고처럼 읽힌다.

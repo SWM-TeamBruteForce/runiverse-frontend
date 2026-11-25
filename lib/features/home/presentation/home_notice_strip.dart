@@ -35,7 +35,7 @@ class HomeNoticeStrip extends ConsumerStatefulWidget {
   /// 선다.
   ///
   /// ⚠️ **알릴 기능이 있는 운영 릴리스 때 공개일로 채운다**(`docs/release.md`).
-  static final updateSince = DateTime(2026, 11, 19);
+  static final updateSince = DateTime(2026, 11, 27);
 
   @override
   ConsumerState<HomeNoticeStrip> createState() => _HomeNoticeStripState();
