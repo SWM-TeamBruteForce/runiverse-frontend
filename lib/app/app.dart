@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_router.dart';
@@ -148,6 +149,10 @@ class _RuniverseAppState extends ConsumerState<RuniverseApp> {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.dark,
+      // 입력칸 메뉴·뒤로가기 이름처럼 Flutter가 그리는 글자. 앱 문구가 한국어뿐이라
+      // 한국어만 둔다. iOS는 Info.plist `CFBundleLocalizations`도 함께 맞춘다.
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      supportedLocales: const [Locale('ko')],
       routerConfig: _router,
       // ⚠️ **출발은 화면을 가리지 않는다.** 로비에 서 있어야만 러닝이
       // 시작되던 것을 여기서 받는다 — 어느 화면에 있든 1분 전에 안내하고

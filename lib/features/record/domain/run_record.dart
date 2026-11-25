@@ -1,11 +1,19 @@
-/// 러닝 방식. 서버가 `SOLO` 또는 `MATCH` 로 준다.
+/// 러닝 방식. 서버가 `SOLO`·`MATCH`·`INVITE` 로 준다(연동 가이드 1절).
 enum RunKind {
   /// 혼자 시작한 러닝.
   solo,
 
   /// 매칭으로 만들어진 방. **함께 달렸다는 뜻은 아니다** — [RunRecord.isAlone]
   /// 참고.
-  match;
+  match,
+
+  /// 초대로 만들어진 방.
+  ///
+  /// ⚠️ **2026-11-24에 더했다.** 연동 가이드 1절이 러닝 종류를 솔로·매칭·초대
+  /// 셋으로 적었다. 그때까지는 `null`로 읽혀 **초대 러닝이 종류 없는 기록**으로
+  /// 보였다 — `RoomType.invite`는 2026-10-29부터 내려오고 있었는데 기록 목록의
+  /// `type`만 모르고 있었다.
+  invite;
 
   /// 서버 값을 읽는다. **모르는 값이면 `null`이다.**
   ///
@@ -14,6 +22,7 @@ enum RunKind {
   static RunKind? of(Object? wire) => switch (wire) {
     'SOLO' => RunKind.solo,
     'MATCH' => RunKind.match,
+    'INVITE' => RunKind.invite,
     _ => null,
   };
 }

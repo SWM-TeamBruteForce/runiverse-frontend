@@ -103,6 +103,13 @@ void main() {
     test('`SOLO` 와 `MATCH` 를 읽는다', () {
       expect(RunRecordDto.recordFrom(record(type: 'SOLO')).kind, RunKind.solo);
       expect(RunRecordDto.recordFrom(record()).kind, RunKind.match);
+      // ⚠️ **초대도 읽는다** (2026-11-24). 연동 가이드 1절이 러닝 종류를
+      // 솔로·매칭·초대 셋으로 적었다 — 그때까지 `INVITE`는 `null`로 읽혀
+      // 초대 러닝이 **종류 없는 기록**으로 보였다.
+      expect(
+        RunRecordDto.recordFrom(record(type: 'INVITE')).kind,
+        RunKind.invite,
+      );
     });
 
     test('⚠️ 모르는 방식은 `null` 이다', () {

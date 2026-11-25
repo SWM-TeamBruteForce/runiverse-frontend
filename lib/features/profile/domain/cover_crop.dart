@@ -7,7 +7,14 @@
 /// 맞춰 넘치는 쪽을 덜어 내고, 넘친 만큼에 `(alignY + 1) / 2`를 곱한 자리에서
 /// 시작한다.
 ///
-/// 칸보다 납작한 사진(가로로 넘친다)은 **언제나 가운데다.** 위아래만 옮긴다.
+/// **넘치는 축으로만 옮긴다.** 세로로 넘치면 [rect]의 `alignY`가, 가로로 넘치면
+/// `alignX`가 자리를 고른다. 다른 축은 쓸 데가 없다 — 그 축은 사진을 다 쓴다.
+///
+/// ## ⚠️ 축이 비율에 따라 바뀐다
+///
+/// 커버(412:200)는 가로로 넓어 사진이 거의 다 위아래로 넘치지만, 기록카드
+/// 사진(9:16)은 세로로 길어 **4:3이든 3:4든 거의 다 좌우로 넘친다.** 그래서
+/// 한 축만 받으면 9:16에서는 밀 수가 없다.
 abstract final class CoverCrop {
   const CoverCrop._();
 
@@ -16,23 +23,29 @@ abstract final class CoverCrop {
 
   /// [width]×[height] 사진에서 [aspectRatio](폭/높이)만큼 남길 자리.
   ///
-  /// [alignY]는 -1(맨 위)부터 1(맨 아래)까지다. 밖의 값은 끝으로 붙인다.
+  /// [alignY]는 -1(맨 위)부터 1(맨 아래)까지, [alignX]는 -1(맨 왼쪽)부터
+  /// 1(맨 오른쪽)까지다. 밖의 값은 끝으로 붙인다.
+  ///
+  /// ⚠️ [alignX]의 기본값 `0`은 **가운데**다 — 좌우를 밀지 않던 때와 같은
+  /// 결과라, 커버와 워치 사진은 이 인자를 몰라도 그대로 돈다.
   static ({int left, int top, int width, int height}) rect({
     required int width,
     required int height,
     required double aspectRatio,
     required double alignY,
+    double alignX = 0,
   }) {
-    final align = alignY.clamp(-1.0, 1.0);
     if (width / height < aspectRatio) {
       // 세로로 넘친다. 폭을 다 쓰고 높이를 덜어 낸다.
+      final align = alignY.clamp(-1.0, 1.0);
       final cropHeight = (width / aspectRatio).round().clamp(1, height);
       final top = ((height - cropHeight) * (align + 1) / 2).round();
       return (left: 0, top: top, width: width, height: cropHeight);
     }
-    // 가로로 넘치거나 꼭 맞는다. 높이를 다 쓰고 가운데를 남긴다.
+    // 가로로 넘치거나 꼭 맞는다. 높이를 다 쓰고 폭을 덜어 낸다.
+    final align = alignX.clamp(-1.0, 1.0);
     final cropWidth = (height * aspectRatio).round().clamp(1, width);
-    final left = ((width - cropWidth) / 2).round();
+    final left = ((width - cropWidth) * (align + 1) / 2).round();
     return (left: left, top: 0, width: cropWidth, height: height);
   }
 }

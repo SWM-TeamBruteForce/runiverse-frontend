@@ -1,10 +1,10 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
+import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/app/app.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/widgets/coming_soon_page.dart';
 import 'package:runiverse/core/widgets/v2/app_tab_bar.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
@@ -15,6 +15,7 @@ import 'package:runiverse/features/notification/presentation/notification_provid
 import 'package:runiverse/features/record/data/fake_run_record_repository.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
 import 'package:runiverse/features/record/presentation/record_provider.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_page.dart';
 
 /// 탭 셸의 상태 전이 — 탭을 누르면 그 branch가 열리는가.
 ///
@@ -41,6 +42,11 @@ void main() {
           ),
           runRecordRepositoryProvider.overrideWithValue(
             FakeRunRecordRepository(today: DateTime(2026, 9, 3)),
+          ),
+          // ⚠️ **기록카드 저장소도 가짜로 둔다.** 2026-11-24에 진짜가
+          // 꽂혀서, 안 두면 dio 가 서버 주소를 찾다 죽는다.
+          recordCardRepositoryProvider.overrideWithValue(
+            FakeRecordCardRepository(today: DateTime(2026, 11, 16)),
           ),
           // 셸이 앱 스트림을 만들고, 로그인돼 있으면 첫
           // 페이지도 받는다. 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
@@ -89,13 +95,12 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('기록카드 탭은 숨겨지지 않고 준비 중 화면을 연다', (tester) async {
+  testWidgets('기록카드 탭은 달력을 연다', (tester) async {
     final handle = tester.ensureSemantics();
     await pumpApp(tester);
     await tapTab(tester, AppStrings.tabRecordCard);
 
-    expect(find.byType(ComingSoonPage), findsOneWidget);
-    expect(find.text(AppStrings.comingSoonTitle), findsOneWidget);
+    expect(find.byType(RecordCardPage), findsOneWidget);
     handle.dispose();
   });
 
@@ -117,27 +122,5 @@ void main() {
     expect(tabLabel('피드'), findsNothing);
     expect(tabLabel('대회일정'), findsNothing);
     handle.dispose();
-  });
-
-  // TODO(되살리기): 기록카드 탭을 되살리면 이 테스트를 지운다.
-  testWidgets('iOS에서는 기록카드 탭이 없어 탭이 셋이다', (tester) async {
-    // 본문 안에서 되돌린다 — testWidgets가 본문 끝에서 디버그 변수를 검사한다.
-    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-    try {
-      final handle = tester.ensureSemantics();
-      await pumpApp(tester);
-
-      for (final name in [
-        AppStrings.tabHome,
-        AppStrings.tabRecord,
-        AppStrings.tabProfile,
-      ]) {
-        expect(tabLabel(name), findsOneWidget, reason: '$name 탭이 없다');
-      }
-      expect(tabLabel(AppStrings.tabRecordCard), findsNothing);
-      handle.dispose();
-    } finally {
-      debugDefaultTargetPlatformOverride = null;
-    }
   });
 }

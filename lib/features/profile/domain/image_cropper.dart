@@ -13,7 +13,11 @@ import 'package:runiverse/features/profile/domain/picked_image.dart';
 /// 들고 가면 **403**이 된다. 잘라 낸 파일을 다시 잰 값을 돌려준다.
 abstract interface class ImageCropper {
   /// [image]를 [aspectRatio](폭/높이)에 맞춰 자른다. 세로 위치는 [alignY]
-  /// (-1 위 · 0 가운데 · 1 아래)다.
+  /// (-1 위 · 0 가운데 · 1 아래), 가로 위치는 [alignX]
+  /// (-1 왼쪽 · 0 가운데 · 1 오른쪽)다.
+  ///
+  /// ⚠️ **넘치는 축의 값만 쓰인다**(`CoverCrop`). 커버(412:200)는 거의 늘
+  /// [alignY]이고, 기록카드 사진(9:16)은 거의 늘 [alignX]다.
   ///
   /// 읽지 못하면 `ProfileImageException`을 던진다. **자르지 않은 채로 올리지
   /// 않는다** — 보던 것과 다른 그림이 올라간다.
@@ -21,6 +25,7 @@ abstract interface class ImageCropper {
     PickedImage image, {
     required double aspectRatio,
     required double alignY,
+    double alignX = 0,
   });
 
   /// [crop]이 만든 파일을 지운다. **올리기가 끝나면 성공이든 실패든 부른다.**

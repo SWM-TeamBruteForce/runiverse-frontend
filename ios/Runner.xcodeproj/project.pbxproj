@@ -337,10 +337,10 @@
 			};
 			buildConfigurationList = 97C146E91CF9000F007C117D /* Build configuration list for PBXProject "Runner" */;
 			compatibilityVersion = "Xcode 9.3";
-			developmentRegion = en;
+			developmentRegion = ko;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				en,
+				ko,
 				Base,
 			);
 			mainGroup = 97C146E51CF9000F007C117D;
@@ -1998,7 +1998,7 @@
 			repositoryURL = "https://github.com/SWM-TeamBruteForce/runiverse-watch-ios";
 			requirement = {
 				kind = exactVersion;
-				version = 1.3.2;
+				version = 1.3.3;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

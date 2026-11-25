@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_provider.dart';
+import 'package:runiverse/features/record_card/data/fake_record_card_repository.dart';
 import 'package:runiverse/features/friend/data/fake_friend_repository.dart';
 import 'package:runiverse/features/friend/presentation/friend_provider.dart';
 import 'package:runiverse/app/app.dart';
@@ -13,6 +15,7 @@ import 'package:runiverse/core/storage/token_store.dart';
 import 'package:runiverse/core/strings/app_strings.dart';
 import 'package:runiverse/core/theme/app_theme.dart';
 import 'package:runiverse/core/theme/v2/app_colors.dart';
+import 'package:runiverse/core/theme/v2/app_spacing.dart';
 import 'package:runiverse/core/widgets/v2/app_icon.dart';
 import 'package:runiverse/features/app_update/data/fake_app_version_repository.dart';
 import 'package:runiverse/features/app_update/presentation/app_version_provider.dart';
@@ -40,6 +43,9 @@ import 'package:runiverse/features/profile/domain/profile_image_failure.dart';
 import 'package:runiverse/features/profile/presentation/background_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/nickname_field.dart';
 import 'package:runiverse/features/profile/presentation/profile_avatar.dart';
+import 'package:runiverse/features/record_card/presentation/card_detail_page.dart';
+import 'package:runiverse/features/profile/presentation/profile_card_grid.dart';
+import 'package:runiverse/features/profile/presentation/profile_card_tile.dart';
 import 'package:runiverse/features/profile/presentation/profile_cover.dart';
 import 'package:runiverse/features/profile/presentation/profile_image_provider.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
@@ -105,6 +111,11 @@ void main() {
           // 프로필의 `친구 · N` 줄이 받은 요청 수를 세려고 친구 목록을
           // 받는다. 진짜를 두면 dio가 서버 주소를 찾다 죽는다.
           friendRepositoryProvider.overrideWithValue(FakeFriendRepository()),
+          // ⚠️ **기록카드 저장소도 가짜로 둔다.** 2026-11-24에 진짜가
+          // 꽂혀서, 안 두면 dio 가 서버 주소를 찾다 죽는다.
+          recordCardRepositoryProvider.overrideWithValue(
+            FakeRecordCardRepository(today: DateTime(2026, 11, 16)),
+          ),
           tokenStoreProvider.overrideWithValue(store),
           signInMemoryStoreProvider.overrideWithValue(
             InMemorySignInMemoryStore(),
@@ -162,6 +173,50 @@ void main() {
 
     expect(find.text('러너42'), findsOneWidget);
     expect(find.text(AppStrings.profileNicknameEmpty), findsNothing);
+  });
+
+  /// 기록카드 그리드 (설계 6-7) — 묶음 6에서 이 자리에 섰다.
+  testWidgets('공개한 기록카드가 친구 줄 아래에 선다', (tester) async {
+    await pumpProfile(tester, onboarded: true);
+
+    final grid = tester.widget<ProfileCardGrid>(find.byType(ProfileCardGrid));
+    expect(grid.userId, isNotEmpty);
+  });
+
+  testWidgets('⚠️ 그리드가 친구 줄과 같은 들여쓰기로 선다', (tester) async {
+    // 남의 프로필과 같은 값이어야 한다 — 다르면 같은 위젯이 화면마다 다른
+    // 레이아웃을 낸다(설계 6-7).
+    await pumpProfile(tester, onboarded: true);
+
+    expect(
+      tester.getTopLeft(find.byType(ProfileCardGrid)).dx,
+      AppSpacing.space4,
+    );
+  });
+
+  testWidgets('⚠️ 프로필에서 카드를 열고 돌아와도 프로필에 남는다', (tester) async {
+    // 상세가 탭 셸 밖인 이유다(설계 7절). 셸 안에 두면 카드를 여는 순간
+    // **기록카드 탭으로 전환**되고, 뒤로가 내 캘린더로 떨어진다.
+    await pumpProfile(tester, onboarded: true);
+
+    // ⚠️ **첫 칸을 누르지 않는다.** 목 카드 1000번은 음악이 "만드는 중"으로
+    // 심겨 끝나지 않아, 상세를 열면 폴링 타이머가 남아 테스트가 죽는다.
+    final tile = find.byType(ProfileCardTile).at(1);
+    await tester.dragUntilVisible(
+      tile,
+      find.byType(SingleChildScrollView),
+      const Offset(0, -120),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CardDetailPage), findsOneWidget);
+
+    await tester.tap(find.byTooltip(AppStrings.authBack));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ProfilePage), findsOneWidget);
   });
 
   testWidgets('프로필을 안 채운 사람은 빈 상태 문구가 보인다', (tester) async {

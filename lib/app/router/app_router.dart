@@ -1,8 +1,8 @@
-﻿import 'package:go_router/go_router.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:runiverse/app/router/app_routes.dart';
 import 'package:runiverse/app/router/app_shell.dart';
-import 'package:runiverse/core/strings/app_strings.dart';
-import 'package:runiverse/core/widgets/coming_soon_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_in_page.dart';
 import 'package:runiverse/features/auth/presentation/sign_up_page.dart';
 import 'package:runiverse/features/friend/presentation/friend_page.dart';
@@ -19,9 +19,17 @@ import 'package:runiverse/features/onboarding/presentation/onboarding_intro_page
 import 'package:runiverse/features/onboarding/presentation/profile_setup_page.dart';
 import 'package:runiverse/features/onboarding/presentation/splash_page.dart';
 import 'package:runiverse/features/onboarding/presentation/terms_agreement_page.dart';
+import 'package:runiverse/features/profile/presentation/profile_cards_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_edit_page.dart';
 import 'package:runiverse/features/profile/presentation/profile_page.dart';
 import 'package:runiverse/features/record/presentation/record_page.dart';
+import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/presentation/card_compose_page.dart';
+import 'package:runiverse/features/record_card/presentation/card_detail_page.dart';
+import 'package:runiverse/features/record_card/presentation/card_detail_provider.dart';
+import 'package:runiverse/features/record_card/presentation/card_draft_provider.dart';
+import 'package:runiverse/features/record_card/presentation/card_publish_page.dart';
+import 'package:runiverse/features/record_card/presentation/record_card_page.dart';
 import 'package:runiverse/features/session/presentation/run_prepare_page.dart';
 import 'package:runiverse/features/session/presentation/run_session_page.dart';
 import 'package:runiverse/features/record/presentation/record_detail_page.dart';
@@ -110,6 +118,86 @@ GoRouter createAppRouter({String? initialLocation}) {
         path: AppRoutes.notifications,
         name: 'notifications',
         builder: (context, state) => const NotificationPage(),
+      ),
+      // 기록카드 작성 1. **탭 셸 밖이다** — 작성 중에 하단 탭으로 새지
+      // 않게 한다.
+      //
+      // ⚠️ **`date` 쿼리가 없거나 못 읽으면 오늘로 떨어진다.** 404 를 내지
+      // 않는다 — 탭 머리의 쓰기 버튼은 날짜를 싣지 않고 들어온다.
+      GoRoute(
+        path: AppRoutes.recordCardNew,
+        name: 'record_card_new',
+        builder: (context, state) => CardComposePage(
+          day:
+              DateTime.tryParse(state.uri.queryParameters['date'] ?? '') ??
+              DateTime.now(),
+          // ⚠️ **못 읽으면 `null`이다.** 미리 고르지 못할 뿐이고, 고르는 것은
+          // 사용자가 한다 — 404 를 낼 일이 아니다.
+          roomId: int.tryParse(state.uri.queryParameters['room'] ?? ''),
+        ),
+      ),
+      // 기록카드 작성 2 — 공개범위 · 음악 · 저장. **탭 셸 밖이다.**
+      //
+      // ⚠️ **사진은 라우트가 아니다.** 작성 화면을 옆으로 밀어 넣는 같은
+      // 화면의 장이다(사용자 결정 2026-11-24).
+      //
+      // ⚠️ **초안이 비어 있으면 탭으로 돌려보낸다.** 딥링크나 프로세스 복원으로
+      // 여기 바로 떨어지면 고를 기록도, 쓴 회고도 없다 — 카드 상세가 `extra`
+      // 없이 들어온 것과 같은 꼴이다. 빈 화면을 띄우지 않는다.
+      //
+      // ⚠️ **저장하면 작성 셋을 걷고 상세를 민다.** `go`로 가면 셸 밖 라우트
+      // 아래에 스택이 없어 안드로이드 뒤로가 앱을 닫는다. 걷어 내면 뒤로가
+      // 캘린더로 떨어진다(설계 6-4).
+      GoRoute(
+        path: AppRoutes.recordCardNewPublish,
+        name: 'record_card_new_publish',
+        redirect: _needsDraft,
+        builder: (context, state) => CardPublishPage(
+          onSaved: (card) => _toDetail(context, card, editing: false),
+        ),
+      ),
+      // 기록카드 수정 1·2. **탭 셸 밖이고, 카드를 `extra`로 받는다.**
+      //
+      // ⚠️ **카드 없이 들어오면 탭으로 돌려보낸다.** 단건 조회 API가 없어
+      // 보여 줄 것이 없다 — 상세가 `extra` 없이 들어온 것과 같은 꼴이다.
+      GoRoute(
+        path: AppRoutes.recordCardEdit,
+        name: 'record_card_edit',
+        redirect: _needsCard,
+        builder: (context, state) {
+          final card = state.extra! as RecordCard;
+          return CardComposePage(day: card.day, cardId: card.id, card: card);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.recordCardEditPublish,
+        name: 'record_card_edit_publish',
+        redirect: _needsCard,
+        builder: (context, state) => CardPublishPage(
+          cardId: (state.extra! as RecordCard).id,
+          onSaved: (card) => _toDetail(context, card, editing: true),
+        ),
+      ),
+      // 기록카드 한 장. **탭 셸 밖이다** — 프로필이나 러닝 요약에서 열어도
+      // 탭이 바뀌면 안 된다(`app_routes.dart`).
+      //
+      // ⚠️ **카드를 `extra`로 받는다.** 달력이 이미 들고 있는 것을 넘겨 주면
+      // 다시 받아 올 필요가 없다. 딥링크처럼 `extra` 없이 들어오면 보여 줄
+      // 것이 없으므로 탭으로 돌려보낸다 — 빈 화면을 띄우지 않는다.
+      // ⚠️ **번호만 받는다.** 묶음 6까지는 카드를 `extra`로 들려 보내고 없으면
+      // 탭으로 돌려보냈는데, 상세(8-1)가 생겨 번호 하나로 열린다. 그래서
+      // **딥링크와 프로세스 복원으로도 열린다** — 돌려보낼 이유가 없다.
+      GoRoute(
+        path: AppRoutes.recordCardDetail,
+        name: 'record_card_detail',
+        builder: (context, state) =>
+            CardDetailPage(cardId: state.pathParameters['id'] ?? ''),
+      ),
+      GoRoute(
+        path: AppRoutes.recordCardsOfUser,
+        name: 'record_cards_of_user',
+        builder: (context, state) =>
+            ProfileCardsPage(userId: state.pathParameters['userId'] ?? ''),
       ),
       GoRoute(
         path: AppRoutes.friends,
@@ -245,17 +333,17 @@ GoRouter createAppRouter({String? initialLocation}) {
             ],
           ),
 
-          // 2 · 기록카드 — 화면이 생기면 여기만 갈아끼운다.
-          // iOS에서는 `showRecordCardTab`으로 숨겨 프로필이 2번이 된다.
+          // 2 · 기록카드
+          //
+          // ⚠️ **카드 상세는 여기 두지 않는다.** 셸 밖(`recordCardDetail`)이다 —
+          // 프로필이나 러닝 요약에서 카드를 열었을 때 탭이 바뀌면 안 된다.
           if (showRecordCardTab)
             StatefulShellBranch(
               routes: [
                 GoRoute(
                   path: AppRoutes.recordCard,
                   name: 'record_card',
-                  builder: (context, state) => const ComingSoonPage(
-                    featureName: AppStrings.tabRecordCard,
-                  ),
+                  builder: (context, state) => const RecordCardPage(),
                 ),
               ],
             ),
@@ -277,4 +365,83 @@ GoRouter createAppRouter({String? initialLocation}) {
       ),
     ],
   );
+}
+
+/// 작성 2·3에 들어갈 초안이 있나. 없으면 탭으로 돌려보낸다.
+///
+/// ## ⚠️ 빈 화면을 띄우지 않는다
+///
+/// 딥링크나 프로세스 복원으로 작성 2·3에 바로 떨어지면 고를 기록도, 쓴 회고도
+/// 없다. 카드 상세가 `extra` 없이 들어왔을 때와 같은 꼴로 다룬다.
+///
+/// `canProceed`가 아니라 `isDirty`를 보지 않는다 — **저장할 수 있는 상태**인지
+/// 묻는 것이고, 사진은 선택이라 그 판단에 안 들어간다.
+String? _needsDraft(BuildContext context, GoRouterState state) {
+  final draft = ProviderScope.containerOf(
+    context,
+    listen: false,
+  ).read(cardDraftProvider(null));
+  return draft.canProceed ? null : AppRoutes.recordCard;
+}
+
+/// 고칠 카드가 왔나. 없으면 탭으로 돌려보낸다.
+///
+/// ⚠️ 카드 **단건 조회 API가 없다** — `extra`로 받은 것이 전부다. 딥링크나
+/// 프로세스 복원으로 들어오면 보여 줄 것이 없으므로 빈 화면을 띄우지 않는다.
+String? _needsCard(BuildContext context, GoRouterState state) =>
+    state.extra is RecordCard ? null : AppRoutes.recordCard;
+
+/// 만든(또는 고친) 카드의 상세로 보낸다. **자기 흐름만 걷는다**(설계 6-4).
+///
+/// ## ⚠️ `go`를 쓰지 않는다
+///
+/// 셸 밖 라우트에 `go`로 가면 그 아래에 스택이 없어 **안드로이드 뒤로가 앱을
+/// 닫는다.** 화면들을 걷고 상세를 밀면 뒤로가 캘린더로 떨어진다.
+///
+/// ⚠️ **수정이면 옛 상세까지 걷힌다. 그래야 맞다** — 새 상세를 그냥 밀면
+/// 상세가 둘 쌓여 뒤로가 두 번이 되고, 밑에 깔린 것은 **고치기 전 값**을
+/// 들고 있다.
+///
+/// ## ⚠️ 밑에 깔린 남의 화면은 걷지 않는다
+///
+/// 전에는 `while (canPop())`로 **스택을 바닥까지 비웠다.** 그래서
+/// ① 작성 1에서 카드 있는 기록을 눌러 상세로 간 뒤 거기서 고쳐 저장하면
+/// **쓰던 새 카드 화면이 함께 걷혔고**(글은 초안에 남지만 예고 없이 쫓겨난다)
+/// ② 러닝 요약에서 들어왔으면 요약까지 걷혀 **`reset()`이 안 불렸다.**
+///
+/// 그래서 경로 앞머리로 **내 흐름만** 가린다 — 고치는 중이면
+/// `/record-card/card/...`(수정 셋 + 옛 상세), 새 카드면
+/// `/record-card/new...`다. 둘 다 아닌 화면(탭·프로필·전체 보기·러닝 요약)에
+/// 닿으면 멈춘다.
+void _toDetail(BuildContext context, RecordCard card, {required bool editing}) {
+  final router = GoRouter.of(context);
+  final mine = editing
+      ? '${AppRoutes.recordCard}/card/'
+      : AppRoutes.recordCardNew;
+  final target = AppRoutes.recordCardDetailOf(card.id);
+
+  // ⚠️ **이미 서 있는 상세는 걷지 않는다.** 수정은 그 카드의 상세에서 들어오므로
+  // 작성 화면 셋을 걷어 내면 **그 상세가 바로 아래에 있다.** 그것까지 걷고 다시
+  // 밀면 go_router 가 같은 페이지 키를 두 번 받아 죽는다
+  // (`!keyReservation.contains(key)`).
+  while (router.canPop() &&
+      router.state.uri.path.startsWith(mine) &&
+      router.state.uri.path != target) {
+    router.pop();
+  }
+
+  // ⚠️ **들고 있던 상세를 버린다.** 걷어 낸(또는 그대로 서 있는) 상세의
+  // `autoDispose` provider 는 아직 살아 있어서, 버리지 않으면 **고치기 전
+  // 카드**가 캐시에서 나온다 — 저장하고 돌아온 화면에 고친 글이 안 보인다.
+  //
+  // ⚠️ **저장하는 쪽에서 버리면 안 된다.** 그때는 작성 화면들이 아직 걷히는
+  // 중이고, 그 위에서 상세가 다시 그려지면 프레임워크가 빌드 범위를 어긴다
+  // (`Tried to build dirty widget in the wrong build scope`).
+  ProviderScope.containerOf(
+    context,
+    listen: false,
+  ).invalidate(cardDetailProvider(card.id));
+
+  // 새로 만든 카드면 상세가 스택에 없다 — 그때만 민다.
+  if (router.state.uri.path != target) router.push(target);
 }

@@ -328,4 +328,32 @@ void main() {
     expect(detail.party, isEmpty);
     expect(detail.rawSplits, hasLength(1));
   });
+
+  group('시작 시각', () {
+    test('⚠️ 오프셋 없는 KST를 그대로 읽는다', () {
+      // `.toUtc()`를 붙이면 9시간 밀려 기록카드가 다른 날짜로 열린다.
+      final detail = RoomResultDto.merge(
+        results: {
+          'runningRoomId': 1,
+          'startedAt': '2026-11-22T23:50:00',
+          'players': const [],
+        },
+        splitResults: const {},
+      );
+
+      expect(detail.startedAt, DateTime(2026, 11, 22, 23, 50));
+    });
+
+    test('⚠️ 안 주거나 못 읽으면 null이다 — 지어내지 않는다', () {
+      // 그때는 기록카드 버튼을 숨긴다(연동 가이드 6절). 아무 날로 열면
+      // 고를 것이 없는 화면에 닿는다.
+      for (final wire in [null, '', 'x', 7]) {
+        final detail = RoomResultDto.merge(
+          results: {'runningRoomId': 1, 'startedAt': wire, 'players': const []},
+          splitResults: const {},
+        );
+        expect(detail.startedAt, isNull, reason: '$wire');
+      }
+    });
+  });
 }

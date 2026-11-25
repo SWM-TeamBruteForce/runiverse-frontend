@@ -40,12 +40,14 @@ class UiImageCropper implements ImageCropper {
     PickedImage image, {
     required double aspectRatio,
     required double alignY,
+    double alignX = 0,
   }) async {
     try {
       final path = await _cropped(
         image.path,
         aspectRatio: aspectRatio,
         alignY: alignY,
+        alignX: alignX,
       );
       // ⚠️ **잘라 낸 파일을 잰다.** 서명은 이 크기로 받는다.
       return PickedImage.validated(
@@ -78,12 +80,14 @@ class UiImageCropper implements ImageCropper {
     String path, {
     required double aspectRatio,
     required double alignY,
+    required double alignX,
   }) async {
     // 1. 자른다. 크기는 그대로다 — 줄이는 일은 고를 때 끝났다.
     final (:png, :width, :height) = await _croppedPng(
       path,
       aspectRatio: aspectRatio,
       alignY: alignY,
+      alignX: alignX,
     );
 
     // 2. JPEG로 바꾼다. `minWidth`·`minHeight`를 자른 크기로 준다 — 플러그인은
@@ -116,6 +120,7 @@ class UiImageCropper implements ImageCropper {
     String path, {
     required double aspectRatio,
     required double alignY,
+    required double alignX,
   }) async {
     final codec = await ui.instantiateImageCodec(
       await File(path).readAsBytes(),
@@ -133,6 +138,7 @@ class UiImageCropper implements ImageCropper {
         height: source.height,
         aspectRatio: aspectRatio,
         alignY: alignY,
+        alignX: alignX,
       );
 
       final recorder = ui.PictureRecorder();
