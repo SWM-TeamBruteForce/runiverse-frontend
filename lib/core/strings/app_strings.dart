@@ -1810,7 +1810,7 @@ abstract final class AppStrings {
   // 수정은 작성 세 화면을 그대로 다시 쓴다. 다른 것은 **제목**과 **러닝 기록을
   // 못 바꾼다는 것** 둘뿐이다.
 
-  static const recordCardEditTitle = '기록카드 고치기';
+  static const recordCardEditTitle = '기록카드 편집';
 
   /// ⚠️ **왜 못 바꾸는지 말한다.** 그냥 잠가 두면 고장으로 읽힌다.
   ///
