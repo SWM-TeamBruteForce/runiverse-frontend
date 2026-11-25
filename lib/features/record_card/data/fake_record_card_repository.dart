@@ -1,0 +1,728 @@
+import 'dart:math' as math;
+
+import 'package:runiverse/features/record_card/domain/edit_record_card.dart';
+import 'package:runiverse/features/record_card/domain/music_generation.dart';
+import 'package:runiverse/features/record_card/domain/music_inputs.dart';
+import 'package:runiverse/features/record_card/domain/new_record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card.dart';
+import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
+import 'package:runiverse/features/record_card/domain/record_card_repository.dart';
+import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
+import 'package:runiverse/features/record_card/domain/route_art.dart';
+import 'package:runiverse/features/session/domain/geo_point.dart';
+
+/// 서버 없이 기록카드 탭을 세우기 위한 목.
+///
+/// ## ⚠️ 진짜 카드가 아니다
+///
+/// 3차 API 명세서의 `record-card` 엔드포인트 여섯 줄이 **본문이 비어 있어**
+/// 붙일 서버가 없다. 화면이 갈라야 하는 경우가 전부 한 번씩 나오도록 **일부러**
+/// 만든 값이다 — 사진 없는 카드, 다섯 장짜리, 하루에 둘인 날, 유형 셋,
+/// 공개범위 셋.
+///
+/// 서버가 열리면 provider에서 `HttpRecordCardRepository`로 바꾼다. 이 파일은
+/// 그때 테스트용으로 남는다.
+///
+/// ## ⚠️ 사진이 **번들 에셋 경로**다
+///
+/// 서버가 없어 열람 주소를 만들 수 없다. 그래서 `assets/images/...`를 그대로
+/// 돌려주고, 그리는 쪽이 `assets/`로 시작하는 주소를 에셋으로 읽는다.
+/// **HTTP 구현체가 붙으면 그 분기는 지운다.**
+///
+/// ## ⚠️ 러닝 기록 목을 건드리지 않는다
+///
+/// 카드가 지표·경로를 스스로 들고 있어 `FakeRunRecordRepository`에 매이지
+/// 않는다. 그쪽 `_plan`을 손대면 **기록 탭의 주간·월 요약 눈검증 값이 같이
+/// 바뀐다.**
+class FakeRecordCardRepository implements RecordCardRepository {
+  FakeRecordCardRepository({
+    DateTime? today,
+    this.delay = Duration.zero,
+    this.failWith,
+    this.clock = DateTime.now,
+  }) : _today = today ?? DateTime.now();
+
+  /// "오늘"을 어디로 볼 것인가. 목 데이터를 이 날 기준으로 만든다.
+  final DateTime _today;
+
+  /// 로딩 상태를 눈으로 보려고 두는 지연. 테스트에서는 0이다.
+  final Duration delay;
+
+  /// 지금 몇 시인가. **음악 상태를 시간으로 계산한다.**
+  ///
+  /// ⚠️ **타이머를 쓰지 않는 이유다.** 타이머로 흉내내면 테스트가 13초를
+  /// 실제로 기다린다. 요청 시각만 적어 두고 흐른 시간으로 상태를 내면,
+  /// 테스트는 시계를 밀고 기기는 진짜 시간을 쓴다.
+  final DateTime Function() clock;
+
+  /// 주면 **언제나 이 실패로 던진다.** 오류 화면을 눈으로 보는 길이다.
+  ///
+  /// 도중에 바꿀 수 있다 — "잘 보다가 한 번 끊겼다"를 흉내내는 데 쓴다.
+  RecordCardFailure? failWith;
+
+  /// 몇 번 불렸나. 화면이 받은 달을 다시 받는지 본다.
+  var calls = 0;
+
+  /// 물어본 구간들. 무엇을 받아 왔는지 보는 데 쓴다.
+  final queries = <({DateTime from, DateTime to})>[];
+
+  @override
+  Future<List<RecordCard>> byDateRange({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    calls++;
+
+    if (failWith != null) throw RecordCardException(failWith!);
+
+    // ⚠️ **진짜와 같은 규칙으로 거절한다.** 가짜가 뭐든 받아 주면 화면이 구간을
+    // 넓혀도 테스트가 다 통과하고, 기기에서만 400 이 난다.
+    if (from.isAfter(to) ||
+        to.difference(from).inDays >= RecordCardRepository.maxRangeDays) {
+      throw const RecordCardException(RecordCardFailure.invalidRequest);
+    }
+
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+
+    final start = DateTime(from.year, from.month, from.day);
+    final end = DateTime(to.year, to.month, to.day);
+    queries.add((from: start, to: end));
+
+    return [
+      for (final card in _live())
+        if (!card.day.isBefore(start) && !card.day.isAfter(end)) card,
+    ]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+  }
+
+  /// 누가 무엇을 물었나. 그리드가 7장만 묻는지 보는 데 쓴다.
+  final userQueries = <({String userId, int? limit})>[];
+
+  @override
+  Future<List<RecordCard>> byUser({required String userId, int? limit}) async {
+    calls++;
+
+    if (failWith != null) throw RecordCardException(failWith!);
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+
+    userQueries.add((userId: userId, limit: limit));
+
+    // ⚠️ **가짜가 거른다 — 서버 자리이기 때문이다.** 화면이 거르면 안 보여야
+    // 할 카드가 이미 기기에 와 있다는 뜻이 된다(설계 6-7).
+    final cards =
+        [
+          for (final card in _live())
+            if (card.visibility != RecordCardVisibility.private) card,
+        ]..sort(
+          // 최신순. 달력과 반대다.
+          (a, b) => b.startedAt.compareTo(a.startedAt),
+        );
+
+    return limit == null ? cards : cards.take(limit).toList();
+  }
+
+  /// 지금 **살아 있는** 카드 전부 — 목과 만든 것을 합치고, 고친 것으로 덮고,
+  /// 지운 것을 뺀다. 날짜도 공개범위도 보지 않는다.
+  ///
+  /// ⚠️ **조회마다 따로 모으지 않는다.** 따로 모으면 지운 카드가 한쪽에만
+  /// 남아, 달력에서는 사라졌는데 프로필에는 서는 카드가 생긴다.
+  ///
+  /// ⚠️ **고친 것이 있으면 그쪽을 준다.** `_all()`이 목을 매번 새로 만들어,
+  /// 안 덮으면 고친 카드가 다음 조회에 되돌아간다.
+  List<RecordCard> _live() => [
+    for (final card in [..._all(), ..._created])
+      if (!_deletedIds.contains(card.id)) _edited[card.id] ?? card,
+  ];
+
+  /// 이 앱이 만든 카드들. **앱을 끄면 사라진다.**
+  ///
+  /// ⚠️ 영속화하지 않는다 — 서버가 올 자리에 로컬 DB를 세우면 서버가 붙는 날
+  /// 두 번 걷어내야 한다.
+  final _created = <RecordCard>[];
+
+  /// 몇 번 만들었나. 저장을 두 번 누르지 않았는지 보는 데 쓴다.
+  var creates = 0;
+
+  @override
+  Future<RecordCard> create(NewRecordCard card) async {
+    creates++;
+
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (failWith != null) throw RecordCardException(failWith!);
+
+    // ⚠️ **목 데이터와 번호가 겹치면 안 된다.** 겹치면 달력이 두 장을 한 장으로
+    // 보고 상세가 엉뚱한 것을 연다. 목은 `1000 +`, 사진은 `index * 10 +`을
+    // 쓰므로 한참 위에서 센다.
+    final id = _nextCardId++;
+    final made = RecordCard(
+      id: id,
+      runningRecordId: card.record.id,
+      startedAt: card.record.startedAt,
+      activity: card.activity,
+      visibility: card.visibility,
+      reviewText: card.reviewText,
+      photos: [
+        for (var i = 0; i < card.photos.length; i++)
+          RecordCardPhoto(
+            id: id * 10 + i,
+            url: card.photos[i].path,
+            thumbnailUrl: card.photos[i].thumbnailPath,
+            caption: card.photos[i].caption,
+          ),
+      ],
+      route: card.route,
+      distanceMeters: card.record.distanceMeters,
+      duration: card.record.duration,
+      averagePace: card.record.averagePace,
+      // ⚠️ **비어 있다.** `RunRecord`는 `playerCount`만 알고 함께 뛴 사람의
+      // 닉네임·프로필은 모른다. 서버가 붙으면 응답이 싣는다(설계 3절).
+      runners: const [],
+    );
+    _created.add(made);
+    // 서버가 `musicEnabled`로 생성 요청을 건다(`NewRecordCard`). 가짜도 같은
+    // 자리에서 건다 — 저장하고 상세로 가면 줄이 `준비 중…`으로 서 있다.
+    if (card.musicEnabled) _musicRequestedAt[id] = clock();
+    return made;
+  }
+
+  /// 다음 카드 번호. 목 데이터(`1000 +`)와 겹치지 않는 자리에서 시작한다.
+  var _nextCardId = 9000;
+
+  /// 고쳐진 카드들. **목 데이터도 고칠 수 있어야 한다** — `_all()`이 매번 목을
+  /// 새로 만들어서, 여기 없으면 고친 것이 다음 조회에 되돌아간다.
+  final _edited = <int, RecordCard>{};
+
+  /// 몇 번 고쳤나.
+  var updates = 0;
+
+  @override
+  Future<RecordCard> update(EditRecordCard card) async {
+    updates++;
+
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (failWith != null) throw RecordCardException(failWith!);
+
+    final before = _find(card.cardId);
+    if (before == null) {
+      throw const RecordCardException(RecordCardFailure.notFound);
+    }
+
+    final made = RecordCard(
+      id: before.id,
+      runningRecordId: before.runningRecordId,
+      startedAt: before.startedAt,
+      activity: card.activity,
+      visibility: card.visibility,
+      reviewText: card.reviewText,
+      // ⚠️ **받은 것이 남길 전체다.** 빠진 것은 지워진 것이다.
+      photos: [
+        for (var i = 0; i < card.photos.length; i++)
+          _photoOf(card.photos[i], before: before, index: i),
+      ],
+      route: before.route,
+      distanceMeters: before.distanceMeters,
+      duration: before.duration,
+      averagePace: before.averagePace,
+      runners: before.runners,
+    );
+    _edited[made.id] = made;
+    // ⚠️ **활성 요청을 무효화하고 전곡을 다시 만든다**(설계 3절). 입력이
+    // 그대로면(공개범위만 바꿨다면) 건드리지 않는다.
+    // ⚠️ **요청 기록이 있는지로 가리면 안 된다.** 목에 심어 둔 카드는 다 된
+    // 음악을 들고도 기록이 없다 — 그러면 목 카드는 고쳐도 영영 안 다시 만든다.
+    if (_generationOf(before).status != MusicStatus.none &&
+        MusicInputs.ofEdit(card) != MusicInputs.ofCard(before)) {
+      _musicWillFail.remove(made.id);
+      _musicRequestedAt[made.id] = clock();
+    }
+    return made;
+  }
+
+  /// 남길 사진 하나를 카드의 사진으로. 이미 있던 것이면 **주소를 지킨다.**
+  RecordCardPhoto _photoOf(
+    EditCardPhoto photo, {
+    required RecordCard before,
+    required int index,
+  }) {
+    final savedId = photo.savedId;
+    if (savedId != null) {
+      final kept = before.photos.where((p) => p.id == savedId).firstOrNull;
+      return RecordCardPhoto(
+        id: savedId,
+        url: kept?.url ?? '',
+        thumbnailUrl: kept?.thumbnailUrl,
+        caption: photo.caption,
+      );
+    }
+    return RecordCardPhoto(
+      id: before.id * 10 + 100 + index,
+      url: photo.path!,
+      thumbnailUrl: photo.thumbnailPath,
+      caption: photo.caption,
+    );
+  }
+
+  /// 지워진 카드 번호들.
+  ///
+  /// ⚠️ **목 데이터도 지울 수 있어야 한다.** `_all()`이 매번 목을 새로 만들어,
+  /// 거르지 않으면 지운 카드가 다음 조회에 되살아난다.
+  final _deletedIds = <int>{};
+
+  /// 몇 번 지웠나.
+  var deletes = 0;
+
+  @override
+  Future<void> delete(int cardId) async {
+    deletes++;
+
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (failWith != null) throw RecordCardException(failWith!);
+
+    if (_find(cardId) == null) {
+      throw const RecordCardException(RecordCardFailure.notFound);
+    }
+
+    _deletedIds.add(cardId);
+    _edited.remove(cardId);
+    _created.removeWhere((card) => card.id == cardId);
+    _musicRequestedAt.remove(cardId);
+    _musicWillFail.remove(cardId);
+  }
+
+  // ── 음악 흉내 (설계 8절) ───────────────────────────────────────
+
+  /// 카드별 **마지막 요청 시각**. 없으면 한 번도 요청하지 않은 것이다.
+  final _musicRequestedAt = <int, DateTime>{};
+
+  /// 이 요청은 끝에서 떨어뜨릴 것. [musicRequests]의 20번째다.
+  final _musicWillFail = <int>{};
+
+  /// 몇 번 만들어 달라고 했나.
+  var musicRequests = 0;
+
+  /// 몇 번 물었나. **폴링이 멈추는지 보는 데 쓴다.**
+  var musicCalls = 0;
+
+  /// `QUEUED`에서 `PROCESSING`으로 넘어가는 시점.
+  static const _toProcessing = Duration(seconds: 3);
+
+  /// `PROCESSING`이 끝나는 시점. **요청 시각 기준**이다.
+  static const _toDone = Duration(seconds: 13);
+
+  @override
+  Future<MusicGeneration> musicOf(int cardId) async {
+    musicCalls++;
+
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (failWith != null) throw RecordCardException(failWith!);
+
+    final card = _find(cardId);
+    if (card == null) {
+      throw const RecordCardException(RecordCardFailure.notFound);
+    }
+
+    return _generationOf(card);
+  }
+
+  /// 지금 이 카드의 음악. **[musicOf]와 수정 판정이 같은 길을 타게** 한 곳에
+  /// 둔다 — 갈라 두면 "조회는 다 됐다는데 고쳐도 다시 안 만드는" 틈이 생긴다.
+  MusicGeneration _generationOf(RecordCard card) {
+    final requestedAt = _musicRequestedAt[card.id];
+    // 요청한 적이 없으면 목에 심어 둔 상태를 그대로 쓴다.
+    if (requestedAt == null) return _seeded(card);
+
+    final elapsed = clock().difference(requestedAt);
+    final status = switch (elapsed) {
+      _ when elapsed < _toProcessing => MusicStatus.queued,
+      _ when elapsed < _toDone => MusicStatus.processing,
+      // ⚠️ **실패도 거쳐서 온다.** 요청 즉시 실패로 떨구면 진짜와 다르다 —
+      // 큐와 처리를 지난 뒤에 실패한다.
+      _ when _musicWillFail.contains(card.id) => MusicStatus.failed,
+      _ => MusicStatus.succeeded,
+    };
+
+    return MusicGeneration(
+      cardId: card.id,
+      status: status,
+      trackCount: MusicGeneration.trackCountFor(card.photos.length),
+    );
+  }
+
+  @override
+  Future<MusicGeneration> requestMusic(int cardId) async {
+    musicRequests++;
+
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (failWith != null) throw RecordCardException(failWith!);
+
+    final card = _find(cardId);
+    if (card == null) {
+      throw const RecordCardException(RecordCardFailure.notFound);
+    }
+
+    // ⚠️ **난수로 떨구지 않는다.** 재현되지 않는 가짜 실패는 눈검증을 망친다 —
+    // "방금 그 실패"를 다시 볼 수 없다. 강제 실패는 [failWith]가 이미 한다.
+    if (musicRequests % 20 == 0) {
+      _musicWillFail.add(cardId);
+    } else {
+      _musicWillFail.remove(cardId);
+    }
+    _musicRequestedAt[cardId] = clock();
+
+    return MusicGeneration(
+      cardId: cardId,
+      status: MusicStatus.queued,
+      trackCount: MusicGeneration.trackCountFor(card.photos.length),
+    );
+  }
+
+  /// 목 카드에 심어 둔 상태.
+  ///
+  /// ⚠️ **다섯 상태를 기다리지 않고 보려고** 일부러 갈라 둔다 — 전부
+  /// `SUCCEEDED`면 `만드는 중…`·`만들지 못했어요`·`AI 음악 만들기` 줄을 한 번도
+  /// 못 보고 넘어간다. `QUEUED`는 눌러서 본다.
+  ///
+  /// 앱이 만든 카드(번호 `9000 +`)는 저장할 때 음악을 켰는지로 갈린다 —
+  /// 여기 걸리지 않는다.
+  MusicGeneration _seeded(RecordCard card) {
+    final status = switch (card.id) {
+      1000 => MusicStatus.processing,
+      1001 => MusicStatus.failed,
+      1002 => MusicStatus.none,
+      _ when card.id >= 9000 => MusicStatus.none,
+      _ => MusicStatus.succeeded,
+    };
+    if (status == MusicStatus.none) return MusicGeneration.none(card.id);
+
+    return MusicGeneration(
+      cardId: card.id,
+      status: status,
+      trackCount: MusicGeneration.trackCountFor(card.photos.length),
+    );
+  }
+
+  /// 지금 있는 그 카드. 고친 것이 있으면 그쪽이고, 지워졌으면 `null`이다.
+  RecordCard? _find(int id) {
+    if (_deletedIds.contains(id)) return null;
+    return _edited[id] ??
+        [..._all(), ..._created].where((c) => c.id == id).firstOrNull;
+  }
+
+  /// 오늘로부터 며칠 전 · 몇 시 · 유형 · 사진 수 · 공개범위 · 거리(m) · 시간(초).
+  ///
+  /// ⚠️ **`daysAgo`가 46을 넘지 않게 둔다.** 두 달치를 보여 주려는 값이라, 더
+  /// 멀어지면 세 번째 달이 한 장만 있는 채로 끼어든다.
+  static const _plan =
+      <
+        ({
+          int daysAgo,
+          int hour,
+          RecordCardActivity activity,
+          int photos,
+          RecordCardVisibility visibility,
+          int meters,
+          int seconds,
+        })
+      >[
+        (
+          daysAgo: 0,
+          hour: 7,
+          activity: RecordCardActivity.daily,
+          photos: 1,
+          visibility: RecordCardVisibility.friends,
+          meters: 5400,
+          seconds: 1690,
+        ),
+        (
+          daysAgo: 1,
+          hour: 19,
+          activity: RecordCardActivity.daily,
+          photos: 0,
+          visibility: RecordCardVisibility.private,
+          meters: 3100,
+          seconds: 1120,
+        ),
+        (
+          daysAgo: 3,
+          hour: 6,
+          activity: RecordCardActivity.travel,
+          photos: 5,
+          visibility: RecordCardVisibility.public,
+          meters: 8200,
+          seconds: 2640,
+        ),
+        (
+          daysAgo: 5,
+          hour: 8,
+          activity: RecordCardActivity.daily,
+          photos: 2,
+          visibility: RecordCardVisibility.friends,
+          meters: 4600,
+          seconds: 1500,
+        ),
+        // ⚠️ 위와 같은 날이다. 하루에 두 번 뛰면 카드도 둘이다.
+        (
+          daysAgo: 5,
+          hour: 21,
+          activity: RecordCardActivity.daily,
+          photos: 1,
+          visibility: RecordCardVisibility.private,
+          meters: 2800,
+          seconds: 960,
+        ),
+        (
+          daysAgo: 8,
+          hour: 9,
+          activity: RecordCardActivity.race,
+          photos: 4,
+          visibility: RecordCardVisibility.public,
+          meters: 10000,
+          seconds: 2880,
+        ),
+        (
+          daysAgo: 11,
+          hour: 18,
+          activity: RecordCardActivity.daily,
+          photos: 0,
+          visibility: RecordCardVisibility.friends,
+          meters: 5200,
+          seconds: 1760,
+        ),
+        (
+          daysAgo: 14,
+          hour: 7,
+          activity: RecordCardActivity.travel,
+          photos: 3,
+          visibility: RecordCardVisibility.public,
+          meters: 6400,
+          seconds: 2100,
+        ),
+        (
+          daysAgo: 17,
+          hour: 20,
+          activity: RecordCardActivity.daily,
+          photos: 1,
+          visibility: RecordCardVisibility.private,
+          meters: 3700,
+          seconds: 1290,
+        ),
+        (
+          daysAgo: 19,
+          hour: 6,
+          activity: RecordCardActivity.daily,
+          photos: 2,
+          visibility: RecordCardVisibility.friends,
+          meters: 5000,
+          seconds: 1650,
+        ),
+        (
+          daysAgo: 22,
+          hour: 10,
+          activity: RecordCardActivity.race,
+          photos: 5,
+          visibility: RecordCardVisibility.public,
+          meters: 21097,
+          seconds: 7020,
+        ),
+        (
+          daysAgo: 25,
+          hour: 19,
+          activity: RecordCardActivity.daily,
+          photos: 0,
+          visibility: RecordCardVisibility.private,
+          meters: 4200,
+          seconds: 1470,
+        ),
+        (
+          daysAgo: 28,
+          hour: 8,
+          activity: RecordCardActivity.travel,
+          photos: 3,
+          visibility: RecordCardVisibility.friends,
+          meters: 7300,
+          seconds: 2460,
+        ),
+        (
+          daysAgo: 31,
+          hour: 7,
+          activity: RecordCardActivity.daily,
+          photos: 1,
+          visibility: RecordCardVisibility.friends,
+          meters: 5600,
+          seconds: 1840,
+        ),
+        (
+          daysAgo: 34,
+          hour: 21,
+          activity: RecordCardActivity.daily,
+          photos: 0,
+          visibility: RecordCardVisibility.private,
+          meters: 3300,
+          seconds: 1200,
+        ),
+        (
+          daysAgo: 37,
+          hour: 9,
+          activity: RecordCardActivity.travel,
+          photos: 4,
+          visibility: RecordCardVisibility.public,
+          meters: 9100,
+          seconds: 3000,
+        ),
+        (
+          daysAgo: 40,
+          hour: 18,
+          activity: RecordCardActivity.daily,
+          photos: 2,
+          visibility: RecordCardVisibility.friends,
+          meters: 4800,
+          seconds: 1620,
+        ),
+        (
+          daysAgo: 43,
+          hour: 6,
+          activity: RecordCardActivity.race,
+          photos: 1,
+          visibility: RecordCardVisibility.public,
+          meters: 10000,
+          seconds: 2760,
+        ),
+        (
+          daysAgo: 45,
+          hour: 20,
+          activity: RecordCardActivity.daily,
+          photos: 0,
+          visibility: RecordCardVisibility.private,
+          meters: 2600,
+          seconds: 900,
+        ),
+        (
+          daysAgo: 46,
+          hour: 7,
+          activity: RecordCardActivity.daily,
+          photos: 3,
+          visibility: RecordCardVisibility.friends,
+          meters: 6100,
+          seconds: 2040,
+        ),
+      ];
+
+  /// 돌려 쓰는 번들 사진. 서버가 없어 열람 주소를 만들 수 없다.
+  ///
+  /// ⚠️ **진짜 사진만 쓴다.** `home_*.webp`와 `onboarding_together.png`는 사진이
+  /// 아니라 **앱 화면을 찍은 그림**이라, 카드 썸네일로 깔면 달력에 앱 스크린샷이
+  /// 끼어 있는 것처럼 보인다. 기기에서 보고 알았다(2026-11-16).
+  ///
+  /// 둘뿐이라 같은 사진이 되풀이된다. 서버가 붙으면 없어질 목이라 그대로 둔다.
+  static const _photoPool = [
+    'assets/images/sign_in_hero.png',
+    'assets/images/onboarding_record.jpg',
+  ];
+
+  static const _captions = [
+    '여기서 한 번 쉬었다',
+    '해 지는 게 아까워서 멈췄다',
+    '바람이 딱 좋았다',
+    '다리 건너기 직전',
+    '끝나고 나니 다 좋았다',
+  ];
+
+  static const _reviews = [
+    '오늘은 퇴근 후 성수동에서 달렸다. 처음에는 몸이 무거웠는데 어느새 발걸음이 가벼워졌다.',
+    '선선한 바람 덕분에 생각보다 편안하게 달릴 수 있었다. 다음엔 조금 더 멀리 가 봐야지.',
+    '중간에 힘든 구간이 있었지만 끝까지 페이스를 지켰다. 지난번보다 안정적이어서 뿌듯하다.',
+    '비 온 뒤라 공기가 맑았다. 사진으로는 다 안 담기는 하늘이었다.',
+    '오랜만에 먼 거리를 뛰었다. 다리는 무겁지만 기분은 가볍다.',
+  ];
+
+  static const _runners = [
+    CardRunner(userId: 'u-1', nickname: '동완러너'),
+    CardRunner(userId: 'u-2', nickname: '바람'),
+    CardRunner(userId: 'u-3', nickname: '해질녘'),
+  ];
+
+  List<RecordCard> _all() => [
+    for (var i = 0; i < _plan.length; i++) _cardAt(i, _plan[i]),
+  ];
+
+  RecordCard _cardAt(
+    int index,
+    ({
+      int daysAgo,
+      int hour,
+      RecordCardActivity activity,
+      int photos,
+      RecordCardVisibility visibility,
+      int meters,
+      int seconds,
+    })
+    spec,
+  ) {
+    final day = DateTime(
+      _today.year,
+      _today.month,
+      _today.day,
+    ).subtract(Duration(days: spec.daysAgo));
+    final startedAt = DateTime(day.year, day.month, day.day, spec.hour, 54);
+    final duration = Duration(seconds: spec.seconds);
+
+    return RecordCard(
+      id: 1000 + index,
+      runningRecordId: 2000 + index,
+      startedAt: startedAt,
+      activity: spec.activity,
+      visibility: spec.visibility,
+      reviewText: _reviews[index % _reviews.length],
+      photos: [
+        for (var p = 0; p < spec.photos; p++)
+          RecordCardPhoto(
+            id: index * 10 + p,
+            url: _photoPool[(index + p) % _photoPool.length],
+            // ⚠️ 사람이 쓴 말처럼 둔다. `그날의 한 장` 같은 꼬리표를 넣으면
+            // 캡션이 아니라 화면이 붙인 글자로 읽힌다 — 기기에서 그렇게 보였다.
+            caption: _captions[(index + p) % _captions.length],
+          ),
+      ],
+      route: normalizeRoute(_shape(index, startedAt)),
+      distanceMeters: spec.meters,
+      duration: duration,
+      // 1km당 평균 페이스.
+      averagePace: Duration(
+        seconds: (spec.seconds * 1000 / spec.meters).round(),
+      ),
+      runners: _runners.take(index % 4).toList(),
+    );
+  }
+
+  /// 카드마다 다른 모양을 낸다. 전부 같은 선이면 달력 칸이 구별되지 않는다.
+  ///
+  /// ## ⚠️ 일부러 흔들어 놓는다
+  ///
+  /// 매끈한 원이나 8자를 그리면 **러닝 경로가 아니라 도형으로 보인다.** 길을
+  /// 따라 달린 선은 꺾이고 삐뚤다. `seed`로 정해진 난수를 섞어 모양을 흐트러뜨린다
+  /// — 같은 카드는 늘 같은 모양이어야 해서 시각을 섞지 않는다.
+  ///
+  /// 네 장에 한 번은 **두 조각**으로 끊어 일시정지를 흉내낸다.
+  static List<List<GeoPoint>> _shape(int seed, DateTime at) {
+    final random = math.Random(seed);
+    final lobesX = 1 + seed % 3;
+    final lobesY = 1 + (seed + 1) % 2;
+    final points = [
+      for (var i = 0; i <= 48; i++)
+        GeoPoint(
+          latitude:
+              37.54 +
+              0.008 * math.sin(i / 48 * 2 * math.pi * lobesY) +
+              0.0018 * (random.nextDouble() - 0.5) +
+              seed * 0.0002,
+          longitude:
+              127.05 +
+              0.010 * math.cos(i / 48 * 2 * math.pi * lobesX) +
+              0.0018 * (random.nextDouble() - 0.5),
+          recordedAt: at.add(Duration(seconds: i * 30)),
+        ),
+    ];
+
+    if (seed % 4 == 0) return [points.sublist(0, 20), points.sublist(26)];
+    return [points];
+  }
+}

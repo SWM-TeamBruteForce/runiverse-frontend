@@ -1015,6 +1015,32 @@ abstract final class AppStrings {
   /// 제목은 그 화면의 이름이다.
   static const profileEditOpen = '프로필 편집';
 
+  // ── 프로필의 기록카드 그리드 (설계 6-7) ─────────────────────
+  //
+  // **공개한 카드만 선다** — `PUBLIC`과 `FRIENDS`다. 내 프로필에서도 비공개는
+  // 안 보인다(사용자 결정). 나만 보는 카드를 보는 자리는 기록카드 탭이다.
+
+  /// 전체 보기 화면의 제목.
+  static const profileCardsTitle = '기록카드';
+
+  /// 처음 6장 아래의 버튼. 누르면 전체 보기 화면으로 간다.
+  static const profileCardsMore = '더 보기';
+
+  /// 전체 보기 화면이 빈 경우.
+  ///
+  /// ⚠️ **그리드에는 쓰지 않는다.** 남의 프로필에 "아직 없어요"를 띄울 이유가
+  /// 없어 그 자리는 **비워 둔다**(설계 6-7). 눌러서 들어온 화면이 텅 비면
+  /// 고장으로 읽히므로 여기서만 말한다.
+  static const profileCardsEmpty = '아직 기록카드가 없어요';
+
+  static const profileCardsError = '기록카드를 읽지 못했어요';
+
+  /// 칸 하나를 읽는 말.
+  ///
+  /// ⚠️ **칸에는 사진뿐이다.** 날짜도 숫자도 없어 스크린리더가 읽을 것이 없다.
+  static String profileCardsOn(DateTime day) =>
+      '${day.month}월 ${day.day}일 기록카드';
+
   // ── 프로필 사진 ─────────────────────────────────────────────
 
   /// 아바타를 눌렀을 때 뜨는 시트의 제목.
@@ -1370,6 +1396,10 @@ abstract final class AppStrings {
   /// 요약은 하단 버튼이 아니라 **우상단 X**로 닫는다(Figma S15).
   static const runSummaryClose = '닫기';
 
+  /// 설계 6-8. `run_summary_page.dart`가 "탭이 살아나면 이 위에 붙는다"고
+  /// 적어 둔 그 버튼이다. 결과를 들여다보는 것보다 **위에** 선다.
+  static const runSummaryRecordCard = '기록카드 남기기';
+
   /// S15에서 S16으로 들어가는 문. Figma의 secondary 버튼이다.
   static const runSummaryDetail = '자세한 기록 보기';
 
@@ -1581,6 +1611,347 @@ abstract final class AppStrings {
     if (hours == 0) return '$minutes분';
     return '$hours시간 $minutes분';
   }
+
+  // ── 기록카드 탭 ──────────────────────────────────────────────
+  //
+  // 탭 이름은 위의 [tabRecordCard]다. 여기 또 두지 않는다.
+
+  /// 달 머리의 오른쪽. **분수를 쓰지 않는다.**
+  ///
+  /// ⚠️ 시안은 `18/30`인데, 분모가 날짜 수든 뛴 날 수든 **안 채운 칸이 결손으로
+  /// 읽힌다.** 디자인 시스템 v1.1 §5-5가 잔디의 죄책감 문제를 못 박았고 기록
+  /// 탭도 그걸 지켰다.
+  static String recordCardMonthCount(int count) => '카드 $count장';
+
+  /// 조회가 실패했을 때. 다시 시도 버튼은 [recordRetry]를 쓴다.
+  static const recordCardError = '기록카드를 불러오지 못했어요';
+
+  /// 카드를 한 장도 안 썼을 때.
+  ///
+  /// ⚠️ **필터로 0장이 된 것과 다르다.** 필터를 건 사람에게 이 문구가 뜨면
+  /// 필터 때문인 줄 모른다(`RecordCardData.hasAnyCard`).
+  /// 탭 머리. 시안 `158:2899`.
+  static const recordCardTabTitle = '기록카드';
+
+  static const recordCardEmptyTitle = '아직 남긴 기록카드가 없어요';
+  static const recordCardEmptyAction = '기록카드 쓰기';
+
+  /// 달력 맨 아래의 더 받기.
+  ///
+  /// ⚠️ **스크롤만으로는 안 된다.** 안드로이드에서 스크롤할 것이 없는 목록은
+  /// `ScrollUpdateNotification`을 아예 내지 않아, 보이는 달이 하나뿐이면 과거를
+  /// 받을 방아쇠가 없다. 스크린리더·모터 제약 사용자에게도 누를 것이 낫다.
+  static const recordCardLoadOlder = '이전 기록 더 보기';
+
+  /// 더 과거에 아무것도 없을 때. **버튼을 그냥 없애지 않는다** — 사라지면
+  /// 더 받은 것인지 고장인지 알 수 없다.
+  static const recordCardNoOlder = '더 과거에는 기록카드가 없어요';
+
+  /// 유형 필터의 `전체`. 나머지 셋은 [RecordCardActivity]의 이름을 쓴다.
+  static const recordCardFilterAll = '전체';
+  static const recordCardActivityDaily = '일상';
+  static const recordCardActivityRace = '대회';
+  static const recordCardActivityTravel = '여행';
+
+  /// 달력 칸을 스크린리더가 읽을 말.
+  ///
+  /// ⚠️ 칸에는 날짜 숫자와 사진뿐이라 **읽을 것이 거의 없다.** 분기 보기에서는
+  /// 숫자마저 빠진다.
+  static String recordCardCellSemantics({
+    required DateTime day,
+    required int count,
+  }) {
+    final date = '${day.month}월 ${day.day}일';
+    if (count == 0) return '$date, 기록카드 없음';
+    if (count == 1) return '$date, 기록카드 1장';
+    return '$date, 기록카드 $count장';
+  }
+
+  /// 뛰었는데 기록카드를 안 쓴 날의 칸. **이 칸은 눌러서 작성으로 간다.**
+  ///
+  /// ⚠️ [recordCardCellSemantics]의 `기록카드 없음`으로는 안 된다 — 그 말은
+  /// 안 뛴 날에도 똑같이 붙어서, 누를 수 있는 칸과 누를 수 없는 칸이 스크린
+  /// 리더에서 구별되지 않는다. 운동화는 눈에만 보인다.
+  static String recordCardCellUnwrittenSemantics(DateTime day) =>
+      '${day.month}월 ${day.day}일, 러닝 기록 있음, 기록카드 쓰기';
+
+  /// 하루에 카드가 둘 이상일 때 뜨는 시트의 제목.
+  static String recordCardDaySheetTitle(DateTime day) =>
+      '${day.month}월 ${day.day}일의 기록카드';
+
+  /// 상세 아래의 함께 뛴 사람 줄. 혼자 뛰었으면 쓰지 않는다.
+  static String recordCardRunnerCount(int count) => '함께 뛴 러너가 $count명이에요';
+
+  /// 포토북이 몇 번째 장을 보여 주나. **[index]는 1부터다.**
+  ///
+  /// ⚠️ 장을 넘기는 것이 사진뿐이라 **스크린리더에는 읽을 것이 거의 없다.**
+  static String recordCardPageSemantics({
+    required int index,
+    required int count,
+  }) => '$count장 중 $index번째';
+
+  /// 포토북 머리의 날짜. `2026년 11월 16일`
+  static String recordCardDateTitle(DateTime day) =>
+      '${recordMonthLabel(day)} ${day.day}일';
+
+  /// 머리의 메타를 잇는 글자.
+  static const recordCardMetaDot = ' · ';
+
+  /// 상세의 지표 이름.
+  static const recordCardDistance = '총 거리';
+  static const recordCardPace = '평균 페이스';
+  static const recordCardDuration = '총 소요시간';
+
+  /// 회고 묶음의 머리.
+  static const recordCardReview = '러닝 메모';
+
+  /// 카드 한 장을 요약한 한 줄. 시트와 상세 머리에 쓴다.
+  static String recordCardStartedAt(DateTime at) {
+    final hour = at.hour.toString().padLeft(2, '0');
+    final minute = at.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  // ── 기록카드 상세의 음악 한 줄 (설계 6-5) ────────────────────
+  //
+  // ⚠️ **상태가 카드 하나에 하나다.** 곡별 상태가 없어(설계 3절) "3번 사진
+  // 음악만 실패"를 말할 수 없다. 그래서 모든 문구가 **카드 전체**를 가리킨다.
+
+  /// 아직 만든 적이 없는 카드. **줄 전체가 버튼이다.**
+  static const recordCardMusicCreate = 'AI 음악 만들기';
+
+  /// 요청이 날아가는 동안. ⚠️ **같은 라벨로 서 있으면 안 된다** — 누른
+  /// 사람에게 아무 일도 일어나지 않은 것으로 보이고, 한 번 더 누른다.
+  static const recordCardMusicRequesting = '음악을 요청하는 중…';
+
+  static const recordCardMusicQueued = '음악 생성 준비 중…';
+  static const recordCardMusicProcessing = '음악 만드는 중…';
+
+  /// ⚠️ **`재생`과 `멈춤`이 상태가 아니라 "누르면 될 일"이다.** 포토북은 상세를
+  /// 열면 이미 돌고 있어서, 도는 중에 `재생`을 세우면 이미 하고 있는 것을
+  /// 하라는 버튼이 된다.
+  static const recordCardMusicPlay = '재생';
+  static const recordCardMusicPause = '멈춤';
+
+  /// 음악은 다 됐는데 **넘어갈 장이 없을 때.** 사진이 없는 카드이거나 마지막
+  /// 장에 닿은 것이다.
+  ///
+  /// ⚠️ **여기에 `재생`/`멈춤`을 세우면 거짓이다.** 포토북이 한 장뿐이면
+  /// 타이머를 걸지 않고(`CardMediaPager`), 마지막 장에서는 멈춘 뒤 처음으로
+  /// 되돌아가지 않는다(설계 6-5). 누를 것이 없으므로 **버튼으로 두지 않는다.**
+  static const recordCardMusicReady = '음악이 준비됐어요';
+
+  /// ⚠️ **전곡이다.** 1곡만 실패해도 카드 전체가 실패이고, 다시 만들면 전곡을
+  /// 다시 만든다(설계 3절).
+  static const recordCardMusicFailed = '음악을 만들지 못했어요';
+  static const recordCardMusicRetry = '다시 만들기';
+
+  /// 상태조차 못 읽었을 때. **카드는 그대로 보인다** — 음악과 카드는 따로다.
+  static const recordCardMusicError = '음악 상태를 보지 못했어요';
+  static const recordCardMusicReload = '다시';
+
+  /// 스크린리더용. 줄에 아이콘만 서는 구간이 있어 라벨을 따로 둔다.
+  static const recordCardMusicSemantics = 'AI 음악';
+
+  /// 수정에서 **만드는 중인 음악이 버려진다**고 알린다 (설계 6-6).
+  ///
+  /// ⚠️ **"공개범위만 바꾸면 그대로"가 생성 중에는 거짓이다.** 백엔드가
+  /// "생성 중 수정·삭제는 활성 요청을 무효화한다"고 적었다(설계 3절) —
+  /// 만드는 중이면 무엇을 바꾸든 버려진다.
+  static const recordCardMusicWorkingEdit =
+      '음악을 만드는 중이에요. 저장하면 만들던 음악은 버려지고 처음부터 다시 만듭니다';
+
+  /// 다 된 음악인데 **AI가 읽는 값**이 바뀌었을 때 (설계 6-6).
+  static const recordCardMusicRegenerate = '저장하면 음악을 처음부터 다시 만듭니다';
+
+  /// 삭제 확인에서. **막지 않고 알리기만 한다**(설계 6-6).
+  static const recordCardMusicWorkingDelete = '음악을 만드는 중이에요. 카드와 함께 사라집니다';
+
+  // ── 기록카드 작성 1 (기록·유형·회고) ─────────────────────────
+
+  static const recordCardComposeTitle = '기록카드 쓰기';
+  static const recordCardComposeNext = '다음';
+
+  /// 기록 고르기 묶음의 머리.
+  static const recordCardComposeRecordSection = '러닝 불러오기';
+
+  /// 날짜 행을 누르면 뜨는 휠의 제목.
+  static const recordCardComposeDateSheet = '날짜 고르기';
+
+  /// `2026.09.02 (화)`
+  static String recordCardComposeDateLabel(DateTime day) {
+    final month = day.month.toString().padLeft(2, '0');
+    final date = day.day.toString().padLeft(2, '0');
+    return '${day.year}.$month.$date (${recordWeekdayOf(day)})';
+  }
+
+  /// 그날 뛴 것이 없을 때. **달력에서는 여기 닿지 않는다** — 안 뛴 날은
+  /// 눌리지 않는다. 탭 머리의 쓰기로 들어왔는데 오늘 안 뛴 경우와, 날짜를
+  /// 옮겨 안 뛴 날로 간 경우에 뜬다.
+  static const recordCardComposeNoRecords = '이 날에는 러닝 기록이 없어요';
+
+  /// 기록 조회가 실패했을 때. 다시 시도는 [recordRetry]를 쓴다.
+  static const recordCardComposeRecordsError = '러닝 기록을 불러오지 못했어요';
+
+  /// 이미 카드를 쓴 기록에 붙는 표. **회색으로 죽이지 않는다** — 누르면 그
+  /// 카드로 간다(설계 6-2).
+  static const recordCardComposeHasCard = '카드';
+
+  /// 고른 기록에 경로가 없을 때 선 아트 자리에 드는 말. 트레드밀이거나 GPS를
+  /// 못 받은 러닝이다.
+  static const recordCardComposeRouteNone = '경로가 없는 러닝이에요';
+
+  /// 경로를 못 받았을 때. **없는 것과 다르다** — 다시 열면 보일 수 있다.
+  static const recordCardComposeRouteFailed = '경로를 불러오지 못했어요';
+
+  static const recordCardComposeActivitySection = '러닝 유형';
+
+  static const recordCardComposeReviewHint = '오늘의 러닝은 어떤 순간으로 기억되나요?';
+
+  /// `84/1000`.
+  ///
+  /// ⚠️ 상한을 받아 쓴다 — `core/`가 feature 를 import 하지 않는다. 값의
+  /// 주인은 `CardDraft.reviewMaxLength`다.
+  static String recordCardComposeReviewCounter(int length, int max) =>
+      '$length/$max';
+
+  // ── 작성 중인 것을 지키는 말 ────────────────────────────────
+  //
+  // ⚠️ 초안은 **앱을 끄면 사라진다**(영속화하지 않는다, 설계 7절). 그래서
+  // 버리기 전에 묻는 것이 유일한 방어다.
+
+  static const recordCardComposeResumeTitle = '쓰던 기록카드가 있어요';
+  static const recordCardComposeResumeBody = '이어 쓰지 않으면 적은 내용이 사라져요';
+  static const recordCardComposeResume = '이어 쓰기';
+  static const recordCardComposeStartOver = '새로 쓰기';
+
+  static const recordCardComposeDiscardTitle = '쓰던 기록카드를 버릴까요?';
+  static const recordCardComposeDiscardBody = '적은 내용이 사라져요';
+  static const recordCardComposeDiscard = '버리기';
+  static const recordCardComposeKeep = '계속 쓰기';
+
+  // ── 기록카드 수정 (설계 6-6) ─────────────────────────────────
+  //
+  // 수정은 작성 세 화면을 그대로 다시 쓴다. 다른 것은 **제목**과 **러닝 기록을
+  // 못 바꾼다는 것** 둘뿐이다.
+
+  static const recordCardEditTitle = '기록카드 고치기';
+
+  /// ⚠️ **왜 못 바꾸는지 말한다.** 그냥 잠가 두면 고장으로 읽힌다.
+  ///
+  /// 서버의 `unique(running_record_id)` 때문에 카드 있는 기록으로 옮기면
+  /// 거절당하고, 바꾸면 지표·경로가 통째로 달라져 다른 카드가 된다.
+  static const recordCardEditRecordLocked = '러닝 기록은 바꿀 수 없어요';
+
+  /// ⚠️ **작성의 "쓰던 기록카드를 버릴까요?"를 쓰지 않는다.** 고치던 기존
+  /// 카드를 두고 그렇게 물으면 **카드 자체가 지워지는 것으로 읽힌다** — 같은
+  /// 화면 묶음에 진짜 삭제가 있어 더 그렇다.
+  static const recordCardEditDiscardTitle = '고친 것을 버릴까요?';
+  static const recordCardEditDiscardBody = '고친 내용만 사라지고 카드는 그대로예요';
+
+  /// 상세 머리의 `⋮`. 아이콘뿐이라 이름을 준다.
+  static const recordCardMore = '더 보기';
+
+  static const recordCardDelete = '삭제';
+  static const recordCardDeleteTitle = '이 기록카드를 지울까요?';
+
+  /// ⚠️ **되돌릴 수 없다는 말을 그대로 쓴다.** 서버에 논리 삭제 컬럼이 없다
+  /// (설계 3절) — "삭제됩니다"로 적으면 되살릴 수 있을 것처럼 읽힌다.
+  static const recordCardDeleteBody = '지우면 되돌릴 수 없어요';
+
+  static const recordCardDeleteConfirm = '지우기';
+  static const recordCardDeleteCancel = '그대로 두기';
+  static const recordCardDeleteFailed = '지우지 못했어요';
+
+  // ── 기록카드 작성 2 — 사진 (설계 6-3) ────────────────────────
+  //
+  // **사진은 선택이다.** 한 장도 없이 다음으로 간다. 그래서 빈 상태가
+  // 권유가 아니라 **괜찮다는 말**이어야 한다.
+
+  static String recordCardPhotoTitle(int count, int max) => '사진 ($count/$max)';
+
+  static const recordCardPhotoAdd = '사진 추가';
+
+  /// ⚠️ **권유가 아니다.** "사진을 추가해 보세요"로 쓰면 선택인 것이 숙제로
+  /// 읽힌다.
+  static const recordCardPhotoEmpty = '사진은 넣지 않아도 괜찮아요';
+
+  /// 9:16 틀은 고정이고 사진을 움직여 맞춘다(설계 6-3). 말해 주지 않으면
+  /// 잘린 채로 저장하는 사람이 생긴다.
+  static const recordCardPhotoPanHint = '사진을 밀어 보일 곳을 고르세요';
+
+  static const recordCardPhotoCaptionHint = '이 사진에 한마디 (선택)';
+
+  /// 설계 6-3이 **한 줄로 알려 주라고** 못 박았다 — 선택이지만 AI가 읽는 값이다.
+  static const recordCardPhotoCaptionNote = 'AI가 음악을 만들 때 이 글을 읽어요';
+
+  static String recordCardPhotoCaptionCounter(int length, int max) =>
+      '$length/$max';
+
+  /// 보고 있는 장을 **대표로** 올린다 — 달력 칸과 프로필 그리드의 얼굴이
+  /// 된다(사용자 결정 2026-11-22).
+  ///
+  /// ⚠️ "썸네일"이라고 쓰지 않는다. 사용자가 보는 자리는 달력과 프로필이고,
+  /// 그 말은 개발자의 말이다.
+  static const recordCardPhotoMakeCover = '대표 사진으로';
+
+  /// 보고 있는 장이 **이미 대표일 때.** ⚠️ **버튼이 아니다** — 눌러도 아무 일도
+  /// 없는 버튼을 두면 고장으로 읽힌다(묶음 5의 음악 줄에서 배웠다).
+  static const recordCardPhotoCover = '대표 사진';
+
+  static const recordCardPhotoRemove = '이 사진 지우기';
+
+  static String recordCardPhotoLimit(int max) => '사진은 $max장까지 넣을 수 있어요';
+
+  static String recordCardPhotoSemantics(int index, int count) =>
+      '$count장 중 $index번째 사진';
+
+  /// 점 인디케이터. ⚠️ [recordCardPhotoSemantics]와 **달라야 한다** — 같으면
+  /// 스크린리더가 한 장에 두 번 같은 이름을 읽고, 어느 쪽이 넘기는 버튼인지
+  /// 모른다.
+  static String recordCardPhotoGoTo(int index, int count) =>
+      '$count장 중 $index번째 사진 보기';
+
+  /// ⚠️ **형식 탓이 아니다.** 고르던 사이에 OS가 임시 폴더를 비운 자리다 —
+  /// 형식이라고 하면 사용자가 다른 사진을 고르러 간다.
+  static const recordCardPhotoUnreadable = '사진을 읽지 못했어요\n다시 골라 주세요';
+
+  static const recordCardPhotoPickFailed = '사진을 가져오지 못했어요';
+  static const recordCardPhotoUnsupported = '이 형식의 사진은 넣을 수 없어요';
+  static const recordCardPhotoTooLarge = '사진이 너무 커요';
+
+  // ── 기록카드 작성 3 — 공개범위 · 음악 (설계 6-4) ─────────────
+  //
+  // ⚠️ **"친구"라는 말을 쓴다.** CLAUDE.md는 쓰지 말라고 적었지만 사용자가
+  // 공개범위를 `Friends`로 확정했고, 코드에 이미 `features/friend/`와
+  // "친구 목록"이 있다. 설계 3절이 그 결정을 적어 뒀다 — CLAUDE.md 문구가
+  // 낡았고, 고치는 것은 이 작업의 범위 밖이다.
+
+  static const recordCardPublishTitle = '저장하기';
+  static const recordCardPublishSave = '저장';
+
+  static const recordCardPublishVisibilitySection = '누가 볼 수 있나요';
+
+  static const recordCardVisibilityPublic = '전체 공개';
+  static const recordCardVisibilityPublicBody = '누구나 봅니다';
+  static const recordCardVisibilityFriends = '친구 공개';
+  static const recordCardVisibilityFriendsBody = '친구만 봅니다';
+  static const recordCardVisibilityPrivate = '나만 보기';
+  static const recordCardVisibilityPrivateBody = '나만 봅니다';
+
+  /// ⚠️ **"지도"가 아니라 "선"이다.** 설계 6-4의 문구는 "지도로 함께 보입니다"
+  /// 인데, 기록카드의 경로는 **배경 없는 선 아트**다(같은 문서 3절). 지도라고
+  /// 말하면 보이지도 않는 것을 경고하는 셈이다.
+  static const recordCardPublishRouteWarning = '공개하면 달린 경로가 선으로 함께 보입니다';
+
+  static const recordCardPublishMusicTitle = 'AI 음악 만들기';
+
+  /// ⚠️ **"몇 분"으로 끝내지 않는다.** 서버가 큐에서 6시간까지 기다릴 수 있다
+  /// (설계 3절). "조금만 기다리세요"로 적으면 지키지 못할 약속이 된다.
+  static const recordCardPublishMusicBody =
+      '회고와 러닝 기록으로 30초, 사진마다 10초짜리 곡을 만듭니다. 몇 분에서 길게는 더 걸립니다.';
+
+  static const recordCardPublishSaveFailed = '저장하지 못했어요';
 
   // ── 프로필 유도 바텀시트 ─────────────────────────────────────
   //

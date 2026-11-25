@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -21,10 +20,17 @@ import 'package:runiverse/features/notification/presentation/push_provider.dart'
 import 'package:runiverse/features/session/domain/run_resume.dart';
 import 'package:runiverse/features/session/presentation/user_status_provider.dart';
 
-// TODO(되살리기): 기록카드 화면이 생기면 iOS에서도 보이게.
-// iOS에서만 숨긴다(원격 설정 아님). 안드로이드는 그대로 보인다. 탭과 branch가
-// 같이 따라야 해서 라우터도 이 값을 본다. 되살릴 때 widget_test의 iOS 검사도 지운다.
-bool get showRecordCardTab => defaultTargetPlatform != TargetPlatform.iOS;
+/// 기록카드 탭을 보여주나. **지금은 어디서나 보인다.**
+///
+/// ## ⚠️ 지우지 말고 `true`로 둔다
+///
+/// 예전에는 iOS 심사 때문에 숨겼다. 화면이 생겨 되살렸지만, 이번에 들어온 것은
+/// **사진과 글이 타인에게 보이는 UGC**인데 신고·차단이 아직 없다. 심사에서 그
+/// 점이 걸리면 **신고·차단을 급히 붙이는 것보다 이 값을 되돌리는 쪽이 훨씬
+/// 빠르다.** 되돌릴 손잡이로 남겨 둔다.
+///
+/// 탭과 branch가 같이 따라야 해서 라우터도 이 값을 본다.
+const showRecordCardTab = true;
 
 /// 하단 탭 셸 — 4개 탭(iOS는 3개)의 공통 껍데기.
 ///

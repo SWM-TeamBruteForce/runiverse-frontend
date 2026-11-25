@@ -96,11 +96,107 @@ abstract final class AppRoutes {
   static String recordDetailOf(int runningRoomId) =>
       '$record/detail/$runningRoomId';
 
-  /// 기록카드 — 준비 중.
+  /// 기록카드 탭.
   ///
   /// 그때 뛴 경험을 사진·회고로 남기는 탭이다. 온보딩 3장이 이걸 소개한다.
-  /// 시안에 화면이 없어 [ComingSoonPage]를 띄운다.
   static const recordCard = '/record-card';
+
+  /// 기록카드 작성 1 — 기록 고르기 · 유형 · 회고.
+  ///
+  /// ⚠️ **탭 셸 밖이다.** 작성 화면에 하단 탭 바가 보이면 저장하지 않고 다른
+  /// 탭으로 샐 수 있다(`app_routes.dart`의 프로필 편집과 같은 이유).
+  ///
+  /// ⚠️ **`card/:id`보다 먼저 선언하지 않아도 안전하다** — 상세가
+  /// `/record-card/card/:id`라 `new`와 자리가 겹치지 않는다.
+  static const recordCardNew = '/record-card/new';
+
+  /// 어느 날의 기록을 고를 것인가.
+  ///
+  /// ⚠️ **날짜를 쿼리로 싣는다.** `extra`로 넘기면 딥링크나 프로세스 복구에서
+  /// 사라지고, 그때 작성 화면이 어느 날인지 모른다.
+  /// [roomId]를 주면 **그 방에서 뛴 기록이 미리 골라진다**(설계 6-2 "러닝
+  /// 요약에서 왔으면 날짜와 기록이 골라져 있다").
+  ///
+  /// ⚠️ **기록 번호가 아니라 방 번호다.** 러닝 요약이 가진 것은 방 번호뿐이고
+  /// (`RunDetail`에 기록 번호가 없다) `RunRecord.runningRoomId`가 그 둘을
+  /// 잇는다. 방이 없으면(솔로·방 열기 실패) 날짜만 간다.
+  static String recordCardNewOn(DateTime day, {int? roomId}) {
+    final month = day.month.toString().padLeft(2, '0');
+    final date = day.day.toString().padLeft(2, '0');
+    final room = roomId == null ? '' : '&room=$roomId';
+    return '$recordCardNew?date=${day.year}-$month-$date$room';
+  }
+
+  /// 기록카드 작성 2 — 사진.
+  ///
+  /// ⚠️ **날짜를 싣지 않는다.** 어느 날인지는 작성 1이 이미 초안에 꽂았다
+  /// (`cardDraftProvider`의 `record`). 여기서 다시 받으면 두 곳이 갈라져,
+  /// 날짜를 고쳐 놓고 넘어온 사람이 옛 날짜를 보게 된다.
+  ///
+  /// ⚠️ **초안이 비어 있으면 탭으로 돌려보낸다.** 작성 1을 거치지 않고
+  /// 떨어지면 고를 기록도 쓴 회고도 없다 — 카드 상세가 `extra` 없이 들어온
+  /// 것과 같은 꼴이다.
+  static const recordCardNewPhotos = '/record-card/new/photos';
+
+  /// 기록카드 작성 3 — 공개범위 · 음악 · 저장.
+  ///
+  /// [recordCardNewPhotos]와 같은 규칙이다 — 날짜를 싣지 않고, 초안이 비면
+  /// 탭으로 돌려보낸다.
+  static const recordCardNewPublish = '/record-card/new/publish';
+
+  /// 기록카드 한 장 (읽기 전용).
+  ///
+  /// ⚠️ **탭 셸 밖에 둔다.** 셸 안에 두면 ① 프로필 그리드나 러닝 요약에서 카드를
+  /// 열었을 때 **기록카드 탭으로 전환**되어 뒤로 가기가 엉뚱한 데로 떨어지고
+  /// ② 하단 탭 바가 함께 보인다.
+  static const recordCardDetail = '/record-card/card/:id';
+
+  /// ⚠️ **카드 번호다.** 러닝 기록 번호도 방 번호도 아니다.
+  ///
+  /// ## ⚠️ [mine]을 반드시 적는다
+  ///
+  /// 남의 카드면 `⋮`(수정·삭제)와 `AI 음악 만들기`를 세우지 않는다(설계 6-5).
+  /// 그런데 **카드 응답에 소유자가 없다** — 스키마가 비어 있어
+  /// (`docs/notes/2026-11-16-record-card-backend-questions.md` 1-1번) 지어
+  /// 넣으면 응답이 오는 날 도메인을 다시 짓는다. 그래서 **들어온 길이
+  /// 말한다.**
+  ///
+  /// 선택 인자로 두지 않는 이유: 기본값을 주면 새 진입점이 조용히 "내 것"으로
+  /// 들어오고, 그 결과는 **남의 카드에 뜬 수정 버튼**이다. 컴파일러가 묻게
+  /// 한다.
+  static String recordCardDetailOf(int cardId, {required bool mine}) =>
+      '$recordCard/card/$cardId?mine=$mine';
+
+  /// 기록카드 수정 1·2·3 (설계 6-6).
+  ///
+  /// 수정은 **작성 세 화면을 그대로 다시 쓴다.** 라우트만 따로 두는 이유는
+  /// 초안을 카드 번호로 가르기 위해서다 — 새 카드를 쓰던 중에 남의 카드
+  /// 수정으로 들어가도 섞이지 않는다(설계 7절).
+  ///
+  /// ⚠️ **카드를 `extra`로 받는다.** 카드 단건 조회 API가 없어 상세와 같은
+  /// 방식이다. 없이 들어오면 탭으로 돌려보낸다.
+  static const recordCardEdit = '/record-card/card/:id/edit';
+  static const recordCardEditPhotos = '/record-card/card/:id/edit/photos';
+  static const recordCardEditPublish = '/record-card/card/:id/edit/publish';
+
+  static String recordCardEditOf(int cardId) => '$recordCard/card/$cardId/edit';
+  static String recordCardEditPhotosOf(int cardId) =>
+      '${recordCardEditOf(cardId)}/photos';
+  static String recordCardEditPublishOf(int cardId) =>
+      '${recordCardEditOf(cardId)}/publish';
+
+  /// 그 사람의 기록카드 **전체 보기** — 프로필 그리드의 `더 보기`가 가는 곳
+  /// (설계 6-7).
+  ///
+  /// ⚠️ **`/record-card/` 아래 둔다.** ① 셸 **밖**이라 남의 프로필에서 들어와도
+  /// 탭이 바뀌지 않고(설계 7절) ② 저장·삭제 뒤 되돌아가기가 경로 앞머리로
+  /// "작성·수정 흐름"을 가리는데(`app_router.dart`의 `_toDetail`) `card/`도
+  /// `new`도 아니어서 **걷히지 않는다.**
+  static const recordCardsOfUser = '/record-card/user/:userId';
+
+  /// [mine]은 상세로 그대로 흘러간다 — 남의 카드에는 `⋮`를 세우지 않는다.
+  static String recordCardsOf(String userId, {required bool mine}) =>
+      '$recordCard/user/${Uri.encodeComponent(userId)}?mine=$mine';
 
   /// 본인 프로필 (S20)
   static const profile = '/profile';
