@@ -23,16 +23,10 @@ import 'package:runiverse/core/widgets/v2/page_indicator.dart';
 /// 그림은 앱 화면의 한 부분만 잘라 쓴다. 폰 테두리를 그리지 않아 iOS와
 /// 안드로이드가 같은 그림을 본다 — 다른 것은 2장의 워치뿐이다.
 ///
-/// ## ⚠️ 4장은 아직 없는 기능이다
-///
-/// 기록카드도 AI 음악도 화면과 API가 없다. 온보딩은 설치 직후 첫 화면이라
-/// 없는 것을 있는 것처럼 말하면 바로 들통난다 — 그래서 그 장에만
-/// `런칭 준비 중` 배지를 단다.
-///
 /// ## 세로 리듬은 네 장이 같다
 ///
-/// 그림과 제목이 늘 같은 높이에 선다. 4장의 배지는 줄을 따로 차지하지 않고
-/// 그림 왼쪽 위에 얹는다. 넘길 때 그림도 글자도 위아래로 튀지 않는다.
+/// 그림과 제목이 늘 같은 높이에 선다. 넘길 때 그림도 글자도 위아래로 튀지
+/// 않는다.
 ///
 /// 상태는 [PageController]와 현재 인덱스뿐이라 provider를 두지 않았다.
 /// 화면 밖에서 이 값을 알 필요가 없고, 화면을 떠나면 버려도 되는 상태다.
@@ -67,7 +61,6 @@ class _OnboardingIntroPageState extends State<OnboardingIntroPage> {
       title: AppStrings.onboardingCard4Title,
       body: AppStrings.onboardingCard4Body,
       art: _Art.record,
-      comingSoon: true,
     ),
   ];
 
@@ -217,7 +210,7 @@ enum _Art {
   /// 결과 화면의 파티원 비교 카드와 구간별 페이스 그래프를 찍은 것.
   compare,
 
-  /// 기록카드와 곡 카드. 아직 없는 화면이라 여기서 그린다.
+  /// 기록카드 탭의 한 달 달력 — 사진 카드와 경로만 있는 카드가 날짜 칸에 선다.
   record,
 }
 
@@ -227,15 +220,11 @@ class _IntroCard {
     required this.title,
     required this.body,
     required this.art,
-    this.comingSoon = false,
   });
 
   final String title;
   final String body;
   final _Art art;
-
-  /// 아직 만들지 않은 기능을 소개하는 장인가.
-  final bool comingSoon;
 }
 
 class _IntroCardView extends StatelessWidget {
@@ -307,22 +296,10 @@ class _IntroCardView extends StatelessWidget {
                 SizedBox(
                   width: artHeight * artAspect,
                   height: artHeight,
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        // 그림 속 예시 UI는 PNG와 같은 배율로 유지한다.
-                        // 실제 제목·설명·버튼은 시스템 글자 배율을 따른다.
-                        child: MediaQuery.withNoTextScaling(
-                          child: _ArtView(art: card.art),
-                        ),
-                      ),
-                      if (card.comingSoon)
-                        const Positioned(
-                          top: 0,
-                          left: 0,
-                          child: _ComingSoonBadge(),
-                        ),
-                    ],
+                  // 그림 속 예시 UI는 PNG와 같은 배율로 유지한다.
+                  // 실제 제목·설명·버튼은 시스템 글자 배율을 따른다.
+                  child: MediaQuery.withNoTextScaling(
+                    child: _ArtView(art: card.art),
                   ),
                 ),
                 SizedBox(height: artGap),
@@ -356,55 +333,6 @@ class _IntroCardView extends StatelessWidget {
   }
 }
 
-/// `● 런칭 준비 중` — 아직 없는 기능임을 밝히는 배지.
-class _ComingSoonBadge extends StatelessWidget {
-  const _ComingSoonBadge();
-
-  static const _dotSize = 5.0;
-
-  /// 점과 글자 사이. 토큰에 6이 없다.
-  static const _dotGap = 6.0;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColorsV2;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.primaryMuted,
-        borderRadius: AppRadius.full,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.space3,
-          vertical: AppSpacing.space1,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 점은 장식이다. 글자가 이미 상태를 말하므로 색만 남아도 잃는 것이 없다.
-            Container(
-              width: _dotSize,
-              height: _dotSize,
-              decoration: BoxDecoration(
-                color: colors.primary,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: _dotGap),
-            Text(
-              AppStrings.onboardingComingSoon,
-              style: AppTypographyV2.body21.copyWith(
-                color: colors.primaryHover,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _ArtView extends StatelessWidget {
   const _ArtView({required this.art});
 
@@ -421,7 +349,13 @@ class _ArtView extends StatelessWidget {
       'assets/images/onboarding_compare.webp',
       fit: BoxFit.contain,
     ),
-    _Art.record => const _RecordArt(),
+    // 예시 카드로 채운 달력을 찍었다. 썸네일은 Unsplash License(상업 사용·
+    // 출처 표기 불필요) 사진이다. 운동화 칸은 넣지 않았다 — 이모지라 플랫폼마다
+    // 모양이 다르다.
+    _Art.record => Image.asset(
+      'assets/images/onboarding_record.webp',
+      fit: BoxFit.contain,
+    ),
   };
 }
 
@@ -484,308 +418,4 @@ class _ComboArt extends StatelessWidget {
       ],
     ),
   );
-}
-
-/// 4장의 그림 — 기록카드 한 장 위에 곡 카드가 걸친다.
-///
-/// 기록카드 화면이 아직 없어 **여기서 그린다.** 화면이 생기면 그 화면의
-/// 부품으로 갈아끼운다.
-class _RecordArt extends StatelessWidget {
-  const _RecordArt();
-
-  /// 시안 실측. 카드 272 · 사진 186 · 기울기 3°.
-  static const _cardWidth = 272.0;
-  static const _photoHeight = 186.0;
-  static const _tilt = -3 * math.pi / 180;
-  static const _glowSize = 300.0;
-
-  /// 그림이 설계된 폭. 시안의 본문 폭(412 - 24×2)이다.
-  static const _artWidth = 364.0;
-
-  /// 곡 카드가 기록카드를 파고드는 깊이.
-  ///
-  /// ⚠️ 둘을 위아래 끝에 붙여 두면 **간격이 화면 높이를 따라간다** — 큰 기기에서는
-  /// 벌어져 따로 놀고 작은 기기에서는 포개진다. 겹치는 깊이를 고정해 어느
-  /// 기기에서나 같은 관계로 보이게 한다.
-  static const _overlap = 18.0;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColorsV2;
-
-    // ⚠️ 두 카드는 제 높이대로 쌓이고, 남는 세로가 모자라면 **통째로 줄어든다.**
-    // 안에서 늘였다 줄였다 하면 겹치는 깊이와 기울기가 기기마다 달라진다 —
-    // 비율을 지킨 채 작아지는 편이 낫다. 넘쳐서 노란 줄이 뜨는 일도 없다.
-    // 곡 카드가 차지하는 높이에서 겹치는 부분을 빼야 카드 하단이 그림 칸의
-    // 하단에 닿는다. 그리는 위치만 옮기면 아래에 빈 공간이 남는다.
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      alignment: Alignment.bottomCenter,
-      child: SizedBox(
-        width: _artWidth,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: _glowSize,
-              height: _glowSize,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    colors.primary.withValues(alpha: 0.30),
-                    colors.primary.withValues(alpha: 0.10),
-                    colors.primary.withValues(alpha: 0),
-                  ],
-                  stops: const [0, 0.46, 0.70],
-                ),
-              ),
-            ),
-
-            Padding(
-              padding: const EdgeInsets.only(
-                bottom: _SongCard._height - _overlap,
-              ),
-              child: Align(
-                heightFactor: 1,
-                child: Transform.rotate(
-                  angle: _tilt,
-                  child: _RecordCard(
-                    width: _cardWidth,
-                    photoHeight: _photoHeight,
-                  ),
-                ),
-              ),
-            ),
-            const Positioned(left: 0, right: 0, bottom: 0, child: _SongCard()),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 사진 + 수치 + 그날의 한 줄.
-class _RecordCard extends StatelessWidget {
-  const _RecordCard({required this.width, required this.photoHeight});
-
-  final double width;
-  final double photoHeight;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColorsV2;
-
-    return Container(
-      width: width,
-      decoration: BoxDecoration(
-        color: colors.bgSurface,
-        borderRadius: AppRadius.xl,
-        border: Border.all(color: colors.bgElevated),
-      ),
-      child: ClipRRect(
-        borderRadius: AppRadius.xl,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset(
-              'assets/images/onboarding_record.jpg',
-              width: width,
-              height: photoHeight,
-              fit: BoxFit.cover,
-            ),
-            Padding(
-              // ⚠️ 아래만 넉넉하다. 곡 카드가 이 카드를 파고들기 때문에,
-              // 여백이 같으면 그 밑에서 회고 한 줄이 가려진다.
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.space4,
-                AppSpacing.space4,
-                AppSpacing.space4,
-                AppSpacing.space7,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        AppStrings.onboardingSampleDistance,
-                        style: AppTypographyV2.heading03.copyWith(
-                          color: colors.textPrimary,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.space2),
-                      Text(
-                        AppStrings.onboardingSampleUnit,
-                        style: AppTypographyV2.body10.copyWith(
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.space2),
-                      Text(
-                        AppStrings.onboardingSampleDuration,
-                        style: AppTypographyV2.body11.copyWith(
-                          color: colors.textSecondary,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.space2),
-                  Text(
-                    AppStrings.onboardingSampleNote,
-                    style: AppTypographyV2.body12.copyWith(
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 파형 + 제목 + 재생 — 러닝 데이터로 만들어진 곡.
-class _SongCard extends StatelessWidget {
-  const _SongCard();
-
-  /// 제목(21)과 메타 정보(18), 상하 여백과 테두리가 들어가는 그림 속 높이.
-  static const _height = 66.0;
-  static const _playSize = 34.0;
-
-  /// 파형 막대의 상대 높이. 콤보 구간이 도드라지게 가운데가 높다.
-  static const _bars = <double>[
-    0.30,
-    0.58,
-    0.42,
-    0.76,
-    1.00,
-    0.64,
-    0.88,
-    0.46,
-    0.70,
-    0.34,
-  ];
-
-  static const _waveHeight = 34.0;
-  static const _barWidth = 3.0;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColorsV2;
-
-    return Container(
-      height: _height,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.space4,
-        vertical: AppSpacing.space3,
-      ),
-      decoration: BoxDecoration(
-        color: colors.bgSurface,
-        borderRadius: AppRadius.card,
-        border: Border.all(color: colors.primaryMuted),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            height: _waveHeight,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (final bar in _bars) ...[
-                  Container(
-                    width: _barWidth,
-                    height: _waveHeight * bar,
-                    decoration: BoxDecoration(
-                      color: colors.primary,
-                      borderRadius: AppRadius.xs,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.space0),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.space3),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppStrings.onboardingSampleSong,
-                  style: AppTypographyV2.body10.copyWith(
-                    color: colors.textPrimary,
-                  ),
-                ),
-                Text(
-                  AppStrings.onboardingSampleSongMeta,
-                  style: AppTypographyV2.body20.copyWith(
-                    color: colors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.space3),
-
-          // 그림 속 재생 버튼이다. 들을 곡이 아직 없으므로 누를 수 없다 —
-          // 눌리는 것처럼 보이면 안 되니 [IconButton]을 쓰지 않는다.
-          //
-          // ⚠️ 삼각형을 직접 그린다. 디자인 아이콘 33개에 재생이 없고,
-          // Material 아이콘을 섞으면 선 굵기와 모서리가 달라 눈에 띈다.
-          Container(
-            width: _playSize,
-            height: _playSize,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: colors.primary,
-              shape: BoxShape.circle,
-            ),
-            child: CustomPaint(
-              size: const Size.square(AppSpacing.space4),
-              painter: _PlayTrianglePainter(color: colors.textOnPrimary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 오른쪽을 가리키는 둥근 삼각형.
-///
-/// 디자인 아이콘 33개에 재생이 없어 직접 그린다. Material 아이콘을 섞으면
-/// 선 굵기와 모서리가 달라 한 화면 안에서 튄다 (`CLAUDE.md`).
-class _PlayTrianglePainter extends CustomPainter {
-  const _PlayTrianglePainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = Path()
-      ..moveTo(0, 0)
-      ..lineTo(size.width, size.height / 2)
-      ..lineTo(0, size.height)
-      ..close();
-
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.fill
-        // 꼭짓점을 둥글려 재생 버튼답게 만든다. 날카로우면 경고 표시로 읽힌다.
-        ..strokeJoin = StrokeJoin.round,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_PlayTrianglePainter old) => old.color != color;
 }

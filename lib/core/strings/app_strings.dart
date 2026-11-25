@@ -109,33 +109,9 @@ abstract final class AppStrings {
 
   /// 4장 — 기록카드와 AI 음악.
   ///
-  /// ⚠️ **둘 다 아직 없는 기능이다.** 그래서 이 장에만 [onboardingComingSoon]
-  /// 배지가 붙는다. 배지를 떼는 것은 두 기능이 실제로 들어온 뒤다.
-  ///
   /// 곡은 내 기록·회고·사진으로 만든다. 함께 달린 사람의 기록은 재료가 아니다.
   static const onboardingCard4Title = '달린 날이\n사진과 음악으로 남아요';
   static const onboardingCard4Body = '기록카드에 사진과 회고를 남기면\n그날의 기록으로 연주곡을 만들어 줘요';
-
-  /// 아직 만들지 않은 기능을 소개하는 장에 붙는 배지.
-  ///
-  /// 온보딩은 설치 직후 첫 화면이다. 없는 것을 있는 것처럼 말하면 바로 들통난다.
-  static const onboardingComingSoon = '런칭 준비 중';
-
-  // ── 4장 그림 속 예시 값 ──────────────────────────────────────
-  //
-  // ⚠️ **사용자의 기록이 아니라 그림이다.** 기록카드 화면이 아직 없어 온보딩이
-  // 직접 그리고 있고, 그 안의 숫자와 문장은 전부 예시다. 화면이 생기면 이
-  // 문자열들은 지운다 — 남겨 두면 언젠가 진짜 값으로 오해받는다.
-
-  static const onboardingSampleDistance = '5.02';
-  static const onboardingSampleUnit = 'km';
-  static const onboardingSampleDuration = '28:14';
-  static const onboardingSampleNote = '비 온 뒤라 공기가 좋았다.';
-  static const onboardingSampleSong = '그날의 곡';
-
-  /// BPM은 평균 페이스로 정해진다 — 위 예시 기록(5'37"/km)이면 170이다.
-  /// 곡 길이는 회고만 남겼을 때의 기본 곡이다.
-  static const onboardingSampleSongMeta = '170 BPM · 30초';
 
   // ── 약관 동의 (S03) ──────────────────────────────────────────
   //
