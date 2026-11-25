@@ -27,6 +27,57 @@ import 'record_card_fixtures.dart';
 
 /// 저장 — 자르고, 썸네일을 만들고, 카드를 만든다 (설계 6-3 · 6-4).
 void main() {
+  group('올릴 파일', () {
+    test('크롭본과 썸네일이 각자 크기와 형식을 들고 간다', () async {
+      final world = _World();
+
+      await world.save(photos: 1);
+
+      final photo = world.repository.lastCreated!.photos.single;
+      expect(photo.file.path, _Cropper.croppedPath);
+      expect(photo.file.sizeBytes, _Cropper.croppedBytes);
+      expect(photo.thumbnail.path, _Thumbnails.thumbPath);
+      expect(photo.thumbnail.sizeBytes, _Thumbnails.thumbBytes);
+      expect(photo.thumbnail.mimeType, 'image/jpeg');
+    });
+
+    test('⚠️ 썸네일을 못 만들면 크롭본을 썸네일로 쓴다', () async {
+      // 9-1 이 thumbnailFileSizeBytes 를 요구한다 — 빼고 보낼 길이 없다.
+      final world = _World(thumbnails: _Thumbnails.failing());
+
+      await world.save(photos: 1);
+
+      final photo = world.repository.lastCreated!.photos.single;
+      expect(photo.thumbnail.path, photo.file.path);
+    });
+
+    test('⚠️ 크롭본이 1MB를 넘는데 썸네일이 없으면 저장하지 않는다', () async {
+      // 썸네일 상한이 1MB 다. 넘겨 보내면 서버가 거절하는데, 그때는 이미
+      // S3 에 절반이 올라가 있다.
+      final world = _World(
+        cropper: _Cropper.big(),
+        thumbnails: _Thumbnails.failing(),
+      );
+
+      final card = await world.save(photos: 1);
+
+      expect(card, isNull);
+      expect(world.state, isA<CardSaveFailed>());
+    });
+
+    test('⚠️ 파일 이름에 경로 구분자가 들어가지 않는다', () async {
+      final world = _World();
+
+      await world.save(photos: 1);
+
+      final name = world.repository.lastCreated!.photos.single.file.path
+          .split('/')
+          .last;
+      expect(name, isNotEmpty);
+      expect(name.length, lessThanOrEqualTo(100));
+    });
+  });
+
   group('자르기', () {
     test('⚠️ 사진마다 9:16으로 자른다', () async {
       // 설계 6-3: "서버에 올리는 원본은 크롭 결과다." 비율이 틀리면 AI가 보는
@@ -133,16 +184,17 @@ void main() {
       expect(CardThumbnailMaker.shortEdge, 180);
     });
 
-    test('⚠️ 못 만들어도 카드는 산다', () async {
-      // 썸네일이 없으면 달력이 원본을 쓴다 — 느리지만 보인다. 사진 한 장
-      // 때문에 카드가 아예 안 만들어지면 그게 더 나쁘다.
+    test('⚠️ 못 만들어도 카드는 산다 — 크롭본이 그 자리에 간다', () async {
+      // 9-1 이 thumbnailFileSizeBytes 를 요구해 빼고 보낼 길이 없다. 큰
+      // 그림이라도 보내는 쪽이, 사진 한 장 때문에 카드가 아예 안 만들어지는
+      // 것보다 낫다.
       final world = _World(thumbnails: _Thumbnails.failing());
 
       final card = await world.save(photos: 2);
 
       expect(card, isNotNull);
       expect(card!.photos, hasLength(2));
-      expect(card.photos.first.thumbnailUrl, isNull);
+      expect(card.photos.first.thumbnailUrl, card.photos.first.url);
     });
   });
 
@@ -341,9 +393,10 @@ void main() {
       final sent = world.repository.lastEdit!.photos;
       expect(sent, hasLength(2));
       expect(sent.first.savedId, 'img-70');
-      expect(sent.first.path, isNull);
+      expect(sent.first.file, isNull);
       expect(sent.last.savedId, isNull);
-      expect(sent.last.path, isNotNull);
+      expect(sent.last.file, isNotNull);
+      expect(sent.last.thumbnail, isNotNull);
     });
 
     // ⚠️ Review Focus 5
@@ -528,9 +581,12 @@ class _World {
 /// 자르지 않고 받은 값만 적는다. 진짜는 `dart:ui`와 플랫폼 플러그인을 써서
 /// 테스트 환경에 없다.
 class _Cropper implements ImageCropper {
-  _Cropper._({this.failure, this.failAt});
+  _Cropper._({this.failure, this.failAt, this.bytes = croppedBytes});
 
   factory _Cropper() => _Cropper._();
+
+  /// 1MB를 넘는 크롭본.
+  factory _Cropper.big() => _Cropper._(bytes: bigBytes);
 
   /// [index]번째 장부터 엎어진다. 그 앞의 것은 이미 잘려 있다.
   factory _Cropper.failsAt(int index) =>
@@ -543,10 +599,18 @@ class _Cropper implements ImageCropper {
 
   static const croppedPath = '/tmp/cropped.jpg';
 
+  /// 자른 뒤의 바이트. 9-1 요청에 그대로 들어간다.
+  static const croppedBytes = 512;
+
+  /// 썸네일 상한(1MB)을 넘는 크롭본. 썸네일이 없을 때 쓸 수 없다.
+  static const bigBytes = 1024 * 1024 + 1;
+
   final ProfileImageFailure? failure;
 
   /// `null`이면 언제나 [failure]대로다.
   final int? failAt;
+
+  final int bytes;
 
   final calls = <({double aspectRatio, double alignX, double alignY})>[];
   final discarded = <String>[];
@@ -567,7 +631,7 @@ class _Cropper implements ImageCropper {
     // 장마다 다른 경로여야 치운 것을 셀 수 있다.
     return PickedImage.validated(
       path: index == 0 ? croppedPath : '/tmp/cropped_$index.jpg',
-      sizeBytes: 512,
+      sizeBytes: bytes,
     );
   }
 
@@ -591,13 +655,18 @@ class _Thumbnails implements CardThumbnailMaker {
 
   static const thumbPath = '/tmp/thumb.jpg';
 
+  /// 썸네일 바이트. 9-1의 `thumbnailFileSizeBytes`로 간다.
+  static const thumbBytes = 64;
+
   final String? gives;
   final bool throws;
 
   @override
-  Future<String?> make(String croppedPath) async {
+  Future<PickedImage?> make(String croppedPath) async {
     if (throws) throw StateError('썸네일 플러그인이 터졌다');
-    return gives;
+    final path = gives;
+    if (path == null) return null;
+    return PickedImage.validated(path: path, sizeBytes: thumbBytes);
   }
 }
 
@@ -621,6 +690,9 @@ class _Repository implements RecordCardRepository {
   RecordCardFailure? failWith;
 
   var creates = 0;
+
+  /// 마지막으로 받은 카드. 무엇을 실어 보냈는지 본다.
+  NewRecordCard? lastCreated;
 
   @override
   Future<List<ComposableRecord>> runsInRange({
@@ -653,6 +725,7 @@ class _Repository implements RecordCardRepository {
   @override
   Future<RecordCard> create(NewRecordCard card) async {
     creates++;
+    lastCreated = card;
     if (delay > Duration.zero) await Future<void>.delayed(delay);
     final failure = failWith;
     if (failure != null) throw RecordCardException(failure);
@@ -677,8 +750,8 @@ RecordCard _built(NewRecordCard card, {required String id}) => RecordCard(
     for (var i = 0; i < card.photos.length; i++)
       RecordCardPhoto(
         id: '$id-img$i',
-        url: card.photos[i].path,
-        thumbnailUrl: card.photos[i].thumbnailPath,
+        url: card.photos[i].file.path,
+        thumbnailUrl: card.photos[i].thumbnail.path,
         caption: card.photos[i].caption,
       ),
   ],
@@ -701,7 +774,7 @@ RecordCard _edited(EditRecordCard card) => RecordCard(
     for (var i = 0; i < card.photos.length; i++)
       RecordCardPhoto(
         id: 'img-${card.photos[i].savedId ?? 9000 + i}',
-        url: card.photos[i].path ?? 'https://x/$i.jpg',
+        url: card.photos[i].file?.path ?? 'https://x/$i.jpg',
         caption: card.photos[i].caption,
       ),
   ],

@@ -441,6 +441,22 @@ void main() {
     );
   });
 
+  testWidgets('⚠️ 이모지가 많아도 서버가 세는 길이에서 멈춘다', (tester) async {
+    // 서버는 String.length(UTF-16)로 센다. grapheme 으로 막으면 포매터는
+    // 통과시키고 서버가 400 을 준다 — 쓴 글을 거기서 잃는다.
+    await _pump(tester);
+    await _pickRecord(tester, _record(id: 11));
+    await _reach(tester, find.byType(AppInputV2));
+    await tester.enterText(find.byType(AppInputV2), '🏃' * 600);
+    await tester.pumpAndSettle();
+
+    final text = tester
+        .widget<TextField>(find.byType(TextField))
+        .controller!
+        .text;
+    expect(text.length, lessThanOrEqualTo(CardDraft.reviewMaxLength));
+  });
+
   testWidgets('⚠️ 그날 기록이 없으면 한 줄로 알린다 — 날짜는 그대로 바꿀 수 있다', (tester) async {
     // 달력에서는 여기 닿지 않는다(안 뛴 날이 안 눌린다). 탭 머리의 쓰기로
     // 들어왔는데 오늘 안 뛴 경우와, 날짜 휠로 옮긴 경우에 뜬다.

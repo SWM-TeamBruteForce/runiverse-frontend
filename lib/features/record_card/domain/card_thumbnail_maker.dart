@@ -1,3 +1,5 @@
+import 'package:runiverse/features/profile/domain/picked_image.dart';
+
 /// 자른 9:16 한 장에서 **작은 사본**을 만든다.
 ///
 /// ## 왜 앱이 만드나
@@ -8,17 +10,22 @@
 /// — 서버가 Lambda 같은 이미지 파이프라인을 세우지 않아도 된다
 /// (`docs/notes/2026-11-16-record-card-backend-questions.md` 4번).
 abstract interface class CardThumbnailMaker {
+  /// 썸네일 상한. 서버가 정한 값이다(연동 가이드 3절).
+  static const maxBytes = 1024 * 1024;
+
   /// 긴 변 길이. 9:16이라 **긴 변은 세로**다.
   static const longEdge = 320;
 
   /// 짧은 변. `320 × 9 / 16`이다.
   static const shortEdge = 180;
 
-  /// [croppedPath]에서 썸네일을 만들고 그 경로를 준다.
+  /// [croppedPath]에서 썸네일을 만든다. **크기와 형식을 함께 준다** —
+  /// 9-1이 `thumbnailFileSizeBytes`를 요구하고(연동 가이드 3절), 경로만
+  /// 주면 화면 쪽이 `dart:io`로 파일을 재야 한다.
   ///
   /// ## ⚠️ 실패하면 던지지 않고 `null`이다
   ///
-  /// 썸네일이 없으면 달력이 원본을 쓴다 — 느리지만 **보인다.** 여기서 던지면
-  /// 사진 한 장 때문에 카드가 아예 안 만들어진다.
-  Future<String?> make(String croppedPath);
+  /// 그때는 저장이 **크롭본을 썸네일 자리에 넣는다**(1MB 이하일 때). 여기서
+  /// 던지면 사진 한 장 때문에 카드가 아예 안 만들어진다.
+  Future<PickedImage?> make(String croppedPath);
 }

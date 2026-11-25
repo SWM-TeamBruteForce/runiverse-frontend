@@ -1970,6 +1970,12 @@ abstract final class AppStrings {
 
   static const recordCardPublishSaveFailed = '저장하지 못했어요';
 
+  /// 그 러닝에 이미 카드가 있다. **다시 눌러도 같은 답이라** 왜인지 말한다.
+  static const recordCardSaveAlreadyExists = '이 러닝에는 이미 기록카드가 있어요';
+
+  /// 들고 있는 카드가 낡았다 — 다른 곳에서 먼저 고쳤거나 사진이 바뀌었다.
+  static const recordCardSaveChanged = '다른 곳에서 먼저 고쳤어요. 다시 열어 주세요';
+
   // ── 프로필 유도 바텀시트 ─────────────────────────────────────
   //
   // ⚠️ **닫히지 않는다.** 프로필 없이는 매칭도 기록도 돌아가지 않아서

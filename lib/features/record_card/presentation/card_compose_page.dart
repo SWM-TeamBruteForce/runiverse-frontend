@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -21,6 +20,7 @@ import 'package:runiverse/features/record_card/domain/card_draft.dart';
 import 'package:runiverse/features/record_card/domain/composable_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
+import 'package:runiverse/features/record_card/domain/utf16_length_formatter.dart';
 import 'package:runiverse/features/record_card/domain/route_art.dart';
 import 'package:runiverse/features/record_card/presentation/activity_label.dart';
 import 'package:runiverse/features/profile/domain/picked_image.dart';
@@ -357,8 +357,11 @@ class _CardComposePageState extends ConsumerState<CardComposePage> {
           ),
           // ⚠️ 칸에서 막고 초안에서 한 번 더 자른다. 통째로 담으면
           // 저장에서 거절당하고 쓴 글을 잃는다.
-          inputFormatters: [
-            LengthLimitingTextInputFormatter(CardDraft.reviewMaxLength),
+          //
+          // ⚠️ **UTF-16으로 센다.** 기본 포매터는 grapheme으로 세어, 이모지가
+          // 많으면 칸은 통과시키고 서버가 `400`을 준다.
+          inputFormatters: const [
+            Utf16LengthFormatter(CardDraft.reviewMaxLength),
           ],
           onChanged: _draft.setReview,
         ),

@@ -90,8 +90,8 @@ class CardSaveController extends Notifier<CardSaveState> {
           <
             ({
               String? savedId,
-              String? path,
-              String? thumbnailPath,
+              PickedImage? file,
+              PickedImage? thumbnail,
               String? caption,
             })
           >[];
@@ -102,8 +102,8 @@ class CardSaveController extends Notifier<CardSaveState> {
           case SavedPhoto(:final id):
             photos.add((
               savedId: id,
-              path: null,
-              thumbnailPath: null,
+              file: null,
+              thumbnail: null,
               caption: caption,
             ));
           case PickedPhoto(:final image, :final alignX, :final alignY):
@@ -116,8 +116,8 @@ class CardSaveController extends Notifier<CardSaveState> {
             cropped.add(one);
             photos.add((
               savedId: null,
-              path: one.path,
-              thumbnailPath: await _thumbnail(one.path),
+              file: one,
+              thumbnail: await _thumbnailFor(one),
               caption: caption,
             ));
         }
@@ -138,8 +138,8 @@ class CardSaveController extends Notifier<CardSaveState> {
                 photos: [
                   for (final photo in photos)
                     NewCardPhoto(
-                      path: photo.path!,
-                      thumbnailPath: photo.thumbnailPath,
+                      file: photo.file!,
+                      thumbnail: photo.thumbnail!,
                       caption: photo.caption,
                     ),
                 ],
@@ -162,8 +162,8 @@ class CardSaveController extends Notifier<CardSaveState> {
                       )
                     else
                       EditCardPhoto.added(
-                        path: photo.path!,
-                        thumbnailPath: photo.thumbnailPath,
+                        file: photo.file!,
+                        thumbnail: photo.thumbnail!,
                         caption: photo.caption,
                       ),
                 ],
@@ -225,13 +225,28 @@ class CardSaveController extends Notifier<CardSaveState> {
     }
   }
 
-  /// 썸네일. **못 만들어도 저장을 멈추지 않는다.**
-  Future<String?> _thumbnail(String croppedPath) async {
+  /// 올릴 썸네일 한 장.
+  ///
+  /// ## ⚠️ 없이는 보낼 수 없다
+  ///
+  /// 9-1이 `thumbnailFileSizeBytes`를 요구한다(연동 가이드 3절). 못 만들면
+  /// **크롭본을 그 자리에 넣는다** — 크지만 보이는 쪽이 낫다.
+  ///
+  /// ⚠️ **크롭본이 1MB를 넘으면 그것도 못 쓴다.** 서버가 썸네일을 그 선에서
+  /// 자른다. 그대로 보내면 **S3에 절반을 올린 뒤** 확정에서 거절당하므로,
+  /// 여기서 멈춰 세운다.
+  Future<PickedImage> _thumbnailFor(PickedImage cropped) async {
     try {
-      return await ref.read(cardThumbnailMakerProvider).make(croppedPath);
+      final made = await ref
+          .read(cardThumbnailMakerProvider)
+          .make(cropped.path);
+      if (made != null) return made;
     } on Object {
-      // 약속은 `null`인데 던지는 구현이 있을 수 있다. 달력이 원본을 쓴다.
-      return null;
+      // 약속은 `null`인데 던지는 구현이 있을 수 있다.
     }
+    if (cropped.sizeBytes > CardThumbnailMaker.maxBytes) {
+      throw const RecordCardException(RecordCardFailure.invalidRequest);
+    }
+    return cropped;
   }
 }

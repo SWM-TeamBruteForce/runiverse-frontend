@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/record_card/domain/card_thumbnail_maker.dart';
 
 /// `flutter_image_compress`로 줄이는 [CardThumbnailMaker].
@@ -19,7 +20,7 @@ class CompressedCardThumbnailMaker implements CardThumbnailMaker {
   const CompressedCardThumbnailMaker();
 
   @override
-  Future<String?> make(String croppedPath) async {
+  Future<PickedImage?> make(String croppedPath) async {
     try {
       final bytes = await FlutterImageCompress.compressWithFile(
         croppedPath,
@@ -39,7 +40,8 @@ class CompressedCardThumbnailMaker implements CardThumbnailMaker {
           '${DateTime.now().microsecondsSinceEpoch}';
       final file = File('${Directory.systemTemp.path}/$name.jpg');
       await file.writeAsBytes(bytes, flush: true);
-      return file.path;
+      // 바이트 수를 여기서 준다 — 방금 쓴 길이라 다시 잴 일이 없다.
+      return PickedImage.validated(path: file.path, sizeBytes: bytes.length);
     } on Object {
       return null;
     }

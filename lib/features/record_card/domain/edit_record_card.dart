@@ -1,3 +1,4 @@
+import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
 
@@ -8,13 +9,13 @@ import 'package:runiverse/features/record_card/domain/record_card_visibility.dar
 class EditCardPhoto {
   /// 이미 올라가 있던 사진을 그대로 남긴다.
   const EditCardPhoto.saved({required this.savedId, this.caption})
-    : path = null,
-      thumbnailPath = null;
+    : file = null,
+      thumbnail = null;
 
   /// 새로 올릴 사진. 9:16으로 **이미 잘린** 파일이다.
   const EditCardPhoto.added({
-    required this.path,
-    required this.thumbnailPath,
+    required this.file,
+    required this.thumbnail,
     this.caption,
   }) : savedId = null;
 
@@ -22,10 +23,11 @@ class EditCardPhoto {
   final String? savedId;
 
   /// 올릴 파일. 이미 있던 사진이면 `null`이다.
-  final String? path;
+  final PickedImage? file;
 
-  /// 긴 변 320px. 못 만들었거나 이미 있던 사진이면 `null`이다.
-  final String? thumbnailPath;
+  /// 긴 변 320px의 작은 사본. 이미 있던 사진이면 `null`이고, **새 사진이면
+  /// 반드시 있다** — 9-1·9-3이 크기를 요구한다.
+  final PickedImage? thumbnail;
 
   /// 안 썼으면 `null`이다 — 서버의 `caption`도 nullable이다.
   final String? caption;

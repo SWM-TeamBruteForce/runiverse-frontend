@@ -1,3 +1,4 @@
+import 'package:runiverse/features/profile/domain/picked_image.dart';
 import 'package:runiverse/features/record/domain/run_record.dart';
 import 'package:runiverse/features/record_card/domain/record_card_activity.dart';
 import 'package:runiverse/features/record_card/domain/record_card_visibility.dart';
@@ -12,16 +13,22 @@ import 'package:runiverse/features/record_card/domain/route_art.dart';
 /// 값에 닿을 때는 이미 끝나 있다.
 class NewCardPhoto {
   const NewCardPhoto({
-    required this.path,
-    required this.thumbnailPath,
+    required this.file,
+    required this.thumbnail,
     this.caption,
   });
 
   /// 9:16으로 자른 파일.
-  final String path;
+  ///
+  /// ⚠️ **크기와 형식을 함께 든다.** 둘 다 presigned URL의 서명에 들어가,
+  /// 발급 때 쓴 값과 올릴 때 보내는 헤더가 1바이트라도 다르면 `403`이다
+  /// ([PickedImage] 주석).
+  final PickedImage file;
 
-  /// 긴 변 320px. **못 만들었으면 `null`이다** — 썸네일이 없어도 카드는 산다.
-  final String? thumbnailPath;
+  /// 긴 변 320px의 작은 사본. **없을 수 없다** — 9-1이
+  /// `thumbnailFileSizeBytes`를 요구한다(연동 가이드 3절). 못 만들었으면
+  /// 저장이 [file]을 여기에 그대로 넣는다(`CardSaveController`).
+  final PickedImage thumbnail;
 
   /// 이 사진에 붙인 한마디. 안 썼으면 `null`이다.
   final String? caption;

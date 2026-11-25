@@ -182,6 +182,27 @@ void main() {
       expect(saved, isNotNull);
     });
 
+    testWidgets('⚠️ 이미 카드가 있으면 그렇게 말한다', (tester) async {
+      // 다시 눌러도 같은 답이다. "저장하지 못했어요"만 띄우면 몇 번이고
+      // 다시 누르게 된다 — 할 일은 수정으로 가는 것이다.
+      await _pump(tester, failWith: RecordCardFailure.alreadyExists);
+
+      await tester.tap(find.text(AppStrings.recordCardPublishSave));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.recordCardSaveAlreadyExists), findsOne);
+      expect(find.text(AppStrings.recordCardPublishSaveFailed), findsNothing);
+    });
+
+    testWidgets('⚠️ 먼저 고쳐졌으면 다시 읽으라고 한다', (tester) async {
+      await _pump(tester, failWith: RecordCardFailure.changed);
+
+      await tester.tap(find.text(AppStrings.recordCardPublishSave));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.recordCardSaveChanged), findsOne);
+    });
+
     testWidgets('⚠️ 실패하면 화면에 머물고 왜인지 말한다', (tester) async {
       RecordCard? saved;
       final container = await _pump(
