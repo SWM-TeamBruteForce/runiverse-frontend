@@ -39,9 +39,13 @@ class RecordCardPage extends ConsumerWidget {
       backgroundColor: colors.bgBase,
       appBar: AppBar(
         backgroundColor: colors.bgBase,
+        // 다른 탭(기록)과 같은 머리: 왼쪽 정렬 heading05. iOS 기본(가운데 정렬)과
+        // 스크롤될 때 바탕을 칠하는 것을 끈다.
+        centerTitle: false,
+        scrolledUnderElevation: 0,
         title: Text(
           AppStrings.recordCardTabTitle,
-          style: AppTypographyV2.body04.copyWith(color: colors.textPrimary),
+          style: AppTypographyV2.heading05.copyWith(color: colors.textStrong),
         ),
         actions: [
           // ⚠️ **라벨 없는 아이콘이라 읽을 말을 붙인다**(CLAUDE.md). 여기서는
